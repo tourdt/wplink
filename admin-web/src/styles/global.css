@@ -187,3 +187,41 @@ input {
 .login-button {
   width: 100%;
 }
+
+.field-tag {
+  margin-right: 6px;
+}
+
+.drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.json-alert {
+  margin-top: 8px;
+}
+
+.table-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 80px;
+  color: #697586;
+}
+
+.table-state-error {
+  margin-bottom: 12px;
+  border: 1px solid #f6c2c2;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #b42318;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}

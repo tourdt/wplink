@@ -1,0 +1,59 @@
+syntax = "v1"
+
+type WechatLoginReq {
+	Code            string `json:"code"`
+	DefaultCityCode string `json:"defaultCityCode,optional"`
+}
+
+type AuthUserInfo {
+	Id              string   `json:"id"`
+	Nickname        string   `json:"nickname,optional"`
+	AvatarUrl       string   `json:"avatarUrl,optional"`
+	DefaultCityCode string   `json:"defaultCityCode,optional"`
+	Roles           []string `json:"roles"`
+}
+
+type WechatLoginResp {
+	Token string       `json:"token"`
+	User  AuthUserInfo `json:"user"`
+}
+
+type ManagedMerchantInfo {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+	Role string `json:"role"`
+}
+
+type MeResp {
+	Id               string                `json:"id"`
+	Phone            string                `json:"phone,optional"`
+	Nickname         string                `json:"nickname,optional"`
+	DefaultCityCode  string                `json:"defaultCityCode,optional"`
+	Roles            []string              `json:"roles"`
+	ManagedMerchants []ManagedMerchantInfo `json:"managedMerchants"`
+}
+
+type BindPhoneReq {
+	Phone   string `json:"phone"`
+	SmsCode string `json:"smsCode"`
+}
+
+type BindPhoneResp {
+	Id    string `json:"id"`
+	Phone string `json:"phone"`
+}
+
+@server(
+	prefix: /api/v1
+	group: auth
+)
+service wplink-api {
+	@handler WechatLogin
+	post /auth/wechat-login (WechatLoginReq) returns (WechatLoginResp)
+
+	@handler GetMe
+	get /me returns (MeResp)
+
+	@handler BindPhone
+	post /me/phone (BindPhoneReq) returns (BindPhoneResp)
+}

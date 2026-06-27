@@ -1,0 +1,39 @@
+syntax = "v1"
+
+type CityStationInfo {
+	Id              string `json:"id"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
+	PrimaryCategory string `json:"primaryCategory,optional"`
+	Status          string `json:"status"`
+}
+
+type ListCityStationsResp {
+	Items []CityStationInfo `json:"items"`
+}
+
+type ResourceTypeConfigInfo {
+	Id               string                 `json:"id"`
+	TypeCode         string                 `json:"typeCode"`
+	TypeName         string                 `json:"typeName"`
+	DefaultValidDays int64                  `json:"defaultValidDays"`
+	RequiredFields   []string               `json:"requiredFields"`
+	FilterFields     []string               `json:"filterFields"`
+	DisplayTemplate  map[string]interface{} `json:"displayTemplate"`
+}
+
+type ListResourceTypesResp {
+	Items []ResourceTypeConfigInfo `json:"items"`
+}
+
+@server(
+	prefix: /api/v1
+	group: city
+)
+service wplink-api {
+	@handler ListCityStations
+	get /city-stations returns (ListCityStationsResp)
+
+	@handler ListCityResourceTypes
+	get /city-stations/:cityCode/resource-types returns (ListResourceTypesResp)
+}

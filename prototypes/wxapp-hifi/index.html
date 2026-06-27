@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>服链通小程序高保真原型</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="prototype-shell">
+      <aside class="flow-panel">
+        <div class="brand-block">
+          <span class="brand-mark">服</span>
+          <div>
+            <h1>服链通</h1>
+            <p>织里站小程序原型</p>
+          </div>
+        </div>
+
+        <section class="flow-card">
+          <h2>验证流程</h2>
+          <button class="flow-step active" data-screen="home">
+            <span>01</span>
+            <strong>首页找资源</strong>
+            <small>找货、清库存、找厂</small>
+          </button>
+          <button class="flow-step" data-screen="search">
+            <span>02</span>
+            <strong>搜索筛选</strong>
+            <small>关键词和行业条件</small>
+          </button>
+          <button class="flow-step" data-screen="resource">
+            <span>03</span>
+            <strong>资源详情</strong>
+            <small>判断真实性并联系</small>
+          </button>
+          <button class="flow-step" data-screen="merchant">
+            <span>04</span>
+            <strong>商家主页</strong>
+            <small>认证、发布记录、信用</small>
+          </button>
+          <button class="flow-step" data-screen="publish">
+            <span>05</span>
+            <strong>商家发布</strong>
+            <small>发布额度和待审核</small>
+          </button>
+          <button class="flow-step" data-screen="messages">
+            <span>06</span>
+            <strong>消息和效果</strong>
+            <small>审核、撮合、数据反馈</small>
+          </button>
+          <button class="flow-step" data-screen="my-resources">
+            <span>07</span>
+            <strong>我的发布</strong>
+            <small>状态、效果、刷新置顶</small>
+          </button>
+          <button class="flow-step" data-screen="topic">
+            <span>08</span>
+            <strong>Banner 专题</strong>
+            <small>配置专题，跳推荐列表</small>
+          </button>
+          <button class="flow-step" data-screen="webview">
+            <span>09</span>
+            <strong>活动网页</strong>
+            <small>封面文案，URL 跳转</small>
+          </button>
+        </section>
+
+        <section class="note-card">
+          <h2>首版重点</h2>
+          <p>首页优先搜索和场景入口，推广位只展示平台内资源、榜单和认证商家，不做泛广告。</p>
+        </section>
+      </aside>
+
+      <section class="phone-stage">
+        <div class="phone">
+          <div class="phone-top">
+            <span>9:41</span>
+            <div class="signal"><i></i><i></i><i></i></div>
+          </div>
+          <header class="mini-nav">
+            <button class="icon-button" data-back aria-label="返回">‹</button>
+            <strong id="screen-title">服链通·织里站</strong>
+            <div class="wechat-capsule">
+              <span></span>
+              <b></b>
+            </div>
+          </header>
+
+          <div class="phone-screen">
+            <section class="screen active" id="home-screen" data-title="服链通·织里站">
+              <section class="banner-zone" aria-label="首页 Banner">
+                <div class="banner-track">
+                  <button class="home-hero banner-card" data-screen="topic" data-banner="topic">
+                    <div>
+                      <small>本周重点 · 织里童装产业带</small>
+                      <h2>急清库存专题</h2>
+                      <p>32 条平台核实库存，整包可看样</p>
+                    </div>
+                    <span class="city-pill">查看专题</span>
+                  </button>
+                  <button class="home-hero banner-card activity" data-screen="webview" data-banner="activity">
+                    <div>
+                      <small>活动推广 · 可配置 URL</small>
+                      <h2>夏款供需对接会</h2>
+                      <p>配置封面、文案和网页链接</p>
+                    </div>
+                    <span class="city-pill">打开活动</span>
+                  </button>
+                  <button class="home-hero banner-card factory" data-screen="merchant" data-banner="merchant">
+                    <div>
+                      <small>平台推荐 · 认证工厂</small>
+                      <h2>本周空档工厂</h2>
+                      <p>4 条针织生产线，适合小单快返</p>
+                    </div>
+                    <span class="city-pill">看主页</span>
+                  </button>
+                </div>
+                <div class="banner-dots" aria-hidden="true">
+                  <span class="active"></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </section>
+
+              <button class="search-entry" data-screen="search">
+                <span>搜索童装库存、工厂、货源</span>
+                <b>搜索</b>
+              </button>
+
+              <button class="activity-banner" data-screen="webview">
+                <div class="activity-cover textile-c">
+                  <span>活动</span>
+                </div>
+                <div>
+                  <span class="tag top">活动推广</span>
+                  <h3>织里童装夏款供需对接会</h3>
+                  <p>配置封面、标题、文案和 URL，点击打开活动网页。</p>
+                </div>
+                <strong>打开</strong>
+              </button>
+
+              <section class="promo-hero" data-screen="search">
+                <div>
+                  <span class="promo-label">本周重点</span>
+                  <h3>急清库存榜</h3>
+                  <p>32 条平台核实库存，优先展示整包可看样资源。</p>
+                </div>
+                <strong>去看看</strong>
+              </section>
+
+              <div class="scene-grid">
+                <button class="scene-card green" data-screen="search">
+                  <span>找现货</span>
+                  <strong>爆款童装</strong>
+                </button>
+                <button class="scene-card coral" data-screen="search-empty">
+                  <span>清库存</span>
+                  <strong>整包急清</strong>
+                </button>
+                <button class="scene-card blue" data-screen="search">
+                  <span>找工厂</span>
+                  <strong>小单快返</strong>
+                </button>
+                <button class="scene-card amber" data-screen="publish">
+                  <span>商家发布</span>
+                  <strong>资源上架</strong>
+                </button>
+              </div>
+
+              <div class="section-head">
+                <h3>急清库存</h3>
+                <button data-screen="search">更多</button>
+              </div>
+
+              <article class="promo-card" data-screen="merchant">
+                <div>
+                  <span class="tag top">平台推荐</span>
+                  <h4>本周空档工厂：4 条针织生产线</h4>
+                  <p>认证工厂 · 适合小单快返 · 运营已核实</p>
+                </div>
+                <button>查看</button>
+              </article>
+
+              <article class="resource-card" data-screen="resource">
+                <div class="thumb textile-a">
+                  <span>春款卫衣</span>
+                </div>
+                <div class="card-body">
+                  <div class="tag-row">
+                    <span class="tag verified">已核实</span>
+                    <span class="tag">库存</span>
+                  </div>
+                  <h4>女童春款卫衣 90-140 整包清</h4>
+                  <p>3200 件 · 支持看样 · 可直播供货</p>
+                  <div class="meta-line">
+                    <b>18-26 元/件</b>
+                    <span>2 小时前刷新</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="resource-card" data-screen="merchant">
+                <div class="thumb textile-b">
+                  <span>工厂产能</span>
+                </div>
+                <div class="card-body">
+                  <div class="tag-row">
+                    <span class="tag verified">认证工厂</span>
+                    <span class="tag">可接单</span>
+                  </div>
+                  <h4>童装针织工厂，本周空档 4 条线</h4>
+                  <p>承接卫衣、套装、小单快返</p>
+                  <div class="meta-line">
+                    <b>300 件起</b>
+                    <span>织里 · 东区</span>
+                  </div>
+                </div>
+              </article>
+            </section>
+
+            <section class="screen" id="search-screen" data-title="搜索资源">
+              <div class="search-bar">
+                <input value="90-140 童装库存" />
+                <button>搜索</button>
+              </div>
+              <div class="filter-row">
+                <button class="active">全部</button>
+                <button>库存</button>
+                <button>货源</button>
+                <button>工厂</button>
+                <button>认证</button>
+              </div>
+              <div class="quick-filter">
+                <span>热门：</span>
+                <button>夏款现货</button>
+                <button>小单快返</button>
+                <button>直播供货</button>
+              </div>
+
+              <div class="promotion-note">
+                <span>置顶资源</span>
+                <p>推广资源均需审核通过，置顶不改变真实性判断。</p>
+              </div>
+
+              <article class="resource-card large" data-screen="resource">
+                <div class="thumb textile-a">
+                  <span>实拍库存</span>
+                </div>
+                <div class="card-body">
+                  <div class="tag-row">
+                    <span class="tag verified">平台核实</span>
+                    <span class="tag top">置顶</span>
+                  </div>
+                  <h4>女童春款卫衣 90-140 整包清</h4>
+                  <p>尺码齐，3200 件，档口可看样，支持主播拿货。</p>
+                  <div class="spec-grid">
+                    <span>春款</span>
+                    <span>90-140</span>
+                    <span>整包优先</span>
+                  </div>
+                  <div class="meta-line">
+                    <b>18-26 元/件</b>
+                    <span>已有 21 次联系</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="resource-card large" data-screen="merchant">
+                <div class="thumb textile-b">
+                  <span>生产线</span>
+                </div>
+                <div class="card-body">
+                  <div class="tag-row">
+                    <span class="tag verified">认证工厂</span>
+                    <span class="tag">近期活跃</span>
+                  </div>
+                  <h4>童装针织工厂，本周空档 4 条线</h4>
+                  <p>擅长卫衣、套装、家居服，支持小单快返。</p>
+                  <div class="meta-line">
+                    <b>300 件起</b>
+                    <span>响应快</span>
+                  </div>
+                </div>
+              </article>
+            </section>
+
+            <section class="screen" id="topic-screen" data-title="急清库存专题">
+              <div class="topic-hero">
+                <span class="promo-label">Banner 专题</span>
+                <h2>急清库存榜</h2>
+                <p>运营配置专题列表，只展示已审核、未过期、平台内资源。</p>
+              </div>
+
+              <div class="topic-summary">
+                <span><b>32</b>核实库存</span>
+                <span><b>18</b>可看样</span>
+                <span><b>7</b>整包急清</span>
+              </div>
+
+              <div class="filter-row">
+                <button class="active">全部</button>
+                <button>整包清</button>
+                <button>可直播</button>
+                <button>90-140</button>
+                <button>平台核实</button>
+              </div>
+
+              <article class="resource-card large" data-screen="resource">
+                <div class="thumb textile-a">
+                  <span>专题置顶</span>
+                </div>
+                <div class="card-body">
+                  <div class="tag-row">
+                    <span class="tag verified">平台核实</span>
+                    <span class="tag top">专题推荐</span>
+                  </div>
+                  <h4>女童春款卫衣 90-140 整包清</h4>
+                  <p>3200 件 · 档口可看样 · 支持主播拿货</p>
+                  <div class="meta-line">
+                    <b>18-26 元/件</b>
+                    <span>已有 21 次联系</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="resource-card large" data-screen="merchant">
+                <div class="thumb textile-d">
+                  <span>库存货源</span>
+                </div>
+                <div class="card-body">
+                  <div class="tag-row">
+                    <span class="tag verified">认证商家</span>
+                    <span class="tag">可直播</span>
+                  </div>
+                  <h4>夏款短袖套装，现货 900 件</h4>
+                  <p>支持一件代发，适合直播间补货。</p>
+                  <div class="meta-line">
+                    <b>12-19 元/件</b>
+                    <span>织里 · 中区</span>
+                  </div>
+                </div>
+              </article>
+
+              <section class="topic-empty-guard">
+                <h3>没有找到想要的款？</h3>
+                <p>提交需求后，运营会按专题条件继续帮你匹配。</p>
+                <button data-screen="demand">提交找货需求</button>
+              </section>
+            </section>
+
+            <section class="screen" id="webview-screen" data-title="活动推广">
+              <div class="webview-bar">
+                <span>web-view</span>
+                <p>https://m.fulink.example/events/zhili-summer</p>
+              </div>
+              <article class="activity-page">
+                <div class="activity-page-cover textile-c">
+                  <span>活动封面图</span>
+                </div>
+                <div class="activity-page-body">
+                  <span class="tag top">城市站活动</span>
+                  <h2>织里童装夏款供需对接会</h2>
+                  <p>面向童装工厂、库存商、主播和批发商，集中对接夏款现货、空档工厂和直播货源。</p>
+                  <div class="activity-info">
+                    <span><b>时间</b>7 月 8 日 14:00</span>
+                    <span><b>地点</b>织里童装产业带</span>
+                    <span><b>对象</b>工厂 / 档口 / 主播</span>
+                  </div>
+                  <button class="primary-action full" data-toast="已打开网页内报名按钮">网页内报名</button>
+                  <button class="secondary-action full" data-screen="topic">查看相关资源</button>
+                </div>
+              </article>
+              <section class="webview-rule">
+                <h3>配置要求</h3>
+                <p>URL 必须属于已配置业务域名；活动页内容需和服装产业相关，并保留返回小程序路径。</p>
+              </section>
+            </section>
+
+            <section class="screen" id="search-empty-screen" data-title="搜索资源">
+              <div class="search-bar">
+                <input value="粉色防晒衣 80-130 现货" />
+                <button>搜索</button>
+              </div>
+              <div class="empty-state">
+                <div class="empty-visual"></div>
+                <h3>暂时没有匹配资源</h3>
+                <p>可以提交找货需求，平台运营会帮你匹配库存、货源或工厂。</p>
+                <button class="primary-action" data-screen="demand">提交找货需求</button>
+                <button class="secondary-action" data-screen="home">返回首页</button>
+              </div>
+            </section>
+
+            <section class="screen" id="resource-screen" data-title="资源详情">
+              <div class="detail-gallery">
+                <div class="gallery-main textile-a">
+                  <span>女童春款卫衣</span>
+                </div>
+                <div class="gallery-strip">
+                  <i class="textile-a"></i>
+                  <i class="textile-c"></i>
+                  <i class="textile-d"></i>
+                </div>
+              </div>
+
+              <section class="detail-panel">
+                <div class="tag-row">
+                  <span class="tag verified">平台核实</span>
+                  <span class="tag top">急清库存</span>
+                  <span class="tag">可看样</span>
+                </div>
+                <h2>女童春款卫衣 90-140 整包清</h2>
+                <p class="price">18-26 元/件</p>
+                <div class="spec-list">
+                  <span><b>数量</b>3200 件</span>
+                  <span><b>尺码</b>90-140</span>
+                  <span><b>季节</b>春款</span>
+                  <span><b>方式</b>整包优先</span>
+                </div>
+              </section>
+
+              <section class="merchant-mini" data-screen="merchant">
+                <div class="avatar">织</div>
+                <div>
+                  <h3>织里样板童装厂</h3>
+                  <p>认证库存商 · 近 30 天发布 12 条</p>
+                </div>
+                <span>›</span>
+              </section>
+
+              <section class="detail-panel">
+                <h3>资源说明</h3>
+                <p>实拍库存，码段齐，颜色以粉、米、浅蓝为主。支持档口看样，可对接直播拿货。</p>
+              </section>
+
+              <section class="related-panel">
+                <div class="section-head compact-head">
+                  <h3>同类推荐</h3>
+                  <span>平台内资源</span>
+                </div>
+                <article class="mini-resource" data-screen="merchant">
+                  <div class="thumb textile-d"><span>货源</span></div>
+                  <div>
+                    <h4>夏款短袖套装，现货 900 件</h4>
+                    <p>认证商家 · 可直播供货</p>
+                  </div>
+                </article>
+                <article class="mini-resource" data-screen="merchant">
+                  <div class="thumb textile-b"><span>工厂</span></div>
+                  <div>
+                    <h4>童装针织工厂，本周空档</h4>
+                    <p>小单快返 · 300 件起</p>
+                  </div>
+                </article>
+              </section>
+
+              <div class="sticky-actions">
+                <button class="plain">收藏</button>
+                <button class="plain" data-screen="merchant">主页</button>
+                <button class="primary-action compact" data-toast="已记录电话点击">电话联系</button>
+                <button class="primary-action compact" data-toast="微信号已复制">复制微信</button>
+              </div>
+            </section>
+
+            <section class="screen" id="merchant-screen" data-title="商家主页">
+              <div class="merchant-hero">
+                <div class="avatar big">织</div>
+                <div>
+                  <h2>织里样板童装厂</h2>
+                  <p>童装库存 · 工厂直供 · 织里东区</p>
+                  <div class="tag-row">
+                    <span class="tag verified">已认证</span>
+                    <span class="tag">平台核实</span>
+                    <span class="tag">近期活跃</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="merchant-stats">
+                <span><b>12</b>当前资源</span>
+                <span><b>46</b>历史发布</span>
+                <span><b>21</b>近 7 天联系</span>
+              </div>
+
+              <section class="profile-benefit">
+                <span class="tag top">主页权益位</span>
+                <h3>优先展示认证、主营能力和近期活跃</h3>
+                <p>服务买家判断，不做空泛品牌包装。</p>
+              </section>
+
+              <section class="detail-panel">
+                <h3>主营能力</h3>
+                <div class="spec-grid">
+                  <span>童装卫衣</span>
+                  <span>套装</span>
+                  <span>库存整包</span>
+                  <span>直播供货</span>
+                </div>
+              </section>
+
+              <div class="section-head">
+                <h3>正在发布</h3>
+                <button data-screen="search">全部</button>
+              </div>
+              <article class="resource-card" data-screen="resource">
+                <div class="thumb textile-a"><span>库存</span></div>
+                <div class="card-body">
+                  <h4>女童春款卫衣 90-140 整包清</h4>
+                  <p>3200 件 · 18-26 元/件</p>
+                </div>
+              </article>
+              <article class="resource-card">
+                <div class="thumb textile-d"><span>货源</span></div>
+                <div class="card-body">
+                  <h4>夏款短袖套装，支持一件代发</h4>
+                  <p>现货 900 件 · 支持直播</p>
+                </div>
+              </article>
+            </section>
+
+            <section class="screen" id="publish-screen" data-title="发布资源">
+              <div class="quota-card">
+                <div>
+                  <span>认证商家权益</span>
+                  <h2>本月可发布 20 条</h2>
+                  <p>剩余 3 张置顶券，审核通过后可使用</p>
+                </div>
+                <button data-screen="mine">查看</button>
+              </div>
+
+              <div class="publish-types">
+                <button class="active">发布库存</button>
+                <button>发布货源</button>
+                <button>发布工厂产能</button>
+                <button>发布招聘</button>
+              </div>
+
+              <form class="publish-form">
+                <label>
+                  资源标题
+                  <input value="女童春款卫衣 90-140 整包清" />
+                </label>
+                <label>
+                  品类
+                  <input value="童装 / 卫衣" />
+                </label>
+                <div class="two-col">
+                  <label>
+                    数量
+                    <input value="3200 件" />
+                  </label>
+                  <label>
+                    价格
+                    <input value="18-26 元/件" />
+                  </label>
+                </div>
+                <label>
+                  说明
+                  <textarea>码段齐，支持看样，整包优先，可直播供货。</textarea>
+                </label>
+              </form>
+
+              <button class="primary-action full" data-screen="publish-success">提交审核</button>
+            </section>
+
+            <section class="screen" id="publish-success-screen" data-title="提交成功">
+              <div class="success-state">
+                <div class="success-icon">✓</div>
+                <h2>已提交审核</h2>
+                <p>审核通过后会进入搜索、首页分类和商家主页。</p>
+                <div class="effect-preview">
+                  <span>预计可获得</span>
+                  <strong>搜索曝光 · 商家主页展示 · 联系统计</strong>
+                </div>
+                <div class="effect-preview">
+                  <span>可选推广</span>
+                  <strong>使用置顶券后进入搜索结果置顶位 1 天</strong>
+                </div>
+                <button class="primary-action" data-screen="messages">查看消息</button>
+                <button class="secondary-action" data-screen="home">返回首页</button>
+              </div>
+            </section>
+
+            <section class="screen" id="demand-screen" data-title="提交需求">
+              <div class="demand-card">
+                <h2>找货需求</h2>
+                <p>平台会根据品类、尺码、数量、预算匹配商家。</p>
+              </div>
+              <form class="publish-form">
+                <label>
+                  需求标题
+                  <input value="找粉色防晒衣 80-130 现货" />
+                </label>
+                <label>
+                  数量要求
+                  <input value="500-1000 件" />
+                </label>
+                <label>
+                  预算
+                  <input value="20 元以内" />
+                </label>
+                <label>
+                  补充说明
+                  <textarea>需要现货，可直播，最好织里本地能看样。</textarea>
+                </label>
+              </form>
+              <button class="primary-action full" data-screen="demand-success">提交需求</button>
+            </section>
+
+            <section class="screen" id="demand-success-screen" data-title="提交成功">
+              <div class="success-state">
+                <div class="success-icon">✓</div>
+                <h2>需求已进入撮合</h2>
+                <p>有匹配资源后会通过消息中心通知你。</p>
+                <button class="primary-action" data-screen="messages">查看撮合进度</button>
+                <button class="secondary-action" data-screen="home">返回首页</button>
+              </div>
+            </section>
+
+            <section class="screen" id="messages-screen" data-title="消息">
+              <div class="message-tabs">
+                <button class="active">全部</button>
+                <button>审核</button>
+                <button>撮合</button>
+                <button>效果</button>
+              </div>
+
+              <article class="message-card unread">
+                <span class="dot"></span>
+                <div>
+                  <h3>资源审核通过</h3>
+                  <p>女童春款卫衣库存已发布，可在首页和搜索中展示。</p>
+                  <small>刚刚</small>
+                </div>
+              </article>
+              <article class="message-card">
+                <span class="dot green"></span>
+                <div>
+                  <h3>发布效果周报</h3>
+                  <p>近 7 天曝光 386 次，详情浏览 52 次，电话点击 9 次。</p>
+                  <small>今天 09:00</small>
+                </div>
+              </article>
+              <article class="message-card">
+                <span class="dot blue"></span>
+                <div>
+                  <h3>找到 3 个匹配资源</h3>
+                  <p>你的粉色防晒衣需求已有匹配库存，运营正在确认。</p>
+                  <small>昨天 18:20</small>
+                </div>
+              </article>
+
+              <section class="effect-card">
+                <h3>商家本周效果</h3>
+                <div class="merchant-stats compact-stats">
+                  <span><b>386</b>曝光</span>
+                  <span><b>52</b>浏览</span>
+                  <span><b>9</b>联系</span>
+                </div>
+                <p class="effect-tip">建议：联系率高的资源可刷新或使用置顶券延长曝光。</p>
+                <button data-screen="my-resources">查看我的资源</button>
+              </section>
+            </section>
+
+            <section class="screen" id="mine-screen" data-title="我的">
+              <div class="mine-head">
+                <div class="avatar big">李</div>
+                <div>
+                  <h2>李老板</h2>
+                  <p>织里样板童装厂 · 商家管理员</p>
+                </div>
+              </div>
+              <div class="merchant-stats">
+                <span><b>18</b>发布额度</span>
+                <span><b>3</b>置顶券</span>
+                <span><b>7</b>待刷新</span>
+              </div>
+              <section class="benefit-card">
+                <span class="tag top">权益提醒</span>
+                <h3>3 张置顶券本月可用</h3>
+                <p>建议用于急清库存或空档产能资源，展示为“置顶”。</p>
+                <button data-screen="publish">去发布资源</button>
+              </section>
+              <div class="mine-list">
+                <button data-screen="my-resources">我的发布 <span>›</span></button>
+                <button data-screen="publish">发布资源 <span>›</span></button>
+                <button data-screen="messages">消息中心 <span>›</span></button>
+                <button data-screen="merchant">商家主页 <span>›</span></button>
+                <button>认证资料 <span>›</span></button>
+              </div>
+            </section>
+
+            <section class="screen" id="my-resources-screen" data-title="我的发布">
+              <div class="resource-manager-head">
+                <div>
+                  <h2>我的发布</h2>
+                  <p>管理资源状态、效果数据和推广权益。</p>
+                </div>
+                <button data-screen="publish">发布</button>
+              </div>
+
+              <div class="status-tabs">
+                <button class="active">全部</button>
+                <button>待审核</button>
+                <button>已发布</button>
+                <button>即将过期</button>
+                <button>已过期</button>
+                <button>已成交</button>
+              </div>
+
+              <article class="manage-card published">
+                <div class="manage-card-head">
+                  <div>
+                    <span class="tag verified">已发布</span>
+                    <span class="tag top">可置顶</span>
+                  </div>
+                  <small>2 天后过期</small>
+                </div>
+                <h3>女童春款卫衣 90-140 整包清</h3>
+                <p>库存 · 3200 件 · 18-26 元/件</p>
+                <div class="effect-mini-grid">
+                  <span><b>386</b>曝光</span>
+                  <span><b>52</b>浏览</span>
+                  <span><b>9</b>联系</span>
+                  <span><b>3</b>收藏</span>
+                </div>
+                <div class="manage-actions">
+                  <button data-toast="已刷新，排序时间更新">刷新</button>
+                  <button data-toast="已使用 1 张置顶券">置顶</button>
+                  <button data-toast="已标记为成交">标记成交</button>
+                  <button data-screen="resource">详情</button>
+                </div>
+              </article>
+
+              <article class="manage-card reviewing">
+                <div class="manage-card-head">
+                  <div>
+                    <span class="tag">待审核</span>
+                  </div>
+                  <small>今天 10:12 提交</small>
+                </div>
+                <h3>承接童装针织小单快返，本周空档 4 条线</h3>
+                <p>工厂产能 · 300 件起 · 织里东区</p>
+                <div class="review-note">审核通过后可刷新、置顶和进入搜索结果。</div>
+                <div class="manage-actions">
+                  <button data-toast="待审核资源暂不可刷新">刷新</button>
+                  <button data-toast="审核通过后才能置顶">置顶</button>
+                  <button data-screen="publish">编辑</button>
+                </div>
+              </article>
+
+              <article class="manage-card expiring">
+                <div class="manage-card-head">
+                  <div>
+                    <span class="tag top">即将过期</span>
+                    <span class="tag">联系较高</span>
+                  </div>
+                  <small>明天过期</small>
+                </div>
+                <h3>夏款短袖套装，支持一件代发</h3>
+                <p>货源 · 900 件 · 可直播供货</p>
+                <div class="effect-mini-grid">
+                  <span><b>248</b>曝光</span>
+                  <span><b>41</b>浏览</span>
+                  <span><b>11</b>联系</span>
+                  <span><b>2</b>成交反馈</span>
+                </div>
+                <div class="manage-actions">
+                  <button data-toast="已刷新，有效期延长">刷新</button>
+                  <button data-toast="已使用置顶券">置顶</button>
+                  <button data-toast="已标记成交">标记成交</button>
+                </div>
+              </article>
+
+              <article class="manage-card archived">
+                <div class="manage-card-head">
+                  <div>
+                    <span class="tag">已过期</span>
+                  </div>
+                  <small>6 月 20 日过期</small>
+                </div>
+                <h3>女童牛仔短裤尾货整包</h3>
+                <p>库存 · 已从搜索结果隐藏</p>
+                <div class="manage-actions">
+                  <button data-screen="publish">再发类似</button>
+                  <button data-screen="merchant">主页历史</button>
+                </div>
+              </article>
+            </section>
+          </div>
+
+          <nav class="tabbar">
+            <button class="active" data-screen="home">首页</button>
+            <button data-screen="search">搜索</button>
+            <button class="publish-tab" data-screen="publish">发布</button>
+            <button data-screen="messages">消息</button>
+            <button data-screen="mine">我的</button>
+          </nav>
+        </div>
+
+        <div class="toast" id="toast"></div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

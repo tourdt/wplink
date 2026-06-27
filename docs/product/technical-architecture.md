@@ -36,8 +36,8 @@ flowchart LR
   wx["微信小程序\nuni-app"] --> api["go-zero API 服务"]
   admin["运营后台\nVue 3 + Element Plus"] --> api
   api --> db["PostgreSQL\n业务数据"]
-  api --> redis["Redis\n登录态/限流/缓存"]
-  api --> oss["对象存储\n图片/资质/资源素材"]
+  api -. 后期可选 .-> redis["Redis\n限流/缓存/临时状态"]
+  api --> kodo["七牛 Kodo\n图片/资质/资源素材"]
   api --> wxapi["微信接口\n登录/手机号/订阅消息"]
   api --> jobs["定时任务\n过期/提醒/统计汇总"]
 ```
@@ -76,7 +76,7 @@ wplink/
         session/
         permission/
         wx/
-        oss/
+        storage/
         task/
       goctl/
       script/
@@ -138,7 +138,7 @@ wplink/
 | API 契约 | `backend/app/api` | 定义接口、请求、响应、路由分组 |
 | Handler | `backend/app/internal/handler` | 参数解析、调用 Logic、统一返回 |
 | Logic | `backend/app/internal/logic` | 业务流程、权限判断、状态流转、事务编排 |
-| SvcContext | `backend/app/internal/svc` | 依赖注入，持有 model、配置、Redis、微信、OSS 客户端 |
+| SvcContext | `backend/app/internal/svc` | 依赖注入，持有 model、配置、微信和七牛 Kodo 客户端；Redis 后期按需接入 |
 | Model | `backend/model` | 数据访问、事务方法、复杂查询 |
 | Common | `backend/common` | 响应、错误码、公共工具 |
 

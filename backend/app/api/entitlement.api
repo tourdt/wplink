@@ -1,0 +1,52 @@
+syntax = "v1"
+
+type MerchantEntitlementInfo {
+	Type            string `json:"type"`
+	SourceType      string `json:"sourceType"`
+	TotalAmount     int64  `json:"totalAmount"`
+	UsedAmount      int64  `json:"usedAmount"`
+	RemainingAmount int64  `json:"remainingAmount"`
+	ExpiresAt       string `json:"expiresAt,optional"`
+}
+
+type ListMerchantEntitlementsResp {
+	Items []MerchantEntitlementInfo `json:"items"`
+}
+
+type TopVoucherInfo {
+	Id               string   `json:"id"`
+	Status           string   `json:"status"`
+	TopDurationHours int64    `json:"topDurationHours"`
+	AllowedTypeCodes []string `json:"allowedTypeCodes"`
+	ExpiresAt        string   `json:"expiresAt,optional"`
+}
+
+type ListTopVouchersResp {
+	Items []TopVoucherInfo `json:"items"`
+}
+
+type RedeemTopVoucherReq {
+	ResourceId string `json:"resourceId"`
+}
+
+type RedeemTopVoucherResp {
+	VoucherId  string `json:"voucherId"`
+	ResourceId string `json:"resourceId"`
+	Status     string `json:"status"`
+	Message    string `json:"message"`
+}
+
+@server(
+	prefix: /api/v1
+	group: entitlement
+)
+service wplink-api {
+	@handler ListMerchantEntitlements
+	get /merchants/:merchantId/entitlements returns (ListMerchantEntitlementsResp)
+
+	@handler ListTopVouchers
+	get /merchants/:merchantId/top-vouchers returns (ListTopVouchersResp)
+
+	@handler RedeemTopVoucher
+	post /top-vouchers/:voucherId/redeem (RedeemTopVoucherReq) returns (RedeemTopVoucherResp)
+}

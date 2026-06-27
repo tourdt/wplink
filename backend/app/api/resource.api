@@ -1,0 +1,229 @@
+syntax = "v1"
+
+type ResourceContactReq {
+	Name   string `json:"name"`
+	Phone  string `json:"phone"`
+	Wechat string `json:"wechat,optional"`
+}
+
+type CreateResourceReq {
+	MerchantId   string                 `json:"merchantId"`
+	CityCode     string                 `json:"cityCode"`
+	TypeCode     string                 `json:"typeCode"`
+	Title        string                 `json:"title"`
+	Category     string                 `json:"category"`
+	District     string                 `json:"district,optional"`
+	PriceText    string                 `json:"priceText,optional"`
+	QuantityText string                 `json:"quantityText,optional"`
+	Description  string                 `json:"description"`
+	Attributes   map[string]interface{} `json:"attributes,optional"`
+	Tags         []string               `json:"tags,optional"`
+	Images       []string               `json:"images,optional"`
+	Contact      ResourceContactReq     `json:"contact"`
+}
+
+type CreateResourceResp {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type SubmitResourceResp {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type ListResourcesReq {
+	CityCode     string `form:"cityCode,optional"`
+	TypeCode     string `form:"typeCode,optional"`
+	Keyword      string `form:"keyword,optional"`
+	Category     string `form:"category,optional"`
+	VerifiedOnly bool   `form:"verifiedOnly,optional"`
+	Page         int64  `form:"page,optional"`
+	PageSize     int64  `form:"pageSize,optional"`
+}
+
+type ResourceMerchantBrief {
+	Id                 string `json:"id"`
+	Name               string `json:"name"`
+	VerificationStatus string `json:"verificationStatus"`
+}
+
+type ResourceListItem {
+	Id           string                `json:"id"`
+	TypeCode     string                `json:"typeCode"`
+	Title        string                `json:"title"`
+	Category     string                `json:"category"`
+	District     string                `json:"district,optional"`
+	PriceText    string                `json:"priceText,optional"`
+	QuantityText string                `json:"quantityText,optional"`
+	Merchant     ResourceMerchantBrief `json:"merchant"`
+	CreditTags   []string              `json:"creditTags"`
+	RefreshedAt  string                `json:"refreshedAt,optional"`
+}
+
+type ListResourcesResp {
+	Items    []ResourceListItem `json:"items"`
+	Page     int64              `json:"page"`
+	PageSize int64              `json:"pageSize"`
+	Total    int64              `json:"total"`
+}
+
+type SearchResourcesReq {
+	CityCode     string `form:"cityCode,optional"`
+	TypeCode     string `form:"typeCode,optional"`
+	Keyword      string `form:"keyword,optional"`
+	Category     string `form:"category,optional"`
+	VerifiedOnly bool   `form:"verifiedOnly,optional"`
+	Page         int64  `form:"page,optional"`
+	PageSize     int64  `form:"pageSize,optional"`
+}
+
+type ListMyResourcesReq {
+	MerchantId string `form:"merchantId"`
+	Status     string `form:"status,optional"`
+	Page       int64  `form:"page,optional"`
+	PageSize   int64  `form:"pageSize,optional"`
+}
+
+type MyResourceMetrics {
+	ExposureCount   int64 `json:"exposureCount"`
+	DetailViewCount int64 `json:"detailViewCount"`
+	PhoneClickCount int64 `json:"phoneClickCount"`
+	WechatCopyCount int64 `json:"wechatCopyCount"`
+}
+
+type MyResourceItem {
+	Id          string            `json:"id"`
+	TypeCode    string            `json:"typeCode"`
+	Title       string            `json:"title"`
+	Category    string            `json:"category"`
+	Status      string            `json:"status"`
+	PublishedAt string            `json:"publishedAt,optional"`
+	ExpiresAt   string            `json:"expiresAt,optional"`
+	DealtAt     string            `json:"dealtAt,optional"`
+	Metrics     MyResourceMetrics `json:"metrics"`
+}
+
+type ListMyResourcesResp {
+	Items    []MyResourceItem `json:"items"`
+	Page     int64            `json:"page"`
+	PageSize int64            `json:"pageSize"`
+	Total    int64            `json:"total"`
+}
+
+type ResourceContactMasked {
+	Name         string `json:"name"`
+	PhoneMasked  string `json:"phoneMasked"`
+	WechatMasked string `json:"wechatMasked,optional"`
+}
+
+type ResourceDetailResp {
+	Id          string                 `json:"id"`
+	Status      string                 `json:"status"`
+	TypeCode    string                 `json:"typeCode"`
+	Title       string                 `json:"title"`
+	Category    string                 `json:"category"`
+	Description string                 `json:"description"`
+	PriceText   string                 `json:"priceText,optional"`
+	QuantityText string                `json:"quantityText,optional"`
+	Attributes  map[string]interface{} `json:"attributes"`
+	Merchant    ResourceMerchantBrief  `json:"merchant"`
+	Contact     ResourceContactMasked  `json:"contact"`
+	PublishedAt string                 `json:"publishedAt,optional"`
+	ExpiresAt   string                 `json:"expiresAt,optional"`
+}
+
+type RefreshResourceResp {
+	Id                    string `json:"id"`
+	RefreshedAt           string `json:"refreshedAt"`
+	RemainingRefreshQuota int64  `json:"remainingRefreshQuota"`
+}
+
+type DealFeedbackReq {
+	IsDealt                 bool   `json:"isDealt"`
+	IsReal                  bool   `json:"isReal,optional"`
+	ResponseTimely          bool   `json:"responseTimely,optional"`
+	WillingToCooperateAgain bool   `json:"willingToCooperateAgain,optional"`
+	Note                    string `json:"note,optional"`
+}
+
+type DealFeedbackResp {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type TakeDownOwnResourceReq {
+	Reason string `json:"reason"`
+}
+
+type TakeDownOwnResourceResp {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type RepostSimilarResp {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type ContactEventReq {
+	Action string `json:"action"`
+}
+
+type ContactEventResp {
+	Message string `json:"message"`
+}
+
+type DetailViewResp {
+	Message string `json:"message"`
+}
+
+@server(
+	prefix: /api/v1
+	group: resource
+)
+service wplink-api {
+	@handler CreateResource
+	post /resources (CreateResourceReq) returns (CreateResourceResp)
+
+	@handler CreateResourceDraft
+	post /resources/drafts (CreateResourceReq) returns (CreateResourceResp)
+
+	@handler SubmitResource
+	post /resources/:resourceId/submit returns (SubmitResourceResp)
+
+	@handler ListResources
+	get /resources (ListResourcesReq) returns (ListResourcesResp)
+
+	@handler SearchResources
+	get /resource-search (SearchResourcesReq) returns (ListResourcesResp)
+
+	@handler ListMyResources
+	get /me/resources (ListMyResourcesReq) returns (ListMyResourcesResp)
+
+	@handler GetResource
+	get /resources/:resourceId returns (ResourceDetailResp)
+
+	@handler RecordResourceDetailView
+	post /resources/:resourceId/detail-view returns (DetailViewResp)
+
+	@handler RefreshResource
+	post /resources/:resourceId/refresh returns (RefreshResourceResp)
+
+	@handler MarkResourceDeal
+	post /resources/:resourceId/deal-feedback (DealFeedbackReq) returns (DealFeedbackResp)
+
+	@handler TakeDownOwnResource
+	post /resources/:resourceId/take-down (TakeDownOwnResourceReq) returns (TakeDownOwnResourceResp)
+
+	@handler RepostSimilarResource
+	post /resources/:resourceId/repost-similar returns (RepostSimilarResp)
+
+	@handler CreateResourceContactEvent
+	post /resources/:resourceId/contact-events (ContactEventReq) returns (ContactEventResp)
+}

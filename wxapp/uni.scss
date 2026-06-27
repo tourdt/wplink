@@ -1,0 +1,21 @@
+$wplink-primary: #0f766e;
+$wplink-bg: #f4f6f8;
+$wplink-text: #1f2933;
+$wplink-muted: #697586;
+
+page {
+  background: $wplink-bg;
+  color: $wplink-text;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  line-height: 1;
+}
+
+button::after {
+  border: 0;
+}

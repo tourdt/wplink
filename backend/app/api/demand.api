@@ -1,0 +1,65 @@
+syntax = "v1"
+
+type PriceRangeReq {
+	Min float64 `json:"min,optional"`
+	Max float64 `json:"max,optional"`
+}
+
+type QuantityRequirementReq {
+	Quantity int64  `json:"quantity,optional"`
+	Unit     string `json:"unit,optional"`
+}
+
+type DemandContactReq {
+	Name   string `json:"name"`
+	Phone  string `json:"phone"`
+	Wechat string `json:"wechat,optional"`
+}
+
+type CreatePurchaseDemandReq {
+	CityCode            string                 `json:"cityCode,optional"`
+	DemandType          string                 `json:"demandType"`
+	Title               string                 `json:"title"`
+	Category            string                 `json:"category"`
+	PriceRange          PriceRangeReq          `json:"priceRange,optional"`
+	QuantityRequirement QuantityRequirementReq `json:"quantityRequirement,optional"`
+	Attributes          map[string]interface{} `json:"attributes,optional"`
+	Contact             DemandContactReq       `json:"contact"`
+}
+
+type CreatePurchaseDemandResp {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type ListMyPurchaseDemandsReq {
+	Page     int64 `form:"page,optional"`
+	PageSize int64 `form:"pageSize,optional"`
+}
+
+type PurchaseDemandListItem {
+	Id        string `json:"id"`
+	Title     string `json:"title"`
+	Status    string `json:"status"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type ListMyPurchaseDemandsResp {
+	Items    []PurchaseDemandListItem `json:"items"`
+	Page     int64                    `json:"page"`
+	PageSize int64                    `json:"pageSize"`
+	Total    int64                    `json:"total"`
+}
+
+@server(
+	prefix: /api/v1
+	group: demand
+)
+service wplink-api {
+	@handler CreatePurchaseDemand
+	post /purchase-demands (CreatePurchaseDemandReq) returns (CreatePurchaseDemandResp)
+
+	@handler ListMyPurchaseDemands
+	get /me/purchase-demands (ListMyPurchaseDemandsReq) returns (ListMyPurchaseDemandsResp)
+}

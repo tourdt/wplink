@@ -1,0 +1,122 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "服链通"
+      }
+    },
+    {
+      "path": "pages/search/index",
+      "style": {
+        "navigationBarTitleText": "搜索资源"
+      }
+    },
+    {
+      "path": "pages/publish/index",
+      "style": {
+        "navigationBarTitleText": "发布资源"
+      }
+    },
+    {
+      "path": "pages/publish-success/index",
+      "style": {
+        "navigationBarTitleText": "提交成功"
+      }
+    },
+    {
+      "path": "pages/demand/index",
+      "style": {
+        "navigationBarTitleText": "采购需求"
+      }
+    },
+    {
+      "path": "pages/demand-success/index",
+      "style": {
+        "navigationBarTitleText": "需求已提交"
+      }
+    },
+    {
+      "path": "pages/messages/index",
+      "style": {
+        "navigationBarTitleText": "消息"
+      }
+    },
+    {
+      "path": "pages/my/index",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/my-resources/index",
+      "style": {
+        "navigationBarTitleText": "我的发布"
+      }
+    },
+    {
+      "path": "pages/resource/detail",
+      "style": {
+        "navigationBarTitleText": "资源详情"
+      }
+    },
+    {
+      "path": "pages/merchant/detail",
+      "style": {
+        "navigationBarTitleText": "商家主页"
+      }
+    },
+    {
+      "path": "pages/topic/index",
+      "style": {
+        "navigationBarTitleText": "专题资源"
+      }
+    },
+    {
+      "path": "pages/webview/index",
+      "style": {
+        "navigationBarTitleText": "活动详情"
+      }
+    },
+    {
+      "path": "pages/verification/index",
+      "style": {
+        "navigationBarTitleText": "商家认证"
+      }
+    }
+  ],
+  "tabBar": {
+    "color": "#697586",
+    "selectedColor": "#0f766e",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/search/index",
+        "text": "搜索"
+      },
+      {
+        "pagePath": "pages/publish/index",
+        "text": "发布"
+      },
+      {
+        "pagePath": "pages/messages/index",
+        "text": "消息"
+      },
+      {
+        "pagePath": "pages/my/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "服链通",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f4f6f8"
+  }
+}

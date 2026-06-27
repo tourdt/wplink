@@ -2,7 +2,7 @@
   <section>
     <div class="page-title">
       <h2>数据概览</h2>
-      <el-button type="primary" plain>刷新</el-button>
+      <el-button type="primary" plain :loading="loading" @click="loadOverview">刷新</el-button>
     </div>
 
     <div class="metric-grid">
@@ -17,10 +17,14 @@
       <div class="panel-header">
         <h3>待处理事项</h3>
       </div>
-      <el-table :data="tasks" stripe>
+      <div v-if="errorText" class="table-state table-state-error">
+        <span>{{ errorText }}</span>
+        <el-button type="danger" plain @click="loadOverview">重试</el-button>
+      </div>
+      <el-table v-loading="loading" :data="tasks" stripe empty-text="暂无待处理事项">
         <el-table-column prop="type" label="类型" width="140" />
         <el-table-column prop="title" label="内容" />
-        <el-table-column prop="city" label="城市站" width="120" />
+        <el-table-column prop="cityName" label="城市站" width="120" />
         <el-table-column prop="createdAt" label="提交时间" width="180" />
       </el-table>
     </section>
@@ -28,16 +32,40 @@
 </template>
 
 <script setup>
-const metrics = [
-  { label: '待审核资源', value: '18', trend: '今日新增 6' },
-  { label: '待认证商家', value: '7', trend: '本周新增 12' },
-  { label: '采购需求', value: '25', trend: '今日新增 9' },
-  { label: '联系次数', value: '138', trend: '较昨日 +16' },
-]
+import { computed, onMounted, ref } from 'vue'
+import { getDashboardOverview } from '../api/dashboard'
 
-const tasks = [
-  { type: '资源审核', title: '女童春款卫衣库存整包清', city: '织里', createdAt: '2026-06-27 10:20' },
-  { type: '认证审核', title: '织里样板童装厂', city: '织里', createdAt: '2026-06-27 09:45' },
-  { type: '采购需求', title: '找 90-140 童装夏款现货', city: '织里', createdAt: '2026-06-27 09:10' },
-]
+const loading = ref(false)
+const errorText = ref('')
+const overview = ref({
+  metrics: {
+    pendingResourceCount: 0,
+    pendingVerificationCount: 0,
+    pendingDemandCount: 0,
+    todayContactCount: 0,
+  },
+  tasks: [],
+})
+
+const metrics = computed(() => [
+  { label: '待审核资源', value: overview.value.metrics.pendingResourceCount, trend: '待运营处理' },
+  { label: '待认证商家', value: overview.value.metrics.pendingVerificationCount, trend: '待运营审核' },
+  { label: '采购需求', value: overview.value.metrics.pendingDemandCount, trend: '待撮合跟进' },
+  { label: '联系次数', value: overview.value.metrics.todayContactCount, trend: '今日联系行为' },
+])
+const tasks = computed(() => overview.value.tasks || [])
+
+onMounted(loadOverview)
+
+async function loadOverview() {
+  loading.value = true
+  errorText.value = ''
+  try {
+    overview.value = await getDashboardOverview({ cityCode: 'zhili' })
+  } catch {
+    errorText.value = '数据概览加载失败，请重试'
+  } finally {
+    loading.value = false
+  }
+}
 </script>

@@ -1,0 +1,17 @@
+[Unit]
+Description=Wplink API Service
+After=network.target
+
+[Service]
+Type=simple
+User=wplink
+Group=wplink
+WorkingDirectory=/opt/wplink/backend
+EnvironmentFile=/etc/wplink/wplink.env
+ExecStart=/opt/wplink/backend/wplink-api -f /etc/wplink/app.yaml
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

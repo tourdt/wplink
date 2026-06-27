@@ -1,0 +1,314 @@
+package model
+
+import (
+	"context"
+	"database/sql"
+	"time"
+)
+
+const (
+	MerchantStatusActive = "active"
+)
+
+type CreateMerchantInput struct {
+	CityCode       string
+	Name           string
+	MerchantType   string
+	MainCategories []string
+	ContactName    string
+	ContactPhone   string
+	ContactWechat  string
+	AddressText    string
+	Description    string
+}
+
+type CreateMerchantResult struct {
+	ID                 string
+	Name               string
+	VerificationStatus string
+	Status             string
+}
+
+type CreditTag struct {
+	Code  string
+	Label string
+}
+
+type MerchantDetail struct {
+	ID                 string
+	Name               string
+	MerchantType       string
+	CityCode           string
+	MainCategories     []string
+	VerificationStatus string
+	CreditTags         []CreditTag
+	ContactName        string
+	PhoneMasked        string
+	WechatMasked       string
+	PublishedCount     int64
+	DealtCount         int64
+	Description        string
+	Images             []string
+	LastActiveAt       string
+}
+
+type UpdateMerchantPatch struct {
+	MainCategories []string
+	Description    string
+	Images         []string
+}
+
+type ListMerchantsFilter struct {
+	CityCode     string
+	MerchantType string
+	Status       string
+	Page         int64
+	PageSize     int64
+}
+
+type MerchantListItem struct {
+	ID                 string
+	Name               string
+	MerchantType       string
+	VerificationStatus string
+	Status             string
+	LastActiveAt       string
+}
+
+type ListMerchantsResult struct {
+	Items    []MerchantListItem
+	Page     int64
+	PageSize int64
+	Total    int64
+}
+
+type MerchantModel struct {
+	db *sql.DB
+}
+
+func NewMerchantModel(db *sql.DB) *MerchantModel {
+	return &MerchantModel{db: db}
+}
+
+func (m *MerchantModel) CreateMerchant(ctx context.Context, input CreateMerchantInput) (CreateMerchantResult, error) {
+	var result CreateMerchantResult
+	err := m.db.QueryRowContext(ctx, `
+INSERT INTO merchants (
+  city_station_id,
+  name,
+  merchant_type,
+  main_categories,
+  description,
+  contact_name,
+  contact_phone,
+  contact_wechat,
+  address_text
+)
+SELECT
+  cs.id,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
+  $7,
+  $8,
+  $9
+FROM city_stations cs
+WHERE cs.code = $1 AND cs.status = 'active'
+RETURNING id, name, verification_status, status
+`,
+		input.CityCode,
+		input.Name,
+		input.MerchantType,
+		JSONStringSlice(input.MainCategories),
+		input.Description,
+		input.ContactName,
+		input.ContactPhone,
+		input.ContactWechat,
+		input.AddressText,
+	).Scan(&result.ID, &result.Name, &result.VerificationStatus, &result.Status)
+	return result, err
+}
+
+func (m *MerchantModel) GetMerchantDetail(ctx context.Context, merchantID string) (MerchantDetail, error) {
+	var detail MerchantDetail
+	var categories JSONStringSlice
+	var images JSONStringSlice
+	var lastActive sql.NullTime
+
+	err := m.db.QueryRowContext(ctx, `
+SELECT
+  m.id,
+  m.name,
+  m.merchant_type,
+  cs.code,
+  m.main_categories,
+  m.verification_status,
+  m.contact_name,
+  m.contact_phone,
+  COALESCE(m.contact_wechat, ''),
+  COALESCE(m.description, ''),
+  m.images,
+  m.last_active_at,
+  COUNT(r.id) FILTER (WHERE r.status = 'published') AS published_count,
+  COUNT(r.id) FILTER (WHERE r.status = 'dealt') AS dealt_count
+FROM merchants m
+JOIN city_stations cs ON cs.id = m.city_station_id
+LEFT JOIN resources r ON r.merchant_id = m.id AND r.deleted_at IS NULL
+WHERE m.id = $1 AND m.deleted_at IS NULL
+GROUP BY m.id, cs.code
+`, merchantID).Scan(
+		&detail.ID,
+		&detail.Name,
+		&detail.MerchantType,
+		&detail.CityCode,
+		&categories,
+		&detail.VerificationStatus,
+		&detail.ContactName,
+		&detail.PhoneMasked,
+		&detail.WechatMasked,
+		&detail.Description,
+		&images,
+		&lastActive,
+		&detail.PublishedCount,
+		&detail.DealtCount,
+	)
+	if err != nil {
+		return MerchantDetail{}, err
+	}
+
+	detail.MainCategories = []string(categories)
+	detail.Images = []string(images)
+	detail.PhoneMasked = maskContact(detail.PhoneMasked)
+	detail.WechatMasked = maskWechat(detail.WechatMasked)
+	if lastActive.Valid {
+		detail.LastActiveAt = lastActive.Time.Format(time.RFC3339)
+	}
+
+	tags, err := m.listMerchantCreditTags(ctx, merchantID)
+	if err != nil {
+		return MerchantDetail{}, err
+	}
+	detail.CreditTags = tags
+	return detail, nil
+}
+
+func (m *MerchantModel) UpdateMerchant(ctx context.Context, merchantID string, patch UpdateMerchantPatch) (string, error) {
+	updatedAt := time.Now().UTC()
+	_, err := m.db.ExecContext(ctx, `
+UPDATE merchants
+SET
+  main_categories = $2,
+  description = $3,
+  images = $4,
+  updated_at = $5
+WHERE id = $1 AND deleted_at IS NULL
+`, merchantID, JSONStringSlice(patch.MainCategories), patch.Description, JSONStringSlice(patch.Images), updatedAt)
+	if err != nil {
+		return "", err
+	}
+	return updatedAt.Format(time.RFC3339), nil
+}
+
+func (m *MerchantModel) ListMerchants(ctx context.Context, filter ListMerchantsFilter) (ListMerchantsResult, error) {
+	page, pageSize := normalizePage(filter.Page, filter.PageSize)
+	offset := (page - 1) * pageSize
+
+	rows, err := m.db.QueryContext(ctx, `
+SELECT
+  m.id,
+  m.name,
+  m.merchant_type,
+  m.verification_status,
+  m.status,
+  m.last_active_at,
+  COUNT(*) OVER() AS total
+FROM merchants m
+JOIN city_stations cs ON cs.id = m.city_station_id
+WHERE m.deleted_at IS NULL
+  AND ($1 = '' OR cs.code = $1)
+  AND ($2 = '' OR m.merchant_type = $2)
+  AND ($3 = '' OR m.status = $3)
+ORDER BY m.created_at DESC
+LIMIT $4 OFFSET $5
+`, filter.CityCode, filter.MerchantType, filter.Status, pageSize, offset)
+	if err != nil {
+		return ListMerchantsResult{}, err
+	}
+	defer rows.Close()
+
+	var items []MerchantListItem
+	var total int64
+	for rows.Next() {
+		var item MerchantListItem
+		var lastActive sql.NullTime
+		if err := rows.Scan(&item.ID, &item.Name, &item.MerchantType, &item.VerificationStatus, &item.Status, &lastActive, &total); err != nil {
+			return ListMerchantsResult{}, err
+		}
+		if lastActive.Valid {
+			item.LastActiveAt = lastActive.Time.Format(time.RFC3339)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return ListMerchantsResult{}, err
+	}
+
+	return ListMerchantsResult{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
+}
+
+func (m *MerchantModel) listMerchantCreditTags(ctx context.Context, merchantID string) ([]CreditTag, error) {
+	rows, err := m.db.QueryContext(ctx, `
+SELECT tag_code, tag_label
+FROM credit_records
+WHERE merchant_id = $1
+  AND visibility = 'public'
+  AND revoked_at IS NULL
+ORDER BY created_at DESC
+`, merchantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tags []CreditTag
+	for rows.Next() {
+		var tag CreditTag
+		if err := rows.Scan(&tag.Code, &tag.Label); err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return tags, nil
+}
+
+func normalizePage(page int64, pageSize int64) (int64, int64) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
+}
+
+func maskContact(value string) string {
+	if len(value) < 7 {
+		return value
+	}
+	return value[:3] + "****" + value[len(value)-4:]
+}
+
+func maskWechat(value string) string {
+	if len(value) <= 4 {
+		return value
+	}
+	return value[:4] + "_****"
+}

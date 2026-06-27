@@ -1,4 +1,12 @@
 .gocache/
+.cache/
+.env
+.env.local
+backend/etc/app.yaml
 node_modules/
 dist/
+!backend/app/internal/adminweb/dist/
+backend/app/internal/adminweb/dist/*
+!backend/app/internal/adminweb/dist/index.html
 .DS_Store
+app.yaml

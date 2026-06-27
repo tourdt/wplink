@@ -1,0 +1,77 @@
+syntax = "v1"
+
+type CreateMerchantReq {
+	CityCode       string   `json:"cityCode"`
+	Name           string   `json:"name"`
+	MerchantType   string   `json:"merchantType"`
+	MainCategories []string `json:"mainCategories"`
+	ContactName    string   `json:"contactName"`
+	ContactPhone   string   `json:"contactPhone"`
+	ContactWechat  string   `json:"contactWechat,optional"`
+	AddressText    string   `json:"addressText,optional"`
+	Description    string   `json:"description,optional"`
+}
+
+type CreateMerchantResp {
+	Id                 string `json:"id"`
+	Name               string `json:"name"`
+	VerificationStatus string `json:"verificationStatus"`
+	Status             string `json:"status"`
+}
+
+type CreditTagInfo {
+	Code  string `json:"code"`
+	Label string `json:"label"`
+}
+
+type MerchantContactInfo {
+	Name         string `json:"name"`
+	PhoneMasked  string `json:"phoneMasked"`
+	WechatMasked string `json:"wechatMasked,optional"`
+}
+
+type MerchantResourcesSummary {
+	PublishedCount int64 `json:"publishedCount"`
+	DealtCount     int64 `json:"dealtCount"`
+}
+
+type MerchantDetailResp {
+	Id                 string                   `json:"id"`
+	Name               string                   `json:"name"`
+	MerchantType       string                   `json:"merchantType"`
+	CityCode           string                   `json:"cityCode"`
+	MainCategories     []string                 `json:"mainCategories"`
+	VerificationStatus string                   `json:"verificationStatus"`
+	CreditTags         []CreditTagInfo          `json:"creditTags"`
+	Contact            MerchantContactInfo      `json:"contact"`
+	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`
+	Description        string                   `json:"description,optional"`
+	Images             []string                 `json:"images,optional"`
+	LastActiveAt       string                   `json:"lastActiveAt,optional"`
+}
+
+type UpdateMerchantReq {
+	MainCategories []string `json:"mainCategories,optional"`
+	Description    string   `json:"description,optional"`
+	Images         []string `json:"images,optional"`
+}
+
+type UpdateMerchantResp {
+	Id        string `json:"id"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+@server(
+	prefix: /api/v1
+	group: merchant
+)
+service wplink-api {
+	@handler CreateMerchant
+	post /merchants (CreateMerchantReq) returns (CreateMerchantResp)
+
+	@handler GetMerchant
+	get /merchants/:merchantId returns (MerchantDetailResp)
+
+	@handler UpdateMerchant
+	patch /merchants/:merchantId (UpdateMerchantReq) returns (UpdateMerchantResp)
+}

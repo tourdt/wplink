@@ -1,0 +1,82 @@
+syntax = "v1"
+
+type HomeBannersReq {
+	CityCode string `form:"cityCode,optional"`
+}
+
+type HomeBannerItem {
+	Id         string   `json:"id"`
+	Title      string   `json:"title"`
+	Subtitle   string   `json:"subtitle,optional"`
+	CoverUrl   string   `json:"coverUrl,optional"`
+	JumpType   string   `json:"jumpType"`
+	JumpTarget string   `json:"jumpTarget"`
+	Tags       []string `json:"tags"`
+}
+
+type HomeBannersResp {
+	Items []HomeBannerItem `json:"items"`
+}
+
+type TopicResourcesReq {
+	CityCode string `form:"cityCode,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type TopicInfoResp {
+	Id       string   `json:"id"`
+	Title    string   `json:"title"`
+	Subtitle string   `json:"subtitle,optional"`
+	CoverUrl string   `json:"coverUrl,optional"`
+	Tags     []string `json:"tags"`
+}
+
+type TopicResourceItem {
+	Id           string `json:"id"`
+	TypeCode     string `json:"typeCode"`
+	Title        string `json:"title"`
+	Category     string `json:"category"`
+	District     string `json:"district,optional"`
+	PriceText    string `json:"priceText,optional"`
+	QuantityText string `json:"quantityText,optional"`
+	MerchantName string `json:"merchantName"`
+}
+
+type TopicDemandEntry {
+	Title      string `json:"title"`
+	ButtonText string `json:"buttonText"`
+}
+
+type TopicResourcesResp {
+	Topic       TopicInfoResp      `json:"topic"`
+	Items       []TopicResourceItem `json:"items"`
+	Page        int64               `json:"page"`
+	PageSize    int64               `json:"pageSize"`
+	Total       int64               `json:"total"`
+	DemandEntry TopicDemandEntry    `json:"demandEntry,optional"`
+}
+
+type ValidateWebviewReq {
+	Url string `json:"url"`
+}
+
+type ValidateWebviewResp {
+	Allowed bool   `json:"allowed"`
+	Url     string `json:"url"`
+}
+
+@server(
+	prefix: /api/v1
+	group: discovery
+)
+service wplink-api {
+	@handler ListHomeBanners
+	get /home/banners (HomeBannersReq) returns (HomeBannersResp)
+
+	@handler GetTopicResources
+	get /topics/:topicId/resources (TopicResourcesReq) returns (TopicResourcesResp)
+
+	@handler ValidateWebview
+	post /webview/validate (ValidateWebviewReq) returns (ValidateWebviewResp)
+}

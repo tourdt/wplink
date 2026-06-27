@@ -1,0 +1,34 @@
+syntax = "v1"
+
+type SubmitVerificationReq {
+	VerificationType string                 `json:"verificationType"`
+	BusinessName     string                 `json:"businessName,optional"`
+	LicenseUrl       string                 `json:"licenseUrl,optional"`
+	StorefrontUrl    string                 `json:"storefrontUrl,optional"`
+	Materials        map[string]interface{} `json:"materials,optional"`
+}
+
+type SubmitVerificationResp {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type LatestVerificationResp {
+	Id               string `json:"id"`
+	VerificationType string `json:"verificationType"`
+	Status           string `json:"status"`
+	ReviewedAt       string `json:"reviewedAt,optional"`
+}
+
+@server(
+	prefix: /api/v1
+	group: verification
+)
+service wplink-api {
+	@handler SubmitVerification
+	post /merchants/:merchantId/verifications (SubmitVerificationReq) returns (SubmitVerificationResp)
+
+	@handler GetLatestVerification
+	get /merchants/:merchantId/verifications/latest returns (LatestVerificationResp)
+}

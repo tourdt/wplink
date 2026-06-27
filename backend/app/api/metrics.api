@@ -1,0 +1,54 @@
+syntax = "v1"
+
+type ResourceMetricsReq {
+	From string `form:"from,optional"`
+	To   string `form:"to,optional"`
+}
+
+type ResourceMetricsSummary {
+	ExposureCount     int64 `json:"exposureCount"`
+	DetailViewCount   int64 `json:"detailViewCount"`
+	PhoneClickCount   int64 `json:"phoneClickCount"`
+	WechatCopyCount   int64 `json:"wechatCopyCount"`
+	DealFeedbackCount int64 `json:"dealFeedbackCount"`
+}
+
+type ResourceMetricsDailyItem {
+	Date            string `json:"date"`
+	ExposureCount   int64  `json:"exposureCount"`
+	DetailViewCount int64  `json:"detailViewCount"`
+	PhoneClickCount int64  `json:"phoneClickCount"`
+	WechatCopyCount int64  `json:"wechatCopyCount"`
+}
+
+type ResourceMetricsResp {
+	ResourceId string                     `json:"resourceId"`
+	Summary    ResourceMetricsSummary     `json:"summary"`
+	Daily      []ResourceMetricsDailyItem `json:"daily"`
+}
+
+type MerchantLast7DaysMetrics {
+	ExposureCount     int64 `json:"exposureCount"`
+	DetailViewCount   int64 `json:"detailViewCount"`
+	ContactClickCount int64 `json:"contactClickCount"`
+}
+
+type MerchantMetricsSummaryResp {
+	MerchantId             string                   `json:"merchantId"`
+	PublishedResourceCount int64                    `json:"publishedResourceCount"`
+	ExpiringResourceCount  int64                    `json:"expiringResourceCount"`
+	DealtResourceCount     int64                    `json:"dealtResourceCount"`
+	Last7Days              MerchantLast7DaysMetrics `json:"last7Days"`
+}
+
+@server(
+	prefix: /api/v1
+	group: metrics
+)
+service wplink-api {
+	@handler GetResourceMetrics
+	get /resources/:resourceId/metrics (ResourceMetricsReq) returns (ResourceMetricsResp)
+
+	@handler GetMerchantMetricsSummary
+	get /merchants/:merchantId/metrics/summary returns (MerchantMetricsSummaryResp)
+}

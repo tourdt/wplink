@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS banner_topics;
+DROP TABLE IF EXISTS resource_metrics_daily;
+DROP TABLE IF EXISTS resource_contact_events;
+DROP TABLE IF EXISTS top_vouchers;
+DROP TABLE IF EXISTS merchant_entitlements;
+DROP TABLE IF EXISTS match_case_participants;
+DROP TABLE IF EXISTS match_case_resources;
+DROP TABLE IF EXISTS match_cases;
+DROP TABLE IF EXISTS search_logs;
+DROP TABLE IF EXISTS purchase_demands;
+DROP TABLE IF EXISTS credit_records;
+DROP TABLE IF EXISTS verifications;
+DROP TABLE IF EXISTS resource_review_records;
+DROP TABLE IF EXISTS resources;
+DROP TABLE IF EXISTS resource_type_configs;
+DROP TABLE IF EXISTS merchant_admin_bindings;
+DROP TABLE IF EXISTS merchants;
+
+ALTER TABLE users DROP CONSTRAINT IF EXISTS fk_users_default_city_station;
+DROP INDEX IF EXISTS idx_users_default_city;
+DROP TABLE IF EXISTS city_stations;

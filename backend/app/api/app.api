@@ -7,3 +7,13 @@ info(
 )
 
 import "admin.api"
+import "auth.api"
+import "city.api"
+import "merchant.api"
+import "resource.api"
+import "demand.api"
+import "discovery.api"
+import "verification.api"
+import "entitlement.api"
+import "message.api"
+import "metrics.api"

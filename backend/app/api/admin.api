@@ -11,6 +11,358 @@ type AdminLoginResp {
 	Roles []string `json:"roles"`
 }
 
+type AdminDashboardOverviewReq {
+	CityCode string `form:"cityCode,optional"`
+}
+
+type AdminDashboardMetrics {
+	PendingResourceCount     int64 `json:"pendingResourceCount"`
+	PendingVerificationCount int64 `json:"pendingVerificationCount"`
+	PendingDemandCount       int64 `json:"pendingDemandCount"`
+	TodayContactCount        int64 `json:"todayContactCount"`
+}
+
+type AdminDashboardTask {
+	Type      string `json:"type"`
+	Title     string `json:"title"`
+	CityName  string `json:"cityName"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type AdminDashboardOverviewResp {
+	Metrics AdminDashboardMetrics `json:"metrics"`
+	Tasks   []AdminDashboardTask `json:"tasks"`
+}
+
+type AdminPendingResourcesReq {
+	CityCode string `form:"cityCode,optional"`
+	TypeCode string `form:"typeCode,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminPendingResourceItem {
+	Id           string `json:"id"`
+	Title        string `json:"title"`
+	TypeCode     string `json:"typeCode"`
+	MerchantName string `json:"merchantName"`
+	CreatedAt    string `json:"createdAt"`
+}
+
+type AdminPendingResourcesResp {
+	Items    []AdminPendingResourceItem `json:"items"`
+	Page     int64                      `json:"page"`
+	PageSize int64                      `json:"pageSize"`
+	Total    int64                      `json:"total"`
+}
+
+type AdminReviewResourceReq {
+	Action string `json:"action"`
+	Reason string `json:"reason,optional"`
+}
+
+type AdminReviewResourceResp {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type AdminPendingVerificationItem {
+	Id               string `json:"id"`
+	MerchantId       string `json:"merchantId"`
+	MerchantName     string `json:"merchantName"`
+	VerificationType string `json:"verificationType"`
+	Status           string `json:"status"`
+	SubmittedAt      string `json:"submittedAt"`
+}
+
+type AdminPendingVerificationsReq {
+	Page     int64 `form:"page,optional"`
+	PageSize int64 `form:"pageSize,optional"`
+}
+
+type AdminPendingVerificationsResp {
+	Items    []AdminPendingVerificationItem `json:"items"`
+	Page     int64                          `json:"page"`
+	PageSize int64                          `json:"pageSize"`
+	Total    int64                          `json:"total"`
+}
+
+type AdminReviewVerificationReq {
+	Action     string `json:"action"`
+	ReviewNote string `json:"reviewNote,optional"`
+}
+
+type AdminReviewVerificationResp {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type AdminGrantEntitlementReq {
+	EntitlementType string `json:"entitlementType"`
+	SourceType      string `json:"sourceType"`
+	TotalAmount     int64  `json:"totalAmount"`
+	ExpiresAt       string `json:"expiresAt,optional"`
+	Reason          string `json:"reason"`
+}
+
+type AdminGrantEntitlementResp {
+	Id      string `json:"id"`
+	Message string `json:"message"`
+}
+
+type AdminCreateMatchCaseReq {
+	PurchaseDemandId       string   `json:"purchaseDemandId"`
+	ResourceIds            []string `json:"resourceIds,optional"`
+	ParticipantMerchantIds []string `json:"participantMerchantIds,optional"`
+	ResultNote             string   `json:"resultNote,optional"`
+}
+
+type AdminCreateMatchCaseResp {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type AdminListMatchCasesReq {
+	Status   string `form:"status,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminMatchCaseItem {
+	Id               string `json:"id"`
+	PurchaseDemandId string `json:"purchaseDemandId"`
+	DemandTitle      string `json:"demandTitle"`
+	Status           string `json:"status"`
+	Source           string `json:"source"`
+	ResultNote       string `json:"resultNote,optional"`
+	ResourceCount    int64  `json:"resourceCount"`
+	ParticipantCount int64  `json:"participantCount"`
+	CreatedAt        string `json:"createdAt"`
+}
+
+type AdminListMatchCasesResp {
+	Items    []AdminMatchCaseItem `json:"items"`
+	Page     int64                `json:"page"`
+	PageSize int64                `json:"pageSize"`
+	Total    int64                `json:"total"`
+}
+
+type AdminUpdateMatchCaseStatusReq {
+	Status     string `json:"status"`
+	ResultNote string `json:"resultNote,optional"`
+}
+
+type AdminMatchCaseActionResp {
+	Id      string `json:"id"`
+	Status  string `json:"status,optional"`
+	Message string `json:"message"`
+}
+
+type AdminAddMatchResourcesReq {
+	ResourceIds []string `json:"resourceIds"`
+}
+
+type AdminAddMatchParticipantsReq {
+	ParticipantMerchantIds []string `json:"participantMerchantIds"`
+}
+
+type AdminOperationLogsReq {
+	ObjectType string `form:"objectType,optional"`
+	ObjectId   string `form:"objectId,optional"`
+	OperatorId string `form:"operatorId,optional"`
+	Page       int64  `form:"page,optional"`
+	PageSize   int64  `form:"pageSize,optional"`
+}
+
+type AdminOperationLogItem {
+	Id           string `json:"id"`
+	OperatorId   string `json:"operatorId"`
+	OperatorRole string `json:"operatorRole"`
+	ObjectType   string `json:"objectType"`
+	ObjectId     string `json:"objectId,optional"`
+	Action       string `json:"action"`
+	Reason       string `json:"reason,optional"`
+	CreatedAt    string `json:"createdAt"`
+}
+
+type AdminOperationLogsResp {
+	Items    []AdminOperationLogItem `json:"items"`
+	Page     int64                   `json:"page"`
+	PageSize int64                   `json:"pageSize"`
+	Total    int64                   `json:"total"`
+}
+
+type AdminListMerchantsReq {
+	CityCode     string `form:"cityCode,optional"`
+	MerchantType string `form:"merchantType,optional"`
+	Status       string `form:"status,optional"`
+	Page         int64  `form:"page,optional"`
+	PageSize     int64  `form:"pageSize,optional"`
+}
+
+type AdminMerchantListItem {
+	Id                 string `json:"id"`
+	Name               string `json:"name"`
+	MerchantType       string `json:"merchantType"`
+	VerificationStatus string `json:"verificationStatus"`
+	Status             string `json:"status"`
+	LastActiveAt       string `json:"lastActiveAt,optional"`
+}
+
+type AdminListMerchantsResp {
+	Items    []AdminMerchantListItem `json:"items"`
+	Page     int64                   `json:"page"`
+	PageSize int64                   `json:"pageSize"`
+	Total    int64                   `json:"total"`
+}
+
+type AdminResourceTypeConfigItem {
+	Id               string                 `json:"id"`
+	CityCode         string                 `json:"cityCode,optional"`
+	TypeCode         string                 `json:"typeCode"`
+	TypeName         string                 `json:"typeName"`
+	FieldSchema      map[string]interface{} `json:"fieldSchema"`
+	RequiredFields   []string               `json:"requiredFields"`
+	FilterFields     []string               `json:"filterFields"`
+	DisplayTemplate  map[string]interface{} `json:"displayTemplate"`
+	ReviewRules      map[string]interface{} `json:"reviewRules"`
+	SortWeights      map[string]interface{} `json:"sortWeights"`
+	MessageRules     map[string]interface{} `json:"messageRules"`
+	DefaultValidDays int64                  `json:"defaultValidDays"`
+	Status           string                 `json:"status"`
+}
+
+type AdminListResourceTypeConfigsReq {
+	CityCode string `form:"cityCode,optional"`
+	Status   string `form:"status,optional"`
+}
+
+type AdminListResourceTypeConfigsResp {
+	Items []AdminResourceTypeConfigItem `json:"items"`
+}
+
+type AdminListDemandsReq {
+	CityCode   string `form:"cityCode,optional"`
+	DemandType string `form:"demandType,optional"`
+	Status     string `form:"status,optional"`
+	Page       int64  `form:"page,optional"`
+	PageSize   int64  `form:"pageSize,optional"`
+}
+
+type AdminDemandListItem {
+	Id          string `json:"id"`
+	Title       string `json:"title"`
+	DemandType  string `json:"demandType"`
+	Category    string `json:"category"`
+	ContactName string `json:"contactName"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"createdAt"`
+}
+
+type AdminListDemandsResp {
+	Items    []AdminDemandListItem `json:"items"`
+	Page     int64                 `json:"page"`
+	PageSize int64                 `json:"pageSize"`
+	Total    int64                 `json:"total"`
+}
+
+type AdminDemandContact {
+	Name   string `json:"name"`
+	Phone  string `json:"phone"`
+	Wechat string `json:"wechat,optional"`
+}
+
+type AdminDemandDetailResp {
+	Id                  string                 `json:"id"`
+	Title               string                 `json:"title"`
+	DemandType          string                 `json:"demandType"`
+	Category            string                 `json:"category"`
+	PriceRange          map[string]interface{} `json:"priceRange"`
+	QuantityRequirement map[string]interface{} `json:"quantityRequirement"`
+	Attributes          map[string]interface{} `json:"attributes"`
+	Contact             AdminDemandContact     `json:"contact"`
+	Status              string                 `json:"status"`
+	CreatedAt           string                 `json:"createdAt"`
+}
+
+type AdminUpdateDemandStatusReq {
+	Status string `json:"status"`
+}
+
+type AdminUpdateDemandStatusResp {
+	Id     string `json:"id"`
+	Status string `json:"status"`
+}
+
+type AdminBannerTopicItem {
+	Id         string   `json:"id"`
+	CityCode   string   `json:"cityCode,optional"`
+	Kind       string   `json:"kind"`
+	Title      string   `json:"title"`
+	Subtitle   string   `json:"subtitle,optional"`
+	CoverUrl   string   `json:"coverUrl,optional"`
+	TypeScope  []string `json:"typeScope"`
+	JumpType   string   `json:"jumpType"`
+	JumpTarget string   `json:"jumpTarget"`
+	Tags       []string `json:"tags"`
+	StartAt    string   `json:"startAt,optional"`
+	EndAt      string   `json:"endAt,optional"`
+	SortOrder  int64    `json:"sortOrder"`
+	Status     string   `json:"status"`
+	UpdatedAt  string   `json:"updatedAt"`
+}
+
+type AdminListBannerTopicsReq {
+	CityCode string `form:"cityCode,optional"`
+	Kind     string `form:"kind,optional"`
+	Status   string `form:"status,optional"`
+}
+
+type AdminListBannerTopicsResp {
+	Items []AdminBannerTopicItem `json:"items"`
+}
+
+type AdminSaveBannerTopicReq {
+	CityCode   string   `json:"cityCode,optional"`
+	Kind       string   `json:"kind"`
+	Title      string   `json:"title"`
+	Subtitle   string   `json:"subtitle,optional"`
+	CoverUrl   string   `json:"coverUrl,optional"`
+	TypeScope  []string `json:"typeScope,optional"`
+	JumpType   string   `json:"jumpType"`
+	JumpTarget string   `json:"jumpTarget"`
+	Tags       []string `json:"tags,optional"`
+	StartAt    string   `json:"startAt,optional"`
+	EndAt      string   `json:"endAt,optional"`
+	SortOrder  int64    `json:"sortOrder,optional"`
+	Status     string   `json:"status,optional"`
+}
+
+type AdminSaveBannerTopicResp {
+	Id        string `json:"id"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+type AdminUpdateResourceTypeConfigReq {
+	FieldSchema      map[string]interface{} `json:"fieldSchema,optional"`
+	RequiredFields   []string               `json:"requiredFields,optional"`
+	FilterFields     []string               `json:"filterFields,optional"`
+	DisplayTemplate  map[string]interface{} `json:"displayTemplate,optional"`
+	ReviewRules      map[string]interface{} `json:"reviewRules,optional"`
+	SortWeights      map[string]interface{} `json:"sortWeights,optional"`
+	MessageRules     map[string]interface{} `json:"messageRules,optional"`
+	DefaultValidDays int64                  `json:"defaultValidDays,optional"`
+	Status           string                 `json:"status,optional"`
+}
+
+type AdminUpdateResourceTypeConfigResp {
+	Id        string `json:"id"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
 @server(
 	prefix: /api/v1/admin
 	group: adminauth
@@ -18,4 +370,127 @@ type AdminLoginResp {
 service wplink-api {
 	@handler AdminLogin
 	post /auth/login (AdminLoginReq) returns (AdminLoginResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: admindashboard
+)
+service wplink-api {
+	@handler AdminDashboardOverview
+	get /dashboard/overview (AdminDashboardOverviewReq) returns (AdminDashboardOverviewResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminresource
+)
+service wplink-api {
+	@handler AdminListPendingResources
+	get /resources/pending (AdminPendingResourcesReq) returns (AdminPendingResourcesResp)
+
+	@handler AdminReviewResource
+	post /resources/:resourceId/review (AdminReviewResourceReq) returns (AdminReviewResourceResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminverification
+)
+service wplink-api {
+	@handler AdminListPendingVerifications
+	get /verifications/pending (AdminPendingVerificationsReq) returns (AdminPendingVerificationsResp)
+
+	@handler AdminReviewVerification
+	post /verifications/:verificationId/review (AdminReviewVerificationReq) returns (AdminReviewVerificationResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminentitlement
+)
+service wplink-api {
+	@handler AdminGrantMerchantEntitlement
+	post /merchants/:merchantId/entitlements (AdminGrantEntitlementReq) returns (AdminGrantEntitlementResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminmatch
+)
+service wplink-api {
+	@handler AdminCreateMatchCase
+	post /match-cases (AdminCreateMatchCaseReq) returns (AdminCreateMatchCaseResp)
+
+	@handler AdminListMatchCases
+	get /match-cases (AdminListMatchCasesReq) returns (AdminListMatchCasesResp)
+
+	@handler AdminUpdateMatchCaseStatus
+	patch /match-cases/:matchCaseId/status (AdminUpdateMatchCaseStatusReq) returns (AdminMatchCaseActionResp)
+
+	@handler AdminAddMatchCaseResources
+	post /match-cases/:matchCaseId/resources (AdminAddMatchResourcesReq) returns (AdminMatchCaseActionResp)
+
+	@handler AdminAddMatchCaseParticipants
+	post /match-cases/:matchCaseId/participants (AdminAddMatchParticipantsReq) returns (AdminMatchCaseActionResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminlog
+)
+service wplink-api {
+	@handler AdminListOperationLogs
+	get /operation-logs (AdminOperationLogsReq) returns (AdminOperationLogsResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminmerchant
+)
+service wplink-api {
+	@handler AdminListMerchants
+	get /merchants (AdminListMerchantsReq) returns (AdminListMerchantsResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: admindemand
+)
+service wplink-api {
+	@handler AdminListDemands
+	get /purchase-demands (AdminListDemandsReq) returns (AdminListDemandsResp)
+
+	@handler AdminGetDemand
+	get /purchase-demands/:demandId returns (AdminDemandDetailResp)
+
+	@handler AdminUpdateDemandStatus
+	patch /purchase-demands/:demandId/status (AdminUpdateDemandStatusReq) returns (AdminUpdateDemandStatusResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminbannertopic
+)
+service wplink-api {
+	@handler AdminListBannerTopics
+	get /banner-topics (AdminListBannerTopicsReq) returns (AdminListBannerTopicsResp)
+
+	@handler AdminCreateBannerTopic
+	post /banner-topics (AdminSaveBannerTopicReq) returns (AdminSaveBannerTopicResp)
+
+	@handler AdminUpdateBannerTopic
+	patch /banner-topics/:configId (AdminSaveBannerTopicReq) returns (AdminSaveBannerTopicResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminconfig
+)
+service wplink-api {
+	@handler AdminListResourceTypeConfigs
+	get /resource-type-configs (AdminListResourceTypeConfigsReq) returns (AdminListResourceTypeConfigsResp)
+
+	@handler AdminUpdateResourceTypeConfig
+	patch /resource-type-configs/:configId (AdminUpdateResourceTypeConfigReq) returns (AdminUpdateResourceTypeConfigResp)
 }

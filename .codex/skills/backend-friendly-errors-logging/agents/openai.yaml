@@ -1,0 +1,4 @@
+interface:
+  display_name: "WPMall Code Quality"
+  short_description: "后端与小程序编码、注释、日志规范"
+  default_prompt: "Use $backend-friendly-errors-logging when implementing WPMall backend or Mini Program code so style, goctl output, comments, logs, and user-facing errors are standardized and user-friendly."
