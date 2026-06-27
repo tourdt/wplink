@@ -5,6 +5,13 @@
 首发站：织里  
 扩展方向：广州、虎门、杭州、常熟、石狮等服装产业集中地
 
+相关设计文档：
+
+- `docs/product/domain-model-ddd.md`
+- `docs/product/database-er-design.md`
+- `docs/product/api-contract-design.md`
+- `docs/product/technical-architecture.md`
+
 ## 1. 产品定位
 
 本产品不是本地生活信息平台，也不是普通服装批发商城，而是面向服装产业带从业者的资源撮合平台。

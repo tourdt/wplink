@@ -1,0 +1,21 @@
+syntax = "v1"
+
+type AdminLoginReq {
+	LoginName string `json:"loginName"`
+	Password  string `json:"password"`
+}
+
+type AdminLoginResp {
+	Token string   `json:"token"`
+	UserId string   `json:"userId"`
+	Roles []string `json:"roles"`
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminauth
+)
+service wplink-api {
+	@handler AdminLogin
+	post /auth/login (AdminLoginReq) returns (AdminLoginResp)
+}
