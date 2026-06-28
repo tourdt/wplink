@@ -160,12 +160,12 @@ go-zero 的 API group 和 Logic 包应按领域对象组织，而不是按页面
 | 城市站 | `city` | `city` | 城市站列表、资源类型启停、城市配置 |
 | 商家 | `merchant` | `merchant` | 商家主页、资料、管理员绑定 |
 | 资源 | `resource` | `resource` | 发布、审核、搜索、详情、刷新、成交、归档 |
-| 采购需求 | `demand` | `demand` | 买家需求提交、线索池、撮合入口 |
+| 采购需求 | `demand` | `demand` | 买家需求提交、线索池、后台处理 |
 | 认证与信用 | `verification` | `verification` | 商家认证、资源核验、信用标签 |
 | 权益与商业化 | `entitlement` | `entitlement` | 发布额度、刷新次数、置顶券、核销 |
-| 消息 | `message` | `message` | 审核通知、过期提醒、撮合进度 |
+| 消息 | `message` | `message` | 审核通知、过期提醒、认证结果、效果反馈 |
 | 发布效果 | `metrics` | `metrics` | 曝光、浏览、联系、成交反馈统计 |
-| 运营后台 | `admin` | `admin` | 审核、配置、代发、人工撮合、操作日志 |
+| 运营后台 | `admin` | `admin` | 审核、配置、代发、需求处理、操作日志 |
 
 后台登录单独使用 `/api/v1/admin/auth/login`，但不单独建立后台用户主体。后台账号通过 `admin_login_credentials` 关联 `users`，并通过 `roles` / `user_role_assignments` 判断是否具备 `platform_operator` 或 `super_admin` 权限。
 
@@ -458,12 +458,14 @@ npm run build
 - 城市站和资源类型配置。
 - 商家主页和商家管理员绑定。
 - 统一资源发布、审核、搜索、详情、联系、过期、归档。
-- 采购需求提交和人工撮合记录。
+- 采购需求提交、后台查看、标记跟进和关闭。
 - 商家认证和轻量信用标签。
 - 发布额度、刷新次数、置顶券。
 - 消息中心基础通知。
 - 发布效果数据统计。
 - 运营审核、代发、下架和操作日志。
+
+人工撮合功能首期暂不上线。相关数据表、模型和 API 可以作为后续版本预留，但当前 MVP 不在小程序或运营后台导航中暴露，也不作为发布验收项。
 
 首期暂不做：
 

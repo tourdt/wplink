@@ -792,7 +792,7 @@ erDiagram
 
 - 搜索记录可转化为采购需求。
 - 搜索无结果词进入运营补货清单。
-- 采购需求可进入人工撮合。
+- 采购需求首期进入后台运营处理，后续可进入人工撮合。
 
 ## 8. 索引与性能建议
 
@@ -831,15 +831,14 @@ MVP 必建：
 - credit_records
 - purchase_demands
 - search_logs
-- match_cases
-- match_case_resources
-- match_case_participants
 - merchant_entitlements
 - top_vouchers
 - resource_contact_events
 - resource_metrics_daily
 - messages
 - operation_logs
+
+首期暂不上线人工撮合功能。`match_cases`、`match_case_resources`、`match_case_participants` 可作为后续版本预留表保留在迁移中，但不属于当前 MVP 必验能力。
 
 MVP 暂不建：
 

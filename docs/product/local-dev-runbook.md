@@ -50,8 +50,10 @@ node backend/scripts/validate_migrations.mjs
 - 织里城市站和七类资源类型配置
 - 认证工厂、认证库存商、服务商、采购商
 - 七类已发布资源，以及待审核、已驳回、即将过期、已过期资源
-- 采购需求、open 状态撮合单、候选资源和参与商家
+- 采购需求
 - 消息、资源指标、联系事件、操作日志、置顶券和权益
+
+说明：种子数据和后端模型可保留撮合相关预留数据结构，但人工撮合功能首期暂不上线，演示和验收不进入撮合后台。
 
 本地若要清库重跑，建议直接重建数据库后重新执行上述脚本。当前 migration down 文件可用于开发验证，但演示环境优先使用干净数据库。
 
@@ -123,7 +125,6 @@ node backend/scripts/prepare_admin_embed.mjs
 - `/demands` 采购需求
 - `/verifications` 认证审核
 - `/entitlements` 权益发放
-- `/match-cases` 人工撮合
 - `/banner-topics` Banner 专题
 - `/resource-type-configs` 资源配置
 - `/operation-logs` 操作日志

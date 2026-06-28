@@ -135,11 +135,11 @@
 | `GET /api/v1/admin/verifications/pending` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/verification_admin_logic.go` | `admin-web/src/views/VerificationView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/verifications/:verificationId/review` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/verification_admin_logic.go` | `admin-web/src/views/VerificationView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/merchants/:merchantId/entitlements` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/entitlement_admin_logic.go` | `admin-web/src/views/EntitlementView.vue` | 不适用 | 已接 handler，测试通过 |
-| `POST /api/v1/admin/match-cases` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | `admin-web/src/views/MatchCaseView.vue` | 不适用 | 已接 handler，测试通过 |
-| `GET /api/v1/admin/match-cases` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | `admin-web/src/views/MatchCaseView.vue` | 不适用 | 已接 handler，测试通过 |
-| `PATCH /api/v1/admin/match-cases/:matchCaseId/status` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | `admin-web/src/views/MatchCaseView.vue` | 不适用 | 已接 handler，测试通过 |
-| `POST /api/v1/admin/match-cases/:matchCaseId/resources` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | `admin-web/src/views/MatchCaseView.vue` | 不适用 | 已接 handler，测试通过 |
-| `POST /api/v1/admin/match-cases/:matchCaseId/participants` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | `admin-web/src/views/MatchCaseView.vue` | 不适用 | 已接 handler，测试通过 |
+| `POST /api/v1/admin/match-cases` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | 已隐藏 | 不适用 | 后续版本预留，首期不上线 |
+| `GET /api/v1/admin/match-cases` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | 已隐藏 | 不适用 | 后续版本预留，首期不上线 |
+| `PATCH /api/v1/admin/match-cases/:matchCaseId/status` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | 已隐藏 | 不适用 | 后续版本预留，首期不上线 |
+| `POST /api/v1/admin/match-cases/:matchCaseId/resources` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | 已隐藏 | 不适用 | 后续版本预留，首期不上线 |
+| `POST /api/v1/admin/match-cases/:matchCaseId/participants` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | 已隐藏 | 不适用 | 后续版本预留，首期不上线 |
 | `GET /api/v1/admin/operation-logs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/operation_log_logic.go` | `admin-web/src/views/OperationLogView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/search-logs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/search_log_logic.go` | `admin-web/src/views/SearchLogView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/tasks/resource-lifecycle/run` | `backend/app/api/admin.api` | `backend/app/internal/task/resource_lifecycle_task.go` | 运维/运营手动触发 | 不适用 | 已接 handler，测试通过 |
