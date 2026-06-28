@@ -1,12 +1,12 @@
-# wxapp v3 UI Design
+# wxapp v3 UI 设计
 
-## Goal
+## 目标
 
-Bring the wxapp UI up to the v3 prototype standard for the launch-review path. The work focuses on visual hierarchy, trust signals, resource judgment details, lifecycle states, empty states, and action clarity while preserving the current routes, API contracts, and business behavior.
+将 wxapp 的上线验收主路径 UI 完善到 v3 原型标准。重点补齐视觉层级、信任信号、资源判断信息、生命周期状态、空状态和操作清晰度，同时保留现有路由、接口协议和业务行为。
 
-## Scope
+## 范围
 
-The implementation covers the nine v3 launch-review flows:
+本次实施覆盖 v3 上线验收的 9 条主流程：
 
 - `pages/home/index`
 - `pages/search/index`
@@ -18,169 +18,169 @@ The implementation covers the nine v3 launch-review flows:
 - `pages/topic/index`
 - `pages/webview/index`
 
-Out of scope for this phase:
+本阶段不包含：
 
-- Backend API changes
-- New database fields
-- Authentication flow changes
-- Full redesign of secondary pages such as verification, favorites, demand success, publish success, profile, and my center
-- Replacing uni-app navigation or tab structure
+- 后端 API 变更
+- 新增数据库字段
+- 登录认证流程调整
+- 认证、收藏、需求成功页、发布成功页、商家资料、我的中心等次级页面的完整重设计
+- 替换 uni-app 现有导航或 tab 结构
 
-## Design Direction
+## 设计方向
 
-The product remains a B2B apparel resource marketplace. The UI should be search-first, resource-first, and trust-first.
+产品定位仍是 B2B 服装产业资源市场。UI 要坚持搜索优先、资源优先、信任优先。
 
-Use the v3 prototype as the primary visual reference:
+以 v3 原型作为主要视觉参考：
 
-- White cards on a light gray background
-- `#0f766e` as the primary trust/action color
-- Supporting tones for inventory, factory, activity, and promotion states
-- 8px equivalent radius in prototype terms, mapped to compact `rpx` radii in wxapp
-- Dense but readable marketplace layout, not a marketing landing page
-- Platform trust labels and operational guidance close to the decision point
+- 浅灰背景上的白色卡片
+- `#0f766e` 作为主要信任色和操作色
+- 用辅助色区分库存、工厂、活动、推广等状态
+- 原型中 8px 级别圆角映射到 wxapp 中紧凑的 `rpx` 圆角
+- 使用紧凑但可读的市场型布局，不做营销落地页式包装
+- 平台信任标签和运营提示要靠近用户决策点
 
-## Shared UI System
+## 共享 UI 体系
 
-Update shared styling through `wxapp/uni.scss` and existing shared components where practical.
+优先通过 `wxapp/uni.scss` 和现有共享组件统一样式。
 
-Shared primitives:
+共享基础样式包括：
 
-- Page background and safe content padding
-- Card surfaces
-- Primary, secondary, ghost, and warning buttons
-- Tags for verified, promoted, status, and neutral metadata
-- Section headers
-- Empty states
-- Sticky bottom action bars
-- Resource-card spacing, image ratio, metadata, price, merchant, and refresh-time treatment
+- 页面背景和安全内容内边距
+- 卡片容器
+- 主要、次要、弱化、警示按钮
+- 认证、推广、状态、中性元数据标签
+- 分区标题
+- 空状态
+- 底部固定操作栏
+- 资源卡片的间距、图片比例、元数据、价格、商家、刷新时间样式
 
-The shared system should reduce repeated CSS in the nine pages without introducing a broad component library.
+共享体系用于减少 9 个页面里的重复 CSS，但不引入大型组件库。
 
-## Page Designs
+## 页面设计
 
-### Home
+### 首页
 
-Home should mirror the v3 first screen:
+首页对齐 v3 首屏：
 
-- Search entry is prominent and immediately reachable.
-- Banner area supports topic, activity webview, and merchant/resource jumps.
-- Trust strip shows platform verification, certified merchants, and expiration rules.
-- Activity entry can jump to webview.
-- Weekly focus card highlights urgent inventory.
-- Four scenario cards cover stock, clearance, factory, and publishing.
-- Recommended resources use the improved shared resource card.
+- 搜索入口突出且首屏可达。
+- Banner 区支持专题、活动 webview、商家或资源跳转。
+- 信任条展示平台核实、认证商家、过期下架规则。
+- 活动入口可跳转 webview。
+- 本周重点卡突出急清库存。
+- 4 个场景卡覆盖找现货、清库存、找工厂、商家发布。
+- 推荐资源使用改造后的共享资源卡片。
 
-### Search
+### 搜索
 
-Search should help users quickly decide whether a result is worth opening:
+搜索页帮助用户快速判断结果是否值得打开：
 
-- Keep keyword search and type filters.
-- Preserve saved search behavior for logged-in users.
-- Hot keywords remain visible.
-- Show promoted-resource explanation when results exist.
-- Result cards expose trust labels, type, quantity, price, refresh time, merchant, and decision hints where existing data allows.
-- Empty state naturally routes to purchase demand submission.
+- 保留关键词搜索和类型筛选。
+- 保留登录用户的保存搜索行为。
+- 热门关键词保持可见。
+- 有结果时展示置顶资源说明。
+- 结果卡在现有数据允许的范围内展示信任标签、类型、数量、价格、刷新时间、商家和判断提示。
+- 无结果状态自然引导提交采购需求。
 
-### Resource Detail
+### 资源详情
 
-Detail page should become the strongest decision screen:
+详情页作为最核心的决策页：
 
-- Show a gallery area from cover/images, with a neutral placeholder when images are missing.
-- Put verification, status, and freshness tags above the title.
-- Show price and key specs before long description.
-- Show merchant summary as a tappable trust block.
-- Keep contact-before-action guidance near the contact actions.
-- Keep same-category recommendations.
-- Bottom sticky bar keeps favorite, merchant, phone, wechat, and share actions reachable.
+- 根据封面或图片展示图库区域，缺图时显示中性占位。
+- 标题上方展示认证、状态、刷新等标签。
+- 长描述之前先展示价格和关键规格。
+- 商家摘要作为可点击的信任区块。
+- 联系前提示靠近联系操作。
+- 保留同类推荐。
+- 底部固定操作栏保留收藏、商家主页、电话、微信、分享等操作。
 
-### Merchant Detail
+### 商家主页
 
-Merchant page should support buyer trust evaluation:
+商家主页用于支持买家判断商家可信度：
 
-- Header shows merchant identity, type, verification, follow action, and location/category context when available.
-- Stats summarize current publishing, historical publishing, and deal/contact signals from existing response fields when available.
-- Main categories and credit tags are prominent.
-- Rights/promotion note explains certification and top placement without overclaiming.
-- Published resource list uses the shared resource card.
-- Contact buttons remain guidance-only unless entering from a resource detail provides contact data.
+- 头部展示商家身份、类型、认证、关注操作，以及可用的地区或品类信息。
+- 统计区在现有返回字段允许时展示当前发布、历史发布、成交或联系信号。
+- 主营品类和信用标签前置展示。
+- 权益和推广说明解释认证、置顶带来的曝光价值，但不做过度承诺。
+- 发布资源列表使用共享资源卡。
+- 联系按钮保持提示性质；除非从资源详情携带了具体联系方式，否则不直接展示完整联系方式。
 
-### Publish
+### 发布
 
-Publish page should feel like a guided merchant workflow:
+发布页要像一个清晰的商家操作流程：
 
-- Top quota/rights card explains publishing and top-voucher value.
-- Type switch remains easy to scan horizontally.
-- Form groups are visually separated and use clear labels/placeholders.
-- Required fields drive the submit-readiness message.
-- Image upload shows uploaded image references or thumbnails where available.
-- Save draft and submit review remain the two main actions.
+- 顶部额度和权益卡解释发布、审核和置顶券价值。
+- 类型切换保持横向易扫。
+- 表单分组视觉清晰，标签和占位文案明确。
+- 必填项完整度驱动提交状态提示。
+- 图片上传展示已上传图片引用或可用缩略图。
+- 保存草稿和提交审核仍是两个主操作。
 
-### Messages
+### 消息
 
-Messages should cover v3 launch states:
+消息页覆盖 v3 上线状态：
 
-- Tabs retain all, unread, read, audit, and effect categories.
-- Message cards emphasize unread state, title, time, target hint, and content.
-- Effect card summarizes exposure, views, and contact performance.
-- Guidance points merchants to refresh, top, or manage resources.
+- tab 保留全部、未读、已读、审核、效果分类。
+- 消息卡突出未读状态、标题、时间、跳转提示和内容。
+- 效果卡汇总曝光、浏览、联系表现。
+- 引导商家刷新、置顶或管理资源。
 
-### My Resources
+### 我的发布
 
-My resources should make lifecycle and actions clear:
+我的发布页要清晰表达资源生命周期和可执行动作：
 
-- Header explains status, performance, and promotion management.
-- Filter row covers draft, pending, published, expiring soon, expired, dealt, and taken down.
-- Each card shows status, expiry, title, category/type, publish and expiry dates, metrics, and allowed actions.
-- Destructive or lifecycle actions should stay visually secondary to review/detail actions.
+- 头部说明状态、效果数据和推广权益管理。
+- 筛选行覆盖草稿、待审核、已发布、即将过期、已过期、已成交、已下架。
+- 每张卡展示状态、到期信息、标题、品类/类型、发布时间、到期时间、数据指标和允许操作。
+- 下架、成交等生命周期动作视觉上弱于查看详情等普通操作。
 
-### Topic
+### 专题
 
-Topic page should match v3 banner-topic behavior:
+专题页对齐 v3 Banner 专题行为：
 
-- Hero section describes the configured topic.
-- Summary metrics can use existing query result count or static UI copy when no API data exposes counts.
-- Filters guide users through urgent clearance, sample-ready, size, and verified states.
-- Resource list uses shared resource cards.
-- Empty or insufficient results route users to demand submission.
+- 头图区说明当前运营配置专题。
+- 汇总指标可使用现有查询结果数量；接口未暴露时使用静态说明文案。
+- 筛选引导用户按急清、可看样、尺码、平台核实等条件判断。
+- 资源列表使用共享资源卡。
+- 空状态或结果不足时引导提交采购需求。
 
 ### Webview
 
-Webview page should provide a launch-review wrapper around configured activity URLs:
+webview 页为配置活动 URL 提供上线验收包装：
 
-- Show the decoded URL or a safe short display.
-- Show activity cover and copy where route params or fallback copy are available.
-- Explain that the URL must belong to an allowed business domain.
-- Provide a path back to related platform resources.
+- 展示解码后的 URL 或安全的短展示文案。
+- 根据路由参数或兜底文案展示活动封面和活动说明。
+- 说明 URL 必须属于已配置的业务域名。
+- 提供返回平台相关资源的路径。
 
-## Data And Error Handling
+## 数据和异常处理
 
-No API contract changes are planned. UI should degrade gracefully:
+不计划修改 API 协议。UI 需要优雅降级：
 
-- Missing images use styled placeholders.
-- Missing merchant fields show neutral fallback copy.
-- Failed optional calls should not block search, browsing, or publishing.
-- Empty lists should show action-oriented empty states.
-- Contact actions continue to use existing privacy behavior and metric recording.
+- 缺少图片时使用样式化占位。
+- 缺少商家字段时展示中性兜底文案。
+- 可选接口失败时不阻断搜索、浏览或发布。
+- 空列表展示带行动建议的空状态。
+- 联系操作继续沿用现有隐私保护行为和指标记录。
 
-## Validation
+## 验证标准
 
-Implementation is acceptable when:
+满足以下条件即可验收：
 
-- The nine scoped pages compile under the existing wxapp toolchain.
-- Existing route paths and API calls remain intact.
-- The current validation scripts pass where applicable.
-- Home can route into search, topic, webview, publish, and resource detail paths.
-- Search no-result state routes to demand submission.
-- Resource detail contact actions still record contact behavior.
-- My resources retains all existing lifecycle actions.
-- UI text fits mobile width without horizontal scrolling.
+- 9 个范围内页面可在现有 wxapp 工具链下编译。
+- 现有路由路径和 API 调用保持不变。
+- 当前适用的验证脚本通过。
+- 首页可进入搜索、专题、webview、发布和资源详情路径。
+- 搜索无结果状态可进入需求提交。
+- 资源详情联系操作仍会记录联系行为。
+- 我的发布保留所有既有生命周期操作。
+- UI 文案适配移动端宽度，不出现横向滚动。
 
-## Implementation Notes
+## 实施说明
 
-Keep edits scoped and incremental:
+保持改动范围可控并分步推进：
 
-- Start with shared styles and `ResourceCard`.
-- Update high-traffic pages first: home, search, resource detail.
-- Then update merchant, publish, messages, and my resources.
-- Finish with topic and webview.
-- Do not refactor unrelated business logic while improving UI.
+- 先改共享样式和 `ResourceCard`。
+- 优先更新高频页面：首页、搜索、资源详情。
+- 再更新商家主页、发布、消息、我的发布。
+- 最后更新专题和 webview。
+- UI 改造过程中不重构无关业务逻辑。
