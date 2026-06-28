@@ -1,13 +1,19 @@
 <template>
   <view class="messages-page">
-    <view class="filter-row">
-      <button :class="['filter-button', filters.status === '' ? 'active' : '']" @click="selectStatus('')">全部</button>
-      <button :class="['filter-button', filters.status === 'unread' ? 'active' : '']" @click="selectStatus('unread')">未读</button>
-      <button :class="['filter-button', filters.status === 'read' ? 'active' : '']" @click="selectStatus('read')">已读</button>
-    </view>
+    <scroll-view class="filter-row" scroll-x>
+      <button
+        v-for="item in messageTabs"
+        :key="item.label"
+        :class="['filter-button', activeMessageTab === item.label ? 'active' : '']"
+        @click="selectMessageTab(item)"
+      >
+        {{ item.label }}
+      </button>
+    </scroll-view>
 
     <view class="message-list">
       <view v-for="item in rows" :key="item.id" class="message-card" @click="openMessageTarget(item)">
+        <text :class="['message-dot', item.status === 'read' ? 'read' : '']"></text>
         <view class="card-head">
           <text class="message-title">{{ item.title }}</text>
           <text class="status-tag">{{ item.status === 'read' ? '已读' : '未读' }}</text>
@@ -16,6 +22,26 @@
         <text class="message-time">{{ item.createdAt }}</text>
         <text v-if="item.targetUrl" class="target-hint">查看详情</text>
       </view>
+    </view>
+
+    <view class="effect-card">
+      <text class="effect-title">商家本周效果</text>
+      <view class="effect-grid">
+        <view class="effect-item">
+          <text class="effect-value">386</text>
+          <text class="effect-label">曝光</text>
+        </view>
+        <view class="effect-item">
+          <text class="effect-value">52</text>
+          <text class="effect-label">浏览</text>
+        </view>
+        <view class="effect-item">
+          <text class="effect-value">9</text>
+          <text class="effect-label">联系</text>
+        </view>
+      </view>
+      <text class="effect-tip">联系率高的资源可刷新或使用置顶券延长曝光。</text>
+      <button @click="openMyResources">查看我的资源</button>
     </view>
   </view>
 </template>
@@ -29,7 +55,16 @@ import { listMessages, readMessage } from '../../api/message'
 const rows = ref([])
 const userId = ref('')
 const roleCode = ref('')
+const activeMessageTab = ref('全部')
 const filters = reactive({ status: '' })
+const messageTabs = [
+  { label: '全部', status: '' },
+  { label: '未读', status: 'unread', action: () => selectStatus('unread') },
+  { label: '已读', status: 'read', action: () => selectStatus('read') },
+  { label: '审核', status: '' },
+  { label: '撮合', status: '' },
+  { label: '效果', status: '' },
+]
 const tabPagePaths = ['/pages/home/index', '/pages/search/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
 
 onLoad((options) => {
@@ -54,6 +89,15 @@ async function loadRows() {
 function selectStatus(status) {
   filters.status = status
   loadRows()
+}
+
+function selectMessageTab(item) {
+  activeMessageTab.value = item.label
+  if (item.action) {
+    item.action()
+    return
+  }
+  selectStatus(item.status)
 }
 
 async function markRead(item) {
@@ -90,6 +134,10 @@ function isTabPage(targetUrl) {
 function stripQuery(targetUrl) {
   return targetUrl.split('?')[0]
 }
+
+function openMyResources() {
+  uni.navigateTo({ url: '/pages/my-resources/index' })
+}
 </script>
 
 <style scoped>
@@ -100,17 +148,22 @@ function stripQuery(targetUrl) {
 }
 
 .filter-row {
-  display: flex;
-  gap: 12rpx;
+  width: 100%;
   margin-bottom: 20rpx;
+  white-space: nowrap;
 }
 
 .filter-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 112rpx;
   height: 72rpx;
+  margin-right: 12rpx;
   border-radius: 10rpx;
   background: #ffffff;
   color: #364152;
+  font-size: 26rpx;
 }
 
 .filter-button.active {
@@ -121,9 +174,11 @@ function stripQuery(targetUrl) {
 .message-list {
   display: grid;
   gap: 18rpx;
+  margin-bottom: 20rpx;
 }
 
 .message-card {
+  position: relative;
   display: grid;
   gap: 10rpx;
   padding: 24rpx;
@@ -131,10 +186,25 @@ function stripQuery(targetUrl) {
   background: #ffffff;
 }
 
+.message-dot {
+  position: absolute;
+  top: 30rpx;
+  left: 20rpx;
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: #dc6b4a;
+}
+
+.message-dot.read {
+  background: #0f766e;
+}
+
 .card-head {
   display: flex;
   justify-content: space-between;
-  gap: 12rpx;
+  gap: 18rpx;
+  padding-left: 18rpx;
 }
 
 .message-title {
@@ -158,5 +228,56 @@ function stripQuery(targetUrl) {
 .target-hint {
   color: #0f766e;
   font-size: 24rpx;
+}
+
+.effect-card {
+  display: grid;
+  gap: 16rpx;
+  padding: 24rpx;
+  border-radius: 12rpx;
+  background: #ffffff;
+}
+
+.effect-title {
+  color: #1f2933;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.effect-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+}
+
+.effect-item {
+  display: grid;
+  gap: 6rpx;
+  padding: 18rpx;
+  border-radius: 10rpx;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.effect-value {
+  color: #1f2933;
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.effect-label,
+.effect-tip {
+  color: #697586;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.effect-card button {
+  height: 80rpx;
+  border-radius: 10rpx;
+  background: #e6f4f1;
+  color: #0f766e;
+  font-size: 28rpx;
+  font-weight: 700;
 }
 </style>

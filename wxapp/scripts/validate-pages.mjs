@@ -3,12 +3,17 @@ import path from 'node:path'
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
 const pagesPath = path.join(root, 'pages.json')
+const manifestPath = path.join(root, 'manifest.json')
 
 if (!fs.existsSync(pagesPath)) {
   throw new Error('缺少 pages.json')
 }
+if (!fs.existsSync(manifestPath)) {
+  throw new Error('缺少 manifest.json')
+}
 
 const pagesConfig = JSON.parse(fs.readFileSync(pagesPath, 'utf8'))
+const manifestConfig = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
 const pagePaths = (pagesConfig.pages || []).map((item) => item.path)
 const requiredPages = [
   'pages/home/index',
@@ -51,6 +56,10 @@ for (const page of ['pages/search/index', 'pages/publish/index']) {
   if (!source.includes('listCityResourceTypes')) {
     throw new Error(`${page}.vue 未从城市资源类型配置加载资源类型`)
   }
+}
+
+if (manifestConfig.uniStatistics?.enable !== false || manifestConfig['mp-weixin']?.uniStatistics?.enable !== false) {
+  throw new Error('manifest.json 必须显式关闭 uniStatistics，避免微信开发者工具启动期注入统计运行时')
 }
 
 console.log('wxapp pages ok')

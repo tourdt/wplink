@@ -1,5 +1,13 @@
 <template>
   <view class="my-page">
+    <view class="mine-head">
+      <view class="avatar">服</view>
+      <view>
+        <text class="mine-name">{{ mineName }}</text>
+        <text class="mine-role">服链通商家 · 商家管理员</text>
+      </view>
+    </view>
+
     <view class="profile-card">
       <text class="page-title">我的</text>
       <button class="secondary-button" @click="loginWithWechat">微信登录</button>
@@ -14,6 +22,13 @@
       <input v-model="userId" class="field" placeholder="用户 ID" />
       <input v-model="merchantId" class="field" placeholder="商家 ID" />
       <button class="primary-button" @click="saveIdentity">保存身份</button>
+    </view>
+
+    <view class="benefit-card">
+      <text class="benefit-tag">权益提醒</text>
+      <text class="benefit-title">{{ benefitTitle }}</text>
+      <text class="benefit-desc">建议用于急清库存或空档产能资源，展示为“置顶”。</text>
+      <button :disabled="!merchantId.trim()" @click="openPublish">去发布资源</button>
     </view>
 
     <view class="entitlement-card">
@@ -113,9 +128,10 @@ async function loginWithWechat() {
     if (resp.token) {
       saveToken(resp.token)
     }
-    if (resp.user?.id) {
-      userId.value = resp.user.id
-      saveUserId(resp.user.id)
+    const loginUser = resp.user || {}
+    if (loginUser.id) {
+      userId.value = loginUser.id
+      saveUserId(loginUser.id)
     }
     uni.showToast({ title: '登录成功', icon: 'none' })
   } catch (err) {
@@ -207,6 +223,12 @@ const entitlementRows = computed(() => [
 ])
 
 const availableTopVoucherCount = computed(() => topVouchers.value.filter((item) => item.status === 'unused').length)
+const mineName = computed(() => (merchantId.value ? '商家工作台' : '我的账号'))
+const defaultBenefitTitle = '3 张置顶券本月可用'
+const benefitTitle = computed(() => {
+  const count = availableTopVoucherCount.value
+  return count > 0 ? `${count} 张置顶券本月可用` : defaultBenefitTitle
+})
 
 function buildEntitlementRow(types, label) {
   const item = entitlements.value.find((entry) => types.includes(entry.type)) || {}
@@ -273,7 +295,9 @@ function openPublish() {
   background: #f4f6f8;
 }
 
+.mine-head,
 .profile-card,
+.benefit-card,
 .entitlement-card,
 .action-list {
   display: grid;
@@ -282,6 +306,72 @@ function openPublish() {
   padding: 24rpx;
   border-radius: 12rpx;
   background: #ffffff;
+}
+
+.mine-head {
+  grid-template-columns: 96rpx 1fr;
+  align-items: center;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 12rpx;
+  background: #0f766e;
+  color: #ffffff;
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.mine-name {
+  display: block;
+  margin-bottom: 8rpx;
+  color: #1f2933;
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.mine-role {
+  color: #697586;
+  font-size: 26rpx;
+}
+
+.benefit-card {
+  background: #fff7e6;
+}
+
+.benefit-tag {
+  width: 128rpx;
+  padding: 6rpx 12rpx;
+  border-radius: 8rpx;
+  background: #fff0cc;
+  color: #b7791f;
+  font-size: 24rpx;
+  text-align: center;
+}
+
+.benefit-title {
+  color: #1f2933;
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.benefit-desc {
+  color: #7c5a22;
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
+.benefit-card button {
+  height: 80rpx;
+  border-radius: 10rpx;
+  background: #0f766e;
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 700;
 }
 
 .page-title {

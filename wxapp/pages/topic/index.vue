@@ -3,8 +3,16 @@
     <view class="topic-hero">
       <image v-if="topic.coverUrl" class="topic-cover" :src="topic.coverUrl" mode="aspectFill" />
       <view class="topic-copy">
+        <text class="topic-label">Banner 专题</text>
         <text class="topic-title">{{ topic.title }}</text>
-        <text class="topic-subtitle">{{ topic.subtitle }}</text>
+        <text class="topic-subtitle">{{ topic.subtitle || '运营配置专题列表，只展示已审核、未过期、平台内资源。' }}</text>
+      </view>
+    </view>
+
+    <view class="topic-summary">
+      <view v-for="item in topicStats" :key="item.label" class="topic-stat">
+        <text class="stat-value">{{ item.value }}</text>
+        <text class="stat-label">{{ item.label }}</text>
       </view>
     </view>
 
@@ -12,15 +20,16 @@
       <ResourceCard v-for="item in rows" :key="item.id" :resource="item" @open="openResource" />
     </view>
 
-    <view v-else-if="demandEntry" class="empty-card">
-      <text class="empty-title">{{ demandEntry.title }}</text>
-      <button class="primary-button" @click="openDemand">{{ demandEntry.buttonText }}</button>
+    <view v-else class="empty-card">
+      <text class="empty-title">{{ emptyTitle }}</text>
+      <text class="empty-desc">提交需求后，运营会按专题条件继续帮你匹配。</text>
+      <button class="primary-button" @click="openDemand">{{ emptyButtonText }}</button>
     </view>
   </view>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
@@ -29,6 +38,13 @@ import { getTopicResources } from '../../api/discovery'
 const topic = ref({})
 const rows = ref([])
 const demandEntry = ref(null)
+const topicStats = computed(() => [
+  { label: '专题资源', value: rows.value.length },
+  { label: '平台内资源', value: rows.value.filter((item) => item.status === 'published').length || rows.value.length },
+  { label: '可提交需求', value: demandEntry.value ? 1 : 0 },
+])
+const emptyTitle = computed(() => (demandEntry.value || {}).title || '没有找到想要的款？')
+const emptyButtonText = computed(() => (demandEntry.value || {}).buttonText || '提交找货需求')
 
 onLoad(async (options) => {
   if (!options.id) return
@@ -78,14 +94,52 @@ function openDemand() {
   color: #ffffff;
 }
 
+.topic-label {
+  justify-self: start;
+  padding: 6rpx 12rpx;
+  border-radius: 8rpx;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-size: 22rpx;
+}
+
 .topic-title,
 .empty-title {
   font-size: 36rpx;
   font-weight: 700;
 }
 
-.topic-subtitle {
+.topic-subtitle,
+.empty-desc {
   font-size: 26rpx;
+  line-height: 1.5;
+}
+
+.topic-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+  margin-bottom: 20rpx;
+}
+
+.topic-stat {
+  display: grid;
+  gap: 6rpx;
+  padding: 18rpx;
+  border-radius: 12rpx;
+  background: #ffffff;
+  text-align: center;
+}
+
+.stat-value {
+  color: #1f2933;
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.stat-label {
+  color: #697586;
+  font-size: 24rpx;
 }
 
 .result-list {
@@ -99,6 +153,10 @@ function openDemand() {
   padding: 24rpx;
   border-radius: 12rpx;
   background: #ffffff;
+}
+
+.empty-desc {
+  color: #697586;
 }
 
 .primary-button {

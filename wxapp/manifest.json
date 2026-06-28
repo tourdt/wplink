@@ -5,8 +5,14 @@
   "versionName": "0.1.0",
   "versionCode": "100",
   "transformPx": false,
+  "uniStatistics": {
+    "enable": false
+  },
   "mp-weixin": {
     "appid": "wxdef8495c3537f72e",
+    "uniStatistics": {
+      "enable": false
+    },
     "setting": {
       "urlCheck": false,
       "es6": true,

@@ -1,6 +1,14 @@
 <template>
   <view class="my-resources-page">
-    <view class="filter-row">
+    <view class="resource-manager-head">
+      <view>
+        <text class="manager-title">我的发布</text>
+        <text class="manager-desc">管理资源状态、效果数据和推广权益。</text>
+      </view>
+      <button @click="openPublish">发布</button>
+    </view>
+
+    <scroll-view class="filter-row" scroll-x>
       <button
         v-for="item in statusOptions"
         :key="item.value"
@@ -9,14 +17,18 @@
       >
         {{ item.label }}
       </button>
-    </view>
+    </scroll-view>
 
     <view class="resource-list">
       <view v-for="item in rows" :key="item.id" class="resource-card">
         <view class="card-head">
-          <text class="resource-title">{{ item.title }}</text>
-          <text class="status-tag">{{ statusText[item.status] || item.status }}</text>
+          <view class="tag-row">
+            <text :class="['status-tag', item.status]">{{ statusText[item.status] || item.status }}</text>
+            <text v-if="canTopResource(item)" class="top-tag">可置顶</text>
+          </view>
+          <text class="expire-text">{{ expireText(item) }}</text>
         </view>
+        <text class="resource-title">{{ item.title }}</text>
         <text class="resource-meta">{{ item.category }} · {{ item.typeCode }}</text>
         <text class="resource-meta">发布 {{ item.publishedAt || '-' }} · 到期 {{ item.expiresAt || '-' }}</text>
         <MetricStrip :items="metricItems(item)" />
@@ -27,6 +39,7 @@
           <button v-if="item.status === 'published'" @click="takeDown(item)">下架</button>
           <button v-if="item.status === 'draft'" @click="submitDraft(item)">提交审核</button>
           <button v-if="canRepost(item)" @click="repost(item)">再发类似</button>
+          <button @click="openResource(item)">详情</button>
         </view>
       </view>
     </view>
@@ -130,6 +143,25 @@ function canRepost(item) {
   return item.status === 'expired' || Boolean(item.dealtAt)
 }
 
+function canTopResource(item) {
+  return item.status === 'published'
+}
+
+function expireText(item) {
+  if (item.status === 'pending') return '审核中'
+  if (item.status === 'expired') return '已过期'
+  if (item.expiresAt) return `到期 ${item.expiresAt}`
+  return '有效期待确认'
+}
+
+function openPublish() {
+  uni.switchTab({ url: '/pages/publish/index' })
+}
+
+function openResource(item) {
+  uni.navigateTo({ url: `/pages/resource/detail?id=${item.id}` })
+}
+
 function metricItems(item) {
   const metrics = item.metrics || {}
   return [
@@ -149,15 +181,54 @@ function metricItems(item) {
 }
 
 .filter-row {
-  display: flex;
-  gap: 12rpx;
+  width: 100%;
   margin-bottom: 20rpx;
-  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.resource-manager-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 20rpx;
+  padding: 24rpx;
+  border-radius: 12rpx;
+  background: #ffffff;
+}
+
+.manager-title {
+  display: block;
+  margin-bottom: 8rpx;
+  color: #1f2933;
+  font-size: 38rpx;
+  font-weight: 700;
+}
+
+.manager-desc {
+  color: #697586;
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
+.resource-manager-head button {
+  flex: 0 0 auto;
+  width: 116rpx;
+  height: 68rpx;
+  border-radius: 10rpx;
+  background: #0f766e;
+  color: #ffffff;
+  font-size: 26rpx;
+  font-weight: 700;
 }
 
 .filter-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 128rpx;
   height: 72rpx;
+  margin-right: 12rpx;
   padding: 0 20rpx;
   border-radius: 10rpx;
   background: #ffffff;
@@ -189,20 +260,47 @@ function metricItems(item) {
   gap: 12rpx;
 }
 
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+}
+
 .resource-title {
   color: #1f2933;
   font-size: 32rpx;
   font-weight: 700;
+  line-height: 1.35;
 }
 
-.status-tag {
+.status-tag,
+.top-tag {
+  padding: 6rpx 12rpx;
+  border-radius: 8rpx;
+  background: #edf2f7;
   color: #0f766e;
+  font-size: 24rpx;
+}
+
+.status-tag.published {
+  background: #e6f4f1;
+}
+
+.top-tag {
+  background: #fff7e6;
+  color: #b7791f;
+}
+
+.expire-text {
+  flex: 0 0 auto;
+  color: #697586;
   font-size: 24rpx;
 }
 
 .resource-meta {
   color: #697586;
   font-size: 26rpx;
+  line-height: 1.5;
 }
 
 .action-row {

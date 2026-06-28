@@ -15,10 +15,10 @@
       <text class="section-content">{{ (merchant.mainCategories || []).join('、') }}</text>
     </view>
 
-    <view class="section" v-if="merchant.creditTags?.length">
+    <view class="section" v-if="creditTags.length">
       <text class="section-title">信用标签</text>
       <view class="tag-row">
-        <text v-for="tag in merchant.creditTags" :key="tag.code" class="tag verified">{{ tag.label }}</text>
+        <text v-for="tag in creditTags" :key="tag.code" class="tag verified">{{ tag.label }}</text>
       </view>
     </view>
 
@@ -27,18 +27,24 @@
       <text class="section-content">{{ merchant.description || '暂无简介' }}</text>
     </view>
 
-    <view class="section" v-if="merchant.images?.length">
+    <view class="section" v-if="merchantImages.length">
       <text class="section-title">商家图片</text>
       <scroll-view class="image-gallery" scroll-x>
-        <image v-for="url in merchant.images" :key="url" class="merchant-image" :src="url" mode="aspectFill" />
+        <image v-for="url in merchantImages" :key="url" class="merchant-image" :src="url" mode="aspectFill" />
       </scroll-view>
     </view>
 
     <view class="section">
       <text class="section-title">发布概况</text>
       <text class="section-content">
-        当前发布 {{ merchant.resourcesSummary?.publishedCount || 0 }} 条，成交反馈 {{ merchant.resourcesSummary?.dealtCount || 0 }} 条
+        当前发布 {{ resourcesSummary.publishedCount || 0 }} 条，成交反馈 {{ resourcesSummary.dealtCount || 0 }} 条
       </text>
+    </view>
+
+    <view class="section benefit-section">
+      <text class="section-title">权益提示</text>
+      <text class="section-content">认证商家、运营推荐和置顶权益会影响资源曝光，但不会替代平台审核和买家自行确认。</text>
+      <text class="section-tip">联系前建议先从资源详情进入，便于平台记录浏览、电话和微信行为。</text>
     </view>
 
     <view class="section">
@@ -60,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { getMerchant } from '../../api/merchant'
@@ -68,6 +74,9 @@ import { listResources } from '../../api/resource'
 
 const merchant = ref({})
 const merchantResources = ref([])
+const creditTags = computed(() => merchant.value.creditTags || [])
+const merchantImages = computed(() => merchant.value.images || [])
+const resourcesSummary = computed(() => merchant.value.resourcesSummary || {})
 const merchantTypeText = {
   factory: '工厂',
   stall: '档口',
@@ -171,6 +180,16 @@ function copyWechat() {
   color: #1f2933;
   font-size: 30rpx;
   line-height: 1.6;
+}
+
+.benefit-section {
+  background: #fff7e6;
+}
+
+.section-tip {
+  color: #7c5a22;
+  font-size: 26rpx;
+  line-height: 1.5;
 }
 
 .image-gallery {

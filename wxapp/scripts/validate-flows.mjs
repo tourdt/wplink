@@ -5,12 +5,26 @@ export const defaultFlowChecks = [
   {
     file: 'pages/home/index.vue',
     description: '首页 Banner 和入口跳转',
-    checks: ['listHomeBanners', "item.jumpType === 'topic'", "item.jumpType === 'resource'", "item.jumpType === 'merchant'", "item.jumpType === 'webview'", 'openDemand', 'openPublish'],
+    checks: [
+      'listHomeBanners',
+      "item.jumpType === 'topic'",
+      "item.jumpType === 'resource'",
+      "item.jumpType === 'merchant'",
+      "item.jumpType === 'webview'",
+      'openDemand',
+      'openPublish',
+      'sceneEntries',
+      '本周重点',
+      '平台推荐资源',
+      'ResourceCard',
+      'listResources',
+      'homeResources',
+    ],
   },
   {
     file: 'pages/search/index.vue',
     description: '搜索和无结果提交需求',
-    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', 'openDemand', '暂未找到合适资源'],
+    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', 'openDemand', '暂未找到合适资源', 'hotKeywords', '置顶资源', '提交采购需求'],
   },
   {
     file: 'pages/resource/detail.vue',
@@ -26,6 +40,8 @@ export const defaultFlowChecks = [
       'onShareAppMessage',
       'uni.makePhoneCall',
       'uni.setClipboardData',
+      '平台已记录联系行为',
+      '同类推荐',
     ],
   },
   {
@@ -43,6 +59,9 @@ export const defaultFlowChecks = [
       '请填写品类',
       '请填写联系人',
       '请填写联系电话',
+      '认证商家权益',
+      '发布后可获得',
+      'publishTypeOptions',
     ],
   },
   {
@@ -68,7 +87,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/my-resources/index.vue',
     description: '我的发布管理动作和指标',
-    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'listTopVouchers', 'redeemTopVoucher', 'markResourceDeal', 'takeDownResource', 'submitDraft', 'submitResource', 'repostSimilarResource', 'wechatCopyCount'],
+    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'listTopVouchers', 'redeemTopVoucher', 'markResourceDeal', 'takeDownResource', 'submitDraft', 'submitResource', 'repostSimilarResource', 'wechatCopyCount', '管理资源状态、效果数据和推广权益', 'canTopResource', '再发类似'],
   },
   {
     file: 'pages/messages/index.vue',
@@ -85,12 +104,15 @@ export const defaultFlowChecks = [
       'tabPagePaths',
       'uni.switchTab',
       'uni.navigateTo',
+      'messageTabs',
+      '商家本周效果',
+      '查看我的资源',
     ],
   },
   {
     file: 'pages/topic/index.vue',
     description: '专题资源和需求兜底',
-    checks: ['getTopicResources', 'ResourceCard', 'demandEntry', 'openDemand'],
+    checks: ['getTopicResources', 'ResourceCard', 'demandEntry', 'openDemand', 'Banner 专题', 'topicStats', '没有找到想要的款'],
   },
   {
     file: 'pages/webview/index.vue',
@@ -100,7 +122,12 @@ export const defaultFlowChecks = [
   {
     file: 'pages/merchant/detail.vue',
     description: '商家主页认证和发布记录',
-    checks: ['getMerchant', 'listResources', 'ResourceCard', 'merchantResources', 'openResource', 'verificationStatus', 'resourcesSummary', 'merchant.images', 'image-gallery', 'merchant-image'],
+    checks: ['getMerchant', 'listResources', 'ResourceCard', 'merchantResources', 'openResource', 'verificationStatus', 'resourcesSummary', 'merchantImages', 'image-gallery', 'merchant-image', '权益提示', '联系前建议先从资源详情进入'],
+  },
+  {
+    file: 'components/ResourceCard.vue',
+    description: '资源卡可信信息和行动提示',
+    checks: ['isVerifiedMerchant', '平台核实', '查看详情', 'formatRefreshedAt'],
   },
   {
     file: 'pages/merchant/profile.vue',
@@ -164,6 +191,9 @@ export const defaultFlowChecks = [
       'openMyDemands',
       'openVerification',
       'openPublish',
+      '权益提醒',
+      '3 张置顶券本月可用',
+      '商家管理员',
     ],
   },
 ]
@@ -183,7 +213,35 @@ export function validateFlows(root, checks = defaultFlowChecks) {
       }
     }
   }
+  issues.push(...validateTemplateCompatibility(root))
   return issues
+}
+
+function validateTemplateCompatibility(root) {
+  const issues = []
+  for (const file of listVueFiles(root)) {
+    const source = fs.readFileSync(file, 'utf8')
+    const template = source.match(/<template>([\s\S]*?)<\/template>/)?.[1] || ''
+    if (template.includes('?.')) {
+      issues.push(`${path.relative(root, file)} 模板不兼容微信编译: 请避免使用可选链 ?.`)
+    }
+  }
+  return issues
+}
+
+function listVueFiles(dir) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+  const files = []
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === 'dist') continue
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...listVueFiles(fullPath))
+    } else if (entry.isFile() && entry.name.endsWith('.vue')) {
+      files.push(fullPath)
+    }
+  }
+  return files
 }
 
 function main() {

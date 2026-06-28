@@ -1,5 +1,25 @@
 <template>
   <view class="publish-page">
+    <view class="quota-card">
+      <view>
+        <text class="quota-label">认证商家权益</text>
+        <text class="quota-title">本月可发布资源</text>
+        <text class="quota-desc">审核通过后进入搜索、首页分类和商家主页，置顶券可提升曝光。</text>
+      </view>
+      <button @click="openMyResources">查看权益</button>
+    </view>
+
+    <scroll-view class="publish-types" scroll-x>
+      <button
+        v-for="item in publishTypeOptions"
+        :key="item.value"
+        :class="['type-button', form.typeCode === item.value ? 'active' : '']"
+        @click="selectTypeByCode(item.value)"
+      >
+        {{ item.label }}
+      </button>
+    </scroll-view>
+
     <view class="form-card">
       <text class="page-title">发布资源</text>
       <picker :range="resourceTypeNames" :value="selectedTypeIndex" @change="selectType">
@@ -10,6 +30,10 @@
       <input v-model="form.quantityText" class="field" placeholder="数量/产能" />
       <input v-model="form.priceText" class="field" placeholder="价格描述" />
       <textarea v-model="form.description" class="textarea" placeholder="资源描述" />
+      <view class="effect-preview">
+        <text class="effect-label">发布后可获得</text>
+        <text class="effect-value">搜索曝光 · 商家主页展示 · 联系统计</text>
+      </view>
       <button class="secondary-button" @click="uploadResourceImage">上传资源图片</button>
       <view v-if="form.images.length" class="image-list">
         <text v-for="image in form.images" :key="image" class="image-url">{{ image }}</text>
@@ -35,6 +59,12 @@ import { chooseAndUploadImage } from '../../common/upload'
 
 const resourceTypes = ref([])
 const selectedTypeIndex = ref(0)
+const publishTypeOptions = [
+  { label: '发布库存', value: 'inventory' },
+  { label: '发布货源', value: 'goods' },
+  { label: '发布工厂产能', value: 'factory' },
+  { label: '发布服务', value: 'service' },
+]
 const form = reactive({
   merchantId: '',
   cityCode: DEFAULT_CITY_CODE,
@@ -55,7 +85,10 @@ const form = reactive({
 })
 
 const resourceTypeNames = computed(() => resourceTypes.value.map((item) => item.typeName))
-const selectedTypeLabel = computed(() => resourceTypes.value[selectedTypeIndex.value]?.typeName || '请选择资源类型')
+const selectedTypeLabel = computed(() => {
+  const current = resourceTypes.value[selectedTypeIndex.value] || {}
+  return current.typeName || '请选择资源类型'
+})
 
 onLoad(async (options) => {
   // 发布页优先使用路由带入的商家 ID，其次使用我的页保存的商家，减少商家重复输入。
@@ -78,7 +111,20 @@ async function loadResourceTypes() {
 
 function selectType(event) {
   selectedTypeIndex.value = Number(event.detail.value)
-  form.typeCode = resourceTypes.value[selectedTypeIndex.value]?.typeCode || ''
+  const current = resourceTypes.value[selectedTypeIndex.value] || {}
+  form.typeCode = current.typeCode || ''
+}
+
+function selectTypeByCode(typeCode) {
+  const index = resourceTypes.value.findIndex((item) => item.typeCode === typeCode)
+  if (index >= 0) {
+    selectedTypeIndex.value = index
+  }
+  form.typeCode = typeCode
+}
+
+function openMyResources() {
+  uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${form.merchantId}` })
 }
 
 async function submit() {
@@ -154,9 +200,77 @@ function validatePublishForm() {
 .form-card {
   display: grid;
   gap: 18rpx;
+  margin-bottom: 20rpx;
   padding: 24rpx;
   border-radius: 12rpx;
   background: #ffffff;
+}
+
+.quota-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 20rpx;
+  padding: 24rpx;
+  border-radius: 12rpx;
+  background: linear-gradient(135deg, #fff7e6, #e6f4f1);
+}
+
+.quota-card button {
+  flex: 0 0 auto;
+  width: 148rpx;
+  height: 68rpx;
+  border-radius: 10rpx;
+  background: #ffffff;
+  color: #0f766e;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.quota-label,
+.effect-label {
+  color: #697586;
+  font-size: 24rpx;
+}
+
+.quota-title {
+  display: block;
+  margin: 8rpx 0;
+  color: #1f2933;
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.quota-desc {
+  color: #697586;
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
+.publish-types {
+  width: 100%;
+  margin-bottom: 20rpx;
+  white-space: nowrap;
+}
+
+.type-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 152rpx;
+  height: 72rpx;
+  margin-right: 12rpx;
+  padding: 0 20rpx;
+  border-radius: 10rpx;
+  background: #ffffff;
+  color: #364152;
+  font-size: 26rpx;
+}
+
+.type-button.active {
+  background: #0f766e;
+  color: #ffffff;
 }
 
 .page-title {
@@ -192,6 +306,20 @@ function validatePublishForm() {
 .image-list {
   display: grid;
   gap: 8rpx;
+}
+
+.effect-preview {
+  display: grid;
+  gap: 8rpx;
+  padding: 18rpx;
+  border-radius: 10rpx;
+  background: #f8fafc;
+}
+
+.effect-value {
+  color: #1f2933;
+  font-size: 26rpx;
+  font-weight: 700;
 }
 
 .image-url {

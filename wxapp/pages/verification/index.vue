@@ -47,7 +47,10 @@ const form = reactive({
   materials: {},
 })
 
-const currentTypeLabel = computed(() => typeOptions.find((item) => item.value === form.verificationType)?.label || '工厂认证')
+const currentTypeLabel = computed(() => {
+  const matched = typeOptions.find((item) => item.value === form.verificationType) || {}
+  return matched.label || '工厂认证'
+})
 const latestVerification = ref({ status: 'none' })
 
 onLoad(async (options) => {
@@ -68,11 +71,13 @@ async function loadLatestVerification() {
 }
 
 function changeType(event) {
-  form.verificationType = typeOptions[Number(event.detail.value)]?.value || 'factory'
+  const selected = typeOptions[Number(event.detail.value)] || {}
+  form.verificationType = selected.value || 'factory'
 }
 
 function typeLabel(type) {
-  return typeOptions.find((item) => item.value === type)?.label || type || '-'
+  const matched = typeOptions.find((item) => item.value === type) || {}
+  return matched.label || type || '-'
 }
 
 function statusLabel(status) {

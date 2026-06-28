@@ -60,7 +60,8 @@ const form = reactive({
 })
 
 const currentMerchantTypeLabel = computed(() => {
-  return merchantTypeOptions.find((item) => item.value === form.merchantType)?.label || '工厂'
+  const matched = merchantTypeOptions.find((item) => item.value === form.merchantType) || {}
+  return matched.label || '工厂'
 })
 
 onLoad((options) => {
@@ -75,9 +76,10 @@ async function loadMerchant() {
     form.name = detail.name || ''
     form.cityCode = detail.cityCode || DEFAULT_CITY_CODE
     form.merchantType = detail.merchantType || 'factory'
-    form.contactName = detail.contact?.name || ''
-    form.contactPhone = detail.contact?.phoneMasked || ''
-    form.contactWechat = detail.contact?.wechatMasked || ''
+    const contact = detail.contact || {}
+    form.contactName = contact.name || ''
+    form.contactPhone = contact.phoneMasked || ''
+    form.contactWechat = contact.wechatMasked || ''
     form.description = detail.description || ''
     mainCategoriesText.value = (detail.mainCategories || []).join(',')
     imagesText.value = (detail.images || []).join(',')
@@ -87,7 +89,8 @@ async function loadMerchant() {
 }
 
 function changeMerchantType(event) {
-  form.merchantType = merchantTypeOptions[Number(event.detail.value)]?.value || 'factory'
+  const selected = merchantTypeOptions[Number(event.detail.value)] || {}
+  form.merchantType = selected.value || 'factory'
 }
 
 async function submitMerchantProfile() {
