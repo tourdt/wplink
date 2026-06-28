@@ -26,15 +26,31 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 
 后台 API 客户端默认使用同源 `/api/...`，一体化部署时不需要设置 `VITE_API_BASE_URL`。本地分离开发时可以设置 `VITE_API_BASE_URL=http://127.0.0.1:4000`。
 
+## 生产必填配置
+
+正式运营建议设置 `RuntimeMode: production`。该模式会在服务启动前校验以下关键配置，缺失或开启开发登录 fallback 时直接失败：
+
+- `Postgres.DSN`
+- `AdminAuth.TokenSecret`
+- `Wechat.AppID`、`Wechat.AppSecret`
+- `SMS.Provider`、`SMS.AccessKeyID`、`SMS.AccessKeySecret`、`SMS.SignName`、`SMS.TemplateCode`
+- `Storage.Provider`、`Storage.Endpoint`、`Storage.Bucket`、`Storage.AccessKeyID`、`Storage.AccessKeySecret`、`Storage.PublicBaseURL`
+
+## 微信与短信
+
+微信登录已通过 `jscode2session` 获取 openid；本地开发可设置 `Wechat.AllowDevCode: true` 使用 `local-dev-*` code，生产模式禁止开启该选项。
+
+短信验证码已抽象为 verifier。当前代码提供开发验证码和生产配置校验边界，不内置具体短信厂商 SDK；上线前需要按所选供应商补齐发送/校验实现，或接入已有验证码服务。
+
 ## 七牛 Kodo 状态
 
-当前代码只新增了七牛 Kodo 配置结构和模板，尚未实现上传接口、上传凭证签发或七牛 SDK 客户端。业务表中的图片字段保存 URL：
+当前代码已实现 `POST /api/v1/uploads/token` 上传凭证签发，前端可用返回的上传域名、对象 key 和凭证直传七牛 Kodo。业务表中的图片字段仍保存 URL：
 
 - `merchants.images`
 - `resources.images`
 - `banner_topics.cover_url`
 
-上线前建议实现 `POST /api/v1/uploads/token`，由后端校验文件类型、大小和业务用途后返回七牛上传凭证、上传域名和对象 key，前端上传完成后再把 `QINIU_PUBLIC_BASE_URL + key` 写入业务接口。
+前端上传完成后，再把 `QINIU_PUBLIC_BASE_URL + key` 写入业务接口。
 
 七牛配置项含义：
 

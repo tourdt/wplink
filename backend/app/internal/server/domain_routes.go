@@ -11,6 +11,7 @@ import (
 	messagelogic "wplink/backend/app/internal/logic/message"
 	metricslogic "wplink/backend/app/internal/logic/metrics"
 	verificationlogic "wplink/backend/app/internal/logic/verification"
+	"wplink/backend/app/internal/task"
 	"wplink/backend/common/response"
 )
 
@@ -56,6 +57,8 @@ type AdminUtilityAPIStore interface {
 	adminlogic.OperationLogStore
 	adminlogic.ResourceTypeConfigStore
 	adminlogic.MatchCaseStore
+	adminlogic.SearchLogStore
+	task.ResourceLifecycleStore
 }
 
 func registerOptionalDomainRoutes(mux *http.ServeMux, store any) {
@@ -374,5 +377,20 @@ func registerAdminUtilityRoutes(mux *http.ServeMux, store AdminUtilityAPIStore) 
 			Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
 		})
 		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/search-logs", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		resp, err := adminlogic.NewSearchLogLogic(store).ListSearchLogs(r.Context(), adminlogic.SearchLogsReq{
+			CityCode: query.Get("cityCode"), Keyword: query.Get("keyword"),
+			Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/tasks/resource-lifecycle/run", func(w http.ResponseWriter, r *http.Request) {
+		result, err := task.NewResourceLifecycleTask(store).Run(r.Context())
+		response.JSON(w, map[string]int64{
+			"expiredCount":          result.ExpiredCount,
+			"expiringReminderCount": result.ExpiringReminderCount,
+		}, err)
 	})
 }

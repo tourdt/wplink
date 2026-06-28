@@ -13,7 +13,10 @@ import (
 	citylogic "wplink/backend/app/internal/logic/city"
 	metricslogic "wplink/backend/app/internal/logic/metrics"
 	resourcelogic "wplink/backend/app/internal/logic/resource"
+	uploadlogic "wplink/backend/app/internal/logic/upload"
 	"wplink/backend/app/internal/model"
+	"wplink/backend/app/internal/permission"
+	"wplink/backend/app/internal/session"
 	"wplink/backend/common/errx"
 	"wplink/backend/common/response"
 )
@@ -40,9 +43,21 @@ type AdminLoginService interface {
 	Login(ctx context.Context, req adminauth.LoginRequest) (adminauth.LoginResponse, error)
 }
 
+type AdminTokenService interface {
+	ParseAdminToken(ctx context.Context, token string) (session.AdminTokenSubject, error)
+}
+
+type UploadTokenService interface {
+	CreateUploadToken(ctx context.Context, req uploadlogic.CreateUploadTokenReq) (uploadlogic.CreateUploadTokenResp, error)
+}
+
 type apiRouterOptions struct {
-	adminLoginService AdminLoginService
-	userTokenService  authlogic.TokenService
+	adminLoginService   AdminLoginService
+	adminTokenService   AdminTokenService
+	uploadTokenService  UploadTokenService
+	userTokenService    authlogic.TokenService
+	wechatSessionClient authlogic.WechatSessionClient
+	smsVerifier         authlogic.SMSVerifier
 }
 
 type APIRouterOption func(*apiRouterOptions)
@@ -53,9 +68,33 @@ func WithAdminLoginService(service AdminLoginService) APIRouterOption {
 	}
 }
 
+func WithAdminTokenService(service AdminTokenService) APIRouterOption {
+	return func(options *apiRouterOptions) {
+		options.adminTokenService = service
+	}
+}
+
 func WithUserTokenService(service authlogic.TokenService) APIRouterOption {
 	return func(options *apiRouterOptions) {
 		options.userTokenService = service
+	}
+}
+
+func WithUploadTokenService(service UploadTokenService) APIRouterOption {
+	return func(options *apiRouterOptions) {
+		options.uploadTokenService = service
+	}
+}
+
+func WithWechatSessionClient(client authlogic.WechatSessionClient) APIRouterOption {
+	return func(options *apiRouterOptions) {
+		options.wechatSessionClient = client
+	}
+}
+
+func WithSMSVerifier(verifier authlogic.SMSVerifier) APIRouterOption {
+	return func(options *apiRouterOptions) {
+		options.smsVerifier = verifier
 	}
 }
 
@@ -70,8 +109,11 @@ func NewAPIRouter(store CityAPIStore, opts ...APIRouterOption) http.Handler {
 	}
 	if options.userTokenService != nil {
 		if authStore, ok := any(store).(authlogic.UserStore); ok {
-			registerAuthRoutes(mux, authStore, options.userTokenService)
+			registerAuthRoutes(mux, authStore, options.userTokenService, options.wechatSessionClient, options.smsVerifier)
 		}
+	}
+	if options.uploadTokenService != nil {
+		registerUploadRoutes(mux, options.uploadTokenService)
 	}
 	mux.HandleFunc("GET /api/v1/city-stations", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := citylogic.NewListCityStationsLogic(store).ListCityStations(r.Context())
@@ -90,7 +132,47 @@ func NewAPIRouter(store CityAPIStore, opts ...APIRouterOption) http.Handler {
 		registerResourceRoutes(mux, resourceStore)
 	}
 	registerOptionalDomainRoutes(mux, store)
+	if options.adminTokenService != nil {
+		return requireAdminToken(mux, options.adminTokenService)
+	}
 	return mux
+}
+
+func registerUploadRoutes(mux *http.ServeMux, service UploadTokenService) {
+	mux.HandleFunc("POST /api/v1/uploads/token", func(w http.ResponseWriter, r *http.Request) {
+		var body uploadlogic.CreateUploadTokenReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := service.CreateUploadToken(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
+}
+
+func requireAdminToken(next http.Handler, tokenService AdminTokenService) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/v1/admin/") || r.URL.Path == "/api/v1/admin/auth/login" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		header := strings.TrimSpace(r.Header.Get("Authorization"))
+		token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
+		if header == "" || token == "" || token == header {
+			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, "请先登录管理后台"))
+			return
+		}
+		subject, err := tokenService.ParseAdminToken(r.Context(), token)
+		if err != nil {
+			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, err.Error()))
+			return
+		}
+		if !permission.CanAccessAdmin(subject.Roles) {
+			response.JSON(w, nil, errx.New(errx.CodeForbidden, "您没有权限访问管理后台"))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func registerAdminAuthRoutes(mux *http.ServeMux, service AdminLoginService) {

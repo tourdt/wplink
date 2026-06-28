@@ -8,6 +8,7 @@ info (
 
 import "admin.api"
 import "auth.api"
+import "upload.api"
 import "city.api"
 import "merchant.api"
 import "resource.api"

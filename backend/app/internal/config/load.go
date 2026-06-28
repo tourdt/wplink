@@ -66,6 +66,8 @@ func applyConfigValue(cfg *Config, section string, key string, value string) err
 		switch key {
 		case "Name":
 			cfg.Name = value
+		case "RuntimeMode":
+			cfg.RuntimeMode = value
 		case "Host":
 			cfg.Host = value
 		case "Port":
@@ -89,6 +91,34 @@ func applyConfigValue(cfg *Config, section string, key string, value string) err
 				return fmt.Errorf("TokenTTL 配置不正确: %w", err)
 			}
 			cfg.AdminAuth.TokenTTL = ttl
+		}
+	case "Wechat":
+		switch key {
+		case "AppID":
+			cfg.Wechat.AppID = value
+		case "AppSecret":
+			cfg.Wechat.AppSecret = value
+		case "AllowDevCode":
+			allow, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("AllowDevCode 配置必须是布尔值: %w", err)
+			}
+			cfg.Wechat.AllowDevCode = allow
+		}
+	case "SMS":
+		switch key {
+		case "Provider":
+			cfg.SMS.Provider = value
+		case "AccessKeyID":
+			cfg.SMS.AccessKeyID = value
+		case "AccessKeySecret":
+			cfg.SMS.AccessKeySecret = value
+		case "SignName":
+			cfg.SMS.SignName = value
+		case "TemplateCode":
+			cfg.SMS.TemplateCode = value
+		case "DevCode":
+			cfg.SMS.DevCode = value
 		}
 	case "Storage":
 		return applyStorageValue(&cfg.Storage, key, value)

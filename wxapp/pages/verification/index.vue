@@ -8,7 +8,9 @@
       </picker>
       <input v-model="form.businessName" class="field" placeholder="营业主体名称" />
       <input v-model="form.licenseUrl" class="field" placeholder="营业执照图片 URL" />
+      <button class="secondary-button" @click="uploadLicense">上传营业执照</button>
       <input v-model="form.storefrontUrl" class="field" placeholder="门头/场地图片 URL" />
+      <button class="secondary-button" @click="uploadStorefront">上传门头/场地</button>
       <button class="primary-button" @click="submit">提交认证</button>
     </view>
   </view>
@@ -19,6 +21,7 @@ import { computed, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getMerchantId, getUserId } from '../../store/session'
 import { submitVerification } from '../../api/verification'
+import { chooseAndUploadImage } from '../../common/upload'
 
 const typeOptions = [
   { label: '工厂认证', value: 'factory' },
@@ -44,6 +47,29 @@ onLoad((options) => {
 
 function changeType(event) {
   form.verificationType = typeOptions[Number(event.detail.value)]?.value || 'factory'
+}
+
+async function uploadLicense() {
+  await uploadVerificationImage('license')
+}
+
+async function uploadStorefront() {
+  await uploadVerificationImage('storefront')
+}
+
+async function uploadVerificationImage(kind) {
+  try {
+    // 认证材料上传成功后只提交 CDN URL，后台审核无需接收二进制文件。
+    const url = await chooseAndUploadImage(`verification-${kind}`)
+    if (kind === 'license') {
+      form.licenseUrl = url
+    } else {
+      form.storefrontUrl = url
+    }
+    uni.showToast({ title: '图片已上传', icon: 'none' })
+  } catch (err) {
+    uni.showToast({ title: err.message || '图片上传失败，请重试', icon: 'none' })
+  }
 }
 
 async function submit() {
@@ -108,5 +134,13 @@ async function submit() {
   border-radius: 12rpx;
   background: #0f766e;
   color: #ffffff;
+}
+
+.secondary-button {
+  height: 84rpx;
+  border: 1rpx solid #0f766e;
+  border-radius: 12rpx;
+  background: #ffffff;
+  color: #0f766e;
 }
 </style>

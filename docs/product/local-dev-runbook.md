@@ -17,7 +17,9 @@
 - systemd 示例：`deploy/systemd/wplink-api.service`
 - 详细说明：`docs/product/deployment-config.md`
 
-当前已预留七牛 Kodo 配置字段，但还没有实现上传接口或七牛 SDK 客户端。图片字段暂时保存 URL。
+当前已实现七牛 Kodo 上传凭证签发，小程序可通过 `/api/v1/uploads/token` 获取凭证后直传对象存储。图片字段仍保存最终 CDN URL。
+
+正式运营时必须使用 `RuntimeMode: production` 并提供真实 `JWT_SECRET`、PostgreSQL DSN、微信小程序 AppID/Secret、短信服务商配置和七牛密钥。生产模式会在启动前校验关键配置，缺失时拒绝启动。
 
 ## 数据库初始化
 
@@ -118,6 +120,7 @@ node backend/scripts/prepare_admin_embed.mjs
 - `/banner-topics` Banner 专题
 - `/resource-type-configs` 资源配置
 - `/operation-logs` 操作日志
+- `/search-logs` 搜索日志
 
 ## 小程序
 
@@ -149,6 +152,8 @@ wxapp/dist/build/mp-weixin
 VITE_API_BASE_URL=http://127.0.0.1:4000 npm run build:mp-weixin
 ```
 
+发布资源和商家认证页面已接入图片上传。正式小程序需同时在微信公众平台配置 request 合法域名和 uploadFile 合法域名，分别指向 API 域名和七牛上传域名。
+
 ## 演示账号和标识
 
 演示数据使用固定手机号和 UUID，便于调试：
@@ -169,4 +174,5 @@ VITE_API_BASE_URL=http://127.0.0.1:4000 npm run build:mp-weixin
 
 - migration 静态校验不能替代真实 PostgreSQL up/down；数据库可连接时应运行 `go run ./scripts/verify_migrations.go -config etc/app.yaml`，由临时数据库完成 up/down 验证。
 - 当前后端 HTTP 服务入口已可启动，业务 API 已接入账号、城市站、商家、资源、需求、发现、认证、权益、消息、指标和后台管理路由。
+- 短信验证码已抽象为可替换 verifier；当前仓库不内置具体短信厂商 SDK，生产配置缺失时会拒绝手机号绑定。
 - 小程序构建会出现 Sass `@import` 和 legacy JS API 的上游弃用警告，不影响当前构建产物。

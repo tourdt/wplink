@@ -11,14 +11,18 @@ import (
 func TestWechatLoginCreatesUserAndIssuesToken(t *testing.T) {
 	store := &fakeAuthStore{}
 	tokenService := &fakeTokenService{}
-	logic := NewWechatLoginLogic(store, tokenService)
+	sessionClient := &fakeWechatSessionClient{session: WechatSession{OpenID: "openid-1", UnionID: "union-1"}}
+	logic := NewWechatLoginLogic(store, tokenService, sessionClient)
 
 	resp, err := logic.WechatLogin(context.Background(), WechatLoginReq{Code: " wx-code ", DefaultCityCode: " zhili "})
 	if err != nil {
 		t.Fatalf("wechat login: %v", err)
 	}
-	if store.upsertInput.WechatOpenID != "dev:wx-code" || store.upsertInput.DefaultCityCode != "zhili" {
-		t.Fatalf("upsert input = %#v, want trimmed dev openid and city", store.upsertInput)
+	if sessionClient.code != "wx-code" {
+		t.Fatalf("code = %q, want trimmed code", sessionClient.code)
+	}
+	if store.upsertInput.WechatOpenID != "openid-1" || store.upsertInput.DefaultCityCode != "zhili" {
+		t.Fatalf("upsert input = %#v, want wechat openid and city", store.upsertInput)
 	}
 	if tokenService.subject.UserID != "user-1" || tokenService.subject.Roles[0] != RoleNormalUser {
 		t.Fatalf("token subject = %#v, want user-1 normal_user", tokenService.subject)
@@ -51,7 +55,8 @@ func TestBindPhoneRequiresPhoneAndSmsCode(t *testing.T) {
 
 func TestBindPhoneUpdatesUserPhone(t *testing.T) {
 	store := &fakeAuthStore{}
-	logic := NewMeLogic(store)
+	verifier := &fakeSMSVerifier{}
+	logic := NewMeLogic(store, verifier)
 
 	resp, err := logic.BindPhone(context.Background(), " user-1 ", BindPhoneReq{Phone: " 18800000001 ", SmsCode: "123456"})
 	if err != nil {
@@ -59,6 +64,9 @@ func TestBindPhoneUpdatesUserPhone(t *testing.T) {
 	}
 	if store.boundUserID != "user-1" || store.boundPhone != "18800000001" || resp.Phone != "18800000001" {
 		t.Fatalf("bound user = %q phone = %q resp = %#v, want trimmed phone", store.boundUserID, store.boundPhone, resp)
+	}
+	if verifier.phone != "18800000001" || verifier.code != "123456" {
+		t.Fatalf("sms verifier phone/code = %q/%q, want trimmed values", verifier.phone, verifier.code)
 	}
 }
 
@@ -109,4 +117,25 @@ func (s *fakeTokenService) IssueUserToken(ctx context.Context, subject session.U
 
 func (s *fakeTokenService) ParseUserToken(ctx context.Context, token string) (session.UserTokenSubject, error) {
 	return session.UserTokenSubject{UserID: "user-1", Roles: []string{RoleNormalUser}}, nil
+}
+
+type fakeWechatSessionClient struct {
+	code    string
+	session WechatSession
+}
+
+func (s *fakeWechatSessionClient) Code2Session(ctx context.Context, code string) (WechatSession, error) {
+	s.code = code
+	return s.session, nil
+}
+
+type fakeSMSVerifier struct {
+	phone string
+	code  string
+}
+
+func (s *fakeSMSVerifier) VerifySMSCode(ctx context.Context, phone string, code string) error {
+	s.phone = phone
+	s.code = code
+	return nil
 }

@@ -68,12 +68,17 @@ type BindPhoneResp struct {
 }
 
 type WechatLoginLogic struct {
-	store        UserStore
-	tokenService TokenService
+	store         UserStore
+	tokenService  TokenService
+	sessionClient WechatSessionClient
 }
 
-func NewWechatLoginLogic(store UserStore, tokenService TokenService) *WechatLoginLogic {
-	return &WechatLoginLogic{store: store, tokenService: tokenService}
+func NewWechatLoginLogic(store UserStore, tokenService TokenService, sessionClient ...WechatSessionClient) *WechatLoginLogic {
+	var client WechatSessionClient
+	if len(sessionClient) > 0 {
+		client = sessionClient[0]
+	}
+	return &WechatLoginLogic{store: store, tokenService: tokenService, sessionClient: client}
 }
 
 func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) (WechatLoginResp, error) {
@@ -84,10 +89,16 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 	if l.tokenService == nil {
 		return WechatLoginResp{}, errx.New(errx.CodeInternalError, "登录服务未配置，请稍后重试")
 	}
+	if l.sessionClient == nil {
+		return WechatLoginResp{}, errx.New(errx.CodeInternalError, "微信登录服务未配置，请稍后重试")
+	}
 
-	// MVP 环境没有微信 code2session 凭证，先使用 code 生成稳定开发 openid；真实接入时替换这里的 openid 获取边界。
+	wechatSession, err := l.sessionClient.Code2Session(ctx, code)
+	if err != nil {
+		return WechatLoginResp{}, err
+	}
 	profile, err := l.store.UpsertWechatUser(ctx, model.UpsertWechatUserInput{
-		WechatOpenID:    "dev:" + code,
+		WechatOpenID:    wechatSession.OpenID,
 		DefaultCityCode: strings.TrimSpace(req.DefaultCityCode),
 	})
 	if err != nil {
@@ -103,11 +114,16 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 }
 
 type MeLogic struct {
-	store UserStore
+	store       UserStore
+	smsVerifier SMSVerifier
 }
 
-func NewMeLogic(store UserStore) *MeLogic {
-	return &MeLogic{store: store}
+func NewMeLogic(store UserStore, verifier ...SMSVerifier) *MeLogic {
+	var smsVerifier SMSVerifier
+	if len(verifier) > 0 {
+		smsVerifier = verifier[0]
+	}
+	return &MeLogic{store: store, smsVerifier: smsVerifier}
 }
 
 func (l *MeLogic) GetMe(ctx context.Context, userID string) (MeResp, error) {
@@ -132,7 +148,12 @@ func (l *MeLogic) BindPhone(ctx context.Context, userID string, req BindPhoneReq
 		return BindPhoneResp{}, errx.New(errx.CodeValidationFailed, "手机号格式不正确")
 	}
 
-	// 当前 MVP 尚未接入短信供应商，这里只做验证码非空校验，后续可替换为短信服务校验。
+	if l.smsVerifier == nil {
+		return BindPhoneResp{}, errx.New(errx.CodeInternalError, "短信服务未配置，请稍后重试")
+	}
+	if err := l.smsVerifier.VerifySMSCode(ctx, phone, smsCode); err != nil {
+		return BindPhoneResp{}, err
+	}
 	profile, err := l.store.BindUserPhone(ctx, userID, phone)
 	if err != nil {
 		return BindPhoneResp{}, err

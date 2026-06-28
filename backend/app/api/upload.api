@@ -1,0 +1,25 @@
+syntax = "v1"
+
+type CreateUploadTokenReq {
+	Purpose     string `json:"purpose"`
+	FileName    string `json:"fileName"`
+	ContentType string `json:"contentType"`
+	FileSize    int64  `json:"fileSize"`
+}
+
+type CreateUploadTokenResp {
+	UploadToken   string `json:"uploadToken"`
+	UploadUrl     string `json:"uploadUrl"`
+	PublicBaseUrl string `json:"publicBaseUrl"`
+	ObjectKey     string `json:"objectKey"`
+	ExpiresAt     string `json:"expiresAt"`
+}
+
+@server(
+	prefix: /api/v1
+	group: upload
+)
+service wplink-api {
+	@handler CreateUploadToken
+	post /uploads/token (CreateUploadTokenReq) returns (CreateUploadTokenResp)
+}

@@ -249,7 +249,7 @@ MVP 不做：
 - 新建：`backend/app/internal/logic/demand/create_demand_logic.go`
 - 新建：`backend/app/internal/logic/demand/list_my_demands_logic.go`
 - 新建：`backend/app/internal/logic/admin/banner_topic_logic.go`
-- 新建：`backend/app/internal/logic/admin/search_log_logic.go`（待实现）
+- 新建：`backend/app/internal/logic/admin/search_log_logic.go`
 - 新建：`admin-web/src/api/demand.js`
 - 修改：`admin-web/src/views/DemandView.vue`
 - 新建：`admin-web/src/views/BannerTopicView.vue`

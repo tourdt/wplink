@@ -3,12 +3,15 @@ package config
 import "time"
 
 type Config struct {
-	Name      string
-	Host      string
-	Port      int
-	Postgres  PostgresConfig
-	AdminAuth AdminAuthConfig
-	Storage   StorageConfig
+	Name        string
+	RuntimeMode string
+	Host        string
+	Port        int
+	Postgres    PostgresConfig
+	AdminAuth   AdminAuthConfig
+	Wechat      WechatConfig
+	SMS         SMSConfig
+	Storage     StorageConfig
 }
 
 type PostgresConfig struct {
@@ -18,6 +21,21 @@ type PostgresConfig struct {
 type AdminAuthConfig struct {
 	TokenSecret string
 	TokenTTL    time.Duration
+}
+
+type WechatConfig struct {
+	AppID        string
+	AppSecret    string
+	AllowDevCode bool
+}
+
+type SMSConfig struct {
+	Provider        string
+	AccessKeyID     string
+	AccessKeySecret string
+	SignName        string
+	TemplateCode    string
+	DevCode         string
 }
 
 type StorageConfig struct {

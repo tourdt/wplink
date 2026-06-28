@@ -93,3 +93,4 @@ npm run build:mp-weixin
 
 - 完整端到端手工点击验收依赖可连接的 PostgreSQL、已启动的后端 HTTP server、管理后台和微信开发者工具。
 - 若当前执行环境缺少数据库连接或微信开发者工具，只能完成 SQL 静态校验、后端单元测试、后台构建和小程序构建；数据库可连接时应运行 `go run ./scripts/verify_migrations.go -config etc/app.yaml` 验证 migration up/down 和演示数据导入。
+- 正式运营验收还应检查 `RuntimeMode: production` 下关键配置完整、微信 `jscode2session` 可用、短信验证码服务已接入、七牛图片上传可用，并确认微信公众平台已配置 request/uploadFile 合法域名。

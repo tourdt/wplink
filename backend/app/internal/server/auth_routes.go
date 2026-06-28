@@ -9,14 +9,14 @@ import (
 	"wplink/backend/common/response"
 )
 
-func registerAuthRoutes(mux *http.ServeMux, store authlogic.UserStore, tokenService authlogic.TokenService) {
+func registerAuthRoutes(mux *http.ServeMux, store authlogic.UserStore, tokenService authlogic.TokenService, wechatClient authlogic.WechatSessionClient, smsVerifier authlogic.SMSVerifier) {
 	mux.HandleFunc("POST /api/v1/auth/wechat-login", func(w http.ResponseWriter, r *http.Request) {
 		var body authlogic.WechatLoginReq
 		if err := decodeJSONBody(r, &body); err != nil {
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := authlogic.NewWechatLoginLogic(store, tokenService).WechatLogin(r.Context(), body)
+		resp, err := authlogic.NewWechatLoginLogic(store, tokenService, wechatClient).WechatLogin(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +39,7 @@ func registerAuthRoutes(mux *http.ServeMux, store authlogic.UserStore, tokenServ
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := authlogic.NewMeLogic(store).BindPhone(r.Context(), userID, body)
+		resp, err := authlogic.NewMeLogic(store, smsVerifier).BindPhone(r.Context(), userID, body)
 		response.JSON(w, resp, err)
 	})
 }

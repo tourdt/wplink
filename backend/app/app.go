@@ -20,6 +20,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("加载配置失败: path=%s err=%v", *configPath, err)
 	}
+	if err := config.ValidateForProduction(cfg); err != nil {
+		log.Fatalf("生产配置校验失败: err=%v", err)
+	}
 	host := cfg.Host
 	if host == "" {
 		host = "127.0.0.1"
@@ -43,7 +46,11 @@ func main() {
 	apiHandler := server.NewAPIRouter(
 		svcCtx.APIStore,
 		server.WithAdminLoginService(svcCtx.AdminLoginService),
+		server.WithAdminTokenService(svcCtx.AdminTokenService),
+		server.WithUploadTokenService(svcCtx.UploadTokenService),
 		server.WithUserTokenService(svcCtx.UserTokenService),
+		server.WithWechatSessionClient(svcCtx.WechatSessionClient),
+		server.WithSMSVerifier(svcCtx.SMSVerifier),
 	)
 	goZeroServer, err := server.NewGoZeroServer(cfg, svcCtx, adminHandler, apiHandler)
 	if err != nil {

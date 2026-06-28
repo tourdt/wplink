@@ -46,6 +46,10 @@
           <el-icon><Document /></el-icon>
           <span>操作日志</span>
         </el-menu-item>
+        <el-menu-item index="/search-logs">
+          <el-icon><Search /></el-icon>
+          <span>搜索日志</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

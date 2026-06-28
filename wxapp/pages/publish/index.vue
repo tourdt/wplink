@@ -10,6 +10,10 @@
       <input v-model="form.quantityText" class="field" placeholder="数量/产能" />
       <input v-model="form.priceText" class="field" placeholder="价格描述" />
       <textarea v-model="form.description" class="textarea" placeholder="资源描述" />
+      <button class="secondary-button" @click="uploadResourceImage">上传资源图片</button>
+      <view v-if="form.images.length" class="image-list">
+        <text v-for="image in form.images" :key="image" class="image-url">{{ image }}</text>
+      </view>
       <input v-model="form.contact.name" class="field" placeholder="联系人" />
       <input v-model="form.contact.phone" class="field" placeholder="联系电话" />
       <view class="action-row">
@@ -27,6 +31,7 @@ import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { getMerchantId, saveMerchantId } from '../../store/session'
 import { listCityResourceTypes } from '../../api/city'
 import { createResource, createResourceDraft, submitResource } from '../../api/resource'
+import { chooseAndUploadImage } from '../../common/upload'
 
 const resourceTypes = ref([])
 const selectedTypeIndex = ref(0)
@@ -97,6 +102,17 @@ async function saveDraft() {
   await createResourceDraft({ ...form })
   uni.showToast({ title: '草稿已保存', icon: 'none' })
   uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${form.merchantId}` })
+}
+
+async function uploadResourceImage() {
+  try {
+    // 资源图片先上传到对象存储，业务接口只保存最终 CDN URL，避免后端转发大文件。
+    const url = await chooseAndUploadImage('resource')
+    form.images.push(url)
+    uni.showToast({ title: '图片已上传', icon: 'none' })
+  } catch (err) {
+    uni.showToast({ title: err.message || '图片上传失败，请重试', icon: 'none' })
+  }
 }
 
 function validatePublishForm() {
@@ -171,6 +187,17 @@ function validatePublishForm() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16rpx;
+}
+
+.image-list {
+  display: grid;
+  gap: 8rpx;
+}
+
+.image-url {
+  color: #697586;
+  font-size: 24rpx;
+  word-break: break-all;
 }
 
 .secondary-button,

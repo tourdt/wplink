@@ -25,6 +25,7 @@
 | `GET /api/v1/me` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | `wxapp/pages/my/index.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/me/phone` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | 绑定手机号流程 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/auth/login` | `backend/app/api/admin.api` | `backend/app/internal/logic/adminauth/login_service.go` | `admin-web/src/views/LoginView.vue` | 不适用 | 已接 handler，测试通过 |
+| `POST /api/v1/uploads/token` | `backend/app/api/upload.api` | `backend/app/internal/logic/upload/upload_token_logic.go` | Banner/认证资料 URL 上传前置 | 发布/认证图片上传前置 | 已接 handler，测试通过 |
 
 ## 城市站与配置
 
@@ -123,6 +124,8 @@
 | `POST /api/v1/admin/match-cases/:matchCaseId/resources` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | `admin-web/src/views/MatchCaseView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/match-cases/:matchCaseId/participants` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | `admin-web/src/views/MatchCaseView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/operation-logs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/operation_log_logic.go` | `admin-web/src/views/OperationLogView.vue` | 不适用 | 已接 handler，测试通过 |
+| `GET /api/v1/admin/search-logs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/search_log_logic.go` | `admin-web/src/views/SearchLogView.vue` | 不适用 | 已接 handler，测试通过 |
+| `POST /api/v1/admin/tasks/resource-lifecycle/run` | `backend/app/api/admin.api` | `backend/app/internal/task/resource_lifecycle_task.go` | 运维/运营手动触发 | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/merchants` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/merchant_admin_logic.go` | `admin-web/src/views/MerchantView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/resource-type-configs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/resource_type_config_logic.go` | `admin-web/src/views/ResourceTypeConfigView.vue` | 不适用 | 已接 handler，测试通过 |
 | `PATCH /api/v1/admin/resource-type-configs/:configId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/resource_type_config_logic.go` | `admin-web/src/views/ResourceTypeConfigView.vue` | 不适用 | 已接 handler，测试通过 |
@@ -131,6 +134,4 @@
 
 以下能力在当前 MVP TODO 中已规划，但产品 API 契约文档还没有完整展开。进入对应阶段前需要补充 `.api` 契约：
 
-- 七牛 Kodo 上传凭证签发，例如 `POST /api/v1/uploads/token`
 - 真实微信 `code2session` 和短信验证码供应商校验
-- 生命周期任务触发的消息与过期状态变更

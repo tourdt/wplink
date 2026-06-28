@@ -6,7 +6,9 @@ import (
 
 	"wplink/backend/app/internal/config"
 	"wplink/backend/app/internal/logic/adminauth"
+	authlogic "wplink/backend/app/internal/logic/auth"
 	citylogic "wplink/backend/app/internal/logic/city"
+	uploadlogic "wplink/backend/app/internal/logic/upload"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
 )
@@ -40,24 +42,33 @@ type APIStore struct {
 }
 
 type ServiceContext struct {
-	Config            config.Config
-	DB                *sql.DB
-	APIStore          *APIStore
-	CityStore         CityStore
-	AdminLoginService AdminLoginService
-	UserTokenService  *session.HMACUserTokenService
+	Config              config.Config
+	DB                  *sql.DB
+	APIStore            *APIStore
+	CityStore           CityStore
+	AdminLoginService   AdminLoginService
+	AdminTokenService   *session.HMACAdminTokenIssuer
+	UploadTokenService  *uploadlogic.UploadTokenLogic
+	UserTokenService    *session.HMACUserTokenService
+	WechatSessionClient authlogic.WechatSessionClient
+	SMSVerifier         authlogic.SMSVerifier
 }
 
 func NewServiceContext(c config.Config, db *sql.DB) *ServiceContext {
-	adminTokenIssuer := adminauth.NewSessionTokenIssuer(session.NewHMACAdminTokenIssuer(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL))
+	adminTokenService := session.NewHMACAdminTokenIssuer(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL)
+	adminTokenIssuer := adminauth.NewSessionTokenIssuer(adminTokenService)
 	apiStore := newAPIStore(db)
 	return &ServiceContext{
-		Config:            c,
-		DB:                db,
-		APIStore:          apiStore,
-		CityStore:         apiStore,
-		AdminLoginService: adminauth.NewLoginService(adminauth.NewSQLAdminStore(db), adminauth.BcryptPasswordHasher{}, adminTokenIssuer),
-		UserTokenService:  session.NewHMACUserTokenService(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL),
+		Config:              c,
+		DB:                  db,
+		APIStore:            apiStore,
+		CityStore:           apiStore,
+		AdminLoginService:   adminauth.NewLoginService(adminauth.NewSQLAdminStore(db), adminauth.BcryptPasswordHasher{}, adminTokenIssuer),
+		AdminTokenService:   adminTokenService,
+		UploadTokenService:  uploadlogic.NewUploadTokenLogic(c.Storage),
+		UserTokenService:    session.NewHMACUserTokenService(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL),
+		WechatSessionClient: authlogic.NewWechatSessionClient(c.Wechat, "", nil),
+		SMSVerifier:         authlogic.NewConfiguredSMSVerifier(c.SMS),
 	}
 }
 

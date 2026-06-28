@@ -36,6 +36,8 @@ export const defaultFlowChecks = [
       'createResource',
       'submitResource',
       'createResourceDraft',
+      'chooseAndUploadImage',
+      'uploadResourceImage',
       'validatePublishForm',
       '请填写标题',
       '请填写品类',
@@ -81,7 +83,12 @@ export const defaultFlowChecks = [
   {
     file: 'pages/verification/index.vue',
     description: '商家认证提交',
-    checks: ['submitVerification', 'getUserId', 'businessName', 'licenseUrl', 'storefrontUrl'],
+    checks: ['submitVerification', 'getUserId', 'businessName', 'licenseUrl', 'storefrontUrl', 'chooseAndUploadImage', 'uploadLicense', 'uploadStorefront'],
+  },
+  {
+    file: 'common/upload.js',
+    description: '图片直传对象存储',
+    checks: ['createUploadToken', 'uni.chooseImage', 'uni.uploadFile', 'token.uploadToken', 'token.objectKey'],
   },
   {
     file: 'pages/my/index.vue',

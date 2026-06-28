@@ -195,6 +195,36 @@ type AdminOperationLogsResp {
 	Total    int64                   `json:"total"`
 }
 
+type AdminSearchLogsReq {
+	CityCode string `form:"cityCode,optional"`
+	Keyword  string `form:"keyword,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminSearchLogItem {
+	Id          string                 `json:"id"`
+	UserId      string                 `json:"userId,optional"`
+	CityCode    string                 `json:"cityCode,optional"`
+	CityName    string                 `json:"cityName,optional"`
+	Keyword     string                 `json:"keyword"`
+	Filters     map[string]interface{} `json:"filters"`
+	ResultCount int64                  `json:"resultCount"`
+	CreatedAt   string                 `json:"createdAt"`
+}
+
+type AdminSearchLogsResp {
+	Items    []AdminSearchLogItem `json:"items"`
+	Page     int64                `json:"page"`
+	PageSize int64                `json:"pageSize"`
+	Total    int64                `json:"total"`
+}
+
+type AdminRunResourceLifecycleResp {
+	ExpiredCount          int64 `json:"expiredCount"`
+	ExpiringReminderCount int64 `json:"expiringReminderCount"`
+}
+
 type AdminListMerchantsReq {
 	CityCode     string `form:"cityCode,optional"`
 	MerchantType string `form:"merchantType,optional"`
@@ -442,6 +472,12 @@ service wplink-api {
 service wplink-api {
 	@handler AdminListOperationLogs
 	get /operation-logs (AdminOperationLogsReq) returns (AdminOperationLogsResp)
+
+	@handler AdminListSearchLogs
+	get /search-logs (AdminSearchLogsReq) returns (AdminSearchLogsResp)
+
+	@handler AdminRunResourceLifecycle
+	post /tasks/resource-lifecycle/run returns (AdminRunResourceLifecycleResp)
 }
 
 @server(

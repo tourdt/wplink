@@ -15,7 +15,9 @@ import (
 func TestAuthAPIRouterRunsLoginMeAndBindPhoneFlow(t *testing.T) {
 	store := &fakeAuthAPIStore{}
 	tokenService := &fakeUserTokenService{}
-	router := NewAPIRouter(store, WithUserTokenService(tokenService))
+	wechatClient := &fakeAuthWechatSessionClient{session: authlogic.WechatSession{OpenID: "openid-1"}}
+	smsVerifier := &fakeAuthSMSVerifier{}
+	router := NewAPIRouter(store, WithUserTokenService(tokenService), WithWechatSessionClient(wechatClient), WithSMSVerifier(smsVerifier))
 
 	loginRec := httptest.NewRecorder()
 	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/wechat-login", strings.NewReader(`{"code":"wx-code","defaultCityCode":"zhili"}`))
@@ -24,7 +26,10 @@ func TestAuthAPIRouterRunsLoginMeAndBindPhoneFlow(t *testing.T) {
 	if loginData["token"] != "user-token" {
 		t.Fatalf("login data = %#v, want user-token", loginData)
 	}
-	if store.upsertInput.WechatOpenID != "dev:wx-code" || store.upsertInput.DefaultCityCode != "zhili" {
+	if wechatClient.code != "wx-code" {
+		t.Fatalf("wechat code = %q, want trimmed code", wechatClient.code)
+	}
+	if store.upsertInput.WechatOpenID != "openid-1" || store.upsertInput.DefaultCityCode != "zhili" {
 		t.Fatalf("upsert input = %#v, want login mapped to user", store.upsertInput)
 	}
 
@@ -44,6 +49,9 @@ func TestAuthAPIRouterRunsLoginMeAndBindPhoneFlow(t *testing.T) {
 	phoneData := decodeEnvelopeData(t, phoneRec, http.StatusOK)
 	if phoneData["phone"] != "18800000001" || store.boundPhone != "18800000001" {
 		t.Fatalf("phone data = %#v bound = %q, want bound phone", phoneData, store.boundPhone)
+	}
+	if smsVerifier.phone != "18800000001" || smsVerifier.code != "123456" {
+		t.Fatalf("sms verifier = %q/%q, want trimmed phone and code", smsVerifier.phone, smsVerifier.code)
 	}
 }
 
@@ -88,4 +96,25 @@ func (s *fakeUserTokenService) IssueUserToken(ctx context.Context, subject sessi
 
 func (s *fakeUserTokenService) ParseUserToken(ctx context.Context, token string) (session.UserTokenSubject, error) {
 	return session.UserTokenSubject{UserID: "user-1", Roles: []string{authlogic.RoleNormalUser}}, nil
+}
+
+type fakeAuthWechatSessionClient struct {
+	code    string
+	session authlogic.WechatSession
+}
+
+func (s *fakeAuthWechatSessionClient) Code2Session(ctx context.Context, code string) (authlogic.WechatSession, error) {
+	s.code = code
+	return s.session, nil
+}
+
+type fakeAuthSMSVerifier struct {
+	phone string
+	code  string
+}
+
+func (s *fakeAuthSMSVerifier) VerifySMSCode(ctx context.Context, phone string, code string) error {
+	s.phone = phone
+	s.code = code
+	return nil
 }

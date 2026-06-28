@@ -8,7 +8,26 @@ import (
 	"testing"
 
 	"wplink/backend/app/internal/model"
+	"wplink/backend/app/internal/session"
 )
+
+func TestAPIRouterRequiresAdminTokenWhenConfigured(t *testing.T) {
+	tokenService := &fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}
+	router := NewAPIRouter(newFakeFullAPIStore(), WithAdminTokenService(tokenService))
+
+	unauthorizedRec := httptest.NewRecorder()
+	unauthorizedReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/dashboard/overview", nil)
+	router.ServeHTTP(unauthorizedRec, unauthorizedReq)
+	if unauthorizedRec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d body = %s, want unauthorized", unauthorizedRec.Code, unauthorizedRec.Body.String())
+	}
+
+	authorizedRec := httptest.NewRecorder()
+	authorizedReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/dashboard/overview", nil)
+	authorizedReq.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(authorizedRec, authorizedReq)
+	decodeEnvelopeData(t, authorizedRec, http.StatusOK)
+}
 
 func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
@@ -56,6 +75,8 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "add match resources", method: http.MethodPost, path: "/api/v1/admin/match-cases/match-1/resources", body: `{"operatorId":"user-1","resourceIds":["resource-1"]}`},
 		{name: "add match participants", method: http.MethodPost, path: "/api/v1/admin/match-cases/match-1/participants", body: `{"operatorId":"user-1","participantMerchantIds":["merchant-1"]}`},
 		{name: "operation logs", method: http.MethodGet, path: "/api/v1/admin/operation-logs?objectType=resource"},
+		{name: "search logs", method: http.MethodGet, path: "/api/v1/admin/search-logs?cityCode=zhili&keyword=童装"},
+		{name: "run lifecycle task", method: http.MethodPost, path: "/api/v1/admin/tasks/resource-lifecycle/run"},
 	}
 
 	for _, tc := range cases {
@@ -79,6 +100,17 @@ func newFakeFullAPIStore() *fakeFullAPIStore {
 
 type fakeFullAPIStore struct {
 	fakeResourceAPIStore
+}
+
+type fakeAdminTokenService struct {
+	subject session.AdminTokenSubject
+	err     error
+	token   string
+}
+
+func (s *fakeAdminTokenService) ParseAdminToken(ctx context.Context, token string) (session.AdminTokenSubject, error) {
+	s.token = token
+	return s.subject, s.err
 }
 
 func (s *fakeFullAPIStore) CreateMerchant(ctx context.Context, input model.CreateMerchantInput) (model.CreateMerchantResult, error) {
@@ -219,4 +251,20 @@ func (s *fakeFullAPIStore) AddMatchCaseParticipants(ctx context.Context, input m
 
 func (s *fakeFullAPIStore) ListOperationLogs(ctx context.Context, filter model.OperationLogFilter) (model.ListOperationLogsResult, error) {
 	return model.ListOperationLogsResult{Items: []model.OperationLogItem{{ID: "log-1", OperatorID: "user-1", OperatorRole: "platform_operator", ObjectType: "resource", ObjectID: "resource-1", Action: "resource_approve", CreatedAt: "2026-06-28T10:00:00Z"}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
+}
+
+func (s *fakeFullAPIStore) ListSearchLogs(ctx context.Context, filter model.SearchLogFilter) (model.ListSearchLogsResult, error) {
+	return model.ListSearchLogsResult{Items: []model.SearchLogItem{{ID: "search-1", CityCode: filter.CityCode, CityName: "织里", Keyword: "童装库存", ResultCount: 0, CreatedAt: "2026-06-28T10:00:00Z"}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
+}
+
+func (s *fakeFullAPIStore) MarkExpiredResources(ctx context.Context) ([]model.LifecycleResource, error) {
+	return []model.LifecycleResource{{ID: "resource-expired", MerchantID: "merchant-1", Title: "过期资源"}}, nil
+}
+
+func (s *fakeFullAPIStore) ListResourcesExpiringSoon(ctx context.Context) ([]model.LifecycleResource, error) {
+	return []model.LifecycleResource{{ID: "resource-expiring", MerchantID: "merchant-1", Title: "即将过期资源"}}, nil
+}
+
+func (s *fakeFullAPIStore) CreateMessage(ctx context.Context, input model.CreateMessageInput) (model.CreateMessageResult, error) {
+	return model.CreateMessageResult{ID: "message-task"}, nil
 }
