@@ -16,6 +16,14 @@
       </view>
     </view>
 
+    <scroll-view class="filter-row" scroll-x>
+      <button class="filter-button active">全部</button>
+      <button class="filter-button">整包清</button>
+      <button class="filter-button">可直播</button>
+      <button class="filter-button">90-140</button>
+      <button class="filter-button">平台核实</button>
+    </scroll-view>
+
     <view v-if="rows.length" class="result-list">
       <ResourceCard v-for="item in rows" :key="item.id" :resource="item" @open="openResource" />
     </view>
@@ -140,6 +148,32 @@ function openDemand() {
 .stat-label {
   color: #697586;
   font-size: 24rpx;
+}
+
+.filter-row {
+  width: 100%;
+  margin-bottom: 20rpx;
+  white-space: nowrap;
+}
+
+.filter-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 128rpx;
+  height: 68rpx;
+  margin-right: 12rpx;
+  padding: 0 20rpx;
+  border-radius: 10rpx;
+  background: #ffffff;
+  color: #364152;
+  font-size: 24rpx;
+}
+
+.filter-button.active {
+  background: #d9f3ef;
+  color: #0f766e;
+  font-weight: 700;
 }
 
 .result-list {
