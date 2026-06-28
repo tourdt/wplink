@@ -68,7 +68,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/my-resources/index.vue',
     description: '我的发布管理动作和指标',
-    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'listTopVouchers', 'redeemTopVoucher', 'markResourceDeal', 'takeDownResource', 'repostSimilarResource', 'wechatCopyCount'],
+    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'listTopVouchers', 'redeemTopVoucher', 'markResourceDeal', 'takeDownResource', 'submitDraft', 'submitResource', 'repostSimilarResource', 'wechatCopyCount'],
   },
   {
     file: 'pages/messages/index.vue',
@@ -79,6 +79,7 @@ export const defaultFlowChecks = [
       "selectStatus('unread')",
       "selectStatus('read')",
       'markRead',
+      'roleCode.value',
       'openMessageTarget',
       'targetUrl',
       'tabPagePaths',

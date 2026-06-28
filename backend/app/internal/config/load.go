@@ -161,6 +161,15 @@ func applyConfigValue(cfg *Config, section string, key string, value string) err
 		case "DevCode":
 			cfg.SMS.DevCode = value
 		}
+	case "Tasks":
+		switch key {
+		case "ResourceLifecycleInterval":
+			interval, err := time.ParseDuration(value)
+			if err != nil {
+				return fmt.Errorf("ResourceLifecycleInterval 配置不正确: %w", err)
+			}
+			cfg.Tasks.ResourceLifecycleInterval = interval
+		}
 	case "Storage":
 		return applyStorageValue(&cfg.Storage, key, value)
 	}

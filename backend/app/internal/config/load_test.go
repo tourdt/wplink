@@ -36,6 +36,9 @@ SMS:
   DailySendLimit: 8
   AccessKeySecret: "sms-secret"
 
+Tasks:
+  ResourceLifecycleInterval: 1h
+
 Storage:
   Provider: "qiniu-kodo"
   Endpoint: "https://upload-z2.qiniup.com"
@@ -72,6 +75,9 @@ Storage:
 	}
 	if cfg.SMS.Provider != "http" || cfg.SMS.SendMinInterval != 45*time.Second || cfg.SMS.DailySendLimit != 8 {
 		t.Fatalf("sms = %#v, want http rate limit config", cfg.SMS)
+	}
+	if cfg.Tasks.ResourceLifecycleInterval != time.Hour {
+		t.Fatalf("tasks = %#v, want resource lifecycle interval", cfg.Tasks)
 	}
 	if cfg.Storage.Provider != "qiniu-kodo" || cfg.Storage.UploadExpire != 15*time.Minute || cfg.Storage.MaxFileSizeBytes != 10485760 {
 		t.Fatalf("storage = %#v, want qiniu config", cfg.Storage)

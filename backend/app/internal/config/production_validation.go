@@ -42,6 +42,7 @@ func ValidateForProduction(cfg Config) error {
 	require("Wechat.AppID", cfg.Wechat.AppID)
 	require("Wechat.AppSecret", cfg.Wechat.AppSecret)
 	validateProductionSMS(cfg.SMS, require, &missing)
+	requirePositiveDuration("Tasks.ResourceLifecycleInterval", cfg.Tasks.ResourceLifecycleInterval)
 	require("Storage.Provider", cfg.Storage.Provider)
 	require("Storage.Endpoint", cfg.Storage.Endpoint)
 	require("Storage.Bucket", cfg.Storage.Bucket)

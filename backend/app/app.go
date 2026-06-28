@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/server"
 	"wplink/backend/app/internal/svc"
+	"wplink/backend/app/internal/task"
 )
 
 func main() {
@@ -47,6 +49,18 @@ func main() {
 	}
 	defer db.Close()
 	svcCtx := svc.NewServiceContext(cfg, db)
+
+	appCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	lifecycleScheduler := task.NewResourceLifecycleScheduler(
+		task.NewResourceLifecycleTask(svcCtx.APIStore),
+		cfg.Tasks.ResourceLifecycleInterval,
+		log.Default(),
+	)
+	if lifecycleScheduler.Enabled() {
+		log.Printf("资源生命周期自动任务已启用: interval=%s", cfg.Tasks.ResourceLifecycleInterval)
+		lifecycleScheduler.Start(appCtx)
+	}
 
 	apiHandler := server.NewAPIRouter(
 		svcCtx.APIStore,

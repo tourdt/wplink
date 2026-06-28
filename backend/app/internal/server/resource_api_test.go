@@ -10,6 +10,7 @@ import (
 
 	"wplink/backend/app/internal/logic/adminauth"
 	"wplink/backend/app/internal/model"
+	"wplink/backend/app/internal/session"
 )
 
 func TestAPIRouterLogsInAdmin(t *testing.T) {
@@ -211,6 +212,51 @@ func TestResourceAPIRouterRequiresManagedMerchantWhenTokenConfigured(t *testing.
 	allowedReq.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(allowedRec, allowedReq)
 	decodeEnvelopeData(t, allowedRec, http.StatusOK)
+
+	submitForbiddenRec := httptest.NewRecorder()
+	submitForbiddenReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/submit", strings.NewReader(`{"merchantId":"merchant-2"}`))
+	submitForbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(submitForbiddenRec, submitForbiddenReq)
+	if submitForbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("submit status = %d body = %s, want forbidden", submitForbiddenRec.Code, submitForbiddenRec.Body.String())
+	}
+}
+
+func TestResourceAPIRouterAllowsAdminTokenForMerchantActions(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		publishConfig: model.ResourcePublishConfig{
+			ID:               "config-1",
+			TypeCode:         "inventory",
+			RequiredFields:   []string{"merchantId", "cityCode", "typeCode", "title", "category", "contactName", "contactPhone"},
+			DefaultValidDays: 7,
+		},
+		merchantStatus:   model.MerchantStatusActive,
+		managedMerchants: map[string]bool{},
+	}
+	router := NewAPIRouter(
+		store,
+		WithUserTokenService(&fakeUserTokenService{}),
+		WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}),
+	)
+
+	createRec := httptest.NewRecorder()
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources", strings.NewReader(`{
+		"merchantId":"merchant-2",
+		"cityCode":"zhili",
+		"typeCode":"inventory",
+		"title":"运营代发童装库存",
+		"category":"童装",
+		"contact":{"name":"周经理","phone":"18800000002"}
+	}`))
+	createReq.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(createRec, createReq)
+	decodeEnvelopeData(t, createRec, http.StatusOK)
+
+	submitRec := httptest.NewRecorder()
+	submitReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/submit", strings.NewReader(`{"merchantId":"merchant-2"}`))
+	submitReq.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(submitRec, submitReq)
+	decodeEnvelopeData(t, submitRec, http.StatusOK)
 }
 
 type fakeAdminLoginService struct{}

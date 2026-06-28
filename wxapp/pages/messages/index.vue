@@ -58,7 +58,7 @@ function selectStatus(status) {
 
 async function markRead(item) {
   if (item.status === 'read' || !userId.value) return
-  await readMessage(item.id, userId.value)
+  await readMessage(item.id, userId.value, roleCode.value)
   item.status = 'read'
 }
 

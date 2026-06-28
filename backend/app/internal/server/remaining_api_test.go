@@ -29,6 +29,128 @@ func TestAPIRouterRequiresAdminTokenWhenConfigured(t *testing.T) {
 	decodeEnvelopeData(t, authorizedRec, http.StatusOK)
 }
 
+func TestAPIRouterUsesTokenSubjectForPrivateUserRoutes(t *testing.T) {
+	store := newFakeFullAPIStore()
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	demandRec := httptest.NewRecorder()
+	demandReq := httptest.NewRequest(http.MethodGet, "/api/v1/me/purchase-demands?userId=attacker&page=1&pageSize=20", nil)
+	demandReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(demandRec, demandReq)
+	decodeEnvelopeData(t, demandRec, http.StatusOK)
+	if store.myDemandUserID != "user-1" {
+		t.Fatalf("myDemandUserID = %q, want token user", store.myDemandUserID)
+	}
+
+	messageRec := httptest.NewRecorder()
+	messageReq := httptest.NewRequest(http.MethodGet, "/api/v1/messages?userId=attacker&page=1&pageSize=20", nil)
+	messageReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(messageRec, messageReq)
+	decodeEnvelopeData(t, messageRec, http.StatusOK)
+	if store.messageFilter.UserID != "user-1" {
+		t.Fatalf("message userID = %q, want token user", store.messageFilter.UserID)
+	}
+
+	readRec := httptest.NewRecorder()
+	readReq := httptest.NewRequest(http.MethodPost, "/api/v1/messages/message-1/read", strings.NewReader(`{"userId":"attacker"}`))
+	readReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(readRec, readReq)
+	decodeEnvelopeData(t, readRec, http.StatusOK)
+	if store.readMessageUserID != "user-1" {
+		t.Fatalf("readMessageUserID = %q, want token user", store.readMessageUserID)
+	}
+}
+
+func TestAPIRouterRequiresMerchantPermissionForMerchantMessages(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	forbiddenRec := httptest.NewRecorder()
+	forbiddenReq := httptest.NewRequest(http.MethodGet, "/api/v1/messages?roleCode=merchant:merchant-2", nil)
+	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
+	}
+
+	allowedRec := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodGet, "/api/v1/messages?roleCode=merchant:merchant-1", nil)
+	allowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(allowedRec, allowedReq)
+	decodeEnvelopeData(t, allowedRec, http.StatusOK)
+	if store.messageFilter.RoleCode != "merchant:merchant-1" {
+		t.Fatalf("message roleCode = %q, want merchant role", store.messageFilter.RoleCode)
+	}
+}
+
+func TestAPIRouterUsesTokenSubjectWhenCreatingDemand(t *testing.T) {
+	store := newFakeFullAPIStore()
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/purchase-demands", strings.NewReader(`{
+		"userId":"attacker",
+		"cityCode":"zhili",
+		"demandType":"inventory",
+		"title":"找童装库存",
+		"category":"童装",
+		"contact":{"name":"王采购","phone":"18800000005"}
+	}`))
+	req.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(rec, req)
+	decodeEnvelopeData(t, rec, http.StatusOK)
+	if store.createDemandInput.UserID != "user-1" {
+		t.Fatalf("create demand userID = %q, want token user", store.createDemandInput.UserID)
+	}
+}
+
+func TestAPIRouterUsesTokenSubjectAndMerchantPermissionForVerification(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	forbiddenRec := httptest.NewRecorder()
+	forbiddenReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-2/verifications", strings.NewReader(`{
+		"applicantUserId":"attacker",
+		"verificationType":"stockist",
+		"businessName":"织里云仓"
+	}`))
+	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
+	}
+
+	allowedRec := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1/verifications", strings.NewReader(`{
+		"applicantUserId":"attacker",
+		"verificationType":"stockist",
+		"businessName":"织里云仓"
+	}`))
+	allowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(allowedRec, allowedReq)
+	decodeEnvelopeData(t, allowedRec, http.StatusOK)
+	if store.submitVerificationInput.ApplicantUserID != "user-1" {
+		t.Fatalf("applicantUserID = %q, want token user", store.submitVerificationInput.ApplicantUserID)
+	}
+}
+
+func TestAPIRouterMarksMerchantRoleMessageRead(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages/message-1/read", strings.NewReader(`{"userId":"attacker","roleCode":"merchant:merchant-1"}`))
+	req.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(rec, req)
+	decodeEnvelopeData(t, rec, http.StatusOK)
+	if store.readMessageUserID != "user-1" || store.readMessageRoleCode != "merchant:merchant-1" {
+		t.Fatalf("read identity userID=%q roleCode=%q, want token user and merchant role", store.readMessageUserID, store.readMessageRoleCode)
+	}
+}
+
 func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(store)
@@ -100,6 +222,12 @@ func newFakeFullAPIStore() *fakeFullAPIStore {
 
 type fakeFullAPIStore struct {
 	fakeResourceAPIStore
+	createDemandInput       model.CreateDemandInput
+	myDemandUserID          string
+	submitVerificationInput model.SubmitVerificationInput
+	messageFilter           model.ListMessagesFilter
+	readMessageUserID       string
+	readMessageRoleCode     string
 }
 
 type fakeAdminTokenService struct {
@@ -130,10 +258,12 @@ func (s *fakeFullAPIStore) ListMerchants(ctx context.Context, filter model.ListM
 }
 
 func (s *fakeFullAPIStore) CreateDemand(ctx context.Context, input model.CreateDemandInput) (model.CreateDemandResult, error) {
+	s.createDemandInput = input
 	return model.CreateDemandResult{ID: "demand-1", Status: "pending"}, nil
 }
 
 func (s *fakeFullAPIStore) ListMyDemands(ctx context.Context, userID string, filter model.ListDemandsFilter) (model.ListDemandsResult, error) {
+	s.myDemandUserID = userID
 	return s.ListDemands(ctx, filter)
 }
 
@@ -170,6 +300,7 @@ func (s *fakeFullAPIStore) UpdateBannerTopic(ctx context.Context, configID strin
 }
 
 func (s *fakeFullAPIStore) SubmitVerification(ctx context.Context, input model.SubmitVerificationInput) (model.VerificationResult, error) {
+	s.submitVerificationInput = input
 	return model.VerificationResult{ID: "verification-1", Status: "pending"}, nil
 }
 
@@ -210,10 +341,13 @@ func (s *fakeFullAPIStore) GetMerchantMetricsSummary(ctx context.Context, mercha
 }
 
 func (s *fakeFullAPIStore) ListMessages(ctx context.Context, filter model.ListMessagesFilter) (model.ListMessagesResult, error) {
+	s.messageFilter = filter
 	return model.ListMessagesResult{Items: []model.MessageItem{{ID: "message-1", MessageType: "resource_review", Title: "审核通过", Content: "资源已发布", Status: "unread", CreatedAt: "2026-06-28T10:00:00Z"}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
 }
 
-func (s *fakeFullAPIStore) ReadMessage(ctx context.Context, userID string, messageID string) (model.ReadMessageResult, error) {
+func (s *fakeFullAPIStore) ReadMessage(ctx context.Context, userID string, roleCode string, messageID string) (model.ReadMessageResult, error) {
+	s.readMessageUserID = userID
+	s.readMessageRoleCode = roleCode
 	return model.ReadMessageResult{ID: messageID, Status: "read"}, nil
 }
 

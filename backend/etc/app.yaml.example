@@ -31,6 +31,9 @@ SMS:
   TemplateCode: ""
   DevCode: "123456"
 
+Tasks:
+  ResourceLifecycleInterval: 1h
+
 Storage:
   Provider: "qiniu-kodo"
   Endpoint: "https://upload-z2.qiniup.com"

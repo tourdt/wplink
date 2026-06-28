@@ -88,7 +88,7 @@ async function submit() {
   saveMerchantId(form.merchantId)
   const result = await createResource({ ...form })
   if (result.id) {
-    await submitResource(result.id)
+    await submitResource(result.id, form.merchantId)
   }
   uni.showToast({ title: '已提交审核', icon: 'none' })
   uni.navigateTo({ url: '/pages/publish-success/index' })

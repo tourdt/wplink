@@ -102,8 +102,10 @@ func (m *MessageModel) ListMessages(ctx context.Context, filter ListMessagesFilt
 	rows, err := m.db.QueryContext(ctx, `
 SELECT id, message_type, title, content, COALESCE(target_url, ''), status, created_at, COUNT(*) OVER() AS total
 FROM messages
-WHERE ($1 = '' OR recipient_user_id = $1::uuid)
-  AND ($2 = '' OR recipient_role_code = $2)
+WHERE (
+    ($1 <> '' AND recipient_user_id = $1::uuid)
+    OR ($2 <> '' AND recipient_role_code = $2)
+  )
   AND ($3 = '' OR message_type = $3)
   AND ($4 = '' OR status = $4)
 ORDER BY created_at DESC
@@ -129,15 +131,18 @@ LIMIT $5 OFFSET $6
 	return result, nil
 }
 
-func (m *MessageModel) ReadMessage(ctx context.Context, userID string, messageID string) (ReadMessageResult, error) {
+func (m *MessageModel) ReadMessage(ctx context.Context, userID string, roleCode string, messageID string) (ReadMessageResult, error) {
 	var result ReadMessageResult
 	err := m.db.QueryRowContext(ctx, `
 UPDATE messages
 SET status = 'read', read_at = now()
 WHERE id = $1
-  AND recipient_user_id = $2::uuid
+  AND (
+    ($2 <> '' AND recipient_user_id = NULLIF($2, '')::uuid)
+    OR ($3 <> '' AND recipient_role_code = $3)
+  )
 RETURNING id, status
-`, messageID, userID).Scan(&result.ID, &result.Status)
+`, messageID, userID, roleCode).Scan(&result.ID, &result.Status)
 	return result, err
 }
 

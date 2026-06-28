@@ -8,10 +8,10 @@ export function listMessages(params = {}) {
   })
 }
 
-export function readMessage(messageId, userId) {
+export function readMessage(messageId, userId, roleCode = '') {
   return request({
     url: `/api/v1/messages/${messageId}/read`,
     method: 'POST',
-    data: { userId },
+    data: { userId, roleCode },
   })
 }

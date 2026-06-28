@@ -4,7 +4,7 @@
 
 ## 文件
 
-- `backend/etc/app.yaml.example`：后端配置模板，包含 HTTP、PostgreSQL、后台 token 和七牛 Kodo 对象存储配置。
+- `backend/etc/app.yaml.example`：后端配置模板，包含 HTTP、PostgreSQL、后台 token、自动任务和七牛 Kodo 对象存储配置。
 - `.env.example`：环境变量示例，供 CI、构建脚本或服务器环境文件参考。
 - `deploy/nginx/wplink.conf`：Nginx 反向代理示例；后台静态文件由 Go 服务在 `/admin/` 下提供。
 - `deploy/systemd/wplink-api.service`：后端 API 进程托管示例。
@@ -34,6 +34,7 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 - `AdminAuth.TokenSecret`
 - `Wechat.AppID`、`Wechat.AppSecret`
 - `SMS.Provider`，以及对应供应商所需字段；`http` 模式需要 `SMS.SendURL`、`SMS.VerifyURL`、`SMS.AccessKeySecret`
+- `Tasks.ResourceLifecycleInterval`
 - `Storage.Provider`、`Storage.Endpoint`、`Storage.Bucket`、`Storage.AccessKeyID`、`Storage.AccessKeySecret`、`Storage.PublicBaseURL`
 
 ## 微信与短信
@@ -53,6 +54,8 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 
 后台 `/api/v1/admin/*` 接口在配置 admin token 服务时会校验 `Authorization: Bearer <token>`，只有 `platform_operator` 和 `super_admin` 可访问。小程序侧资源发布、草稿、我的发布列表、刷新、成交反馈、下架和再发类似等商家操作，在生产服务启用用户 token 后，会校验当前用户与目标商家的 active 管理绑定关系；未绑定商家会返回 `FORBIDDEN`。
 
+用户私有数据接口在生产启用用户 token 后以 token 身份为准，不信任前端传入的 `userId`。当前覆盖采购需求提交、“我的采购需求”、认证提交、用户消息列表和消息已读；商家角色消息 `merchant:<merchantId>` 还会校验当前用户是否能管理该商家，点击后可按商家角色标记已读。
+
 ## PostgreSQL 连接池
 
 `Postgres` 配置支持连接池参数，模板默认值适合单实例 MVP 起步：
@@ -63,6 +66,15 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 - `ConnMaxIdleTime: 5m`：空闲 5 分钟后回收，控制低峰期连接占用。
 
 若数据库实例规格较小或后端多实例部署，需要按 `后端实例数 * MaxOpenConns` 评估 PostgreSQL `max_connections`，避免上线后连接数耗尽。
+
+## 自动任务
+
+`Tasks.ResourceLifecycleInterval` 控制资源生命周期任务执行间隔，模板默认 `1h`。服务启动后会先执行一次，再按间隔持续扫描：
+
+- 已到期资源会自动标记为 `expired`，并向商家发送过期提醒。
+- 即将过期资源会向商家发送提醒消息。
+
+生产模式要求该配置大于 0。多实例部署时每个实例都会执行该任务，正式运营建议只让一个后端实例启用自动任务，或后续迁移到独立 worker/分布式锁，避免重复提醒。
 
 ## 七牛 Kodo 状态
 

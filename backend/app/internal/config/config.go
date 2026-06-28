@@ -11,6 +11,7 @@ type Config struct {
 	AdminAuth   AdminAuthConfig
 	Wechat      WechatConfig
 	SMS         SMSConfig
+	Tasks       TasksConfig
 	Storage     StorageConfig
 }
 
@@ -44,6 +45,10 @@ type SMSConfig struct {
 	SignName        string
 	TemplateCode    string
 	DevCode         string
+}
+
+type TasksConfig struct {
+	ResourceLifecycleInterval time.Duration
 }
 
 type StorageConfig struct {

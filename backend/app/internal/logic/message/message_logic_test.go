@@ -52,13 +52,13 @@ func TestReadMessagePassesIDsToStore(t *testing.T) {
 	store := &fakeMessageStore{readResult: model.ReadMessageResult{ID: "message-1", Status: "read"}}
 	logic := NewReadMessageLogic(store)
 
-	resp, err := logic.ReadMessage(context.Background(), ReadMessageReq{UserID: " user-1 ", MessageID: " message-1 "})
+	resp, err := logic.ReadMessage(context.Background(), ReadMessageReq{UserID: " user-1 ", RoleCode: " merchant:merchant-1 ", MessageID: " message-1 "})
 	if err != nil {
 		t.Fatalf("ReadMessage() error = %v", err)
 	}
 
-	if store.readUserID != "user-1" || store.readMessageID != "message-1" || resp.Status != "read" {
-		t.Fatalf("readUserID = %q, readMessageID = %q, resp = %#v", store.readUserID, store.readMessageID, resp)
+	if store.readUserID != "user-1" || store.readRoleCode != "merchant:merchant-1" || store.readMessageID != "message-1" || resp.Status != "read" {
+		t.Fatalf("readUserID = %q, readRoleCode = %q, readMessageID = %q, resp = %#v", store.readUserID, store.readRoleCode, store.readMessageID, resp)
 	}
 }
 
@@ -66,6 +66,7 @@ type fakeMessageStore struct {
 	filter        model.ListMessagesFilter
 	listResult    model.ListMessagesResult
 	readUserID    string
+	readRoleCode  string
 	readMessageID string
 	readResult    model.ReadMessageResult
 }
@@ -75,8 +76,9 @@ func (s *fakeMessageStore) ListMessages(ctx context.Context, filter model.ListMe
 	return s.listResult, nil
 }
 
-func (s *fakeMessageStore) ReadMessage(ctx context.Context, userID string, messageID string) (model.ReadMessageResult, error) {
+func (s *fakeMessageStore) ReadMessage(ctx context.Context, userID string, roleCode string, messageID string) (model.ReadMessageResult, error) {
 	s.readUserID = userID
+	s.readRoleCode = roleCode
 	s.readMessageID = messageID
 	return s.readResult, nil
 }

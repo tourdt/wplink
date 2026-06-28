@@ -16,10 +16,11 @@ export function createResourceDraft(data) {
   })
 }
 
-export function submitResource(resourceId) {
+export function submitResource(resourceId, merchantId = '') {
   return request({
     url: `/api/v1/resources/${resourceId}/submit`,
     method: 'POST',
+    data: merchantId ? { merchantId } : {},
   })
 }
 

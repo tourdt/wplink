@@ -8,8 +8,8 @@ export function createResourceDraft(payload) {
   return http.post('/api/v1/resources/drafts', payload)
 }
 
-export function submitResource(resourceId) {
-  return http.post(`/api/v1/resources/${resourceId}/submit`)
+export function submitResource(resourceId, merchantId = '') {
+  return http.post(`/api/v1/resources/${resourceId}/submit`, merchantId ? { merchantId } : {})
 }
 
 export function listResources(params = {}) {

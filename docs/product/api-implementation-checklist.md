@@ -48,6 +48,8 @@
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
 | `POST /api/v1/resources` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/create_resource_logic.go` | 代发资源 | `wxapp/pages/publish/index.vue` | 已接 handler，测试通过 |
+| `POST /api/v1/resources/drafts` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/create_resource_logic.go` | 可用于代发草稿 | `wxapp/pages/publish/index.vue` 保存草稿 | 已接 handler，测试通过 |
+| `POST /api/v1/resources/:resourceId/submit` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/submit_resource_logic.go` | 可用于代发草稿提交 | `wxapp/pages/my-resources/index.vue` 草稿提交审核 | 已接 handler，测试通过 |
 | `GET /api/v1/resources` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/list_resources_logic.go` | 可用于资源检索 | `wxapp/pages/search/index.vue` | 已接 handler，测试通过 |
 | `GET /api/v1/resource-search` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/search_resources_logic.go` | 可用于资源检索 | `wxapp/pages/search/index.vue` | 已接 handler，测试通过 |
 | `GET /api/v1/me/resources` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/my_resource_logic.go` | 不适用 | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |

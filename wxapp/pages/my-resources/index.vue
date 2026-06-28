@@ -25,6 +25,7 @@
           <button v-if="item.status === 'published'" @click="topResource(item)">置顶</button>
           <button v-if="item.status === 'published'" @click="markDealt(item)">成交</button>
           <button v-if="item.status === 'published'" @click="takeDown(item)">下架</button>
+          <button v-if="item.status === 'draft'" @click="submitDraft(item)">提交审核</button>
           <button v-if="canRepost(item)" @click="repost(item)">再发类似</button>
         </view>
       </view>
@@ -38,10 +39,11 @@ import { onLoad } from '@dcloudio/uni-app'
 import MetricStrip from '../../components/MetricStrip.vue'
 import { getMerchantId } from '../../store/session'
 import { redeemTopVoucher, listTopVouchers } from '../../api/entitlement'
-import { listMyResources, markResourceDeal, refreshResource, repostSimilarResource, takeDownResource } from '../../api/resource'
+import { listMyResources, markResourceDeal, refreshResource, repostSimilarResource, submitResource, takeDownResource } from '../../api/resource'
 
 const statusOptions = [
   { label: '全部', value: '' },
+  { label: '草稿', value: 'draft' },
   { label: '待审核', value: 'pending' },
   { label: '已发布', value: 'published' },
   { label: '即将过期', value: 'expiring_soon' },
@@ -109,6 +111,12 @@ async function markDealt(item) {
 async function takeDown(item) {
   await takeDownResource(item.id, merchantId.value, '商家主动下架')
   uni.showToast({ title: '已下架', icon: 'none' })
+  await loadRows()
+}
+
+async function submitDraft(item) {
+  await submitResource(item.id, merchantId.value)
+  uni.showToast({ title: '已提交审核', icon: 'none' })
   await loadRows()
 }
 

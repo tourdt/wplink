@@ -31,6 +31,11 @@ type ReadMessageResp {
 	Status string `json:"status"`
 }
 
+type ReadMessageReq {
+	UserId   string `json:"userId,optional"`
+	RoleCode string `json:"roleCode,optional"`
+}
+
 @server(
 	prefix: /api/v1
 	group: message
@@ -40,5 +45,5 @@ service wplink-api {
 	get /messages (ListMessagesReq) returns (ListMessagesResp)
 
 	@handler ReadMessage
-	post /messages/:messageId/read returns (ReadMessageResp)
+	post /messages/:messageId/read (ReadMessageReq) returns (ReadMessageResp)
 }

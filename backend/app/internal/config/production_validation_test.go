@@ -18,7 +18,7 @@ func TestValidateForProductionRejectsMissingCriticalConfig(t *testing.T) {
 		t.Fatal("ValidateForProduction() error = nil, want missing config error")
 	}
 	message := err.Error()
-	for _, want := range []string{"Postgres.DSN", "AdminAuth.TokenSecret", "Wechat.AppID", "Wechat.AppSecret", "SMS.Provider", "Storage.AccessKeyID"} {
+	for _, want := range []string{"Postgres.DSN", "AdminAuth.TokenSecret", "Wechat.AppID", "Wechat.AppSecret", "SMS.Provider", "Storage.AccessKeyID", "Tasks.ResourceLifecycleInterval"} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("error = %q, want mention %s", message, want)
 		}
@@ -41,6 +41,7 @@ func TestValidateForProductionAcceptsRequiredConfig(t *testing.T) {
 			PublicBaseURL:       "https://cdn.example.com",
 			AllowedContentTypes: []string{"image/png"},
 		},
+		Tasks: TasksConfig{ResourceLifecycleInterval: time.Hour},
 	}
 
 	if err := ValidateForProduction(cfg); err != nil {
@@ -120,6 +121,7 @@ func requiredProductionConfig() Config {
 			PublicBaseURL:       "https://cdn.example.com",
 			AllowedContentTypes: []string{"image/png"},
 		},
+		Tasks: TasksConfig{ResourceLifecycleInterval: time.Hour},
 	}
 }
 

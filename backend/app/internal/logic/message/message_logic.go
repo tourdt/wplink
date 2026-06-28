@@ -10,7 +10,7 @@ import (
 
 type Store interface {
 	ListMessages(ctx context.Context, filter model.ListMessagesFilter) (model.ListMessagesResult, error)
-	ReadMessage(ctx context.Context, userID string, messageID string) (model.ReadMessageResult, error)
+	ReadMessage(ctx context.Context, userID string, roleCode string, messageID string) (model.ReadMessageResult, error)
 }
 
 type ListMessagesReq struct {
@@ -41,6 +41,7 @@ type ListMessagesResp struct {
 
 type ReadMessageReq struct {
 	UserID    string
+	RoleCode  string
 	MessageID string
 }
 
@@ -93,11 +94,12 @@ func NewReadMessageLogic(store Store) *ReadMessageLogic {
 
 func (l *ReadMessageLogic) ReadMessage(ctx context.Context, req ReadMessageReq) (ReadMessageResp, error) {
 	userID := strings.TrimSpace(req.UserID)
+	roleCode := strings.TrimSpace(req.RoleCode)
 	messageID := strings.TrimSpace(req.MessageID)
-	if userID == "" || messageID == "" {
+	if (userID == "" && roleCode == "") || messageID == "" {
 		return ReadMessageResp{}, errx.New(errx.CodeValidationFailed, "消息不存在")
 	}
-	result, err := l.store.ReadMessage(ctx, userID, messageID)
+	result, err := l.store.ReadMessage(ctx, userID, roleCode, messageID)
 	if err != nil {
 		return ReadMessageResp{}, err
 	}

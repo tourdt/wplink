@@ -34,6 +34,10 @@ type SubmitResourceResp {
 	Message string `json:"message"`
 }
 
+type SubmitResourceReq {
+	MerchantId string `json:"merchantId,optional"`
+}
+
 type ListResourcesReq {
 	CityCode     string `form:"cityCode,optional"`
 	MerchantId   string `form:"merchantId,optional"`
@@ -196,7 +200,7 @@ service wplink-api {
 	post /resources/drafts (CreateResourceReq) returns (CreateResourceResp)
 
 	@handler SubmitResource
-	post /resources/:resourceId/submit returns (SubmitResourceResp)
+	post /resources/:resourceId/submit (SubmitResourceReq) returns (SubmitResourceResp)
 
 	@handler ListResources
 	get /resources (ListResourcesReq) returns (ListResourcesResp)

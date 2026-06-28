@@ -19,7 +19,7 @@
 
 当前已实现七牛 Kodo 上传凭证签发，小程序可通过 `/api/v1/uploads/token` 获取凭证后直传对象存储。图片字段仍保存最终 CDN URL。生产服务启用用户 token 后，资源发布和“我的发布”管理会校验用户是否绑定对应商家。
 
-正式运营时必须使用 `RuntimeMode: production` 并提供真实 `JWT_SECRET`、PostgreSQL DSN、PostgreSQL 连接池参数、微信小程序 AppID/Secret、短信验证码服务配置和七牛密钥。生产模式会在启动前校验关键配置，缺失时拒绝启动；短信 `dev` provider 仅允许本地开发。
+正式运营时必须使用 `RuntimeMode: production` 并提供真实 `JWT_SECRET`、PostgreSQL DSN、PostgreSQL 连接池参数、微信小程序 AppID/Secret、短信验证码服务配置、资源生命周期任务间隔和七牛密钥。生产模式会在启动前校验关键配置，缺失时拒绝启动；短信 `dev` provider 仅允许本地开发。
 
 ## 数据库初始化
 
@@ -81,6 +81,8 @@ go run ./app -f etc/app.yaml
 
 - `/healthz`：只验证 HTTP 进程存活，返回 `ok`。
 - `/readyz`：验证服务已连接 PostgreSQL；数据库不可用时返回 `503 not ready`。
+
+服务启动后会按 `Tasks.ResourceLifecycleInterval` 自动执行资源生命周期任务，用于过期资源状态流转和即将过期/已过期消息提醒。本地演示可使用模板默认 `1h`；多实例生产部署时建议只保留一个实例启用该任务。
 
 如果只验证入口和后台静态路由，也可以使用模板配置：
 
