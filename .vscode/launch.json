@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "后端 API (Go)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/backend/app",
+      "cwd": "${workspaceFolder}/backend",
+      "args": ["-f", "etc/app.yaml"]
+    },
+    {
+      "name": "小程序 dev:mp-weixin",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/wxapp",
+      "command": "VITE_API_BASE_URL=http://127.0.0.1:4000 npm run dev:mp-weixin"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "后端 + 小程序",
+      "configurations": ["后端 API (Go)", "小程序 dev:mp-weixin"]
+    }
+  ]
+}

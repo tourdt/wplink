@@ -12,3 +12,4 @@ backend/app/internal/adminweb/dist/*
 !backend/app/internal/adminweb/dist/assets/**
 .DS_Store
 app.yaml
+backend/app/__debug*
