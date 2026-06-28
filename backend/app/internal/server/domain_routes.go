@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -46,6 +48,10 @@ type VerificationAPIStore interface {
 type EntitlementAPIStore interface {
 	entitlementlogic.EntitlementStore
 	adminlogic.EntitlementAdminStore
+}
+
+type TopVoucherMerchantStore interface {
+	GetTopVoucherMerchantID(ctx context.Context, voucherID string) (string, error)
 }
 
 type MessageAPIStore interface {
@@ -320,7 +326,17 @@ func registerEntitlementRoutes(mux *http.ServeMux, store EntitlementAPIStore, to
 			return
 		}
 		body.VoucherID = r.PathValue("voucherId")
-		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, body.MerchantID); err != nil {
+		merchantID := body.MerchantID
+		if tokenService != nil {
+			var err error
+			merchantID, err = topVoucherMerchantIDFromStore(r.Context(), store, body.VoucherID)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+			body.MerchantID = merchantID
+		}
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
 			response.JSON(w, nil, err)
 			return
 		}
@@ -343,6 +359,25 @@ func registerEntitlementRoutes(mux *http.ServeMux, store EntitlementAPIStore, to
 		resp, err := adminlogic.NewEntitlementAdminLogic(store).GrantMerchantEntitlement(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
+}
+
+func topVoucherMerchantIDFromStore(ctx context.Context, store EntitlementAPIStore, voucherID string) (string, error) {
+	ownerStore, ok := any(store).(TopVoucherMerchantStore)
+	if !ok {
+		return "", errx.New(errx.CodeForbidden, "您没有权限操作该商家")
+	}
+	merchantID, err := ownerStore.GetTopVoucherMerchantID(ctx, strings.TrimSpace(voucherID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", errx.New(errx.CodeValidationFailed, "置顶券不存在")
+	}
+	if err != nil {
+		return "", err
+	}
+	merchantID = strings.TrimSpace(merchantID)
+	if merchantID == "" {
+		return "", errx.New(errx.CodeForbidden, "您没有权限操作该商家")
+	}
+	return merchantID, nil
 }
 
 func registerMessageRoutes(mux *http.ServeMux, store MessageAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore) {

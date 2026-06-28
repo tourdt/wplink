@@ -112,6 +112,16 @@ ORDER BY created_at DESC
 	return items, nil
 }
 
+func (m *MerchantEntitlementModel) GetTopVoucherMerchantID(ctx context.Context, voucherID string) (string, error) {
+	var merchantID string
+	err := m.db.QueryRowContext(ctx, `
+SELECT merchant_id
+FROM top_vouchers
+WHERE id = $1
+`, voucherID).Scan(&merchantID)
+	return merchantID, err
+}
+
 func (m *MerchantEntitlementModel) RedeemTopVoucher(ctx context.Context, voucherID string, resourceID string) (RedeemTopVoucherResult, error) {
 	var result RedeemTopVoucherResult
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {

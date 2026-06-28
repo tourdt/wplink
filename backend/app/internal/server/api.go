@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,6 +43,10 @@ type ResourceAPIStore interface {
 
 type MerchantPermissionStore interface {
 	UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error)
+}
+
+type ResourceMerchantStore interface {
+	GetResourceMerchantID(ctx context.Context, resourceID string) (string, error)
 }
 
 type AdminLoginService interface {
@@ -281,6 +287,10 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			response.JSON(w, nil, err)
 			return
 		}
+		if err := bindResourceCreatorFromRequest(r, &req, tokenService, adminTokenService); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
 		resp, err := resourcelogic.NewCreateResourceLogic(store).CreateResource(r.Context(), req)
 		response.JSON(w, resp, err)
 	})
@@ -294,14 +304,26 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			response.JSON(w, nil, err)
 			return
 		}
+		if err := bindResourceCreatorFromRequest(r, &req, tokenService, adminTokenService); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
 		resp, err := resourcelogic.NewCreateResourceLogic(store).CreateResourceDraft(r.Context(), req)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/resources/{resourceId}/submit", func(w http.ResponseWriter, r *http.Request) {
+		resourceID := r.PathValue("resourceId")
 		merchantID, err := optionalMerchantIDFromActionRequest(r)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
+		}
+		if tokenService != nil {
+			merchantID, err = resourceMerchantIDFromStore(r.Context(), store, resourceID)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
 		}
 		if merchantID != "" || tokenService != nil {
 			if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
@@ -309,7 +331,7 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 				return
 			}
 		}
-		resp, err := resourcelogic.NewSubmitResourceLogic(store).SubmitResource(r.Context(), r.PathValue("resourceId"))
+		resp, err := resourcelogic.NewSubmitResourceLogic(store).SubmitResource(r.Context(), resourceID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/resources", func(w http.ResponseWriter, r *http.Request) {
@@ -371,10 +393,18 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/resources/{resourceId}/refresh", func(w http.ResponseWriter, r *http.Request) {
+		resourceID := r.PathValue("resourceId")
 		merchantID, err := merchantIDFromActionRequest(r)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
+		}
+		if tokenService != nil {
+			merchantID, err = resourceMerchantIDFromStore(r.Context(), store, resourceID)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
 		}
 		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
 			response.JSON(w, nil, err)
@@ -382,11 +412,12 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 		}
 		resp, err := resourcelogic.NewRefreshResourceLogic(store).RefreshResource(r.Context(), resourcelogic.RefreshResourceReq{
 			MerchantID: merchantID,
-			ResourceID: r.PathValue("resourceId"),
+			ResourceID: resourceID,
 		})
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/resources/{resourceId}/deal-feedback", func(w http.ResponseWriter, r *http.Request) {
+		resourceID := r.PathValue("resourceId")
 		var body struct {
 			MerchantID              string `json:"merchantId"`
 			IsDealt                 bool   `json:"isDealt"`
@@ -402,17 +433,26 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 		if strings.TrimSpace(body.MerchantID) == "" {
 			body.MerchantID = r.URL.Query().Get("merchantId")
 		}
+		if tokenService != nil {
+			merchantID, err := resourceMerchantIDFromStore(r.Context(), store, resourceID)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+			body.MerchantID = merchantID
+		}
 		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, body.MerchantID); err != nil {
 			response.JSON(w, nil, err)
 			return
 		}
 		resp, err := resourcelogic.NewMarkDealtLogic(store).MarkDealt(r.Context(), resourcelogic.MarkDealtReq{
-			MerchantID: body.MerchantID, ResourceID: r.PathValue("resourceId"), IsDealt: body.IsDealt,
+			MerchantID: body.MerchantID, ResourceID: resourceID, IsDealt: body.IsDealt,
 			IsReal: body.IsReal, ResponseTimely: body.ResponseTimely, WillingToCooperateAgain: body.WillingToCooperateAgain, Note: body.Note,
 		})
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/resources/{resourceId}/take-down", func(w http.ResponseWriter, r *http.Request) {
+		resourceID := r.PathValue("resourceId")
 		var body struct {
 			MerchantID string `json:"merchantId"`
 			Reason     string `json:"reason"`
@@ -424,22 +464,38 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 		if strings.TrimSpace(body.MerchantID) == "" {
 			body.MerchantID = r.URL.Query().Get("merchantId")
 		}
+		if tokenService != nil {
+			merchantID, err := resourceMerchantIDFromStore(r.Context(), store, resourceID)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+			body.MerchantID = merchantID
+		}
 		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, body.MerchantID); err != nil {
 			response.JSON(w, nil, err)
 			return
 		}
 		resp, err := resourcelogic.NewTakeDownOwnResourceLogic(store).TakeDown(r.Context(), resourcelogic.TakeDownOwnResourceReq{
 			MerchantID: body.MerchantID,
-			ResourceID: r.PathValue("resourceId"),
+			ResourceID: resourceID,
 			Reason:     body.Reason,
 		})
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/resources/{resourceId}/repost-similar", func(w http.ResponseWriter, r *http.Request) {
+		resourceID := r.PathValue("resourceId")
 		merchantID, err := merchantIDFromActionRequest(r)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
+		}
+		if tokenService != nil {
+			merchantID, err = resourceMerchantIDFromStore(r.Context(), store, resourceID)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
 		}
 		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
 			response.JSON(w, nil, err)
@@ -447,7 +503,7 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 		}
 		resp, err := resourcelogic.NewRepostSimilarLogic(store).RepostSimilar(r.Context(), resourcelogic.RepostSimilarReq{
 			MerchantID: merchantID,
-			ResourceID: r.PathValue("resourceId"),
+			ResourceID: resourceID,
 		})
 		response.JSON(w, resp, err)
 	})
@@ -588,6 +644,53 @@ func adminOperatorIDFromRequest(r *http.Request, tokenService AdminTokenService,
 		return "", errx.New(errx.CodeUnauthorized, "请先登录管理后台")
 	}
 	return strings.TrimSpace(subject.UserID), nil
+}
+
+func resourceMerchantIDFromStore(ctx context.Context, store ResourceAPIStore, resourceID string) (string, error) {
+	ownerStore, ok := any(store).(ResourceMerchantStore)
+	if !ok {
+		return "", errx.New(errx.CodeForbidden, "您没有权限操作该资源")
+	}
+	merchantID, err := ownerStore.GetResourceMerchantID(ctx, strings.TrimSpace(resourceID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", errx.New(errx.CodeValidationFailed, "资源不存在或已下架")
+	}
+	if err != nil {
+		return "", err
+	}
+	merchantID = strings.TrimSpace(merchantID)
+	if merchantID == "" {
+		return "", errx.New(errx.CodeForbidden, "您没有权限操作该资源")
+	}
+	return merchantID, nil
+}
+
+func bindResourceCreatorFromRequest(r *http.Request, req *resourcelogic.CreateResourceReq, tokenService authlogic.TokenService, adminTokenService AdminTokenService) error {
+	if subject, ok := adminSubjectFromBearerToken(r, adminTokenService); ok && permission.CanAccessAdmin(subject.Roles) {
+		req.CreatedByUser = strings.TrimSpace(subject.UserID)
+		req.CreatedByRole = primaryRole(subject.Roles, "platform_operator")
+		return nil
+	}
+	if tokenService == nil {
+		return nil
+	}
+	subject, err := userSubjectFromBearerToken(r, tokenService)
+	if err != nil {
+		return err
+	}
+	req.CreatedByUser = strings.TrimSpace(subject.UserID)
+	req.CreatedByRole = primaryRole(subject.Roles, "merchant_admin")
+	return nil
+}
+
+func primaryRole(roles []string, fallback string) string {
+	for _, role := range roles {
+		role = strings.TrimSpace(role)
+		if role != "" {
+			return role
+		}
+	}
+	return fallback
 }
 
 func decodeJSONBody(r *http.Request, target interface{}) error {

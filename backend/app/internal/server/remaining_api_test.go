@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -164,7 +165,6 @@ func TestAPIRouterRequiresMerchantPermissionForEntitlements(t *testing.T) {
 	}{
 		{name: "list entitlements", method: http.MethodGet, path: "/api/v1/merchants/merchant-2/entitlements"},
 		{name: "list top vouchers", method: http.MethodGet, path: "/api/v1/merchants/merchant-2/top-vouchers"},
-		{name: "redeem top voucher", method: http.MethodPost, path: "/api/v1/top-vouchers/voucher-1/redeem", body: `{"merchantId":"merchant-2","resourceId":"resource-1"}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -183,6 +183,34 @@ func TestAPIRouterRequiresMerchantPermissionForEntitlements(t *testing.T) {
 	redeemReq.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(redeemRec, redeemReq)
 	decodeEnvelopeData(t, redeemRec, http.StatusOK)
+	if store.redeemVoucherID != "voucher-1" || store.redeemResourceID != "resource-1" {
+		t.Fatalf("redeem voucherID=%q resourceID=%q, want voucher/resource IDs", store.redeemVoucherID, store.redeemResourceID)
+	}
+}
+
+func TestAPIRouterRequiresOwnedMerchantForTopVoucherRedeem(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true}
+	store.topVoucherMerchantIDs = map[string]string{"voucher-1": "merchant-2"}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	forbiddenRec := httptest.NewRecorder()
+	forbiddenReq := httptest.NewRequest(http.MethodPost, "/api/v1/top-vouchers/voucher-1/redeem", strings.NewReader(`{"merchantId":"merchant-1","resourceId":"resource-1"}`))
+	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
+	}
+	if store.redeemVoucherID != "" {
+		t.Fatalf("redeemVoucherID = %q, want no redeem call", store.redeemVoucherID)
+	}
+
+	store.topVoucherMerchantIDs = map[string]string{"voucher-1": "merchant-1"}
+	allowedRec := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodPost, "/api/v1/top-vouchers/voucher-1/redeem", strings.NewReader(`{"merchantId":"merchant-2","resourceId":"resource-1"}`))
+	allowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(allowedRec, allowedReq)
+	decodeEnvelopeData(t, allowedRec, http.StatusOK)
 	if store.redeemVoucherID != "voucher-1" || store.redeemResourceID != "resource-1" {
 		t.Fatalf("redeem voucherID=%q resourceID=%q, want voucher/resource IDs", store.redeemVoucherID, store.redeemResourceID)
 	}
@@ -382,6 +410,7 @@ type fakeFullAPIStore struct {
 	readMessageRoleCode     string
 	redeemVoucherID         string
 	redeemResourceID        string
+	topVoucherMerchantIDs   map[string]string
 	grantEntitlementInput   model.GrantEntitlementInput
 	createMatchInput        model.CreateMatchCaseInput
 }
@@ -479,6 +508,17 @@ func (s *fakeFullAPIStore) ListMerchantEntitlements(ctx context.Context, merchan
 
 func (s *fakeFullAPIStore) ListTopVouchers(ctx context.Context, merchantID string) ([]model.TopVoucher, error) {
 	return []model.TopVoucher{{ID: "voucher-1", Status: "unused", TopDurationHours: 24}}, nil
+}
+
+func (s *fakeFullAPIStore) GetTopVoucherMerchantID(ctx context.Context, voucherID string) (string, error) {
+	if s.topVoucherMerchantIDs == nil {
+		return "merchant-1", nil
+	}
+	merchantID, ok := s.topVoucherMerchantIDs[voucherID]
+	if !ok {
+		return "", sql.ErrNoRows
+	}
+	return merchantID, nil
 }
 
 func (s *fakeFullAPIStore) RedeemTopVoucher(ctx context.Context, voucherID string, resourceID string) (model.RedeemTopVoucherResult, error) {

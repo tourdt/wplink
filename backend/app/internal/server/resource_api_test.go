@@ -214,12 +214,118 @@ func TestResourceAPIRouterRequiresManagedMerchantWhenTokenConfigured(t *testing.
 	decodeEnvelopeData(t, allowedRec, http.StatusOK)
 
 	submitForbiddenRec := httptest.NewRecorder()
+	store.resourceMerchantIDs = map[string]string{"resource-1": "merchant-2"}
 	submitForbiddenReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/submit", strings.NewReader(`{"merchantId":"merchant-2"}`))
 	submitForbiddenReq.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(submitForbiddenRec, submitForbiddenReq)
 	if submitForbiddenRec.Code != http.StatusForbidden {
 		t.Fatalf("submit status = %d body = %s, want forbidden", submitForbiddenRec.Code, submitForbiddenRec.Body.String())
 	}
+}
+
+func TestResourceAPIRouterBindsTokenSubjectWhenCreatingResource(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		publishConfig: model.ResourcePublishConfig{
+			ID:               "config-1",
+			TypeCode:         "inventory",
+			RequiredFields:   []string{"merchantId", "cityCode", "typeCode", "title", "category", "contactName", "contactPhone"},
+			DefaultValidDays: 7,
+		},
+		merchantStatus:   model.MerchantStatusActive,
+		managedMerchants: map[string]bool{"merchant-1": true},
+	}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	createRec := httptest.NewRecorder()
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources", strings.NewReader(`{
+		"merchantId":"merchant-1",
+		"cityCode":"zhili",
+		"typeCode":"inventory",
+		"title":"女童春款卫衣库存",
+		"category":"童装卫衣",
+		"contact":{"name":"周经理","phone":"18800000002"}
+	}`))
+	createReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(createRec, createReq)
+	decodeEnvelopeData(t, createRec, http.StatusOK)
+	if store.created.CreatedByUser != "user-1" {
+		t.Fatalf("createdByUser = %q, want token user", store.created.CreatedByUser)
+	}
+
+	draftRec := httptest.NewRecorder()
+	draftReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/drafts", strings.NewReader(`{
+		"merchantId":"merchant-1",
+		"cityCode":"zhili",
+		"typeCode":"inventory",
+		"title":"女童春款卫衣草稿",
+		"category":"童装卫衣",
+		"contact":{"name":"周经理","phone":"18800000002"}
+	}`))
+	draftReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(draftRec, draftReq)
+	decodeEnvelopeData(t, draftRec, http.StatusOK)
+	if store.created.CreatedByUser != "user-1" || store.created.Status != model.ResourceStatusDraft {
+		t.Fatalf("draft createdByUser/status = %q/%q, want token user draft", store.created.CreatedByUser, store.created.Status)
+	}
+}
+
+func TestResourceAPIRouterRequiresOwnedMerchantWhenSubmittingResource(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		managedMerchants:    map[string]bool{"merchant-1": true},
+		resourceMerchantIDs: map[string]string{"resource-1": "merchant-1", "resource-2": "merchant-2"},
+	}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	forbiddenRec := httptest.NewRecorder()
+	forbiddenReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-2/submit", strings.NewReader(`{"merchantId":"merchant-1"}`))
+	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
+	}
+
+	allowedRec := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/submit", strings.NewReader(`{"merchantId":"merchant-2"}`))
+	allowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(allowedRec, allowedReq)
+	decodeEnvelopeData(t, allowedRec, http.StatusOK)
+}
+
+func TestResourceAPIRouterRequiresOwnedMerchantForResourceOwnerActions(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		managedMerchants:    map[string]bool{"merchant-1": true},
+		resourceMerchantIDs: map[string]string{"resource-1": "merchant-1", "resource-2": "merchant-2"},
+	}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	cases := []struct {
+		name   string
+		path   string
+		body   string
+		method string
+	}{
+		{name: "refresh", method: http.MethodPost, path: "/api/v1/resources/resource-2/refresh", body: `{"merchantId":"merchant-1"}`},
+		{name: "deal feedback", method: http.MethodPost, path: "/api/v1/resources/resource-2/deal-feedback", body: `{"merchantId":"merchant-1","isDealt":true}`},
+		{name: "take down", method: http.MethodPost, path: "/api/v1/resources/resource-2/take-down", body: `{"merchantId":"merchant-1","reason":"已售罄"}`},
+		{name: "repost similar", method: http.MethodPost, path: "/api/v1/resources/resource-2/repost-similar", body: `{"merchantId":"merchant-1"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			req.Header.Set("Authorization", "Bearer user-token")
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("status = %d body = %s, want forbidden", rec.Code, rec.Body.String())
+			}
+		})
+	}
+
+	allowedRec := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/refresh", strings.NewReader(`{"merchantId":"merchant-2"}`))
+	allowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(allowedRec, allowedReq)
+	decodeEnvelopeData(t, allowedRec, http.StatusOK)
 }
 
 func TestResourceAPIRouterAllowsAdminTokenForMerchantActions(t *testing.T) {
@@ -251,6 +357,9 @@ func TestResourceAPIRouterAllowsAdminTokenForMerchantActions(t *testing.T) {
 	createReq.Header.Set("Authorization", "Bearer admin-token")
 	router.ServeHTTP(createRec, createReq)
 	decodeEnvelopeData(t, createRec, http.StatusOK)
+	if store.created.CreatedByUser != "admin-1" {
+		t.Fatalf("admin createdByUser = %q, want admin token user", store.created.CreatedByUser)
+	}
 
 	submitRec := httptest.NewRecorder()
 	submitReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/submit", strings.NewReader(`{"merchantId":"merchant-2"}`))
@@ -426,6 +535,13 @@ func (s *fakeResourceAPIStore) GetPublishedResourceDetail(ctx context.Context, r
 		Attributes: model.JSONMap{"season": "春季"}, MerchantID: merchantID, MerchantName: "织里云仓",
 		MerchantVerificationStatus: "verified", ContactName: "周经理", PhoneMasked: "188****0002", WechatMasked: "stock-demo",
 	}, nil
+}
+
+func (s *fakeResourceAPIStore) GetResourceMerchantID(ctx context.Context, resourceID string) (string, error) {
+	if s.resourceMerchantIDs != nil && s.resourceMerchantIDs[resourceID] != "" {
+		return s.resourceMerchantIDs[resourceID], nil
+	}
+	return "merchant-1", nil
 }
 
 func (s *fakeResourceAPIStore) RecordResourceContactEvent(ctx context.Context, input model.ResourceContactEventInput) (model.ResourceContactEventResult, error) {

@@ -338,6 +338,17 @@ RETURNING id, status
 	return result, err
 }
 
+func (m *ResourceModel) GetResourceMerchantID(ctx context.Context, resourceID string) (string, error) {
+	var merchantID string
+	err := m.db.QueryRowContext(ctx, `
+SELECT merchant_id
+FROM resources
+WHERE id = $1
+  AND deleted_at IS NULL
+`, resourceID).Scan(&merchantID)
+	return merchantID, err
+}
+
 func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesFilter) (ListResourcesResult, error) {
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize

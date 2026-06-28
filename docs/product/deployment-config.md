@@ -56,6 +56,14 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 
 用户私有数据接口在生产启用用户 token 后以 token 身份为准，不信任前端传入的 `userId`。当前覆盖采购需求提交、“我的采购需求”、认证提交、用户消息列表和消息已读；商家角色消息 `merchant:<merchantId>` 还会校验当前用户是否能管理该商家，点击后可按商家角色标记已读。
 
+资源发布和草稿保存接口在生产启用用户 token 或后台 token 后，会把 `resources.created_by` 绑定为后端解析出的用户或后台操作员；前端不能提交或覆盖资源创建人身份。
+
+资源提交审核 `POST /api/v1/resources/{resourceId}/submit` 在生产启用用户 token 后，会按资源真实所属商家校验管理权限，不接受请求体中的 `merchantId` 作为权限依据。
+
+资源刷新、成交反馈、下架和再发类似等带 `resourceId` 的商家操作，在生产启用用户 token 后同样按资源真实所属商家校验权限，不接受请求体或 query 中的 `merchantId` 作为权限依据。
+
+置顶券核销 `POST /api/v1/top-vouchers/{voucherId}/redeem` 在生产启用用户 token 后，会按置顶券真实所属商家校验管理权限，不接受请求体中的 `merchantId` 作为权限依据；兑换 SQL 仍会校验资源与置顶券属于同一商家且资源已发布。
+
 资源联系行为 `POST /api/v1/resources/{resourceId}/contact-events` 允许匿名记录运营指标；请求携带用户 token 时以后端解析出的 token 用户为准，不接受前端 body 中的 `userId` 作为归因身份。
 
 资源搜索日志 `GET /api/v1/resource-search` 允许匿名记录关键词和筛选条件；请求携带用户 token 时以后端解析出的 token 用户为准，不接受 query 中的 `userId` 作为搜索归因身份。
