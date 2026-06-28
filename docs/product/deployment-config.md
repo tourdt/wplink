@@ -5,9 +5,14 @@
 ## 文件
 
 - `backend/etc/app.yaml.example`：后端配置模板，包含 HTTP、PostgreSQL、后台 token、自动任务和七牛 Kodo 对象存储配置。
+- `backend/etc/app.production.yaml.example`：生产配置模板，默认 `RuntimeMode: production`，关闭微信开发 code 和短信 dev provider。
 - `.env.example`：环境变量示例，供 CI、构建脚本或服务器环境文件参考。
+- `deploy/wplink.env.example`：服务器 `/etc/wplink/wplink.env` 示例。
 - `deploy/nginx/wplink.conf`：Nginx 反向代理示例；后台静态文件由 Go 服务在 `/admin/` 下提供。
 - `deploy/systemd/wplink-api.service`：后端 API 进程托管示例。
+- `deploy/scripts/build-release.sh`：发布构建脚本，会先嵌入后台构建产物，再输出 Go 二进制和部署模板。
+- `docs/product/production-release-checklist.md`：生产发布检查清单。
+- `docs/product/wxapp-manual-acceptance.md`：微信小程序真机/开发者工具手工验收清单。
 
 ## 一体化后台部署
 
@@ -25,6 +30,14 @@ node backend/scripts/prepare_admin_embed.mjs
 Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，Vue history 路由刷新会回退到 `index.html`，缺失的静态资源仍返回 404。当前 `backend/app/api/app.api` 中的 MVP API 已接入；后续新增但未接线的 `/api/` 路由会返回 `API_NOT_CONNECTED`。
 
 后台 API 客户端默认使用同源 `/api/...`，一体化部署时不需要设置 `VITE_API_BASE_URL`。本地分离开发时可以设置 `VITE_API_BASE_URL=http://127.0.0.1:4000`。
+
+生产发布推荐直接执行：
+
+```bash
+bash deploy/scripts/build-release.sh
+```
+
+该脚本会自动完成后台嵌入构建和后端二进制构建，避免上线后 `/admin/` 仍显示占位页面。
 
 ## 生产必填配置
 

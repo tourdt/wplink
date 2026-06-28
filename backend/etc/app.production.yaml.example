@@ -1,0 +1,50 @@
+Name: wplink-api
+RuntimeMode: production
+Host: 127.0.0.1
+Port: 4000
+
+Postgres:
+  DSN: "${DATABASE_URL}"
+  MaxOpenConns: 30
+  MaxIdleConns: 10
+  ConnMaxLifetime: 30m
+  ConnMaxIdleTime: 5m
+
+AdminAuth:
+  TokenSecret: "${JWT_SECRET}"
+  TokenTTL: 24h
+
+Wechat:
+  AppID: "${WECHAT_APP_ID}"
+  AppSecret: "${WECHAT_APP_SECRET}"
+  AllowDevCode: false
+
+SMS:
+  Provider: "http"
+  SendURL: "${SMS_SEND_URL}"
+  VerifyURL: "${SMS_VERIFY_URL}"
+  SendMinInterval: 60s
+  DailySendLimit: 10
+  AccessKeyID: "${SMS_ACCESS_KEY_ID}"
+  AccessKeySecret: "${SMS_ACCESS_KEY_SECRET}"
+  SignName: "${SMS_SIGN_NAME}"
+  TemplateCode: "${SMS_TEMPLATE_CODE}"
+  DevCode: ""
+
+Tasks:
+  ResourceLifecycleInterval: 1h
+
+Storage:
+  Provider: "qiniu-kodo"
+  Endpoint: "${QINIU_UPLOAD_ENDPOINT}"
+  Bucket: "${QINIU_BUCKET}"
+  Region: "${QINIU_REGION}"
+  AccessKeyID: "${QINIU_ACCESS_KEY}"
+  AccessKeySecret: "${QINIU_SECRET_KEY}"
+  PublicBaseURL: "${QINIU_PUBLIC_BASE_URL}"
+  UploadExpire: 15m
+  MaxFileSizeBytes: 10485760
+  AllowedContentTypes:
+    - "image/jpeg"
+    - "image/png"
+    - "image/webp"

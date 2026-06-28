@@ -6,12 +6,13 @@ After=network.target
 Type=simple
 User=wplink
 Group=wplink
-WorkingDirectory=/opt/wplink/backend
+WorkingDirectory=/opt/wplink
 EnvironmentFile=/etc/wplink/wplink.env
-ExecStart=/opt/wplink/backend/wplink-api -f /etc/wplink/app.yaml
+ExecStart=/opt/wplink/wplink-api -f /etc/wplink/app.yaml
 Restart=always
 RestartSec=5
 LimitNOFILE=65535
+NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target

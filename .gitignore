@@ -8,5 +8,7 @@ dist/
 !backend/app/internal/adminweb/dist/
 backend/app/internal/adminweb/dist/*
 !backend/app/internal/adminweb/dist/index.html
+!backend/app/internal/adminweb/dist/assets/
+!backend/app/internal/adminweb/dist/assets/**
 .DS_Store
 app.yaml
