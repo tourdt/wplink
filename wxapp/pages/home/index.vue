@@ -1,13 +1,9 @@
 <template>
   <view class="home-page">
-    <view class="search-entry" @click="openSearch()">
-      <text class="search-placeholder">搜索童装库存、工厂、货源</text>
-      <text class="search-action">搜索</text>
-    </view>
-
     <scroll-view class="banner-list" scroll-x>
       <view v-for="item in displayBanners" :key="item.id" class="banner-card" @click="openBanner(item)">
         <image v-if="item.coverUrl" class="banner-image" :src="item.coverUrl" mode="aspectFill" />
+        <view v-else class="banner-pattern"></view>
         <view class="banner-copy">
           <text class="banner-kicker">{{ item.kindText || '平台推荐' }}</text>
           <text class="banner-title">{{ item.title }}</text>
@@ -15,6 +11,29 @@
         </view>
       </view>
     </scroll-view>
+
+    <view class="search-entry" @click="openSearch()">
+      <text class="search-placeholder">搜索童装库存、工厂、货源</text>
+      <text class="search-action">搜索</text>
+    </view>
+
+    <view class="trust-strip">
+      <text>平台核实</text>
+      <text>认证商家</text>
+      <text>过期下架</text>
+    </view>
+
+    <view class="activity-card" @click="openActivity">
+      <view class="activity-cover">
+        <text>活动</text>
+      </view>
+      <view class="activity-copy">
+        <text class="activity-tag">活动推广</text>
+        <text class="activity-title">织里童装夏款供需对接会</text>
+        <text class="activity-desc">活动链接通过业务域名白名单校验，点击打开活动网页。</text>
+      </view>
+      <text class="activity-action">打开</text>
+    </view>
 
     <view class="focus-card" @click="openSearch('急清库存')">
       <view>
@@ -162,6 +181,10 @@ function openDemand() {
   uni.navigateTo({ url: '/pages/demand/index' })
 }
 
+function openActivity() {
+  uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent('https://m.fulink.example/events/zhili-summer')}` })
+}
+
 function openPublish() {
   uni.switchTab({ url: '/pages/publish/index' })
 }
@@ -233,6 +256,14 @@ function openInternal(url) {
   height: 220rpx;
 }
 
+.banner-pattern {
+  width: 100%;
+  height: 220rpx;
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.92), rgba(37, 99, 235, 0.76)),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.16) 0 16rpx, transparent 16rpx 32rpx);
+}
+
 .banner-copy {
   position: absolute;
   right: 24rpx;
@@ -255,6 +286,83 @@ function openInternal(url) {
 
 .banner-subtitle {
   font-size: 26rpx;
+}
+
+.trust-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+  margin: -4rpx 0 20rpx;
+}
+
+.trust-strip text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 58rpx;
+  border-radius: 12rpx;
+  background: #ffffff;
+  color: #0f766e;
+  font-size: 24rpx;
+  font-weight: 700;
+  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+}
+
+.activity-card {
+  display: grid;
+  grid-template-columns: 132rpx 1fr 64rpx;
+  align-items: center;
+  gap: 18rpx;
+  margin-bottom: 20rpx;
+  padding: 18rpx;
+  border-radius: 12rpx;
+  background: #ffffff;
+}
+
+.activity-cover {
+  display: flex;
+  align-items: flex-end;
+  width: 132rpx;
+  height: 96rpx;
+  padding: 12rpx;
+  border-radius: 10rpx;
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.26), transparent 28%),
+    #7b8fc7;
+  color: #ffffff;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.activity-copy {
+  display: grid;
+  gap: 6rpx;
+  min-width: 0;
+}
+
+.activity-tag {
+  color: #b7791f;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.activity-title {
+  color: #1f2933;
+  font-size: 28rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.activity-desc {
+  color: #697586;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.activity-action {
+  color: #0f766e;
+  font-size: 26rpx;
+  font-weight: 700;
 }
 
 .focus-card,

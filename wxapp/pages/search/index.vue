@@ -2,7 +2,7 @@
   <view class="search-page">
     <view class="search-guide">
       <text class="guide-title">找资源</text>
-      <text class="guide-desc">输入关键词或先选热门条件，找不到时可直接提交采购需求。</text>
+      <text class="guide-desc">输入关键词或先选热门条件，快速判断平台核实、认证状态、数量、价格和刷新时间。</text>
     </view>
 
     <view class="search-bar">
@@ -48,8 +48,11 @@
     </view>
 
     <view v-else-if="searched" class="empty-card">
+      <view class="empty-visual">
+        <text>找货</text>
+      </view>
       <text class="empty-title">暂未找到合适资源</text>
-      <text class="empty-desc">提交采购需求后，运营会继续跟进。</text>
+      <text class="empty-desc">可以提交采购需求，平台运营会继续留意库存、货源或工厂。</text>
       <button class="primary-button" @click="openDemand">提交采购需求</button>
     </view>
   </view>
@@ -326,10 +329,29 @@ function openDemand() {
 
 .empty-card {
   display: grid;
-  gap: 12rpx;
-  padding: 24rpx;
+  justify-items: center;
+  gap: 14rpx;
+  padding: 40rpx 24rpx;
   border-radius: 12rpx;
   background: #ffffff;
+  text-align: center;
+}
+
+.empty-visual {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  width: 188rpx;
+  height: 136rpx;
+  padding: 18rpx;
+  border-radius: 12rpx;
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.22), transparent 38%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.18) 0 12rpx, transparent 12rpx 24rpx),
+    #7b8fc7;
+  color: #ffffff;
+  font-size: 26rpx;
+  font-weight: 700;
 }
 
 .empty-title {
@@ -341,9 +363,11 @@ function openDemand() {
 .empty-desc {
   color: #697586;
   font-size: 28rpx;
+  line-height: 1.5;
 }
 
 .primary-button {
+  width: 100%;
   height: 84rpx;
   border-radius: 12rpx;
 }
