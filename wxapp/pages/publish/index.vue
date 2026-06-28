@@ -292,6 +292,7 @@ function validatePublishForm() {
   padding: 18rpx;
   border-radius: 10rpx;
   background: #f8fafc;
+  min-width: 0;
 }
 
 .form-status text {
@@ -304,6 +305,8 @@ function validatePublishForm() {
   flex: 0 0 auto;
   color: #0f766e;
   font-size: 26rpx;
+  line-height: 1.25;
+  text-align: right;
 }
 
 .field,
@@ -327,7 +330,7 @@ function validatePublishForm() {
 
 .action-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16rpx;
 }
 
@@ -360,6 +363,7 @@ function validatePublishForm() {
 .primary-button {
   height: 88rpx;
   border-radius: 12rpx;
+  line-height: 1.25;
 }
 
 .secondary-button {

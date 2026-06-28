@@ -207,6 +207,7 @@ function effectAdvice(item) {
   padding: 24rpx;
   border-radius: 12rpx;
   background: #ffffff;
+  min-width: 0;
 }
 
 .manager-title {
@@ -215,6 +216,7 @@ function effectAdvice(item) {
   color: #1f2933;
   font-size: 38rpx;
   font-weight: 700;
+  line-height: 1.25;
 }
 
 .manager-desc {
@@ -283,6 +285,7 @@ function effectAdvice(item) {
   align-items: center;
   justify-content: space-between;
   gap: 12rpx;
+  min-width: 0;
 }
 
 .tag-row {
@@ -296,6 +299,7 @@ function effectAdvice(item) {
   font-size: 32rpx;
   font-weight: 700;
   line-height: 1.35;
+  word-break: break-word;
 }
 
 .status-tag,
@@ -350,5 +354,6 @@ function effectAdvice(item) {
   background: #edf2f7;
   color: #1f2933;
   font-size: 26rpx;
+  line-height: 1.25;
 }
 </style>

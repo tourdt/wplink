@@ -297,7 +297,7 @@ function openInternal(url) {
 .banner-copy {
   position: absolute;
   top: 42rpx;
-  right: 136rpx;
+  right: 166rpx;
   left: 28rpx;
   display: grid;
   gap: 12rpx;
@@ -310,15 +310,17 @@ function openInternal(url) {
 }
 
 .banner-title {
-  font-size: 52rpx;
+  font-size: 46rpx;
   font-weight: 700;
   line-height: 1.12;
+  word-break: break-word;
 }
 
 .banner-subtitle {
   font-size: 28rpx;
   line-height: 1.45;
   opacity: 0.88;
+  word-break: break-word;
 }
 
 .banner-pill {
@@ -326,11 +328,14 @@ function openInternal(url) {
   right: 28rpx;
   top: 50%;
   transform: translateY(-50%);
+  max-width: 132rpx;
   padding: 14rpx 18rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.18);
   color: #ffffff;
   font-size: 24rpx;
+  line-height: 1.2;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -375,7 +380,7 @@ function openInternal(url) {
 
 .activity-card {
   display: grid;
-  grid-template-columns: 144rpx minmax(0, 1fr) 64rpx;
+  grid-template-columns: 144rpx minmax(0, 1fr) 72rpx;
   align-items: center;
   gap: 20rpx;
   margin-bottom: 20rpx;
@@ -383,6 +388,7 @@ function openInternal(url) {
   border-radius: 12rpx;
   background: #ffffff;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.05);
+  overflow: hidden;
 }
 
 .activity-cover {
@@ -414,21 +420,28 @@ function openInternal(url) {
 
 .activity-title {
   color: #1f2933;
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 700;
   line-height: 1.35;
+  word-break: break-word;
 }
 
 .activity-desc {
   color: #697586;
   font-size: 24rpx;
   line-height: 1.45;
+  word-break: break-word;
 }
 
 .activity-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #0f766e;
   font-size: 26rpx;
   font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
 }
 
 .focus-card,
@@ -477,6 +490,8 @@ function openInternal(url) {
   color: #1f2933;
   font-size: 36rpx;
   font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .focus-desc,
@@ -484,6 +499,7 @@ function openInternal(url) {
   color: #697586;
   font-size: 26rpx;
   line-height: 1.5;
+  word-break: break-word;
 }
 
 .focus-action,
@@ -495,6 +511,8 @@ function openInternal(url) {
   color: #0f766e;
   font-size: 26rpx;
   font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
 }
 
 .quick-grid {

@@ -19,11 +19,27 @@ page {
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
+view,
+text,
+image,
+scroll-view,
+button,
+input,
+textarea {
+  box-sizing: border-box;
+}
+
 button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin: 0;
   padding: 0;
   border: 0;
-  line-height: 1;
+  min-width: 0;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
 }
 
 button::after {
@@ -51,7 +67,8 @@ button::after {
   background: #edf2f7;
   color: #4a5568;
   font-size: 22rpx;
-  line-height: 1;
+  line-height: 1.25;
+  text-align: center;
 }
 
 .wplink-tag.verified {

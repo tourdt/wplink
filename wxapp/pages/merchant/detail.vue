@@ -170,7 +170,7 @@ function copyWechat() {
 
 .merchant-head {
   display: grid;
-  grid-template-columns: 1fr 136rpx;
+  grid-template-columns: minmax(0, 1fr) 136rpx;
   gap: 16rpx;
   align-items: start;
   background:
@@ -184,6 +184,8 @@ function copyWechat() {
   color: #1f2933;
   font-size: 36rpx;
   font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .merchant-subtitle {
@@ -281,6 +283,7 @@ function copyWechat() {
   color: #1f2933;
   font-size: 30rpx;
   line-height: 1.6;
+  word-break: break-word;
 }
 
 .benefit-section {
@@ -322,6 +325,7 @@ function copyWechat() {
   height: 88rpx;
   border-radius: 12rpx;
   font-size: 30rpx;
+  line-height: 1.25;
 }
 
 .primary-button {

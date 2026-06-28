@@ -67,6 +67,7 @@ function formatRefreshedAt(value) {
   border-radius: 12rpx;
   background: #ffffff;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+  overflow: hidden;
 }
 
 .resource-thumb {
@@ -130,12 +131,14 @@ function formatRefreshedAt(value) {
   font-size: 32rpx;
   font-weight: 700;
   line-height: 1.35;
+  word-break: break-word;
 }
 
 .resource-meta {
   color: #697586;
   font-size: 28rpx;
   line-height: 1.45;
+  word-break: break-word;
 }
 
 .resource-price {
@@ -165,5 +168,6 @@ function formatRefreshedAt(value) {
   color: #4b5565;
   font-size: 23rpx;
   line-height: 1.45;
+  word-break: break-word;
 }
 </style>

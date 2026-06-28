@@ -272,6 +272,8 @@ onShareAppMessage(() => ({
   font-size: 38rpx;
   font-weight: 700;
   line-height: 1.35;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .favorite-button {
@@ -301,7 +303,7 @@ onShareAppMessage(() => ({
 
 .spec-list {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12rpx;
 }
 
@@ -323,6 +325,7 @@ onShareAppMessage(() => ({
   font-size: 28rpx;
   font-weight: 700;
   line-height: 1.35;
+  word-break: break-word;
 }
 
 .section-head {
@@ -358,6 +361,7 @@ onShareAppMessage(() => ({
   background: #ffffff;
   color: #364152;
   font-size: 28rpx;
+  line-height: 1.25;
 }
 
 .primary-button {

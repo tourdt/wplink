@@ -240,12 +240,16 @@ function openMyResources() {
   justify-content: space-between;
   gap: 18rpx;
   padding-left: 18rpx;
+  min-width: 0;
 }
 
 .message-title {
   color: #1f2933;
   font-size: 32rpx;
   font-weight: 700;
+  line-height: 1.35;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .status-tag {
@@ -281,7 +285,7 @@ function openMyResources() {
 
 .effect-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12rpx;
 }
 
@@ -314,5 +318,6 @@ function openMyResources() {
   color: #0f766e;
   font-size: 28rpx;
   font-weight: 700;
+  line-height: 1.25;
 }
 </style>
