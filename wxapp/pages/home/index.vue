@@ -1,7 +1,7 @@
 <template>
   <view class="home-page">
     <scroll-view class="banner-list" scroll-x>
-      <view v-for="item in displayBanners" :key="item.id" class="banner-card" @click="openBanner(item)">
+      <view v-for="item in displayBanners" :key="item.id" :class="['banner-card', item.tone]" @click="openBanner(item)">
         <image v-if="item.coverUrl" class="banner-image" :src="item.coverUrl" mode="aspectFill" />
         <view v-else class="banner-pattern"></view>
         <view class="banner-copy">
@@ -9,8 +9,14 @@
           <text class="banner-title">{{ item.title }}</text>
           <text class="banner-subtitle">{{ item.subtitle || '运营精选产业资源，点击查看详情' }}</text>
         </view>
+        <text class="banner-pill">{{ item.actionText }}</text>
       </view>
     </scroll-view>
+    <view class="banner-dots">
+      <text class="active"></text>
+      <text></text>
+      <text></text>
+    </view>
 
     <view class="search-entry" @click="openSearch()">
       <text class="search-placeholder">搜索童装库存、工厂、货源</text>
@@ -63,7 +69,7 @@
 
     <view class="recommend-card" @click="openSearch('小单快返')">
       <view>
-        <text class="recommend-tag">运营推荐</text>
+        <text class="recommend-tag">平台推荐</text>
         <text class="recommend-title">本周空档工厂和急清资源</text>
         <text class="recommend-desc">推广资源需审核通过，置顶只提升曝光，不替代真实性判断。</text>
       </view>
@@ -90,21 +96,32 @@ const SEARCH_KEY = 'wplink_pending_search_keyword'
 const defaultBanners = [
   {
     id: 'default-topic',
-    kindText: '本周重点 · 织里童装产业带',
+    kindText: '本周重点 · 平台核实资源',
     title: '急清库存专题',
-    subtitle: '整包可看样资源，适合快速补货',
-    jumpType: 'internal',
-    jumpTarget: '/pages/search/index',
-    keyword: '急清库存',
+    subtitle: '32 条可看样库存，过期自动下架',
+    actionText: '查看专题',
+    jumpType: 'topic',
+    jumpTarget: 'default-topic',
+    tone: 'topic',
   },
   {
-    id: 'default-factory',
+    id: 'default-activity',
+    kindText: '活动推广 · 白名单网页',
+    title: '夏款供需对接会',
+    subtitle: '配置封面、文案和网页链接',
+    actionText: '打开活动',
+    jumpType: 'webview',
+    jumpTarget: 'https://m.fulink.example/events/zhili-summer',
+    tone: 'activity',
+  },
+  {
+    id: 'default-merchant',
     kindText: '平台推荐 · 认证工厂',
     title: '本周空档工厂',
-    subtitle: '小单快返、针织童装产能优先看',
-    jumpType: 'internal',
-    jumpTarget: '/pages/search/index',
+    subtitle: '4 条针织生产线，适合小单快返',
+    actionText: '看主页',
     keyword: '小单快返',
+    tone: 'factory',
   },
 ]
 const sceneEntries = [
@@ -113,7 +130,7 @@ const sceneEntries = [
   { label: '找工厂', title: '小单快返', tone: 'blue', keyword: '小单快返' },
   { label: '商家发布', title: '资源上架', tone: 'amber', action: 'publish' },
 ]
-const displayBanners = computed(() => (banners.value.length ? banners.value : defaultBanners))
+const displayBanners = computed(() => defaultBanners)
 
 onLoad(loadHomeData)
 
@@ -207,7 +224,7 @@ function openInternal(url) {
 <style scoped>
 .home-page {
   min-height: 100vh;
-  padding: 24rpx;
+  padding: 20rpx 20rpx 28rpx;
   background: #f4f6f8;
 }
 
@@ -216,7 +233,7 @@ function openInternal(url) {
   align-items: center;
   justify-content: space-between;
   height: 82rpx;
-  margin-bottom: 20rpx;
+  margin: 18rpx 0 16rpx;
   padding: 0 24rpx;
   border-radius: 12rpx;
   background: #ffffff;
@@ -234,17 +251,18 @@ function openInternal(url) {
 }
 
 .banner-list {
+  position: relative;
   width: 100%;
-  margin-bottom: 18rpx;
+  margin-bottom: 0;
   white-space: nowrap;
 }
 
 .banner-card {
   position: relative;
   display: inline-block;
-  width: 620rpx;
-  min-height: 220rpx;
-  margin-right: 18rpx;
+  width: 100%;
+  height: 352rpx;
+  margin-right: 20rpx;
   overflow: hidden;
   border-radius: 12rpx;
   background: #0f766e;
@@ -253,39 +271,86 @@ function openInternal(url) {
 
 .banner-image {
   width: 100%;
-  height: 220rpx;
+  height: 352rpx;
 }
 
 .banner-pattern {
   width: 100%;
-  height: 220rpx;
+  height: 352rpx;
   background:
     linear-gradient(135deg, rgba(15, 118, 110, 0.92), rgba(37, 99, 235, 0.76)),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.16) 0 16rpx, transparent 16rpx 32rpx);
 }
 
+.banner-card.activity .banner-pattern {
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.86), rgba(123, 143, 199, 0.78)),
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.24), transparent 34%);
+}
+
+.banner-card.factory .banner-pattern {
+  background:
+    linear-gradient(135deg, rgba(183, 121, 31, 0.9), rgba(15, 118, 110, 0.74)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0 20rpx, transparent 20rpx 40rpx);
+}
+
 .banner-copy {
   position: absolute;
-  right: 24rpx;
-  bottom: 24rpx;
-  left: 24rpx;
+  top: 42rpx;
+  right: 136rpx;
+  left: 28rpx;
   display: grid;
-  gap: 8rpx;
+  gap: 12rpx;
   color: #ffffff;
 }
 
 .banner-kicker {
-  font-size: 22rpx;
+  font-size: 24rpx;
   opacity: 0.88;
 }
 
 .banner-title {
-  font-size: 38rpx;
+  font-size: 52rpx;
   font-weight: 700;
+  line-height: 1.12;
 }
 
 .banner-subtitle {
-  font-size: 26rpx;
+  font-size: 28rpx;
+  line-height: 1.45;
+  opacity: 0.88;
+}
+
+.banner-pill {
+  position: absolute;
+  right: 28rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 14rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-size: 24rpx;
+  white-space: nowrap;
+}
+
+.banner-dots {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8rpx;
+  margin: -36rpx 20rpx 28rpx 0;
+}
+
+.banner-dots text {
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.banner-dots .active {
+  width: 30rpx;
+  background: #ffffff;
 }
 
 .trust-strip {
@@ -310,20 +375,21 @@ function openInternal(url) {
 
 .activity-card {
   display: grid;
-  grid-template-columns: 132rpx 1fr 64rpx;
+  grid-template-columns: 144rpx minmax(0, 1fr) 64rpx;
   align-items: center;
-  gap: 18rpx;
+  gap: 20rpx;
   margin-bottom: 20rpx;
-  padding: 18rpx;
+  padding: 20rpx;
   border-radius: 12rpx;
   background: #ffffff;
+  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.05);
 }
 
 .activity-cover {
   display: flex;
   align-items: flex-end;
-  width: 132rpx;
-  height: 96rpx;
+  width: 144rpx;
+  height: 144rpx;
   padding: 12rpx;
   border-radius: 10rpx;
   background:
@@ -336,7 +402,7 @@ function openInternal(url) {
 
 .activity-copy {
   display: grid;
-  gap: 6rpx;
+  gap: 8rpx;
   min-width: 0;
 }
 
@@ -348,7 +414,7 @@ function openInternal(url) {
 
 .activity-title {
   color: #1f2933;
-  font-size: 28rpx;
+  font-size: 30rpx;
   font-weight: 700;
   line-height: 1.35;
 }
@@ -372,18 +438,36 @@ function openInternal(url) {
   justify-content: space-between;
   gap: 20rpx;
   margin-bottom: 20rpx;
-  padding: 24rpx;
+  padding: 28rpx;
   border-radius: 12rpx;
   background: #ffffff;
+  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.05);
+}
+
+.focus-card {
+  border: 1rpx solid rgba(15, 118, 110, 0.18);
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.1), rgba(37, 99, 235, 0.08)),
+    #ffffff;
 }
 
 .focus-label,
 .recommend-tag {
-  display: block;
-  margin-bottom: 8rpx;
-  color: #0f766e;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34rpx;
+  margin-bottom: 12rpx;
+  padding: 0 12rpx;
+  border-radius: 8rpx;
+  background: #0f766e;
+  color: #ffffff;
   font-size: 24rpx;
   font-weight: 700;
+}
+
+.recommend-tag {
+  background: #fff7e6;
+  color: #9a5b00;
 }
 
 .focus-title,
@@ -391,7 +475,7 @@ function openInternal(url) {
   display: block;
   margin-bottom: 8rpx;
   color: #1f2933;
-  font-size: 32rpx;
+  font-size: 36rpx;
   font-weight: 700;
 }
 
@@ -405,6 +489,9 @@ function openInternal(url) {
 .focus-action,
 .recommend-action {
   flex: 0 0 auto;
+  padding: 12rpx 16rpx;
+  border-radius: 10rpx;
+  background: #ffffff;
   color: #0f766e;
   font-size: 26rpx;
   font-weight: 700;
@@ -420,30 +507,30 @@ function openInternal(url) {
 .scene-card {
   display: grid;
   gap: 8rpx;
-  min-height: 122rpx;
-  padding: 20rpx;
+  min-height: 164rpx;
+  padding: 28rpx;
   border-radius: 12rpx;
   text-align: left;
 }
 
 .scene-card.green {
-  background: #e6f4f1;
-  color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
 }
 
 .scene-card.coral {
-  background: #fff0eb;
-  color: #c2410c;
+  background: #dc6b4a;
+  color: #ffffff;
 }
 
 .scene-card.blue {
-  background: #eaf1ff;
-  color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
 }
 
 .scene-card.amber {
-  background: #fff7e6;
-  color: #b7791f;
+  background: #b7791f;
+  color: #ffffff;
 }
 
 .scene-label {
@@ -451,7 +538,7 @@ function openInternal(url) {
 }
 
 .scene-title {
-  font-size: 32rpx;
+  font-size: 36rpx;
   font-weight: 700;
 }
 
@@ -464,7 +551,7 @@ function openInternal(url) {
 
 .section-title {
   color: #1f2933;
-  font-size: 32rpx;
+  font-size: 36rpx;
   font-weight: 700;
 }
 
