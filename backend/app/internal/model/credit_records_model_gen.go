@@ -18,7 +18,7 @@ import (
 
 var (
 	creditRecordsFieldNames          = builder.RawFieldNames(&CreditRecords{}, true)
-	creditRecordsRows                = strings.Join(creditRecordsFieldNames, ",")
+	creditRecordsRows                = postgresTextIDRows(creditRecordsFieldNames)
 	creditRecordsRowsExpectAutoSet   = strings.Join(stringx.Remove(creditRecordsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	creditRecordsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(creditRecordsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

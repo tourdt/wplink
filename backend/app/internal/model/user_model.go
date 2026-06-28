@@ -52,9 +52,9 @@ upserted AS (
     status = 'active',
     last_login_at = now(),
     updated_at = now()
-  RETURNING id
+  RETURNING id::text
 )
-SELECT id FROM upserted
+SELECT id::text FROM upserted
 `, openID, defaultCityCode).Scan(&userID); err != nil {
 		return UserProfile{}, err
 	}
@@ -68,7 +68,7 @@ func (m *UserModel) GetUserProfile(ctx context.Context, userID string) (UserProf
 	var profile UserProfile
 	if err := m.db.QueryRowContext(ctx, `
 SELECT
-  u.id,
+  u.id::text,
   COALESCE(u.phone, ''),
   COALESCE(u.wechat_openid, ''),
   COALESCE(u.nickname, ''),
@@ -100,7 +100,7 @@ func (m *UserModel) BindUserPhone(ctx context.Context, userID string, phone stri
 UPDATE users
 SET phone = $2, updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id
+RETURNING id::text
 `, strings.TrimSpace(userID), strings.TrimSpace(phone)).Scan(&updatedID); err != nil {
 		return UserProfile{}, err
 	}
@@ -170,7 +170,7 @@ ORDER BY r.code ASC
 
 func (m *UserModel) listManagedMerchants(ctx context.Context, userID string) ([]ManagedMerchantInfo, error) {
 	rows, err := m.db.QueryContext(ctx, `
-SELECT m.id, m.name, mab.role
+SELECT m.id::text, m.name, mab.role
 FROM merchant_admin_bindings mab
 JOIN merchants m ON m.id = mab.merchant_id
 WHERE mab.user_id = $1

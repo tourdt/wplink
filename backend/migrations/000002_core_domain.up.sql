@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS city_stations (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
   code varchar(64) UNIQUE NOT NULL,
   name varchar(64) NOT NULL,
   province varchar(64),
@@ -29,8 +29,8 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_users_default_city ON users(default_city_station_id);
 
 CREATE TABLE IF NOT EXISTS merchants (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  city_station_id uuid NOT NULL REFERENCES city_stations(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  city_station_id bigint NOT NULL REFERENCES city_stations(id),
   name varchar(128) NOT NULL,
   merchant_type varchar(64) NOT NULL,
   main_categories jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -54,12 +54,12 @@ CREATE INDEX IF NOT EXISTS idx_merchants_verification_status ON merchants(verifi
 CREATE INDEX IF NOT EXISTS idx_merchants_last_active_at ON merchants(last_active_at);
 
 CREATE TABLE IF NOT EXISTS merchant_admin_bindings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  merchant_id uuid NOT NULL REFERENCES merchants(id),
-  user_id uuid NOT NULL REFERENCES users(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  merchant_id bigint NOT NULL REFERENCES merchants(id),
+  user_id bigint NOT NULL REFERENCES users(id),
   role varchar(32) NOT NULL,
   status varchar(32) NOT NULL DEFAULT 'active',
-  created_by uuid REFERENCES users(id),
+  created_by bigint REFERENCES users(id),
   created_at timestamptz NOT NULL DEFAULT now(),
   revoked_at timestamptz
 );
@@ -70,8 +70,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_active_merchant_user
 CREATE INDEX IF NOT EXISTS idx_merchant_admin_bindings_user ON merchant_admin_bindings(user_id, status);
 
 CREATE TABLE IF NOT EXISTS resource_type_configs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  city_station_id uuid REFERENCES city_stations(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  city_station_id bigint REFERENCES city_stations(id),
   type_code varchar(64) NOT NULL,
   type_name varchar(64) NOT NULL,
   field_schema jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -97,10 +97,10 @@ CREATE INDEX IF NOT EXISTS idx_resource_type_configs_type_code ON resource_type_
 CREATE INDEX IF NOT EXISTS idx_resource_type_configs_status ON resource_type_configs(status);
 
 CREATE TABLE IF NOT EXISTS resources (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  merchant_id uuid NOT NULL REFERENCES merchants(id),
-  city_station_id uuid NOT NULL REFERENCES city_stations(id),
-  resource_type_config_id uuid NOT NULL REFERENCES resource_type_configs(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  merchant_id bigint NOT NULL REFERENCES merchants(id),
+  city_station_id bigint NOT NULL REFERENCES city_stations(id),
+  resource_type_config_id bigint NOT NULL REFERENCES resource_type_configs(id),
   type_code varchar(64) NOT NULL,
   status varchar(32) NOT NULL DEFAULT 'pending',
   title varchar(128) NOT NULL,
@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS resources (
   archived_at timestamptz,
   reject_reason text,
   take_down_reason text,
-  created_by uuid REFERENCES users(id),
+  created_by bigint REFERENCES users(id),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz
@@ -139,9 +139,9 @@ CREATE INDEX IF NOT EXISTS idx_resources_expires_at ON resources(expires_at);
 CREATE INDEX IF NOT EXISTS idx_resources_attributes_gin ON resources USING gin(attributes);
 
 CREATE TABLE IF NOT EXISTS resource_review_records (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  resource_id uuid NOT NULL REFERENCES resources(id),
-  reviewer_id uuid NOT NULL REFERENCES users(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  resource_id bigint NOT NULL REFERENCES resources(id),
+  reviewer_id bigint NOT NULL REFERENCES users(id),
   action varchar(32) NOT NULL,
   reason text,
   snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -152,18 +152,18 @@ CREATE INDEX IF NOT EXISTS idx_resource_review_records_resource ON resource_revi
 CREATE INDEX IF NOT EXISTS idx_resource_review_records_reviewer ON resource_review_records(reviewer_id);
 
 CREATE TABLE IF NOT EXISTS verifications (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  merchant_id uuid NOT NULL REFERENCES merchants(id),
-  resource_id uuid REFERENCES resources(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  merchant_id bigint NOT NULL REFERENCES merchants(id),
+  resource_id bigint REFERENCES resources(id),
   verification_type varchar(64) NOT NULL,
   status varchar(32) NOT NULL DEFAULT 'pending',
-  applicant_user_id uuid NOT NULL REFERENCES users(id),
+  applicant_user_id bigint NOT NULL REFERENCES users(id),
   business_name varchar(128),
   license_url text,
   storefront_url text,
   materials jsonb NOT NULL DEFAULT '{}'::jsonb,
   review_note text,
-  reviewed_by uuid REFERENCES users(id),
+  reviewed_by bigint REFERENCES users(id),
   submitted_at timestamptz NOT NULL DEFAULT now(),
   reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -174,15 +174,15 @@ CREATE INDEX IF NOT EXISTS idx_verifications_merchant_status ON verifications(me
 CREATE INDEX IF NOT EXISTS idx_verifications_resource ON verifications(resource_id);
 
 CREATE TABLE IF NOT EXISTS credit_records (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  merchant_id uuid NOT NULL REFERENCES merchants(id),
-  resource_id uuid REFERENCES resources(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  merchant_id bigint NOT NULL REFERENCES merchants(id),
+  resource_id bigint REFERENCES resources(id),
   source_type varchar(64) NOT NULL,
   tag_code varchar(64) NOT NULL,
   tag_label varchar(64) NOT NULL,
   description text,
   visibility varchar(32) NOT NULL DEFAULT 'public',
-  created_by uuid REFERENCES users(id),
+  created_by bigint REFERENCES users(id),
   created_at timestamptz NOT NULL DEFAULT now(),
   revoked_at timestamptz
 );
@@ -191,9 +191,9 @@ CREATE INDEX IF NOT EXISTS idx_credit_records_merchant_visibility ON credit_reco
 CREATE INDEX IF NOT EXISTS idx_credit_records_tag_code ON credit_records(tag_code);
 
 CREATE TABLE IF NOT EXISTS purchase_demands (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL REFERENCES users(id),
-  city_station_id uuid REFERENCES city_stations(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  user_id bigint NOT NULL REFERENCES users(id),
+  city_station_id bigint REFERENCES city_stations(id),
   demand_type varchar(64) NOT NULL,
   status varchar(32) NOT NULL DEFAULT 'pending',
   title varchar(128) NOT NULL,
@@ -214,14 +214,14 @@ CREATE INDEX IF NOT EXISTS idx_purchase_demands_user_status ON purchase_demands(
 CREATE INDEX IF NOT EXISTS idx_purchase_demands_attributes_gin ON purchase_demands USING gin(attributes);
 
 CREATE TABLE IF NOT EXISTS search_logs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES users(id),
-  city_station_id uuid REFERENCES city_stations(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  user_id bigint REFERENCES users(id),
+  city_station_id bigint REFERENCES city_stations(id),
   keyword varchar(128) NOT NULL,
   filters jsonb NOT NULL DEFAULT '{}'::jsonb,
   result_count integer NOT NULL DEFAULT 0,
-  clicked_resource_id uuid REFERENCES resources(id),
-  generated_demand_id uuid REFERENCES purchase_demands(id),
+  clicked_resource_id bigint REFERENCES resources(id),
+  generated_demand_id bigint REFERENCES purchase_demands(id),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -230,12 +230,12 @@ CREATE INDEX IF NOT EXISTS idx_search_logs_city_created ON search_logs(city_stat
 CREATE INDEX IF NOT EXISTS idx_search_logs_result_count ON search_logs(result_count);
 
 CREATE TABLE IF NOT EXISTS match_cases (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  purchase_demand_id uuid REFERENCES purchase_demands(id),
-  city_station_id uuid REFERENCES city_stations(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  purchase_demand_id bigint REFERENCES purchase_demands(id),
+  city_station_id bigint REFERENCES city_stations(id),
   status varchar(32) NOT NULL DEFAULT 'open',
   source varchar(32) NOT NULL DEFAULT 'manual',
-  operator_id uuid REFERENCES users(id),
+  operator_id bigint REFERENCES users(id),
   result_note text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -246,19 +246,19 @@ CREATE INDEX IF NOT EXISTS idx_match_cases_demand ON match_cases(purchase_demand
 CREATE INDEX IF NOT EXISTS idx_match_cases_operator_status ON match_cases(operator_id, status);
 
 CREATE TABLE IF NOT EXISTS match_case_resources (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  match_case_id uuid NOT NULL REFERENCES match_cases(id),
-  resource_id uuid NOT NULL REFERENCES resources(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  match_case_id bigint NOT NULL REFERENCES match_cases(id),
+  resource_id bigint NOT NULL REFERENCES resources(id),
   role varchar(32) NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT uniq_match_case_resource UNIQUE (match_case_id, resource_id)
 );
 
 CREATE TABLE IF NOT EXISTS match_case_participants (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  match_case_id uuid NOT NULL REFERENCES match_cases(id),
-  user_id uuid REFERENCES users(id),
-  merchant_id uuid REFERENCES merchants(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  match_case_id bigint NOT NULL REFERENCES match_cases(id),
+  user_id bigint REFERENCES users(id),
+  merchant_id bigint REFERENCES merchants(id),
   participant_role varchar(32) NOT NULL,
   contact_status varchar(32) NOT NULL DEFAULT 'pending',
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -269,8 +269,8 @@ CREATE TABLE IF NOT EXISTS match_case_participants (
 CREATE INDEX IF NOT EXISTS idx_match_case_participants_case ON match_case_participants(match_case_id);
 
 CREATE TABLE IF NOT EXISTS merchant_entitlements (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  merchant_id uuid NOT NULL REFERENCES merchants(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  merchant_id bigint NOT NULL REFERENCES merchants(id),
   entitlement_type varchar(64) NOT NULL,
   source_type varchar(64) NOT NULL,
   total_amount integer NOT NULL,
@@ -287,13 +287,13 @@ CREATE INDEX IF NOT EXISTS idx_merchant_entitlements_merchant_type_status ON mer
 CREATE INDEX IF NOT EXISTS idx_merchant_entitlements_expires_at ON merchant_entitlements(expires_at);
 
 CREATE TABLE IF NOT EXISTS top_vouchers (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  merchant_id uuid NOT NULL REFERENCES merchants(id),
-  entitlement_id uuid REFERENCES merchant_entitlements(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  merchant_id bigint NOT NULL REFERENCES merchants(id),
+  entitlement_id bigint REFERENCES merchant_entitlements(id),
   source_type varchar(64) NOT NULL,
   allowed_type_codes jsonb NOT NULL DEFAULT '[]'::jsonb,
   top_duration_hours integer NOT NULL,
-  used_resource_id uuid REFERENCES resources(id),
+  used_resource_id bigint REFERENCES resources(id),
   used_at timestamptz,
   expires_at timestamptz,
   status varchar(32) NOT NULL DEFAULT 'unused',
@@ -304,10 +304,10 @@ CREATE INDEX IF NOT EXISTS idx_top_vouchers_merchant_status ON top_vouchers(merc
 CREATE INDEX IF NOT EXISTS idx_top_vouchers_used_resource ON top_vouchers(used_resource_id);
 
 CREATE TABLE IF NOT EXISTS resource_contact_events (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  resource_id uuid NOT NULL REFERENCES resources(id),
-  user_id uuid REFERENCES users(id),
-  merchant_id uuid NOT NULL REFERENCES merchants(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  resource_id bigint NOT NULL REFERENCES resources(id),
+  user_id bigint REFERENCES users(id),
+  merchant_id bigint NOT NULL REFERENCES merchants(id),
   action varchar(32) NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -316,9 +316,9 @@ CREATE INDEX IF NOT EXISTS idx_resource_contact_events_resource_action ON resour
 CREATE INDEX IF NOT EXISTS idx_resource_contact_events_merchant_created ON resource_contact_events(merchant_id, created_at);
 
 CREATE TABLE IF NOT EXISTS resource_metrics_daily (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  resource_id uuid NOT NULL REFERENCES resources(id),
-  merchant_id uuid NOT NULL REFERENCES merchants(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  resource_id bigint NOT NULL REFERENCES resources(id),
+  merchant_id bigint NOT NULL REFERENCES merchants(id),
   stat_date date NOT NULL,
   exposure_count integer NOT NULL DEFAULT 0,
   search_exposure_count integer NOT NULL DEFAULT 0,
@@ -338,8 +338,8 @@ CREATE TABLE IF NOT EXISTS resource_metrics_daily (
 CREATE INDEX IF NOT EXISTS idx_resource_metrics_daily_merchant_date ON resource_metrics_daily(merchant_id, stat_date);
 
 CREATE TABLE IF NOT EXISTS banner_topics (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  city_station_id uuid REFERENCES city_stations(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  city_station_id bigint REFERENCES city_stations(id),
   kind varchar(32) NOT NULL,
   title varchar(128) NOT NULL,
   subtitle varchar(255),
@@ -361,12 +361,12 @@ CREATE INDEX IF NOT EXISTS idx_banner_topics_active_time ON banner_topics(kind, 
 CREATE INDEX IF NOT EXISTS idx_banner_topics_sort ON banner_topics(sort_order DESC, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS messages (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  recipient_user_id uuid REFERENCES users(id),
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  recipient_user_id bigint REFERENCES users(id),
   recipient_role_code varchar(64),
   message_type varchar(64) NOT NULL,
   trigger_type varchar(64) NOT NULL,
-  trigger_id uuid,
+  trigger_id bigint,
   title varchar(128) NOT NULL,
   content text NOT NULL,
   target_url text,

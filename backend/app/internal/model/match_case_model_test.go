@@ -77,7 +77,7 @@ func TestMatchDemandStatusSyncSQLUpdatesLinkedDemand(t *testing.T) {
 		"SET status = $2",
 		"FROM match_cases mc",
 		"mc.purchase_demand_id = pd.id",
-		"mc.id = $1::uuid",
+		"mc.id = $1::bigint",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(sql, snippet) {

@@ -18,7 +18,7 @@ import (
 
 var (
 	matchCasesFieldNames          = builder.RawFieldNames(&MatchCases{}, true)
-	matchCasesRows                = strings.Join(matchCasesFieldNames, ",")
+	matchCasesRows                = postgresTextIDRows(matchCasesFieldNames)
 	matchCasesRowsExpectAutoSet   = strings.Join(stringx.Remove(matchCasesFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	matchCasesRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(matchCasesFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

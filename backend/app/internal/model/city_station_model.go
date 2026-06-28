@@ -31,7 +31,7 @@ func NewCityStationModel(db *sql.DB) *CityStationModel {
 func (m *CityStationModel) ListActiveCityStations(ctx context.Context) ([]CityStation, error) {
 	var stations []CityStation
 	err := m.conn.QueryRowsCtx(ctx, &stations, `
-SELECT id, code, name, COALESCE(primary_category, ''), status
+SELECT id::text, code, name, COALESCE(primary_category, ''), status
 FROM city_stations
 WHERE status = 'active'
 ORDER BY created_at ASC

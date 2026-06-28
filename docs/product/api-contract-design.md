@@ -23,7 +23,7 @@ API 设计目标：
 - Base URL: `/api/v1`
 - 数据格式：JSON
 - 时间格式：ISO 8601
-- ID 类型：UUID 字符串
+- ID 类型：TSID 字符串（数据库 BIGINT，JSON 返回字符串）
 - 认证方式：`Authorization: Bearer <token>`
 - 分页方式：`page` + `pageSize`
 
@@ -46,7 +46,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "createdAt": "2026-06-27T10:00:00+08:00"
 }
 ```
@@ -103,7 +103,7 @@ API 设计目标：
 {
   "token": "jwt",
   "user": {
-    "id": "uuid",
+    "id": "tsid",
     "nickname": "张三",
     "avatarUrl": "https://example.com/avatar.png",
     "defaultCityCode": "zhili",
@@ -125,14 +125,14 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "phone": "138****0000",
   "nickname": "张三",
   "defaultCityCode": "zhili",
   "roles": ["normal_user", "merchant_admin"],
   "managedMerchants": [
     {
-      "id": "uuid",
+      "id": "tsid",
       "name": "织里样板童装厂",
       "role": "owner"
     }
@@ -157,7 +157,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "phone": "138****0000"
 }
 ```
@@ -174,7 +174,7 @@ API 设计目标：
 {
   "items": [
     {
-      "id": "uuid",
+      "id": "tsid",
       "code": "zhili",
       "name": "织里",
       "primaryCategory": "童装",
@@ -194,7 +194,7 @@ API 设计目标：
 {
   "items": [
     {
-      "id": "uuid",
+      "id": "tsid",
       "typeCode": "inventory",
       "typeName": "库存",
       "defaultValidDays": 7,
@@ -235,7 +235,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "name": "织里样板童装厂",
   "verificationStatus": "unverified",
   "status": "active"
@@ -250,7 +250,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "name": "织里样板童装厂",
   "merchantType": "factory",
   "cityCode": "zhili",
@@ -305,7 +305,7 @@ API 设计目标：
 
 ```json
 {
-  "merchantId": "uuid",
+  "merchantId": "tsid",
   "cityCode": "zhili",
   "typeCode": "inventory",
   "title": "女童春款卫衣库存整包清",
@@ -334,7 +334,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "status": "pending",
   "message": "已提交审核，审核通过后将展示给买家"
 }
@@ -368,7 +368,7 @@ API 设计目标：
 {
   "items": [
     {
-      "id": "uuid",
+      "id": "tsid",
       "typeCode": "inventory",
       "title": "女童春款卫衣库存整包清",
       "category": "童装",
@@ -376,7 +376,7 @@ API 设计目标：
       "priceText": "打包 18 元/件",
       "quantityText": "3200 件",
       "merchant": {
-        "id": "uuid",
+        "id": "tsid",
         "name": "织里样板童装厂",
         "verificationStatus": "verified"
       },
@@ -398,7 +398,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "status": "published",
   "typeCode": "inventory",
   "title": "女童春款卫衣库存整包清",
@@ -412,7 +412,7 @@ API 设计目标：
     "allowSample": true
   },
   "merchant": {
-    "id": "uuid",
+    "id": "tsid",
     "name": "织里样板童装厂",
     "verificationStatus": "verified"
   },
@@ -436,7 +436,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "refreshedAt": "2026-06-27T11:00:00+08:00",
   "remainingRefreshQuota": 2
 }
@@ -467,7 +467,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "status": "dealt",
   "message": "已记录成交反馈"
 }
@@ -539,7 +539,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "status": "pending",
   "message": "需求已提交，平台会尽快为您匹配"
 }
@@ -555,7 +555,7 @@ API 设计目标：
 {
   "items": [
     {
-      "id": "uuid",
+      "id": "tsid",
       "title": "找 100-140 码女童卫衣库存",
       "status": "matching",
       "createdAt": "2026-06-27T10:00:00+08:00"
@@ -592,7 +592,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "status": "pending",
   "message": "认证资料已提交，请等待审核"
 }
@@ -606,7 +606,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "verificationType": "factory",
   "status": "approved",
   "reviewedAt": "2026-06-27T10:00:00+08:00"
@@ -652,7 +652,7 @@ API 设计目标：
 {
   "items": [
     {
-      "id": "uuid",
+      "id": "tsid",
       "status": "unused",
       "topDurationHours": 24,
       "allowedTypeCodes": ["inventory", "goods", "factory"],
@@ -670,7 +670,7 @@ API 设计目标：
 
 ```json
 {
-  "resourceId": "uuid"
+  "resourceId": "tsid"
 }
 ```
 
@@ -678,8 +678,8 @@ API 设计目标：
 
 ```json
 {
-  "voucherId": "uuid",
-  "resourceId": "uuid",
+  "voucherId": "tsid",
+  "resourceId": "tsid",
   "status": "used",
   "message": "置顶券已使用"
 }
@@ -710,7 +710,7 @@ API 设计目标：
 
 ```json
 {
-  "resourceId": "uuid",
+  "resourceId": "tsid",
   "summary": {
     "exposureCount": 1200,
     "detailViewCount": 130,
@@ -738,7 +738,7 @@ API 设计目标：
 
 ```json
 {
-  "merchantId": "uuid",
+  "merchantId": "tsid",
   "publishedResourceCount": 12,
   "expiringResourceCount": 3,
   "dealtResourceCount": 2,
@@ -769,11 +769,11 @@ API 设计目标：
 {
   "items": [
     {
-      "id": "uuid",
+      "id": "tsid",
       "messageType": "review",
       "title": "资源审核通过",
       "content": "您发布的女童春款卫衣库存已审核通过。",
-      "targetUrl": "/resources/uuid",
+      "targetUrl": "/resources/tsid",
       "status": "sent",
       "createdAt": "2026-06-27T10:00:00+08:00"
     }
@@ -792,7 +792,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "status": "read"
 }
 ```
@@ -819,7 +819,7 @@ API 设计目标：
 ```json
 {
   "token": "admin_jwt",
-  "userId": "uuid",
+  "userId": "tsid",
   "roles": ["platform_operator"]
 }
 ```
@@ -851,7 +851,7 @@ API 设计目标：
 {
   "items": [
     {
-      "id": "uuid",
+      "id": "tsid",
       "title": "女童春款卫衣库存整包清",
       "typeCode": "inventory",
       "merchantName": "织里样板童装厂",
@@ -887,7 +887,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "status": "published",
   "message": "资源已审核通过"
 }
@@ -917,7 +917,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "status": "approved",
   "message": "认证已通过"
 }
@@ -943,7 +943,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "message": "权益已发放"
 }
 ```
@@ -956,9 +956,9 @@ API 设计目标：
 
 ```json
 {
-  "purchaseDemandId": "uuid",
-  "resourceIds": ["uuid"],
-  "participantMerchantIds": ["uuid"],
+  "purchaseDemandId": "tsid",
+  "resourceIds": ["tsid"],
+  "participantMerchantIds": ["tsid"],
   "resultNote": "已联系双方，等待看样"
 }
 ```
@@ -967,7 +967,7 @@ API 设计目标：
 
 ```json
 {
-  "id": "uuid",
+  "id": "tsid",
   "status": "open",
   "message": "撮合记录已创建"
 }
@@ -991,11 +991,11 @@ API 设计目标：
 {
   "items": [
     {
-      "id": "uuid",
-      "operatorId": "uuid",
+      "id": "tsid",
+      "operatorId": "tsid",
       "operatorRole": "operator",
       "objectType": "resource",
-      "objectId": "uuid",
+      "objectId": "tsid",
       "action": "approve",
       "reason": "信息完整",
       "createdAt": "2026-06-27T10:00:00+08:00"

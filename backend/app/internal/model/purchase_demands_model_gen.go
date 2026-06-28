@@ -18,7 +18,7 @@ import (
 
 var (
 	purchaseDemandsFieldNames          = builder.RawFieldNames(&PurchaseDemands{}, true)
-	purchaseDemandsRows                = strings.Join(purchaseDemandsFieldNames, ",")
+	purchaseDemandsRows                = postgresTextIDRows(purchaseDemandsFieldNames)
 	purchaseDemandsRowsExpectAutoSet   = strings.Join(stringx.Remove(purchaseDemandsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	purchaseDemandsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(purchaseDemandsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

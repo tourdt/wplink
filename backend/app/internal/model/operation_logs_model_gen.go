@@ -18,7 +18,7 @@ import (
 
 var (
 	operationLogsFieldNames          = builder.RawFieldNames(&OperationLogs{}, true)
-	operationLogsRows                = strings.Join(operationLogsFieldNames, ",")
+	operationLogsRows                = postgresTextIDRows(operationLogsFieldNames)
 	operationLogsRowsExpectAutoSet   = strings.Join(stringx.Remove(operationLogsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	operationLogsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(operationLogsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

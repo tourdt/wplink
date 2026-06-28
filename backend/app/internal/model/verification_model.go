@@ -84,7 +84,7 @@ INSERT INTO verifications (
   materials
 )
 VALUES ($1, $2, 'pending', $3, NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), $7)
-RETURNING id, status
+RETURNING id::text, status
 `, input.MerchantID, input.VerificationType, input.ApplicantUserID, input.BusinessName, input.LicenseURL, input.StorefrontURL, input.Materials).Scan(&result.ID, &result.Status)
 	return result, err
 }
@@ -93,7 +93,7 @@ func (m *VerificationModel) GetLatestVerification(ctx context.Context, merchantI
 	var result VerificationBrief
 	var reviewedAt sql.NullTime
 	err := m.db.QueryRowContext(ctx, `
-SELECT id, verification_type, status, reviewed_at
+SELECT id::text, verification_type, status, reviewed_at
 FROM verifications
 WHERE merchant_id = $1
 ORDER BY submitted_at DESC, created_at DESC
@@ -110,8 +110,8 @@ func (m *VerificationModel) ListPendingVerifications(ctx context.Context, filter
 	offset := (page - 1) * pageSize
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  v.id,
-  v.merchant_id,
+  v.id::text,
+  v.merchant_id::text,
   m.name,
   v.verification_type,
   v.status,
@@ -165,7 +165,7 @@ func (m *VerificationModel) ReviewVerification(ctx context.Context, input Review
 UPDATE verifications
 SET status = $2, review_note = NULLIF($3, ''), reviewed_by = $4, reviewed_at = now(), updated_at = now()
 WHERE id = $1
-RETURNING id, merchant_id, resource_id, verification_type, status
+RETURNING id::text, merchant_id::text, resource_id::text, verification_type, status
 `, input.VerificationID, nextStatus, input.ReviewNote, input.ReviewerID).Scan(&result.ID, &merchantID, &resourceID, &verificationType, &result.Status)
 		if err != nil {
 			return err
@@ -233,7 +233,7 @@ func verificationMessageTargetURL(merchantID string) string {
 func grantVerificationBenefits(ctx context.Context, tx *sql.Tx, merchantID string, resourceID sql.NullString, verificationType string, reviewerID string) error {
 	if _, err := tx.ExecContext(ctx, `
 INSERT INTO credit_records (merchant_id, resource_id, source_type, tag_code, tag_label, description, visibility, created_by)
-VALUES ($1, NULLIF($2, '')::uuid, 'verification', $3, $4, '认证审核通过后自动生成', 'public', $5)
+VALUES ($1, NULLIF($2, '')::bigint, 'verification', $3, $4, '认证审核通过后自动生成', 'public', $5)
 `, merchantID, nullStringValue(resourceID), verificationType+"_verified", verificationLabel(verificationType), reviewerID); err != nil {
 		return err
 	}

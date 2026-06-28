@@ -51,7 +51,7 @@ func (m *SearchLogModel) RecordSearchLog(ctx context.Context, input SearchLogInp
 	_, err := m.db.ExecContext(ctx, `
 INSERT INTO search_logs (user_id, city_station_id, keyword, filters, result_count)
 SELECT
-  NULLIF($1, '')::uuid,
+  NULLIF($1, '')::bigint,
   cs.id,
   $3,
   $4,
@@ -69,7 +69,7 @@ func (m *SearchLogModel) ListSearchLogs(ctx context.Context, filter SearchLogFil
 	offset := (page - 1) * pageSize
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  sl.id,
+  sl.id::text,
   COALESCE(sl.user_id::text, ''),
   COALESCE(cs.code, ''),
   COALESCE(cs.name, ''),

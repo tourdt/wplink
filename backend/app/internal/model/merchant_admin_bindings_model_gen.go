@@ -18,7 +18,7 @@ import (
 
 var (
 	merchantAdminBindingsFieldNames          = builder.RawFieldNames(&MerchantAdminBindings{}, true)
-	merchantAdminBindingsRows                = strings.Join(merchantAdminBindingsFieldNames, ",")
+	merchantAdminBindingsRows                = postgresTextIDRows(merchantAdminBindingsFieldNames)
 	merchantAdminBindingsRowsExpectAutoSet   = strings.Join(stringx.Remove(merchantAdminBindingsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	merchantAdminBindingsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(merchantAdminBindingsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

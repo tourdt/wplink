@@ -18,7 +18,7 @@ import (
 
 var (
 	adminLoginCredentialsFieldNames          = builder.RawFieldNames(&AdminLoginCredentials{}, true)
-	adminLoginCredentialsRows                = strings.Join(adminLoginCredentialsFieldNames, ",")
+	adminLoginCredentialsRows                = postgresTextIDRows(adminLoginCredentialsFieldNames)
 	adminLoginCredentialsRowsExpectAutoSet   = strings.Join(stringx.Remove(adminLoginCredentialsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	adminLoginCredentialsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(adminLoginCredentialsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

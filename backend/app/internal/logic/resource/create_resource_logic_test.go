@@ -164,7 +164,7 @@ func TestCreateResourceRecordsOperationLogForOperatorProxy(t *testing.T) {
 		QuantityText:  "3200 件",
 		Description:   "整包优先，可现场看货。",
 		Contact:       ResourceContactReq{Name: "张老板", Phone: "13800000000"},
-		CreatedByUser: "00000000-0000-0000-0000-000000000001",
+		CreatedByUser: "100000000000000001",
 		CreatedByRole: "platform_operator",
 	})
 	if err != nil {

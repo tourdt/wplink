@@ -66,7 +66,7 @@ VALUES (
   $2,
   $3,
   $4,
-  NULLIF($5, '')::uuid,
+  NULLIF($5, '')::bigint,
   $6,
   $7
 )
@@ -96,7 +96,7 @@ VALUES (
   $2,
   $3,
   $4,
-  NULLIF($5, '')::uuid,
+  NULLIF($5, '')::bigint,
   $6,
   $7
 )
@@ -109,8 +109,8 @@ func (m *OperationLogModel) ListOperationLogs(ctx context.Context, filter Operat
 	offset := (page - 1) * pageSize
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  id,
-  operator_id,
+  id::text,
+  operator_id::text,
   operator_role,
   object_type,
   COALESCE(object_id::text, ''),
@@ -119,8 +119,8 @@ SELECT
   COUNT(*) OVER() AS total
 FROM operation_logs
 WHERE ($1 = '' OR object_type = $1)
-  AND ($2 = '' OR object_id = $2::uuid)
-  AND ($3 = '' OR operator_id = $3::uuid)
+  AND ($2 = '' OR object_id = $2::bigint)
+  AND ($3 = '' OR operator_id = $3::bigint)
 ORDER BY created_at DESC
 LIMIT $4 OFFSET $5
 `, filter.ObjectType, filter.ObjectID, filter.OperatorID, pageSize, offset)

@@ -81,17 +81,17 @@ INSERT INTO messages (
   status
 )
 VALUES (
-  NULLIF($1, '')::uuid,
+  NULLIF($1, '')::bigint,
   NULLIF($2, ''),
   $3,
   $4,
-  NULLIF($5, '')::uuid,
+  NULLIF($5, '')::bigint,
   $6,
   $7,
   NULLIF($8, ''),
   'unread'
 )
-RETURNING id
+RETURNING id::text
 `, input.RecipientUserID, input.RecipientRoleCode, input.MessageType, input.TriggerType, input.TriggerID, input.Title, input.Content, input.TargetURL).Scan(&result.ID)
 	return result, err
 }
@@ -100,10 +100,10 @@ func (m *MessageModel) ListMessages(ctx context.Context, filter ListMessagesFilt
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize
 	rows, err := m.db.QueryContext(ctx, `
-SELECT id, message_type, title, content, COALESCE(target_url, ''), status, created_at, COUNT(*) OVER() AS total
+SELECT id::text, message_type, title, content, COALESCE(target_url, ''), status, created_at, COUNT(*) OVER() AS total
 FROM messages
 WHERE (
-    ($1 <> '' AND recipient_user_id = $1::uuid)
+    ($1 <> '' AND recipient_user_id = $1::bigint)
     OR ($2 <> '' AND recipient_role_code = $2)
   )
   AND ($3 = '' OR message_type = $3)
@@ -138,10 +138,10 @@ UPDATE messages
 SET status = 'read', read_at = now()
 WHERE id = $1
   AND (
-    ($2 <> '' AND recipient_user_id = NULLIF($2, '')::uuid)
+    ($2 <> '' AND recipient_user_id = NULLIF($2, '')::bigint)
     OR ($3 <> '' AND recipient_role_code = $3)
   )
-RETURNING id, status
+RETURNING id::text, status
 `, messageID, userID, roleCode).Scan(&result.ID, &result.Status)
 	return result, err
 }
@@ -154,7 +154,7 @@ WHERE status = 'published'
   AND expires_at IS NOT NULL
   AND expires_at <= now()
   AND deleted_at IS NULL
-RETURNING id, merchant_id, title
+RETURNING id::text, merchant_id::text, title
 `)
 	if err != nil {
 		return nil, err
@@ -164,7 +164,7 @@ RETURNING id, merchant_id, title
 
 func (m *MessageModel) ListResourcesExpiringSoon(ctx context.Context) ([]LifecycleResource, error) {
 	rows, err := m.db.QueryContext(ctx, `
-SELECT r.id, r.merchant_id, r.title
+SELECT r.id::text, r.merchant_id::text, r.title
 FROM resources r
 WHERE r.status = 'published'
   AND r.expires_at IS NOT NULL

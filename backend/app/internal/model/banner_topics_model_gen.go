@@ -18,7 +18,7 @@ import (
 
 var (
 	bannerTopicsFieldNames          = builder.RawFieldNames(&BannerTopics{}, true)
-	bannerTopicsRows                = strings.Join(bannerTopicsFieldNames, ",")
+	bannerTopicsRows                = postgresTextIDRows(bannerTopicsFieldNames)
 	bannerTopicsRowsExpectAutoSet   = strings.Join(stringx.Remove(bannerTopicsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	bannerTopicsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(bannerTopicsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

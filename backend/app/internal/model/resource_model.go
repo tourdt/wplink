@@ -122,6 +122,43 @@ type ReviewResourceResult struct {
 	Status string
 }
 
+const listResourcesSQL = `
+SELECT
+  r.id::text,
+  r.type_code,
+  r.title,
+  r.category,
+  COALESCE(r.district, ''),
+  COALESCE(r.price_text, ''),
+  COALESCE(r.quantity_text, ''),
+  m.id::text,
+  m.name,
+  m.verification_status,
+  COALESCE(r.refreshed_at, r.published_at, r.created_at),
+  COUNT(*) OVER() AS total
+FROM resources r
+JOIN merchants m ON m.id = r.merchant_id
+JOIN city_stations cs ON cs.id = r.city_station_id
+WHERE r.deleted_at IS NULL
+  AND r.status = $1
+  AND ($2 = '' OR cs.code = $2)
+  AND (NULLIF($3, '')::bigint IS NULL OR r.merchant_id = NULLIF($3, '')::bigint)
+  AND ($4 = '' OR r.type_code = $4)
+  AND ($5 = '' OR r.category = $5)
+  AND (
+    $6 = ''
+    OR r.title ILIKE '%' || $6 || '%'
+    OR r.description ILIKE '%' || $6 || '%'
+    OR r.category ILIKE '%' || $6 || '%'
+    OR m.name ILIKE '%' || $6 || '%'
+    OR r.attributes::text ILIKE '%' || $6 || '%'
+  )
+  AND ($7 = false OR r.is_verified = true OR m.verification_status = 'verified')
+  AND (r.expires_at IS NULL OR r.expires_at > now())
+ORDER BY COALESCE(r.refreshed_at, r.published_at, r.created_at) DESC
+LIMIT $8 OFFSET $9
+`
+
 type ListPendingResourcesFilter struct {
 	CityCode string
 	TypeCode string
@@ -235,7 +272,7 @@ func (m *ResourceModel) GetResourcePublishConfig(ctx context.Context, cityCode s
 	var config ResourcePublishConfig
 	var requiredFields JSONStringSlice
 	err := m.db.QueryRowContext(ctx, `
-SELECT rtc.id, rtc.type_code, rtc.required_fields, rtc.default_valid_days
+SELECT rtc.id::text, rtc.type_code, rtc.required_fields, rtc.default_valid_days
 FROM resource_type_configs rtc
 JOIN city_stations cs ON cs.id = rtc.city_station_id
 WHERE cs.code = $1
@@ -298,10 +335,10 @@ SELECT
   $15,
   $16,
   $17,
-  NULLIF($18, '')::uuid
+  NULLIF($18, '')::bigint
 FROM city_stations cs
 WHERE cs.code = $2 AND cs.status = 'active'
-RETURNING id, status
+RETURNING id::text, status
 `,
 		input.MerchantID,
 		input.CityCode,
@@ -333,7 +370,7 @@ SET status = 'pending', updated_at = now()
 WHERE id = $1
   AND status IN ('draft', 'rejected')
   AND deleted_at IS NULL
-RETURNING id, status
+RETURNING id::text, status
 `, resourceID).Scan(&result.ID, &result.Status)
 	return result, err
 }
@@ -341,7 +378,7 @@ RETURNING id, status
 func (m *ResourceModel) GetResourceMerchantID(ctx context.Context, resourceID string) (string, error) {
 	var merchantID string
 	err := m.db.QueryRowContext(ctx, `
-SELECT merchant_id
+SELECT merchant_id::text
 FROM resources
 WHERE id = $1
   AND deleted_at IS NULL
@@ -353,42 +390,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize
 
-	rows, err := m.db.QueryContext(ctx, `
-SELECT
-  r.id,
-  r.type_code,
-  r.title,
-  r.category,
-  COALESCE(r.district, ''),
-  COALESCE(r.price_text, ''),
-  COALESCE(r.quantity_text, ''),
-  m.id,
-  m.name,
-  m.verification_status,
-  COALESCE(r.refreshed_at, r.published_at, r.created_at),
-  COUNT(*) OVER() AS total
-FROM resources r
-JOIN merchants m ON m.id = r.merchant_id
-JOIN city_stations cs ON cs.id = r.city_station_id
-WHERE r.deleted_at IS NULL
-  AND r.status = $1
-  AND ($2 = '' OR cs.code = $2)
-  AND ($3 = '' OR r.merchant_id = $3)
-  AND ($4 = '' OR r.type_code = $4)
-  AND ($5 = '' OR r.category = $5)
-  AND (
-    $6 = ''
-    OR r.title ILIKE '%' || $6 || '%'
-    OR r.description ILIKE '%' || $6 || '%'
-    OR r.category ILIKE '%' || $6 || '%'
-    OR m.name ILIKE '%' || $6 || '%'
-    OR r.attributes::text ILIKE '%' || $6 || '%'
-  )
-  AND ($7 = false OR r.is_verified = true OR m.verification_status = 'verified')
-  AND (r.expires_at IS NULL OR r.expires_at > now())
-ORDER BY COALESCE(r.refreshed_at, r.published_at, r.created_at) DESC
-LIMIT $8 OFFSET $9
-`, filter.Status, filter.CityCode, filter.MerchantID, filter.TypeCode, filter.Category, filter.Keyword, filter.VerifiedOnly, pageSize, offset)
+	rows, err := m.db.QueryContext(ctx, listResourcesSQL, filter.Status, filter.CityCode, filter.MerchantID, filter.TypeCode, filter.Category, filter.Keyword, filter.VerifiedOnly, pageSize, offset)
 	if err != nil {
 		return ListResourcesResult{}, err
 	}
@@ -430,7 +432,7 @@ func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resource
 	var expiresAt sql.NullTime
 	err := m.db.QueryRowContext(ctx, `
 SELECT
-  r.id,
+  r.id::text,
   r.status,
   r.type_code,
   r.title,
@@ -439,7 +441,7 @@ SELECT
   COALESCE(r.price_text, ''),
   COALESCE(r.quantity_text, ''),
   r.attributes,
-  m.id,
+  m.id::text,
   m.name,
   m.verification_status,
   r.contact_name,
@@ -512,14 +514,14 @@ SET
   taken_down_at = CASE WHEN $3 = 'take_down' THEN $4 ELSE taken_down_at END,
   updated_at = $4
 WHERE id = $1
-RETURNING id, merchant_id, title, status
+RETURNING id::text, merchant_id::text, title, status
 `, resourceID, status, input.Action, now, input.Reason)
 		if err := row.Scan(&result.ID, &merchantID, &title, &result.Status); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `
 INSERT INTO resource_review_records (resource_id, reviewer_id, action, reason, snapshot)
-VALUES ($1, NULLIF($2, '')::uuid, $3, $4, '{}'::jsonb)
+VALUES ($1, NULLIF($2, '')::bigint, $3, $4, '{}'::jsonb)
 `, resourceID, input.ReviewerID, input.Action, input.Reason)
 		if err != nil {
 			return err
@@ -562,7 +564,7 @@ func (m *ResourceModel) ListPendingResources(ctx context.Context, filter ListPen
 
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  r.id,
+  r.id::text,
   r.title,
   r.type_code,
   m.name,
@@ -605,7 +607,7 @@ func (m *ResourceModel) ListMyResources(ctx context.Context, filter ListMyResour
 	offset := (page - 1) * pageSize
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  r.id,
+  r.id::text,
   r.type_code,
   r.title,
   r.category,
@@ -674,7 +676,7 @@ func (m *ResourceModel) GetResourceOwnershipStatus(ctx context.Context, merchant
 	var expiresAt sql.NullTime
 	var dealtAt sql.NullTime
 	err := m.db.QueryRowContext(ctx, `
-SELECT id, merchant_id, status, expires_at, dealt_at
+SELECT id::text, merchant_id::text, status, expires_at, dealt_at
 FROM resources
 WHERE id = $1
   AND merchant_id = $2
@@ -707,7 +709,7 @@ WHERE id = (
   ORDER BY expires_at NULLS LAST, created_at ASC
   LIMIT 1
 )
-RETURNING id, remaining_amount
+RETURNING id::text, remaining_amount
 `, merchantID).Scan(&entitlementID, &remaining); err != nil {
 			return err
 		}
@@ -719,7 +721,7 @@ WHERE id = $1
   AND merchant_id = $2
   AND status = 'published'
   AND deleted_at IS NULL
-RETURNING id, refreshed_at
+RETURNING id::text, refreshed_at
 `, resourceID, merchantID).Scan(&result.ID, &refreshedAt); err != nil {
 			return err
 		}
@@ -742,7 +744,7 @@ WHERE id = $1
   AND merchant_id = $2
   AND status = 'published'
   AND deleted_at IS NULL
-RETURNING id, title, status
+RETURNING id::text, title, status
 `, input.ResourceID, input.MerchantID, input.IsDealt).Scan(&result.ID, &title, &result.Status); err != nil {
 			return err
 		}
@@ -779,7 +781,7 @@ WHERE id = $1
   AND merchant_id = $2
   AND status = 'published'
   AND deleted_at IS NULL
-RETURNING id, title, status
+RETURNING id::text, title, status
 `, input.ResourceID, input.MerchantID, input.Reason).Scan(&result.ID, &title, &result.Status); err != nil {
 			return err
 		}
@@ -838,7 +840,7 @@ FROM resources
 WHERE id = $1
   AND merchant_id = $2
   AND deleted_at IS NULL
-RETURNING id, status
+RETURNING id::text, status
 `, resourceID, merchantID).Scan(&result.ID, &result.Status)
 	return result, err
 }

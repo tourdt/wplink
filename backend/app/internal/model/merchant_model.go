@@ -118,7 +118,7 @@ SELECT
   $9
 FROM city_stations cs
 WHERE cs.code = $1 AND cs.status = 'active'
-RETURNING id, name, verification_status, status
+RETURNING id::text, name, verification_status, status
 `,
 			input.CityCode,
 			input.Name,
@@ -153,7 +153,7 @@ func (m *MerchantModel) GetMerchantDetail(ctx context.Context, merchantID string
 
 	err := m.db.QueryRowContext(ctx, `
 SELECT
-  m.id,
+  m.id::text,
   m.name,
   m.merchant_type,
   cs.code,
@@ -238,7 +238,7 @@ func (m *MerchantModel) ListMerchants(ctx context.Context, filter ListMerchantsF
 
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  m.id,
+  m.id::text,
   m.name,
   m.merchant_type,
   m.verification_status,

@@ -18,7 +18,7 @@ import (
 
 var (
 	searchLogsFieldNames          = builder.RawFieldNames(&SearchLogs{}, true)
-	searchLogsRows                = strings.Join(searchLogsFieldNames, ",")
+	searchLogsRows                = postgresTextIDRows(searchLogsFieldNames)
 	searchLogsRowsExpectAutoSet   = strings.Join(stringx.Remove(searchLogsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	searchLogsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(searchLogsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

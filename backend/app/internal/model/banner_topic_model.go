@@ -64,7 +64,7 @@ func NewBannerTopicModel(db *sql.DB) *BannerTopicModel {
 func (m *BannerTopicModel) ListBannerTopics(ctx context.Context, filter BannerTopicFilter) ([]BannerTopicConfig, error) {
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  bt.id,
+  bt.id::text,
   COALESCE(cs.code, ''),
   bt.kind,
   bt.title,
@@ -96,7 +96,7 @@ ORDER BY bt.sort_order DESC, bt.updated_at DESC
 func (m *BannerTopicModel) ListActiveBannerTopics(ctx context.Context, filter BannerTopicFilter) ([]BannerTopicConfig, error) {
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  bt.id,
+  bt.id::text,
   COALESCE(cs.code, ''),
   bt.kind,
   bt.title,
@@ -130,7 +130,7 @@ ORDER BY bt.sort_order DESC, bt.updated_at DESC
 func (m *BannerTopicModel) GetActiveTopic(ctx context.Context, topicID string, cityCode string) (BannerTopicConfig, error) {
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  bt.id,
+  bt.id::text,
   COALESCE(cs.code, ''),
   bt.kind,
   bt.title,
@@ -202,7 +202,7 @@ VALUES (
   $12,
   $13
 )
-RETURNING id, updated_at
+RETURNING id::text, updated_at
 `, input.CityCode, input.Kind, input.Title, input.Subtitle, input.CoverURL, JSONStringSlice(input.TypeScope), input.JumpType, input.JumpTarget, JSONStringSlice(input.Tags), input.StartAt, input.EndAt, input.SortOrder, input.Status).Scan(&result.ID, &updatedAt)
 	if err != nil {
 		return SaveBannerTopicResult{}, err
@@ -232,7 +232,7 @@ SET
   status = $14,
   updated_at = now()
 WHERE id = $1
-RETURNING id, updated_at
+RETURNING id::text, updated_at
 `, configID, input.CityCode, input.Kind, input.Title, input.Subtitle, input.CoverURL, JSONStringSlice(input.TypeScope), input.JumpType, input.JumpTarget, JSONStringSlice(input.Tags), input.StartAt, input.EndAt, input.SortOrder, input.Status).Scan(&result.ID, &updatedAt)
 	if err != nil {
 		return SaveBannerTopicResult{}, err

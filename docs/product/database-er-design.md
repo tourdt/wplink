@@ -18,7 +18,7 @@
 - MVP 先保证核心闭环，复杂推荐、交易、合同、支付暂不建表。
 
 默认数据库：PostgreSQL。  
-主键类型：`uuid`。  
+主键类型：`bigint` TSID。  
 时间字段：`timestamptz`。  
 扩展字段：`jsonb`。  
 软删除：使用 `deleted_at`，不物理删除关键业务数据。
@@ -120,12 +120,12 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 用户 ID |
+| id | bigint | PK | 用户 ID |
 | phone | varchar(32) | UNIQUE NULL | 手机号 |
 | wechat_openid | varchar(128) | UNIQUE NULL | 微信 openid |
 | nickname | varchar(64) | NULL | 昵称 |
 | avatar_url | text | NULL | 头像 |
-| default_city_station_id | uuid | FK -> city_stations.id NULL | 默认城市站 |
+| default_city_station_id | bigint | FK -> city_stations.id NULL | 默认城市站 |
 | status | varchar(32) | NOT NULL | active, disabled |
 | last_login_at | timestamptz | NULL | 最近登录 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
@@ -148,7 +148,7 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 角色 ID |
+| id | bigint | PK | 角色 ID |
 | code | varchar(64) | UNIQUE NOT NULL | normal_user, merchant_admin, platform_operator, super_admin |
 | name | varchar(64) | NOT NULL | 角色名称 |
 | description | text | NULL | 描述 |
@@ -162,11 +162,11 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 绑定 ID |
-| user_id | uuid | FK -> users.id NOT NULL | 用户 |
-| role_id | uuid | FK -> roles.id NOT NULL | 角色 |
-| city_station_id | uuid | FK -> city_stations.id NULL | 城市站权限范围 |
-| merchant_id | uuid | FK -> merchants.id NULL | 商家权限范围 |
+| id | bigint | PK | 绑定 ID |
+| user_id | bigint | FK -> users.id NOT NULL | 用户 |
+| role_id | bigint | FK -> roles.id NOT NULL | 角色 |
+| city_station_id | bigint | FK -> city_stations.id NULL | 城市站权限范围 |
+| merchant_id | bigint | FK -> merchants.id NULL | 商家权限范围 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 
 唯一约束：
@@ -179,8 +179,8 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 运营资料 ID |
-| user_id | uuid | FK -> users.id UNIQUE NOT NULL | 用户 |
+| id | bigint | PK | 运营资料 ID |
+| user_id | bigint | FK -> users.id UNIQUE NOT NULL | 用户 |
 | real_name | varchar(64) | NOT NULL | 运营人员姓名 |
 | managed_city_station_ids | jsonb | NOT NULL DEFAULT '[]' | 可管理城市站 |
 | status | varchar(32) | NOT NULL | active, disabled |
@@ -194,8 +194,8 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 凭证 ID |
-| user_id | uuid | FK -> users.id UNIQUE NOT NULL | 用户 |
+| id | bigint | PK | 凭证 ID |
+| user_id | bigint | FK -> users.id UNIQUE NOT NULL | 用户 |
 | login_name | varchar(64) | UNIQUE NOT NULL | 后台登录账号，可为手机号 |
 | password_hash | text | NOT NULL | bcrypt 密码哈希 |
 | status | varchar(32) | NOT NULL | enabled, disabled |
@@ -203,7 +203,7 @@ erDiagram
 | locked_until | timestamptz | NULL | 临时锁定截止时间 |
 | password_changed_at | timestamptz | NULL | 密码修改时间 |
 | last_login_at | timestamptz | NULL | 最近登录时间 |
-| created_by | uuid | FK -> users.id NULL | 创建人 |
+| created_by | bigint | FK -> users.id NULL | 创建人 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 | updated_at | timestamptz | NOT NULL | 更新时间 |
 
@@ -218,7 +218,7 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 城市站 ID |
+| id | bigint | PK | 城市站 ID |
 | code | varchar(64) | UNIQUE NOT NULL | zhili, guangzhou |
 | name | varchar(64) | NOT NULL | 织里、广州 |
 | province | varchar(64) | NULL | 省份 |
@@ -239,8 +239,8 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 商家 ID |
-| city_station_id | uuid | FK -> city_stations.id NOT NULL | 所属主城市站 |
+| id | bigint | PK | 商家 ID |
+| city_station_id | bigint | FK -> city_stations.id NOT NULL | 所属主城市站 |
 | name | varchar(128) | NOT NULL | 商家名称 |
 | merchant_type | varchar(64) | NOT NULL | factory, stall, stockist, service_provider, buyer |
 | main_categories | jsonb | NOT NULL DEFAULT '[]' | 主营品类 |
@@ -270,12 +270,12 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 绑定 ID |
-| merchant_id | uuid | FK -> merchants.id NOT NULL | 商家 |
-| user_id | uuid | FK -> users.id NOT NULL | 用户 |
+| id | bigint | PK | 绑定 ID |
+| merchant_id | bigint | FK -> merchants.id NOT NULL | 商家 |
+| user_id | bigint | FK -> users.id NOT NULL | 用户 |
 | role | varchar(32) | NOT NULL | owner, admin, operator_proxy |
 | status | varchar(32) | NOT NULL | active, revoked |
-| created_by | uuid | FK -> users.id NULL | 创建人 |
+| created_by | bigint | FK -> users.id NULL | 创建人 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 | revoked_at | timestamptz | NULL | 取消时间 |
 
@@ -289,8 +289,8 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 配置 ID |
-| city_station_id | uuid | FK -> city_stations.id NULL | 为空表示全局类型 |
+| id | bigint | PK | 配置 ID |
+| city_station_id | bigint | FK -> city_stations.id NULL | 为空表示全局类型 |
 | type_code | varchar(64) | NOT NULL | inventory, goods, factory, order, job, rental, service |
 | type_name | varchar(64) | NOT NULL | 类型名称 |
 | field_schema | jsonb | NOT NULL DEFAULT '{}' | 字段模板 |
@@ -320,10 +320,10 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 资源 ID |
-| merchant_id | uuid | FK -> merchants.id NOT NULL | 所属商家 |
-| city_station_id | uuid | FK -> city_stations.id NOT NULL | 城市站 |
-| resource_type_config_id | uuid | FK -> resource_type_configs.id NOT NULL | 资源类型配置 |
+| id | bigint | PK | 资源 ID |
+| merchant_id | bigint | FK -> merchants.id NOT NULL | 所属商家 |
+| city_station_id | bigint | FK -> city_stations.id NOT NULL | 城市站 |
+| resource_type_config_id | bigint | FK -> resource_type_configs.id NOT NULL | 资源类型配置 |
 | type_code | varchar(64) | NOT NULL | 冗余类型编码，便于查询 |
 | status | varchar(32) | NOT NULL | draft, pending, published, rejected, expired, dealt, taken_down, archived |
 | title | varchar(128) | NOT NULL | 标题 |
@@ -348,7 +348,7 @@ erDiagram
 | archived_at | timestamptz | NULL | 归档时间 |
 | reject_reason | text | NULL | 驳回原因 |
 | take_down_reason | text | NULL | 下架原因 |
-| created_by | uuid | FK -> users.id NULL | 创建人 |
+| created_by | bigint | FK -> users.id NULL | 创建人 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 | updated_at | timestamptz | NOT NULL | 更新时间 |
 | deleted_at | timestamptz | NULL | 软删除 |
@@ -369,9 +369,9 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 审核记录 ID |
-| resource_id | uuid | FK -> resources.id NOT NULL | 资源 |
-| reviewer_id | uuid | FK -> users.id NOT NULL | 审核人 |
+| id | bigint | PK | 审核记录 ID |
+| resource_id | bigint | FK -> resources.id NOT NULL | 资源 |
+| reviewer_id | bigint | FK -> users.id NOT NULL | 审核人 |
 | action | varchar(32) | NOT NULL | approve, reject, take_down |
 | reason | text | NULL | 原因 |
 | snapshot | jsonb | NOT NULL DEFAULT '{}' | 审核时资源快照 |
@@ -388,18 +388,18 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 认证 ID |
-| merchant_id | uuid | FK -> merchants.id NOT NULL | 商家 |
-| resource_id | uuid | FK -> resources.id NULL | 可选资源认证 |
+| id | bigint | PK | 认证 ID |
+| merchant_id | bigint | FK -> merchants.id NOT NULL | 商家 |
+| resource_id | bigint | FK -> resources.id NULL | 可选资源认证 |
 | verification_type | varchar(64) | NOT NULL | factory, stall, inventory, service_provider |
 | status | varchar(32) | NOT NULL | pending, approved, rejected, revoked |
-| applicant_user_id | uuid | FK -> users.id NOT NULL | 申请人 |
+| applicant_user_id | bigint | FK -> users.id NOT NULL | 申请人 |
 | business_name | varchar(128) | NULL | 主体名称 |
 | license_url | text | NULL | 营业执照 |
 | storefront_url | text | NULL | 门头或工厂照片 |
 | materials | jsonb | NOT NULL DEFAULT '{}' | 其他材料 |
 | review_note | text | NULL | 审核说明 |
-| reviewed_by | uuid | FK -> users.id NULL | 审核人 |
+| reviewed_by | bigint | FK -> users.id NULL | 审核人 |
 | submitted_at | timestamptz | NOT NULL | 提交时间 |
 | reviewed_at | timestamptz | NULL | 审核时间 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
@@ -416,15 +416,15 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 信用记录 ID |
-| merchant_id | uuid | FK -> merchants.id NOT NULL | 商家 |
-| resource_id | uuid | FK -> resources.id NULL | 相关资源 |
+| id | bigint | PK | 信用记录 ID |
+| merchant_id | bigint | FK -> merchants.id NOT NULL | 商家 |
+| resource_id | bigint | FK -> resources.id NULL | 相关资源 |
 | source_type | varchar(64) | NOT NULL | verification, deal_feedback, complaint, platform_check |
 | tag_code | varchar(64) | NOT NULL | verified_factory, recent_active, risk_flag |
 | tag_label | varchar(64) | NOT NULL | 展示标签 |
 | description | text | NULL | 说明 |
 | visibility | varchar(32) | NOT NULL | public, internal |
-| created_by | uuid | FK -> users.id NULL | 创建人 |
+| created_by | bigint | FK -> users.id NULL | 创建人 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 | revoked_at | timestamptz | NULL | 撤销时间 |
 
@@ -439,9 +439,9 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 需求 ID |
-| user_id | uuid | FK -> users.id NOT NULL | 发布用户 |
-| city_station_id | uuid | FK -> city_stations.id NULL | 城市站 |
+| id | bigint | PK | 需求 ID |
+| user_id | bigint | FK -> users.id NOT NULL | 发布用户 |
+| city_station_id | bigint | FK -> city_stations.id NULL | 城市站 |
 | demand_type | varchar(64) | NOT NULL | goods, factory, inventory, service |
 | status | varchar(32) | NOT NULL | pending, reviewed, matching, matched, expired, closed |
 | title | varchar(128) | NOT NULL | 需求标题 |
@@ -468,14 +468,14 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 搜索记录 ID |
-| user_id | uuid | FK -> users.id NULL | 用户 |
-| city_station_id | uuid | FK -> city_stations.id NULL | 城市站 |
+| id | bigint | PK | 搜索记录 ID |
+| user_id | bigint | FK -> users.id NULL | 用户 |
+| city_station_id | bigint | FK -> city_stations.id NULL | 城市站 |
 | keyword | varchar(128) | NOT NULL | 搜索词 |
 | filters | jsonb | NOT NULL DEFAULT '{}' | 筛选条件 |
 | result_count | integer | NOT NULL DEFAULT 0 | 结果数量 |
-| clicked_resource_id | uuid | FK -> resources.id NULL | 点击资源 |
-| generated_demand_id | uuid | FK -> purchase_demands.id NULL | 转化需求 |
+| clicked_resource_id | bigint | FK -> resources.id NULL | 点击资源 |
+| generated_demand_id | bigint | FK -> purchase_demands.id NULL | 转化需求 |
 | created_at | timestamptz | NOT NULL | 搜索时间 |
 
 索引：
@@ -490,12 +490,12 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 撮合 ID |
-| purchase_demand_id | uuid | FK -> purchase_demands.id NULL | 关联需求 |
-| city_station_id | uuid | FK -> city_stations.id NULL | 城市站 |
+| id | bigint | PK | 撮合 ID |
+| purchase_demand_id | bigint | FK -> purchase_demands.id NULL | 关联需求 |
+| city_station_id | bigint | FK -> city_stations.id NULL | 城市站 |
 | status | varchar(32) | NOT NULL | open, contacted, succeeded, failed, closed |
 | source | varchar(32) | NOT NULL | manual, system |
-| operator_id | uuid | FK -> users.id NULL | 运营人员 |
+| operator_id | bigint | FK -> users.id NULL | 运营人员 |
 | result_note | text | NULL | 结果说明 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 | updated_at | timestamptz | NOT NULL | 更新时间 |
@@ -512,9 +512,9 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | ID |
-| match_case_id | uuid | FK -> match_cases.id NOT NULL | 撮合 |
-| resource_id | uuid | FK -> resources.id NOT NULL | 资源 |
+| id | bigint | PK | ID |
+| match_case_id | bigint | FK -> match_cases.id NOT NULL | 撮合 |
+| resource_id | bigint | FK -> resources.id NOT NULL | 资源 |
 | role | varchar(32) | NOT NULL | supply, demand |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 
@@ -528,10 +528,10 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | ID |
-| match_case_id | uuid | FK -> match_cases.id NOT NULL | 撮合 |
-| user_id | uuid | FK -> users.id NULL | 用户 |
-| merchant_id | uuid | FK -> merchants.id NULL | 商家 |
+| id | bigint | PK | ID |
+| match_case_id | bigint | FK -> match_cases.id NOT NULL | 撮合 |
+| user_id | bigint | FK -> users.id NULL | 用户 |
+| merchant_id | bigint | FK -> merchants.id NULL | 商家 |
 | participant_role | varchar(32) | NOT NULL | buyer, supplier, operator |
 | contact_status | varchar(32) | NOT NULL | pending, contacted, no_response, interested |
 | created_at | timestamptz | NOT NULL | 创建时间 |
@@ -547,8 +547,8 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 权益 ID |
-| merchant_id | uuid | FK -> merchants.id NOT NULL | 商家 |
+| id | bigint | PK | 权益 ID |
+| merchant_id | bigint | FK -> merchants.id NOT NULL | 商家 |
 | entitlement_type | varchar(64) | NOT NULL | posting_quota, refresh_quota, top_voucher, profile, data, matching |
 | source_type | varchar(64) | NOT NULL | verification_gift, membership_plan, operator_grant, purchase |
 | total_amount | integer | NOT NULL | 总额度 |
@@ -571,13 +571,13 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 券 ID |
-| merchant_id | uuid | FK -> merchants.id NOT NULL | 商家 |
-| entitlement_id | uuid | FK -> merchant_entitlements.id NULL | 来源权益 |
+| id | bigint | PK | 券 ID |
+| merchant_id | bigint | FK -> merchants.id NOT NULL | 商家 |
+| entitlement_id | bigint | FK -> merchant_entitlements.id NULL | 来源权益 |
 | source_type | varchar(64) | NOT NULL | verification_gift, membership_plan, operator_grant, purchase |
 | allowed_type_codes | jsonb | NOT NULL DEFAULT '[]' | 可用资源类型 |
 | top_duration_hours | integer | NOT NULL | 置顶时长 |
-| used_resource_id | uuid | FK -> resources.id NULL | 使用资源 |
+| used_resource_id | bigint | FK -> resources.id NULL | 使用资源 |
 | used_at | timestamptz | NULL | 使用时间 |
 | expires_at | timestamptz | NULL | 过期时间 |
 | status | varchar(32) | NOT NULL | unused, used, expired, voided |
@@ -594,10 +594,10 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 联系事件 ID |
-| resource_id | uuid | FK -> resources.id NOT NULL | 资源 |
-| user_id | uuid | FK -> users.id NULL | 联系用户 |
-| merchant_id | uuid | FK -> merchants.id NOT NULL | 资源商家 |
+| id | bigint | PK | 联系事件 ID |
+| resource_id | bigint | FK -> resources.id NOT NULL | 资源 |
+| user_id | bigint | FK -> users.id NULL | 联系用户 |
+| merchant_id | bigint | FK -> merchants.id NOT NULL | 资源商家 |
 | action | varchar(32) | NOT NULL | phone, wechat, merchant_profile, share |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 
@@ -612,9 +612,9 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 统计 ID |
-| resource_id | uuid | FK -> resources.id NOT NULL | 资源 |
-| merchant_id | uuid | FK -> merchants.id NOT NULL | 商家 |
+| id | bigint | PK | 统计 ID |
+| resource_id | bigint | FK -> resources.id NOT NULL | 资源 |
+| merchant_id | bigint | FK -> merchants.id NOT NULL | 商家 |
 | stat_date | date | NOT NULL | 日期 |
 | exposure_count | integer | NOT NULL DEFAULT 0 | 曝光 |
 | search_exposure_count | integer | NOT NULL DEFAULT 0 | 搜索曝光 |
@@ -643,12 +643,12 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 消息 ID |
-| recipient_user_id | uuid | FK -> users.id NULL | 接收用户 |
+| id | bigint | PK | 消息 ID |
+| recipient_user_id | bigint | FK -> users.id NULL | 接收用户 |
 | recipient_role_code | varchar(64) | NULL | 后台角色接收 |
 | message_type | varchar(64) | NOT NULL | review, lifecycle, interaction, matching, system |
 | trigger_type | varchar(64) | NOT NULL | resource, merchant, verification, match, entitlement |
-| trigger_id | uuid | NULL | 触发对象 ID |
+| trigger_id | bigint | NULL | 触发对象 ID |
 | title | varchar(128) | NOT NULL | 标题 |
 | content | text | NOT NULL | 内容 |
 | target_url | text | NULL | 跳转目标 |
@@ -669,11 +669,11 @@ erDiagram
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | uuid | PK | 日志 ID |
-| operator_id | uuid | FK -> users.id NOT NULL | 操作人 |
+| id | bigint | PK | 日志 ID |
+| operator_id | bigint | FK -> users.id NOT NULL | 操作人 |
 | operator_role | varchar(64) | NOT NULL | 操作角色 |
 | object_type | varchar(64) | NOT NULL | resource, merchant, credit, entitlement |
-| object_id | uuid | NOT NULL | 对象 ID |
+| object_id | bigint | NOT NULL | 对象 ID |
 | action | varchar(64) | NOT NULL | approve, reject, take_down, grant, revoke |
 | before_snapshot | jsonb | NOT NULL DEFAULT '{}' | 操作前 |
 | after_snapshot | jsonb | NOT NULL DEFAULT '{}' | 操作后 |

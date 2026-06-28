@@ -18,7 +18,7 @@ import (
 
 var (
 	userRoleAssignmentsFieldNames          = builder.RawFieldNames(&UserRoleAssignments{}, true)
-	userRoleAssignmentsRows                = strings.Join(userRoleAssignmentsFieldNames, ",")
+	userRoleAssignmentsRows                = postgresTextIDRows(userRoleAssignmentsFieldNames)
 	userRoleAssignmentsRowsExpectAutoSet   = strings.Join(stringx.Remove(userRoleAssignmentsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	userRoleAssignmentsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(userRoleAssignmentsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

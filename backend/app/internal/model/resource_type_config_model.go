@@ -89,7 +89,7 @@ func (m *ResourceTypeConfigModel) ListActiveResourceTypesByCityCode(ctx context.
 	var rows []resourceTypeConfigRow
 	err := m.conn.QueryRowsCtx(ctx, &rows, `
 SELECT
-  rtc.id,
+  rtc.id::text,
   rtc.type_code,
   rtc.type_name,
   rtc.default_valid_days,
@@ -125,7 +125,7 @@ func (m *ResourceTypeConfigModel) ListResourceTypeConfigs(ctx context.Context, c
 	var rows []adminResourceTypeConfigRow
 	err := m.conn.QueryRowsCtx(ctx, &rows, `
 SELECT
-  rtc.id,
+  rtc.id::text,
   COALESCE(cs.code, '') AS city_code,
   rtc.type_code,
   rtc.type_name,

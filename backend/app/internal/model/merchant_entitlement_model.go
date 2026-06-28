@@ -83,7 +83,7 @@ ORDER BY created_at DESC
 
 func (m *MerchantEntitlementModel) ListTopVouchers(ctx context.Context, merchantID string) ([]TopVoucher, error) {
 	rows, err := m.db.QueryContext(ctx, `
-SELECT id, status, top_duration_hours, allowed_type_codes, expires_at
+SELECT id::text, status, top_duration_hours, allowed_type_codes, expires_at
 FROM top_vouchers
 WHERE merchant_id = $1
 ORDER BY created_at DESC
@@ -115,7 +115,7 @@ ORDER BY created_at DESC
 func (m *MerchantEntitlementModel) GetTopVoucherMerchantID(ctx context.Context, voucherID string) (string, error) {
 	var merchantID string
 	err := m.db.QueryRowContext(ctx, `
-SELECT merchant_id
+SELECT merchant_id::text
 FROM top_vouchers
 WHERE id = $1
 `, voucherID).Scan(&merchantID)
@@ -137,7 +137,7 @@ WHERE tv.id = $1
   AND r.status = 'published'
   AND r.deleted_at IS NULL
   AND (jsonb_array_length(tv.allowed_type_codes) = 0 OR tv.allowed_type_codes ? r.type_code)
-RETURNING tv.id, r.id, tv.status
+RETURNING tv.id::text, r.id::text, tv.status
 `, voucherID, resourceID).Scan(&result.VoucherID, &result.ResourceID, &result.Status)
 		if err != nil {
 			return err
@@ -162,7 +162,7 @@ INSERT INTO merchant_entitlements (
   status
 )
 VALUES ($1, $2, $3, $4, $4, NULLIF($5, '')::timestamptz, 'active')
-RETURNING id
+RETURNING id::text
 `, input.MerchantID, input.EntitlementType, input.SourceType, input.TotalAmount, input.ExpiresAt).Scan(&result.ID); err != nil {
 			return err
 		}

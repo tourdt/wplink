@@ -18,7 +18,7 @@ import (
 
 var (
 	topVouchersFieldNames          = builder.RawFieldNames(&TopVouchers{}, true)
-	topVouchersRows                = strings.Join(topVouchersFieldNames, ",")
+	topVouchersRows                = postgresTextIDRows(topVouchersFieldNames)
 	topVouchersRowsExpectAutoSet   = strings.Join(stringx.Remove(topVouchersFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	topVouchersRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(topVouchersFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

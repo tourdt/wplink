@@ -18,7 +18,7 @@ import (
 
 var (
 	resourceContactEventsFieldNames          = builder.RawFieldNames(&ResourceContactEvents{}, true)
-	resourceContactEventsRows                = strings.Join(resourceContactEventsFieldNames, ",")
+	resourceContactEventsRows                = postgresTextIDRows(resourceContactEventsFieldNames)
 	resourceContactEventsRowsExpectAutoSet   = strings.Join(stringx.Remove(resourceContactEventsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	resourceContactEventsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(resourceContactEventsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

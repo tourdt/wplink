@@ -20,13 +20,13 @@ SELECT
   'merchant:' || merchant_id::text,
   'match_progress',
   'match_status_update',
-  $1::uuid,
+  $1::bigint,
   '撮合进度更新',
   $2,
   '/pages/messages/index',
   'unread'
 FROM match_case_participants
-WHERE match_case_id = $1::uuid
+WHERE match_case_id = $1::bigint
   AND merchant_id IS NOT NULL
 `
 
@@ -36,14 +36,14 @@ SELECT
   pd.user_id,
   'match_progress',
   'match_status_update',
-  $1::uuid,
+  $1::bigint,
   '撮合进度更新',
   $2,
   '/pages/my-demands/index?userId=' || pd.user_id::text,
   'unread'
 FROM match_cases mc
 JOIN purchase_demands pd ON pd.id = mc.purchase_demand_id
-WHERE mc.id = $1::uuid
+WHERE mc.id = $1::bigint
   AND pd.user_id IS NOT NULL
 `
 
@@ -53,14 +53,14 @@ SELECT
   pd.user_id,
   'match_progress',
   'match_create',
-  $1::uuid,
+  $1::bigint,
   '采购需求已进入撮合',
   '运营已受理您的采购需求，正在为您匹配合适资源。',
   '/pages/my-demands/index?userId=' || pd.user_id::text,
   'unread'
 FROM match_cases mc
 JOIN purchase_demands pd ON pd.id = mc.purchase_demand_id
-WHERE mc.id = $1::uuid
+WHERE mc.id = $1::bigint
   AND pd.user_id IS NOT NULL
 `
 
@@ -70,13 +70,13 @@ SELECT
   'merchant:' || merchant_id::text,
   'match_progress',
   'match_create',
-  $1::uuid,
+  $1::bigint,
   '新的撮合机会',
   '运营已将您加入一个采购需求撮合，请关注后续进展。',
   '/pages/messages/index',
   'unread'
 FROM match_case_participants
-WHERE match_case_id = $1::uuid
+WHERE match_case_id = $1::bigint
   AND merchant_id IS NOT NULL
 `
 
@@ -85,7 +85,7 @@ UPDATE purchase_demands pd
 SET status = $2, updated_at = now()
 FROM match_cases mc
 WHERE mc.purchase_demand_id = pd.id
-  AND mc.id = $1::uuid
+  AND mc.id = $1::bigint
 `
 
 type CreateMatchCaseInput struct {
@@ -158,10 +158,10 @@ func (m *MatchCaseModel) CreateMatchCase(ctx context.Context, input CreateMatchC
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
 		err := tx.QueryRowContext(ctx, `
 INSERT INTO match_cases (purchase_demand_id, city_station_id, status, source, operator_id, result_note)
-SELECT id, city_station_id, 'open', 'manual', NULLIF($2, '')::uuid, NULLIF($3, '')
+SELECT id, city_station_id, 'open', 'manual', NULLIF($2, '')::bigint, NULLIF($3, '')
 FROM purchase_demands
-WHERE id = $1::uuid
-RETURNING id, status
+WHERE id = $1::bigint
+RETURNING id::text, status
 `, input.PurchaseDemandID, input.OperatorID, input.ResultNote).Scan(&result.ID, &result.Status)
 		if err != nil {
 			return err
@@ -175,7 +175,7 @@ RETURNING id, status
 		if _, err := tx.ExecContext(ctx, `
 UPDATE purchase_demands
 SET status = 'matching', updated_at = now()
-WHERE id = $1::uuid
+WHERE id = $1::bigint
 `, input.PurchaseDemandID); err != nil {
 			return err
 		}
@@ -200,7 +200,7 @@ func (m *MatchCaseModel) ListMatchCases(ctx context.Context, filter ListMatchCas
 	offset := (page - 1) * pageSize
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  mc.id,
+  mc.id::text,
   COALESCE(mc.purchase_demand_id::text, ''),
   COALESCE(pd.title, ''),
   mc.status,
@@ -267,8 +267,8 @@ SET
   result_note = NULLIF($3, ''),
   updated_at = now(),
   closed_at = CASE WHEN $2 IN ('succeeded', 'failed', 'closed') THEN now() ELSE closed_at END
-WHERE id = $1::uuid
-RETURNING id, status
+WHERE id = $1::bigint
+RETURNING id::text, status
 `, input.MatchCaseID, input.Status, input.ResultNote).Scan(&result.ID, &result.Status)
 		if err != nil {
 			return err
@@ -318,7 +318,7 @@ func insertMatchResources(ctx context.Context, tx *sql.Tx, matchCaseID string, r
 	for _, resourceID := range resourceIDs {
 		if _, err := tx.ExecContext(ctx, `
 INSERT INTO match_case_resources (match_case_id, resource_id, role)
-VALUES ($1::uuid, $2::uuid, 'candidate')
+VALUES ($1::bigint, $2::bigint, 'candidate')
 ON CONFLICT (match_case_id, resource_id) DO NOTHING
 `, matchCaseID, resourceID); err != nil {
 			return err
@@ -331,10 +331,10 @@ func insertMatchParticipants(ctx context.Context, tx *sql.Tx, matchCaseID string
 	for _, merchantID := range merchantIDs {
 		if _, err := tx.ExecContext(ctx, `
 INSERT INTO match_case_participants (match_case_id, merchant_id, participant_role)
-SELECT $1::uuid, $2::uuid, 'merchant'
+SELECT $1::bigint, $2::bigint, 'merchant'
 WHERE NOT EXISTS (
   SELECT 1 FROM match_case_participants
-  WHERE match_case_id = $1::uuid AND merchant_id = $2::uuid
+  WHERE match_case_id = $1::bigint AND merchant_id = $2::bigint
 )
 `, matchCaseID, merchantID); err != nil {
 			return err

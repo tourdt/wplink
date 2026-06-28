@@ -1,7 +1,8 @@
 model:
   types_map:
-    uuid:
-      null_type: sql.NullString
-      type: string
-    _uuid:
-      type: pq.StringArray
+    bigint:
+      null_type: sql.NullInt64
+      type: int64
+    int8:
+      null_type: sql.NullInt64
+      type: int64

@@ -18,7 +18,7 @@ import (
 
 var (
 	resourceMetricsDailyFieldNames          = builder.RawFieldNames(&ResourceMetricsDaily{}, true)
-	resourceMetricsDailyRows                = strings.Join(resourceMetricsDailyFieldNames, ",")
+	resourceMetricsDailyRows                = postgresTextIDRows(resourceMetricsDailyFieldNames)
 	resourceMetricsDailyRowsExpectAutoSet   = strings.Join(stringx.Remove(resourceMetricsDailyFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	resourceMetricsDailyRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(resourceMetricsDailyFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

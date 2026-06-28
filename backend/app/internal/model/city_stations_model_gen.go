@@ -18,7 +18,7 @@ import (
 
 var (
 	cityStationsFieldNames          = builder.RawFieldNames(&CityStations{}, true)
-	cityStationsRows                = strings.Join(cityStationsFieldNames, ",")
+	cityStationsRows                = postgresTextIDRows(cityStationsFieldNames)
 	cityStationsRowsExpectAutoSet   = strings.Join(stringx.Remove(cityStationsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	cityStationsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(cityStationsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

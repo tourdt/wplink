@@ -23,7 +23,7 @@ test('reports a migration without matching down file', () => {
       name: 'demo',
       direction: 'up',
       fileName: '000001_demo.up.sql',
-      sql: 'CREATE TABLE IF NOT EXISTS demo_items (id uuid PRIMARY KEY);',
+      sql: 'CREATE TABLE IF NOT EXISTS demo_items (id bigint PRIMARY KEY);',
     },
   ])
 
@@ -37,7 +37,7 @@ test('reports tables created by up but not removed by down', () => {
       name: 'demo',
       direction: 'up',
       fileName: '000001_demo.up.sql',
-      sql: 'CREATE TABLE IF NOT EXISTS demo_items (id uuid PRIMARY KEY);',
+      sql: 'CREATE TABLE IF NOT EXISTS demo_items (id bigint PRIMARY KEY);',
     },
     {
       version: '000001',
@@ -53,7 +53,7 @@ test('reports tables created by up but not removed by down', () => {
 
 test('loadMigrationFiles ignores unrelated files and keeps migration metadata', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wplink-migrations-'))
-  fs.writeFileSync(path.join(tempDir, '000002_core.up.sql'), 'CREATE TABLE IF NOT EXISTS core_items (id uuid);')
+  fs.writeFileSync(path.join(tempDir, '000002_core.up.sql'), 'CREATE TABLE IF NOT EXISTS core_items (id bigint);')
   fs.writeFileSync(path.join(tempDir, '000002_core.down.sql'), 'DROP TABLE IF EXISTS core_items;')
   fs.writeFileSync(path.join(tempDir, 'README.md'), 'ignore me')
 

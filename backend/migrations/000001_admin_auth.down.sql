@@ -4,3 +4,5 @@ DROP TABLE IF EXISTS admin_operator_profiles;
 DROP TABLE IF EXISTS user_role_assignments;
 DROP TABLE IF EXISTS roles;
 DROP TABLE IF EXISTS users;
+DROP FUNCTION IF EXISTS next_tsid();
+DROP SEQUENCE IF EXISTS global_tsid_seq;

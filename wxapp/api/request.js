@@ -1,10 +1,11 @@
 import { API_BASE_URL, STORAGE_KEYS } from '../common/constants'
+import { buildApiUrl } from '../common/url'
 
 export default function request(options) {
   return new Promise((resolve, reject) => {
     const token = uni.getStorageSync(STORAGE_KEYS.token)
     uni.request({
-      url: `${API_BASE_URL}${options.url}`,
+      url: buildApiUrl(API_BASE_URL, options.url),
       method: options.method || 'GET',
       data: options.data || {},
       header: {

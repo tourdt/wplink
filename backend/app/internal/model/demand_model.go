@@ -112,7 +112,7 @@ FROM city_stations cs
 WHERE ($2 = '' OR cs.code = $2)
 ORDER BY CASE WHEN cs.code = $2 THEN 0 ELSE 1 END
 LIMIT 1
-RETURNING id, status
+RETURNING id::text, status
 `,
 		input.UserID,
 		input.CityCode,
@@ -134,7 +134,7 @@ func (m *DemandModel) ListMyDemands(ctx context.Context, userID string, filter L
 	offset := (page - 1) * pageSize
 
 	rows, err := m.db.QueryContext(ctx, `
-SELECT id, title, demand_type, category, contact_name, status, created_at, COUNT(*) OVER() AS total
+SELECT id::text, title, demand_type, category, contact_name, status, created_at, COUNT(*) OVER() AS total
 FROM purchase_demands
 WHERE user_id = $1
   AND ($2 = '' OR status = $2)
@@ -152,7 +152,7 @@ func (m *DemandModel) ListDemands(ctx context.Context, filter ListDemandsFilter)
 	offset := (page - 1) * pageSize
 
 	rows, err := m.db.QueryContext(ctx, `
-SELECT pd.id, pd.title, pd.demand_type, pd.category, pd.contact_name, pd.status, pd.created_at, COUNT(*) OVER() AS total
+SELECT pd.id::text, pd.title, pd.demand_type, pd.category, pd.contact_name, pd.status, pd.created_at, COUNT(*) OVER() AS total
 FROM purchase_demands pd
 LEFT JOIN city_stations cs ON cs.id = pd.city_station_id
 WHERE ($1 = '' OR cs.code = $1)
@@ -172,7 +172,7 @@ func (m *DemandModel) GetDemand(ctx context.Context, demandID string) (DemandDet
 	var createdAt time.Time
 	err := m.db.QueryRowContext(ctx, `
 SELECT
-  id,
+  id::text,
   title,
   demand_type,
   category,
@@ -213,7 +213,7 @@ func (m *DemandModel) UpdateDemandStatus(ctx context.Context, demandID string, s
 UPDATE purchase_demands
 SET status = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, status
+RETURNING id::text, status
 `, demandID, status).Scan(&result.ID, &result.Status)
 	return result, err
 }

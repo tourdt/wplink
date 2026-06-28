@@ -18,7 +18,7 @@ import (
 
 var (
 	messagesFieldNames          = builder.RawFieldNames(&Messages{}, true)
-	messagesRows                = strings.Join(messagesFieldNames, ",")
+	messagesRows                = postgresTextIDRows(messagesFieldNames)
 	messagesRowsExpectAutoSet   = strings.Join(stringx.Remove(messagesFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	messagesRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(messagesFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

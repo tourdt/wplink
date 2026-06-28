@@ -18,7 +18,7 @@ import (
 
 var (
 	verificationsFieldNames          = builder.RawFieldNames(&Verifications{}, true)
-	verificationsRows                = strings.Join(verificationsFieldNames, ",")
+	verificationsRows                = postgresTextIDRows(verificationsFieldNames)
 	verificationsRowsExpectAutoSet   = strings.Join(stringx.Remove(verificationsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	verificationsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(verificationsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

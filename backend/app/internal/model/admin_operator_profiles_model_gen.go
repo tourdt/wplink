@@ -18,7 +18,7 @@ import (
 
 var (
 	adminOperatorProfilesFieldNames          = builder.RawFieldNames(&AdminOperatorProfiles{}, true)
-	adminOperatorProfilesRows                = strings.Join(adminOperatorProfilesFieldNames, ",")
+	adminOperatorProfilesRows                = postgresTextIDRows(adminOperatorProfilesFieldNames)
 	adminOperatorProfilesRowsExpectAutoSet   = strings.Join(stringx.Remove(adminOperatorProfilesFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	adminOperatorProfilesRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(adminOperatorProfilesFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

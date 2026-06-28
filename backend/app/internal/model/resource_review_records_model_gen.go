@@ -18,7 +18,7 @@ import (
 
 var (
 	resourceReviewRecordsFieldNames          = builder.RawFieldNames(&ResourceReviewRecords{}, true)
-	resourceReviewRecordsRows                = strings.Join(resourceReviewRecordsFieldNames, ",")
+	resourceReviewRecordsRows                = postgresTextIDRows(resourceReviewRecordsFieldNames)
 	resourceReviewRecordsRowsExpectAutoSet   = strings.Join(stringx.Remove(resourceReviewRecordsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	resourceReviewRecordsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(resourceReviewRecordsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )

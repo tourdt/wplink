@@ -18,7 +18,7 @@ import (
 
 var (
 	merchantEntitlementsFieldNames          = builder.RawFieldNames(&MerchantEntitlements{}, true)
-	merchantEntitlementsRows                = strings.Join(merchantEntitlementsFieldNames, ",")
+	merchantEntitlementsRows                = postgresTextIDRows(merchantEntitlementsFieldNames)
 	merchantEntitlementsRowsExpectAutoSet   = strings.Join(stringx.Remove(merchantEntitlementsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	merchantEntitlementsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(merchantEntitlementsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )
