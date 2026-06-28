@@ -1,7 +1,17 @@
 $wplink-primary: #0f766e;
+$wplink-primary-soft: #e6f4f1;
 $wplink-bg: #f4f6f8;
+$wplink-card: #ffffff;
 $wplink-text: #1f2933;
 $wplink-muted: #697586;
+$wplink-line: #d8dde6;
+$wplink-warning: #b7791f;
+$wplink-warning-soft: #fff7e6;
+$wplink-price: #c2410c;
+$wplink-blue: #2563eb;
+$wplink-blue-soft: #eaf1ff;
+$wplink-coral: #dc6b4a;
+$wplink-coral-soft: #fff0eb;
 
 page {
   background: $wplink-bg;
@@ -18,4 +28,98 @@ button {
 
 button::after {
   border: 0;
+}
+
+.wplink-page {
+  min-height: 100vh;
+  padding: 24rpx;
+  background: $wplink-bg;
+}
+
+.wplink-card {
+  border-radius: 12rpx;
+  background: $wplink-card;
+  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+}
+
+.wplink-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40rpx;
+  padding: 0 14rpx;
+  border-radius: 8rpx;
+  background: #edf2f7;
+  color: #4a5568;
+  font-size: 22rpx;
+  line-height: 1;
+}
+
+.wplink-tag.verified {
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
+}
+
+.wplink-tag.top {
+  background: $wplink-warning-soft;
+  color: $wplink-warning;
+}
+
+.wplink-primary-button,
+.wplink-secondary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 84rpx;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.wplink-primary-button {
+  background: $wplink-primary;
+  color: #ffffff;
+}
+
+.wplink-secondary-button {
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
+}
+
+.wplink-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin: 24rpx 0 14rpx;
+}
+
+.wplink-section-title {
+  color: $wplink-text;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.wplink-section-link {
+  color: $wplink-primary;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.wplink-empty-card {
+  display: grid;
+  gap: 14rpx;
+  padding: 32rpx 24rpx;
+  border-radius: 12rpx;
+  background: $wplink-card;
+}
+
+.wplink-sticky-actions {
+  position: fixed;
+  right: 24rpx;
+  bottom: 24rpx;
+  left: 24rpx;
+  display: grid;
+  gap: 14rpx;
+  padding-bottom: env(safe-area-inset-bottom);
 }
