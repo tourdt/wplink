@@ -1,10 +1,20 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
+	adminlogic "wplink/backend/app/internal/logic/admin"
+	"wplink/backend/app/internal/logic/adminauth"
+	authlogic "wplink/backend/app/internal/logic/auth"
 	citylogic "wplink/backend/app/internal/logic/city"
+	metricslogic "wplink/backend/app/internal/logic/metrics"
+	resourcelogic "wplink/backend/app/internal/logic/resource"
+	"wplink/backend/app/internal/model"
+	"wplink/backend/common/errx"
 	"wplink/backend/common/response"
 )
 
@@ -13,8 +23,56 @@ type CityAPIStore interface {
 	citylogic.ResourceTypeStore
 }
 
-func NewAPIRouter(store CityAPIStore) http.Handler {
+type ResourceAPIStore interface {
+	resourcelogic.CreateResourceStore
+	resourcelogic.SubmitResourceStore
+	resourcelogic.ListResourcesStore
+	resourcelogic.SearchResourceStore
+	resourcelogic.GetResourceStore
+	resourcelogic.MyResourceStore
+	adminlogic.PendingResourceStore
+	adminlogic.ReviewResourceStore
+	metricslogic.ContactStore
+	metricslogic.MetricUpsertStore
+}
+
+type AdminLoginService interface {
+	Login(ctx context.Context, req adminauth.LoginRequest) (adminauth.LoginResponse, error)
+}
+
+type apiRouterOptions struct {
+	adminLoginService AdminLoginService
+	userTokenService  authlogic.TokenService
+}
+
+type APIRouterOption func(*apiRouterOptions)
+
+func WithAdminLoginService(service AdminLoginService) APIRouterOption {
+	return func(options *apiRouterOptions) {
+		options.adminLoginService = service
+	}
+}
+
+func WithUserTokenService(service authlogic.TokenService) APIRouterOption {
+	return func(options *apiRouterOptions) {
+		options.userTokenService = service
+	}
+}
+
+func NewAPIRouter(store CityAPIStore, opts ...APIRouterOption) http.Handler {
+	options := apiRouterOptions{}
+	for _, opt := range opts {
+		opt(&options)
+	}
 	mux := http.NewServeMux()
+	if options.adminLoginService != nil {
+		registerAdminAuthRoutes(mux, options.adminLoginService)
+	}
+	if options.userTokenService != nil {
+		if authStore, ok := any(store).(authlogic.UserStore); ok {
+			registerAuthRoutes(mux, authStore, options.userTokenService)
+		}
+	}
 	mux.HandleFunc("GET /api/v1/city-stations", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := citylogic.NewListCityStationsLogic(store).ListCityStations(r.Context())
 		response.JSON(w, resp, err)
@@ -28,7 +86,193 @@ func NewAPIRouter(store CityAPIStore) http.Handler {
 		resp, err := citylogic.NewListResourceTypesLogic(store).ListResourceTypes(r.Context(), cityCode)
 		response.JSON(w, resp, err)
 	})
+	if resourceStore, ok := any(store).(ResourceAPIStore); ok {
+		registerResourceRoutes(mux, resourceStore)
+	}
+	registerOptionalDomainRoutes(mux, store)
 	return mux
+}
+
+func registerAdminAuthRoutes(mux *http.ServeMux, service AdminLoginService) {
+	mux.HandleFunc("POST /api/v1/admin/auth/login", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			LoginName string `json:"loginName"`
+			Password  string `json:"password"`
+		}
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := service.Login(r.Context(), adminauth.LoginRequest{
+			LoginName: body.LoginName,
+			Password:  body.Password,
+		})
+		if err != nil {
+			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, err.Error()))
+			return
+		}
+		response.JSON(w, resp, nil)
+	})
+}
+
+func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore) {
+	mux.HandleFunc("POST /api/v1/resources", func(w http.ResponseWriter, r *http.Request) {
+		req, err := decodeCreateResourceRequest(r)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := resourcelogic.NewCreateResourceLogic(store).CreateResource(r.Context(), req)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/resources/drafts", func(w http.ResponseWriter, r *http.Request) {
+		req, err := decodeCreateResourceRequest(r)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := resourcelogic.NewCreateResourceLogic(store).CreateResourceDraft(r.Context(), req)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/resources/{resourceId}/submit", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := resourcelogic.NewSubmitResourceLogic(store).SubmitResource(r.Context(), r.PathValue("resourceId"))
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/resources", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := resourcelogic.NewListResourcesLogic(store).ListResources(r.Context(), listResourcesReqFromQuery(r))
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/resource-search", func(w http.ResponseWriter, r *http.Request) {
+		req := searchResourcesReqFromQuery(r)
+		resp, err := resourcelogic.NewSearchResourcesLogic(store).SearchResources(r.Context(), req)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/resources/{resourceId}", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := resourcelogic.NewGetResourceLogic(store).GetResource(r.Context(), r.PathValue("resourceId"))
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/resources/{resourceId}/detail-view", func(w http.ResponseWriter, r *http.Request) {
+		err := metricslogic.NewRecordDetailViewLogic(store).RecordDetailView(r.Context(), metricslogic.RecordDetailViewReq{ResourceID: r.PathValue("resourceId")})
+		response.JSON(w, map[string]string{"message": "浏览行为已记录"}, err)
+	})
+	mux.HandleFunc("POST /api/v1/resources/{resourceId}/contact-events", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			UserID string `json:"userId"`
+			Action string `json:"action"`
+		}
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := metricslogic.NewRecordContactLogic(store).RecordContact(r.Context(), metricslogic.RecordContactReq{
+			ResourceID: r.PathValue("resourceId"),
+			UserID:     body.UserID,
+			Action:     body.Action,
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/me/resources", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		resp, err := resourcelogic.NewListMyResourcesLogic(store).ListMyResources(r.Context(), resourcelogic.ListMyResourcesReq{
+			MerchantID: query.Get("merchantId"),
+			Status:     query.Get("status"),
+			Page:       int64FromQuery(r, "page"),
+			PageSize:   int64FromQuery(r, "pageSize"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/resources/{resourceId}/refresh", func(w http.ResponseWriter, r *http.Request) {
+		merchantID, err := merchantIDFromActionRequest(r)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := resourcelogic.NewRefreshResourceLogic(store).RefreshResource(r.Context(), resourcelogic.RefreshResourceReq{
+			MerchantID: merchantID,
+			ResourceID: r.PathValue("resourceId"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/resources/{resourceId}/deal-feedback", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			MerchantID              string `json:"merchantId"`
+			IsDealt                 bool   `json:"isDealt"`
+			IsReal                  bool   `json:"isReal"`
+			ResponseTimely          bool   `json:"responseTimely"`
+			WillingToCooperateAgain bool   `json:"willingToCooperateAgain"`
+			Note                    string `json:"note"`
+		}
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if strings.TrimSpace(body.MerchantID) == "" {
+			body.MerchantID = r.URL.Query().Get("merchantId")
+		}
+		resp, err := resourcelogic.NewMarkDealtLogic(store).MarkDealt(r.Context(), resourcelogic.MarkDealtReq{
+			MerchantID: body.MerchantID, ResourceID: r.PathValue("resourceId"), IsDealt: body.IsDealt,
+			IsReal: body.IsReal, ResponseTimely: body.ResponseTimely, WillingToCooperateAgain: body.WillingToCooperateAgain, Note: body.Note,
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/resources/{resourceId}/take-down", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			MerchantID string `json:"merchantId"`
+			Reason     string `json:"reason"`
+		}
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if strings.TrimSpace(body.MerchantID) == "" {
+			body.MerchantID = r.URL.Query().Get("merchantId")
+		}
+		resp, err := resourcelogic.NewTakeDownOwnResourceLogic(store).TakeDown(r.Context(), resourcelogic.TakeDownOwnResourceReq{
+			MerchantID: body.MerchantID,
+			ResourceID: r.PathValue("resourceId"),
+			Reason:     body.Reason,
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/resources/{resourceId}/repost-similar", func(w http.ResponseWriter, r *http.Request) {
+		merchantID, err := merchantIDFromActionRequest(r)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := resourcelogic.NewRepostSimilarLogic(store).RepostSimilar(r.Context(), resourcelogic.RepostSimilarReq{
+			MerchantID: merchantID,
+			ResourceID: r.PathValue("resourceId"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/resources/pending", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		resp, err := adminlogic.NewListPendingResourcesLogic(store).ListPendingResources(r.Context(), adminlogic.ListPendingResourcesReq{
+			CityCode: query.Get("cityCode"),
+			TypeCode: query.Get("typeCode"),
+			Page:     int64FromQuery(r, "page"),
+			PageSize: int64FromQuery(r, "pageSize"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/resources/{resourceId}/review", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Action     string `json:"action"`
+			Reason     string `json:"reason"`
+			ReviewerID string `json:"reviewerId"`
+		}
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewReviewResourceLogic(store).ReviewResource(r.Context(), r.PathValue("resourceId"), adminlogic.ReviewResourceReq{
+			Action:     body.Action,
+			Reason:     body.Reason,
+			ReviewerID: body.ReviewerID,
+		})
+		response.JSON(w, resp, err)
+	})
 }
 
 func cityCodeFromResourceTypePath(requestPath string) (string, bool) {
@@ -40,4 +284,107 @@ func cityCodeFromResourceTypePath(requestPath string) (string, bool) {
 	cityCode := strings.TrimSuffix(strings.TrimPrefix(requestPath, prefix), suffix)
 	cityCode = strings.Trim(cityCode, "/")
 	return cityCode, cityCode != ""
+}
+
+func decodeCreateResourceRequest(r *http.Request) (resourcelogic.CreateResourceReq, error) {
+	var body struct {
+		MerchantID   string                           `json:"merchantId"`
+		CityCode     string                           `json:"cityCode"`
+		TypeCode     string                           `json:"typeCode"`
+		Title        string                           `json:"title"`
+		Category     string                           `json:"category"`
+		District     string                           `json:"district"`
+		PriceText    string                           `json:"priceText"`
+		QuantityText string                           `json:"quantityText"`
+		Description  string                           `json:"description"`
+		Attributes   model.JSONMap                    `json:"attributes"`
+		Tags         []string                         `json:"tags"`
+		Images       []string                         `json:"images"`
+		Contact      resourcelogic.ResourceContactReq `json:"contact"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		return resourcelogic.CreateResourceReq{}, err
+	}
+	return resourcelogic.CreateResourceReq{
+		MerchantID: body.MerchantID, CityCode: body.CityCode, TypeCode: body.TypeCode,
+		Title: body.Title, Category: body.Category, District: body.District, PriceText: body.PriceText,
+		QuantityText: body.QuantityText, Description: body.Description, Attributes: body.Attributes,
+		Tags: body.Tags, Images: body.Images, Contact: body.Contact,
+	}, nil
+}
+
+func listResourcesReqFromQuery(r *http.Request) resourcelogic.ListResourcesReq {
+	query := r.URL.Query()
+	return resourcelogic.ListResourcesReq{
+		CityCode:     query.Get("cityCode"),
+		TypeCode:     query.Get("typeCode"),
+		Keyword:      query.Get("keyword"),
+		Category:     query.Get("category"),
+		VerifiedOnly: boolFromQuery(r, "verifiedOnly"),
+		Page:         int64FromQuery(r, "page"),
+		PageSize:     int64FromQuery(r, "pageSize"),
+	}
+}
+
+func searchResourcesReqFromQuery(r *http.Request) resourcelogic.SearchResourcesReq {
+	req := listResourcesReqFromQuery(r)
+	return resourcelogic.SearchResourcesReq{
+		UserID:       r.URL.Query().Get("userId"),
+		CityCode:     req.CityCode,
+		TypeCode:     req.TypeCode,
+		Keyword:      req.Keyword,
+		Category:     req.Category,
+		VerifiedOnly: req.VerifiedOnly,
+		Page:         req.Page,
+		PageSize:     req.PageSize,
+	}
+}
+
+func merchantIDFromActionRequest(r *http.Request) (string, error) {
+	var body struct {
+		MerchantID string `json:"merchantId"`
+	}
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := decodeJSONBody(r, &body); err != nil {
+			return "", err
+		}
+	}
+	merchantID := strings.TrimSpace(body.MerchantID)
+	if merchantID == "" {
+		merchantID = strings.TrimSpace(r.URL.Query().Get("merchantId"))
+	}
+	if merchantID == "" {
+		return "", errx.New(errx.CodeValidationFailed, "商家不存在")
+	}
+	return merchantID, nil
+}
+
+func decodeJSONBody(r *http.Request, target interface{}) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return errx.New(errx.CodeValidationFailed, "请求参数格式不正确")
+	}
+	return nil
+}
+
+func int64FromQuery(r *http.Request, key string) int64 {
+	value := strings.TrimSpace(r.URL.Query().Get(key))
+	if value == "" {
+		return 0
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
+}
+
+func boolFromQuery(r *http.Request, key string) bool {
+	value := strings.TrimSpace(r.URL.Query().Get(key))
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false
+	}
+	return parsed
 }

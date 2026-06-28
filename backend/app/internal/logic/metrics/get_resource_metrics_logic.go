@@ -19,25 +19,25 @@ type GetResourceMetricsReq struct {
 }
 
 type ResourceMetricsSummary struct {
-	ExposureCount     int64
-	DetailViewCount   int64
-	PhoneClickCount   int64
-	WechatCopyCount   int64
-	DealFeedbackCount int64
+	ExposureCount     int64 `json:"exposureCount"`
+	DetailViewCount   int64 `json:"detailViewCount"`
+	PhoneClickCount   int64 `json:"phoneClickCount"`
+	WechatCopyCount   int64 `json:"wechatCopyCount"`
+	DealFeedbackCount int64 `json:"dealFeedbackCount"`
 }
 
 type ResourceMetricDailyItem struct {
-	Date            string
-	ExposureCount   int64
-	DetailViewCount int64
-	PhoneClickCount int64
-	WechatCopyCount int64
+	Date            string `json:"date"`
+	ExposureCount   int64  `json:"exposureCount"`
+	DetailViewCount int64  `json:"detailViewCount"`
+	PhoneClickCount int64  `json:"phoneClickCount"`
+	WechatCopyCount int64  `json:"wechatCopyCount"`
 }
 
 type ResourceMetricsResp struct {
-	ResourceID string
-	Summary    ResourceMetricsSummary
-	Daily      []ResourceMetricDailyItem
+	ResourceID string                    `json:"resourceId"`
+	Summary    ResourceMetricsSummary    `json:"summary"`
+	Daily      []ResourceMetricDailyItem `json:"daily"`
 }
 
 type GetResourceMetricsLogic struct {

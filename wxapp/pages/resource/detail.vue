@@ -12,8 +12,8 @@
     </view>
 
     <view class="contact-bar">
-      <button @click="recordContact('wechat')">复制微信</button>
-      <button class="primary-button" @click="recordContact('phone')">联系商家</button>
+      <button @click="copyWechat">复制微信</button>
+      <button class="primary-button" @click="callPhone">联系商家</button>
     </view>
   </view>
 </template>
@@ -35,7 +35,6 @@ onLoad(async (options) => {
 async function recordContact(action) {
   if (!resource.value.id) return
   await recordResourceContact(resource.value.id, action)
-  uni.showToast({ title: '已记录联系行为', icon: 'none' })
 }
 
 async function openMerchant() {
@@ -43,6 +42,26 @@ async function openMerchant() {
   if (!merchantId) return
   await recordContact('merchant_home')
   uni.navigateTo({ url: `/pages/merchant/detail?id=${merchantId}` })
+}
+
+async function callPhone() {
+  await recordContact('phone')
+  const phone = resource.value.contact?.phoneMasked || ''
+  if (phone && !phone.includes('*')) {
+    uni.makePhoneCall({ phoneNumber: phone })
+    return
+  }
+  uni.showToast({ title: '已记录联系，完整电话由平台保护', icon: 'none' })
+}
+
+async function copyWechat() {
+  await recordContact('wechat')
+  const wechat = resource.value.contact?.wechatMasked || ''
+  if (wechat && !wechat.includes('*')) {
+    uni.setClipboardData({ data: wechat })
+    return
+  }
+  uni.showToast({ title: '已记录联系，完整微信由平台保护', icon: 'none' })
 }
 </script>
 

@@ -18,17 +18,17 @@ type ListMyDemandsReq struct {
 }
 
 type DemandListItem struct {
-	ID        string
-	Title     string
-	Status    string
-	CreatedAt string
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Status    string `json:"status"`
+	CreatedAt string `json:"createdAt"`
 }
 
 type ListMyDemandsResp struct {
-	Items    []DemandListItem
-	Page     int64
-	PageSize int64
-	Total    int64
+	Items    []DemandListItem `json:"items"`
+	Page     int64            `json:"page"`
+	PageSize int64            `json:"pageSize"`
+	Total    int64            `json:"total"`
 }
 
 type ListMyDemandsLogic struct {

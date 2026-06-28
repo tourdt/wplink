@@ -59,6 +59,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { grantMerchantEntitlement } from '../api/entitlement'
 import { listMerchants } from '../api/merchant'
+import { useAuthStore } from '../stores/auth'
 
 const merchantTypeText = {
   factory: '工厂',
@@ -80,6 +81,7 @@ const form = reactive({
   totalAmount: 10,
   reason: '',
 })
+const auth = useAuthStore()
 
 onMounted(loadRows)
 
@@ -114,6 +116,7 @@ async function submitGrant() {
   saving.value = true
   try {
     await grantMerchantEntitlement(form.merchantId, {
+      operatorId: auth.user?.userId || '',
       entitlementType: form.entitlementType,
       sourceType: form.sourceType,
       totalAmount: form.totalAmount,

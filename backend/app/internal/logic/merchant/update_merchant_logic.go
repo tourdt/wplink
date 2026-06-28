@@ -19,8 +19,8 @@ type UpdateMerchantReq struct {
 }
 
 type UpdateMerchantResp struct {
-	ID        string
-	UpdatedAt string
+	ID        string `json:"id"`
+	UpdatedAt string `json:"updatedAt"`
 }
 
 type UpdateMerchantLogic struct {

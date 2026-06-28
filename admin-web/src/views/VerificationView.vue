@@ -18,7 +18,7 @@
           <template #default="{ row }">
             <el-button type="primary" link @click="approve(row)">通过</el-button>
             <el-button type="danger" link @click="openReject(row)">驳回</el-button>
-            <el-button link>材料</el-button>
+            <el-button link @click="openMaterial(row)">材料</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -31,6 +31,15 @@
         <el-button type="danger" :loading="submitting" @click="submitReject">确认驳回</el-button>
       </template>
     </el-dialog>
+
+    <el-drawer v-model="materialVisible" title="认证材料" size="420px">
+      <el-descriptions v-if="materialRow" :column="1" border>
+        <el-descriptions-item label="商家">{{ materialRow.merchantName }}</el-descriptions-item>
+        <el-descriptions-item label="认证类型">{{ typeText[materialRow.verificationType] || materialRow.verificationType }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{ materialRow.status }}</el-descriptions-item>
+        <el-descriptions-item label="提交时间">{{ materialRow.submittedAt }}</el-descriptions-item>
+      </el-descriptions>
+    </el-drawer>
   </section>
 </template>
 
@@ -38,6 +47,7 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listPendingVerifications, reviewVerification } from '../api/verification'
+import { useAuthStore } from '../stores/auth'
 
 const typeText = {
   factory: '工厂认证',
@@ -53,6 +63,9 @@ const submitting = ref(false)
 const rejectVisible = ref(false)
 const rejectTarget = ref(null)
 const rejectReason = ref('')
+const materialVisible = ref(false)
+const materialRow = ref(null)
+const auth = useAuthStore()
 
 onMounted(loadRows)
 
@@ -81,7 +94,7 @@ async function approve(row) {
   }
   submitting.value = true
   try {
-    await reviewVerification(row.id, { action: 'approve' })
+    await reviewVerification(row.id, { action: 'approve', reviewerId: currentOperatorId() })
     ElMessage.success('认证已通过')
     await loadRows()
   } finally {
@@ -102,12 +115,21 @@ async function submitReject() {
   }
   submitting.value = true
   try {
-    await reviewVerification(rejectTarget.value.id, { action: 'reject', reviewNote: rejectReason.value.trim() })
+    await reviewVerification(rejectTarget.value.id, { action: 'reject', reviewNote: rejectReason.value.trim(), reviewerId: currentOperatorId() })
     ElMessage.success('认证已驳回')
     rejectVisible.value = false
     await loadRows()
   } finally {
     submitting.value = false
   }
+}
+
+function openMaterial(row) {
+  materialRow.value = row
+  materialVisible.value = true
+}
+
+function currentOperatorId() {
+  return auth.user?.userId || ''
 }
 </script>

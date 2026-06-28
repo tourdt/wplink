@@ -25,29 +25,29 @@ type ListMyResourcesReq struct {
 }
 
 type MyResourceMetrics struct {
-	ExposureCount   int64
-	DetailViewCount int64
-	PhoneClickCount int64
-	WechatCopyCount int64
+	ExposureCount   int64 `json:"exposureCount"`
+	DetailViewCount int64 `json:"detailViewCount"`
+	PhoneClickCount int64 `json:"phoneClickCount"`
+	WechatCopyCount int64 `json:"wechatCopyCount"`
 }
 
 type MyResourceItem struct {
-	ID          string
-	TypeCode    string
-	Title       string
-	Category    string
-	Status      string
-	PublishedAt string
-	ExpiresAt   string
-	DealtAt     string
-	Metrics     MyResourceMetrics
+	ID          string            `json:"id"`
+	TypeCode    string            `json:"typeCode"`
+	Title       string            `json:"title"`
+	Category    string            `json:"category"`
+	Status      string            `json:"status"`
+	PublishedAt string            `json:"publishedAt,omitempty"`
+	ExpiresAt   string            `json:"expiresAt,omitempty"`
+	DealtAt     string            `json:"dealtAt,omitempty"`
+	Metrics     MyResourceMetrics `json:"metrics"`
 }
 
 type ListMyResourcesResp struct {
-	Items    []MyResourceItem
-	Page     int64
-	PageSize int64
-	Total    int64
+	Items    []MyResourceItem `json:"items"`
+	Page     int64            `json:"page"`
+	PageSize int64            `json:"pageSize"`
+	Total    int64            `json:"total"`
 }
 
 type RefreshResourceReq struct {
@@ -56,9 +56,9 @@ type RefreshResourceReq struct {
 }
 
 type RefreshResourceResp struct {
-	ID                    string
-	RefreshedAt           string
-	RemainingRefreshQuota int64
+	ID                    string `json:"id"`
+	RefreshedAt           string `json:"refreshedAt"`
+	RemainingRefreshQuota int64  `json:"remainingRefreshQuota"`
 }
 
 type MarkDealtReq struct {
@@ -72,9 +72,9 @@ type MarkDealtReq struct {
 }
 
 type DealFeedbackResp struct {
-	ID      string
-	Status  string
-	Message string
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type TakeDownOwnResourceReq struct {
@@ -84,9 +84,9 @@ type TakeDownOwnResourceReq struct {
 }
 
 type TakeDownOwnResourceResp struct {
-	ID      string
-	Status  string
-	Message string
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type RepostSimilarReq struct {
@@ -95,9 +95,9 @@ type RepostSimilarReq struct {
 }
 
 type RepostSimilarResp struct {
-	ID      string
-	Status  string
-	Message string
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type ListMyResourcesLogic struct {

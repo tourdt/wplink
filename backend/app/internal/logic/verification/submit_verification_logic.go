@@ -24,16 +24,16 @@ type SubmitVerificationReq struct {
 }
 
 type SubmitVerificationResp struct {
-	ID      string
-	Status  string
-	Message string
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type LatestVerificationResp struct {
-	ID               string
-	VerificationType string
-	Status           string
-	ReviewedAt       string
+	ID               string `json:"id"`
+	VerificationType string `json:"verificationType"`
+	Status           string `json:"status"`
+	ReviewedAt       string `json:"reviewedAt,omitempty"`
 }
 
 type SubmitVerificationLogic struct {

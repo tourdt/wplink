@@ -15,7 +15,7 @@ http.interceptors.request.use((config) => {
 })
 
 http.interceptors.response.use(
-  (response) => response.data,
+  (response) => response.data?.data ?? response.data,
   (error) => {
     const message = error.response?.data?.message || error.response?.data?.msg || '请求失败，请稍后重试'
     ElMessage.error(message)

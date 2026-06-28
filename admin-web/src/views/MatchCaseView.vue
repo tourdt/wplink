@@ -125,6 +125,7 @@ import {
   listMatchCases,
   updateMatchCaseStatus,
 } from '../api/match'
+import { useAuthStore } from '../stores/auth'
 
 const statusText = {
   open: '待处理',
@@ -152,6 +153,7 @@ const statusVisible = ref(false)
 const appendVisible = ref(false)
 const currentCase = ref(null)
 const appendMode = ref('resource')
+const auth = useAuthStore()
 const createForm = reactive({
   purchaseDemandId: '',
   resourceIdsText: '',
@@ -208,6 +210,7 @@ async function submitCreate() {
   saving.value = true
   try {
     await createMatchCase({
+      operatorId: currentOperatorId(),
       purchaseDemandId: createForm.purchaseDemandId.trim(),
       resourceIds: parseIds(createForm.resourceIdsText),
       participantMerchantIds: parseIds(createForm.participantMerchantIdsText),
@@ -245,6 +248,7 @@ async function submitStatus() {
   saving.value = true
   try {
     await updateMatchCaseStatus(currentCase.value.id, {
+      operatorId: currentOperatorId(),
       status: statusForm.status,
       resultNote: statusForm.resultNote.trim(),
     })
@@ -281,9 +285,9 @@ async function submitAppend() {
   saving.value = true
   try {
     if (appendMode.value === 'resource') {
-      await addMatchCaseResources(currentCase.value.id, { resourceIds: ids })
+      await addMatchCaseResources(currentCase.value.id, { operatorId: currentOperatorId(), resourceIds: ids })
     } else {
-      await addMatchCaseParticipants(currentCase.value.id, { participantMerchantIds: ids })
+      await addMatchCaseParticipants(currentCase.value.id, { operatorId: currentOperatorId(), participantMerchantIds: ids })
     }
     ElMessage.success('已追加')
     appendVisible.value = false
@@ -298,5 +302,9 @@ function parseIds(value) {
     .split(/[\s,，]+/)
     .map((item) => item.trim())
     .filter(Boolean)
+}
+
+function currentOperatorId() {
+  return auth.user?.userId || ''
 }
 </script>

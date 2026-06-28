@@ -20,21 +20,21 @@ type OperationLogsReq struct {
 }
 
 type OperationLogItem struct {
-	ID           string
-	OperatorID   string
-	OperatorRole string
-	ObjectType   string
-	ObjectID     string
-	Action       string
-	Reason       string
-	CreatedAt    string
+	ID           string `json:"id"`
+	OperatorID   string `json:"operatorId"`
+	OperatorRole string `json:"operatorRole"`
+	ObjectType   string `json:"objectType"`
+	ObjectID     string `json:"objectId,omitempty"`
+	Action       string `json:"action"`
+	Reason       string `json:"reason,omitempty"`
+	CreatedAt    string `json:"createdAt"`
 }
 
 type OperationLogsResp struct {
-	Items    []OperationLogItem
-	Page     int64
-	PageSize int64
-	Total    int64
+	Items    []OperationLogItem `json:"items"`
+	Page     int64              `json:"page"`
+	PageSize int64              `json:"pageSize"`
+	Total    int64              `json:"total"`
 }
 
 type OperationLogLogic struct {

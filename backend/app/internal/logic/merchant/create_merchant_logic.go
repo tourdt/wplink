@@ -25,10 +25,10 @@ type CreateMerchantReq struct {
 }
 
 type CreateMerchantResp struct {
-	ID                 string
-	Name               string
-	VerificationStatus string
-	Status             string
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	VerificationStatus string `json:"verificationStatus"`
+	Status             string `json:"status"`
 }
 
 type CreateMerchantLogic struct {

@@ -19,9 +19,9 @@ type ReviewResourceReq struct {
 }
 
 type ReviewResourceResp struct {
-	ID      string
-	Status  string
-	Message string
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type ReviewResourceLogic struct {

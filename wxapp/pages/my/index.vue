@@ -2,8 +2,10 @@
   <view class="my-page">
     <view class="profile-card">
       <text class="page-title">我的</text>
+      <button class="secondary-button" @click="loginWithWechat">微信登录</button>
+      <input v-model="userId" class="field" placeholder="用户 ID" />
       <input v-model="merchantId" class="field" placeholder="商家 ID" />
-      <button class="primary-button" @click="saveMerchant">保存商家</button>
+      <button class="primary-button" @click="saveIdentity">保存身份</button>
     </view>
 
     <view class="action-list">
@@ -26,21 +28,69 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { getMerchantId, saveMerchantId } from '../../store/session'
+import { DEFAULT_CITY_CODE } from '../../common/constants'
+import { wechatLogin } from '../../api/auth'
+import { getMerchantId, getUserId, saveMerchantId, saveToken, saveUserId } from '../../store/session'
 
+const userId = ref('')
 const merchantId = ref('')
 
 onLoad(() => {
+  userId.value = getUserId()
   merchantId.value = getMerchantId()
 })
 
-function saveMerchant() {
+function saveIdentity() {
+  if (userId.value.trim()) {
+    saveUserId(userId.value.trim())
+  }
   if (!merchantId.value.trim()) {
     uni.showToast({ title: '请填写商家 ID', icon: 'none' })
     return
   }
   saveMerchantId(merchantId.value.trim())
-  uni.showToast({ title: '已保存', icon: 'none' })
+  uni.showToast({ title: '已保存身份', icon: 'none' })
+}
+
+async function loginWithWechat() {
+  try {
+    const code = await getWechatLoginCode()
+    const resp = await wechatLogin({ code, defaultCityCode: DEFAULT_CITY_CODE })
+    if (resp.token) {
+      saveToken(resp.token)
+    }
+    if (resp.user?.id) {
+      userId.value = resp.user.id
+      saveUserId(resp.user.id)
+    }
+    uni.showToast({ title: '登录成功', icon: 'none' })
+  } catch (err) {
+    uni.showToast({ title: err.message || '登录失败，请稍后重试', icon: 'none' })
+  }
+}
+
+function getWechatLoginCode() {
+  return new Promise((resolve) => {
+    uni.login({
+      provider: 'weixin',
+      success: (res) => {
+        resolve(res.code || localDevLoginCode())
+      },
+      // 本地 H5/模拟环境可能没有微信登录能力，使用开发 code 仍可完成后端链路验收。
+      fail: () => {
+        resolve(localDevLoginCode())
+      },
+    })
+  })
+}
+
+function localDevLoginCode() {
+  const key = 'wplink_dev_login_code'
+  const existing = uni.getStorageSync(key)
+  if (existing) return existing
+  const code = `local-dev-${Date.now()}`
+  uni.setStorageSync(key, code)
+  return code
 }
 
 function openMyResources() {
@@ -91,6 +141,14 @@ function openPublish() {
   border-radius: 12rpx;
   background: #0f766e;
   color: #ffffff;
+}
+
+.secondary-button {
+  height: 84rpx;
+  border: 1rpx solid #0f766e;
+  border-radius: 12rpx;
+  background: #ffffff;
+  color: #0f766e;
 }
 
 .action-item {

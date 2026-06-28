@@ -22,7 +22,7 @@ node backend/scripts/prepare_admin_embed.mjs
 1. `VITE_ADMIN_BASE=/admin/ npm run build`
 2. 将 `admin-web/dist` 复制到 `backend/app/internal/adminweb/dist`
 
-Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和基础 router，Vue history 路由刷新会回退到 `index.html`，缺失的静态资源仍返回 404。当前已接入城市站和资源类型公开 API，其余未接入的 `/api/` 路由仍返回 `API_NOT_CONNECTED`。
+Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，Vue history 路由刷新会回退到 `index.html`，缺失的静态资源仍返回 404。当前 `backend/app/api/app.api` 中的 MVP API 已接入；后续新增但未接线的 `/api/` 路由会返回 `API_NOT_CONNECTED`。
 
 后台 API 客户端默认使用同源 `/api/...`，一体化部署时不需要设置 `VITE_API_BASE_URL`。本地分离开发时可以设置 `VITE_API_BASE_URL=http://127.0.0.1:4000`。
 

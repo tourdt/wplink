@@ -51,6 +51,19 @@ func TestRecordContactRecordsShareMetric(t *testing.T) {
 	}
 }
 
+func TestRecordContactAcceptsMerchantProfileAlias(t *testing.T) {
+	store := &fakeContactStore{eventResult: model.ResourceContactEventResult{ID: "event-1", MerchantID: "merchant-1"}}
+	logic := NewRecordContactLogic(store)
+
+	_, err := logic.RecordContact(context.Background(), RecordContactReq{ResourceID: "resource-1", Action: "merchant_profile"})
+	if err != nil {
+		t.Fatalf("RecordContact() error = %v, want merchant_profile accepted", err)
+	}
+	if store.metricDelta.ContactClickCount != 1 {
+		t.Fatalf("metricDelta = %#v, want contact counter", store.metricDelta)
+	}
+}
+
 type fakeContactStore struct {
 	eventInput  model.ResourceContactEventInput
 	eventResult model.ResourceContactEventResult

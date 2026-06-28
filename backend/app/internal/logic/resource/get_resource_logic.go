@@ -13,25 +13,25 @@ type GetResourceStore interface {
 }
 
 type ResourceContactMasked struct {
-	Name         string
-	PhoneMasked  string
-	WechatMasked string
+	Name         string `json:"name"`
+	PhoneMasked  string `json:"phoneMasked"`
+	WechatMasked string `json:"wechatMasked,omitempty"`
 }
 
 type ResourceDetailResp struct {
-	ID           string
-	Status       string
-	TypeCode     string
-	Title        string
-	Category     string
-	Description  string
-	PriceText    string
-	QuantityText string
-	Attributes   model.JSONMap
-	Merchant     ResourceMerchantBrief
-	Contact      ResourceContactMasked
-	PublishedAt  string
-	ExpiresAt    string
+	ID           string                `json:"id"`
+	Status       string                `json:"status"`
+	TypeCode     string                `json:"typeCode"`
+	Title        string                `json:"title"`
+	Category     string                `json:"category"`
+	Description  string                `json:"description"`
+	PriceText    string                `json:"priceText,omitempty"`
+	QuantityText string                `json:"quantityText,omitempty"`
+	Attributes   model.JSONMap         `json:"attributes"`
+	Merchant     ResourceMerchantBrief `json:"merchant"`
+	Contact      ResourceContactMasked `json:"contact"`
+	PublishedAt  string                `json:"publishedAt,omitempty"`
+	ExpiresAt    string                `json:"expiresAt,omitempty"`
 }
 
 type GetResourceLogic struct {

@@ -83,7 +83,7 @@ function selectStatus(status) {
 }
 
 async function refresh(item) {
-  await refreshResource(item.id)
+  await refreshResource(item.id, merchantId.value)
   uni.showToast({ title: '已刷新', icon: 'none' })
   await loadRows()
 }
@@ -100,19 +100,19 @@ async function topResource(item) {
 }
 
 async function markDealt(item) {
-  await markResourceDeal(item.id, { isDealt: true, isReal: true, responseTimely: true, willingToCooperateAgain: true })
+  await markResourceDeal(item.id, { merchantId: merchantId.value, isDealt: true, isReal: true, responseTimely: true, willingToCooperateAgain: true })
   uni.showToast({ title: '已标记成交', icon: 'none' })
   await loadRows()
 }
 
 async function takeDown(item) {
-  await takeDownResource(item.id, '商家主动下架')
+  await takeDownResource(item.id, merchantId.value, '商家主动下架')
   uni.showToast({ title: '已下架', icon: 'none' })
   await loadRows()
 }
 
 async function repost(item) {
-  await repostSimilarResource(item.id)
+  await repostSimilarResource(item.id, merchantId.value)
   uni.showToast({ title: '已复制为草稿', icon: 'none' })
   await loadRows()
 }

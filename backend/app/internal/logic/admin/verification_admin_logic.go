@@ -19,19 +19,19 @@ type ListPendingVerificationsReq struct {
 }
 
 type PendingVerificationItem struct {
-	ID               string
-	MerchantID       string
-	MerchantName     string
-	VerificationType string
-	Status           string
-	SubmittedAt      string
+	ID               string `json:"id"`
+	MerchantID       string `json:"merchantId"`
+	MerchantName     string `json:"merchantName"`
+	VerificationType string `json:"verificationType"`
+	Status           string `json:"status"`
+	SubmittedAt      string `json:"submittedAt"`
 }
 
 type ListPendingVerificationsResp struct {
-	Items    []PendingVerificationItem
-	Page     int64
-	PageSize int64
-	Total    int64
+	Items    []PendingVerificationItem `json:"items"`
+	Page     int64                     `json:"page"`
+	PageSize int64                     `json:"pageSize"`
+	Total    int64                     `json:"total"`
 }
 
 type ReviewVerificationReq struct {
@@ -42,9 +42,9 @@ type ReviewVerificationReq struct {
 }
 
 type ReviewVerificationResp struct {
-	ID      string
-	Status  string
-	Message string
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type VerificationAdminLogic struct {

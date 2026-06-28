@@ -50,7 +50,7 @@
         <el-table-column label="操作" width="160">
           <template #default="{ row }">
             <el-button type="primary" link @click="openDetail(row)">查看</el-button>
-            <el-button link>发券</el-button>
+            <el-button link @click="openEntitlement">发券</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -122,6 +122,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createMerchant, getMerchant, listMerchants } from '../api/merchant'
 
@@ -162,6 +163,7 @@ const errorText = ref('')
 const saving = ref(false)
 const drawerVisible = ref(false)
 const detailVisible = ref(false)
+const router = useRouter()
 
 onMounted(loadMerchants)
 
@@ -193,5 +195,9 @@ async function submitMerchant() {
   } finally {
     saving.value = false
   }
+}
+
+function openEntitlement() {
+  router.push({ name: 'entitlements' })
 }
 </script>

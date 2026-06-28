@@ -31,9 +31,9 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token  string
-	UserID string
-	Roles  []string
+	Token  string   `json:"token"`
+	UserID string   `json:"userId"`
+	Roles  []string `json:"roles"`
 }
 
 type AdminCredential struct {

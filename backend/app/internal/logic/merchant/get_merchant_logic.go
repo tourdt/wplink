@@ -13,34 +13,34 @@ type GetMerchantStore interface {
 }
 
 type CreditTagInfo struct {
-	Code  string
-	Label string
+	Code  string `json:"code"`
+	Label string `json:"label"`
 }
 
 type MerchantContactInfo struct {
-	Name         string
-	PhoneMasked  string
-	WechatMasked string
+	Name         string `json:"name"`
+	PhoneMasked  string `json:"phoneMasked"`
+	WechatMasked string `json:"wechatMasked,omitempty"`
 }
 
 type MerchantResourcesSummary struct {
-	PublishedCount int64
-	DealtCount     int64
+	PublishedCount int64 `json:"publishedCount"`
+	DealtCount     int64 `json:"dealtCount"`
 }
 
 type MerchantDetailResp struct {
-	ID                 string
-	Name               string
-	MerchantType       string
-	CityCode           string
-	MainCategories     []string
-	VerificationStatus string
-	CreditTags         []CreditTagInfo
-	Contact            MerchantContactInfo
-	ResourcesSummary   MerchantResourcesSummary
-	Description        string
-	Images             []string
-	LastActiveAt       string
+	ID                 string                   `json:"id"`
+	Name               string                   `json:"name"`
+	MerchantType       string                   `json:"merchantType"`
+	CityCode           string                   `json:"cityCode"`
+	MainCategories     []string                 `json:"mainCategories"`
+	VerificationStatus string                   `json:"verificationStatus"`
+	CreditTags         []CreditTagInfo          `json:"creditTags"`
+	Contact            MerchantContactInfo      `json:"contact"`
+	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`
+	Description        string                   `json:"description,omitempty"`
+	Images             []string                 `json:"images,omitempty"`
+	LastActiveAt       string                   `json:"lastActiveAt,omitempty"`
 }
 
 type GetMerchantLogic struct {

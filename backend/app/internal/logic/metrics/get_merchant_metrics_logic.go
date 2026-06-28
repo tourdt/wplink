@@ -13,17 +13,17 @@ type MerchantMetricsStore interface {
 }
 
 type MerchantLast7DaysMetrics struct {
-	ExposureCount     int64
-	DetailViewCount   int64
-	ContactClickCount int64
+	ExposureCount     int64 `json:"exposureCount"`
+	DetailViewCount   int64 `json:"detailViewCount"`
+	ContactClickCount int64 `json:"contactClickCount"`
 }
 
 type MerchantMetricsSummaryResp struct {
-	MerchantID             string
-	PublishedResourceCount int64
-	ExpiringResourceCount  int64
-	DealtResourceCount     int64
-	Last7Days              MerchantLast7DaysMetrics
+	MerchantID             string                   `json:"merchantId"`
+	PublishedResourceCount int64                    `json:"publishedResourceCount"`
+	ExpiringResourceCount  int64                    `json:"expiringResourceCount"`
+	DealtResourceCount     int64                    `json:"dealtResourceCount"`
+	Last7Days              MerchantLast7DaysMetrics `json:"last7Days"`
 }
 
 type GetMerchantMetricsLogic struct {

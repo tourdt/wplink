@@ -17,9 +17,9 @@ type CreateResourceStore interface {
 }
 
 type ResourceContactReq struct {
-	Name   string
-	Phone  string
-	Wechat string
+	Name   string `json:"name"`
+	Phone  string `json:"phone"`
+	Wechat string `json:"wechat,omitempty"`
 }
 
 type CreateResourceReq struct {
@@ -41,9 +41,9 @@ type CreateResourceReq struct {
 }
 
 type CreateResourceResp struct {
-	ID      string
-	Status  string
-	Message string
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type CreateResourceLogic struct {

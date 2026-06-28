@@ -17,6 +17,7 @@
 import { reactive } from 'vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { createDemand } from '../../api/demand'
+import { getUserId } from '../../store/session'
 
 const form = reactive({
   cityCode: DEFAULT_CITY_CODE,
@@ -37,12 +38,19 @@ const form = reactive({
 })
 
 async function submit() {
+  const userId = getUserId()
+  if (!userId) {
+    uni.showToast({ title: '请先在我的页保存用户 ID', icon: 'none' })
+    return
+  }
   if (!form.title || !form.category || !form.contact.name || !form.contact.phone) {
     uni.showToast({ title: '请补充需求和联系方式', icon: 'none' })
     return
   }
+  // 采购需求必须绑定发布人，后续“我的需求”和消息触达都依赖该用户 ID。
   await createDemand({
     ...form,
+    userId,
     quantityRequirement: {
       quantity: Number(form.quantityRequirement.quantity) || 0,
       unit: form.quantityRequirement.unit,

@@ -16,22 +16,22 @@ type DashboardOverviewReq struct {
 }
 
 type DashboardMetrics struct {
-	PendingResourceCount     int64
-	PendingVerificationCount int64
-	PendingDemandCount       int64
-	TodayContactCount        int64
+	PendingResourceCount     int64 `json:"pendingResourceCount"`
+	PendingVerificationCount int64 `json:"pendingVerificationCount"`
+	PendingDemandCount       int64 `json:"pendingDemandCount"`
+	TodayContactCount        int64 `json:"todayContactCount"`
 }
 
 type DashboardTask struct {
-	Type      string
-	Title     string
-	CityName  string
-	CreatedAt string
+	Type      string `json:"type"`
+	Title     string `json:"title"`
+	CityName  string `json:"cityName"`
+	CreatedAt string `json:"createdAt"`
 }
 
 type DashboardOverviewResp struct {
-	Metrics DashboardMetrics
-	Tasks   []DashboardTask
+	Metrics DashboardMetrics `json:"metrics"`
+	Tasks   []DashboardTask  `json:"tasks"`
 }
 
 type DashboardLogic struct {

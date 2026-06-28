@@ -20,7 +20,7 @@ type RecordContactReq struct {
 }
 
 type RecordContactResp struct {
-	Message string
+	Message string `json:"message"`
 }
 
 type RecordContactLogic struct {
@@ -54,7 +54,7 @@ func (l *RecordContactLogic) RecordContact(ctx context.Context, req RecordContac
 
 func isSupportedContactAction(action string) bool {
 	switch action {
-	case "phone", "wechat", "merchant_home", "share":
+	case "phone", "wechat", "merchant_home", "merchant_profile", "share":
 		return true
 	default:
 		return false

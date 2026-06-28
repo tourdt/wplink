@@ -2,7 +2,7 @@
   <section>
     <div class="page-title">
       <h2>资源审核</h2>
-      <el-button type="primary">代发资源</el-button>
+      <el-button type="primary" @click="openProxyCreate">代发资源</el-button>
     </div>
 
     <section class="panel">
@@ -45,7 +45,7 @@
             <el-button type="primary" link @click="approve(row)">通过</el-button>
             <el-button type="danger" link @click="openReject(row)">驳回</el-button>
             <el-button type="warning" link @click="openTakeDown(row)">下架</el-button>
-            <el-button link>详情</el-button>
+            <el-button link @click="openRowDetail(row)">详情</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -60,13 +60,61 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-drawer v-model="proxyVisible" title="代发资源" size="520px">
+      <el-form label-position="top">
+        <el-form-item label="商家 ID">
+          <el-input v-model.trim="proxyForm.merchantId" />
+        </el-form-item>
+        <el-form-item label="资源类型">
+          <el-select v-model="proxyForm.typeCode">
+            <el-option v-for="(label, value) in typeText" :key="value" :label="label" :value="value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="标题">
+          <el-input v-model.trim="proxyForm.title" />
+        </el-form-item>
+        <el-form-item label="品类">
+          <el-input v-model.trim="proxyForm.category" />
+        </el-form-item>
+        <el-form-item label="数量/产能">
+          <el-input v-model.trim="proxyForm.quantityText" />
+        </el-form-item>
+        <el-form-item label="价格">
+          <el-input v-model.trim="proxyForm.priceText" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="proxyForm.description" type="textarea" :rows="3" />
+        </el-form-item>
+        <el-form-item label="联系人">
+          <el-input v-model.trim="proxyForm.contact.name" />
+        </el-form-item>
+        <el-form-item label="联系电话">
+          <el-input v-model.trim="proxyForm.contact.phone" />
+        </el-form-item>
+        <div class="drawer-actions">
+          <el-button @click="proxyVisible = false">取消</el-button>
+          <el-button type="primary" :loading="savingProxy" @click="submitProxyCreate">提交审核</el-button>
+        </div>
+      </el-form>
+    </el-drawer>
+
+    <el-drawer v-model="detailVisible" title="资源详情" size="420px">
+      <el-descriptions v-if="detailRow" :column="1" border>
+        <el-descriptions-item label="资源标题">{{ detailRow.title }}</el-descriptions-item>
+        <el-descriptions-item label="资源类型">{{ typeText[detailRow.typeCode] || detailRow.typeCode }}</el-descriptions-item>
+        <el-descriptions-item label="商家">{{ detailRow.merchantName }}</el-descriptions-item>
+        <el-descriptions-item label="提交时间">{{ detailRow.createdAt }}</el-descriptions-item>
+      </el-descriptions>
+    </el-drawer>
   </section>
 </template>
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listPendingResources, reviewResource } from '../api/resource'
+import { createResource, listPendingResources, reviewResource } from '../api/resource'
+import { useAuthStore } from '../stores/auth'
 
 const typeText = {
   inventory: '库存',
@@ -90,6 +138,12 @@ const reasonVisible = ref(false)
 const reasonTarget = ref(null)
 const reasonAction = ref('reject')
 const reasonText = ref('')
+const proxyVisible = ref(false)
+const savingProxy = ref(false)
+const detailVisible = ref(false)
+const detailRow = ref(null)
+const proxyForm = reactive(defaultProxyForm())
+const auth = useAuthStore()
 
 onMounted(loadRows)
 
@@ -118,7 +172,7 @@ async function approve(row) {
   }
   submitting.value = true
   try {
-    await reviewResource(row.id, { action: 'approve' })
+    await reviewResource(row.id, { action: 'approve', reviewerId: currentOperatorId() })
     ElMessage.success('资源已审核通过')
     await loadRows()
   } finally {
@@ -147,12 +201,63 @@ async function submitReasonAction() {
   }
   submitting.value = true
   try {
-    await reviewResource(reasonTarget.value.id, { action: reasonAction.value, reason: reasonText.value.trim() })
+    await reviewResource(reasonTarget.value.id, { action: reasonAction.value, reason: reasonText.value.trim(), reviewerId: currentOperatorId() })
     ElMessage.success(reasonAction.value === 'reject' ? '资源已驳回' : '资源已下架')
     reasonVisible.value = false
     await loadRows()
   } finally {
     submitting.value = false
   }
+}
+
+function openProxyCreate() {
+  Object.assign(proxyForm, defaultProxyForm())
+  proxyVisible.value = true
+}
+
+async function submitProxyCreate() {
+  if (!proxyForm.merchantId || !proxyForm.title || !proxyForm.category || !proxyForm.contact.name || !proxyForm.contact.phone) {
+    ElMessage.warning('请补充商家、标题、品类和联系方式')
+    return
+  }
+  savingProxy.value = true
+  try {
+    await createResource({ ...proxyForm, contact: { ...proxyForm.contact } })
+    ElMessage.success('资源已提交审核')
+    proxyVisible.value = false
+    await loadRows()
+  } finally {
+    savingProxy.value = false
+  }
+}
+
+function openRowDetail(row) {
+  detailRow.value = row
+  detailVisible.value = true
+}
+
+function defaultProxyForm() {
+  return {
+    merchantId: '',
+    cityCode: 'zhili',
+    typeCode: 'inventory',
+    title: '',
+    category: '',
+    quantityText: '',
+    priceText: '',
+    description: '',
+    attributes: {},
+    tags: [],
+    images: [],
+    contact: {
+      name: '',
+      phone: '',
+      wechat: '',
+    },
+  }
+}
+
+function currentOperatorId() {
+  return auth.user?.userId || ''
 }
 </script>

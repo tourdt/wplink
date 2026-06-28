@@ -23,8 +23,8 @@ type GrantEntitlementReq struct {
 }
 
 type GrantEntitlementResp struct {
-	ID      string
-	Message string
+	ID      string `json:"id"`
+	Message string `json:"message"`
 }
 
 type EntitlementAdminLogic struct {

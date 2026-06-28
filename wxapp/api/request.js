@@ -13,7 +13,7 @@ export default function request(options) {
       },
       success: (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(res.data)
+          resolve(res.data?.data ?? res.data)
           return
         }
         const message = res.data?.message || res.data?.msg || '请求失败，请稍后重试'

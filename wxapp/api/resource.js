@@ -61,10 +61,11 @@ export function recordResourceDetailView(resourceId) {
   })
 }
 
-export function refreshResource(resourceId) {
+export function refreshResource(resourceId, merchantId) {
   return request({
     url: `/api/v1/resources/${resourceId}/refresh`,
     method: 'POST',
+    data: { merchantId },
   })
 }
 
@@ -76,18 +77,19 @@ export function markResourceDeal(resourceId, data) {
   })
 }
 
-export function takeDownResource(resourceId, reason) {
+export function takeDownResource(resourceId, merchantId, reason) {
   return request({
     url: `/api/v1/resources/${resourceId}/take-down`,
     method: 'POST',
-    data: { reason },
+    data: { merchantId, reason },
   })
 }
 
-export function repostSimilarResource(resourceId) {
+export function repostSimilarResource(resourceId, merchantId) {
   return request({
     url: `/api/v1/resources/${resourceId}/repost-similar`,
     method: 'POST',
+    data: { merchantId },
   })
 }
 

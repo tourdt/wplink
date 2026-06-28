@@ -42,7 +42,7 @@ psql "$DATABASE_URL" -f backend/scripts/seed_demo_data.sql
 
 ## 后端验证
 
-当前后端已有 HTTP 服务入口，已挂载 `/healthz`、`/admin/` 一体化后台静态路由，以及城市站/资源类型公开 API。其余业务 API handler 仍待接入，未接入的 `/api/` 路由会返回 `API_NOT_CONNECTED`，避免被误认为静态资源 404。
+当前后端已有 HTTP 服务入口，已挂载 `/healthz`、`/admin/` 一体化后台静态路由，并接入 `backend/app/api/app.api` 中的账号、城市站、商家、资源、需求、发现、认证、权益、消息、指标和后台管理 API。未配置 API handler 的兜底路由仍会返回 `API_NOT_CONNECTED`，用于暴露后续新增接口尚未接线的问题。
 
 先运行领域测试和 API 契约校验：
 
@@ -66,7 +66,7 @@ go run ./app -f etc/app.yaml
 go run ./app -f etc/app.yaml.example
 ```
 
-当后续生成并接线业务 API handler 后，应使用同一 `DATABASE_URL` 或配置文件中的 PostgreSQL DSN 启动服务，再让管理后台和小程序指向该服务。
+业务 API 依赖 PostgreSQL DSN、演示种子数据和后台 token 密钥。管理后台和小程序本地联调时，应让前端 `VITE_API_BASE_URL` 或小程序请求域名指向同一个 Go 服务。
 
 ## 管理后台
 

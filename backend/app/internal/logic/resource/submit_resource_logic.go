@@ -13,9 +13,9 @@ type SubmitResourceStore interface {
 }
 
 type SubmitResourceResp struct {
-	ID      string
-	Status  string
-	Message string
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type SubmitResourceLogic struct {

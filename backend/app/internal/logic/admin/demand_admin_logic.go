@@ -25,20 +25,20 @@ type ListDemandsReq struct {
 }
 
 type AdminDemandItem struct {
-	ID          string
-	Title       string
-	DemandType  string
-	Category    string
-	ContactName string
-	Status      string
-	CreatedAt   string
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	DemandType  string `json:"demandType"`
+	Category    string `json:"category"`
+	ContactName string `json:"contactName"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"createdAt"`
 }
 
 type ListDemandsResp struct {
-	Items    []AdminDemandItem
-	Page     int64
-	PageSize int64
-	Total    int64
+	Items    []AdminDemandItem `json:"items"`
+	Page     int64             `json:"page"`
+	PageSize int64             `json:"pageSize"`
+	Total    int64             `json:"total"`
 }
 
 type GetDemandReq struct {
@@ -46,22 +46,22 @@ type GetDemandReq struct {
 }
 
 type DemandContact struct {
-	Name   string
-	Phone  string
-	Wechat string
+	Name   string `json:"name"`
+	Phone  string `json:"phone"`
+	Wechat string `json:"wechat,omitempty"`
 }
 
 type DemandDetailResp struct {
-	ID                  string
-	Title               string
-	DemandType          string
-	Category            string
-	PriceRange          model.JSONMap
-	QuantityRequirement model.JSONMap
-	Attributes          model.JSONMap
-	Contact             DemandContact
-	Status              string
-	CreatedAt           string
+	ID                  string        `json:"id"`
+	Title               string        `json:"title"`
+	DemandType          string        `json:"demandType"`
+	Category            string        `json:"category"`
+	PriceRange          model.JSONMap `json:"priceRange"`
+	QuantityRequirement model.JSONMap `json:"quantityRequirement"`
+	Attributes          model.JSONMap `json:"attributes"`
+	Contact             DemandContact `json:"contact"`
+	Status              string        `json:"status"`
+	CreatedAt           string        `json:"createdAt"`
 }
 
 type UpdateDemandStatusReq struct {
@@ -70,8 +70,8 @@ type UpdateDemandStatusReq struct {
 }
 
 type UpdateDemandStatusResp struct {
-	ID     string
-	Status string
+	ID     string `json:"id"`
+	Status string `json:"status"`
 }
 
 type DemandAdminLogic struct {

@@ -22,29 +22,29 @@ type ListResourcesReq struct {
 }
 
 type ResourceMerchantBrief struct {
-	ID                 string
-	Name               string
-	VerificationStatus string
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	VerificationStatus string `json:"verificationStatus"`
 }
 
 type ResourceListItem struct {
-	ID           string
-	TypeCode     string
-	Title        string
-	Category     string
-	District     string
-	PriceText    string
-	QuantityText string
-	Merchant     ResourceMerchantBrief
-	CreditTags   []string
-	RefreshedAt  string
+	ID           string                `json:"id"`
+	TypeCode     string                `json:"typeCode"`
+	Title        string                `json:"title"`
+	Category     string                `json:"category"`
+	District     string                `json:"district,omitempty"`
+	PriceText    string                `json:"priceText,omitempty"`
+	QuantityText string                `json:"quantityText,omitempty"`
+	Merchant     ResourceMerchantBrief `json:"merchant"`
+	CreditTags   []string              `json:"creditTags"`
+	RefreshedAt  string                `json:"refreshedAt,omitempty"`
 }
 
 type ListResourcesResp struct {
-	Items    []ResourceListItem
-	Page     int64
-	PageSize int64
-	Total    int64
+	Items    []ResourceListItem `json:"items"`
+	Page     int64              `json:"page"`
+	PageSize int64              `json:"pageSize"`
+	Total    int64              `json:"total"`
 }
 
 type ListResourcesLogic struct {

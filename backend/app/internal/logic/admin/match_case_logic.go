@@ -25,9 +25,9 @@ type CreateMatchCaseReq struct {
 }
 
 type MatchCaseResp struct {
-	ID      string
-	Status  string
-	Message string
+	ID      string `json:"id"`
+	Status  string `json:"status,omitempty"`
+	Message string `json:"message"`
 }
 
 type ListMatchCasesReq struct {
@@ -37,22 +37,22 @@ type ListMatchCasesReq struct {
 }
 
 type MatchCaseItem struct {
-	ID               string
-	PurchaseDemandID string
-	DemandTitle      string
-	Status           string
-	Source           string
-	ResultNote       string
-	ResourceCount    int64
-	ParticipantCount int64
-	CreatedAt        string
+	ID               string `json:"id"`
+	PurchaseDemandID string `json:"purchaseDemandId"`
+	DemandTitle      string `json:"demandTitle"`
+	Status           string `json:"status"`
+	Source           string `json:"source"`
+	ResultNote       string `json:"resultNote,omitempty"`
+	ResourceCount    int64  `json:"resourceCount"`
+	ParticipantCount int64  `json:"participantCount"`
+	CreatedAt        string `json:"createdAt"`
 }
 
 type ListMatchCasesResp struct {
-	Items    []MatchCaseItem
-	Page     int64
-	PageSize int64
-	Total    int64
+	Items    []MatchCaseItem `json:"items"`
+	Page     int64           `json:"page"`
+	PageSize int64           `json:"pageSize"`
+	Total    int64           `json:"total"`
 }
 
 type UpdateMatchCaseStatusReq struct {

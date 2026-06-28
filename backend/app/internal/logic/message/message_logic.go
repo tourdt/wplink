@@ -23,20 +23,20 @@ type ListMessagesReq struct {
 }
 
 type MessageListItem struct {
-	ID          string
-	MessageType string
-	Title       string
-	Content     string
-	TargetURL   string
-	Status      string
-	CreatedAt   string
+	ID          string `json:"id"`
+	MessageType string `json:"messageType"`
+	Title       string `json:"title"`
+	Content     string `json:"content"`
+	TargetURL   string `json:"targetUrl,omitempty"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"createdAt"`
 }
 
 type ListMessagesResp struct {
-	Items    []MessageListItem
-	Page     int64
-	PageSize int64
-	Total    int64
+	Items    []MessageListItem `json:"items"`
+	Page     int64             `json:"page"`
+	PageSize int64             `json:"pageSize"`
+	Total    int64             `json:"total"`
 }
 
 type ReadMessageReq struct {
@@ -45,8 +45,8 @@ type ReadMessageReq struct {
 }
 
 type ReadMessageResp struct {
-	ID     string
-	Status string
+	ID     string `json:"id"`
+	Status string `json:"status"`
 }
 
 type ListMessagesLogic struct {

@@ -15,28 +15,28 @@ type EntitlementStore interface {
 }
 
 type MerchantEntitlementInfo struct {
-	Type            string
-	SourceType      string
-	TotalAmount     int64
-	UsedAmount      int64
-	RemainingAmount int64
-	ExpiresAt       string
+	Type            string `json:"type"`
+	SourceType      string `json:"sourceType"`
+	TotalAmount     int64  `json:"totalAmount"`
+	UsedAmount      int64  `json:"usedAmount"`
+	RemainingAmount int64  `json:"remainingAmount"`
+	ExpiresAt       string `json:"expiresAt,omitempty"`
 }
 
 type ListMerchantEntitlementsResp struct {
-	Items []MerchantEntitlementInfo
+	Items []MerchantEntitlementInfo `json:"items"`
 }
 
 type TopVoucherInfo struct {
-	ID               string
-	Status           string
-	TopDurationHours int64
-	AllowedTypeCodes []string
-	ExpiresAt        string
+	ID               string   `json:"id"`
+	Status           string   `json:"status"`
+	TopDurationHours int64    `json:"topDurationHours"`
+	AllowedTypeCodes []string `json:"allowedTypeCodes"`
+	ExpiresAt        string   `json:"expiresAt,omitempty"`
 }
 
 type ListTopVouchersResp struct {
-	Items []TopVoucherInfo
+	Items []TopVoucherInfo `json:"items"`
 }
 
 type RedeemTopVoucherReq struct {
@@ -45,10 +45,10 @@ type RedeemTopVoucherReq struct {
 }
 
 type RedeemTopVoucherResp struct {
-	VoucherID  string
-	ResourceID string
-	Status     string
-	Message    string
+	VoucherID  string `json:"voucherId"`
+	ResourceID string `json:"resourceId"`
+	Status     string `json:"status"`
+	Message    string `json:"message"`
 }
 
 type ListEntitlementsLogic struct {

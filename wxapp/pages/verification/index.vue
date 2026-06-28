@@ -17,7 +17,7 @@
 <script setup>
 import { computed, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { getMerchantId } from '../../store/session'
+import { getMerchantId, getUserId } from '../../store/session'
 import { submitVerification } from '../../api/verification'
 
 const typeOptions = [
@@ -47,11 +47,18 @@ function changeType(event) {
 }
 
 async function submit() {
+  const userId = getUserId()
+  if (!userId) {
+    uni.showToast({ title: '请先在我的页保存用户 ID', icon: 'none' })
+    return
+  }
   if (!form.merchantId || !form.businessName) {
     uni.showToast({ title: '请填写商家和主体名称', icon: 'none' })
     return
   }
+  // 认证申请需要记录提交人，便于后台审核留痕和后续消息通知。
   await submitVerification(form.merchantId, {
+    applicantUserId: userId,
     verificationType: form.verificationType,
     businessName: form.businessName,
     licenseUrl: form.licenseUrl,

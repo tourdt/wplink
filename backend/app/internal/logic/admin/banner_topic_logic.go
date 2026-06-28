@@ -38,30 +38,30 @@ type SaveBannerTopicReq struct {
 }
 
 type BannerTopicItem struct {
-	ID         string
-	CityCode   string
-	Kind       string
-	Title      string
-	Subtitle   string
-	CoverURL   string
-	TypeScope  []string
-	JumpType   string
-	JumpTarget string
-	Tags       []string
-	StartAt    string
-	EndAt      string
-	SortOrder  int64
-	Status     string
-	UpdatedAt  string
+	ID         string   `json:"id"`
+	CityCode   string   `json:"cityCode,omitempty"`
+	Kind       string   `json:"kind"`
+	Title      string   `json:"title"`
+	Subtitle   string   `json:"subtitle,omitempty"`
+	CoverURL   string   `json:"coverUrl,omitempty"`
+	TypeScope  []string `json:"typeScope"`
+	JumpType   string   `json:"jumpType"`
+	JumpTarget string   `json:"jumpTarget"`
+	Tags       []string `json:"tags"`
+	StartAt    string   `json:"startAt,omitempty"`
+	EndAt      string   `json:"endAt,omitempty"`
+	SortOrder  int64    `json:"sortOrder"`
+	Status     string   `json:"status"`
+	UpdatedAt  string   `json:"updatedAt"`
 }
 
 type ListBannerTopicsResp struct {
-	Items []BannerTopicItem
+	Items []BannerTopicItem `json:"items"`
 }
 
 type SaveBannerTopicResp struct {
-	ID        string
-	UpdatedAt string
+	ID        string `json:"id"`
+	UpdatedAt string `json:"updatedAt"`
 }
 
 type BannerTopicAdminLogic struct {

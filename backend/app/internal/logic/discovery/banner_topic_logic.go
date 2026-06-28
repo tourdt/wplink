@@ -33,55 +33,55 @@ type ValidateWebviewURLReq struct {
 }
 
 type DiscoveryBannerItem struct {
-	ID         string
-	Title      string
-	Subtitle   string
-	CoverURL   string
-	JumpType   string
-	JumpTarget string
-	Tags       []string
+	ID         string   `json:"id"`
+	Title      string   `json:"title"`
+	Subtitle   string   `json:"subtitle,omitempty"`
+	CoverURL   string   `json:"coverUrl,omitempty"`
+	JumpType   string   `json:"jumpType"`
+	JumpTarget string   `json:"jumpTarget"`
+	Tags       []string `json:"tags"`
 }
 
 type ListHomeBannersResp struct {
-	Items []DiscoveryBannerItem
+	Items []DiscoveryBannerItem `json:"items"`
 }
 
 type TopicInfo struct {
-	ID       string
-	Title    string
-	Subtitle string
-	CoverURL string
-	Tags     []string
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	Subtitle string   `json:"subtitle,omitempty"`
+	CoverURL string   `json:"coverUrl,omitempty"`
+	Tags     []string `json:"tags"`
 }
 
 type DiscoveryResourceItem struct {
-	ID           string
-	TypeCode     string
-	Title        string
-	Category     string
-	District     string
-	PriceText    string
-	QuantityText string
-	MerchantName string
+	ID           string `json:"id"`
+	TypeCode     string `json:"typeCode"`
+	Title        string `json:"title"`
+	Category     string `json:"category"`
+	District     string `json:"district,omitempty"`
+	PriceText    string `json:"priceText,omitempty"`
+	QuantityText string `json:"quantityText,omitempty"`
+	MerchantName string `json:"merchantName"`
 }
 
 type DemandEntry struct {
-	Title      string
-	ButtonText string
+	Title      string `json:"title"`
+	ButtonText string `json:"buttonText"`
 }
 
 type TopicResourcesResp struct {
-	Topic       TopicInfo
-	Items       []DiscoveryResourceItem
-	Page        int64
-	PageSize    int64
-	Total       int64
-	DemandEntry *DemandEntry
+	Topic       TopicInfo               `json:"topic"`
+	Items       []DiscoveryResourceItem `json:"items"`
+	Page        int64                   `json:"page"`
+	PageSize    int64                   `json:"pageSize"`
+	Total       int64                   `json:"total"`
+	DemandEntry *DemandEntry            `json:"demandEntry,omitempty"`
 }
 
 type ValidateWebviewURLResp struct {
-	Allowed bool
-	URL     string
+	Allowed bool   `json:"allowed"`
+	URL     string `json:"url"`
 }
 
 type BannerTopicDiscoveryLogic struct {
