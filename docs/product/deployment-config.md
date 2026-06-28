@@ -52,7 +52,7 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 
 ## 权限边界
 
-后台 `/api/v1/admin/*` 接口在配置 admin token 服务时会校验 `Authorization: Bearer <token>`，只有 `platform_operator` 和 `super_admin` 可访问。小程序侧资源发布、草稿、我的发布列表、刷新、成交反馈、下架和再发类似等商家操作，在生产服务启用用户 token 后，会校验当前用户与目标商家的 active 管理绑定关系；未绑定商家会返回 `FORBIDDEN`。
+后台 `/api/v1/admin/*` 接口在配置 admin token 服务时会校验 `Authorization: Bearer <token>`，只有 `platform_operator` 和 `super_admin` 可访问。小程序侧资源发布、草稿、我的发布列表、刷新、成交反馈、下架、再发类似、权益查看和置顶券核销等商家操作，在生产服务启用用户 token 后，会校验当前用户与目标商家的 active 管理绑定关系；未绑定商家会返回 `FORBIDDEN`。
 
 用户私有数据接口在生产启用用户 token 后以 token 身份为准，不信任前端传入的 `userId`。当前覆盖采购需求提交、“我的采购需求”、认证提交、用户消息列表和消息已读；商家角色消息 `merchant:<merchantId>` 还会校验当前用户是否能管理该商家，点击后可按商家角色标记已读。
 

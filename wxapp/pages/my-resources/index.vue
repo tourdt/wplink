@@ -97,7 +97,7 @@ async function topResource(item) {
     uni.showToast({ title: '暂无可用置顶券', icon: 'none' })
     return
   }
-  await redeemTopVoucher(voucher.id, item.id)
+  await redeemTopVoucher(voucher.id, item.id, merchantId.value)
   uni.showToast({ title: '已置顶', icon: 'none' })
   await loadRows()
 }

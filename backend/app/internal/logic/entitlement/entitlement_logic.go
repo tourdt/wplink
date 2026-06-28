@@ -40,6 +40,7 @@ type ListTopVouchersResp struct {
 }
 
 type RedeemTopVoucherReq struct {
+	MerchantID string
 	VoucherID  string
 	ResourceID string
 }

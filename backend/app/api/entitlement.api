@@ -26,6 +26,7 @@ type ListTopVouchersResp {
 }
 
 type RedeemTopVoucherReq {
+	MerchantId  string `json:"merchantId,optional"`
 	ResourceId string `json:"resourceId"`
 }
 

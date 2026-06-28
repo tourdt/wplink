@@ -77,7 +77,7 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 		registerVerificationRoutes(mux, verificationStore, userTokenService, adminTokenService, permissionStore)
 	}
 	if entitlementStore, ok := store.(EntitlementAPIStore); ok {
-		registerEntitlementRoutes(mux, entitlementStore)
+		registerEntitlementRoutes(mux, entitlementStore, userTokenService, adminTokenService, permissionStore)
 	}
 	if messageStore, ok := store.(MessageAPIStore); ok {
 		registerMessageRoutes(mux, messageStore, userTokenService, adminTokenService, permissionStore)
@@ -272,13 +272,23 @@ func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, 
 	})
 }
 
-func registerEntitlementRoutes(mux *http.ServeMux, store EntitlementAPIStore) {
+func registerEntitlementRoutes(mux *http.ServeMux, store EntitlementAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore) {
 	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/entitlements", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := entitlementlogic.NewListEntitlementsLogic(store).ListEntitlements(r.Context(), r.PathValue("merchantId"))
+		merchantID := r.PathValue("merchantId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := entitlementlogic.NewListEntitlementsLogic(store).ListEntitlements(r.Context(), merchantID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/top-vouchers", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := entitlementlogic.NewListTopVouchersLogic(store).ListTopVouchers(r.Context(), r.PathValue("merchantId"))
+		merchantID := r.PathValue("merchantId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := entitlementlogic.NewListTopVouchersLogic(store).ListTopVouchers(r.Context(), merchantID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/top-vouchers/{voucherId}/redeem", func(w http.ResponseWriter, r *http.Request) {
@@ -288,6 +298,10 @@ func registerEntitlementRoutes(mux *http.ServeMux, store EntitlementAPIStore) {
 			return
 		}
 		body.VoucherID = r.PathValue("voucherId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, body.MerchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
 		resp, err := entitlementlogic.NewRedeemTopVoucherLogic(store).RedeemTopVoucher(r.Context(), body)
 		response.JSON(w, resp, err)
 	})

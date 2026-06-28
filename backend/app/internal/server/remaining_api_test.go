@@ -151,6 +151,43 @@ func TestAPIRouterMarksMerchantRoleMessageRead(t *testing.T) {
 	}
 }
 
+func TestAPIRouterRequiresMerchantPermissionForEntitlements(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "list entitlements", method: http.MethodGet, path: "/api/v1/merchants/merchant-2/entitlements"},
+		{name: "list top vouchers", method: http.MethodGet, path: "/api/v1/merchants/merchant-2/top-vouchers"},
+		{name: "redeem top voucher", method: http.MethodPost, path: "/api/v1/top-vouchers/voucher-1/redeem", body: `{"merchantId":"merchant-2","resourceId":"resource-1"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			req.Header.Set("Authorization", "Bearer user-token")
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("status = %d body = %s, want forbidden", rec.Code, rec.Body.String())
+			}
+		})
+	}
+
+	redeemRec := httptest.NewRecorder()
+	redeemReq := httptest.NewRequest(http.MethodPost, "/api/v1/top-vouchers/voucher-1/redeem", strings.NewReader(`{"merchantId":"merchant-1","resourceId":"resource-1"}`))
+	redeemReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(redeemRec, redeemReq)
+	decodeEnvelopeData(t, redeemRec, http.StatusOK)
+	if store.redeemVoucherID != "voucher-1" || store.redeemResourceID != "resource-1" {
+		t.Fatalf("redeem voucherID=%q resourceID=%q, want voucher/resource IDs", store.redeemVoucherID, store.redeemResourceID)
+	}
+}
+
 func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(store)
@@ -228,6 +265,8 @@ type fakeFullAPIStore struct {
 	messageFilter           model.ListMessagesFilter
 	readMessageUserID       string
 	readMessageRoleCode     string
+	redeemVoucherID         string
+	redeemResourceID        string
 }
 
 type fakeAdminTokenService struct {
@@ -325,6 +364,8 @@ func (s *fakeFullAPIStore) ListTopVouchers(ctx context.Context, merchantID strin
 }
 
 func (s *fakeFullAPIStore) RedeemTopVoucher(ctx context.Context, voucherID string, resourceID string) (model.RedeemTopVoucherResult, error) {
+	s.redeemVoucherID = voucherID
+	s.redeemResourceID = resourceID
 	return model.RedeemTopVoucherResult{VoucherID: voucherID, ResourceID: resourceID, Status: "used"}, nil
 }
 

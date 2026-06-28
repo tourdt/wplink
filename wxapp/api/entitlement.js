@@ -14,10 +14,10 @@ export function listTopVouchers(merchantId) {
   })
 }
 
-export function redeemTopVoucher(voucherId, resourceId) {
+export function redeemTopVoucher(voucherId, resourceId, merchantId = '') {
   return request({
     url: `/api/v1/top-vouchers/${voucherId}/redeem`,
     method: 'POST',
-    data: { resourceId },
+    data: { merchantId, resourceId },
   })
 }
