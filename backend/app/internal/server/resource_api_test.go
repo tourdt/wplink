@@ -111,6 +111,17 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 		t.Fatalf("detail data = %#v, want resource detail", detailData)
 	}
 
+	detailViewRec := httptest.NewRecorder()
+	detailViewReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/detail-view", nil)
+	router.ServeHTTP(detailViewRec, detailViewReq)
+	detailViewData := decodeEnvelopeData(t, detailViewRec, http.StatusOK)
+	if detailViewData["message"] != "浏览行为已记录" {
+		t.Fatalf("detail view data = %#v, want message", detailViewData)
+	}
+	if store.metricDelta.DetailViewCount != 1 {
+		t.Fatalf("metric delta after detail view = %#v, want detail view count", store.metricDelta)
+	}
+
 	contactRec := httptest.NewRecorder()
 	contactReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-events", strings.NewReader(`{"action":"phone"}`))
 	router.ServeHTTP(contactRec, contactReq)
@@ -122,6 +133,26 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 		t.Fatalf("contact input = %#v metric = %#v, want phone metric", store.contactInput, store.metricDelta)
 	}
 
+	wechatRec := httptest.NewRecorder()
+	wechatReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-events", strings.NewReader(`{"action":"wechat"}`))
+	router.ServeHTTP(wechatRec, wechatReq)
+	wechatData := decodeEnvelopeData(t, wechatRec, http.StatusOK)
+	if wechatData["message"] != "联系行为已记录" {
+		t.Fatalf("wechat data = %#v, want message", wechatData)
+	}
+	if store.contactInput.Action != "wechat" || store.metricDelta.WechatCopyCount != 1 {
+		t.Fatalf("contact input = %#v metric = %#v, want wechat metric", store.contactInput, store.metricDelta)
+	}
+
+	metricsRec := httptest.NewRecorder()
+	metricsReq := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/metrics", nil)
+	router.ServeHTTP(metricsRec, metricsReq)
+	metricsData := decodeEnvelopeData(t, metricsRec, http.StatusOK)
+	summary := metricsData["summary"].(map[string]interface{})
+	if summary["detailViewCount"] != float64(1) || summary["phoneClickCount"] != float64(1) || summary["wechatCopyCount"] != float64(1) {
+		t.Fatalf("metrics summary = %#v, want detail, phone and wechat counts", summary)
+	}
+
 	myRec := httptest.NewRecorder()
 	myReq := httptest.NewRequest(http.MethodGet, "/api/v1/me/resources?merchantId=merchant-1&status=published", nil)
 	router.ServeHTTP(myRec, myReq)
@@ -129,8 +160,14 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 	if store.myFilter.MerchantID != "merchant-1" || store.myFilter.Status != "published" {
 		t.Fatalf("my filter = %#v, want merchant published", store.myFilter)
 	}
-	if len(myData["items"].([]interface{})) != 1 {
+	myItems := myData["items"].([]interface{})
+	if len(myItems) != 1 {
 		t.Fatalf("my items = %#v, want one item", myData["items"])
+	}
+	myItem := myItems[0].(map[string]interface{})
+	myMetrics := myItem["metrics"].(map[string]interface{})
+	if myMetrics["detailViewCount"] != float64(1) || myMetrics["phoneClickCount"] != float64(1) || myMetrics["wechatCopyCount"] != float64(1) {
+		t.Fatalf("my metrics = %#v, want updated loop metrics", myMetrics)
 	}
 }
 
@@ -239,12 +276,30 @@ func (s *fakeResourceAPIStore) UpsertResourceMetric(ctx context.Context, delta m
 	return nil
 }
 
+func (s *fakeResourceAPIStore) GetResourceMetrics(ctx context.Context, resourceID string, from string, to string) (model.ResourceMetricsResult, error) {
+	return model.ResourceMetricsResult{
+		ResourceID: resourceID,
+		Summary: model.ResourceMetricsSummary{
+			DetailViewCount: 1,
+			PhoneClickCount: 1,
+			WechatCopyCount: 1,
+		},
+		Daily: []model.ResourceMetricDailyItem{{
+			Date: "2026-06-28", DetailViewCount: 1, PhoneClickCount: 1, WechatCopyCount: 1,
+		}},
+	}, nil
+}
+
+func (s *fakeResourceAPIStore) GetMerchantMetricsSummary(ctx context.Context, merchantID string) (model.MerchantMetricsSummary, error) {
+	return model.MerchantMetricsSummary{MerchantID: merchantID}, nil
+}
+
 func (s *fakeResourceAPIStore) ListMyResources(ctx context.Context, filter model.ListMyResourcesFilter) (model.ListMyResourcesResult, error) {
 	s.myFilter = filter
 	return model.ListMyResourcesResult{
 		Items: []model.MyResourceItem{{
 			ID: "resource-1", TypeCode: "inventory", Title: "女童春款卫衣库存", Category: "童装卫衣", Status: model.ResourceStatusPublished,
-			Metrics: model.MyResourceMetrics{DetailViewCount: 1, PhoneClickCount: 1},
+			Metrics: model.MyResourceMetrics{DetailViewCount: 1, PhoneClickCount: 1, WechatCopyCount: 1},
 		}},
 		Page: filter.Page, PageSize: filter.PageSize, Total: 1,
 	}, nil

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 type ResourceTypeConfig struct {
@@ -44,16 +46,48 @@ type ResourceTypeConfigPatch struct {
 	Status           string
 }
 
+type resourceTypeConfigRow struct {
+	ID               string          `db:"id"`
+	TypeCode         string          `db:"type_code"`
+	TypeName         string          `db:"type_name"`
+	DefaultValidDays int64           `db:"default_valid_days"`
+	RequiredFields   JSONStringSlice `db:"required_fields"`
+	FilterFields     JSONStringSlice `db:"filter_fields"`
+	DisplayTemplate  JSONMap         `db:"display_template"`
+}
+
+type adminResourceTypeConfigRow struct {
+	ID               string          `db:"id"`
+	CityCode         string          `db:"city_code"`
+	TypeCode         string          `db:"type_code"`
+	TypeName         string          `db:"type_name"`
+	FieldSchema      JSONMap         `db:"field_schema"`
+	RequiredFields   JSONStringSlice `db:"required_fields"`
+	FilterFields     JSONStringSlice `db:"filter_fields"`
+	DisplayTemplate  JSONMap         `db:"display_template"`
+	ReviewRules      JSONMap         `db:"review_rules"`
+	SortWeights      JSONMap         `db:"sort_weights"`
+	MessageRules     JSONMap         `db:"message_rules"`
+	DefaultValidDays int64           `db:"default_valid_days"`
+	Status           string          `db:"status"`
+}
+
 type ResourceTypeConfigModel struct {
-	db *sql.DB
+	conn  sqlx.SqlConn
+	table ResourceTypeConfigsModel
 }
 
 func NewResourceTypeConfigModel(db *sql.DB) *ResourceTypeConfigModel {
-	return &ResourceTypeConfigModel{db: db}
+	conn := sqlx.NewSqlConnFromDB(db)
+	return &ResourceTypeConfigModel{
+		conn:  conn,
+		table: NewResourceTypeConfigsModel(conn),
+	}
 }
 
 func (m *ResourceTypeConfigModel) ListActiveResourceTypesByCityCode(ctx context.Context, cityCode string) ([]ResourceTypeConfig, error) {
-	rows, err := m.db.QueryContext(ctx, `
+	var rows []resourceTypeConfigRow
+	err := m.conn.QueryRowsCtx(ctx, &rows, `
 SELECT
   rtc.id,
   rtc.type_code,
@@ -72,39 +106,27 @@ ORDER BY rtc.created_at ASC
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var configs []ResourceTypeConfig
-	for rows.Next() {
-		var config ResourceTypeConfig
-		var requiredFields JSONStringSlice
-		var filterFields JSONStringSlice
-		if err := rows.Scan(
-			&config.ID,
-			&config.TypeCode,
-			&config.TypeName,
-			&config.DefaultValidDays,
-			&requiredFields,
-			&filterFields,
-			&config.DisplayTemplate,
-		); err != nil {
-			return nil, err
-		}
-		config.RequiredFields = []string(requiredFields)
-		config.FilterFields = []string(filterFields)
-		configs = append(configs, config)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	configs := make([]ResourceTypeConfig, 0, len(rows))
+	for _, row := range rows {
+		configs = append(configs, ResourceTypeConfig{
+			ID:               row.ID,
+			TypeCode:         row.TypeCode,
+			TypeName:         row.TypeName,
+			DefaultValidDays: row.DefaultValidDays,
+			RequiredFields:   []string(row.RequiredFields),
+			FilterFields:     []string(row.FilterFields),
+			DisplayTemplate:  row.DisplayTemplate,
+		})
 	}
 	return configs, nil
 }
 
 func (m *ResourceTypeConfigModel) ListResourceTypeConfigs(ctx context.Context, cityCode string, status string) ([]AdminResourceTypeConfig, error) {
-	rows, err := m.db.QueryContext(ctx, `
+	var rows []adminResourceTypeConfigRow
+	err := m.conn.QueryRowsCtx(ctx, &rows, `
 SELECT
   rtc.id,
-  COALESCE(cs.code, ''),
+  COALESCE(cs.code, '') AS city_code,
   rtc.type_code,
   rtc.type_name,
   rtc.field_schema,
@@ -125,43 +147,30 @@ ORDER BY rtc.created_at ASC
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var configs []AdminResourceTypeConfig
-	for rows.Next() {
-		var config AdminResourceTypeConfig
-		var requiredFields JSONStringSlice
-		var filterFields JSONStringSlice
-		if err := rows.Scan(
-			&config.ID,
-			&config.CityCode,
-			&config.TypeCode,
-			&config.TypeName,
-			&config.FieldSchema,
-			&requiredFields,
-			&filterFields,
-			&config.DisplayTemplate,
-			&config.ReviewRules,
-			&config.SortWeights,
-			&config.MessageRules,
-			&config.DefaultValidDays,
-			&config.Status,
-		); err != nil {
-			return nil, err
-		}
-		config.RequiredFields = []string(requiredFields)
-		config.FilterFields = []string(filterFields)
-		configs = append(configs, config)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	configs := make([]AdminResourceTypeConfig, 0, len(rows))
+	for _, row := range rows {
+		configs = append(configs, AdminResourceTypeConfig{
+			ID:               row.ID,
+			CityCode:         row.CityCode,
+			TypeCode:         row.TypeCode,
+			TypeName:         row.TypeName,
+			FieldSchema:      row.FieldSchema,
+			RequiredFields:   []string(row.RequiredFields),
+			FilterFields:     []string(row.FilterFields),
+			DisplayTemplate:  row.DisplayTemplate,
+			ReviewRules:      row.ReviewRules,
+			SortWeights:      row.SortWeights,
+			MessageRules:     row.MessageRules,
+			DefaultValidDays: row.DefaultValidDays,
+			Status:           row.Status,
+		})
 	}
 	return configs, nil
 }
 
 func (m *ResourceTypeConfigModel) UpdateResourceTypeConfig(ctx context.Context, configID string, patch ResourceTypeConfigPatch) (string, error) {
 	updatedAt := time.Now().UTC()
-	_, err := m.db.ExecContext(ctx, `
+	_, err := m.conn.ExecCtx(ctx, `
 UPDATE resource_type_configs
 SET
   field_schema = $2,

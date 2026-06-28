@@ -1,0 +1,7 @@
+model:
+  types_map:
+    uuid:
+      null_type: sql.NullString
+      type: string
+    _uuid:
+      type: pq.StringArray
