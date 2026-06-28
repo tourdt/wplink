@@ -97,6 +97,7 @@ async function topResource(item) {
   }
   await redeemTopVoucher(voucher.id, item.id)
   uni.showToast({ title: '已置顶', icon: 'none' })
+  await loadRows()
 }
 
 async function markDealt(item) {

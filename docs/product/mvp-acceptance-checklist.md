@@ -85,10 +85,11 @@ npm run build
 
 cd ../wxapp
 npm run validate:pages
+npm run validate:flows
 npm run build:mp-weixin
 ```
 
 ## 当前验收限制
 
-- 需要 PostgreSQL 和后端 HTTP server 完成接线后，才能做完整端到端手工点击验收。
-- 当前环境没有 PostgreSQL/微信开发者工具时，只能完成 SQL 静态校验、后端单元测试、后台构建和小程序构建。
+- 完整端到端手工点击验收依赖可连接的 PostgreSQL、已启动的后端 HTTP server、管理后台和微信开发者工具。
+- 若当前执行环境缺少数据库连接或微信开发者工具，只能完成 SQL 静态校验、后端单元测试、后台构建和小程序构建；数据库可连接时应运行 `go run ./scripts/verify_migrations.go -config etc/app.yaml` 验证 migration up/down 和演示数据导入。

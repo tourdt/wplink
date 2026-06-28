@@ -30,6 +30,19 @@ psql "$DATABASE_URL" -f backend/migrations/000003_seed_zhili.up.sql
 psql "$DATABASE_URL" -f backend/scripts/seed_demo_data.sql
 ```
 
+项目通过 `DATABASE_URL` 或 `backend/etc/app.yaml` 中的 `Postgres.DSN` 连接 PostgreSQL。推荐先用 Go 验证器创建临时数据库完整验证 migration up/down 和演示数据导入，避免在业务库上直接执行 down：
+
+```bash
+cd backend
+go run ./scripts/verify_migrations.go -config etc/app.yaml
+```
+
+若当前执行环境暂时缺少 PostgreSQL 连接，只能先运行静态校验，确认 migration 文件成对、down 覆盖 up 创建的表、种子插入表已由前序 migration 创建：
+
+```bash
+node backend/scripts/validate_migrations.mjs
+```
+
 演示数据包含：
 
 - 织里城市站和七类资源类型配置
@@ -49,6 +62,8 @@ psql "$DATABASE_URL" -f backend/scripts/seed_demo_data.sql
 ```bash
 cd backend
 goctl api validate --api app/api/app.api
+node scripts/validate_migrations.mjs
+go run ./scripts/verify_migrations.go -config etc/app.yaml
 GOCACHE="$PWD/.cache/go-build" go test ./...
 rm -rf .cache
 ```
@@ -118,6 +133,7 @@ rm -rf .npm-cache
 
 ```bash
 npm run validate:pages
+npm run validate:flows
 npm run build:mp-weixin
 ```
 
@@ -151,6 +167,6 @@ VITE_API_BASE_URL=http://127.0.0.1:4000 npm run build:mp-weixin
 
 ## 已知限制
 
-- 本地当前没有可用 PostgreSQL 时，无法验证 migration up/down 和演示 SQL 实际导入。
-- 当前后端 HTTP 服务入口已可启动，城市站和资源类型 API 已接线；真实完整联调还需要继续接入资源、商家、审核、登录等 `/api/` 路由。
+- migration 静态校验不能替代真实 PostgreSQL up/down；数据库可连接时应运行 `go run ./scripts/verify_migrations.go -config etc/app.yaml`，由临时数据库完成 up/down 验证。
+- 当前后端 HTTP 服务入口已可启动，业务 API 已接入账号、城市站、商家、资源、需求、发现、认证、权益、消息、指标和后台管理路由。
 - 小程序构建会出现 Sass `@import` 和 legacy JS API 的上游弃用警告，不影响当前构建产物。

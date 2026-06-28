@@ -108,6 +108,22 @@ function validatePublishForm() {
     uni.showToast({ title: '请选择资源类型', icon: 'none' })
     return false
   }
+  if (!form.title.trim()) {
+    uni.showToast({ title: '请填写标题', icon: 'none' })
+    return false
+  }
+  if (!form.category.trim()) {
+    uni.showToast({ title: '请填写品类', icon: 'none' })
+    return false
+  }
+  if (!form.contact.name.trim()) {
+    uni.showToast({ title: '请填写联系人', icon: 'none' })
+    return false
+  }
+  if (!form.contact.phone.trim()) {
+    uni.showToast({ title: '请填写联系电话', icon: 'none' })
+    return false
+  }
   return true
 }
 </script>

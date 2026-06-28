@@ -14,13 +14,14 @@
     <view class="contact-bar">
       <button @click="copyWechat">复制微信</button>
       <button class="primary-button" @click="callPhone">联系商家</button>
+      <button open-type="share" @click="shareResource">分享</button>
     </view>
   </view>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import MerchantBadge from '../../components/MerchantBadge.vue'
 import { getResource, recordResourceContact, recordResourceDetailView } from '../../api/resource'
 
@@ -63,6 +64,15 @@ async function copyWechat() {
   }
   uni.showToast({ title: '已记录联系，完整微信由平台保护', icon: 'none' })
 }
+
+async function shareResource() {
+  await recordContact('share')
+}
+
+onShareAppMessage(() => ({
+  title: resource.value.title || '服链通资源',
+  path: resource.value.id ? `/pages/resource/detail?id=${resource.value.id}` : '/pages/home/index',
+}))
 </script>
 
 <style scoped>
@@ -107,7 +117,7 @@ async function copyWechat() {
   bottom: 24rpx;
   left: 24rpx;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 16rpx;
 }
 
