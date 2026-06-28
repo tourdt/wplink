@@ -56,6 +56,14 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 
 用户私有数据接口在生产启用用户 token 后以 token 身份为准，不信任前端传入的 `userId`。当前覆盖采购需求提交、“我的采购需求”、认证提交、用户消息列表和消息已读；商家角色消息 `merchant:<merchantId>` 还会校验当前用户是否能管理该商家，点击后可按商家角色标记已读。
 
+资源联系行为 `POST /api/v1/resources/{resourceId}/contact-events` 允许匿名记录运营指标；请求携带用户 token 时以后端解析出的 token 用户为准，不接受前端 body 中的 `userId` 作为归因身份。
+
+资源搜索日志 `GET /api/v1/resource-search` 允许匿名记录关键词和筛选条件；请求携带用户 token 时以后端解析出的 token 用户为准，不接受 query 中的 `userId` 作为搜索归因身份。
+
+资源指标 `GET /api/v1/resources/{resourceId}/metrics` 和商家指标汇总 `GET /api/v1/merchants/{merchantId}/metrics/summary` 属于商家经营数据；生产启用用户 token 后，会校验当前用户是否能管理对应商家，或使用具备后台访问角色的 admin token 访问。
+
+上传凭证接口 `POST /api/v1/uploads/token` 在只配置上传服务、未配置用户或后台 token 服务时保留本地开发兼容；生产接入用户 token 或后台 token 服务后，必须携带合法的用户 token 或具备后台访问角色的 admin token 才会签发对象存储上传凭证。
+
 ## PostgreSQL 连接池
 
 `Postgres` 配置支持连接池参数，模板默认值适合单实例 MVP 起步：

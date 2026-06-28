@@ -259,6 +259,68 @@ func TestResourceAPIRouterAllowsAdminTokenForMerchantActions(t *testing.T) {
 	decodeEnvelopeData(t, submitRec, http.StatusOK)
 }
 
+func TestResourceAPIRouterUsesTokenSubjectForContactEvents(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	authorizedRec := httptest.NewRecorder()
+	authorizedReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-events", strings.NewReader(`{"userId":"attacker","action":"phone"}`))
+	authorizedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(authorizedRec, authorizedReq)
+	decodeEnvelopeData(t, authorizedRec, http.StatusOK)
+	if store.contactInput.UserID != "user-1" {
+		t.Fatalf("contact userID = %q, want token user", store.contactInput.UserID)
+	}
+
+	anonymousRec := httptest.NewRecorder()
+	anonymousReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-events", strings.NewReader(`{"userId":"attacker","action":"wechat"}`))
+	router.ServeHTTP(anonymousRec, anonymousReq)
+	decodeEnvelopeData(t, anonymousRec, http.StatusOK)
+	if store.contactInput.UserID != "" {
+		t.Fatalf("anonymous contact userID = %q, want empty user", store.contactInput.UserID)
+	}
+}
+
+func TestResourceAPIRouterUsesTokenSubjectForSearchLogs(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	authorizedRec := httptest.NewRecorder()
+	authorizedReq := httptest.NewRequest(http.MethodGet, "/api/v1/resource-search?cityCode=zhili&keyword=%E5%8D%AB%E8%A1%A3&userId=attacker", nil)
+	authorizedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(authorizedRec, authorizedReq)
+	decodeEnvelopeData(t, authorizedRec, http.StatusOK)
+	if store.searchLog.UserID != "user-1" {
+		t.Fatalf("search log userID = %q, want token user", store.searchLog.UserID)
+	}
+
+	anonymousRec := httptest.NewRecorder()
+	anonymousReq := httptest.NewRequest(http.MethodGet, "/api/v1/resource-search?cityCode=zhili&keyword=%E5%8D%AB%E8%A1%A3&userId=attacker", nil)
+	router.ServeHTTP(anonymousRec, anonymousReq)
+	decodeEnvelopeData(t, anonymousRec, http.StatusOK)
+	if store.searchLog.UserID != "" {
+		t.Fatalf("anonymous search log userID = %q, want empty user", store.searchLog.UserID)
+	}
+}
+
+func TestResourceAPIRouterUsesAdminTokenReviewerForReview(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(
+		store,
+		WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}),
+	)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/resources/resource-1/review", strings.NewReader(`{"action":"approve","reviewerId":"attacker"}`))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(rec, req)
+	decodeEnvelopeData(t, rec, http.StatusOK)
+
+	if store.reviewInput.ReviewerID != "admin-1" {
+		t.Fatalf("reviewerID = %q, want admin token user", store.reviewInput.ReviewerID)
+	}
+}
+
 type fakeAdminLoginService struct{}
 
 func (fakeAdminLoginService) Login(ctx context.Context, req adminauth.LoginRequest) (adminauth.LoginResponse, error) {
@@ -284,17 +346,19 @@ func decodeEnvelopeData(t *testing.T, rec *httptest.ResponseRecorder, wantStatus
 type fakeResourceAPIStore struct {
 	fakeCityAPIStore
 
-	publishConfig    model.ResourcePublishConfig
-	merchantStatus   string
-	created          model.CreateResourceInput
-	pendingFilter    model.ListPendingResourcesFilter
-	reviewAction     string
-	listFilter       model.ListResourcesFilter
-	searchLog        model.SearchLogInput
-	contactInput     model.ResourceContactEventInput
-	metricDelta      model.ResourceMetricDelta
-	myFilter         model.ListMyResourcesFilter
-	managedMerchants map[string]bool
+	publishConfig       model.ResourcePublishConfig
+	merchantStatus      string
+	created             model.CreateResourceInput
+	pendingFilter       model.ListPendingResourcesFilter
+	reviewAction        string
+	reviewInput         model.ReviewResourceInput
+	listFilter          model.ListResourcesFilter
+	searchLog           model.SearchLogInput
+	contactInput        model.ResourceContactEventInput
+	metricDelta         model.ResourceMetricDelta
+	myFilter            model.ListMyResourcesFilter
+	managedMerchants    map[string]bool
+	resourceMerchantIDs map[string]string
 }
 
 func (s *fakeResourceAPIStore) GetResourcePublishConfig(ctx context.Context, cityCode string, typeCode string) (model.ResourcePublishConfig, error) {
@@ -330,6 +394,7 @@ func (s *fakeResourceAPIStore) ListPendingResources(ctx context.Context, filter 
 
 func (s *fakeResourceAPIStore) ReviewResource(ctx context.Context, resourceID string, input model.ReviewResourceInput) (model.ReviewResourceResult, error) {
 	s.reviewAction = input.Action
+	s.reviewInput = input
 	return model.ReviewResourceResult{ID: resourceID, Status: model.ResourceStatusPublished}, nil
 }
 
@@ -351,10 +416,14 @@ func (s *fakeResourceAPIStore) RecordSearchLog(ctx context.Context, input model.
 }
 
 func (s *fakeResourceAPIStore) GetPublishedResourceDetail(ctx context.Context, resourceID string) (model.ResourceDetail, error) {
+	merchantID := "merchant-1"
+	if s.resourceMerchantIDs != nil && s.resourceMerchantIDs[resourceID] != "" {
+		merchantID = s.resourceMerchantIDs[resourceID]
+	}
 	return model.ResourceDetail{
 		ID: resourceID, Status: model.ResourceStatusPublished, TypeCode: "inventory", Title: "女童春款卫衣库存",
 		Category: "童装卫衣", Description: "可拿样", PriceText: "18元/件", QuantityText: "3800件",
-		Attributes: model.JSONMap{"season": "春季"}, MerchantID: "merchant-1", MerchantName: "织里云仓",
+		Attributes: model.JSONMap{"season": "春季"}, MerchantID: merchantID, MerchantName: "织里云仓",
 		MerchantVerificationStatus: "verified", ContactName: "周经理", PhoneMasked: "188****0002", WechatMasked: "stock-demo",
 	}, nil
 }

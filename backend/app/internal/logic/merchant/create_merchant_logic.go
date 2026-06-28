@@ -13,6 +13,7 @@ type CreateMerchantStore interface {
 }
 
 type CreateMerchantReq struct {
+	CreatorUserID  string
 	CityCode       string
 	Name           string
 	MerchantType   string
@@ -41,6 +42,7 @@ func NewCreateMerchantLogic(store CreateMerchantStore) *CreateMerchantLogic {
 
 func (l *CreateMerchantLogic) CreateMerchant(ctx context.Context, req CreateMerchantReq) (CreateMerchantResp, error) {
 	input := model.CreateMerchantInput{
+		CreatorUserID:  strings.TrimSpace(req.CreatorUserID),
 		CityCode:       strings.TrimSpace(req.CityCode),
 		Name:           strings.TrimSpace(req.Name),
 		MerchantType:   strings.TrimSpace(req.MerchantType),

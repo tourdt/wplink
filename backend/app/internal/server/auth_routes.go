@@ -63,6 +63,22 @@ func userIDFromBearerToken(r *http.Request, tokenService authlogic.TokenService)
 	return subject.UserID, nil
 }
 
+func optionalUserIDFromBearerToken(r *http.Request, tokenService authlogic.TokenService) (string, error) {
+	if tokenService == nil {
+		return "", nil
+	}
+	header := strings.TrimSpace(r.Header.Get("Authorization"))
+	if header == "" {
+		return "", nil
+	}
+	// 公开行为埋点允许匿名记录；一旦请求携带 token，就必须使用服务端解析出的用户身份，避免前端伪造归因。
+	subject, err := userSubjectFromBearerToken(r, tokenService)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(subject.UserID), nil
+}
+
 func userSubjectFromBearerToken(r *http.Request, tokenService authlogic.TokenService) (session.UserTokenSubject, error) {
 	header := strings.TrimSpace(r.Header.Get("Authorization"))
 	if header == "" {

@@ -11,6 +11,7 @@ const (
 )
 
 type CreateMerchantInput struct {
+	CreatorUserID  string
 	CityCode       string
 	Name           string
 	MerchantType   string
@@ -92,7 +93,8 @@ func NewMerchantModel(db *sql.DB) *MerchantModel {
 
 func (m *MerchantModel) CreateMerchant(ctx context.Context, input CreateMerchantInput) (CreateMerchantResult, error) {
 	var result CreateMerchantResult
-	err := m.db.QueryRowContext(ctx, `
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		if err := tx.QueryRowContext(ctx, `
 INSERT INTO merchants (
   city_station_id,
   name,
@@ -118,16 +120,28 @@ FROM city_stations cs
 WHERE cs.code = $1 AND cs.status = 'active'
 RETURNING id, name, verification_status, status
 `,
-		input.CityCode,
-		input.Name,
-		input.MerchantType,
-		JSONStringSlice(input.MainCategories),
-		input.Description,
-		input.ContactName,
-		input.ContactPhone,
-		input.ContactWechat,
-		input.AddressText,
-	).Scan(&result.ID, &result.Name, &result.VerificationStatus, &result.Status)
+			input.CityCode,
+			input.Name,
+			input.MerchantType,
+			JSONStringSlice(input.MainCategories),
+			input.Description,
+			input.ContactName,
+			input.ContactPhone,
+			input.ContactWechat,
+			input.AddressText,
+		).Scan(&result.ID, &result.Name, &result.VerificationStatus, &result.Status); err != nil {
+			return err
+		}
+		if input.CreatorUserID == "" {
+			return nil
+		}
+		_, err := tx.ExecContext(ctx, `
+INSERT INTO merchant_admin_bindings (merchant_id, user_id, role, status, created_by)
+VALUES ($1, $2, 'owner', 'active', $2)
+ON CONFLICT (merchant_id, user_id) WHERE status = 'active' DO NOTHING
+`, result.ID, input.CreatorUserID)
+		return err
+	})
 	return result, err
 }
 

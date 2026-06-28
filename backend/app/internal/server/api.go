@@ -117,7 +117,7 @@ func NewAPIRouter(store CityAPIStore, opts ...APIRouterOption) http.Handler {
 		}
 	}
 	if options.uploadTokenService != nil {
-		registerUploadRoutes(mux, options.uploadTokenService)
+		registerUploadRoutes(mux, options.uploadTokenService, options.userTokenService, options.adminTokenService)
 	}
 	mux.HandleFunc("GET /api/v1/city-stations", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := citylogic.NewListCityStationsLogic(store).ListCityStations(r.Context())
@@ -148,8 +148,12 @@ func permissionStoreFromStore(store any) MerchantPermissionStore {
 	return permissionStore
 }
 
-func registerUploadRoutes(mux *http.ServeMux, service UploadTokenService) {
+func registerUploadRoutes(mux *http.ServeMux, service UploadTokenService, userTokenService authlogic.TokenService, adminTokenService AdminTokenService) {
 	mux.HandleFunc("POST /api/v1/uploads/token", func(w http.ResponseWriter, r *http.Request) {
+		if err := requireUploadTokenAuth(r, userTokenService, adminTokenService); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
 		var body uploadlogic.CreateUploadTokenReq
 		if err := decodeJSONBody(r, &body); err != nil {
 			response.JSON(w, nil, err)
@@ -158,6 +162,22 @@ func registerUploadRoutes(mux *http.ServeMux, service UploadTokenService) {
 		resp, err := service.CreateUploadToken(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
+}
+
+func requireUploadTokenAuth(r *http.Request, userTokenService authlogic.TokenService, adminTokenService AdminTokenService) error {
+	if userTokenService == nil && adminTokenService == nil {
+		return nil
+	}
+	// 上传凭证可直接写入对象存储，生产接入任一 token 服务后必须绑定真实用户或后台操作员身份。
+	if subject, ok := adminSubjectFromBearerToken(r, adminTokenService); ok && permission.CanAccessAdmin(subject.Roles) {
+		return nil
+	}
+	if userTokenService != nil {
+		if _, err := userSubjectFromBearerToken(r, userTokenService); err == nil {
+			return nil
+		}
+	}
+	return errx.New(errx.CodeUnauthorized, "请先登录后上传文件")
 }
 
 func requireAdminToken(next http.Handler, tokenService AdminTokenService) http.Handler {
@@ -298,6 +318,12 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 	})
 	mux.HandleFunc("GET /api/v1/resource-search", func(w http.ResponseWriter, r *http.Request) {
 		req := searchResourcesReqFromQuery(r)
+		userID, err := optionalUserIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		req.UserID = userID
 		resp, err := resourcelogic.NewSearchResourcesLogic(store).SearchResources(r.Context(), req)
 		response.JSON(w, resp, err)
 	})
@@ -318,9 +344,14 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			response.JSON(w, nil, err)
 			return
 		}
+		userID, err := optionalUserIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
 		resp, err := metricslogic.NewRecordContactLogic(store).RecordContact(r.Context(), metricslogic.RecordContactReq{
 			ResourceID: r.PathValue("resourceId"),
-			UserID:     body.UserID,
+			UserID:     userID,
 			Action:     body.Action,
 		})
 		response.JSON(w, resp, err)
@@ -440,6 +471,12 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			response.JSON(w, nil, err)
 			return
 		}
+		if reviewerID, err := adminOperatorIDFromRequest(r, adminTokenService, body.ReviewerID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		} else {
+			body.ReviewerID = reviewerID
+		}
 		resp, err := adminlogic.NewReviewResourceLogic(store).ReviewResource(r.Context(), r.PathValue("resourceId"), adminlogic.ReviewResourceReq{
 			Action:     body.Action,
 			Reason:     body.Reason,
@@ -540,6 +577,17 @@ func optionalMerchantIDFromActionRequest(r *http.Request) (string, error) {
 		merchantID = strings.TrimSpace(r.URL.Query().Get("merchantId"))
 	}
 	return merchantID, nil
+}
+
+func adminOperatorIDFromRequest(r *http.Request, tokenService AdminTokenService, fallback string) (string, error) {
+	if tokenService == nil {
+		return strings.TrimSpace(fallback), nil
+	}
+	subject, ok := adminSubjectFromBearerToken(r, tokenService)
+	if !ok || strings.TrimSpace(subject.UserID) == "" {
+		return "", errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
+	return strings.TrimSpace(subject.UserID), nil
 }
 
 func decodeJSONBody(r *http.Request, target interface{}) error {

@@ -188,6 +188,120 @@ func TestAPIRouterRequiresMerchantPermissionForEntitlements(t *testing.T) {
 	}
 }
 
+func TestAPIRouterRequiresMerchantPermissionForMerchantMetrics(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	forbiddenRec := httptest.NewRecorder()
+	forbiddenReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-2/metrics/summary", nil)
+	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
+	}
+
+	allowedRec := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1/metrics/summary", nil)
+	allowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(allowedRec, allowedReq)
+	decodeEnvelopeData(t, allowedRec, http.StatusOK)
+}
+
+func TestAPIRouterRequiresMerchantPermissionForResourceMetrics(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true}
+	store.resourceMerchantIDs = map[string]string{"resource-1": "merchant-1", "resource-2": "merchant-2"}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	forbiddenRec := httptest.NewRecorder()
+	forbiddenReq := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-2/metrics", nil)
+	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
+	}
+
+	allowedRec := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/metrics", nil)
+	allowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(allowedRec, allowedReq)
+	decodeEnvelopeData(t, allowedRec, http.StatusOK)
+}
+
+func TestAPIRouterBindsCreatorAndProtectsMerchantUpdate(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	createRec := httptest.NewRecorder()
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants", strings.NewReader(`{
+		"cityCode":"zhili",
+		"name":"织里新商家",
+		"merchantType":"stockist",
+		"mainCategories":["童装"],
+		"contactName":"周经理",
+		"contactPhone":"18800000002"
+	}`))
+	createReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(createRec, createReq)
+	decodeEnvelopeData(t, createRec, http.StatusOK)
+	if store.createMerchantInput.CreatorUserID != "user-1" {
+		t.Fatalf("creatorUserID = %q, want token user", store.createMerchantInput.CreatorUserID)
+	}
+
+	forbiddenRec := httptest.NewRecorder()
+	forbiddenReq := httptest.NewRequest(http.MethodPatch, "/api/v1/merchants/merchant-2", strings.NewReader(`{"mainCategories":["童装"],"description":"更新简介"}`))
+	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
+	}
+
+	allowedRec := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodPatch, "/api/v1/merchants/merchant-1", strings.NewReader(`{"mainCategories":["童装"],"description":"更新简介"}`))
+	allowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(allowedRec, allowedReq)
+	decodeEnvelopeData(t, allowedRec, http.StatusOK)
+}
+
+func TestAPIRouterUsesAdminTokenOperatorForAdminActions(t *testing.T) {
+	store := newFakeFullAPIStore()
+	router := NewAPIRouter(
+		store,
+		WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}),
+	)
+
+	entitlementRec := httptest.NewRecorder()
+	entitlementReq := httptest.NewRequest(http.MethodPost, "/api/v1/admin/merchants/merchant-1/entitlements", strings.NewReader(`{
+		"operatorId":"attacker",
+		"entitlementType":"publish_quota",
+		"sourceType":"manual",
+		"totalAmount":3,
+		"reason":"测试发放"
+	}`))
+	entitlementReq.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(entitlementRec, entitlementReq)
+	decodeEnvelopeData(t, entitlementRec, http.StatusOK)
+	if store.grantEntitlementInput.OperatorID != "admin-1" {
+		t.Fatalf("grant operatorID = %q, want admin token user", store.grantEntitlementInput.OperatorID)
+	}
+
+	matchRec := httptest.NewRecorder()
+	matchReq := httptest.NewRequest(http.MethodPost, "/api/v1/admin/match-cases", strings.NewReader(`{
+		"operatorId":"attacker",
+		"purchaseDemandId":"demand-1",
+		"resourceIds":["resource-1"],
+		"participantMerchantIds":["merchant-1"]
+	}`))
+	matchReq.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(matchRec, matchReq)
+	decodeEnvelopeData(t, matchRec, http.StatusOK)
+	if store.createMatchInput.OperatorID != "admin-1" {
+		t.Fatalf("match operatorID = %q, want admin token user", store.createMatchInput.OperatorID)
+	}
+}
+
 func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(store)
@@ -259,6 +373,7 @@ func newFakeFullAPIStore() *fakeFullAPIStore {
 
 type fakeFullAPIStore struct {
 	fakeResourceAPIStore
+	createMerchantInput     model.CreateMerchantInput
 	createDemandInput       model.CreateDemandInput
 	myDemandUserID          string
 	submitVerificationInput model.SubmitVerificationInput
@@ -267,6 +382,8 @@ type fakeFullAPIStore struct {
 	readMessageRoleCode     string
 	redeemVoucherID         string
 	redeemResourceID        string
+	grantEntitlementInput   model.GrantEntitlementInput
+	createMatchInput        model.CreateMatchCaseInput
 }
 
 type fakeAdminTokenService struct {
@@ -281,6 +398,7 @@ func (s *fakeAdminTokenService) ParseAdminToken(ctx context.Context, token strin
 }
 
 func (s *fakeFullAPIStore) CreateMerchant(ctx context.Context, input model.CreateMerchantInput) (model.CreateMerchantResult, error) {
+	s.createMerchantInput = input
 	return model.CreateMerchantResult{ID: "merchant-1", Name: input.Name, VerificationStatus: "unverified", Status: model.MerchantStatusActive}, nil
 }
 
@@ -370,6 +488,7 @@ func (s *fakeFullAPIStore) RedeemTopVoucher(ctx context.Context, voucherID strin
 }
 
 func (s *fakeFullAPIStore) GrantMerchantEntitlement(ctx context.Context, input model.GrantEntitlementInput) (model.GrantEntitlementResult, error) {
+	s.grantEntitlementInput = input
 	return model.GrantEntitlementResult{ID: "entitlement-1"}, nil
 }
 
@@ -405,6 +524,7 @@ func (s *fakeFullAPIStore) UpdateResourceTypeConfig(ctx context.Context, configI
 }
 
 func (s *fakeFullAPIStore) CreateMatchCase(ctx context.Context, input model.CreateMatchCaseInput) (model.MatchCaseResult, error) {
+	s.createMatchInput = input
 	return model.MatchCaseResult{ID: "match-1", Status: model.MatchCaseStatusOpen}, nil
 }
 

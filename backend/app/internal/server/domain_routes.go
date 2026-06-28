@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -13,7 +14,9 @@ import (
 	messagelogic "wplink/backend/app/internal/logic/message"
 	metricslogic "wplink/backend/app/internal/logic/metrics"
 	verificationlogic "wplink/backend/app/internal/logic/verification"
+	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/task"
+	"wplink/backend/common/errx"
 	"wplink/backend/common/response"
 )
 
@@ -65,7 +68,7 @@ type AdminUtilityAPIStore interface {
 
 func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore) {
 	if merchantStore, ok := store.(MerchantAPIStore); ok {
-		registerMerchantRoutes(mux, merchantStore)
+		registerMerchantRoutes(mux, merchantStore, userTokenService, adminTokenService, permissionStore)
 	}
 	if demandStore, ok := store.(DemandAPIStore); ok {
 		registerDemandRoutes(mux, demandStore, userTokenService)
@@ -83,19 +86,27 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 		registerMessageRoutes(mux, messageStore, userTokenService, adminTokenService, permissionStore)
 	}
 	if metricsStore, ok := store.(MetricsQueryAPIStore); ok {
-		registerMetricsRoutes(mux, metricsStore)
+		registerMetricsRoutes(mux, metricsStore, userTokenService, adminTokenService, permissionStore)
 	}
 	if adminStore, ok := store.(AdminUtilityAPIStore); ok {
-		registerAdminUtilityRoutes(mux, adminStore)
+		registerAdminUtilityRoutes(mux, adminStore, adminTokenService)
 	}
 }
 
-func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore) {
+func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore) {
 	mux.HandleFunc("POST /api/v1/merchants", func(w http.ResponseWriter, r *http.Request) {
 		var body merchantlogic.CreateMerchantReq
 		if err := decodeJSONBody(r, &body); err != nil {
 			response.JSON(w, nil, err)
 			return
+		}
+		if tokenService != nil {
+			var err error
+			body.CreatorUserID, err = userIDFromBearerToken(r, tokenService)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
 		}
 		resp, err := merchantlogic.NewCreateMerchantLogic(store).CreateMerchant(r.Context(), body)
 		response.JSON(w, resp, err)
@@ -110,7 +121,12 @@ func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore) {
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := merchantlogic.NewUpdateMerchantLogic(store).UpdateMerchant(r.Context(), r.PathValue("merchantId"), body)
+		merchantID := r.PathValue("merchantId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := merchantlogic.NewUpdateMerchantLogic(store).UpdateMerchant(r.Context(), merchantID, body)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/admin/merchants", func(w http.ResponseWriter, r *http.Request) {
@@ -267,6 +283,12 @@ func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, 
 			return
 		}
 		body.VerificationID = r.PathValue("verificationId")
+		if reviewerID, err := adminOperatorIDFromRequest(r, adminTokenService, body.ReviewerID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		} else {
+			body.ReviewerID = reviewerID
+		}
 		resp, err := adminlogic.NewVerificationAdminLogic(store).ReviewVerification(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
@@ -312,6 +334,12 @@ func registerEntitlementRoutes(mux *http.ServeMux, store EntitlementAPIStore, to
 			return
 		}
 		body.MerchantID = r.PathValue("merchantId")
+		if operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, body.OperatorID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		} else {
+			body.OperatorID = operatorID
+		}
 		resp, err := adminlogic.NewEntitlementAdminLogic(store).GrantMerchantEntitlement(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
@@ -378,20 +406,57 @@ func merchantIDFromRoleCode(roleCode string) (string, bool) {
 	return merchantID, merchantID != ""
 }
 
-func registerMetricsRoutes(mux *http.ServeMux, store MetricsQueryAPIStore) {
+func registerMetricsRoutes(mux *http.ServeMux, store MetricsQueryAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore) {
 	mux.HandleFunc("GET /api/v1/resources/{resourceId}/metrics", func(w http.ResponseWriter, r *http.Request) {
+		resourceID := r.PathValue("resourceId")
+		if tokenService != nil {
+			merchantID, err := merchantIDForResourceMetrics(r.Context(), store, resourceID)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+			if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+		}
 		resp, err := metricslogic.NewGetResourceMetricsLogic(store).GetResourceMetrics(r.Context(), metricslogic.GetResourceMetricsReq{
-			ResourceID: r.PathValue("resourceId"), From: r.URL.Query().Get("from"), To: r.URL.Query().Get("to"),
+			ResourceID: resourceID, From: r.URL.Query().Get("from"), To: r.URL.Query().Get("to"),
 		})
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/metrics/summary", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := metricslogic.NewGetMerchantMetricsLogic(store).GetMerchantMetrics(r.Context(), r.PathValue("merchantId"))
+		merchantID := r.PathValue("merchantId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := metricslogic.NewGetMerchantMetricsLogic(store).GetMerchantMetrics(r.Context(), merchantID)
 		response.JSON(w, resp, err)
 	})
 }
 
-func registerAdminUtilityRoutes(mux *http.ServeMux, store AdminUtilityAPIStore) {
+type resourceMetricsOwnerStore interface {
+	GetPublishedResourceDetail(ctx context.Context, resourceID string) (model.ResourceDetail, error)
+}
+
+func merchantIDForResourceMetrics(ctx context.Context, store MetricsQueryAPIStore, resourceID string) (string, error) {
+	ownerStore, ok := any(store).(resourceMetricsOwnerStore)
+	if !ok {
+		return "", errx.New(errx.CodeForbidden, "您没有权限查看该资源指标")
+	}
+	detail, err := ownerStore.GetPublishedResourceDetail(ctx, resourceID)
+	if err != nil {
+		return "", err
+	}
+	merchantID := strings.TrimSpace(detail.MerchantID)
+	if merchantID == "" {
+		return "", errx.New(errx.CodeForbidden, "您没有权限查看该资源指标")
+	}
+	return merchantID, nil
+}
+
+func registerAdminUtilityRoutes(mux *http.ServeMux, store AdminUtilityAPIStore, adminTokenService AdminTokenService) {
 	mux.HandleFunc("GET /api/v1/admin/dashboard/overview", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := adminlogic.NewDashboardLogic(store).GetOverview(r.Context(), adminlogic.DashboardOverviewReq{CityCode: r.URL.Query().Get("cityCode")})
 		response.JSON(w, resp, err)
@@ -415,6 +480,12 @@ func registerAdminUtilityRoutes(mux *http.ServeMux, store AdminUtilityAPIStore) 
 			response.JSON(w, nil, err)
 			return
 		}
+		if operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, body.OperatorID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		} else {
+			body.OperatorID = operatorID
+		}
 		resp, err := adminlogic.NewMatchCaseLogic(store).CreateMatchCase(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
@@ -429,6 +500,12 @@ func registerAdminUtilityRoutes(mux *http.ServeMux, store AdminUtilityAPIStore) 
 			return
 		}
 		body.MatchCaseID = r.PathValue("matchCaseId")
+		if operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, body.OperatorID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		} else {
+			body.OperatorID = operatorID
+		}
 		resp, err := adminlogic.NewMatchCaseLogic(store).UpdateMatchCaseStatus(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
@@ -441,6 +518,12 @@ func registerAdminUtilityRoutes(mux *http.ServeMux, store AdminUtilityAPIStore) 
 			response.JSON(w, nil, err)
 			return
 		}
+		if operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, body.OperatorID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		} else {
+			body.OperatorID = operatorID
+		}
 		resp, err := adminlogic.NewMatchCaseLogic(store).AddMatchCaseResources(r.Context(), adminlogic.AddMatchCaseResourcesReq{MatchCaseID: r.PathValue("matchCaseId"), OperatorID: body.OperatorID, ResourceIDs: body.ResourceIDs})
 		response.JSON(w, resp, err)
 	})
@@ -452,6 +535,12 @@ func registerAdminUtilityRoutes(mux *http.ServeMux, store AdminUtilityAPIStore) 
 		if err := decodeJSONBody(r, &body); err != nil {
 			response.JSON(w, nil, err)
 			return
+		}
+		if operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, body.OperatorID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		} else {
+			body.OperatorID = operatorID
 		}
 		resp, err := adminlogic.NewMatchCaseLogic(store).AddMatchCaseParticipants(r.Context(), adminlogic.AddMatchCaseParticipantsReq{MatchCaseID: r.PathValue("matchCaseId"), OperatorID: body.OperatorID, MerchantIDs: body.ParticipantMerchantIDs})
 		response.JSON(w, resp, err)
