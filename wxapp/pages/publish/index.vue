@@ -22,6 +22,10 @@
 
     <view class="form-card">
       <text class="page-title">发布资源</text>
+      <view class="form-status">
+        <text>{{ publishReadyText }}</text>
+        <strong>{{ canSubmit ? '可提交审核' : '继续补充必填项' }}</strong>
+      </view>
       <picker :range="resourceTypeNames" :value="selectedTypeIndex" @change="selectType">
         <view class="field picker-field">{{ selectedTypeLabel }}</view>
       </picker>
@@ -89,6 +93,8 @@ const selectedTypeLabel = computed(() => {
   const current = resourceTypes.value[selectedTypeIndex.value] || {}
   return current.typeName || '请选择资源类型'
 })
+const canSubmit = computed(() => Boolean(form.typeCode && form.title.trim() && form.category.trim() && form.contact.name.trim() && form.contact.phone.trim()))
+const publishReadyText = computed(() => (canSubmit.value ? '必填项已完整' : '标题、品类、联系人和联系电话为必填项'))
 
 onLoad(async (options) => {
   // 发布页优先使用路由带入的商家 ID，其次使用我的页保存的商家，减少商家重复输入。
@@ -276,6 +282,28 @@ function validatePublishForm() {
 .page-title {
   font-size: 36rpx;
   font-weight: 700;
+}
+
+.form-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 18rpx;
+  border-radius: 10rpx;
+  background: #f8fafc;
+}
+
+.form-status text {
+  color: #697586;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.form-status strong {
+  flex: 0 0 auto;
+  color: #0f766e;
+  font-size: 26rpx;
 }
 
 .field,

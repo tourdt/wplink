@@ -1,5 +1,10 @@
 <template>
   <view class="messages-page">
+    <view class="message-hero">
+      <text class="hero-title">消息和效果</text>
+      <text class="hero-desc">关注审核、过期、需求跟进和资源表现，及时处理会影响资源曝光。</text>
+    </view>
+
     <scroll-view class="filter-row" scroll-x>
       <button
         v-for="item in messageTabs"
@@ -12,7 +17,7 @@
     </scroll-view>
 
     <view class="message-list">
-      <view v-for="item in rows" :key="item.id" class="message-card" @click="openMessageTarget(item)">
+      <view v-for="item in rows" :key="item.id" :class="['message-card', item.status === 'read' ? 'read' : 'unread']" @click="openMessageTarget(item)">
         <text :class="['message-dot', item.status === 'read' ? 'read' : '']"></text>
         <view class="card-head">
           <text class="message-title">{{ item.title }}</text>
@@ -146,6 +151,29 @@ function openMyResources() {
   background: #f4f6f8;
 }
 
+.message-hero {
+  display: grid;
+  gap: 8rpx;
+  margin-bottom: 20rpx;
+  padding: 24rpx;
+  border-radius: 12rpx;
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(183, 121, 31, 0.08)),
+    #ffffff;
+}
+
+.hero-title {
+  color: #1f2933;
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.hero-desc {
+  color: #697586;
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
 .filter-row {
   width: 100%;
   margin-bottom: 20rpx;
@@ -183,6 +211,14 @@ function openMyResources() {
   padding: 24rpx;
   border-radius: 12rpx;
   background: #ffffff;
+}
+
+.message-card.unread {
+  border: 1rpx solid #e6f4f1;
+}
+
+.message-card.read {
+  opacity: 0.86;
 }
 
 .message-dot {

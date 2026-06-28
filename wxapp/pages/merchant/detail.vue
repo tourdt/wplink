@@ -3,12 +3,29 @@
     <view class="merchant-head">
       <view>
         <text class="merchant-name">{{ merchant.name }}</text>
+        <text class="merchant-subtitle">{{ merchantSubtitle }}</text>
         <view class="tag-row">
           <text class="tag">{{ merchantTypeText[merchant.merchantType] || merchant.merchantType }}</text>
           <text class="tag verified" v-if="merchant.verificationStatus === 'verified'">已认证</text>
+          <text class="tag verified" v-if="creditTags.length">平台核实</text>
         </view>
       </view>
       <button class="follow-button" @click="toggleFollow">{{ followed ? '已关注' : '关注' }}</button>
+    </view>
+
+    <view class="merchant-stats">
+      <view class="stat-item">
+        <text class="stat-value">{{ resourcesSummary.publishedCount || merchantResources.length || 0 }}</text>
+        <text class="stat-label">当前资源</text>
+      </view>
+      <view class="stat-item">
+        <text class="stat-value">{{ resourcesSummary.totalCount || resourcesSummary.publishedCount || merchantResources.length || 0 }}</text>
+        <text class="stat-label">历史发布</text>
+      </view>
+      <view class="stat-item">
+        <text class="stat-value">{{ resourcesSummary.dealtCount || 0 }}</text>
+        <text class="stat-label">成交反馈</text>
+      </view>
     </view>
 
     <view class="section">
@@ -81,6 +98,10 @@ const followed = ref(false)
 const creditTags = computed(() => merchant.value.creditTags || [])
 const merchantImages = computed(() => merchant.value.images || [])
 const resourcesSummary = computed(() => merchant.value.resourcesSummary || {})
+const merchantSubtitle = computed(() => {
+  const categories = (merchant.value.mainCategories || []).join('、')
+  return categories || merchant.value.description || '服装产业资源商家'
+})
 const merchantTypeText = {
   factory: '工厂',
   stall: '档口',
@@ -152,6 +173,9 @@ function copyWechat() {
   grid-template-columns: 1fr 136rpx;
   gap: 16rpx;
   align-items: start;
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(37, 99, 235, 0.06)),
+    #ffffff;
 }
 
 .merchant-name {
@@ -160,6 +184,41 @@ function copyWechat() {
   color: #1f2933;
   font-size: 36rpx;
   font-weight: 700;
+}
+
+.merchant-subtitle {
+  display: block;
+  margin-bottom: 14rpx;
+  color: #697586;
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
+.merchant-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+  margin-bottom: 20rpx;
+}
+
+.stat-item {
+  display: grid;
+  gap: 6rpx;
+  padding: 18rpx 10rpx;
+  border-radius: 12rpx;
+  background: #ffffff;
+  text-align: center;
+}
+
+.stat-value {
+  color: #1f2933;
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.stat-label {
+  color: #697586;
+  font-size: 24rpx;
 }
 
 .tag-row {

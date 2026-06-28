@@ -8,6 +8,10 @@
       <button @click="openPublish">发布</button>
     </view>
 
+    <view class="lifecycle-note">
+      <text>已发布资源可刷新、置顶、成交或下架；即将过期和已过期资源建议及时再发类似。</text>
+    </view>
+
     <scroll-view class="filter-row" scroll-x>
       <button
         v-for="item in statusOptions"
@@ -32,6 +36,7 @@
         <text class="resource-meta">{{ item.category }} · {{ item.typeCode }}</text>
         <text class="resource-meta">发布 {{ item.publishedAt || '-' }} · 到期 {{ item.expiresAt || '-' }}</text>
         <MetricStrip :items="metricItems(item)" />
+        <text class="effect-advice">{{ effectAdvice(item) }}</text>
         <view class="action-row">
           <button v-if="item.status === 'published'" @click="refresh(item)">刷新</button>
           <button v-if="item.status === 'published'" @click="topResource(item)">置顶</button>
@@ -171,6 +176,13 @@ function metricItems(item) {
     { label: '微信', value: metrics.wechatCopyCount || 0 },
   ]
 }
+
+function effectAdvice(item) {
+  if (item.status === 'pending') return '审核通过后会进入搜索、首页分类和商家主页。'
+  if (item.status === 'published') return '可根据曝光和联系情况决定是否刷新或使用置顶券。'
+  if (canRepost(item)) return '该资源已结束，可再发类似资源继续获取曝光。'
+  return '保持信息完整有助于买家快速判断。'
+}
 </script>
 
 <style scoped>
@@ -220,6 +232,19 @@ function metricItems(item) {
   color: #ffffff;
   font-size: 26rpx;
   font-weight: 700;
+}
+
+.lifecycle-note {
+  margin-bottom: 20rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 12rpx;
+  background: #fff7e6;
+}
+
+.lifecycle-note text {
+  color: #7c5a22;
+  font-size: 24rpx;
+  line-height: 1.5;
 }
 
 .filter-button {
@@ -301,6 +326,15 @@ function metricItems(item) {
   color: #697586;
   font-size: 26rpx;
   line-height: 1.5;
+}
+
+.effect-advice {
+  padding: 14rpx 16rpx;
+  border-radius: 10rpx;
+  background: #f8fafc;
+  color: #4b5565;
+  font-size: 24rpx;
+  line-height: 1.45;
 }
 
 .action-row {
