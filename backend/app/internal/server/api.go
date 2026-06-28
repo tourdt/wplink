@@ -453,6 +453,7 @@ func listResourcesReqFromQuery(r *http.Request) resourcelogic.ListResourcesReq {
 	query := r.URL.Query()
 	return resourcelogic.ListResourcesReq{
 		CityCode:     query.Get("cityCode"),
+		MerchantID:   query.Get("merchantId"),
 		TypeCode:     query.Get("typeCode"),
 		Keyword:      query.Get("keyword"),
 		Category:     query.Get("category"),

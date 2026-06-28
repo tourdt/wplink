@@ -40,7 +40,7 @@
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
 | `POST /api/v1/merchants` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/create_merchant_logic.go` | `admin-web/src/views/MerchantView.vue` | 商家入驻/我的 | 已接 handler，测试通过 |
-| `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue` | 已接 handler，测试通过 |
+| `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue`，含认证、信用标签和发布记录 | 已接 handler，测试通过 |
 | `PATCH /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/update_merchant_logic.go` | 商家编辑 | 商家资料编辑 | 已接 handler，测试通过 |
 
 ## 资源
@@ -85,7 +85,7 @@
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
 | `POST /api/v1/merchants/:merchantId/verifications` | `backend/app/api/verification.api` | `backend/app/internal/logic/verification/submit_verification_logic.go` | 认证审核列表 | `wxapp/pages/verification/index.vue` | 已接 handler，测试通过 |
-| `GET /api/v1/merchants/:merchantId/verifications/latest` | `backend/app/api/verification.api` | `backend/app/internal/logic/verification/submit_verification_logic.go` | 商家详情 | 认证入口/商家主页 | 已接 handler，测试通过 |
+| `GET /api/v1/merchants/:merchantId/verifications/latest` | `backend/app/api/verification.api` | `backend/app/internal/logic/verification/submit_verification_logic.go` | 商家详情 | `wxapp/pages/verification/index.vue` 认证状态 | 已接 handler，测试通过 |
 
 ## 权益与置顶
 

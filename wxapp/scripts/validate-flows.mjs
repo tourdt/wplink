@@ -86,9 +86,14 @@ export const defaultFlowChecks = [
     checks: ['validateWebview', 'allowedUrl', '链接不可访问'],
   },
   {
+    file: 'pages/merchant/detail.vue',
+    description: '商家主页认证和发布记录',
+    checks: ['getMerchant', 'listResources', 'ResourceCard', 'merchantResources', 'openResource', 'verificationStatus', 'resourcesSummary'],
+  },
+  {
     file: 'pages/verification/index.vue',
     description: '商家认证提交',
-    checks: ['submitVerification', 'getUserId', 'businessName', 'licenseUrl', 'storefrontUrl', 'chooseAndUploadImage', 'uploadLicense', 'uploadStorefront'],
+    checks: ['submitVerification', 'getLatestVerification', 'latestVerification', 'statusLabel', 'getUserId', 'businessName', 'licenseUrl', 'storefrontUrl', 'chooseAndUploadImage', 'uploadLicense', 'uploadStorefront'],
   },
   {
     file: 'common/upload.js',

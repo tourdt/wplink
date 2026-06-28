@@ -13,6 +13,7 @@ type ListResourcesStore interface {
 
 type ListResourcesReq struct {
 	CityCode     string
+	MerchantID   string
 	TypeCode     string
 	Keyword      string
 	Category     string
@@ -58,6 +59,7 @@ func NewListResourcesLogic(store ListResourcesStore) *ListResourcesLogic {
 func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResourcesReq) (ListResourcesResp, error) {
 	result, err := l.store.ListResources(ctx, model.ListResourcesFilter{
 		CityCode:     strings.TrimSpace(req.CityCode),
+		MerchantID:   strings.TrimSpace(req.MerchantID),
 		TypeCode:     strings.TrimSpace(req.TypeCode),
 		Keyword:      strings.TrimSpace(req.Keyword),
 		Category:     strings.TrimSpace(req.Category),

@@ -1,5 +1,13 @@
 <template>
   <view class="verification-page">
+    <view class="status-card">
+      <text class="section-title">认证状态</text>
+      <text class="status-text">{{ statusLabel(latestVerification.status) }}</text>
+      <text class="status-meta" v-if="latestVerification.verificationType">
+        {{ typeLabel(latestVerification.verificationType) }} · {{ latestVerification.reviewedAt || '等待审核' }}
+      </text>
+    </view>
+
     <view class="form-card">
       <text class="page-title">商家认证</text>
       <input v-model="form.merchantId" class="field" placeholder="商家 ID" />
@@ -17,10 +25,10 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getMerchantId, getUserId } from '../../store/session'
-import { submitVerification } from '../../api/verification'
+import { getLatestVerification, submitVerification } from '../../api/verification'
 import { chooseAndUploadImage } from '../../common/upload'
 
 const typeOptions = [
@@ -40,13 +48,41 @@ const form = reactive({
 })
 
 const currentTypeLabel = computed(() => typeOptions.find((item) => item.value === form.verificationType)?.label || '工厂认证')
+const latestVerification = ref({ status: 'none' })
 
-onLoad((options) => {
+onLoad(async (options) => {
   form.merchantId = options.merchantId || getMerchantId()
+  await loadLatestVerification()
 })
+
+async function loadLatestVerification() {
+  if (!form.merchantId) {
+    latestVerification.value = { status: 'none' }
+    return
+  }
+  try {
+    latestVerification.value = await getLatestVerification(form.merchantId)
+  } catch (err) {
+    latestVerification.value = { status: 'none' }
+  }
+}
 
 function changeType(event) {
   form.verificationType = typeOptions[Number(event.detail.value)]?.value || 'factory'
+}
+
+function typeLabel(type) {
+  return typeOptions.find((item) => item.value === type)?.label || type || '-'
+}
+
+function statusLabel(status) {
+  const statusText = {
+    none: '未提交认证',
+    pending: '审核中',
+    verified: '已认证',
+    rejected: '未通过',
+  }
+  return statusText[status] || status || '未提交认证'
 }
 
 async function uploadLicense() {
@@ -92,6 +128,7 @@ async function submit() {
     materials: form.materials,
   })
   uni.showToast({ title: '认证已提交', icon: 'none' })
+  await loadLatestVerification()
 }
 </script>
 
@@ -102,9 +139,11 @@ async function submit() {
   background: #f4f6f8;
 }
 
+.status-card,
 .form-card {
   display: grid;
   gap: 18rpx;
+  margin-bottom: 20rpx;
   padding: 24rpx;
   border-radius: 12rpx;
   background: #ffffff;
@@ -121,6 +160,18 @@ async function submit() {
   padding: 0 20rpx;
   border: 1rpx solid #d8dde6;
   border-radius: 10rpx;
+}
+
+.section-title,
+.status-meta {
+  color: #697586;
+  font-size: 26rpx;
+}
+
+.status-text {
+  color: #0f766e;
+  font-size: 34rpx;
+  font-weight: 700;
 }
 
 .picker-field {

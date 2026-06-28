@@ -74,6 +74,7 @@ type ResourceListItem struct {
 
 type ListResourcesFilter struct {
 	CityCode     string
+	MerchantID   string
 	TypeCode     string
 	Keyword      string
 	Category     string
@@ -361,21 +362,22 @@ JOIN city_stations cs ON cs.id = r.city_station_id
 WHERE r.deleted_at IS NULL
   AND r.status = $1
   AND ($2 = '' OR cs.code = $2)
-  AND ($3 = '' OR r.type_code = $3)
-  AND ($4 = '' OR r.category = $4)
+  AND ($3 = '' OR r.merchant_id = $3)
+  AND ($4 = '' OR r.type_code = $4)
+  AND ($5 = '' OR r.category = $5)
   AND (
-    $5 = ''
-    OR r.title ILIKE '%' || $5 || '%'
-    OR r.description ILIKE '%' || $5 || '%'
-    OR r.category ILIKE '%' || $5 || '%'
-    OR m.name ILIKE '%' || $5 || '%'
-    OR r.attributes::text ILIKE '%' || $5 || '%'
+    $6 = ''
+    OR r.title ILIKE '%' || $6 || '%'
+    OR r.description ILIKE '%' || $6 || '%'
+    OR r.category ILIKE '%' || $6 || '%'
+    OR m.name ILIKE '%' || $6 || '%'
+    OR r.attributes::text ILIKE '%' || $6 || '%'
   )
-  AND ($6 = false OR r.is_verified = true OR m.verification_status = 'verified')
+  AND ($7 = false OR r.is_verified = true OR m.verification_status = 'verified')
   AND (r.expires_at IS NULL OR r.expires_at > now())
 ORDER BY COALESCE(r.refreshed_at, r.published_at, r.created_at) DESC
-LIMIT $7 OFFSET $8
-`, filter.Status, filter.CityCode, filter.TypeCode, filter.Category, filter.Keyword, filter.VerifiedOnly, pageSize, offset)
+LIMIT $8 OFFSET $9
+`, filter.Status, filter.CityCode, filter.MerchantID, filter.TypeCode, filter.Category, filter.Keyword, filter.VerifiedOnly, pageSize, offset)
 	if err != nil {
 		return ListResourcesResult{}, err
 	}

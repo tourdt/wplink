@@ -2,6 +2,8 @@ package verification
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 
 	"wplink/backend/app/internal/model"
@@ -81,6 +83,9 @@ func (l *GetLatestVerificationLogic) GetLatestVerification(ctx context.Context, 
 		return LatestVerificationResp{}, errx.New(errx.CodeValidationFailed, "商家不存在")
 	}
 	result, err := l.store.GetLatestVerification(ctx, merchantID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return LatestVerificationResp{Status: "none"}, nil
+	}
 	if err != nil {
 		return LatestVerificationResp{}, err
 	}

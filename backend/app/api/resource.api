@@ -36,6 +36,7 @@ type SubmitResourceResp {
 
 type ListResourcesReq {
 	CityCode     string `form:"cityCode,optional"`
+	MerchantId   string `form:"merchantId,optional"`
 	TypeCode     string `form:"typeCode,optional"`
 	Keyword      string `form:"keyword,optional"`
 	Category     string `form:"category,optional"`

@@ -34,6 +34,17 @@
       </text>
     </view>
 
+    <view class="section">
+      <view class="section-head">
+        <text class="section-title">发布记录</text>
+        <text class="section-link" v-if="merchantResources.length">{{ merchantResources.length }} 条</text>
+      </view>
+      <view v-if="merchantResources.length === 0" class="empty-text">暂无公开资源</view>
+      <view v-else class="resource-list">
+        <ResourceCard v-for="item in merchantResources" :key="item.id" :resource="item" @open="openResource" />
+      </view>
+    </view>
+
     <view class="contact-bar">
       <button class="contact-button" @click="copyWechat">复制微信</button>
       <button class="primary-button" @click="callPhone">拨打电话</button>
@@ -44,9 +55,12 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import ResourceCard from '../../components/ResourceCard.vue'
 import { getMerchant } from '../../api/merchant'
+import { listResources } from '../../api/resource'
 
 const merchant = ref({})
+const merchantResources = ref([])
 const merchantTypeText = {
   factory: '工厂',
   stall: '档口',
@@ -58,7 +72,13 @@ const merchantTypeText = {
 onLoad(async (options) => {
   if (!options.id) return
   merchant.value = await getMerchant(options.id)
+  const resp = await listResources({ merchantId: options.id, page: 1, pageSize: 10 })
+  merchantResources.value = resp.items || []
 })
+
+function openResource(resource) {
+  uni.navigateTo({ url: `/pages/resource/detail?id=${resource.id}` })
+}
 
 function callPhone() {
   uni.showToast({ title: '请在资源详情页查看完整电话', icon: 'none' })
@@ -116,6 +136,28 @@ function copyWechat() {
   margin-bottom: 12rpx;
   color: #697586;
   font-size: 26rpx;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.section-head .section-title {
+  margin-bottom: 0;
+}
+
+.section-link,
+.empty-text {
+  color: #697586;
+  font-size: 26rpx;
+}
+
+.resource-list {
+  display: grid;
+  gap: 14rpx;
 }
 
 .section-content {

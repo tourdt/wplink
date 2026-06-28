@@ -16,13 +16,16 @@ func TestListResourcesRequestsPublishedOnly(t *testing.T) {
 	}
 	logic := NewListResourcesLogic(store)
 
-	resp, err := logic.ListResources(context.Background(), ListResourcesReq{CityCode: "zhili", TypeCode: "inventory"})
+	resp, err := logic.ListResources(context.Background(), ListResourcesReq{CityCode: "zhili", TypeCode: "inventory", MerchantID: " merchant-1 "})
 	if err != nil {
 		t.Fatalf("ListResources() error = %v", err)
 	}
 
 	if store.filter.Status != "published" {
 		t.Fatalf("status = %q, want published", store.filter.Status)
+	}
+	if store.filter.MerchantID != "merchant-1" {
+		t.Fatalf("merchantID = %q, want trimmed merchant-1", store.filter.MerchantID)
 	}
 	if len(resp.Items) != 1 || resp.Items[0].ID != "resource-1" {
 		t.Fatalf("items = %#v, want resource item", resp.Items)

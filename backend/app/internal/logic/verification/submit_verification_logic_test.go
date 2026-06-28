@@ -2,6 +2,7 @@ package verification
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -62,11 +63,25 @@ func TestGetLatestVerificationMapsStoreResult(t *testing.T) {
 	}
 }
 
+func TestGetLatestVerificationReturnsNoneWhenMissing(t *testing.T) {
+	store := &fakeVerificationStore{latestErr: sql.ErrNoRows}
+	logic := NewGetLatestVerificationLogic(store)
+
+	resp, err := logic.GetLatestVerification(context.Background(), "merchant-1")
+	if err != nil {
+		t.Fatalf("GetLatestVerification() error = %v, want nil", err)
+	}
+	if resp.Status != "none" {
+		t.Fatalf("status = %q, want none", resp.Status)
+	}
+}
+
 type fakeVerificationStore struct {
 	submitInput      model.SubmitVerificationInput
 	submitResult     model.VerificationResult
 	latestMerchantID string
 	latest           model.VerificationBrief
+	latestErr        error
 }
 
 func (s *fakeVerificationStore) SubmitVerification(ctx context.Context, input model.SubmitVerificationInput) (model.VerificationResult, error) {
@@ -76,5 +91,5 @@ func (s *fakeVerificationStore) SubmitVerification(ctx context.Context, input mo
 
 func (s *fakeVerificationStore) GetLatestVerification(ctx context.Context, merchantID string) (model.VerificationBrief, error) {
 	s.latestMerchantID = merchantID
-	return s.latest, nil
+	return s.latest, s.latestErr
 }
