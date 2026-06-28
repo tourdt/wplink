@@ -62,7 +62,6 @@ const messageTabs = [
   { label: '未读', status: 'unread', action: () => selectStatus('unread') },
   { label: '已读', status: 'read', action: () => selectStatus('read') },
   { label: '审核', status: '' },
-  { label: '撮合', status: '' },
   { label: '效果', status: '' },
 ]
 const tabPagePaths = ['/pages/home/index', '/pages/search/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']

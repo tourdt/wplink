@@ -30,10 +30,6 @@
           <el-icon><Ticket /></el-icon>
           <span>权益发放</span>
         </el-menu-item>
-        <el-menu-item index="/match-cases">
-          <el-icon><Connection /></el-icon>
-          <span>人工撮合</span>
-        </el-menu-item>
         <el-menu-item index="/banner-topics">
           <el-icon><Picture /></el-icon>
           <span>Banner 专题</span>
@@ -81,7 +77,7 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { CircleCheck, Connection, DataLine, Document, Picture, Search, Setting, Shop, Ticket, Tickets, User } from '@element-plus/icons-vue'
+import { CircleCheck, DataLine, Document, Picture, Search, Setting, Shop, Ticket, Tickets, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()

@@ -1,7 +1,7 @@
 {
   "name": "服链通",
   "appid": "__UNI__WPLINK",
-  "description": "服装产业资源撮合平台微信小程序",
+  "description": "服装产业资源平台微信小程序",
   "versionName": "0.1.0",
   "versionCode": "100",
   "transformPx": false,

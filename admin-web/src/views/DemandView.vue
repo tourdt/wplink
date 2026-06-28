@@ -23,7 +23,7 @@
         <el-form-item label="状态">
           <el-select v-model="filters.status" placeholder="全部" style="width: 130px">
             <el-option label="全部" value="" />
-            <el-option label="待撮合" value="pending" />
+            <el-option label="待处理" value="pending" />
             <el-option label="跟进中" value="matching" />
             <el-option label="已联系" value="contacted" />
             <el-option label="已关闭" value="closed" />
@@ -92,7 +92,7 @@ const demandTypeText = {
   service: '找服务',
 }
 const statusText = {
-  pending: '待撮合',
+  pending: '待处理',
   matching: '跟进中',
   contacted: '已联系',
   closed: '已关闭',

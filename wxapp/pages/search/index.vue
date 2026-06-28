@@ -49,7 +49,7 @@
 
     <view v-else-if="searched" class="empty-card">
       <text class="empty-title">暂未找到合适资源</text>
-      <text class="empty-desc">提交采购需求后，运营会协助撮合。</text>
+      <text class="empty-desc">提交采购需求后，运营会继续跟进。</text>
       <button class="primary-button" @click="openDemand">提交采购需求</button>
     </view>
   </view>

@@ -64,7 +64,7 @@
       </view>
       <view class="action-item" @click="openMyDemands">
         <text>我的需求</text>
-        <text class="action-meta">采购需求和撮合进展</text>
+        <text class="action-meta">采购需求和处理进展</text>
       </view>
       <view class="action-item" @click="openFavorites">
         <text>收藏关注</text>

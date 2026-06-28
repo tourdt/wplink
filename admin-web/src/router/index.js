@@ -10,7 +10,6 @@ import VerificationView from '../views/VerificationView.vue'
 import EntitlementView from '../views/EntitlementView.vue'
 import OperationLogView from '../views/OperationLogView.vue'
 import SearchLogView from '../views/SearchLogView.vue'
-import MatchCaseView from '../views/MatchCaseView.vue'
 import ResourceTypeConfigView from '../views/ResourceTypeConfigView.vue'
 import BannerTopicView from '../views/BannerTopicView.vue'
 
@@ -32,7 +31,6 @@ const routes = [
       { path: 'demands', name: 'demands', component: DemandView },
       { path: 'verifications', name: 'verifications', component: VerificationView },
       { path: 'entitlements', name: 'entitlements', component: EntitlementView },
-      { path: 'match-cases', name: 'matchCases', component: MatchCaseView },
       { path: 'banner-topics', name: 'bannerTopics', component: BannerTopicView },
       { path: 'resource-type-configs', name: 'resourceTypeConfigs', component: ResourceTypeConfigView },
       { path: 'operation-logs', name: 'operationLogs', component: OperationLogView },

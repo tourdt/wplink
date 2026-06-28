@@ -10,6 +10,21 @@ test('current wxapp pages satisfy MVP flow checks', () => {
   assert.deepEqual(validateFlows(path.resolve(new URL('..', import.meta.url).pathname)), [])
 })
 
+test('launch UI hides matching feature copy', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const files = [
+    'pages/messages/index.vue',
+    'pages/demand-success/index.vue',
+    'pages/my/index.vue',
+    'pages/search/index.vue',
+    'pages/my-demands/index.vue',
+  ]
+
+  const visibleSource = files.map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n')
+
+  assert.equal(visibleSource.includes('撮合'), false)
+})
+
 test('reports missing API call in required page flow', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'wplink-wxapp-flow-'))
   fs.mkdirSync(path.join(root, 'pages/home'), { recursive: true })

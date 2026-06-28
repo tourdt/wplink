@@ -13,7 +13,7 @@
 
     <view v-if="rows.length === 0" class="empty-state">
       <text class="empty-title">暂无采购需求</text>
-      <text class="empty-desc">提交需求后，运营撮合进展会在这里同步。</text>
+      <text class="empty-desc">提交需求后，运营处理进展会在这里同步。</text>
       <button class="primary-button" @click="openDemand">提交需求</button>
     </view>
 
@@ -26,7 +26,7 @@
         <text class="demand-meta">{{ typeLabel(item.demandType) }} · {{ item.category || '-' }}</text>
         <text class="demand-meta">联系人 {{ item.contactName || '-' }} · {{ formatDate(item.createdAt) }}</text>
       </view>
-      <button class="secondary-button" @click="openMessages">查看撮合消息</button>
+      <button class="secondary-button" @click="openMessages">查看消息</button>
       <button class="primary-button" @click="openDemand">继续提交需求</button>
     </view>
   </view>
@@ -42,14 +42,14 @@ import { getUserId } from '../../store/session'
 const statusOptions = [
   { label: '全部', value: '' },
   { label: '待处理', value: 'pending' },
-  { label: '撮合中', value: 'matching' },
+  { label: '跟进中', value: 'matching' },
   { label: '已联系', value: 'contacted' },
   { label: '已关闭', value: 'closed' },
 ]
 
 const statusText = {
   pending: '待处理',
-  matching: '撮合中',
+  matching: '跟进中',
   contacted: '已联系',
   closed: '已关闭',
 }
