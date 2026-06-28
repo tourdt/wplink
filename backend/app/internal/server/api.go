@@ -39,6 +39,10 @@ type ResourceAPIStore interface {
 	metricslogic.MetricUpsertStore
 }
 
+type MerchantPermissionStore interface {
+	UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error)
+}
+
 type AdminLoginService interface {
 	Login(ctx context.Context, req adminauth.LoginRequest) (adminauth.LoginResponse, error)
 }
@@ -129,7 +133,8 @@ func NewAPIRouter(store CityAPIStore, opts ...APIRouterOption) http.Handler {
 		response.JSON(w, resp, err)
 	})
 	if resourceStore, ok := any(store).(ResourceAPIStore); ok {
-		registerResourceRoutes(mux, resourceStore)
+		permissionStore, _ := any(store).(MerchantPermissionStore)
+		registerResourceRoutes(mux, resourceStore, options.userTokenService, permissionStore)
 	}
 	registerOptionalDomainRoutes(mux, store)
 	if options.adminTokenService != nil {
@@ -175,6 +180,27 @@ func requireAdminToken(next http.Handler, tokenService AdminTokenService) http.H
 	})
 }
 
+func requireMerchantPermission(r *http.Request, tokenService authlogic.TokenService, permissionStore MerchantPermissionStore, merchantID string) error {
+	if tokenService == nil || permissionStore == nil {
+		return nil
+	}
+	subject, err := userSubjectFromBearerToken(r, tokenService)
+	if err != nil {
+		return err
+	}
+	if permission.CanAccessAdmin(subject.Roles) {
+		return nil
+	}
+	canManage, err := permissionStore.UserCanManageMerchant(r.Context(), subject.UserID, merchantID)
+	if err != nil {
+		return err
+	}
+	if !canManage {
+		return errx.New(errx.CodeForbidden, "您没有权限操作该商家")
+	}
+	return nil
+}
+
 func registerAdminAuthRoutes(mux *http.ServeMux, service AdminLoginService) {
 	mux.HandleFunc("POST /api/v1/admin/auth/login", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
@@ -197,10 +223,14 @@ func registerAdminAuthRoutes(mux *http.ServeMux, service AdminLoginService) {
 	})
 }
 
-func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore) {
+func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenService authlogic.TokenService, permissionStore MerchantPermissionStore) {
 	mux.HandleFunc("POST /api/v1/resources", func(w http.ResponseWriter, r *http.Request) {
 		req, err := decodeCreateResourceRequest(r)
 		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if err := requireMerchantPermission(r, tokenService, permissionStore, req.MerchantID); err != nil {
 			response.JSON(w, nil, err)
 			return
 		}
@@ -210,6 +240,10 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore) {
 	mux.HandleFunc("POST /api/v1/resources/drafts", func(w http.ResponseWriter, r *http.Request) {
 		req, err := decodeCreateResourceRequest(r)
 		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if err := requireMerchantPermission(r, tokenService, permissionStore, req.MerchantID); err != nil {
 			response.JSON(w, nil, err)
 			return
 		}
@@ -255,6 +289,10 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore) {
 	})
 	mux.HandleFunc("GET /api/v1/me/resources", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
+		if err := requireMerchantPermission(r, tokenService, permissionStore, query.Get("merchantId")); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
 		resp, err := resourcelogic.NewListMyResourcesLogic(store).ListMyResources(r.Context(), resourcelogic.ListMyResourcesReq{
 			MerchantID: query.Get("merchantId"),
 			Status:     query.Get("status"),
@@ -266,6 +304,10 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore) {
 	mux.HandleFunc("POST /api/v1/resources/{resourceId}/refresh", func(w http.ResponseWriter, r *http.Request) {
 		merchantID, err := merchantIDFromActionRequest(r)
 		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if err := requireMerchantPermission(r, tokenService, permissionStore, merchantID); err != nil {
 			response.JSON(w, nil, err)
 			return
 		}
@@ -291,6 +333,10 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore) {
 		if strings.TrimSpace(body.MerchantID) == "" {
 			body.MerchantID = r.URL.Query().Get("merchantId")
 		}
+		if err := requireMerchantPermission(r, tokenService, permissionStore, body.MerchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
 		resp, err := resourcelogic.NewMarkDealtLogic(store).MarkDealt(r.Context(), resourcelogic.MarkDealtReq{
 			MerchantID: body.MerchantID, ResourceID: r.PathValue("resourceId"), IsDealt: body.IsDealt,
 			IsReal: body.IsReal, ResponseTimely: body.ResponseTimely, WillingToCooperateAgain: body.WillingToCooperateAgain, Note: body.Note,
@@ -309,6 +355,10 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore) {
 		if strings.TrimSpace(body.MerchantID) == "" {
 			body.MerchantID = r.URL.Query().Get("merchantId")
 		}
+		if err := requireMerchantPermission(r, tokenService, permissionStore, body.MerchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
 		resp, err := resourcelogic.NewTakeDownOwnResourceLogic(store).TakeDown(r.Context(), resourcelogic.TakeDownOwnResourceReq{
 			MerchantID: body.MerchantID,
 			ResourceID: r.PathValue("resourceId"),
@@ -319,6 +369,10 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore) {
 	mux.HandleFunc("POST /api/v1/resources/{resourceId}/repost-similar", func(w http.ResponseWriter, r *http.Request) {
 		merchantID, err := merchantIDFromActionRequest(r)
 		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if err := requireMerchantPermission(r, tokenService, permissionStore, merchantID); err != nil {
 			response.JSON(w, nil, err)
 			return
 		}

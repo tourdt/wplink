@@ -171,6 +171,48 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 	}
 }
 
+func TestResourceAPIRouterRequiresManagedMerchantWhenTokenConfigured(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		publishConfig: model.ResourcePublishConfig{
+			ID:               "config-1",
+			TypeCode:         "inventory",
+			RequiredFields:   []string{"merchantId", "cityCode", "typeCode", "title", "category", "contactName", "contactPhone"},
+			DefaultValidDays: 7,
+		},
+		merchantStatus:   model.MerchantStatusActive,
+		managedMerchants: map[string]bool{"merchant-1": true},
+	}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	forbiddenRec := httptest.NewRecorder()
+	forbiddenReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources", strings.NewReader(`{
+		"merchantId":"merchant-2",
+		"cityCode":"zhili",
+		"typeCode":"inventory",
+		"title":"女童春款卫衣库存",
+		"category":"童装卫衣",
+		"contact":{"name":"周经理","phone":"18800000002"}
+	}`))
+	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
+	}
+
+	allowedRec := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources", strings.NewReader(`{
+		"merchantId":"merchant-1",
+		"cityCode":"zhili",
+		"typeCode":"inventory",
+		"title":"女童春款卫衣库存",
+		"category":"童装卫衣",
+		"contact":{"name":"周经理","phone":"18800000002"}
+	}`))
+	allowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(allowedRec, allowedReq)
+	decodeEnvelopeData(t, allowedRec, http.StatusOK)
+}
+
 type fakeAdminLoginService struct{}
 
 func (fakeAdminLoginService) Login(ctx context.Context, req adminauth.LoginRequest) (adminauth.LoginResponse, error) {
@@ -196,16 +238,17 @@ func decodeEnvelopeData(t *testing.T, rec *httptest.ResponseRecorder, wantStatus
 type fakeResourceAPIStore struct {
 	fakeCityAPIStore
 
-	publishConfig  model.ResourcePublishConfig
-	merchantStatus string
-	created        model.CreateResourceInput
-	pendingFilter  model.ListPendingResourcesFilter
-	reviewAction   string
-	listFilter     model.ListResourcesFilter
-	searchLog      model.SearchLogInput
-	contactInput   model.ResourceContactEventInput
-	metricDelta    model.ResourceMetricDelta
-	myFilter       model.ListMyResourcesFilter
+	publishConfig    model.ResourcePublishConfig
+	merchantStatus   string
+	created          model.CreateResourceInput
+	pendingFilter    model.ListPendingResourcesFilter
+	reviewAction     string
+	listFilter       model.ListResourcesFilter
+	searchLog        model.SearchLogInput
+	contactInput     model.ResourceContactEventInput
+	metricDelta      model.ResourceMetricDelta
+	myFilter         model.ListMyResourcesFilter
+	managedMerchants map[string]bool
 }
 
 func (s *fakeResourceAPIStore) GetResourcePublishConfig(ctx context.Context, cityCode string, typeCode string) (model.ResourcePublishConfig, error) {
@@ -214,6 +257,10 @@ func (s *fakeResourceAPIStore) GetResourcePublishConfig(ctx context.Context, cit
 
 func (s *fakeResourceAPIStore) GetMerchantPublishStatus(ctx context.Context, merchantID string) (string, error) {
 	return s.merchantStatus, nil
+}
+
+func (s *fakeResourceAPIStore) UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error) {
+	return s.managedMerchants[merchantID], nil
 }
 
 func (s *fakeResourceAPIStore) CreateResource(ctx context.Context, input model.CreateResourceInput) (model.CreateResourceResult, error) {

@@ -107,6 +107,25 @@ RETURNING id
 	return m.GetUserProfile(ctx, updatedID)
 }
 
+func (m *UserModel) UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error) {
+	var exists bool
+	if err := m.db.QueryRowContext(ctx, `
+SELECT EXISTS (
+  SELECT 1
+  FROM merchant_admin_bindings mab
+  JOIN merchants m ON m.id = mab.merchant_id
+  WHERE mab.user_id = $1
+    AND mab.merchant_id = $2
+    AND mab.status = 'active'
+    AND m.deleted_at IS NULL
+    AND m.status = 'active'
+)
+`, strings.TrimSpace(userID), strings.TrimSpace(merchantID)).Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 func (m *UserModel) ensureNormalUserRole(ctx context.Context, userID string) error {
 	_, err := m.db.ExecContext(ctx, `
 INSERT INTO user_role_assignments (user_id, role_id)

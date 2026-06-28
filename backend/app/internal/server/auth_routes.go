@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	authlogic "wplink/backend/app/internal/logic/auth"
+	"wplink/backend/app/internal/session"
 	"wplink/backend/common/errx"
 	"wplink/backend/common/response"
 )
@@ -45,17 +46,25 @@ func registerAuthRoutes(mux *http.ServeMux, store authlogic.UserStore, tokenServ
 }
 
 func userIDFromBearerToken(r *http.Request, tokenService authlogic.TokenService) (string, error) {
+	subject, err := userSubjectFromBearerToken(r, tokenService)
+	if err != nil {
+		return "", err
+	}
+	return subject.UserID, nil
+}
+
+func userSubjectFromBearerToken(r *http.Request, tokenService authlogic.TokenService) (session.UserTokenSubject, error) {
 	header := strings.TrimSpace(r.Header.Get("Authorization"))
 	if header == "" {
-		return "", errx.New(errx.CodeUnauthorized, "请先登录")
+		return session.UserTokenSubject{}, errx.New(errx.CodeUnauthorized, "请先登录")
 	}
 	token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
 	if token == "" || token == header {
-		return "", errx.New(errx.CodeUnauthorized, "请先登录")
+		return session.UserTokenSubject{}, errx.New(errx.CodeUnauthorized, "请先登录")
 	}
 	subject, err := tokenService.ParseUserToken(r.Context(), token)
 	if err != nil {
-		return "", errx.New(errx.CodeUnauthorized, err.Error())
+		return session.UserTokenSubject{}, errx.New(errx.CodeUnauthorized, err.Error())
 	}
-	return subject.UserID, nil
+	return subject, nil
 }

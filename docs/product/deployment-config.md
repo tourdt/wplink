@@ -42,6 +42,10 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 
 短信验证码已抽象为 verifier。当前代码提供开发验证码和生产配置校验边界，不内置具体短信厂商 SDK；上线前需要按所选供应商补齐发送/校验实现，或接入已有验证码服务。
 
+## 权限边界
+
+后台 `/api/v1/admin/*` 接口在配置 admin token 服务时会校验 `Authorization: Bearer <token>`，只有 `platform_operator` 和 `super_admin` 可访问。小程序侧资源发布、草稿、我的发布列表、刷新、成交反馈、下架和再发类似等商家操作，在生产服务启用用户 token 后，会校验当前用户与目标商家的 active 管理绑定关系；未绑定商家会返回 `FORBIDDEN`。
+
 ## 七牛 Kodo 状态
 
 当前代码已实现 `POST /api/v1/uploads/token` 上传凭证签发，前端可用返回的上传域名、对象 key 和凭证直传七牛 Kodo。业务表中的图片字段仍保存 URL：
