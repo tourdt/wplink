@@ -7,13 +7,14 @@
     </view>
 
     <view class="message-list">
-      <view v-for="item in rows" :key="item.id" class="message-card" @click="markRead(item)">
+      <view v-for="item in rows" :key="item.id" class="message-card" @click="openMessageTarget(item)">
         <view class="card-head">
           <text class="message-title">{{ item.title }}</text>
           <text class="status-tag">{{ item.status === 'read' ? '已读' : '未读' }}</text>
         </view>
         <text class="message-content">{{ item.content }}</text>
         <text class="message-time">{{ item.createdAt }}</text>
+        <text v-if="item.targetUrl" class="target-hint">查看详情</text>
       </view>
     </view>
   </view>
@@ -29,6 +30,7 @@ const rows = ref([])
 const userId = ref('')
 const roleCode = ref('')
 const filters = reactive({ status: '' })
+const tabPagePaths = ['/pages/home/index', '/pages/search/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
 
 onLoad((options) => {
   const session = getSession()
@@ -58,6 +60,35 @@ async function markRead(item) {
   if (item.status === 'read' || !userId.value) return
   await readMessage(item.id, userId.value)
   item.status = 'read'
+}
+
+async function openMessageTarget(item) {
+  try {
+    await markRead(item)
+  } catch (err) {
+    uni.showToast({ title: err.message || '消息已读状态更新失败', icon: 'none' })
+  }
+  const targetUrl = normalizeTargetUrl(item.targetUrl)
+  if (!targetUrl) return
+  if (isTabPage(targetUrl)) {
+    uni.switchTab({ url: stripQuery(targetUrl) })
+    return
+  }
+  uni.navigateTo({ url: targetUrl })
+}
+
+function normalizeTargetUrl(targetUrl) {
+  const url = String(targetUrl || '').trim()
+  if (!url || !url.startsWith('/pages/')) return ''
+  return url
+}
+
+function isTabPage(targetUrl) {
+  return tabPagePaths.includes(stripQuery(targetUrl))
+}
+
+function stripQuery(targetUrl) {
+  return targetUrl.split('?')[0]
 }
 </script>
 
@@ -122,5 +153,10 @@ async function markRead(item) {
   color: #697586;
   font-size: 26rpx;
   line-height: 1.5;
+}
+
+.target-hint {
+  color: #0f766e;
+  font-size: 24rpx;
 }
 </style>

@@ -21,6 +21,9 @@ func TestResourceLifecycleTaskExpiresResourcesAndCreatesMessages(t *testing.T) {
 	if resp.ExpiredCount != 1 || len(store.messages) != 1 || store.messages[0].MessageType != "resource_expired" {
 		t.Fatalf("resp = %#v, messages = %#v", resp, store.messages)
 	}
+	if store.messages[0].TargetURL != "/pages/my-resources/index?merchantId=merchant-1" {
+		t.Fatalf("targetURL = %q, want merchant scoped my resources page", store.messages[0].TargetURL)
+	}
 }
 
 func TestResourceLifecycleTaskRemindsExpiringResources(t *testing.T) {
@@ -36,6 +39,9 @@ func TestResourceLifecycleTaskRemindsExpiringResources(t *testing.T) {
 
 	if resp.ExpiringReminderCount != 1 || store.messages[0].TriggerType != "resource_expiring" {
 		t.Fatalf("resp = %#v, messages = %#v", resp, store.messages)
+	}
+	if store.messages[0].TargetURL != "/pages/my-resources/index?merchantId=merchant-2" {
+		t.Fatalf("targetURL = %q, want merchant scoped my resources page", store.messages[0].TargetURL)
 	}
 }
 

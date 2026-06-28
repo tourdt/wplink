@@ -14,6 +14,80 @@ const (
 	MatchCaseStatusClosed    = "closed"
 )
 
+const matchMerchantProgressMessageSQL = `
+INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
+SELECT
+  'merchant:' || merchant_id::text,
+  'match_progress',
+  'match_status_update',
+  $1::uuid,
+  '撮合进度更新',
+  $2,
+  '/pages/messages/index',
+  'unread'
+FROM match_case_participants
+WHERE match_case_id = $1::uuid
+  AND merchant_id IS NOT NULL
+`
+
+const matchDemandOwnerProgressMessageSQL = `
+INSERT INTO messages (recipient_user_id, message_type, trigger_type, trigger_id, title, content, target_url, status)
+SELECT
+  pd.user_id,
+  'match_progress',
+  'match_status_update',
+  $1::uuid,
+  '撮合进度更新',
+  $2,
+  '/pages/my-demands/index?userId=' || pd.user_id::text,
+  'unread'
+FROM match_cases mc
+JOIN purchase_demands pd ON pd.id = mc.purchase_demand_id
+WHERE mc.id = $1::uuid
+  AND pd.user_id IS NOT NULL
+`
+
+const matchCreateDemandOwnerMessageSQL = `
+INSERT INTO messages (recipient_user_id, message_type, trigger_type, trigger_id, title, content, target_url, status)
+SELECT
+  pd.user_id,
+  'match_progress',
+  'match_create',
+  $1::uuid,
+  '采购需求已进入撮合',
+  '运营已受理您的采购需求，正在为您匹配合适资源。',
+  '/pages/my-demands/index?userId=' || pd.user_id::text,
+  'unread'
+FROM match_cases mc
+JOIN purchase_demands pd ON pd.id = mc.purchase_demand_id
+WHERE mc.id = $1::uuid
+  AND pd.user_id IS NOT NULL
+`
+
+const matchCreateMerchantMessageSQL = `
+INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
+SELECT
+  'merchant:' || merchant_id::text,
+  'match_progress',
+  'match_create',
+  $1::uuid,
+  '新的撮合机会',
+  '运营已将您加入一个采购需求撮合，请关注后续进展。',
+  '/pages/messages/index',
+  'unread'
+FROM match_case_participants
+WHERE match_case_id = $1::uuid
+  AND merchant_id IS NOT NULL
+`
+
+const matchDemandStatusSyncSQL = `
+UPDATE purchase_demands pd
+SET status = $2, updated_at = now()
+FROM match_cases mc
+WHERE mc.purchase_demand_id = pd.id
+  AND mc.id = $1::uuid
+`
+
 type CreateMatchCaseInput struct {
 	PurchaseDemandID       string
 	OperatorID             string
@@ -103,6 +177,13 @@ UPDATE purchase_demands
 SET status = 'matching', updated_at = now()
 WHERE id = $1::uuid
 `, input.PurchaseDemandID); err != nil {
+			return err
+		}
+		// 创建撮合单时即通知需求发布人和初始参与商家，避免只有后台状态变化、双方都没有消息触达。
+		if _, err := tx.ExecContext(ctx, matchCreateDemandOwnerMessageSQL, result.ID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, matchCreateMerchantMessageSQL, result.ID); err != nil {
 			return err
 		}
 		return recordMatchOperation(ctx, tx, input.OperatorID, "match_create", result.ID, JSONMap{
@@ -198,22 +279,18 @@ RETURNING id, status
 		}); err != nil {
 			return err
 		}
-		// 撮合状态变化需要同步给参与商家，便于商家在消息中心看到运营跟进进度。
-		_, err = tx.ExecContext(ctx, `
-INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
-SELECT
-  'merchant:' || merchant_id::text,
-  'match_progress',
-  'match_status_update',
-  $1::uuid,
-  '撮合进度更新',
-  $2,
-  '/pages/messages/index',
-  'unread'
-FROM match_case_participants
-WHERE match_case_id = $1::uuid
-  AND merchant_id IS NOT NULL
-`, input.MatchCaseID, matchStatusMessage(input.Status, input.ResultNote))
+		demandStatus := demandStatusForMatchStatus(input.Status)
+		if demandStatus != "" {
+			if _, err := tx.ExecContext(ctx, matchDemandStatusSyncSQL, input.MatchCaseID, demandStatus); err != nil {
+				return err
+			}
+		}
+		messageContent := matchStatusMessage(input.Status, input.ResultNote)
+		// 撮合状态变化需要同时通知参与商家和采购需求发布用户，避免只运营侧可见、用户侧无进展感知。
+		if _, err := tx.ExecContext(ctx, matchMerchantProgressMessageSQL, input.MatchCaseID, messageContent); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, matchDemandOwnerProgressMessageSQL, input.MatchCaseID, messageContent)
 		return err
 	})
 	return result, err
@@ -295,5 +372,18 @@ func matchStatusMessage(status string, resultNote string) string {
 		return "撮合已关闭"
 	default:
 		return "撮合已创建，运营会继续跟进"
+	}
+}
+
+func demandStatusForMatchStatus(status string) string {
+	switch status {
+	case MatchCaseStatusOpen:
+		return "matching"
+	case MatchCaseStatusContacted:
+		return "contacted"
+	case MatchCaseStatusSucceeded, MatchCaseStatusFailed, MatchCaseStatusClosed:
+		return "closed"
+	default:
+		return ""
 	}
 }

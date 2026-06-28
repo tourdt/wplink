@@ -196,7 +196,7 @@ GROUP BY m.id, cs.code
 
 func (m *MerchantModel) UpdateMerchant(ctx context.Context, merchantID string, patch UpdateMerchantPatch) (string, error) {
 	updatedAt := time.Now().UTC()
-	_, err := m.db.ExecContext(ctx, `
+	result, err := m.db.ExecContext(ctx, `
 UPDATE merchants
 SET
   main_categories = $2,
@@ -207,6 +207,13 @@ WHERE id = $1 AND deleted_at IS NULL
 `, merchantID, JSONStringSlice(patch.MainCategories), patch.Description, JSONStringSlice(patch.Images), updatedAt)
 	if err != nil {
 		return "", err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return "", err
+	}
+	if affected == 0 {
+		return "", sql.ErrNoRows
 	}
 	return updatedAt.Format(time.RFC3339), nil
 }

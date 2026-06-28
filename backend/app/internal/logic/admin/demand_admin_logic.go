@@ -150,7 +150,7 @@ func (l *DemandAdminLogic) UpdateDemandStatus(ctx context.Context, req UpdateDem
 
 func isSupportedDemandStatus(status string) bool {
 	switch status {
-	case "pending", "matching", "closed":
+	case "pending", "matching", "contacted", "closed":
 		return true
 	default:
 		return false

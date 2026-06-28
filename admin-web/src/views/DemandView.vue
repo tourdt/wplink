@@ -25,6 +25,7 @@
             <el-option label="全部" value="" />
             <el-option label="待撮合" value="pending" />
             <el-option label="跟进中" value="matching" />
+            <el-option label="已联系" value="contacted" />
             <el-option label="已关闭" value="closed" />
           </el-select>
         </el-form-item>
@@ -93,11 +94,13 @@ const demandTypeText = {
 const statusText = {
   pending: '待撮合',
   matching: '跟进中',
+  contacted: '已联系',
   closed: '已关闭',
 }
 const statusTagType = {
   pending: 'warning',
   matching: 'primary',
+  contacted: 'success',
   closed: 'info',
 }
 

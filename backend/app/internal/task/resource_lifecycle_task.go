@@ -39,7 +39,7 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 			TriggerID:         item.ID,
 			Title:             "资源已过期",
 			Content:           item.Title + " 已过期，可再发类似资源继续获得曝光",
-			TargetURL:         "/pages/my-resources/index",
+			TargetURL:         model.MerchantMyResourcesTargetURL(item.MerchantID),
 		}); err != nil {
 			return ResourceLifecycleResult{}, err
 		}
@@ -58,7 +58,7 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 			TriggerID:         item.ID,
 			Title:             "资源即将过期",
 			Content:           item.Title + " 即将过期，请及时刷新或再发类似",
-			TargetURL:         "/pages/my-resources/index",
+			TargetURL:         model.MerchantMyResourcesTargetURL(item.MerchantID),
 		}); err != nil {
 			return ResourceLifecycleResult{}, err
 		}

@@ -2,6 +2,7 @@ package merchant
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -42,14 +43,31 @@ func TestUpdateMerchantPassesPatchToStore(t *testing.T) {
 	}
 }
 
+func TestUpdateMerchantMapsMissingMerchant(t *testing.T) {
+	store := &fakeMerchantUpdateStore{err: sql.ErrNoRows}
+	logic := NewUpdateMerchantLogic(store)
+
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-missing", UpdateMerchantReq{
+		MainCategories: []string{"童装"},
+	})
+
+	if errx.CodeOf(err) != errx.CodeResourceNotFound {
+		t.Fatalf("error code = %q, want resource not found", errx.CodeOf(err))
+	}
+}
+
 type fakeMerchantUpdateStore struct {
 	merchantID string
 	patch      model.UpdateMerchantPatch
 	updatedAt  string
+	err        error
 }
 
 func (s *fakeMerchantUpdateStore) UpdateMerchant(ctx context.Context, merchantID string, patch model.UpdateMerchantPatch) (string, error) {
 	s.merchantID = merchantID
 	s.patch = patch
+	if s.err != nil {
+		return "", s.err
+	}
 	return s.updatedAt, nil
 }

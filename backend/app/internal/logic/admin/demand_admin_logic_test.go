@@ -72,6 +72,19 @@ func TestUpdateDemandStatusRejectsUnsupportedStatus(t *testing.T) {
 	}
 }
 
+func TestUpdateDemandStatusAcceptsContacted(t *testing.T) {
+	store := &fakeAdminDemandStore{updated: model.UpdateDemandStatusResult{ID: "demand-1", Status: "contacted"}}
+	logic := NewDemandAdminLogic(store)
+
+	resp, err := logic.UpdateDemandStatus(context.Background(), UpdateDemandStatusReq{DemandID: "demand-1", Status: "contacted"})
+	if err != nil {
+		t.Fatalf("UpdateDemandStatus() error = %v", err)
+	}
+	if resp.Status != "contacted" {
+		t.Fatalf("status = %q, want contacted", resp.Status)
+	}
+}
+
 func TestUpdateDemandStatusPassesTrimmedInput(t *testing.T) {
 	store := &fakeAdminDemandStore{updated: model.UpdateDemandStatusResult{ID: "demand-1", Status: "matching"}}
 	logic := NewDemandAdminLogic(store)

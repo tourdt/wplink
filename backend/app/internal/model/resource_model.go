@@ -525,8 +525,8 @@ VALUES ($1, NULLIF($2, '')::uuid, $3, $4, '{}'::jsonb)
 		}
 		_, err = tx.ExecContext(ctx, `
 INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
-VALUES ($1, 'resource_review', $2, $3, $4, $5, '/pages/my-resources/index', 'unread')
-`, "merchant:"+merchantID, "resource_"+input.Action, resourceID, messageTitle, messageContent)
+VALUES ($1, 'resource_review', $2, $3, $4, $5, $6, 'unread')
+`, "merchant:"+merchantID, "resource_"+input.Action, resourceID, messageTitle, messageContent, MerchantMyResourcesTargetURL(merchantID))
 		if err != nil {
 			return err
 		}
@@ -750,8 +750,8 @@ DO UPDATE SET
 		}
 		_, err = tx.ExecContext(ctx, `
 INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
-VALUES ($1, 'effect_feedback', 'deal_feedback', $2, '成交反馈已记录', $3, '/pages/my-resources/index', 'unread')
-`, "merchant:"+input.MerchantID, input.ResourceID, title+" 的成交反馈已记录")
+VALUES ($1, 'effect_feedback', 'deal_feedback', $2, '成交反馈已记录', $3, $4, 'unread')
+`, "merchant:"+input.MerchantID, input.ResourceID, title+" 的成交反馈已记录", MerchantMyResourcesTargetURL(input.MerchantID))
 		return err
 	})
 	return result, err
@@ -774,8 +774,8 @@ RETURNING id, title, status
 		}
 		_, err := tx.ExecContext(ctx, `
 INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
-VALUES ($1, 'resource_lifecycle', 'resource_taken_down', $2, '资源已下架', $3, '/pages/my-resources/index', 'unread')
-`, "merchant:"+input.MerchantID, input.ResourceID, title+" 已下架")
+VALUES ($1, 'resource_lifecycle', 'resource_taken_down', $2, '资源已下架', $3, $4, 'unread')
+`, "merchant:"+input.MerchantID, input.ResourceID, title+" 已下架", MerchantMyResourcesTargetURL(input.MerchantID))
 		return err
 	})
 	return result, err

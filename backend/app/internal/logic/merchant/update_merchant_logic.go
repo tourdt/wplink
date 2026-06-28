@@ -2,6 +2,8 @@ package merchant
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 
 	"wplink/backend/app/internal/model"
@@ -43,6 +45,9 @@ func (l *UpdateMerchantLogic) UpdateMerchant(ctx context.Context, merchantID str
 		Images:         append([]string(nil), req.Images...),
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return UpdateMerchantResp{}, errx.New(errx.CodeResourceNotFound, "商家不存在或已停用")
+		}
 		return UpdateMerchantResp{}, err
 	}
 	return UpdateMerchantResp{ID: merchantID, UpdatedAt: updatedAt}, nil

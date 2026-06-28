@@ -58,8 +58,8 @@ const rows = ref([])
 const filters = reactive({ status: '' })
 const userId = ref('')
 
-onLoad(() => {
-  userId.value = getUserId()
+onLoad((options) => {
+  userId.value = options.userId || getUserId()
   loadRows()
 })
 

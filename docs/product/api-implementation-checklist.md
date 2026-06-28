@@ -39,9 +39,9 @@
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
-| `POST /api/v1/merchants` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/create_merchant_logic.go` | `admin-web/src/views/MerchantView.vue` | 商家入驻/我的 | 已接 handler，测试通过 |
+| `POST /api/v1/merchants` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/create_merchant_logic.go` | `admin-web/src/views/MerchantView.vue` | `wxapp/pages/merchant/profile.vue` 商家入驻 | 已接 handler，测试通过 |
 | `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue`，含认证、信用标签和发布记录 | 已接 handler，测试通过 |
-| `PATCH /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/update_merchant_logic.go` | 商家编辑 | 商家资料编辑 | 已接 handler，测试通过 |
+| `PATCH /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/update_merchant_logic.go` | 商家编辑 | `wxapp/pages/merchant/profile.vue` 商家资料编辑 | 已接 handler，测试通过 |
 
 ## 资源
 
@@ -91,8 +91,8 @@
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
-| `GET /api/v1/merchants/:merchantId/entitlements` | `backend/app/api/entitlement.api` | `backend/app/internal/logic/entitlement/entitlement_logic.go` | `admin-web/src/views/EntitlementView.vue` | 我的/我的发布 | 已接 handler，测试通过 |
-| `GET /api/v1/merchants/:merchantId/top-vouchers` | `backend/app/api/entitlement.api` | `backend/app/internal/logic/entitlement/entitlement_logic.go` | 权益详情 | 我的发布置顶操作 | 已接 handler，测试通过 |
+| `GET /api/v1/merchants/:merchantId/entitlements` | `backend/app/api/entitlement.api` | `backend/app/internal/logic/entitlement/entitlement_logic.go` | `admin-web/src/views/EntitlementView.vue` | 我的页权益余量 | 已接 handler，测试通过 |
+| `GET /api/v1/merchants/:merchantId/top-vouchers` | `backend/app/api/entitlement.api` | `backend/app/internal/logic/entitlement/entitlement_logic.go` | 权益详情 | 我的页券余量、我的发布置顶操作 | 已接 handler，测试通过 |
 | `POST /api/v1/top-vouchers/:voucherId/redeem` | `backend/app/api/entitlement.api` | `backend/app/internal/logic/entitlement/entitlement_logic.go` | 置顶核销记录 | 我的发布置顶操作 | 已接 handler，测试通过 |
 
 ## 发布效果

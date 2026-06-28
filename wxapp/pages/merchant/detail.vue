@@ -27,6 +27,13 @@
       <text class="section-content">{{ merchant.description || '暂无简介' }}</text>
     </view>
 
+    <view class="section" v-if="merchant.images?.length">
+      <text class="section-title">商家图片</text>
+      <scroll-view class="image-gallery" scroll-x>
+        <image v-for="url in merchant.images" :key="url" class="merchant-image" :src="url" mode="aspectFill" />
+      </scroll-view>
+    </view>
+
     <view class="section">
       <text class="section-title">发布概况</text>
       <text class="section-content">
@@ -164,6 +171,20 @@ function copyWechat() {
   color: #1f2933;
   font-size: 30rpx;
   line-height: 1.6;
+}
+
+.image-gallery {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.merchant-image {
+  display: inline-block;
+  width: 280rpx;
+  height: 180rpx;
+  margin-right: 12rpx;
+  border-radius: 10rpx;
+  background: #e3e8ef;
 }
 
 .contact-bar {

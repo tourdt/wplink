@@ -16,7 +16,33 @@
       <button class="primary-button" @click="saveIdentity">保存身份</button>
     </view>
 
+    <view class="entitlement-card">
+      <view class="section-head">
+        <text class="section-title">我的权益</text>
+        <button class="mini-button" :disabled="entitlementLoading || !merchantId.trim()" @click="loadEntitlements">刷新</button>
+      </view>
+      <view v-if="!merchantId.trim()" class="empty-state">保存商家 ID 后查看权益余量</view>
+      <view v-else-if="entitlementLoading" class="empty-state">权益加载中</view>
+      <view v-else class="entitlement-grid">
+        <view v-for="row in entitlementRows" :key="row.type" class="entitlement-item">
+          <text class="entitlement-label">{{ row.label }}</text>
+          <text class="entitlement-value">{{ row.remaining }}</text>
+          <text class="entitlement-meta">已用 {{ row.used }} / 总 {{ row.total }}</text>
+        </view>
+        <view class="entitlement-item">
+          <text class="entitlement-label">置顶券</text>
+          <text class="entitlement-value">{{ availableTopVoucherCount }}</text>
+          <text class="entitlement-meta">可用于我的发布</text>
+        </view>
+      </view>
+      <button class="secondary-button" :disabled="!merchantId.trim()" @click="openMyResources">去使用权益</button>
+    </view>
+
     <view class="action-list">
+      <view class="action-item" @click="openMerchantProfile">
+        <text>商家资料</text>
+        <text class="action-meta">入驻信息和主页介绍</text>
+      </view>
       <view class="action-item" @click="openMyResources">
         <text>我的发布</text>
         <text class="action-meta">资源状态和效果数据</text>
@@ -38,16 +64,20 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { bindPhone, sendSmsCode, wechatLogin } from '../../api/auth'
+import { getMerchantEntitlements, listTopVouchers } from '../../api/entitlement'
 import { getMerchantId, getUserId, saveMerchantId, saveToken, saveUserId } from '../../store/session'
 
 const userId = ref('')
 const merchantId = ref('')
 const phone = ref('')
 const smsCode = ref('')
+const entitlements = ref([])
+const topVouchers = ref([])
+const entitlementLoading = ref(false)
 const smsSending = ref(false)
 const bindingPhone = ref(false)
 const smsCountdown = ref(0)
@@ -56,6 +86,7 @@ let smsTimer = 0
 onLoad(() => {
   userId.value = getUserId()
   merchantId.value = getMerchantId()
+  loadEntitlements()
 })
 
 onUnload(() => {
@@ -71,6 +102,7 @@ function saveIdentity() {
     return
   }
   saveMerchantId(merchantId.value.trim())
+  loadEntitlements()
   uni.showToast({ title: '已保存身份', icon: 'none' })
 }
 
@@ -169,8 +201,56 @@ function localDevLoginCode() {
   return code
 }
 
+const entitlementRows = computed(() => [
+  buildEntitlementRow(['publish_quota', 'posting_quota'], '发布额度'),
+  buildEntitlementRow(['refresh_quota'], '刷新额度'),
+])
+
+const availableTopVoucherCount = computed(() => topVouchers.value.filter((item) => item.status === 'unused').length)
+
+function buildEntitlementRow(types, label) {
+  const item = entitlements.value.find((entry) => types.includes(entry.type)) || {}
+  return {
+    type: types[0],
+    label,
+    total: Number(item.totalAmount || 0),
+    used: Number(item.usedAmount || 0),
+    remaining: Number(item.remainingAmount || 0),
+  }
+}
+
+async function loadEntitlements() {
+  const currentMerchantId = merchantId.value.trim()
+  if (!currentMerchantId) {
+    entitlements.value = []
+    topVouchers.value = []
+    return
+  }
+  try {
+    entitlementLoading.value = true
+    // 我的页是商家运营入口，进入时同步权益余量，避免商家只能在发布失败后才知道额度不足。
+    const [entitlementResp, voucherResp] = await Promise.all([
+      getMerchantEntitlements(currentMerchantId),
+      listTopVouchers(currentMerchantId),
+    ])
+    entitlements.value = entitlementResp.items || []
+    topVouchers.value = voucherResp.items || []
+  } catch (err) {
+    entitlements.value = []
+    topVouchers.value = []
+    uni.showToast({ title: err.message || '权益加载失败，请稍后重试', icon: 'none' })
+  } finally {
+    entitlementLoading.value = false
+  }
+}
+
 function openMyResources() {
   uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${merchantId.value}` })
+}
+
+function openMerchantProfile() {
+  const query = merchantId.value ? `?merchantId=${merchantId.value}` : ''
+  uni.navigateTo({ url: `/pages/merchant/profile${query}` })
 }
 
 function openMyDemands() {
@@ -194,6 +274,7 @@ function openPublish() {
 }
 
 .profile-card,
+.entitlement-card,
 .action-list {
   display: grid;
   gap: 18rpx;
@@ -245,6 +326,68 @@ function openPublish() {
   background: #ffffff;
   color: #0f766e;
   font-size: 26rpx;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.section-title {
+  color: #1f2933;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.mini-button {
+  width: 128rpx;
+  height: 60rpx;
+  border: 1rpx solid #d8dde6;
+  border-radius: 10rpx;
+  background: #ffffff;
+  color: #364152;
+  font-size: 24rpx;
+  line-height: 60rpx;
+}
+
+.empty-state {
+  padding: 18rpx 0;
+  color: #697586;
+  font-size: 26rpx;
+}
+
+.entitlement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+}
+
+.entitlement-item {
+  display: grid;
+  gap: 8rpx;
+  min-height: 148rpx;
+  padding: 18rpx;
+  border: 1rpx solid #e3e8ef;
+  border-radius: 10rpx;
+  background: #f8fafc;
+}
+
+.entitlement-label {
+  color: #364152;
+  font-size: 24rpx;
+}
+
+.entitlement-value {
+  color: #0f766e;
+  font-size: 38rpx;
+  font-weight: 700;
+}
+
+.entitlement-meta {
+  color: #697586;
+  font-size: 22rpx;
 }
 
 .action-item {

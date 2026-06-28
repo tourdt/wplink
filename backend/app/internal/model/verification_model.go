@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"database/sql"
+	"net/url"
 	"time"
 )
 
@@ -203,8 +204,8 @@ RETURNING id, merchant_id, resource_id, verification_type, status
 		}
 		_, err = tx.ExecContext(ctx, `
 INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
-VALUES ($1, 'verification_result', $2, $3, $4, $5, '/pages/verification/index', 'unread')
-`, "merchant:"+merchantID, "verification_"+input.Action, input.VerificationID, messageTitle, messageContent)
+VALUES ($1, 'verification_result', $2, $3, $4, $5, $6, 'unread')
+`, "merchant:"+merchantID, "verification_"+input.Action, input.VerificationID, messageTitle, messageContent, verificationMessageTargetURL(merchantID))
 		if err != nil {
 			return err
 		}
@@ -221,6 +222,12 @@ VALUES ($1, 'verification_result', $2, $3, $4, $5, '/pages/verification/index', 
 		})
 	})
 	return result, err
+}
+
+func verificationMessageTargetURL(merchantID string) string {
+	values := url.Values{}
+	values.Set("merchantId", merchantID)
+	return "/pages/verification/index?" + values.Encode()
 }
 
 func grantVerificationBenefits(ctx context.Context, tx *sql.Tx, merchantID string, resourceID sql.NullString, verificationType string, reviewerID string) error {
