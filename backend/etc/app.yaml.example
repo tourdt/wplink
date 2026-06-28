@@ -5,6 +5,10 @@ Port: 4000
 
 Postgres:
   DSN: "postgres://wplink_app:${POSTGRES_PASSWORD}@127.0.0.1:5432/wplink?sslmode=disable"
+  MaxOpenConns: 30
+  MaxIdleConns: 10
+  ConnMaxLifetime: 30m
+  ConnMaxIdleTime: 5m
 
 AdminAuth:
   TokenSecret: "${JWT_SECRET}"

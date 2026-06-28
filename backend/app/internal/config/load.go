@@ -78,8 +78,33 @@ func applyConfigValue(cfg *Config, section string, key string, value string) err
 			cfg.Port = port
 		}
 	case "Postgres":
-		if key == "DSN" {
+		switch key {
+		case "DSN":
 			cfg.Postgres.DSN = value
+		case "MaxOpenConns":
+			size, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("MaxOpenConns 配置必须是数字: %w", err)
+			}
+			cfg.Postgres.MaxOpenConns = size
+		case "MaxIdleConns":
+			size, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("MaxIdleConns 配置必须是数字: %w", err)
+			}
+			cfg.Postgres.MaxIdleConns = size
+		case "ConnMaxLifetime":
+			lifetime, err := time.ParseDuration(value)
+			if err != nil {
+				return fmt.Errorf("ConnMaxLifetime 配置不正确: %w", err)
+			}
+			cfg.Postgres.ConnMaxLifetime = lifetime
+		case "ConnMaxIdleTime":
+			idleTime, err := time.ParseDuration(value)
+			if err != nil {
+				return fmt.Errorf("ConnMaxIdleTime 配置不正确: %w", err)
+			}
+			cfg.Postgres.ConnMaxIdleTime = idleTime
 		}
 	case "AdminAuth":
 		switch key {

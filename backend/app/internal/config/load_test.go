@@ -19,6 +19,10 @@ Port: 4000
 
 Postgres:
   DSN: "postgres://wplink_app:${POSTGRES_PASSWORD}@127.0.0.1:5432/wplink?sslmode=disable"
+  MaxOpenConns: 30
+  MaxIdleConns: 10
+  ConnMaxLifetime: 30m
+  ConnMaxIdleTime: 5m
 
 AdminAuth:
   TokenSecret: "${JWT_SECRET}"
@@ -59,6 +63,9 @@ Storage:
 	}
 	if cfg.Postgres.DSN != "postgres://wplink_app:secret-pass@127.0.0.1:5432/wplink?sslmode=disable" {
 		t.Fatalf("dsn = %q, want env expanded", cfg.Postgres.DSN)
+	}
+	if cfg.Postgres.MaxOpenConns != 30 || cfg.Postgres.MaxIdleConns != 10 || cfg.Postgres.ConnMaxLifetime != 30*time.Minute || cfg.Postgres.ConnMaxIdleTime != 5*time.Minute {
+		t.Fatalf("postgres pool = %#v, want configured pool", cfg.Postgres)
 	}
 	if cfg.AdminAuth.TokenSecret != "secret-token" || cfg.AdminAuth.TokenTTL != 24*time.Hour {
 		t.Fatalf("admin auth = %#v, want env token and ttl", cfg.AdminAuth)

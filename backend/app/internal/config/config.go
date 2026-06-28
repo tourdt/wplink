@@ -15,7 +15,11 @@ type Config struct {
 }
 
 type PostgresConfig struct {
-	DSN string
+	DSN             string
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 }
 
 type AdminAuthConfig struct {

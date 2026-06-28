@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 func IsProductionMode(mode string) bool {
@@ -21,8 +22,22 @@ func ValidateForProduction(cfg Config) error {
 			missing = append(missing, name)
 		}
 	}
+	requirePositiveInt := func(name string, value int) {
+		if value <= 0 {
+			missing = append(missing, name)
+		}
+	}
+	requirePositiveDuration := func(name string, value time.Duration) {
+		if value <= 0 {
+			missing = append(missing, name)
+		}
+	}
 
 	require("Postgres.DSN", cfg.Postgres.DSN)
+	requirePositiveInt("Postgres.MaxOpenConns", cfg.Postgres.MaxOpenConns)
+	requirePositiveInt("Postgres.MaxIdleConns", cfg.Postgres.MaxIdleConns)
+	requirePositiveDuration("Postgres.ConnMaxLifetime", cfg.Postgres.ConnMaxLifetime)
+	requirePositiveDuration("Postgres.ConnMaxIdleTime", cfg.Postgres.ConnMaxIdleTime)
 	require("AdminAuth.TokenSecret", cfg.AdminAuth.TokenSecret)
 	require("Wechat.AppID", cfg.Wechat.AppID)
 	require("Wechat.AppSecret", cfg.Wechat.AppSecret)

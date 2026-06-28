@@ -30,7 +30,7 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 
 正式运营建议设置 `RuntimeMode: production`。该模式会在服务启动前校验以下关键配置，缺失或开启开发登录 fallback 时直接失败：
 
-- `Postgres.DSN`
+- `Postgres.DSN`、`Postgres.MaxOpenConns`、`Postgres.MaxIdleConns`、`Postgres.ConnMaxLifetime`、`Postgres.ConnMaxIdleTime`
 - `AdminAuth.TokenSecret`
 - `Wechat.AppID`、`Wechat.AppSecret`
 - `SMS.Provider`，以及对应供应商所需字段；`http` 模式需要 `SMS.SendURL`、`SMS.VerifyURL`、`SMS.AccessKeySecret`
@@ -52,6 +52,17 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 ## 权限边界
 
 后台 `/api/v1/admin/*` 接口在配置 admin token 服务时会校验 `Authorization: Bearer <token>`，只有 `platform_operator` 和 `super_admin` 可访问。小程序侧资源发布、草稿、我的发布列表、刷新、成交反馈、下架和再发类似等商家操作，在生产服务启用用户 token 后，会校验当前用户与目标商家的 active 管理绑定关系；未绑定商家会返回 `FORBIDDEN`。
+
+## PostgreSQL 连接池
+
+`Postgres` 配置支持连接池参数，模板默认值适合单实例 MVP 起步：
+
+- `MaxOpenConns: 30`：应用进程最多同时打开 30 个数据库连接。
+- `MaxIdleConns: 10`：保留最多 10 个空闲连接，减少频繁建连。
+- `ConnMaxLifetime: 30m`：连接最长使用 30 分钟后回收，降低长期连接被网络设备或数据库端断开的风险。
+- `ConnMaxIdleTime: 5m`：空闲 5 分钟后回收，控制低峰期连接占用。
+
+若数据库实例规格较小或后端多实例部署，需要按 `后端实例数 * MaxOpenConns` 评估 PostgreSQL `max_connections`，避免上线后连接数耗尽。
 
 ## 七牛 Kodo 状态
 

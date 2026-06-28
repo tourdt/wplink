@@ -28,7 +28,7 @@ func TestValidateForProductionRejectsMissingCriticalConfig(t *testing.T) {
 func TestValidateForProductionAcceptsRequiredConfig(t *testing.T) {
 	cfg := Config{
 		RuntimeMode: "production",
-		Postgres:    PostgresConfig{DSN: "postgres://user:pass@127.0.0.1:5432/wplink?sslmode=disable"},
+		Postgres:    productionPostgresConfig(),
 		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
 		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "服链通", TemplateCode: "SMS_001"},
@@ -88,10 +88,26 @@ func TestValidateForProductionRejectsDevSMSProvider(t *testing.T) {
 	}
 }
 
+func TestValidateForProductionRequiresPostgresPoolConfig(t *testing.T) {
+	cfg := requiredProductionConfig()
+	cfg.Postgres = PostgresConfig{DSN: cfg.Postgres.DSN}
+
+	err := ValidateForProduction(cfg)
+	if err == nil {
+		t.Fatal("ValidateForProduction() error = nil, want missing postgres pool config")
+	}
+	message := err.Error()
+	for _, want := range []string{"Postgres.MaxOpenConns", "Postgres.MaxIdleConns", "Postgres.ConnMaxLifetime", "Postgres.ConnMaxIdleTime"} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("error = %q, want mention %s", message, want)
+		}
+	}
+}
+
 func requiredProductionConfig() Config {
 	return Config{
 		RuntimeMode: "production",
-		Postgres:    PostgresConfig{DSN: "postgres://user:pass@127.0.0.1:5432/wplink?sslmode=disable"},
+		Postgres:    productionPostgresConfig(),
 		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
 		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "服链通", TemplateCode: "SMS_001"},
@@ -104,5 +120,15 @@ func requiredProductionConfig() Config {
 			PublicBaseURL:       "https://cdn.example.com",
 			AllowedContentTypes: []string{"image/png"},
 		},
+	}
+}
+
+func productionPostgresConfig() PostgresConfig {
+	return PostgresConfig{
+		DSN:             "postgres://user:pass@127.0.0.1:5432/wplink?sslmode=disable",
+		MaxOpenConns:    30,
+		MaxIdleConns:    10,
+		ConnMaxLifetime: 30 * time.Minute,
+		ConnMaxIdleTime: 5 * time.Minute,
 	}
 }

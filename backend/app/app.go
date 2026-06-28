@@ -36,7 +36,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("加载管理后台静态资源失败: err=%v", err)
 	}
-	db, err := model.OpenPostgres(cfg.Postgres.DSN)
+	db, err := model.OpenPostgres(cfg.Postgres.DSN, model.PostgresOptions{
+		MaxOpenConns:    cfg.Postgres.MaxOpenConns,
+		MaxIdleConns:    cfg.Postgres.MaxIdleConns,
+		ConnMaxLifetime: cfg.Postgres.ConnMaxLifetime,
+		ConnMaxIdleTime: cfg.Postgres.ConnMaxIdleTime,
+	})
 	if err != nil {
 		log.Fatalf("连接 PostgreSQL 失败: err=%v", err)
 	}
