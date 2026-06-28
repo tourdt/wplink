@@ -19,7 +19,7 @@
 
 当前已实现七牛 Kodo 上传凭证签发，小程序可通过 `/api/v1/uploads/token` 获取凭证后直传对象存储。图片字段仍保存最终 CDN URL。生产服务启用用户 token 后，资源发布和“我的发布”管理会校验用户是否绑定对应商家。
 
-正式运营时必须使用 `RuntimeMode: production` 并提供真实 `JWT_SECRET`、PostgreSQL DSN、微信小程序 AppID/Secret、短信服务商配置和七牛密钥。生产模式会在启动前校验关键配置，缺失时拒绝启动。
+正式运营时必须使用 `RuntimeMode: production` 并提供真实 `JWT_SECRET`、PostgreSQL DSN、微信小程序 AppID/Secret、短信验证码服务配置和七牛密钥。生产模式会在启动前校验关键配置，缺失时拒绝启动；短信 `dev` provider 仅允许本地开发。
 
 ## 数据库初始化
 
@@ -57,7 +57,7 @@ node backend/scripts/validate_migrations.mjs
 
 ## 后端验证
 
-当前后端已有 HTTP 服务入口，已挂载 `/healthz`、`/admin/` 一体化后台静态路由，并接入 `backend/app/api/app.api` 中的账号、城市站、商家、资源、需求、发现、认证、权益、消息、指标和后台管理 API。未配置 API handler 的兜底路由仍会返回 `API_NOT_CONNECTED`，用于暴露后续新增接口尚未接线的问题。
+当前后端已有 HTTP 服务入口，已挂载 `/healthz`、`/readyz`、`/admin/` 一体化后台静态路由，并接入 `backend/app/api/app.api` 中的账号、城市站、商家、资源、需求、发现、认证、权益、消息、指标和后台管理 API。账号链路包含 `/api/v1/auth/wechat-login`、`/api/v1/auth/sms-code`、`/api/v1/me` 和 `/api/v1/me/phone`。未配置 API handler 的兜底路由仍会返回 `API_NOT_CONNECTED`，用于暴露后续新增接口尚未接线的问题。
 
 先运行领域测试和 API 契约校验：
 
@@ -76,6 +76,11 @@ rm -rf .cache
 cd backend
 go run ./app -f etc/app.yaml
 ```
+
+健康检查：
+
+- `/healthz`：只验证 HTTP 进程存活，返回 `ok`。
+- `/readyz`：验证服务已连接 PostgreSQL；数据库不可用时返回 `503 not ready`。
 
 如果只验证入口和后台静态路由，也可以使用模板配置：
 
@@ -174,5 +179,5 @@ VITE_API_BASE_URL=http://127.0.0.1:4000 npm run build:mp-weixin
 
 - migration 静态校验不能替代真实 PostgreSQL up/down；数据库可连接时应运行 `go run ./scripts/verify_migrations.go -config etc/app.yaml`，由临时数据库完成 up/down 验证。
 - 当前后端 HTTP 服务入口已可启动，业务 API 已接入账号、城市站、商家、资源、需求、发现、认证、权益、消息、指标和后台管理路由。
-- 短信验证码已抽象为可替换 verifier；当前仓库不内置具体短信厂商 SDK，生产配置缺失时会拒绝手机号绑定。
+- 短信验证码本地可用 `SMS.Provider: dev` 和固定 `DevCode` 验证；正式运营建议配置 `SMS.Provider: http`，通过 `SendURL`、`VerifyURL` 接入已有验证码服务。后端默认按手机号限制 60 秒发送间隔、每天 10 次；小程序“我的”页已接入发送验证码和绑定手机号流程。
 - 小程序构建会出现 Sass `@import` 和 legacy JS API 的上游弃用警告，不影响当前构建产物。

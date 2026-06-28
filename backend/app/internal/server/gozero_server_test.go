@@ -2,9 +2,14 @@ package server
 
 import (
 	"context"
+	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"wplink/backend/app/internal/config"
@@ -38,6 +43,9 @@ func TestNewGoZeroServerMountsHealthAPIAndAdmin(t *testing.T) {
 	if healthRec.Code != http.StatusOK || healthRec.Body.String() != "ok" {
 		t.Fatalf("health response = %d %q, want 200 ok", healthRec.Code, healthRec.Body.String())
 	}
+	if !hasRoute(srv.Routes(), http.MethodGet, "/readyz") {
+		t.Fatalf("routes = %#v, want readyz route", srv.Routes())
+	}
 
 	apiRec := httptest.NewRecorder()
 	srv.ServeHTTP(apiRec, httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1", nil))
@@ -49,6 +57,38 @@ func TestNewGoZeroServerMountsHealthAPIAndAdmin(t *testing.T) {
 	srv.ServeHTTP(adminRec, httptest.NewRequest(http.MethodGet, "/admin/assets/index.js", nil))
 	if adminRec.Code != http.StatusOK || adminRec.Body.String() != "admin:/admin/assets/index.js" {
 		t.Fatalf("admin response = %d %q, want admin handler", adminRec.Code, adminRec.Body.String())
+	}
+}
+
+func TestGoZeroReadyzChecksDatabase(t *testing.T) {
+	db := openReadyzTestDB(t, nil)
+	defer db.Close()
+	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, &svc.ServiceContext{DB: db}, nil, nil)
+	if err != nil {
+		t.Fatalf("NewGoZeroServer() error = %v", err)
+	}
+	defer srv.Stop()
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "ok" {
+		t.Fatalf("readyz response = %d %q, want 200 ok", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGoZeroReadyzReturnsUnavailableWhenDatabasePingFails(t *testing.T) {
+	db := openReadyzTestDB(t, errors.New("database unavailable"))
+	defer db.Close()
+	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, &svc.ServiceContext{DB: db}, nil, nil)
+	if err != nil {
+		t.Fatalf("NewGoZeroServer() error = %v", err)
+	}
+	defer srv.Stop()
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if rec.Code != http.StatusServiceUnavailable || rec.Body.String() != "not ready" {
+		t.Fatalf("readyz response = %d %q, want 503 not ready", rec.Code, rec.Body.String())
 	}
 }
 
@@ -79,6 +119,47 @@ func TestGoZeroAdminLoginRouteUsesServiceContext(t *testing.T) {
 	if data["token"] != "admin-token" || data["userId"] != "user-1" {
 		t.Fatalf("login data = %#v, want token and userId", data)
 	}
+}
+
+func openReadyzTestDB(t *testing.T, pingErr error) *sql.DB {
+	t.Helper()
+	driverName := "readyz-test-" + strconv.FormatInt(readyzTestDriverSeq.Add(1), 10)
+	sql.Register(driverName, readyzTestDriver{pingErr: pingErr})
+	db, err := sql.Open(driverName, "")
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	return db
+}
+
+var readyzTestDriverSeq atomic.Int64
+
+type readyzTestDriver struct {
+	pingErr error
+}
+
+func (d readyzTestDriver) Open(name string) (driver.Conn, error) {
+	return readyzTestConn{pingErr: d.pingErr}, nil
+}
+
+type readyzTestConn struct {
+	pingErr error
+}
+
+func (c readyzTestConn) Prepare(query string) (driver.Stmt, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (c readyzTestConn) Close() error {
+	return nil
+}
+
+func (c readyzTestConn) Begin() (driver.Tx, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (c readyzTestConn) Ping(ctx context.Context) error {
+	return c.pingErr
 }
 
 func TestGoZeroCityRoutesUseServiceContextStore(t *testing.T) {

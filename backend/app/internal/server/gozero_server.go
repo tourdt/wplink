@@ -1,8 +1,10 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"wplink/backend/app/internal/config"
 	adminauthhandler "wplink/backend/app/internal/handler/adminauth"
@@ -21,6 +23,11 @@ func NewGoZeroServer(cfg config.Config, svcCtx *svc.ServiceContext, adminHandler
 		Method:  http.MethodGet,
 		Path:    "/healthz",
 		Handler: healthzHandler,
+	})
+	srv.AddRoute(rest.Route{
+		Method:  http.MethodGet,
+		Path:    "/readyz",
+		Handler: readyzHandler(svcCtx),
 	})
 	registerGoZeroAdminAuthRoutes(srv, svcCtx)
 	registerCityRoutes(srv, svcCtx)
@@ -84,4 +91,23 @@ func isAdminPath(path string) bool {
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok"))
+}
+
+func readyzHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if svcCtx == nil || svcCtx.DB == nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("not ready"))
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := svcCtx.DB.PingContext(ctx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("not ready"))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}
 }

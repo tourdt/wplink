@@ -20,6 +20,16 @@ func registerAuthRoutes(mux *http.ServeMux, store authlogic.UserStore, tokenServ
 		resp, err := authlogic.NewWechatLoginLogic(store, tokenService, wechatClient).WechatLogin(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
+	mux.HandleFunc("POST /api/v1/auth/sms-code", func(w http.ResponseWriter, r *http.Request) {
+		var body authlogic.SendSMSCodeReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		sender, _ := any(smsVerifier).(authlogic.SMSCodeSender)
+		resp, err := authlogic.NewSendSMSCodeLogic(sender).SendSMSCode(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
 	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, r *http.Request) {
 		userID, err := userIDFromBearerToken(r, tokenService)
 		if err != nil {

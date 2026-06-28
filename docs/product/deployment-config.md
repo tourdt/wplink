@@ -33,14 +33,21 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 - `Postgres.DSN`
 - `AdminAuth.TokenSecret`
 - `Wechat.AppID`、`Wechat.AppSecret`
-- `SMS.Provider`、`SMS.AccessKeyID`、`SMS.AccessKeySecret`、`SMS.SignName`、`SMS.TemplateCode`
+- `SMS.Provider`，以及对应供应商所需字段；`http` 模式需要 `SMS.SendURL`、`SMS.VerifyURL`、`SMS.AccessKeySecret`
 - `Storage.Provider`、`Storage.Endpoint`、`Storage.Bucket`、`Storage.AccessKeyID`、`Storage.AccessKeySecret`、`Storage.PublicBaseURL`
 
 ## 微信与短信
 
 微信登录已通过 `jscode2session` 获取 openid；本地开发可设置 `Wechat.AllowDevCode: true` 使用 `local-dev-*` code，生产模式禁止开启该选项。
 
-短信验证码已抽象为 verifier。当前代码提供开发验证码和生产配置校验边界，不内置具体短信厂商 SDK；上线前需要按所选供应商补齐发送/校验实现，或接入已有验证码服务。
+短信验证码支持两种落地方式：
+
+- 本地开发：`SMS.Provider: dev`，使用 `SMS.DevCode` 校验，生产模式会拒绝该 provider。
+- 正式运营：推荐先接入 `SMS.Provider: http`，由现有验证码服务提供发送和校验接口。后端会向 `SMS.SendURL` 发送 `{ "phone": "..." }`，向 `SMS.VerifyURL` 发送 `{ "phone": "...", "code": "..." }`，并在配置 `SMS.AccessKeySecret` 时附带 `Authorization: Bearer <secret>`。接口返回 2xx 且 JSON 中 `ok: true` 或 `valid: true` 即视为成功。
+
+短信发送带有本进程限频保护：`SMS.SendMinInterval` 默认 60 秒，`SMS.DailySendLimit` 默认每天 10 次，同一手机号超过限制会返回 `RATE_LIMITED`。多实例部署时仍建议在短信服务、API 网关或 Redis 限流层增加统一限制，避免跨实例绕过。
+
+如直接接入阿里云、腾讯云等厂商 SDK，可保留 `Provider`、`AccessKeyID`、`AccessKeySecret`、`SignName`、`TemplateCode` 配置，并在 `ConfiguredSMSVerifier` 中实现对应 provider 分支。
 
 ## 权限边界
 
@@ -68,6 +75,7 @@ Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，
 ## 服务器建议
 
 - API 服务只监听 `127.0.0.1:4000`，公网通过 Nginx 代理；后台通过同一个 Go 服务的 `/admin/` 访问。
+- 监控和发布检查使用 `/healthz` 判断进程存活，使用 `/readyz` 判断 PostgreSQL 就绪；`/readyz` 返回 503 时不应切入流量。
 - 生产只开放 `80/443/22`，不要开放 PostgreSQL 和 API 内部端口。
 - PostgreSQL 使用独立业务用户，不使用超级用户连接应用。
 - `JWT_SECRET`、`QINIU_SECRET_KEY`、数据库密码只放服务器环境或密钥管理系统。

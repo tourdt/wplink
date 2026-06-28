@@ -70,6 +70,19 @@ func TestBindPhoneUpdatesUserPhone(t *testing.T) {
 	}
 }
 
+func TestSendSMSCodeTrimsPhoneAndCallsSender(t *testing.T) {
+	sender := &fakeSMSVerifier{}
+	logic := NewSendSMSCodeLogic(sender)
+
+	resp, err := logic.SendSMSCode(context.Background(), SendSMSCodeReq{Phone: " 18800000002 "})
+	if err != nil {
+		t.Fatalf("send sms code: %v", err)
+	}
+	if resp.Message != "验证码已发送" || sender.sentPhone != "18800000002" {
+		t.Fatalf("resp = %#v sent phone = %q, want trimmed phone", resp, sender.sentPhone)
+	}
+}
+
 type fakeAuthStore struct {
 	upsertInput model.UpsertWechatUserInput
 	boundUserID string
@@ -130,12 +143,18 @@ func (s *fakeWechatSessionClient) Code2Session(ctx context.Context, code string)
 }
 
 type fakeSMSVerifier struct {
-	phone string
-	code  string
+	phone     string
+	code      string
+	sentPhone string
 }
 
 func (s *fakeSMSVerifier) VerifySMSCode(ctx context.Context, phone string, code string) error {
 	s.phone = phone
 	s.code = code
+	return nil
+}
+
+func (s *fakeSMSVerifier) SendSMSCode(ctx context.Context, phone string) error {
+	s.sentPhone = phone
 	return nil
 }

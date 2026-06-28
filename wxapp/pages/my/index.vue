@@ -3,6 +3,14 @@
     <view class="profile-card">
       <text class="page-title">我的</text>
       <button class="secondary-button" @click="loginWithWechat">微信登录</button>
+      <view class="sms-row">
+        <input v-model="phone" class="field" type="number" placeholder="手机号" />
+        <button class="sms-button" :disabled="smsSending || smsCountdown > 0" @click="sendSmsCodeForPhone">
+          {{ smsCountdown > 0 ? `${smsCountdown}s` : '验证码' }}
+        </button>
+      </view>
+      <input v-model="smsCode" class="field" type="number" placeholder="短信验证码" />
+      <button class="secondary-button" :disabled="bindingPhone" @click="bindCurrentPhone">绑定手机号</button>
       <input v-model="userId" class="field" placeholder="用户 ID" />
       <input v-model="merchantId" class="field" placeholder="商家 ID" />
       <button class="primary-button" @click="saveIdentity">保存身份</button>
@@ -27,17 +35,27 @@
 
 <script setup>
 import { ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
-import { wechatLogin } from '../../api/auth'
+import { bindPhone, sendSmsCode, wechatLogin } from '../../api/auth'
 import { getMerchantId, getUserId, saveMerchantId, saveToken, saveUserId } from '../../store/session'
 
 const userId = ref('')
 const merchantId = ref('')
+const phone = ref('')
+const smsCode = ref('')
+const smsSending = ref(false)
+const bindingPhone = ref(false)
+const smsCountdown = ref(0)
+let smsTimer = 0
 
 onLoad(() => {
   userId.value = getUserId()
   merchantId.value = getMerchantId()
+})
+
+onUnload(() => {
+  clearSMSCountdown()
 })
 
 function saveIdentity() {
@@ -66,6 +84,60 @@ async function loginWithWechat() {
     uni.showToast({ title: '登录成功', icon: 'none' })
   } catch (err) {
     uni.showToast({ title: err.message || '登录失败，请稍后重试', icon: 'none' })
+  }
+}
+
+async function sendSmsCodeForPhone() {
+  const normalizedPhone = phone.value.trim()
+  if (!normalizedPhone) {
+    uni.showToast({ title: '请填写手机号', icon: 'none' })
+    return
+  }
+  try {
+    smsSending.value = true
+    await sendSmsCode({ phone: normalizedPhone })
+    uni.showToast({ title: '验证码已发送', icon: 'none' })
+    startSMSCountdown()
+  } catch (err) {
+    uni.showToast({ title: err.message || '验证码发送失败', icon: 'none' })
+  } finally {
+    smsSending.value = false
+  }
+}
+
+async function bindCurrentPhone() {
+  const normalizedPhone = phone.value.trim()
+  const normalizedCode = smsCode.value.trim()
+  if (!normalizedPhone || !normalizedCode) {
+    uni.showToast({ title: '请填写手机号和验证码', icon: 'none' })
+    return
+  }
+  try {
+    bindingPhone.value = true
+    await bindPhone({ phone: normalizedPhone, smsCode: normalizedCode })
+    uni.showToast({ title: '手机号已绑定', icon: 'none' })
+  } catch (err) {
+    uni.showToast({ title: err.message || '绑定失败，请稍后重试', icon: 'none' })
+  } finally {
+    bindingPhone.value = false
+  }
+}
+
+function startSMSCountdown() {
+  clearSMSCountdown()
+  smsCountdown.value = 60
+  smsTimer = setInterval(() => {
+    smsCountdown.value -= 1
+    if (smsCountdown.value <= 0) {
+      clearSMSCountdown()
+    }
+  }, 1000)
+}
+
+function clearSMSCountdown() {
+  if (smsTimer) {
+    clearInterval(smsTimer)
+    smsTimer = 0
   }
 }
 
@@ -136,6 +208,13 @@ function openPublish() {
   border-radius: 10rpx;
 }
 
+.sms-row {
+  display: grid;
+  grid-template-columns: 1fr 180rpx;
+  gap: 14rpx;
+  align-items: center;
+}
+
 .primary-button {
   height: 84rpx;
   border-radius: 12rpx;
@@ -149,6 +228,15 @@ function openPublish() {
   border-radius: 12rpx;
   background: #ffffff;
   color: #0f766e;
+}
+
+.sms-button {
+  height: 80rpx;
+  border: 1rpx solid #0f766e;
+  border-radius: 10rpx;
+  background: #ffffff;
+  color: #0f766e;
+  font-size: 26rpx;
 }
 
 .action-item {

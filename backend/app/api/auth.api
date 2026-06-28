@@ -43,6 +43,14 @@ type BindPhoneResp {
 	Phone string `json:"phone"`
 }
 
+type SendSMSCodeReq {
+	Phone string `json:"phone"`
+}
+
+type SendSMSCodeResp {
+	Message string `json:"message"`
+}
+
 @server(
 	prefix: /api/v1
 	group: auth
@@ -50,6 +58,9 @@ type BindPhoneResp {
 service wplink-api {
 	@handler WechatLogin
 	post /auth/wechat-login (WechatLoginReq) returns (WechatLoginResp)
+
+	@handler SendSMSCode
+	post /auth/sms-code (SendSMSCodeReq) returns (SendSMSCodeResp)
 
 	@handler GetMe
 	get /me returns (MeResp)

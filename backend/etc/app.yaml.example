@@ -16,7 +16,11 @@ Wechat:
   AllowDevCode: true
 
 SMS:
-  Provider: ""
+  Provider: "dev"
+  SendURL: "${SMS_SEND_URL}"
+  VerifyURL: "${SMS_VERIFY_URL}"
+  SendMinInterval: 60s
+  DailySendLimit: 10
   AccessKeyID: "${SMS_ACCESS_KEY_ID}"
   AccessKeySecret: "${SMS_ACCESS_KEY_SECRET}"
   SignName: "服链通"

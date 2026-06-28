@@ -53,6 +53,14 @@ func TestAuthAPIRouterRunsLoginMeAndBindPhoneFlow(t *testing.T) {
 	if smsVerifier.phone != "18800000001" || smsVerifier.code != "123456" {
 		t.Fatalf("sms verifier = %q/%q, want trimmed phone and code", smsVerifier.phone, smsVerifier.code)
 	}
+
+	smsRec := httptest.NewRecorder()
+	smsReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/sms-code", strings.NewReader(`{"phone":"18800000002"}`))
+	router.ServeHTTP(smsRec, smsReq)
+	smsData := decodeEnvelopeData(t, smsRec, http.StatusOK)
+	if smsData["message"] != "验证码已发送" || smsVerifier.sentPhone != "18800000002" {
+		t.Fatalf("sms data = %#v sent phone = %q, want sms code sent", smsData, smsVerifier.sentPhone)
+	}
 }
 
 type fakeAuthAPIStore struct {
@@ -109,12 +117,18 @@ func (s *fakeAuthWechatSessionClient) Code2Session(ctx context.Context, code str
 }
 
 type fakeAuthSMSVerifier struct {
-	phone string
-	code  string
+	phone     string
+	code      string
+	sentPhone string
 }
 
 func (s *fakeAuthSMSVerifier) VerifySMSCode(ctx context.Context, phone string, code string) error {
 	s.phone = phone
 	s.code = code
+	return nil
+}
+
+func (s *fakeAuthSMSVerifier) SendSMSCode(ctx context.Context, phone string) error {
+	s.sentPhone = phone
 	return nil
 }

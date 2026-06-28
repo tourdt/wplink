@@ -14,6 +14,7 @@ func registerCompatAPIRoutes(srv *rest.Server, apiHandler http.Handler) {
 	// 过渡期先按 app.api/goctl 生成结果注册 go-zero 路由，再委托到现有 APIRouter，避免一次迁移全部 handler 造成行为回归。
 	srv.AddRoutes([]rest.Route{
 		{Method: http.MethodPost, Path: "/api/v1/auth/wechat-login", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/auth/sms-code", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/me", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/me/phone", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/uploads/token", Handler: handler},

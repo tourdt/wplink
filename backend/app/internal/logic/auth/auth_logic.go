@@ -67,6 +67,14 @@ type BindPhoneResp struct {
 	Phone string `json:"phone"`
 }
 
+type SendSMSCodeReq struct {
+	Phone string `json:"phone"`
+}
+
+type SendSMSCodeResp struct {
+	Message string `json:"message"`
+}
+
 type WechatLoginLogic struct {
 	store         UserStore
 	tokenService  TokenService
@@ -159,6 +167,31 @@ func (l *MeLogic) BindPhone(ctx context.Context, userID string, req BindPhoneReq
 		return BindPhoneResp{}, err
 	}
 	return BindPhoneResp{ID: profile.ID, Phone: profile.Phone}, nil
+}
+
+type SendSMSCodeLogic struct {
+	sender SMSCodeSender
+}
+
+func NewSendSMSCodeLogic(sender SMSCodeSender) *SendSMSCodeLogic {
+	return &SendSMSCodeLogic{sender: sender}
+}
+
+func (l *SendSMSCodeLogic) SendSMSCode(ctx context.Context, req SendSMSCodeReq) (SendSMSCodeResp, error) {
+	phone := strings.TrimSpace(req.Phone)
+	if phone == "" {
+		return SendSMSCodeResp{}, errx.New(errx.CodeValidationFailed, "请填写手机号")
+	}
+	if len(phone) < 6 || len(phone) > 20 {
+		return SendSMSCodeResp{}, errx.New(errx.CodeValidationFailed, "手机号格式不正确")
+	}
+	if l.sender == nil {
+		return SendSMSCodeResp{}, errx.New(errx.CodeInternalError, "短信服务未配置，请稍后重试")
+	}
+	if err := l.sender.SendSMSCode(ctx, phone); err != nil {
+		return SendSMSCodeResp{}, err
+	}
+	return SendSMSCodeResp{Message: "验证码已发送"}, nil
 }
 
 func (l *MeLogic) userProfile(ctx context.Context, userID string) (model.UserProfile, error) {

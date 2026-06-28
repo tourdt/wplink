@@ -15,6 +15,14 @@ export function getMe() {
   })
 }
 
+export function sendSmsCode(data) {
+  return request({
+    url: '/api/v1/auth/sms-code',
+    method: 'POST',
+    data,
+  })
+}
+
 export function bindPhone(data) {
   return request({
     url: '/api/v1/me/phone',

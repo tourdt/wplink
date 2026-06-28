@@ -24,6 +24,14 @@ AdminAuth:
   TokenSecret: "${JWT_SECRET}"
   TokenTTL: 24h
 
+SMS:
+  Provider: "http"
+  SendURL: "https://sms.example.test/send"
+  VerifyURL: "https://sms.example.test/verify"
+  SendMinInterval: 45s
+  DailySendLimit: 8
+  AccessKeySecret: "sms-secret"
+
 Storage:
   Provider: "qiniu-kodo"
   Endpoint: "https://upload-z2.qiniup.com"
@@ -54,6 +62,9 @@ Storage:
 	}
 	if cfg.AdminAuth.TokenSecret != "secret-token" || cfg.AdminAuth.TokenTTL != 24*time.Hour {
 		t.Fatalf("admin auth = %#v, want env token and ttl", cfg.AdminAuth)
+	}
+	if cfg.SMS.Provider != "http" || cfg.SMS.SendMinInterval != 45*time.Second || cfg.SMS.DailySendLimit != 8 {
+		t.Fatalf("sms = %#v, want http rate limit config", cfg.SMS)
 	}
 	if cfg.Storage.Provider != "qiniu-kodo" || cfg.Storage.UploadExpire != 15*time.Minute || cfg.Storage.MaxFileSizeBytes != 10485760 {
 		t.Fatalf("storage = %#v, want qiniu config", cfg.Storage)

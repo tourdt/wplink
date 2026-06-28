@@ -93,7 +93,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/my/index.vue',
     description: '身份保存和核心入口',
-    checks: ['wechatLogin', 'saveUserId', 'saveMerchantId', 'openMyResources', 'openVerification', 'openPublish'],
+    checks: ['wechatLogin', 'sendSmsCode', 'bindPhone', 'saveUserId', 'saveMerchantId', 'openMyResources', 'openVerification', 'openPublish'],
   },
 ]
 

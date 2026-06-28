@@ -26,11 +26,7 @@ func ValidateForProduction(cfg Config) error {
 	require("AdminAuth.TokenSecret", cfg.AdminAuth.TokenSecret)
 	require("Wechat.AppID", cfg.Wechat.AppID)
 	require("Wechat.AppSecret", cfg.Wechat.AppSecret)
-	require("SMS.Provider", cfg.SMS.Provider)
-	require("SMS.AccessKeyID", cfg.SMS.AccessKeyID)
-	require("SMS.AccessKeySecret", cfg.SMS.AccessKeySecret)
-	require("SMS.SignName", cfg.SMS.SignName)
-	require("SMS.TemplateCode", cfg.SMS.TemplateCode)
+	validateProductionSMS(cfg.SMS, require, &missing)
 	require("Storage.Provider", cfg.Storage.Provider)
 	require("Storage.Endpoint", cfg.Storage.Endpoint)
 	require("Storage.Bucket", cfg.Storage.Bucket)
@@ -45,4 +41,24 @@ func ValidateForProduction(cfg Config) error {
 		return fmt.Errorf("生产配置不允许启用 Wechat.AllowDevCode")
 	}
 	return nil
+}
+
+func validateProductionSMS(cfg SMSConfig, require func(string, string), missing *[]string) {
+	provider := strings.TrimSpace(strings.ToLower(cfg.Provider))
+	require("SMS.Provider", cfg.Provider)
+	switch provider {
+	case "":
+		return
+	case "dev":
+		*missing = append(*missing, "SMS.Provider(不能使用 dev)")
+	case "http":
+		require("SMS.SendURL", cfg.SendURL)
+		require("SMS.VerifyURL", cfg.VerifyURL)
+		require("SMS.AccessKeySecret", cfg.AccessKeySecret)
+	default:
+		require("SMS.AccessKeyID", cfg.AccessKeyID)
+		require("SMS.AccessKeySecret", cfg.AccessKeySecret)
+		require("SMS.SignName", cfg.SignName)
+		require("SMS.TemplateCode", cfg.TemplateCode)
+	}
 }

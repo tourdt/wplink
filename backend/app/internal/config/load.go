@@ -109,6 +109,22 @@ func applyConfigValue(cfg *Config, section string, key string, value string) err
 		switch key {
 		case "Provider":
 			cfg.SMS.Provider = value
+		case "SendURL":
+			cfg.SMS.SendURL = value
+		case "VerifyURL":
+			cfg.SMS.VerifyURL = value
+		case "SendMinInterval":
+			interval, err := time.ParseDuration(value)
+			if err != nil {
+				return fmt.Errorf("SendMinInterval 配置不正确: %w", err)
+			}
+			cfg.SMS.SendMinInterval = interval
+		case "DailySendLimit":
+			limit, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("DailySendLimit 配置必须是数字: %w", err)
+			}
+			cfg.SMS.DailySendLimit = limit
 		case "AccessKeyID":
 			cfg.SMS.AccessKeyID = value
 		case "AccessKeySecret":

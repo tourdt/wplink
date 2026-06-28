@@ -22,6 +22,7 @@
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
 | `POST /api/v1/auth/wechat-login` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | 登录/启动流程 | 已接 handler，测试通过 |
+| `POST /api/v1/auth/sms-code` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | `wxapp/pages/my/index.vue` | 已接 handler，测试通过 |
 | `GET /api/v1/me` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | `wxapp/pages/my/index.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/me/phone` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | 绑定手机号流程 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/auth/login` | `backend/app/api/admin.api` | `backend/app/internal/logic/adminauth/login_service.go` | `admin-web/src/views/LoginView.vue` | 不适用 | 已接 handler，测试通过 |
@@ -134,4 +135,4 @@
 
 以下能力在当前 MVP TODO 中已规划，但产品 API 契约文档还没有完整展开。进入对应阶段前需要补充 `.api` 契约：
 
-- 真实微信 `code2session` 和短信验证码供应商校验
+- 直接接入具体短信厂商 SDK（当前已支持通用 HTTP 验证码服务接入）

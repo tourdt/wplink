@@ -31,6 +31,10 @@ type WechatConfig struct {
 
 type SMSConfig struct {
 	Provider        string
+	SendURL         string
+	VerifyURL       string
+	SendMinInterval time.Duration
+	DailySendLimit  int
 	AccessKeyID     string
 	AccessKeySecret string
 	SignName        string
