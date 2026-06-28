@@ -34,15 +34,19 @@ type CreatePurchaseDemandResp {
 }
 
 type ListMyPurchaseDemandsReq {
+	Status   string `form:"status,optional"`
 	Page     int64 `form:"page,optional"`
 	PageSize int64 `form:"pageSize,optional"`
 }
 
 type PurchaseDemandListItem {
-	Id        string `json:"id"`
-	Title     string `json:"title"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"createdAt"`
+	Id          string `json:"id"`
+	Title       string `json:"title"`
+	DemandType  string `json:"demandType"`
+	Category    string `json:"category"`
+	ContactName string `json:"contactName"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"createdAt"`
 }
 
 type ListMyPurchaseDemandsResp {

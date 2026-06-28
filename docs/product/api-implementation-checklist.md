@@ -64,7 +64,7 @@
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
 | `POST /api/v1/purchase-demands` | `backend/app/api/demand.api` | `backend/app/internal/logic/demand/create_demand_logic.go` | 需求线索池 | `wxapp/pages/demand/index.vue` | 已接 handler，测试通过 |
-| `GET /api/v1/me/purchase-demands` | `backend/app/api/demand.api` | `backend/app/internal/logic/demand/list_my_demands_logic.go` | 不适用 | 我的需求/消息入口 | 已接 handler，测试通过 |
+| `GET /api/v1/me/purchase-demands` | `backend/app/api/demand.api` | `backend/app/internal/logic/demand/list_my_demands_logic.go` | 不适用 | `wxapp/pages/my-demands/index.vue` | 已接 handler，测试通过 |
 | `GET /api/v1/admin/purchase-demands` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/demand_admin_logic.go` | `admin-web/src/views/DemandView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/purchase-demands/:demandId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/demand_admin_logic.go` | `admin-web/src/views/DemandView.vue` | 不适用 | 已接 handler，测试通过 |
 | `PATCH /api/v1/admin/purchase-demands/:demandId/status` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/demand_admin_logic.go` | `admin-web/src/views/DemandView.vue` | 不适用 | 已接 handler，测试通过 |

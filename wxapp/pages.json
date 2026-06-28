@@ -37,6 +37,12 @@
       }
     },
     {
+      "path": "pages/my-demands/index",
+      "style": {
+        "navigationBarTitleText": "我的需求"
+      }
+    },
+    {
       "path": "pages/messages/index",
       "style": {
         "navigationBarTitleText": "消息"

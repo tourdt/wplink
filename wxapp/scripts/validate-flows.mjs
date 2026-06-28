@@ -58,7 +58,12 @@ export const defaultFlowChecks = [
   {
     file: 'pages/demand-success/index.vue',
     description: '需求成功跳转消息和首页',
-    checks: ['openMessages', 'backHome', '/pages/messages/index', '/pages/home/index'],
+    checks: ['openMessages', 'openMyDemands', 'backHome', '/pages/messages/index', '/pages/my-demands/index', '/pages/home/index'],
+  },
+  {
+    file: 'pages/my-demands/index.vue',
+    description: '我的采购需求列表',
+    checks: ['listMyDemands', 'getUserId', 'statusLabel', 'openDemand', 'openMessages'],
   },
   {
     file: 'pages/my-resources/index.vue',
@@ -93,7 +98,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/my/index.vue',
     description: '身份保存和核心入口',
-    checks: ['wechatLogin', 'sendSmsCode', 'bindPhone', 'saveUserId', 'saveMerchantId', 'openMyResources', 'openVerification', 'openPublish'],
+    checks: ['wechatLogin', 'sendSmsCode', 'bindPhone', 'saveUserId', 'saveMerchantId', 'openMyResources', 'openMyDemands', 'openVerification', 'openPublish'],
   },
 ]
 

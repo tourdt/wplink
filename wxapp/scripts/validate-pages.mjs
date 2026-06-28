@@ -17,6 +17,7 @@ const requiredPages = [
   'pages/publish-success/index',
   'pages/demand/index',
   'pages/demand-success/index',
+  'pages/my-demands/index',
   'pages/messages/index',
   'pages/my/index',
   'pages/my-resources/index',

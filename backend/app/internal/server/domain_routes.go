@@ -132,8 +132,9 @@ func registerDemandRoutes(mux *http.ServeMux, store DemandAPIStore) {
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/me/purchase-demands", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
 		resp, err := demandlogic.NewListMyDemandsLogic(store).ListMyDemands(r.Context(), r.URL.Query().Get("userId"), demandlogic.ListMyDemandsReq{
-			Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
+			Status: query.Get("status"), Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
 		})
 		response.JSON(w, resp, err)
 	})

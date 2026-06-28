@@ -13,15 +13,19 @@ type MyDemandStore interface {
 }
 
 type ListMyDemandsReq struct {
+	Status   string
 	Page     int64
 	PageSize int64
 }
 
 type DemandListItem struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"createdAt"`
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	DemandType  string `json:"demandType"`
+	Category    string `json:"category"`
+	ContactName string `json:"contactName"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"createdAt"`
 }
 
 type ListMyDemandsResp struct {
@@ -44,13 +48,15 @@ func (l *ListMyDemandsLogic) ListMyDemands(ctx context.Context, userID string, r
 	if userID == "" {
 		return ListMyDemandsResp{}, errx.New(errx.CodeValidationFailed, "请先登录")
 	}
-	result, err := l.store.ListMyDemands(ctx, userID, model.ListDemandsFilter{Page: req.Page, PageSize: req.PageSize})
+	result, err := l.store.ListMyDemands(ctx, userID, model.ListDemandsFilter{Status: strings.TrimSpace(req.Status), Page: req.Page, PageSize: req.PageSize})
 	if err != nil {
 		return ListMyDemandsResp{}, err
 	}
 	items := make([]DemandListItem, 0, len(result.Items))
 	for _, item := range result.Items {
-		items = append(items, DemandListItem{ID: item.ID, Title: item.Title, Status: item.Status, CreatedAt: item.CreatedAt})
+		items = append(items, DemandListItem{
+			ID: item.ID, Title: item.Title, DemandType: item.DemandType, Category: item.Category, ContactName: item.ContactName, Status: item.Status, CreatedAt: item.CreatedAt,
+		})
 	}
 	return ListMyDemandsResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil
 }

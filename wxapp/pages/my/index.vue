@@ -21,6 +21,10 @@
         <text>我的发布</text>
         <text class="action-meta">资源状态和效果数据</text>
       </view>
+      <view class="action-item" @click="openMyDemands">
+        <text>我的需求</text>
+        <text class="action-meta">采购需求和撮合进展</text>
+      </view>
       <view class="action-item" @click="openVerification">
         <text>商家认证</text>
         <text class="action-meta">认证状态和提交资料</text>
@@ -167,6 +171,10 @@ function localDevLoginCode() {
 
 function openMyResources() {
   uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${merchantId.value}` })
+}
+
+function openMyDemands() {
+  uni.navigateTo({ url: '/pages/my-demands/index' })
 }
 
 function openVerification() {

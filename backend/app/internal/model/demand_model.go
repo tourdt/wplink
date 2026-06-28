@@ -137,9 +137,10 @@ func (m *DemandModel) ListMyDemands(ctx context.Context, userID string, filter L
 SELECT id, title, demand_type, category, contact_name, status, created_at, COUNT(*) OVER() AS total
 FROM purchase_demands
 WHERE user_id = $1
+  AND ($2 = '' OR status = $2)
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
-`, userID, pageSize, offset)
+LIMIT $3 OFFSET $4
+`, userID, filter.Status, pageSize, offset)
 	if err != nil {
 		return ListDemandsResult{}, err
 	}

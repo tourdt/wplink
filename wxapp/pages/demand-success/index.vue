@@ -4,6 +4,7 @@
       <text class="success-title">采购需求已提交</text>
       <text class="success-desc">运营会根据需求进行人工撮合，后续进展可在消息中心查看。</text>
       <button class="primary-button" @click="openMessages">查看消息</button>
+      <button class="secondary-button" @click="openMyDemands">我的需求</button>
       <button class="secondary-button" @click="backHome">返回首页</button>
     </view>
   </view>
@@ -12,6 +13,10 @@
 <script setup>
 function openMessages() {
   uni.switchTab({ url: '/pages/messages/index' })
+}
+
+function openMyDemands() {
+  uni.navigateTo({ url: '/pages/my-demands/index' })
 }
 
 function backHome() {
