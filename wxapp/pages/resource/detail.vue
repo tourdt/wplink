@@ -5,7 +5,10 @@
         <text v-if="isVerifiedMerchant" class="tag verified">认证商家</text>
         <text v-if="resource.status" class="tag">{{ statusText[resource.status] || resource.status }}</text>
       </view>
-      <text class="title">{{ resource.title }}</text>
+      <view class="title-row">
+        <text class="title">{{ resource.title }}</text>
+        <button class="favorite-button" @click="toggleFavorite">{{ favorited ? '已收藏' : '收藏' }}</button>
+      </view>
       <text class="meta">{{ resource.category || '品类待沟通' }} · {{ resource.quantityText || '数量待沟通' }}</text>
       <text class="price">{{ resource.priceText || '价格面议' }}</text>
       <text class="desc">{{ resource.description || '商家暂未填写详细描述，建议联系前确认数量、尺码、看样方式和交付时间。' }}</text>
@@ -42,10 +45,13 @@ import { computed, ref } from 'vue'
 import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import MerchantBadge from '../../components/MerchantBadge.vue'
 import ResourceCard from '../../components/ResourceCard.vue'
+import { getResourceFavoriteState, setResourceFavorite } from '../../api/favorite'
 import { getResource, listResources, recordResourceContact, recordResourceDetailView } from '../../api/resource'
+import { getSession } from '../../store/session'
 
 const resource = ref({})
 const relatedResources = ref([])
+const favorited = ref(false)
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const statusText = {
   published: '已发布',
@@ -59,8 +65,31 @@ onLoad(async (options) => {
   if (!options.id) return
   resource.value = await getResource(options.id)
   await recordResourceDetailView(options.id)
+  await loadFavoriteState(options.id)
   await loadRelatedResources()
 })
+
+async function loadFavoriteState(resourceId) {
+  if (!getSession().token) return
+  try {
+    const resp = await getResourceFavoriteState(resourceId)
+    favorited.value = Boolean(resp.favorited)
+  } catch (err) {
+    favorited.value = false
+  }
+}
+
+async function toggleFavorite() {
+  if (!resource.value.id) return
+  try {
+    // 收藏状态以服务端返回为准，避免弱网下本地乐观更新和真实状态不一致。
+    const resp = await setResourceFavorite(resource.value.id, !favorited.value)
+    favorited.value = Boolean(resp.favorited)
+    uni.showToast({ title: favorited.value ? '已收藏资源' : '已取消收藏', icon: 'none' })
+  } catch (err) {
+    uni.showToast({ title: err.message || '收藏失败，请稍后重试', icon: 'none' })
+  }
+}
 
 async function recordContact(action) {
   if (!resource.value.id) return
@@ -161,11 +190,26 @@ onShareAppMessage(() => ({
   color: #0f766e;
 }
 
+.title-row {
+  display: grid;
+  grid-template-columns: 1fr 136rpx;
+  gap: 16rpx;
+  align-items: start;
+}
+
 .title {
   color: #1f2933;
   font-size: 38rpx;
   font-weight: 700;
   line-height: 1.35;
+}
+
+.favorite-button {
+  height: 64rpx;
+  border-radius: 10rpx;
+  background: #fff7e6;
+  color: #b7791f;
+  font-size: 24rpx;
 }
 
 .meta,

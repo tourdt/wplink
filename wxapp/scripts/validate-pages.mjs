@@ -26,6 +26,7 @@ const requiredPages = [
   'pages/messages/index',
   'pages/my/index',
   'pages/my-resources/index',
+  'pages/favorites/index',
   'pages/merchant/profile',
   'pages/resource/detail',
   'pages/merchant/detail',

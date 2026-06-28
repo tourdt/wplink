@@ -12,6 +12,7 @@ import (
 	demandlogic "wplink/backend/app/internal/logic/demand"
 	discoverylogic "wplink/backend/app/internal/logic/discovery"
 	entitlementlogic "wplink/backend/app/internal/logic/entitlement"
+	favoritelogic "wplink/backend/app/internal/logic/favorite"
 	merchantlogic "wplink/backend/app/internal/logic/merchant"
 	messagelogic "wplink/backend/app/internal/logic/message"
 	metricslogic "wplink/backend/app/internal/logic/metrics"
@@ -63,6 +64,10 @@ type MetricsQueryAPIStore interface {
 	metricslogic.MerchantMetricsStore
 }
 
+type InteractionAPIStore interface {
+	favoritelogic.InteractionStore
+}
+
 type AdminUtilityAPIStore interface {
 	adminlogic.DashboardStore
 	adminlogic.OperationLogStore
@@ -93,6 +98,9 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	}
 	if metricsStore, ok := store.(MetricsQueryAPIStore); ok {
 		registerMetricsRoutes(mux, metricsStore, userTokenService, adminTokenService, permissionStore)
+	}
+	if interactionStore, ok := store.(InteractionAPIStore); ok && userTokenService != nil {
+		registerInteractionRoutes(mux, interactionStore, userTokenService)
 	}
 	if adminStore, ok := store.(AdminUtilityAPIStore); ok {
 		registerAdminUtilityRoutes(mux, adminStore, adminTokenService)
@@ -357,6 +365,113 @@ func registerEntitlementRoutes(mux *http.ServeMux, store EntitlementAPIStore, to
 			body.OperatorID = operatorID
 		}
 		resp, err := adminlogic.NewEntitlementAdminLogic(store).GrantMerchantEntitlement(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
+}
+
+func registerInteractionRoutes(mux *http.ServeMux, store InteractionAPIStore, tokenService authlogic.TokenService) {
+	mux.HandleFunc("GET /api/v1/me/favorite-resources", func(w http.ResponseWriter, r *http.Request) {
+		userID, err := userIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := favoritelogic.NewInteractionLogic(store).ListFavoriteResources(r.Context(), userID, favoritelogic.ListInteractionReq{
+			Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/me/favorite-resources/{resourceId}", func(w http.ResponseWriter, r *http.Request) {
+		userID, err := userIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := favoritelogic.NewInteractionLogic(store).GetResourceFavoriteState(r.Context(), userID, r.PathValue("resourceId"))
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/me/favorite-resources/{resourceId}", func(w http.ResponseWriter, r *http.Request) {
+		userID, err := userIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		var body favoritelogic.SetResourceFavoriteReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		body.ResourceID = r.PathValue("resourceId")
+		resp, err := favoritelogic.NewInteractionLogic(store).SetResourceFavorite(r.Context(), userID, body)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/me/followed-merchants", func(w http.ResponseWriter, r *http.Request) {
+		userID, err := userIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := favoritelogic.NewInteractionLogic(store).ListFollowedMerchants(r.Context(), userID, favoritelogic.ListInteractionReq{
+			Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/me/followed-merchants/{merchantId}", func(w http.ResponseWriter, r *http.Request) {
+		userID, err := userIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := favoritelogic.NewInteractionLogic(store).GetMerchantFollowState(r.Context(), userID, r.PathValue("merchantId"))
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/me/followed-merchants/{merchantId}", func(w http.ResponseWriter, r *http.Request) {
+		userID, err := userIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		var body favoritelogic.SetMerchantFollowReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		body.MerchantID = r.PathValue("merchantId")
+		resp, err := favoritelogic.NewInteractionLogic(store).SetMerchantFollow(r.Context(), userID, body)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/me/saved-searches", func(w http.ResponseWriter, r *http.Request) {
+		userID, err := userIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := favoritelogic.NewInteractionLogic(store).ListSavedSearches(r.Context(), userID, favoritelogic.ListInteractionReq{
+			Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/me/saved-searches", func(w http.ResponseWriter, r *http.Request) {
+		userID, err := userIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		var body favoritelogic.CreateSavedSearchReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := favoritelogic.NewInteractionLogic(store).CreateSavedSearch(r.Context(), userID, body)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("DELETE /api/v1/me/saved-searches/{savedSearchId}", func(w http.ResponseWriter, r *http.Request) {
+		userID, err := userIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := favoritelogic.NewInteractionLogic(store).DeleteSavedSearch(r.Context(), userID, r.PathValue("savedSearchId"))
 		response.JSON(w, resp, err)
 	})
 }

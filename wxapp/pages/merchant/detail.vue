@@ -8,6 +8,7 @@
           <text class="tag verified" v-if="merchant.verificationStatus === 'verified'">已认证</text>
         </view>
       </view>
+      <button class="follow-button" @click="toggleFollow">{{ followed ? '已关注' : '关注' }}</button>
     </view>
 
     <view class="section">
@@ -69,11 +70,14 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
+import { getMerchantFollowState, setMerchantFollow } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
 import { listResources } from '../../api/resource'
+import { getSession } from '../../store/session'
 
 const merchant = ref({})
 const merchantResources = ref([])
+const followed = ref(false)
 const creditTags = computed(() => merchant.value.creditTags || [])
 const merchantImages = computed(() => merchant.value.images || [])
 const resourcesSummary = computed(() => merchant.value.resourcesSummary || {})
@@ -88,9 +92,32 @@ const merchantTypeText = {
 onLoad(async (options) => {
   if (!options.id) return
   merchant.value = await getMerchant(options.id)
+  await loadFollowState(options.id)
   const resp = await listResources({ merchantId: options.id, page: 1, pageSize: 10 })
   merchantResources.value = resp.items || []
 })
+
+async function loadFollowState(merchantId) {
+  if (!getSession().token) return
+  try {
+    const resp = await getMerchantFollowState(merchantId)
+    followed.value = Boolean(resp.followed)
+  } catch (err) {
+    followed.value = false
+  }
+}
+
+async function toggleFollow() {
+  if (!merchant.value.id) return
+  try {
+    // 关注商家用于后续复访和提醒，当前只改变关注列表，不触发营销消息。
+    const resp = await setMerchantFollow(merchant.value.id, !followed.value)
+    followed.value = Boolean(resp.followed)
+    uni.showToast({ title: followed.value ? '已关注商家' : '已取消关注', icon: 'none' })
+  } catch (err) {
+    uni.showToast({ title: err.message || '关注失败，请稍后重试', icon: 'none' })
+  }
+}
 
 function openResource(resource) {
   uni.navigateTo({ url: `/pages/resource/detail?id=${resource.id}` })
@@ -120,6 +147,13 @@ function copyWechat() {
   background: #ffffff;
 }
 
+.merchant-head {
+  display: grid;
+  grid-template-columns: 1fr 136rpx;
+  gap: 16rpx;
+  align-items: start;
+}
+
 .merchant-name {
   display: block;
   margin-bottom: 12rpx;
@@ -145,6 +179,14 @@ function copyWechat() {
 .tag.verified {
   background: #e6f4f1;
   color: #0f766e;
+}
+
+.follow-button {
+  height: 64rpx;
+  border-radius: 10rpx;
+  background: #fff7e6;
+  color: #b7791f;
+  font-size: 24rpx;
 }
 
 .section-title {

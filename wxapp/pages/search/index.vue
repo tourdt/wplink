@@ -9,6 +9,16 @@
       <input v-model="keyword" class="search-input" placeholder="搜索库存、货源、工厂、服务" @confirm="search" />
       <button class="search-button" @click="search">搜索</button>
     </view>
+    <view class="save-row">
+      <button class="save-button" @click="saveCurrentSearch">保存搜索</button>
+      <button class="save-button" @click="loadSavedSearches">刷新保存</button>
+    </view>
+
+    <view v-if="savedSearches.length" class="saved-row">
+      <button v-for="item in savedSearches" :key="item.id" class="saved-button" @click="applySavedSearch(item)">
+        {{ item.name }}
+      </button>
+    </view>
 
     <view class="filter-row">
       <button
@@ -46,25 +56,31 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { listCityResourceTypes } from '../../api/city'
+import { createSavedSearch, listSavedSearches } from '../../api/favorite'
 import { searchResources } from '../../api/resource'
+import { getSession } from '../../store/session'
 
 const resourceTypes = ref([{ label: '全部', value: '' }])
 const hotKeywords = ['夏款现货', '急清库存', '小单快返', '直播供货']
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const keyword = ref('')
 const rows = ref([])
+const savedSearches = ref([])
 const searched = ref(false)
 const filters = reactive({
   cityCode: DEFAULT_CITY_CODE,
   typeCode: '',
 })
 
-onLoad(loadResourceTypes)
+onLoad(() => {
+  loadResourceTypes()
+  loadSavedSearches()
+})
 onShow(applyPendingKeyword)
 
 async function loadResourceTypes() {
@@ -77,10 +93,16 @@ async function loadResourceTypes() {
 }
 
 function applyPendingKeyword() {
-  const pendingKeyword = uni.getStorageSync(SEARCH_KEY)
-  if (!pendingKeyword) return
+  const pendingSearch = uni.getStorageSync(SEARCH_KEY)
+  if (!pendingSearch) return
   uni.removeStorageSync(SEARCH_KEY)
-  keyword.value = pendingKeyword
+  if (typeof pendingSearch === 'string') {
+    keyword.value = pendingSearch
+  } else {
+    keyword.value = pendingSearch.keyword || ''
+    filters.typeCode = pendingSearch.typeCode || ''
+    filters.cityCode = pendingSearch.cityCode || DEFAULT_CITY_CODE
+  }
   search()
 }
 
@@ -95,6 +117,42 @@ async function search() {
   searched.value = true
 }
 
+async function loadSavedSearches() {
+  if (!getSession().token) {
+    savedSearches.value = []
+    return
+  }
+  try {
+    const resp = await listSavedSearches({ page: 1, pageSize: 10 })
+    savedSearches.value = resp.items || []
+  } catch (err) {
+    savedSearches.value = []
+  }
+}
+
+async function saveCurrentSearch() {
+  try {
+    const name = keyword.value.trim() || selectedTypeLabel.value || '认证资源'
+    await createSavedSearch({
+      name,
+      cityCode: filters.cityCode,
+      typeCode: filters.typeCode,
+      keyword: keyword.value.trim(),
+    })
+    uni.showToast({ title: '已保存搜索', icon: 'none' })
+    await loadSavedSearches()
+  } catch (err) {
+    uni.showToast({ title: err.message || '保存搜索失败，请稍后重试', icon: 'none' })
+  }
+}
+
+function applySavedSearch(item) {
+  keyword.value = item.keyword || ''
+  filters.typeCode = item.typeCode || ''
+  filters.cityCode = item.cityCode || DEFAULT_CITY_CODE
+  search()
+}
+
 function searchHotKeyword(value) {
   keyword.value = value
   search()
@@ -104,6 +162,11 @@ function selectType(typeCode) {
   filters.typeCode = typeCode
   search()
 }
+
+const selectedTypeLabel = computed(() => {
+  const selected = resourceTypes.value.find((item) => item.value === filters.typeCode)
+  return selected?.label || ''
+})
 
 function openResource(item) {
   uni.navigateTo({ url: `/pages/resource/detail?id=${item.id}` })
@@ -147,6 +210,29 @@ function openDemand() {
   grid-template-columns: 1fr 144rpx;
   gap: 16rpx;
   margin-bottom: 20rpx;
+}
+
+.save-row,
+.saved-row {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+  overflow-x: auto;
+}
+
+.save-button,
+.saved-button {
+  flex: 0 0 auto;
+  height: 62rpx;
+  padding: 0 18rpx;
+  border-radius: 10rpx;
+  background: #ffffff;
+  color: #0f766e;
+  font-size: 24rpx;
+}
+
+.saved-button {
+  background: #e6f4f1;
 }
 
 .search-input,

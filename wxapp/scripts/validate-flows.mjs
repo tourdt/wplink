@@ -24,7 +24,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/search/index.vue',
     description: '搜索和无结果提交需求',
-    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', 'openDemand', '暂未找到合适资源', 'hotKeywords', '置顶资源', '提交采购需求'],
+    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', 'openDemand', '暂未找到合适资源', 'hotKeywords', '置顶资源', '提交采购需求', 'listSavedSearches', 'createSavedSearch', 'applySavedSearch', '保存搜索'],
   },
   {
     file: 'pages/resource/detail.vue',
@@ -42,6 +42,9 @@ export const defaultFlowChecks = [
       'uni.setClipboardData',
       '平台已记录联系行为',
       '同类推荐',
+      'getResourceFavoriteState',
+      'setResourceFavorite',
+      'toggleFavorite',
     ],
   },
   {
@@ -122,7 +125,12 @@ export const defaultFlowChecks = [
   {
     file: 'pages/merchant/detail.vue',
     description: '商家主页认证和发布记录',
-    checks: ['getMerchant', 'listResources', 'ResourceCard', 'merchantResources', 'openResource', 'verificationStatus', 'resourcesSummary', 'merchantImages', 'image-gallery', 'merchant-image', '权益提示', '联系前建议先从资源详情进入'],
+    checks: ['getMerchant', 'listResources', 'ResourceCard', 'merchantResources', 'openResource', 'verificationStatus', 'resourcesSummary', 'merchantImages', 'image-gallery', 'merchant-image', '权益提示', '联系前建议先从资源详情进入', 'getMerchantFollowState', 'setMerchantFollow', 'toggleFollow'],
+  },
+  {
+    file: 'api/favorite.js',
+    description: '收藏关注和保存搜索 API',
+    checks: ['getResourceFavoriteState', 'setResourceFavorite', 'listFavoriteResources', 'getMerchantFollowState', 'setMerchantFollow', 'listFollowedMerchants', 'listSavedSearches', 'createSavedSearch', 'deleteSavedSearch'],
   },
   {
     file: 'components/ResourceCard.vue',

@@ -111,6 +111,20 @@
 | `GET /api/v1/messages` | `backend/app/api/message.api` | `backend/app/internal/logic/message/message_logic.go` | 消息发送记录 | `wxapp/pages/messages/index.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/messages/:messageId/read` | `backend/app/api/message.api` | `backend/app/internal/logic/message/message_logic.go` | 不适用 | `wxapp/pages/messages/index.vue` | 已接 handler，测试通过 |
 
+## 收藏、关注和保存搜索
+
+| 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
+|---|---|---|---|---|---|
+| `GET /api/v1/me/favorite-resources` | `backend/app/api/favorite.api` | `backend/app/internal/logic/favorite/favorite_logic.go` | 不适用 | `wxapp/pages/favorites/index.vue` | 已接 handler，测试通过 |
+| `GET /api/v1/me/favorite-resources/:resourceId` | `backend/app/api/favorite.api` | `backend/app/internal/logic/favorite/favorite_logic.go` | 不适用 | `wxapp/pages/resource/detail.vue` | 已接 handler，测试通过 |
+| `POST /api/v1/me/favorite-resources/:resourceId` | `backend/app/api/favorite.api` | `backend/app/internal/logic/favorite/favorite_logic.go` | 不适用 | `wxapp/pages/resource/detail.vue` | 已接 handler，测试通过 |
+| `GET /api/v1/me/followed-merchants` | `backend/app/api/favorite.api` | `backend/app/internal/logic/favorite/favorite_logic.go` | 不适用 | `wxapp/pages/favorites/index.vue` | 已接 handler，测试通过 |
+| `GET /api/v1/me/followed-merchants/:merchantId` | `backend/app/api/favorite.api` | `backend/app/internal/logic/favorite/favorite_logic.go` | 不适用 | `wxapp/pages/merchant/detail.vue` | 已接 handler，测试通过 |
+| `POST /api/v1/me/followed-merchants/:merchantId` | `backend/app/api/favorite.api` | `backend/app/internal/logic/favorite/favorite_logic.go` | 不适用 | `wxapp/pages/merchant/detail.vue` | 已接 handler，测试通过 |
+| `GET /api/v1/me/saved-searches` | `backend/app/api/favorite.api` | `backend/app/internal/logic/favorite/favorite_logic.go` | 不适用 | `wxapp/pages/search/index.vue`、`wxapp/pages/favorites/index.vue` | 已接 handler，测试通过 |
+| `POST /api/v1/me/saved-searches` | `backend/app/api/favorite.api` | `backend/app/internal/logic/favorite/favorite_logic.go` | 不适用 | `wxapp/pages/search/index.vue` | 已接 handler，测试通过 |
+| `DELETE /api/v1/me/saved-searches/:savedSearchId` | `backend/app/api/favorite.api` | `backend/app/internal/logic/favorite/favorite_logic.go` | 不适用 | `wxapp/pages/favorites/index.vue` | 已接 handler，测试通过 |
+
 ## 管理后台
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |

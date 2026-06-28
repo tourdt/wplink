@@ -66,6 +66,10 @@
         <text>我的需求</text>
         <text class="action-meta">采购需求和撮合进展</text>
       </view>
+      <view class="action-item" @click="openFavorites">
+        <text>收藏关注</text>
+        <text class="action-meta">收藏资源、关注商家和保存搜索</text>
+      </view>
       <view class="action-item" @click="openVerification">
         <text>商家认证</text>
         <text class="action-meta">认证状态和提交资料</text>
@@ -277,6 +281,10 @@ function openMerchantProfile() {
 
 function openMyDemands() {
   uni.navigateTo({ url: '/pages/my-demands/index' })
+}
+
+function openFavorites() {
+  uni.navigateTo({ url: '/pages/favorites/index' })
 }
 
 function openVerification() {

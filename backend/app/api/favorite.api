@@ -1,0 +1,108 @@
+syntax = "v1"
+
+type SetResourceFavoriteReq {
+	Favorited bool `json:"favorited"`
+}
+
+type ResourceFavoriteStateResp {
+	ResourceId string `json:"resourceId"`
+	Favorited  bool   `json:"favorited"`
+}
+
+type SetMerchantFollowReq {
+	Followed bool `json:"followed"`
+}
+
+type MerchantFollowStateResp {
+	MerchantId string `json:"merchantId"`
+	Followed   bool   `json:"followed"`
+}
+
+type ListInteractionReq {
+	Page     int64 `form:"page,optional"`
+	PageSize int64 `form:"pageSize,optional"`
+}
+
+type FollowedMerchantItem {
+	Id                 string   `json:"id"`
+	Name               string   `json:"name"`
+	MerchantType       string   `json:"merchantType"`
+	VerificationStatus string   `json:"verificationStatus"`
+	MainCategories     []string `json:"mainCategories"`
+	FollowedAt         string   `json:"followedAt"`
+}
+
+type ListFollowedMerchantsResp {
+	Items    []FollowedMerchantItem `json:"items"`
+	Page     int64                  `json:"page"`
+	PageSize int64                  `json:"pageSize"`
+	Total    int64                  `json:"total"`
+}
+
+type CreateSavedSearchReq {
+	Name         string `json:"name,optional"`
+	CityCode     string `json:"cityCode,optional"`
+	TypeCode     string `json:"typeCode,optional"`
+	Keyword      string `json:"keyword,optional"`
+	Category     string `json:"category,optional"`
+	VerifiedOnly bool   `json:"verifiedOnly,optional"`
+}
+
+type SavedSearchResp {
+	Id string `json:"id"`
+}
+
+type SavedSearchItem {
+	Id           string `json:"id"`
+	Name         string `json:"name"`
+	CityCode     string `json:"cityCode"`
+	TypeCode     string `json:"typeCode"`
+	Keyword      string `json:"keyword"`
+	Category     string `json:"category"`
+	VerifiedOnly bool   `json:"verifiedOnly"`
+	CreatedAt    string `json:"createdAt"`
+}
+
+type ListSavedSearchesResp {
+	Items    []SavedSearchItem `json:"items"`
+	Page     int64             `json:"page"`
+	PageSize int64             `json:"pageSize"`
+	Total    int64             `json:"total"`
+}
+
+type DeleteSavedSearchResp {
+	Message string `json:"message"`
+}
+
+@server(
+	prefix: /api/v1
+	group: favorite
+)
+service wplink-api {
+	@handler ListFavoriteResources
+	get /me/favorite-resources (ListInteractionReq) returns (ListResourcesResp)
+
+	@handler GetResourceFavoriteState
+	get /me/favorite-resources/:resourceId returns (ResourceFavoriteStateResp)
+
+	@handler SetResourceFavorite
+	post /me/favorite-resources/:resourceId (SetResourceFavoriteReq) returns (ResourceFavoriteStateResp)
+
+	@handler ListFollowedMerchants
+	get /me/followed-merchants (ListInteractionReq) returns (ListFollowedMerchantsResp)
+
+	@handler GetMerchantFollowState
+	get /me/followed-merchants/:merchantId returns (MerchantFollowStateResp)
+
+	@handler SetMerchantFollow
+	post /me/followed-merchants/:merchantId (SetMerchantFollowReq) returns (MerchantFollowStateResp)
+
+	@handler ListSavedSearches
+	get /me/saved-searches (ListInteractionReq) returns (ListSavedSearchesResp)
+
+	@handler CreateSavedSearch
+	post /me/saved-searches (CreateSavedSearchReq) returns (SavedSearchResp)
+
+	@handler DeleteSavedSearch
+	delete /me/saved-searches/:savedSearchId returns (DeleteSavedSearchResp)
+}
