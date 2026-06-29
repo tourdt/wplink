@@ -46,16 +46,16 @@ function openTopic() {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .webview-page {
   min-height: 100vh;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .activity-shell {
   min-height: 100vh;
   padding: 24rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .webview-bar {
@@ -64,17 +64,17 @@ function openTopic() {
   margin-bottom: 20rpx;
   padding: 18rpx 20rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .webview-bar text:first-child {
-  color: #0f766e;
+  color: $wplink-primary;
   font-size: 24rpx;
   font-weight: 700;
 }
 
 .url-text {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 22rpx;
   line-height: 1.4;
   word-break: break-all;
@@ -84,7 +84,7 @@ function openTopic() {
   overflow: hidden;
   margin-bottom: 20rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .activity-cover {
@@ -95,7 +95,7 @@ function openTopic() {
   background:
     radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.26), transparent 28%),
     #7b8fc7;
-  color: #ffffff;
+  color: $wplink-card;
   font-size: 30rpx;
   font-weight: 700;
 }
@@ -107,13 +107,13 @@ function openTopic() {
 }
 
 .activity-tag {
-  color: #b7791f;
+  color: $wplink-warning;
   font-size: 24rpx;
   font-weight: 700;
 }
 
 .activity-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 36rpx;
   font-weight: 700;
   line-height: 1.3;
@@ -121,7 +121,7 @@ function openTopic() {
 
 .activity-desc,
 .blocked-rule {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.55;
 }
@@ -132,25 +132,25 @@ function openTopic() {
   margin: 24rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .blocked-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 34rpx;
   font-weight: 700;
 }
 
 .blocked-desc {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 28rpx;
 }
 
 .secondary-button {
   height: 84rpx;
   border-radius: 12rpx;
-  background: #e6f4f1;
-  color: #0f766e;
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
   font-size: 28rpx;
   font-weight: 700;
 }

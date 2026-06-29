@@ -16,7 +16,7 @@ defineProps({
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .metric-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -33,13 +33,13 @@ defineProps({
 }
 
 .metric-value {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 28rpx;
   font-weight: 700;
 }
 
 .metric-label {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 22rpx;
 }
 </style>

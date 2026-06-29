@@ -38,7 +38,10 @@ type MerchantDetailResp struct {
 	CreditTags         []CreditTagInfo          `json:"creditTags"`
 	Contact            MerchantContactInfo      `json:"contact"`
 	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`
+	AddressText        string                   `json:"addressText,omitempty"`
+	Location           model.JSONMap            `json:"location,omitempty"`
 	Description        string                   `json:"description,omitempty"`
+	LogoURL            string                   `json:"logoUrl,omitempty"`
 	Images             []string                 `json:"images,omitempty"`
 	LastActiveAt       string                   `json:"lastActiveAt,omitempty"`
 }
@@ -83,8 +86,22 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 			PublishedCount: detail.PublishedCount,
 			DealtCount:     detail.DealtCount,
 		},
+		AddressText:  detail.AddressText,
+		Location:     cloneJSONMap(detail.Location),
 		Description:  detail.Description,
+		LogoURL:      detail.LogoURL,
 		Images:       append([]string(nil), detail.Images...),
 		LastActiveAt: detail.LastActiveAt,
 	}, nil
+}
+
+func cloneJSONMap(value model.JSONMap) model.JSONMap {
+	if value == nil {
+		return nil
+	}
+	cloned := make(model.JSONMap, len(value))
+	for key, item := range value {
+		cloned[key] = item
+	}
+	return cloned
 }

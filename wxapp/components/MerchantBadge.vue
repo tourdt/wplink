@@ -14,7 +14,7 @@ defineProps({
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .merchant-badge {
   display: flex;
   align-items: center;
@@ -22,7 +22,7 @@ defineProps({
 }
 
 .merchant-name {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 32rpx;
   font-weight: 700;
 }
@@ -30,8 +30,8 @@ defineProps({
 .verified-tag {
   padding: 6rpx 12rpx;
   border-radius: 8rpx;
-  background: #e6f4f1;
-  color: #0f766e;
+  background: $wplink-success-soft;
+  color: $wplink-success;
   font-size: 24rpx;
 }
 </style>

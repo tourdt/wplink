@@ -9,7 +9,7 @@ export function createMatchCase(payload) {
 }
 
 export function updateMatchCaseStatus(matchCaseId, payload) {
-  return http.patch(`/api/v1/admin/match-cases/${matchCaseId}/status`, payload)
+  return http.post(`/api/v1/admin/match-cases/${matchCaseId}/status`, payload)
 }
 
 export function addMatchCaseResources(matchCaseId, payload) {

@@ -180,11 +180,11 @@ function openDemand() {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .search-page {
   min-height: 100vh;
   padding: 24rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .search-guide {
@@ -193,17 +193,17 @@ function openDemand() {
   margin-bottom: 20rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .guide-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 36rpx;
   font-weight: 700;
 }
 
 .guide-desc {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
 }
@@ -229,13 +229,13 @@ function openDemand() {
   height: 62rpx;
   padding: 0 18rpx;
   border-radius: 10rpx;
-  background: #ffffff;
-  color: #0f766e;
+  background: $wplink-card;
+  color: $wplink-primary;
   font-size: 24rpx;
 }
 
 .saved-button {
-  background: #e6f4f1;
+  background: $wplink-primary-soft;
 }
 
 .search-input,
@@ -247,14 +247,14 @@ function openDemand() {
 
 .search-input {
   padding: 0 20rpx;
-  border: 1rpx solid #d8dde6;
-  background: #ffffff;
+  border: 1rpx solid $wplink-line;
+  background: $wplink-card;
 }
 
 .search-button,
 .primary-button {
-  background: #0f766e;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
 }
 
 .filter-row {
@@ -267,13 +267,13 @@ function openDemand() {
 .filter-button {
   min-width: 112rpx;
   padding: 0 20rpx;
-  background: #ffffff;
+  background: $wplink-card;
   color: #364152;
 }
 
 .filter-button.active {
-  background: #d9f3ef;
-  color: #0f766e;
+  background: $wplink-warning-soft;
+  color: $wplink-primary;
 }
 
 .hot-row {
@@ -286,7 +286,7 @@ function openDemand() {
 
 .hot-label {
   flex: 0 0 auto;
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
 }
 
@@ -296,7 +296,7 @@ function openDemand() {
   height: 62rpx;
   padding: 0 18rpx;
   border-radius: 10rpx;
-  background: #ffffff;
+  background: $wplink-card;
   color: #364152;
   font-size: 24rpx;
 }
@@ -307,11 +307,11 @@ function openDemand() {
   margin-bottom: 18rpx;
   padding: 18rpx 20rpx;
   border-radius: 12rpx;
-  background: #fff7e6;
+  background: $wplink-warning-soft;
 }
 
 .promotion-title {
-  color: #b7791f;
+  color: $wplink-warning;
   font-size: 26rpx;
   font-weight: 700;
 }
@@ -333,7 +333,7 @@ function openDemand() {
   gap: 14rpx;
   padding: 40rpx 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
   text-align: center;
 }
 
@@ -349,19 +349,19 @@ function openDemand() {
     linear-gradient(140deg, rgba(255, 255, 255, 0.22), transparent 38%),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.18) 0 12rpx, transparent 12rpx 24rpx),
     #7b8fc7;
-  color: #ffffff;
+  color: $wplink-card;
   font-size: 26rpx;
   font-weight: 700;
 }
 
 .empty-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 32rpx;
   font-weight: 700;
 }
 
 .empty-desc {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 28rpx;
   line-height: 1.5;
 }

@@ -279,7 +279,7 @@ func TestAPIRouterBindsCreatorAndProtectsMerchantUpdate(t *testing.T) {
 	}
 
 	forbiddenRec := httptest.NewRecorder()
-	forbiddenReq := httptest.NewRequest(http.MethodPatch, "/api/v1/merchants/merchant-2", strings.NewReader(`{"mainCategories":["童装"],"description":"更新简介"}`))
+	forbiddenReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-2", strings.NewReader(`{"mainCategories":["童装"],"description":"更新简介"}`))
 	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(forbiddenRec, forbiddenReq)
 	if forbiddenRec.Code != http.StatusForbidden {
@@ -287,7 +287,7 @@ func TestAPIRouterBindsCreatorAndProtectsMerchantUpdate(t *testing.T) {
 	}
 
 	allowedRec := httptest.NewRecorder()
-	allowedReq := httptest.NewRequest(http.MethodPatch, "/api/v1/merchants/merchant-1", strings.NewReader(`{"mainCategories":["童装"],"description":"更新简介"}`))
+	allowedReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1", strings.NewReader(`{"mainCategories":["童装"],"description":"更新简介"}`))
 	allowedReq.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(allowedRec, allowedReq)
 	decodeEnvelopeData(t, allowedRec, http.StatusOK)
@@ -342,7 +342,7 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 	}{
 		{name: "create merchant", method: http.MethodPost, path: "/api/v1/merchants", body: `{"cityCode":"zhili","name":"织里云仓","merchantType":"stockist","mainCategories":["童装"],"contactName":"周经理","contactPhone":"18800000002"}`},
 		{name: "get merchant", method: http.MethodGet, path: "/api/v1/merchants/merchant-1"},
-		{name: "update merchant", method: http.MethodPatch, path: "/api/v1/merchants/merchant-1", body: `{"mainCategories":["童装"],"description":"更新简介","images":["https://example.com/a.jpg"]}`},
+		{name: "update merchant", method: http.MethodPost, path: "/api/v1/merchants/merchant-1", body: `{"mainCategories":["童装"],"merchantType":"service_provider","description":"更新简介","logoUrl":"https://example.com/logo.png","images":["https://example.com/a.jpg"],"addressText":"织里镇利济路88号","location":{"latitude":30.1,"longitude":120.2,"name":"织里童装城","address":"织里镇利济路88号"}}`},
 		{name: "create demand", method: http.MethodPost, path: "/api/v1/purchase-demands", body: `{"userId":"user-1","cityCode":"zhili","demandType":"inventory","title":"找童装库存","category":"童装","contact":{"name":"王采购","phone":"18800000005"}}`},
 		{name: "list my demands", method: http.MethodGet, path: "/api/v1/me/purchase-demands?userId=user-1"},
 		{name: "home banners", method: http.MethodGet, path: "/api/v1/home/banners?cityCode=zhili"},
@@ -361,18 +361,18 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "list admin merchants", method: http.MethodGet, path: "/api/v1/admin/merchants?cityCode=zhili"},
 		{name: "list admin demands", method: http.MethodGet, path: "/api/v1/admin/purchase-demands"},
 		{name: "get admin demand", method: http.MethodGet, path: "/api/v1/admin/purchase-demands/demand-1"},
-		{name: "update admin demand", method: http.MethodPatch, path: "/api/v1/admin/purchase-demands/demand-1/status", body: `{"status":"matching"}`},
+		{name: "update admin demand", method: http.MethodPost, path: "/api/v1/admin/purchase-demands/demand-1/status", body: `{"status":"matching"}`},
 		{name: "list admin banners", method: http.MethodGet, path: "/api/v1/admin/banner-topics?cityCode=zhili"},
 		{name: "create admin banner", method: http.MethodPost, path: "/api/v1/admin/banner-topics", body: `{"cityCode":"zhili","kind":"banner","title":"现货活动","jumpType":"demand","jumpTarget":"/pages/demand/index","status":"active"}`},
-		{name: "update admin banner", method: http.MethodPatch, path: "/api/v1/admin/banner-topics/banner-1", body: `{"cityCode":"zhili","kind":"banner","title":"现货活动","jumpType":"demand","jumpTarget":"/pages/demand/index","status":"active"}`},
+		{name: "update admin banner", method: http.MethodPost, path: "/api/v1/admin/banner-topics/banner-1", body: `{"cityCode":"zhili","kind":"banner","title":"现货活动","jumpType":"demand","jumpTarget":"/pages/demand/index","status":"active"}`},
 		{name: "list resource configs", method: http.MethodGet, path: "/api/v1/admin/resource-type-configs?cityCode=zhili"},
-		{name: "update resource config", method: http.MethodPatch, path: "/api/v1/admin/resource-type-configs/config-1", body: `{"fieldSchema":{},"requiredFields":["title"],"filterFields":["category"],"displayTemplate":{},"reviewRules":{},"sortWeights":{},"messageRules":{},"defaultValidDays":7,"status":"active"}`},
+		{name: "update resource config", method: http.MethodPost, path: "/api/v1/admin/resource-type-configs/config-1", body: `{"fieldSchema":{},"requiredFields":["title"],"filterFields":["category"],"displayTemplate":{},"reviewRules":{},"sortWeights":{},"messageRules":{},"defaultValidDays":7,"status":"active"}`},
 		{name: "list pending verifications", method: http.MethodGet, path: "/api/v1/admin/verifications/pending"},
 		{name: "review verification", method: http.MethodPost, path: "/api/v1/admin/verifications/verification-1/review", body: `{"reviewerId":"user-1","action":"approve"}`},
 		{name: "grant entitlement", method: http.MethodPost, path: "/api/v1/admin/merchants/merchant-1/entitlements", body: `{"operatorId":"user-1","entitlementType":"publish_quota","sourceType":"manual","totalAmount":3,"reason":"测试发放"}`},
 		{name: "create match case", method: http.MethodPost, path: "/api/v1/admin/match-cases", body: `{"operatorId":"user-1","purchaseDemandId":"demand-1","resourceIds":["resource-1"],"participantMerchantIds":["merchant-1"]}`},
 		{name: "list match cases", method: http.MethodGet, path: "/api/v1/admin/match-cases"},
-		{name: "update match case", method: http.MethodPatch, path: "/api/v1/admin/match-cases/match-1/status", body: `{"operatorId":"user-1","status":"contacted"}`},
+		{name: "update match case", method: http.MethodPost, path: "/api/v1/admin/match-cases/match-1/status", body: `{"operatorId":"user-1","status":"contacted"}`},
 		{name: "add match resources", method: http.MethodPost, path: "/api/v1/admin/match-cases/match-1/resources", body: `{"operatorId":"user-1","resourceIds":["resource-1"]}`},
 		{name: "add match participants", method: http.MethodPost, path: "/api/v1/admin/match-cases/match-1/participants", body: `{"operatorId":"user-1","participantMerchantIds":["merchant-1"]}`},
 		{name: "operation logs", method: http.MethodGet, path: "/api/v1/admin/operation-logs?objectType=resource"},
@@ -388,6 +388,18 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 			decodeEnvelopeData(t, rec, http.StatusOK)
 		})
 	}
+	if store.updateMerchantPatch.LogoURL != "https://example.com/logo.png" {
+		t.Fatalf("update merchant logoURL = %q, want decoded logo URL", store.updateMerchantPatch.LogoURL)
+	}
+	if store.updateMerchantPatch.MerchantType != "service_provider" {
+		t.Fatalf("update merchant merchantType = %q, want decoded service_provider", store.updateMerchantPatch.MerchantType)
+	}
+	if store.updateMerchantPatch.AddressText != "织里镇利济路88号" {
+		t.Fatalf("update merchant addressText = %q, want decoded address", store.updateMerchantPatch.AddressText)
+	}
+	if store.updateMerchantPatch.Location["name"] != "织里童装城" || store.updateMerchantPatch.Location["address"] != "织里镇利济路88号" {
+		t.Fatalf("update merchant location = %#v, want decoded map location", store.updateMerchantPatch.Location)
+	}
 }
 
 func newFakeFullAPIStore() *fakeFullAPIStore {
@@ -402,6 +414,7 @@ func newFakeFullAPIStore() *fakeFullAPIStore {
 type fakeFullAPIStore struct {
 	fakeResourceAPIStore
 	createMerchantInput     model.CreateMerchantInput
+	updateMerchantPatch     model.UpdateMerchantPatch
 	createDemandInput       model.CreateDemandInput
 	myDemandUserID          string
 	submitVerificationInput model.SubmitVerificationInput
@@ -432,10 +445,11 @@ func (s *fakeFullAPIStore) CreateMerchant(ctx context.Context, input model.Creat
 }
 
 func (s *fakeFullAPIStore) GetMerchantDetail(ctx context.Context, merchantID string) (model.MerchantDetail, error) {
-	return model.MerchantDetail{ID: merchantID, Name: "织里云仓", MerchantType: "stockist", CityCode: "zhili", MainCategories: []string{"童装"}, VerificationStatus: "verified", ContactName: "周经理", PhoneMasked: "188****0002", PublishedCount: 1}, nil
+	return model.MerchantDetail{ID: merchantID, Name: "织里云仓", MerchantType: "stockist", CityCode: "zhili", MainCategories: []string{"童装"}, VerificationStatus: "verified", ContactName: "周经理", PhoneMasked: "188****0002", AddressText: "织里镇利济路88号", Location: model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"}, PublishedCount: 1}, nil
 }
 
 func (s *fakeFullAPIStore) UpdateMerchant(ctx context.Context, merchantID string, patch model.UpdateMerchantPatch) (string, error) {
+	s.updateMerchantPatch = patch
 	return "2026-06-28T10:00:00Z", nil
 }
 

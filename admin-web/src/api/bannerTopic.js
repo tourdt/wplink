@@ -9,5 +9,5 @@ export function createBannerTopic(payload) {
 }
 
 export function updateBannerTopic(configId, payload) {
-  return http.patch(`/api/v1/admin/banner-topics/${configId}`, payload)
+  return http.post(`/api/v1/admin/banner-topics/${configId}`, payload)
 }

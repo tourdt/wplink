@@ -182,11 +182,11 @@ onShareAppMessage(() => ({
 }))
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .resource-page {
   min-height: 100vh;
   padding: 24rpx 24rpx 150rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .resource-card,
@@ -198,7 +198,7 @@ onShareAppMessage(() => ({
   margin-bottom: 20rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .detail-gallery {
@@ -222,7 +222,7 @@ onShareAppMessage(() => ({
     linear-gradient(140deg, rgba(255, 255, 255, 0.22), transparent 38%),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.18) 0 14rpx, transparent 14rpx 28rpx),
     #d88a80;
-  color: #ffffff;
+  color: $wplink-card;
   font-size: 30rpx;
   font-weight: 700;
 }
@@ -256,8 +256,8 @@ onShareAppMessage(() => ({
 }
 
 .tag.verified {
-  background: #e6f4f1;
-  color: #0f766e;
+  background: $wplink-success-soft;
+  color: $wplink-success;
 }
 
 .title-row {
@@ -268,7 +268,7 @@ onShareAppMessage(() => ({
 }
 
 .title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 38rpx;
   font-weight: 700;
   line-height: 1.35;
@@ -279,8 +279,8 @@ onShareAppMessage(() => ({
 .favorite-button {
   height: 64rpx;
   border-radius: 10rpx;
-  background: #fff7e6;
-  color: #b7791f;
+  background: $wplink-warning-soft;
+  color: $wplink-warning;
   font-size: 24rpx;
 }
 
@@ -290,13 +290,13 @@ onShareAppMessage(() => ({
 .section-content,
 .merchant-hint,
 .section-link {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 28rpx;
   line-height: 1.55;
 }
 
 .price {
-  color: #c2410c;
+  color: $wplink-warning;
   font-size: 32rpx;
   font-weight: 700;
 }
@@ -316,12 +316,12 @@ onShareAppMessage(() => ({
 }
 
 .spec-label {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 24rpx;
 }
 
 .spec-value {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 28rpx;
   font-weight: 700;
   line-height: 1.35;
@@ -336,13 +336,13 @@ onShareAppMessage(() => ({
 }
 
 .section-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 32rpx;
   font-weight: 700;
 }
 
 .section-link {
-  color: #0f766e;
+  color: $wplink-primary;
 }
 
 .contact-bar {
@@ -358,14 +358,14 @@ onShareAppMessage(() => ({
 .contact-bar button {
   height: 88rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
   color: #364152;
   font-size: 28rpx;
   line-height: 1.25;
 }
 
 .primary-button {
-  background: #0f766e;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
 }
 </style>

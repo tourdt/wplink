@@ -105,11 +105,11 @@ function openMessages() {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .my-demands-page {
   min-height: 100vh;
   padding: 24rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .filter-row {
@@ -124,13 +124,13 @@ function openMessages() {
   height: 72rpx;
   padding: 0 20rpx;
   border-radius: 10rpx;
-  background: #ffffff;
+  background: $wplink-card;
   color: #364152;
 }
 
 .filter-button.active {
-  background: #d9f3ef;
-  color: #0f766e;
+  background: $wplink-warning-soft;
+  color: $wplink-primary;
 }
 
 .empty-state,
@@ -139,18 +139,18 @@ function openMessages() {
   gap: 14rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .empty-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 32rpx;
   font-weight: 700;
 }
 
 .empty-desc,
 .demand-meta {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
 }
@@ -168,13 +168,13 @@ function openMessages() {
 }
 
 .demand-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 32rpx;
   font-weight: 700;
 }
 
 .status-tag {
-  color: #0f766e;
+  color: $wplink-primary;
   font-size: 24rpx;
 }
 
@@ -185,8 +185,8 @@ function openMessages() {
 }
 
 .primary-button {
-  background: #0f766e;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
 }
 
 .secondary-button {

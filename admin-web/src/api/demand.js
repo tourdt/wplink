@@ -9,7 +9,7 @@ export function getDemand(demandId) {
 }
 
 export function updateDemandStatus(demandId, payload) {
-  return http.patch(`/api/v1/admin/purchase-demands/${demandId}/status`, payload)
+  return http.post(`/api/v1/admin/purchase-demands/${demandId}/status`, payload)
 }
 
 export function createDemand(payload) {

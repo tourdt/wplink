@@ -21,11 +21,11 @@ function openMyResources() {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .success-page {
   min-height: 100vh;
   padding: 24rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .success-card {
@@ -33,17 +33,17 @@ function openMyResources() {
   gap: 18rpx;
   padding: 32rpx 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .success-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 38rpx;
   font-weight: 700;
 }
 
 .success-desc {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 28rpx;
   line-height: 1.6;
 }
@@ -55,8 +55,8 @@ function openMyResources() {
 }
 
 .primary-button {
-  background: #0f766e;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
 }
 
 .secondary-button {

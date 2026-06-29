@@ -5,8 +5,8 @@ type CreateMerchantReq {
 	Name           string   `json:"name"`
 	MerchantType   string   `json:"merchantType"`
 	MainCategories []string `json:"mainCategories"`
-	ContactName    string   `json:"contactName"`
-	ContactPhone   string   `json:"contactPhone"`
+	ContactName    string   `json:"contactName,optional"`
+	ContactPhone   string   `json:"contactPhone,optional"`
 	ContactWechat  string   `json:"contactWechat,optional"`
 	AddressText    string   `json:"addressText,optional"`
 	Description    string   `json:"description,optional"`
@@ -45,15 +45,26 @@ type MerchantDetailResp {
 	CreditTags         []CreditTagInfo          `json:"creditTags"`
 	Contact            MerchantContactInfo      `json:"contact"`
 	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`
+	AddressText        string                   `json:"addressText,optional"`
+	Location           map[string]interface{}   `json:"location,optional"`
 	Description        string                   `json:"description,optional"`
+	LogoUrl            string                   `json:"logoUrl,optional"`
 	Images             []string                 `json:"images,optional"`
 	LastActiveAt       string                   `json:"lastActiveAt,optional"`
 }
 
 type UpdateMerchantReq {
 	MainCategories []string `json:"mainCategories,optional"`
+	MerchantType   string   `json:"merchantType,optional"`
 	Description    string   `json:"description,optional"`
+	LogoUrl        string   `json:"logoUrl,optional"`
 	Images         []string `json:"images,optional"`
+	ContactName    string   `json:"contactName,optional"`
+	ContactPhone   string   `json:"contactPhone,optional"`
+	ContactWechat  string   `json:"contactWechat,optional"`
+	AddressText    string   `json:"addressText,optional"`
+	Location       map[string]interface{} `json:"location,optional"`
+	SmsCode        string                 `json:"smsCode,optional"`
 }
 
 type UpdateMerchantResp {
@@ -73,5 +84,5 @@ service wplink-api {
 	get /merchants/:merchantId returns (MerchantDetailResp)
 
 	@handler UpdateMerchant
-	patch /merchants/:merchantId (UpdateMerchantReq) returns (UpdateMerchantResp)
+	post /merchants/:merchantId (UpdateMerchantReq) returns (UpdateMerchantResp)
 }

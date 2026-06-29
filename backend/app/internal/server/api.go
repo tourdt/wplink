@@ -142,7 +142,7 @@ func NewAPIRouter(store CityAPIStore, opts ...APIRouterOption) http.Handler {
 		permissionStore, _ := any(store).(MerchantPermissionStore)
 		registerResourceRoutes(mux, resourceStore, options.userTokenService, options.adminTokenService, permissionStore)
 	}
-	registerOptionalDomainRoutes(mux, store, options.userTokenService, options.adminTokenService, permissionStoreFromStore(store))
+	registerOptionalDomainRoutes(mux, store, options.userTokenService, options.adminTokenService, permissionStoreFromStore(store), options.smsVerifier)
 	if options.adminTokenService != nil {
 		return requireAdminToken(mux, options.adminTokenService)
 	}

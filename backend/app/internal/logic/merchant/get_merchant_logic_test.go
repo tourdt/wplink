@@ -22,6 +22,9 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 			WechatMasked:       "zhili_****",
 			PublishedCount:     12,
 			DealtCount:         3,
+			AddressText:        "织里镇利济路88号",
+			Location:           model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"},
+			LogoURL:            "https://example.com/logo.png",
 		},
 	}
 	logic := NewGetMerchantLogic(store)
@@ -39,6 +42,15 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	}
 	if resp.ResourcesSummary.PublishedCount != 12 || resp.ResourcesSummary.DealtCount != 3 {
 		t.Fatalf("summary = %#v, want published/dealt count", resp.ResourcesSummary)
+	}
+	if resp.LogoURL != "https://example.com/logo.png" {
+		t.Fatalf("logoURL = %q, want merchant logo URL", resp.LogoURL)
+	}
+	if resp.AddressText != "织里镇利济路88号" {
+		t.Fatalf("addressText = %q, want merchant address", resp.AddressText)
+	}
+	if resp.Location["name"] != "织里童装城" || resp.Location["address"] != "织里镇利济路88号" {
+		t.Fatalf("location = %#v, want merchant map location", resp.Location)
 	}
 }
 

@@ -315,6 +315,11 @@ type AdminReviewVerificationResp struct {
 	Message string `json:"message"`
 }
 
+type AdminRunResourceLifecycleResp struct {
+	ExpiredCount          int64 `json:"expiredCount"`
+	ExpiringReminderCount int64 `json:"expiringReminderCount"`
+}
+
 type AdminSaveBannerTopicReq struct {
 	CityCode   string   `json:"cityCode,optional"`
 	Kind       string   `json:"kind"`
@@ -334,6 +339,31 @@ type AdminSaveBannerTopicReq struct {
 type AdminSaveBannerTopicResp struct {
 	Id        string `json:"id"`
 	UpdatedAt string `json:"updatedAt"`
+}
+
+type AdminSearchLogItem struct {
+	Id          string                 `json:"id"`
+	UserId      string                 `json:"userId,optional"`
+	CityCode    string                 `json:"cityCode,optional"`
+	CityName    string                 `json:"cityName,optional"`
+	Keyword     string                 `json:"keyword"`
+	Filters     map[string]interface{} `json:"filters"`
+	ResultCount int64                  `json:"resultCount"`
+	CreatedAt   string                 `json:"createdAt"`
+}
+
+type AdminSearchLogsReq struct {
+	CityCode string `form:"cityCode,optional"`
+	Keyword  string `form:"keyword,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminSearchLogsResp struct {
+	Items    []AdminSearchLogItem `json:"items"`
+	Page     int64                `json:"page"`
+	PageSize int64                `json:"pageSize"`
+	Total    int64                `json:"total"`
 }
 
 type AdminUpdateDemandStatusReq struct {
@@ -406,8 +436,8 @@ type CreateMerchantReq struct {
 	Name           string   `json:"name"`
 	MerchantType   string   `json:"merchantType"`
 	MainCategories []string `json:"mainCategories"`
-	ContactName    string   `json:"contactName"`
-	ContactPhone   string   `json:"contactPhone"`
+	ContactName    string   `json:"contactName,optional"`
+	ContactPhone   string   `json:"contactPhone,optional"`
 	ContactWechat  string   `json:"contactWechat,optional"`
 	AddressText    string   `json:"addressText,optional"`
 	Description    string   `json:"description,optional"`
@@ -459,6 +489,30 @@ type CreateResourceResp struct {
 	Message string `json:"message"`
 }
 
+type CreateSavedSearchReq struct {
+	Name         string `json:"name,optional"`
+	CityCode     string `json:"cityCode,optional"`
+	TypeCode     string `json:"typeCode,optional"`
+	Keyword      string `json:"keyword,optional"`
+	Category     string `json:"category,optional"`
+	VerifiedOnly bool   `json:"verifiedOnly,optional"`
+}
+
+type CreateUploadTokenReq struct {
+	Purpose     string `json:"purpose"`
+	FileName    string `json:"fileName"`
+	ContentType string `json:"contentType"`
+	FileSize    int64  `json:"fileSize"`
+}
+
+type CreateUploadTokenResp struct {
+	UploadToken   string `json:"uploadToken"`
+	UploadUrl     string `json:"uploadUrl"`
+	PublicBaseUrl string `json:"publicBaseUrl"`
+	ObjectKey     string `json:"objectKey"`
+	ExpiresAt     string `json:"expiresAt"`
+}
+
 type CreditTagInfo struct {
 	Code  string `json:"code"`
 	Label string `json:"label"`
@@ -478,6 +532,10 @@ type DealFeedbackResp struct {
 	Message string `json:"message"`
 }
 
+type DeleteSavedSearchResp struct {
+	Message string `json:"message"`
+}
+
 type DemandContactReq struct {
 	Name   string `json:"name"`
 	Phone  string `json:"phone"`
@@ -486,6 +544,15 @@ type DemandContactReq struct {
 
 type DetailViewResp struct {
 	Message string `json:"message"`
+}
+
+type FollowedMerchantItem struct {
+	Id                 string   `json:"id"`
+	Name               string   `json:"name"`
+	MerchantType       string   `json:"merchantType"`
+	VerificationStatus string   `json:"verificationStatus"`
+	MainCategories     []string `json:"mainCategories"`
+	FollowedAt         string   `json:"followedAt"`
 }
 
 type HomeBannerItem struct {
@@ -517,6 +584,18 @@ type ListCityStationsResp struct {
 	Items []CityStationInfo `json:"items"`
 }
 
+type ListFollowedMerchantsResp struct {
+	Items    []FollowedMerchantItem `json:"items"`
+	Page     int64                  `json:"page"`
+	PageSize int64                  `json:"pageSize"`
+	Total    int64                  `json:"total"`
+}
+
+type ListInteractionReq struct {
+	Page     int64 `form:"page,optional"`
+	PageSize int64 `form:"pageSize,optional"`
+}
+
 type ListMerchantEntitlementsResp struct {
 	Items []MerchantEntitlementInfo `json:"items"`
 }
@@ -538,8 +617,9 @@ type ListMessagesResp struct {
 }
 
 type ListMyPurchaseDemandsReq struct {
-	Page     int64 `form:"page,optional"`
-	PageSize int64 `form:"pageSize,optional"`
+	Status   string `form:"status,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
 }
 
 type ListMyPurchaseDemandsResp struct {
@@ -569,6 +649,7 @@ type ListResourceTypesResp struct {
 
 type ListResourcesReq struct {
 	CityCode     string `form:"cityCode,optional"`
+	MerchantId   string `form:"merchantId,optional"`
 	TypeCode     string `form:"typeCode,optional"`
 	Keyword      string `form:"keyword,optional"`
 	Category     string `form:"category,optional"`
@@ -582,6 +663,13 @@ type ListResourcesResp struct {
 	Page     int64              `json:"page"`
 	PageSize int64              `json:"pageSize"`
 	Total    int64              `json:"total"`
+}
+
+type ListSavedSearchesResp struct {
+	Items    []SavedSearchItem `json:"items"`
+	Page     int64             `json:"page"`
+	PageSize int64             `json:"pageSize"`
+	Total    int64             `json:"total"`
 }
 
 type ListTopVouchersResp struct {
@@ -619,7 +707,10 @@ type MerchantDetailResp struct {
 	CreditTags         []CreditTagInfo          `json:"creditTags"`
 	Contact            MerchantContactInfo      `json:"contact"`
 	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`
+	AddressText        string                   `json:"addressText,optional"`
+	Location           map[string]interface{}   `json:"location,optional"`
 	Description        string                   `json:"description,optional"`
+	LogoUrl            string                   `json:"logoUrl,optional"`
 	Images             []string                 `json:"images,optional"`
 	LastActiveAt       string                   `json:"lastActiveAt,optional"`
 }
@@ -631,6 +722,11 @@ type MerchantEntitlementInfo struct {
 	UsedAmount      int64  `json:"usedAmount"`
 	RemainingAmount int64  `json:"remainingAmount"`
 	ExpiresAt       string `json:"expiresAt,optional"`
+}
+
+type MerchantFollowStateResp struct {
+	MerchantId string `json:"merchantId"`
+	Followed   bool   `json:"followed"`
 }
 
 type MerchantLast7DaysMetrics struct {
@@ -687,15 +783,23 @@ type PriceRangeReq struct {
 }
 
 type PurchaseDemandListItem struct {
-	Id        string `json:"id"`
-	Title     string `json:"title"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"createdAt"`
+	Id          string `json:"id"`
+	Title       string `json:"title"`
+	DemandType  string `json:"demandType"`
+	Category    string `json:"category"`
+	ContactName string `json:"contactName"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"createdAt"`
 }
 
 type QuantityRequirementReq struct {
 	Quantity int64  `json:"quantity,optional"`
 	Unit     string `json:"unit,optional"`
+}
+
+type ReadMessageReq struct {
+	UserId   string `json:"userId,optional"`
+	RoleCode string `json:"roleCode,optional"`
 }
 
 type ReadMessageResp struct {
@@ -704,6 +808,7 @@ type ReadMessageResp struct {
 }
 
 type RedeemTopVoucherReq struct {
+	MerchantId string `json:"merchantId,optional"`
 	ResourceId string `json:"resourceId"`
 }
 
@@ -752,6 +857,11 @@ type ResourceDetailResp struct {
 	Contact      ResourceContactMasked  `json:"contact"`
 	PublishedAt  string                 `json:"publishedAt,optional"`
 	ExpiresAt    string                 `json:"expiresAt,optional"`
+}
+
+type ResourceFavoriteStateResp struct {
+	ResourceId string `json:"resourceId"`
+	Favorited  bool   `json:"favorited"`
 }
 
 type ResourceListItem struct {
@@ -810,6 +920,21 @@ type ResourceTypeConfigInfo struct {
 	DisplayTemplate  map[string]interface{} `json:"displayTemplate"`
 }
 
+type SavedSearchItem struct {
+	Id           string `json:"id"`
+	Name         string `json:"name"`
+	CityCode     string `json:"cityCode"`
+	TypeCode     string `json:"typeCode"`
+	Keyword      string `json:"keyword"`
+	Category     string `json:"category"`
+	VerifiedOnly bool   `json:"verifiedOnly"`
+	CreatedAt    string `json:"createdAt"`
+}
+
+type SavedSearchResp struct {
+	Id string `json:"id"`
+}
+
 type SearchResourcesReq struct {
 	CityCode     string `form:"cityCode,optional"`
 	TypeCode     string `form:"typeCode,optional"`
@@ -818,6 +943,26 @@ type SearchResourcesReq struct {
 	VerifiedOnly bool   `form:"verifiedOnly,optional"`
 	Page         int64  `form:"page,optional"`
 	PageSize     int64  `form:"pageSize,optional"`
+}
+
+type SendSMSCodeReq struct {
+	Phone string `json:"phone"`
+}
+
+type SendSMSCodeResp struct {
+	Message string `json:"message"`
+}
+
+type SetMerchantFollowReq struct {
+	Followed bool `json:"followed"`
+}
+
+type SetResourceFavoriteReq struct {
+	Favorited bool `json:"favorited"`
+}
+
+type SubmitResourceReq struct {
+	MerchantId string `json:"merchantId,optional"`
 }
 
 type SubmitResourceResp struct {
@@ -898,9 +1043,17 @@ type TopicResourcesResp struct {
 }
 
 type UpdateMerchantReq struct {
-	MainCategories []string `json:"mainCategories,optional"`
-	Description    string   `json:"description,optional"`
-	Images         []string `json:"images,optional"`
+	MainCategories []string               `json:"mainCategories,optional"`
+	MerchantType   string                 `json:"merchantType,optional"`
+	Description    string                 `json:"description,optional"`
+	LogoUrl        string                 `json:"logoUrl,optional"`
+	Images         []string               `json:"images,optional"`
+	ContactName    string                 `json:"contactName,optional"`
+	ContactPhone   string                 `json:"contactPhone,optional"`
+	ContactWechat  string                 `json:"contactWechat,optional"`
+	AddressText    string                 `json:"addressText,optional"`
+	Location       map[string]interface{} `json:"location,optional"`
+	SmsCode        string                 `json:"smsCode,optional"`
 }
 
 type UpdateMerchantResp struct {

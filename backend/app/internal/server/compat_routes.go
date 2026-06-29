@@ -20,7 +20,7 @@ func registerCompatAPIRoutes(srv *rest.Server, apiHandler http.Handler) {
 		{Method: http.MethodPost, Path: "/api/v1/uploads/token", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/merchants", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/merchants/:merchantId", Handler: handler},
-		{Method: http.MethodPatch, Path: "/api/v1/merchants/:merchantId", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/merchants/:merchantId", Handler: handler},
 
 		{Method: http.MethodPost, Path: "/api/v1/resources", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/resources/drafts", Handler: handler},
@@ -64,7 +64,7 @@ func registerCompatAPIRoutes(srv *rest.Server, apiHandler http.Handler) {
 		{Method: http.MethodPost, Path: "/api/v1/admin/merchants/:merchantId/entitlements", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/admin/match-cases", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/admin/match-cases", Handler: handler},
-		{Method: http.MethodPatch, Path: "/api/v1/admin/match-cases/:matchCaseId/status", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/admin/match-cases/:matchCaseId/status", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/admin/match-cases/:matchCaseId/resources", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/admin/match-cases/:matchCaseId/participants", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/admin/operation-logs", Handler: handler},
@@ -73,11 +73,11 @@ func registerCompatAPIRoutes(srv *rest.Server, apiHandler http.Handler) {
 		{Method: http.MethodGet, Path: "/api/v1/admin/merchants", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/admin/purchase-demands", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/admin/purchase-demands/:demandId", Handler: handler},
-		{Method: http.MethodPatch, Path: "/api/v1/admin/purchase-demands/:demandId/status", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/admin/purchase-demands/:demandId/status", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/admin/banner-topics", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/admin/banner-topics", Handler: handler},
-		{Method: http.MethodPatch, Path: "/api/v1/admin/banner-topics/:configId", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/admin/banner-topics/:configId", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/admin/resource-type-configs", Handler: handler},
-		{Method: http.MethodPatch, Path: "/api/v1/admin/resource-type-configs/:configId", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/admin/resource-type-configs/:configId", Handler: handler},
 	})
 }

@@ -185,11 +185,11 @@ function effectAdvice(item) {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .my-resources-page {
   min-height: 100vh;
   padding: 24rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .filter-row {
@@ -206,21 +206,21 @@ function effectAdvice(item) {
   margin-bottom: 20rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
   min-width: 0;
 }
 
 .manager-title {
   display: block;
   margin-bottom: 8rpx;
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 38rpx;
   font-weight: 700;
   line-height: 1.25;
 }
 
 .manager-desc {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
 }
@@ -230,8 +230,8 @@ function effectAdvice(item) {
   width: 116rpx;
   height: 68rpx;
   border-radius: 10rpx;
-  background: #0f766e;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
   font-size: 26rpx;
   font-weight: 700;
 }
@@ -240,7 +240,7 @@ function effectAdvice(item) {
   margin-bottom: 20rpx;
   padding: 18rpx 20rpx;
   border-radius: 12rpx;
-  background: #fff7e6;
+  background: $wplink-warning-soft;
 }
 
 .lifecycle-note text {
@@ -258,13 +258,13 @@ function effectAdvice(item) {
   margin-right: 12rpx;
   padding: 0 20rpx;
   border-radius: 10rpx;
-  background: #ffffff;
+  background: $wplink-card;
   color: #364152;
 }
 
 .filter-button.active {
-  background: #d9f3ef;
-  color: #0f766e;
+  background: $wplink-warning-soft;
+  color: $wplink-primary;
 }
 
 .resource-list {
@@ -277,7 +277,7 @@ function effectAdvice(item) {
   gap: 12rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .card-head {
@@ -295,7 +295,7 @@ function effectAdvice(item) {
 }
 
 .resource-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 32rpx;
   font-weight: 700;
   line-height: 1.35;
@@ -307,27 +307,27 @@ function effectAdvice(item) {
   padding: 6rpx 12rpx;
   border-radius: 8rpx;
   background: #edf2f7;
-  color: #0f766e;
+  color: $wplink-primary;
   font-size: 24rpx;
 }
 
 .status-tag.published {
-  background: #e6f4f1;
+  background: $wplink-primary-soft;
 }
 
 .top-tag {
-  background: #fff7e6;
-  color: #b7791f;
+  background: $wplink-warning-soft;
+  color: $wplink-warning;
 }
 
 .expire-text {
   flex: 0 0 auto;
-  color: #697586;
+  color: $wplink-muted;
   font-size: 24rpx;
 }
 
 .resource-meta {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
 }
@@ -352,7 +352,7 @@ function effectAdvice(item) {
   height: 68rpx;
   border-radius: 10rpx;
   background: #edf2f7;
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 26rpx;
   line-height: 1.25;
 }

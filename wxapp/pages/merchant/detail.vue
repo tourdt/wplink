@@ -1,13 +1,17 @@
 <template>
   <view class="merchant-page">
     <view class="merchant-head">
-      <view>
-        <text class="merchant-name">{{ merchant.name }}</text>
-        <text class="merchant-subtitle">{{ merchantSubtitle }}</text>
-        <view class="tag-row">
-          <text class="tag">{{ merchantTypeText[merchant.merchantType] || merchant.merchantType }}</text>
-          <text class="tag verified" v-if="merchant.verificationStatus === 'verified'">已认证</text>
-          <text class="tag verified" v-if="creditTags.length">平台核实</text>
+      <view class="merchant-main">
+        <image v-if="merchantLogo" class="merchant-logo" :src="merchantLogo" mode="aspectFill" />
+        <view v-else class="merchant-logo logo-placeholder">{{ merchantInitial }}</view>
+        <view>
+          <text class="merchant-name">{{ merchant.name }}</text>
+          <text class="merchant-subtitle">{{ merchantSubtitle }}</text>
+          <view class="tag-row">
+            <text class="tag">{{ merchantTypeText[merchant.merchantType] || merchant.merchantType }}</text>
+            <text class="tag verified" v-if="merchant.verificationStatus === 'verified'">已认证</text>
+            <text class="tag verified" v-if="creditTags.length">平台核实</text>
+          </view>
         </view>
       </view>
       <button class="follow-button" @click="toggleFollow">{{ followed ? '已关注' : '关注' }}</button>
@@ -43,6 +47,14 @@
     <view class="section">
       <text class="section-title">商家简介</text>
       <text class="section-content">{{ merchant.description || '暂无简介' }}</text>
+    </view>
+
+    <view class="section" v-if="merchant.addressText || hasMerchantLocation">
+      <view class="section-head">
+        <text class="section-title">商家地址</text>
+        <button v-if="hasMerchantLocation" class="address-action" @click="openMerchantLocation">地图导航</button>
+      </view>
+      <text class="section-content">{{ merchant.addressText || merchantLocation.address || merchantLocation.name }}</text>
     </view>
 
     <view class="section" v-if="merchantImages.length">
@@ -96,8 +108,12 @@ const merchant = ref({})
 const merchantResources = ref([])
 const followed = ref(false)
 const creditTags = computed(() => merchant.value.creditTags || [])
+const merchantLogo = computed(() => merchant.value.logoUrl || '')
 const merchantImages = computed(() => merchant.value.images || [])
+const merchantLocation = computed(() => merchant.value.location || {})
+const hasMerchantLocation = computed(() => hasValidLocation(merchantLocation.value))
 const resourcesSummary = computed(() => merchant.value.resourcesSummary || {})
+const merchantInitial = computed(() => String(merchant.value.name || '商').slice(0, 1))
 const merchantSubtitle = computed(() => {
   const categories = (merchant.value.mainCategories || []).join('、')
   return categories || merchant.value.description || '服装产业资源商家'
@@ -144,6 +160,17 @@ function openResource(resource) {
   uni.navigateTo({ url: `/pages/resource/detail?id=${resource.id}` })
 }
 
+function openMerchantLocation() {
+  if (!hasMerchantLocation.value) return
+  const location = merchantLocation.value
+  uni.openLocation({
+    latitude: Number(location.latitude),
+    longitude: Number(location.longitude),
+    name: location.name || merchant.value.name || '商家位置',
+    address: location.address || merchant.value.addressText || '',
+  })
+}
+
 function callPhone() {
   uni.showToast({ title: '请在资源详情页查看完整电话', icon: 'none' })
 }
@@ -151,13 +178,18 @@ function callPhone() {
 function copyWechat() {
   uni.showToast({ title: '请在资源详情页查看完整微信', icon: 'none' })
 }
+
+function hasValidLocation(location) {
+  if (!location) return false
+  return Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude))
+}
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .merchant-page {
   min-height: 100vh;
   padding: 24rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .merchant-head,
@@ -165,7 +197,7 @@ function copyWechat() {
   margin-bottom: 20rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .merchant-head {
@@ -174,14 +206,38 @@ function copyWechat() {
   gap: 16rpx;
   align-items: start;
   background:
-    linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(37, 99, 235, 0.06)),
-    #ffffff;
+    linear-gradient(135deg, rgba($wplink-primary, 0.08), rgba($wplink-blue, 0.06)),
+    $wplink-card;
+}
+
+.merchant-main {
+  display: grid;
+  grid-template-columns: 112rpx minmax(0, 1fr);
+  gap: 18rpx;
+  align-items: start;
+}
+
+.merchant-logo {
+  width: 112rpx;
+  height: 112rpx;
+  border: 1rpx solid rgba($wplink-primary, 0.12);
+  border-radius: 14rpx;
+  background: $wplink-card;
+}
+
+.logo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $wplink-primary;
+  font-size: 40rpx;
+  font-weight: 700;
 }
 
 .merchant-name {
   display: block;
   margin-bottom: 12rpx;
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 36rpx;
   font-weight: 700;
   line-height: 1.25;
@@ -191,7 +247,7 @@ function copyWechat() {
 .merchant-subtitle {
   display: block;
   margin-bottom: 14rpx;
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
 }
@@ -208,18 +264,18 @@ function copyWechat() {
   gap: 6rpx;
   padding: 18rpx 10rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
   text-align: center;
 }
 
 .stat-value {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 34rpx;
   font-weight: 700;
 }
 
 .stat-label {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 24rpx;
 }
 
@@ -238,22 +294,22 @@ function copyWechat() {
 }
 
 .tag.verified {
-  background: #e6f4f1;
-  color: #0f766e;
+  background: $wplink-success-soft;
+  color: $wplink-success;
 }
 
 .follow-button {
   height: 64rpx;
   border-radius: 10rpx;
-  background: #fff7e6;
-  color: #b7791f;
+  background: $wplink-warning-soft;
+  color: $wplink-warning;
   font-size: 24rpx;
 }
 
 .section-title {
   display: block;
   margin-bottom: 12rpx;
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
 }
 
@@ -270,8 +326,19 @@ function copyWechat() {
 
 .section-link,
 .empty-text {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
+}
+
+.address-action {
+  min-width: 132rpx;
+  height: 56rpx;
+  border: 1rpx solid $wplink-primary;
+  border-radius: 8rpx;
+  background: $wplink-card;
+  color: $wplink-primary;
+  font-size: 24rpx;
+  line-height: 56rpx;
 }
 
 .resource-list {
@@ -280,14 +347,14 @@ function copyWechat() {
 }
 
 .section-content {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 30rpx;
   line-height: 1.6;
   word-break: break-word;
 }
 
 .benefit-section {
-  background: #fff7e6;
+  background: $wplink-warning-soft;
 }
 
 .section-tip {
@@ -329,7 +396,7 @@ function copyWechat() {
 }
 
 .primary-button {
-  background: #0f766e;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
 }
 </style>

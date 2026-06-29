@@ -37,9 +37,6 @@ func TestCreateMerchantPassesInputToStore(t *testing.T) {
 		Name:           "织里样板童装厂",
 		MerchantType:   "factory",
 		MainCategories: []string{"童装", "卫衣"},
-		ContactName:    "李厂长",
-		ContactPhone:   "13800000000",
-		ContactWechat:  "zhili_factory",
 		AddressText:    "湖州织里镇",
 		Description:    "支持小单快反",
 	})
@@ -52,6 +49,9 @@ func TestCreateMerchantPassesInputToStore(t *testing.T) {
 	}
 	if resp.ID != "merchant-1" || resp.Status != "active" {
 		t.Fatalf("response = %#v, want created merchant", resp)
+	}
+	if store.createInput.ContactName != "" || store.createInput.ContactPhone != "" || store.createInput.ContactWechat != "" {
+		t.Fatalf("contact input = %#v, want optional contact fields empty", store.createInput)
 	}
 }
 

@@ -13,5 +13,5 @@ export function listResourceTypeConfigs(params = {}) {
 }
 
 export function updateResourceTypeConfig(configId, payload) {
-  return http.patch(`/api/v1/admin/resource-type-configs/${configId}`, payload)
+  return http.post(`/api/v1/admin/resource-type-configs/${configId}`, payload)
 }

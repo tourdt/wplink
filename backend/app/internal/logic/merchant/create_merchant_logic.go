@@ -53,8 +53,8 @@ func (l *CreateMerchantLogic) CreateMerchant(ctx context.Context, req CreateMerc
 		AddressText:    strings.TrimSpace(req.AddressText),
 		Description:    strings.TrimSpace(req.Description),
 	}
-	if input.CityCode == "" || input.Name == "" || input.MerchantType == "" || len(input.MainCategories) == 0 || input.ContactName == "" || input.ContactPhone == "" {
-		return CreateMerchantResp{}, errx.New(errx.CodeValidationFailed, "请补充商家名称、类型、主营品类和联系方式")
+	if input.CityCode == "" || input.Name == "" || input.MerchantType == "" || len(input.MainCategories) == 0 {
+		return CreateMerchantResp{}, errx.New(errx.CodeValidationFailed, "请补充商家名称、类型和主营品类")
 	}
 
 	result, err := l.store.CreateMerchant(ctx, input)

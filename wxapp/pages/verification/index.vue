@@ -137,11 +137,11 @@ async function submit() {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .verification-page {
   min-height: 100vh;
   padding: 24rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .status-card,
@@ -151,11 +151,11 @@ async function submit() {
   margin-bottom: 20rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .page-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 36rpx;
   font-weight: 700;
 }
@@ -163,18 +163,18 @@ async function submit() {
 .field {
   min-height: 80rpx;
   padding: 0 20rpx;
-  border: 1rpx solid #d8dde6;
+  border: 1rpx solid $wplink-line;
   border-radius: 10rpx;
 }
 
 .section-title,
 .status-meta {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
 }
 
 .status-text {
-  color: #0f766e;
+  color: $wplink-primary;
   font-size: 34rpx;
   font-weight: 700;
 }
@@ -182,21 +182,21 @@ async function submit() {
 .picker-field {
   display: flex;
   align-items: center;
-  color: #1f2933;
+  color: $wplink-primary;
 }
 
 .primary-button {
   height: 88rpx;
   border-radius: 12rpx;
-  background: #0f766e;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
 }
 
 .secondary-button {
   height: 84rpx;
-  border: 1rpx solid #0f766e;
+  border: 1rpx solid $wplink-primary;
   border-radius: 12rpx;
-  background: #ffffff;
-  color: #0f766e;
+  background: $wplink-card;
+  color: $wplink-primary;
 }
 </style>

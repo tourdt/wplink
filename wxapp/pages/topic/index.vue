@@ -71,11 +71,11 @@ function openDemand() {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .topic-page {
   min-height: 100vh;
   padding: 24rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .topic-hero {
@@ -84,7 +84,7 @@ function openDemand() {
   margin-bottom: 20rpx;
   overflow: hidden;
   border-radius: 12rpx;
-  background: #0f766e;
+  background: $wplink-primary;
 }
 
 .topic-cover {
@@ -99,7 +99,7 @@ function openDemand() {
   left: 24rpx;
   display: grid;
   gap: 8rpx;
-  color: #ffffff;
+  color: $wplink-card;
 }
 
 .topic-label {
@@ -107,7 +107,7 @@ function openDemand() {
   padding: 6rpx 12rpx;
   border-radius: 8rpx;
   background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
+  color: $wplink-card;
   font-size: 22rpx;
 }
 
@@ -135,18 +135,18 @@ function openDemand() {
   gap: 6rpx;
   padding: 18rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
   text-align: center;
 }
 
 .stat-value {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 34rpx;
   font-weight: 700;
 }
 
 .stat-label {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 24rpx;
 }
 
@@ -165,14 +165,14 @@ function openDemand() {
   margin-right: 12rpx;
   padding: 0 20rpx;
   border-radius: 10rpx;
-  background: #ffffff;
+  background: $wplink-card;
   color: #364152;
   font-size: 24rpx;
 }
 
 .filter-button.active {
-  background: #d9f3ef;
-  color: #0f766e;
+  background: $wplink-warning-soft;
+  color: $wplink-primary;
   font-weight: 700;
 }
 
@@ -186,17 +186,17 @@ function openDemand() {
   gap: 12rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .empty-desc {
-  color: #697586;
+  color: $wplink-muted;
 }
 
 .primary-button {
   height: 84rpx;
   border-radius: 12rpx;
-  background: #0f766e;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
 }
 </style>

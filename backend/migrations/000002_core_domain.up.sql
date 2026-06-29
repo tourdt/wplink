@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS merchants (
   contact_wechat varchar(64),
   address_text varchar(255),
   location jsonb NOT NULL DEFAULT '{}'::jsonb,
+  logo_url text,
   images jsonb NOT NULL DEFAULT '[]'::jsonb,
   verification_status varchar(32) NOT NULL DEFAULT 'unverified',
   status varchar(32) NOT NULL DEFAULT 'active',

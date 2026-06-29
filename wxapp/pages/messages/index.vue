@@ -144,11 +144,11 @@ function openMyResources() {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .messages-page {
   min-height: 100vh;
   padding: 24rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .message-hero {
@@ -158,18 +158,18 @@ function openMyResources() {
   padding: 24rpx;
   border-radius: 12rpx;
   background:
-    linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(183, 121, 31, 0.08)),
-    #ffffff;
+    linear-gradient(135deg, rgba($wplink-primary, 0.08), rgba($wplink-warning, 0.08)),
+    $wplink-card;
 }
 
 .hero-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 36rpx;
   font-weight: 700;
 }
 
 .hero-desc {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
 }
@@ -188,14 +188,14 @@ function openMyResources() {
   height: 72rpx;
   margin-right: 12rpx;
   border-radius: 10rpx;
-  background: #ffffff;
+  background: $wplink-card;
   color: #364152;
   font-size: 26rpx;
 }
 
 .filter-button.active {
-  background: #d9f3ef;
-  color: #0f766e;
+  background: $wplink-warning-soft;
+  color: $wplink-primary;
 }
 
 .message-list {
@@ -210,11 +210,11 @@ function openMyResources() {
   gap: 10rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .message-card.unread {
-  border: 1rpx solid #e6f4f1;
+  border: 1rpx solid $wplink-primary-soft;
 }
 
 .message-card.read {
@@ -228,11 +228,11 @@ function openMyResources() {
   width: 12rpx;
   height: 12rpx;
   border-radius: 50%;
-  background: #dc6b4a;
+  background: $wplink-warning;
 }
 
 .message-dot.read {
-  background: #0f766e;
+  background: $wplink-primary;
 }
 
 .card-head {
@@ -244,7 +244,7 @@ function openMyResources() {
 }
 
 .message-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 32rpx;
   font-weight: 700;
   line-height: 1.35;
@@ -253,19 +253,19 @@ function openMyResources() {
 }
 
 .status-tag {
-  color: #0f766e;
+  color: $wplink-primary;
   font-size: 24rpx;
 }
 
 .message-content,
 .message-time {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
 }
 
 .target-hint {
-  color: #0f766e;
+  color: $wplink-primary;
   font-size: 24rpx;
 }
 
@@ -274,11 +274,11 @@ function openMyResources() {
   gap: 16rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .effect-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 32rpx;
   font-weight: 700;
 }
@@ -299,14 +299,14 @@ function openMyResources() {
 }
 
 .effect-value {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 34rpx;
   font-weight: 700;
 }
 
 .effect-label,
 .effect-tip {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.5;
 }
@@ -314,8 +314,8 @@ function openMyResources() {
 .effect-card button {
   height: 80rpx;
   border-radius: 10rpx;
-  background: #e6f4f1;
-  color: #0f766e;
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
   font-size: 28rpx;
   font-weight: 700;
   line-height: 1.25;

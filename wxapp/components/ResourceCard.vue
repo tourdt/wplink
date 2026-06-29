@@ -63,14 +63,14 @@ function formatRefreshedAt(value) {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .resource-card {
   display: flex;
   align-items: stretch;
   gap: 12rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
   overflow: hidden;
 }
@@ -92,7 +92,7 @@ function formatRefreshedAt(value) {
     linear-gradient(140deg, rgba(255, 255, 255, 0.22), transparent 38%),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.18) 0 12rpx, transparent 12rpx 24rpx),
     #5c8a72;
-  color: #ffffff;
+  color: $wplink-card;
   font-size: 24rpx;
   font-weight: 700;
 }
@@ -127,12 +127,12 @@ function formatRefreshedAt(value) {
 }
 
 .tag.verified {
-  background: #e6f4f1;
-  color: #0f766e;
+  background: $wplink-success-soft;
+  color: $wplink-success;
 }
 
 .resource-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 32rpx;
   font-weight: 700;
   line-height: 1.35;
@@ -140,7 +140,7 @@ function formatRefreshedAt(value) {
 }
 
 .resource-meta {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 28rpx;
   line-height: 1.45;
   word-break: break-word;
@@ -148,21 +148,21 @@ function formatRefreshedAt(value) {
 
 .resource-price {
   flex: 1;
-  color: #c2410c;
+  color: $wplink-warning;
   font-size: 30rpx;
   font-weight: 700;
 }
 
 .resource-action {
   flex: 0 0 auto;
-  color: #0f766e;
+  color: $wplink-primary;
   font-size: 26rpx;
   font-weight: 700;
 }
 
 .merchant-name,
 .refresh-time {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 24rpx;
 }
 

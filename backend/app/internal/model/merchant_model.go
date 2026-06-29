@@ -48,15 +48,26 @@ type MerchantDetail struct {
 	WechatMasked       string
 	PublishedCount     int64
 	DealtCount         int64
+	AddressText        string
+	Location           JSONMap
 	Description        string
+	LogoURL            string
 	Images             []string
 	LastActiveAt       string
 }
 
 type UpdateMerchantPatch struct {
 	MainCategories []string
+	MerchantType   string
 	Description    string
+	LogoURL        string
 	Images         []string
+	ContactName    string
+	ContactPhone   string
+	ContactWechat  string
+	AddressText    string
+	Location       JSONMap
+	LocationSet    bool
 }
 
 type ListMerchantsFilter struct {
@@ -163,7 +174,10 @@ SELECT
   m.contact_name,
   m.contact_phone,
   COALESCE(m.contact_wechat, ''),
+  COALESCE(m.address_text, ''),
+  m.location,
   COALESCE(m.description, ''),
+  COALESCE(m.logo_url, ''),
   m.images,
   m.last_active_at,
   COUNT(r.id) FILTER (WHERE r.status = 'published') AS published_count,
@@ -183,7 +197,10 @@ GROUP BY m.id, cs.code
 		&detail.ContactName,
 		&detail.PhoneMasked,
 		&detail.WechatMasked,
+		&detail.AddressText,
+		&detail.Location,
 		&detail.Description,
+		&detail.LogoURL,
 		&images,
 		&lastActive,
 		&detail.PublishedCount,
@@ -211,24 +228,98 @@ GROUP BY m.id, cs.code
 
 func (m *MerchantModel) UpdateMerchant(ctx context.Context, merchantID string, patch UpdateMerchantPatch) (string, error) {
 	updatedAt := time.Now().UTC()
-	result, err := m.db.ExecContext(ctx, `
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		var oldMerchantType string
+		var oldVerificationStatus string
+		var hasPendingVerification bool
+		if err := tx.QueryRowContext(ctx, `
+SELECT
+  merchant_type,
+  verification_status,
+  EXISTS (
+    SELECT 1
+    FROM verifications
+    WHERE merchant_id = merchants.id AND status = 'pending'
+  ) AS has_pending_verification
+FROM merchants
+WHERE id = $1 AND deleted_at IS NULL
+FOR UPDATE
+`, merchantID).Scan(&oldMerchantType, &oldVerificationStatus, &hasPendingVerification); err != nil {
+			return err
+		}
+
+		nextMerchantType := oldMerchantType
+		if patch.MerchantType != "" {
+			nextMerchantType = patch.MerchantType
+		}
+		nextVerificationStatus := oldVerificationStatus
+		merchantTypeChanged := patch.MerchantType != "" && patch.MerchantType != oldMerchantType
+		if merchantTypeChanged && (oldVerificationStatus == "verified" || hasPendingVerification) {
+			nextVerificationStatus = "unverified"
+		}
+
+		result, err := tx.ExecContext(ctx, `
 UPDATE merchants
 SET
   main_categories = $2,
-  description = $3,
-  images = $4,
-  updated_at = $5
+  merchant_type = $3,
+  verification_status = $4,
+  description = $5,
+  logo_url = $6,
+  images = $7,
+  updated_at = $8,
+  contact_name = COALESCE(NULLIF($9, ''), contact_name),
+  contact_phone = COALESCE(NULLIF($10, ''), contact_phone),
+  contact_wechat = COALESCE(NULLIF($11, ''), contact_wechat),
+  address_text = COALESCE(NULLIF($12, ''), address_text),
+  location = CASE WHEN $13 THEN $14 ELSE location END
 WHERE id = $1 AND deleted_at IS NULL
-`, merchantID, JSONStringSlice(patch.MainCategories), patch.Description, JSONStringSlice(patch.Images), updatedAt)
+`, merchantID, JSONStringSlice(patch.MainCategories), nextMerchantType, nextVerificationStatus, patch.Description, patch.LogoURL, JSONStringSlice(patch.Images), updatedAt, patch.ContactName, patch.ContactPhone, patch.ContactWechat, patch.AddressText, patch.LocationSet, patch.Location)
+		if err != nil {
+			return err
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if affected == 0 {
+			return sql.ErrNoRows
+		}
+
+		if !merchantTypeChanged {
+			return nil
+		}
+
+		// 商家类型影响认证含义；一旦从已认证或待审状态切换类型，需要撤销旧认证痕迹并要求重新认证。
+		if _, err := tx.ExecContext(ctx, `
+UPDATE verifications
+SET status = 'revoked', review_note = COALESCE(NULLIF(review_note, ''), '商家类型已变更，请按新类型重新提交认证'), reviewed_at = $2, updated_at = $2
+WHERE merchant_id = $1 AND status = 'pending'
+`, merchantID, updatedAt); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+UPDATE credit_records
+SET revoked_at = $2
+WHERE merchant_id = $1 AND source_type = 'verification' AND revoked_at IS NULL
+`, merchantID, updatedAt); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `
+INSERT INTO merchant_type_change_logs (
+  merchant_id,
+  old_merchant_type,
+  new_merchant_type,
+  old_verification_status,
+  new_verification_status,
+  changed_at
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+`, merchantID, oldMerchantType, patch.MerchantType, oldVerificationStatus, nextVerificationStatus, updatedAt)
+		return err
+	})
 	if err != nil {
 		return "", err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return "", err
-	}
-	if affected == 0 {
-		return "", sql.ErrNoRows
 	}
 	return updatedAt.Format(time.RFC3339), nil
 }

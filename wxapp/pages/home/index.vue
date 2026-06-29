@@ -4,11 +4,12 @@
       <view class="custom-title-bar" :style="customTitleBarStyle">
         <view class="home-brand">
           <view class="brand-icon" aria-hidden="true">
-            <view class="brand-roof"></view>
-            <view class="brand-window-row">
-              <text></text>
-              <text></text>
-              <text></text>
+            <view class="brand-hanger">
+              <text class="brand-hanger-hook"></text>
+              <text class="brand-hanger-line"></text>
+            </view>
+            <view class="brand-cargo-box">
+              <text class="brand-cargo-tape"></text>
             </view>
           </view>
           <text class="brand-name">衣货通</text>
@@ -354,10 +355,10 @@ function bannerTone(jumpType) {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .home-page {
   min-height: 100vh;
-  background: #f6f8fc;
+  background: $wplink-bg;
 }
 
 .home-fixed-header {
@@ -369,7 +370,7 @@ function bannerTone(jumpType) {
   padding-right: 28rpx;
   padding-bottom: 14rpx;
   padding-left: 28rpx;
-  background: #f6f8fc;
+  background: $wplink-bg;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.03);
 }
 
@@ -396,31 +397,67 @@ function bannerTone(jumpType) {
 }
 
 .brand-icon {
-  display: grid;
-  place-items: center;
+  position: relative;
   width: 56rpx;
   height: 56rpx;
-  border-radius: 8rpx;
-  background: #052a46;
+  overflow: hidden;
+  border-radius: 14rpx;
+  background: linear-gradient(135deg, $wplink-primary 0%, $wplink-primary 100%);
+  box-shadow: inset 0 0 0 1rpx rgba(255, 255, 255, 0.18), 0 8rpx 18rpx rgba($wplink-primary, 0.16);
 }
 
-.brand-roof {
-  width: 34rpx;
-  height: 12rpx;
-  background: #ffffff;
-  clip-path: polygon(0 45%, 18% 45%, 18% 24%, 38% 24%, 38% 45%, 58% 45%, 58% 0, 76% 0, 76% 45%, 100% 45%, 100% 100%, 0 100%);
+.brand-hanger {
+  position: absolute;
+  top: 8rpx;
+  right: 0;
+  left: 0;
+  height: 26rpx;
 }
 
-.brand-window-row {
-  display: flex;
-  gap: 4rpx;
-  margin-top: -2rpx;
+.brand-hanger-hook {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 13rpx;
+  height: 13rpx;
+  border: 4rpx solid rgba(255, 255, 255, 0.96);
+  border-bottom: 0;
+  border-left-color: transparent;
+  border-radius: 999rpx 999rpx 0 0;
+  transform: translateX(-50%) rotate(26deg);
 }
 
-.brand-window-row text {
+.brand-hanger-line {
+  position: absolute;
+  top: 17rpx;
+  left: 14rpx;
+  width: 28rpx;
+  height: 13rpx;
+  border-right: 4rpx solid rgba(255, 255, 255, 0.96);
+  border-bottom: 4rpx solid rgba(255, 255, 255, 0.96);
+  border-left: 4rpx solid rgba(255, 255, 255, 0.96);
+  border-radius: 0 0 5rpx 5rpx;
+}
+
+.brand-cargo-box {
+  position: absolute;
+  right: 11rpx;
+  bottom: 9rpx;
+  left: 11rpx;
+  height: 19rpx;
+  border-radius: 5rpx;
+  background: #ffb454;
+  box-shadow: inset 0 -4rpx 0 rgba(154, 91, 0, 0.18);
+}
+
+.brand-cargo-tape {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
   width: 6rpx;
-  height: 8rpx;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.52);
+  transform: translateX(-50%);
 }
 
 .brand-name {
@@ -496,8 +533,8 @@ function bannerTone(jumpType) {
   margin-right: 20rpx;
   overflow: hidden;
   border-radius: 26rpx;
-  background: #052a46;
-  box-shadow: 0 18rpx 34rpx rgba(5, 42, 70, 0.12);
+  background: $wplink-primary;
+  box-shadow: 0 18rpx 34rpx rgba($wplink-primary, 0.12);
   vertical-align: top;
 }
 
@@ -516,25 +553,25 @@ function bannerTone(jumpType) {
 
 .banner-card.activity .banner-pattern {
   background:
-    linear-gradient(135deg, rgba(37, 99, 235, 0.86), rgba(123, 143, 199, 0.78)),
+    linear-gradient(135deg, rgba($wplink-blue, 0.86), rgba($wplink-blue, 0.48)),
     radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.24), transparent 34%);
 }
 
 .banner-card.factory .banner-pattern {
   background:
-    linear-gradient(135deg, rgba(183, 121, 31, 0.9), rgba(15, 118, 110, 0.74)),
+    linear-gradient(135deg, rgba($wplink-warning, 0.9), rgba($wplink-primary, 0.74)),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0 20rpx, transparent 20rpx 40rpx);
 }
 
 .banner-card.demand .banner-pattern {
   background:
-    linear-gradient(135deg, rgba(220, 107, 74, 0.9), rgba(183, 121, 31, 0.78)),
+    linear-gradient(135deg, rgba($wplink-coral, 0.9), rgba($wplink-warning, 0.78)),
     radial-gradient(circle at 80% 22%, rgba(255, 255, 255, 0.22), transparent 30%);
 }
 
 .banner-card.publish .banner-pattern {
   background:
-    linear-gradient(135deg, rgba(31, 41, 51, 0.92), rgba(15, 118, 110, 0.78)),
+    linear-gradient(135deg, rgba($wplink-text, 0.92), rgba($wplink-primary, 0.78)),
     repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0 14rpx, transparent 14rpx 30rpx);
 }
 
@@ -542,8 +579,8 @@ function bannerTone(jumpType) {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(5, 42, 70, 0.04), rgba(5, 42, 70, 0.8)),
-    linear-gradient(90deg, rgba(5, 42, 70, 0.74), rgba(5, 42, 70, 0.12) 68%);
+    linear-gradient(180deg, rgba($wplink-primary, 0.04), rgba($wplink-primary, 0.8)),
+    linear-gradient(90deg, rgba($wplink-primary, 0.74), rgba($wplink-primary, 0.12) 68%);
 }
 
 .banner-copy {
@@ -553,7 +590,7 @@ function bannerTone(jumpType) {
   left: 40rpx;
   display: grid;
   gap: 12rpx;
-  color: #ffffff;
+  color: $wplink-card;
 }
 
 .banner-kicker {
@@ -561,7 +598,7 @@ function bannerTone(jumpType) {
   min-height: 42rpx;
   padding: 0 20rpx;
   border-radius: 999rpx;
-  background: #ff6d2d;
+  background: $wplink-warning;
   color: #222222;
   font-size: 22rpx;
   font-weight: 700;
@@ -570,7 +607,7 @@ function bannerTone(jumpType) {
 
 .banner-title {
   max-width: 590rpx;
-  color: #ffffff;
+  color: $wplink-card;
   font-size: 34rpx;
   font-weight: 800;
   line-height: 1.24;
@@ -578,7 +615,7 @@ function bannerTone(jumpType) {
 }
 
 .banner-subcopy {
-  color: #ffffff;
+  color: $wplink-card;
   font-size: 24rpx;
   font-weight: 700;
   line-height: 1.3;
@@ -642,7 +679,7 @@ function bannerTone(jumpType) {
 .icon-stock-line {
   width: 36rpx;
   height: 28rpx;
-  border: 5rpx solid #052a46;
+  border: 5rpx solid $wplink-primary;
   border-radius: 4rpx;
 }
 
@@ -652,14 +689,14 @@ function bannerTone(jumpType) {
   width: 20rpx;
   height: 5rpx;
   border-radius: 999rpx;
-  background: #052a46;
+  background: $wplink-primary;
 }
 
 .icon-clear-flame {
   width: 30rpx;
   height: 38rpx;
   border-radius: 50% 50% 48% 48%;
-  background: #c73a12;
+  background: $wplink-warning;
   clip-path: polygon(50% 0, 78% 28%, 94% 58%, 82% 88%, 50% 100%, 18% 88%, 6% 58%, 28% 30%);
 }
 
@@ -670,7 +707,7 @@ function bannerTone(jumpType) {
   width: 14rpx;
   height: 20rpx;
   border-radius: 50%;
-  background: #ffffff;
+  background: $wplink-card;
   content: '';
 }
 
@@ -680,11 +717,11 @@ function bannerTone(jumpType) {
   grid-auto-rows: 9rpx;
   gap: 5rpx;
   padding: 9rpx;
-  border: 5rpx solid #16b98f;
+  border: 5rpx solid $wplink-success;
 }
 
 .icon-factory-grid text {
-  background: #16b98f;
+  background: $wplink-success;
 }
 
 .icon-order-lines {
@@ -716,7 +753,7 @@ function bannerTone(jumpType) {
   margin-bottom: 0;
   padding: 28rpx;
   border-radius: 16rpx;
-  background: #ffffff;
+  background: $wplink-card;
   box-shadow: 0 16rpx 48rpx rgba(15, 23, 42, 0.06);
 }
 
@@ -731,7 +768,7 @@ function bannerTone(jumpType) {
   margin-bottom: 12rpx;
   padding: 0 12rpx;
   border-radius: 10rpx;
-  background: #fff7e6;
+  background: $wplink-warning-soft;
   color: #9a5b00;
   font-size: 24rpx;
   font-weight: 700;
@@ -740,7 +777,7 @@ function bannerTone(jumpType) {
 .recommend-title {
   display: block;
   margin-bottom: 8rpx;
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 36rpx;
   font-weight: 700;
   line-height: 1.25;
@@ -748,7 +785,7 @@ function bannerTone(jumpType) {
 }
 
 .recommend-desc {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
   word-break: break-word;
@@ -760,8 +797,8 @@ function bannerTone(jumpType) {
   min-height: 64rpx;
   padding: 14rpx 18rpx;
   border-radius: 16rpx;
-  background: #e6f4f1;
-  color: #0f766e;
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
   font-size: 26rpx;
   font-weight: 700;
   line-height: 1.25;
@@ -776,13 +813,13 @@ function bannerTone(jumpType) {
 }
 
 .section-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 36rpx;
   font-weight: 700;
 }
 
 .section-link {
-  color: #0f766e;
+  color: $wplink-primary;
   font-size: 26rpx;
   font-weight: 700;
 }

@@ -56,6 +56,12 @@
       }
     },
     {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
       "path": "pages/my-resources/index",
       "style": {
         "navigationBarTitleText": "我的发布"
@@ -106,7 +112,7 @@
   ],
   "tabBar": {
     "color": "#454a54",
-    "selectedColor": "#17130f",
+    "selectedColor": "#c23a00",
     "backgroundColor": "#ffffff",
     "borderStyle": "black",
     "list": [
@@ -146,6 +152,6 @@
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "衣货通",
     "navigationBarBackgroundColor": "#ffffff",
-    "backgroundColor": "#f4f6f8"
+    "backgroundColor": "#f4f7fd"
   }
 }

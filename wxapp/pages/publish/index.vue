@@ -196,11 +196,11 @@ function validatePublishForm() {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .publish-page {
   min-height: 100vh;
   padding: 24rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .form-card {
@@ -209,7 +209,7 @@ function validatePublishForm() {
   margin-bottom: 20rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .quota-card {
@@ -220,7 +220,7 @@ function validatePublishForm() {
   margin-bottom: 20rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: linear-gradient(135deg, #fff7e6, #e6f4f1);
+  background: linear-gradient(135deg, $wplink-warning-soft, $wplink-primary-soft);
 }
 
 .quota-card button {
@@ -228,28 +228,28 @@ function validatePublishForm() {
   width: 148rpx;
   height: 68rpx;
   border-radius: 10rpx;
-  background: #ffffff;
-  color: #0f766e;
+  background: $wplink-card;
+  color: $wplink-primary;
   font-size: 26rpx;
   font-weight: 700;
 }
 
 .quota-label,
 .effect-label {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 24rpx;
 }
 
 .quota-title {
   display: block;
   margin: 8rpx 0;
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 36rpx;
   font-weight: 700;
 }
 
 .quota-desc {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
 }
@@ -269,14 +269,14 @@ function validatePublishForm() {
   margin-right: 12rpx;
   padding: 0 20rpx;
   border-radius: 10rpx;
-  background: #ffffff;
+  background: $wplink-card;
   color: #364152;
   font-size: 26rpx;
 }
 
 .type-button.active {
-  background: #0f766e;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
 }
 
 .page-title {
@@ -296,14 +296,14 @@ function validatePublishForm() {
 }
 
 .form-status text {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.45;
 }
 
 .form-status strong {
   flex: 0 0 auto;
-  color: #0f766e;
+  color: $wplink-primary;
   font-size: 26rpx;
   line-height: 1.25;
   text-align: right;
@@ -313,14 +313,14 @@ function validatePublishForm() {
 .textarea {
   min-height: 80rpx;
   padding: 0 20rpx;
-  border: 1rpx solid #d8dde6;
+  border: 1rpx solid $wplink-line;
   border-radius: 10rpx;
 }
 
 .picker-field {
   display: flex;
   align-items: center;
-  color: #1f2933;
+  color: $wplink-primary;
 }
 
 .textarea {
@@ -348,13 +348,13 @@ function validatePublishForm() {
 }
 
 .effect-value {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 26rpx;
   font-weight: 700;
 }
 
 .image-url {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 24rpx;
   word-break: break-all;
 }
@@ -372,7 +372,7 @@ function validatePublishForm() {
 }
 
 .primary-button {
-  background: #0f766e;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
 }
 </style>

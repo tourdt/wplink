@@ -13,5 +13,5 @@ export function getMerchant(merchantId) {
 }
 
 export function updateMerchant(merchantId, payload) {
-  return http.patch(`/api/v1/merchants/${merchantId}`, payload)
+  return http.post(`/api/v1/merchants/${merchantId}`, payload)
 }

@@ -1,17 +1,19 @@
-$wplink-primary: #0f766e;
-$wplink-primary-soft: #e6f4f1;
-$wplink-bg: #f4f6f8;
+$wplink-primary: #061625;
+$wplink-primary-soft: #eaf2ff;
+$wplink-bg: #f4f7fd;
 $wplink-card: #ffffff;
-$wplink-text: #1f2933;
-$wplink-muted: #697586;
-$wplink-line: #d8dde6;
-$wplink-warning: #b7791f;
-$wplink-warning-soft: #fff7e6;
-$wplink-price: #c2410c;
-$wplink-blue: #2563eb;
-$wplink-blue-soft: #eaf1ff;
-$wplink-coral: #dc6b4a;
-$wplink-coral-soft: #fff0eb;
+$wplink-text: #061625;
+$wplink-muted: #6b7280;
+$wplink-line: #d8e0ec;
+$wplink-warning: #c23a00;
+$wplink-warning-soft: #fff0e8;
+$wplink-price: #c23a00;
+$wplink-blue: #061625;
+$wplink-blue-soft: #eaf2ff;
+$wplink-coral: #c23a00;
+$wplink-coral-soft: #fff0e8;
+$wplink-success: #16a36a;
+$wplink-success-soft: #e8f7ef;
 
 page {
   background: $wplink-bg;
@@ -72,8 +74,8 @@ button::after {
 }
 
 .wplink-tag.verified {
-  background: $wplink-primary-soft;
-  color: $wplink-primary;
+  background: $wplink-success-soft;
+  color: $wplink-success;
 }
 
 .wplink-tag.top {

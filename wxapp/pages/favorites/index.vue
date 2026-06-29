@@ -126,11 +126,11 @@ async function removeSavedSearch(item) {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .favorites-page {
   min-height: 100vh;
   padding: 24rpx;
-  background: #f4f6f8;
+  background: $wplink-bg;
 }
 
 .tab-row {
@@ -143,14 +143,14 @@ async function removeSavedSearch(item) {
 .tab-button {
   height: 72rpx;
   border-radius: 10rpx;
-  background: #ffffff;
+  background: $wplink-card;
   color: #364152;
   font-size: 26rpx;
 }
 
 .tab-button.active {
-  background: #0f766e;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
 }
 
 .content-list {
@@ -163,19 +163,19 @@ async function removeSavedSearch(item) {
 .search-item {
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
 }
 
 .merchant-name {
   display: block;
   margin-bottom: 8rpx;
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 30rpx;
   font-weight: 700;
 }
 
 .merchant-meta {
-  color: #697586;
+  color: $wplink-muted;
   font-size: 26rpx;
 }
 

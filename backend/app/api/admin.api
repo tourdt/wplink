@@ -457,7 +457,7 @@ service wplink-api {
 	get /match-cases (AdminListMatchCasesReq) returns (AdminListMatchCasesResp)
 
 	@handler AdminUpdateMatchCaseStatus
-	patch /match-cases/:matchCaseId/status (AdminUpdateMatchCaseStatusReq) returns (AdminMatchCaseActionResp)
+	post /match-cases/:matchCaseId/status (AdminUpdateMatchCaseStatusReq) returns (AdminMatchCaseActionResp)
 
 	@handler AdminAddMatchCaseResources
 	post /match-cases/:matchCaseId/resources (AdminAddMatchResourcesReq) returns (AdminMatchCaseActionResp)
@@ -502,7 +502,7 @@ service wplink-api {
 	get /purchase-demands/:demandId returns (AdminDemandDetailResp)
 
 	@handler AdminUpdateDemandStatus
-	patch /purchase-demands/:demandId/status (AdminUpdateDemandStatusReq) returns (AdminUpdateDemandStatusResp)
+	post /purchase-demands/:demandId/status (AdminUpdateDemandStatusReq) returns (AdminUpdateDemandStatusResp)
 }
 
 @server(
@@ -517,7 +517,7 @@ service wplink-api {
 	post /banner-topics (AdminSaveBannerTopicReq) returns (AdminSaveBannerTopicResp)
 
 	@handler AdminUpdateBannerTopic
-	patch /banner-topics/:configId (AdminSaveBannerTopicReq) returns (AdminSaveBannerTopicResp)
+	post /banner-topics/:configId (AdminSaveBannerTopicReq) returns (AdminSaveBannerTopicResp)
 }
 
 @server(
@@ -529,5 +529,5 @@ service wplink-api {
 	get /resource-type-configs (AdminListResourceTypeConfigsReq) returns (AdminListResourceTypeConfigsResp)
 
 	@handler AdminUpdateResourceTypeConfig
-	patch /resource-type-configs/:configId (AdminUpdateResourceTypeConfigReq) returns (AdminUpdateResourceTypeConfigResp)
+	post /resource-type-configs/:configId (AdminUpdateResourceTypeConfigReq) returns (AdminUpdateResourceTypeConfigResp)
 }

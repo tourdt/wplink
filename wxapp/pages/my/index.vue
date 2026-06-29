@@ -1,82 +1,91 @@
 <template>
   <view class="my-page">
-    <view class="mine-head">
-      <view class="avatar">衣</view>
-      <view>
-        <text class="mine-name">{{ mineName }}</text>
-        <text class="mine-role">衣货通商家 · 商家管理员</text>
+    <view class="account-card" @click="openAccountCard">
+      <view class="account-shell">
+        <view class="account-side">
+          <view class="avatar" :class="{ 'avatar-guest': !isLoggedIn }">{{ avatarText }}</view>
+        </view>
+        <view class="account-main">
+          <view class="account-title-row">
+            <view class="account-title-main">
+              <text class="account-name">{{ accountName }}</text>
+              <text v-if="isLoggedIn" class="verification-status" :class="verificationStatusClass">{{ verificationStatusText }}</text>
+            </view>
+            <text class="entry-arrow"></text>
+          </view>
+          <text class="account-desc">{{ accountDesc }}</text>
+        </view>
       </view>
+      <button v-if="!isLoggedIn" class="login-button" @click.stop="openLogin">微信登录</button>
     </view>
 
-    <view class="profile-card">
-      <text class="page-title">我的</text>
-      <button class="secondary-button" @click="loginWithWechat">微信登录</button>
-      <view class="sms-row">
-        <input v-model="phone" class="field" type="number" placeholder="手机号" />
-        <button class="sms-button" :disabled="smsSending || smsCountdown > 0" @click="sendSmsCodeForPhone">
-          {{ smsCountdown > 0 ? `${smsCountdown}s` : '验证码' }}
+    <view class="quick-section">
+      <view class="section-head quick-section-head">
+        <text class="section-title">发布和推广</text>
+      </view>
+      <view class="quick-entry-grid">
+        <button class="quick-entry primary" @click="openPublish">
+          <view class="quick-icon publish-icon">
+            <text></text>
+          </view>
+          <view class="quick-copy">
+            <text class="quick-title">发布资源</text>
+            <text class="quick-desc">库存、货源、服务</text>
+          </view>
+        </button>
+        <button class="quick-entry" @click="openMyResources">
+          <view class="quick-icon resource-icon">
+            <text></text>
+            <text></text>
+          </view>
+          <view class="quick-copy">
+            <text class="quick-title">我的发布</text>
+            <text class="quick-desc">状态、数据、推广</text>
+          </view>
         </button>
       </view>
-      <input v-model="smsCode" class="field" type="number" placeholder="短信验证码" />
-      <button class="secondary-button" :disabled="bindingPhone" @click="bindCurrentPhone">绑定手机号</button>
-      <input v-model="userId" class="field" placeholder="用户 ID" />
-      <input v-model="merchantId" class="field" placeholder="商家 ID" />
-      <button class="primary-button" @click="saveIdentity">保存身份</button>
     </view>
 
-    <view class="benefit-card">
-      <text class="benefit-tag">权益提醒</text>
-      <text class="benefit-title">{{ benefitTitle }}</text>
-      <text class="benefit-desc">建议用于急清库存或空档产能资源，展示为“置顶”。</text>
-      <button :disabled="!merchantId.trim()" @click="openPublish">去发布资源</button>
-    </view>
-
-    <view class="entitlement-card">
+    <view class="common-service-section section-card">
       <view class="section-head">
-        <text class="section-title">我的权益</text>
-        <button class="mini-button" :disabled="entitlementLoading || !merchantId.trim()" @click="loadEntitlements">刷新</button>
+        <text class="section-title">常用服务</text>
       </view>
-      <view v-if="!merchantId.trim()" class="empty-state">保存商家 ID 后查看权益余量</view>
-      <view v-else-if="entitlementLoading" class="empty-state">权益加载中</view>
-      <view v-else class="entitlement-grid">
-        <view v-for="row in entitlementRows" :key="row.type" class="entitlement-item">
-          <text class="entitlement-label">{{ row.label }}</text>
-          <text class="entitlement-value">{{ row.remaining }}</text>
-          <text class="entitlement-meta">已用 {{ row.used }} / 总 {{ row.total }}</text>
+      <view class="action-list">
+        <view class="action-item" @click="openMerchantProfile">
+          <view class="action-main">
+            <text class="action-title">商家资料</text>
+            <text class="action-meta">主页、品类、联系方式</text>
+          </view>
+          <text class="entry-arrow"></text>
         </view>
-        <view class="entitlement-item">
-          <text class="entitlement-label">置顶券</text>
-          <text class="entitlement-value">{{ availableTopVoucherCount }}</text>
-          <text class="entitlement-meta">可用于我的发布</text>
+        <view class="action-item" @click="openMerchantVerification">
+          <view class="action-main">
+            <text class="action-title">商家认证</text>
+            <text class="action-meta">{{ verificationActionMeta }}</text>
+          </view>
+          <text class="entry-arrow"></text>
         </view>
-      </view>
-      <button class="secondary-button" :disabled="!merchantId.trim()" @click="openMyResources">去使用权益</button>
-    </view>
-
-    <view class="action-list">
-      <view class="action-item" @click="openMerchantProfile">
-        <text>商家资料</text>
-        <text class="action-meta">入驻信息和主页介绍</text>
-      </view>
-      <view class="action-item" @click="openMyResources">
-        <text>我的发布</text>
-        <text class="action-meta">资源状态和效果数据</text>
-      </view>
-      <view class="action-item" @click="openMyDemands">
-        <text>我的需求</text>
-        <text class="action-meta">采购需求和处理进展</text>
-      </view>
-      <view class="action-item" @click="openFavorites">
-        <text>收藏关注</text>
-        <text class="action-meta">收藏资源、关注商家和保存搜索</text>
-      </view>
-      <view class="action-item" @click="openVerification">
-        <text>商家认证</text>
-        <text class="action-meta">认证状态和提交资料</text>
-      </view>
-      <view class="action-item" @click="openPublish">
-        <text>发布资源</text>
-        <text class="action-meta">新增库存、货源、工厂或服务</text>
+        <view class="action-item" @click="openMyDemands">
+          <view class="action-main">
+            <text class="action-title">我的需求</text>
+            <text class="action-meta">需求和进展</text>
+          </view>
+          <text class="entry-arrow"></text>
+        </view>
+        <view class="action-item" @click="openFavorites">
+          <view class="action-main">
+            <text class="action-title">收藏关注</text>
+            <text class="action-meta">资源、商家、搜索</text>
+          </view>
+          <text class="entry-arrow"></text>
+        </view>
+        <view class="action-item" @click="openMessages">
+          <view class="action-main">
+            <text class="action-title">消息</text>
+            <text class="action-meta">审核和联系提醒</text>
+          </view>
+          <text class="entry-arrow"></text>
+        </view>
       </view>
     </view>
   </view>
@@ -84,425 +93,442 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { DEFAULT_CITY_CODE } from '../../common/constants'
-import { bindPhone, sendSmsCode, wechatLogin } from '../../api/auth'
-import { getMerchantEntitlements, listTopVouchers } from '../../api/entitlement'
-import { getMerchantId, getUserId, saveMerchantId, saveToken, saveUserId } from '../../store/session'
+import { onLoad, onShow } from '@dcloudio/uni-app'
+import { buildLoginUrl, requireLogin } from '../../common/auth'
+import { getSession } from '../../store/session'
+import { getLatestVerification } from '../../api/verification'
 
-const userId = ref('')
+const token = ref('')
 const merchantId = ref('')
-const phone = ref('')
-const smsCode = ref('')
-const entitlements = ref([])
-const topVouchers = ref([])
-const entitlementLoading = ref(false)
-const smsSending = ref(false)
-const bindingPhone = ref(false)
-const smsCountdown = ref(0)
-let smsTimer = 0
+const latestVerification = ref({ status: 'none' })
+
+const isLoggedIn = computed(() => Boolean(token.value))
+const avatarText = computed(() => (isLoggedIn.value ? '我' : '游'))
+const accountName = computed(() => (isLoggedIn.value ? '我的账号' : '未登录'))
+const accountDesc = computed(() => (isLoggedIn.value ? '已登录，可管理需求、收藏和消息' : '登录后管理需求、收藏和发布记录'))
+const verificationStatus = computed(() => {
+  if (!merchantId.value) return 'unconfigured'
+  return latestVerification.value.status || 'none'
+})
+const verificationStatusText = computed(() => {
+  const statusText = {
+    unconfigured: '待完善',
+    none: '未认证',
+    pending: '审核中',
+    verified: '已认证',
+    rejected: '未通过',
+    revoked: '已撤销',
+  }
+  return statusText[verificationStatus.value] || '未认证'
+})
+const verificationStatusClass = computed(() => `status-${verificationStatus.value}`)
+const verificationActionMeta = computed(() => {
+  const actionMeta = {
+    unconfigured: '先完善商家资料',
+    none: '提交主体资料',
+    pending: '查看审核进度',
+    verified: '查看认证状态',
+    rejected: '修改后重提',
+    revoked: '可重新提交',
+  }
+  return actionMeta[verificationStatus.value] || actionMeta.none
+})
 
 onLoad(() => {
-  userId.value = getUserId()
-  merchantId.value = getMerchantId()
-  loadEntitlements()
+  syncSession()
 })
 
-onUnload(() => {
-  clearSMSCountdown()
+onShow(() => {
+  syncSession()
 })
 
-function saveIdentity() {
-  if (userId.value.trim()) {
-    saveUserId(userId.value.trim())
-  }
-  if (!merchantId.value.trim()) {
-    uni.showToast({ title: '请填写商家 ID', icon: 'none' })
-    return
-  }
-  saveMerchantId(merchantId.value.trim())
-  loadEntitlements()
-  uni.showToast({ title: '已保存身份', icon: 'none' })
+async function syncSession() {
+  const session = getSession()
+  token.value = session.token
+  merchantId.value = session.merchantId
+  await loadVerificationStatus()
 }
 
-async function loginWithWechat() {
-  try {
-    const code = await getWechatLoginCode()
-    const resp = await wechatLogin({ code, defaultCityCode: DEFAULT_CITY_CODE })
-    if (resp.token) {
-      saveToken(resp.token)
-    }
-    const loginUser = resp.user || {}
-    if (loginUser.id) {
-      userId.value = loginUser.id
-      saveUserId(loginUser.id)
-    }
-    uni.showToast({ title: '登录成功', icon: 'none' })
-  } catch (err) {
-    uni.showToast({ title: err.message || '登录失败，请稍后重试', icon: 'none' })
-  }
+function openLogin() {
+  uni.navigateTo({ url: buildLoginUrl('/pages/my/index') })
 }
 
-async function sendSmsCodeForPhone() {
-  const normalizedPhone = phone.value.trim()
-  if (!normalizedPhone) {
-    uni.showToast({ title: '请填写手机号', icon: 'none' })
+async function loadVerificationStatus() {
+  if (!token.value || !merchantId.value) {
+    latestVerification.value = { status: 'none' }
     return
   }
   try {
-    smsSending.value = true
-    await sendSmsCode({ phone: normalizedPhone })
-    uni.showToast({ title: '验证码已发送', icon: 'none' })
-    startSMSCountdown()
+    latestVerification.value = await getLatestVerification(merchantId.value)
   } catch (err) {
-    uni.showToast({ title: err.message || '验证码发送失败', icon: 'none' })
-  } finally {
-    smsSending.value = false
+    latestVerification.value = { status: 'none' }
   }
 }
 
-async function bindCurrentPhone() {
-  const normalizedPhone = phone.value.trim()
-  const normalizedCode = smsCode.value.trim()
-  if (!normalizedPhone || !normalizedCode) {
-    uni.showToast({ title: '请填写手机号和验证码', icon: 'none' })
+function openAccountCard() {
+  if (!isLoggedIn.value) {
+    openLogin()
     return
   }
-  try {
-    bindingPhone.value = true
-    await bindPhone({ phone: normalizedPhone, smsCode: normalizedCode })
-    uni.showToast({ title: '手机号已绑定', icon: 'none' })
-  } catch (err) {
-    uni.showToast({ title: err.message || '绑定失败，请稍后重试', icon: 'none' })
-  } finally {
-    bindingPhone.value = false
-  }
-}
-
-function startSMSCountdown() {
-  clearSMSCountdown()
-  smsCountdown.value = 60
-  smsTimer = setInterval(() => {
-    smsCountdown.value -= 1
-    if (smsCountdown.value <= 0) {
-      clearSMSCountdown()
-    }
-  }, 1000)
-}
-
-function clearSMSCountdown() {
-  if (smsTimer) {
-    clearInterval(smsTimer)
-    smsTimer = 0
-  }
-}
-
-function getWechatLoginCode() {
-  return new Promise((resolve) => {
-    uni.login({
-      provider: 'weixin',
-      success: (res) => {
-        resolve(res.code || localDevLoginCode())
-      },
-      // 本地 H5/模拟环境可能没有微信登录能力，使用开发 code 仍可完成后端链路验收。
-      fail: () => {
-        resolve(localDevLoginCode())
-      },
-    })
-  })
-}
-
-function localDevLoginCode() {
-  const key = 'wplink_dev_login_code'
-  const existing = uni.getStorageSync(key)
-  if (existing) return existing
-  const code = `local-dev-${Date.now()}`
-  uni.setStorageSync(key, code)
-  return code
-}
-
-const entitlementRows = computed(() => [
-  buildEntitlementRow(['publish_quota', 'posting_quota'], '发布额度'),
-  buildEntitlementRow(['refresh_quota'], '刷新额度'),
-])
-
-const availableTopVoucherCount = computed(() => topVouchers.value.filter((item) => item.status === 'unused').length)
-const mineName = computed(() => (merchantId.value ? '商家工作台' : '我的账号'))
-const defaultBenefitTitle = '3 张置顶券本月可用'
-const benefitTitle = computed(() => {
-  const count = availableTopVoucherCount.value
-  return count > 0 ? `${count} 张置顶券本月可用` : defaultBenefitTitle
-})
-
-function buildEntitlementRow(types, label) {
-  const item = entitlements.value.find((entry) => types.includes(entry.type)) || {}
-  return {
-    type: types[0],
-    label,
-    total: Number(item.totalAmount || 0),
-    used: Number(item.usedAmount || 0),
-    remaining: Number(item.remainingAmount || 0),
-  }
-}
-
-async function loadEntitlements() {
-  const currentMerchantId = merchantId.value.trim()
-  if (!currentMerchantId) {
-    entitlements.value = []
-    topVouchers.value = []
-    return
-  }
-  try {
-    entitlementLoading.value = true
-    // 我的页是商家运营入口，进入时同步权益余量，避免商家只能在发布失败后才知道额度不足。
-    const [entitlementResp, voucherResp] = await Promise.all([
-      getMerchantEntitlements(currentMerchantId),
-      listTopVouchers(currentMerchantId),
-    ])
-    entitlements.value = entitlementResp.items || []
-    topVouchers.value = voucherResp.items || []
-  } catch (err) {
-    entitlements.value = []
-    topVouchers.value = []
-    uni.showToast({ title: err.message || '权益加载失败，请稍后重试', icon: 'none' })
-  } finally {
-    entitlementLoading.value = false
-  }
-}
-
-function openMyResources() {
-  uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${merchantId.value}` })
-}
-
-function openMerchantProfile() {
-  const query = merchantId.value ? `?merchantId=${merchantId.value}` : ''
-  uni.navigateTo({ url: `/pages/merchant/profile${query}` })
+  openMerchantProfile()
 }
 
 function openMyDemands() {
+  if (!requireLogin()) return
   uni.navigateTo({ url: '/pages/my-demands/index' })
 }
 
 function openFavorites() {
+  if (!requireLogin()) return
   uni.navigateTo({ url: '/pages/favorites/index' })
 }
 
-function openVerification() {
-  uni.navigateTo({ url: '/pages/verification/index' })
+function openMessages() {
+  if (!requireLogin()) return
+  uni.switchTab({ url: '/pages/messages/index' })
 }
 
 function openPublish() {
+  if (!requireLogin()) return
   uni.switchTab({ url: '/pages/publish/index' })
+}
+
+function openMyResources() {
+  if (!requireLogin()) return
+  if (!merchantId.value) {
+    uni.showToast({ title: '请先完善商家资料', icon: 'none' })
+    uni.navigateTo({ url: '/pages/merchant/profile' })
+    return
+  }
+  uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${merchantId.value}` })
+}
+
+function openMerchantProfile() {
+  if (!requireLogin()) return
+  const query = merchantId.value ? `?merchantId=${merchantId.value}` : ''
+  uni.navigateTo({ url: `/pages/merchant/profile${query}` })
+}
+
+function openMerchantVerification() {
+  if (!requireLogin()) return
+  if (!merchantId.value) {
+    uni.showToast({ title: '请先完善商家资料', icon: 'none' })
+    uni.navigateTo({ url: '/pages/merchant/profile' })
+    return
+  }
+  uni.navigateTo({ url: `/pages/verification/index?merchantId=${merchantId.value}` })
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .my-page {
   min-height: 100vh;
-  padding: 24rpx;
-  background: #f4f6f8;
+  padding: 24rpx 24rpx 40rpx;
+  background: $wplink-bg;
 }
 
-.mine-head,
-.profile-card,
-.benefit-card,
-.entitlement-card,
-.action-list {
+.account-card,
+.section-card {
   display: grid;
   gap: 18rpx;
   margin-bottom: 20rpx;
   padding: 24rpx;
   border-radius: 12rpx;
-  background: #ffffff;
+  background: $wplink-card;
+  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
 
-.mine-head {
-  grid-template-columns: 96rpx 1fr;
+.account-card {
+  gap: 20rpx;
+  padding: 32rpx;
+  box-shadow: 0 12rpx 32rpx rgba(15, 23, 42, 0.06);
+}
+
+.account-shell {
+  display: grid;
+  grid-template-columns: 104rpx minmax(0, 1fr);
+  gap: 24rpx;
   align-items: center;
+  min-width: 0;
+}
+
+.account-side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .avatar {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 88rpx;
-  height: 88rpx;
-  border-radius: 12rpx;
-  background: #0f766e;
-  color: #ffffff;
-  font-size: 36rpx;
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 14rpx;
+  background: $wplink-primary;
+  color: $wplink-card;
+  font-size: 40rpx;
   font-weight: 700;
 }
 
-.mine-name {
-  display: block;
-  margin-bottom: 8rpx;
-  color: #1f2933;
-  font-size: 36rpx;
+.avatar-guest {
+  background: $wplink-muted;
+}
+
+.account-main {
+  display: grid;
+  gap: 8rpx;
+  min-width: 0;
+}
+
+.account-title-row,
+.action-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  min-width: 0;
+}
+
+.account-title-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12rpx;
+  min-width: 0;
+}
+
+.account-name {
+  flex: 0 1 auto;
+  color: $wplink-primary;
+  font-size: 38rpx;
   font-weight: 700;
+  line-height: 1.25;
 }
 
-.mine-role {
-  color: #697586;
-  font-size: 26rpx;
-}
-
-.benefit-card {
-  background: #fff7e6;
-}
-
-.benefit-tag {
-  width: 128rpx;
-  padding: 6rpx 12rpx;
-  border-radius: 8rpx;
-  background: #fff0cc;
-  color: #b7791f;
-  font-size: 24rpx;
-  text-align: center;
-}
-
-.benefit-title {
-  color: #1f2933;
-  font-size: 34rpx;
-  font-weight: 700;
-}
-
-.benefit-desc {
-  color: #7c5a22;
+.account-desc,
+.action-meta {
+  color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
 }
 
-.benefit-card button {
-  height: 80rpx;
-  border-radius: 10rpx;
-  background: #0f766e;
-  color: #ffffff;
+.login-button {
+  width: 100%;
+  height: 84rpx;
+  border-radius: 12rpx;
+  background: $wplink-primary;
+  color: $wplink-card;
   font-size: 28rpx;
   font-weight: 700;
 }
 
-.page-title {
-  color: #1f2933;
-  font-size: 36rpx;
+.verification-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6rpx;
+  flex: 0 0 auto;
+  min-height: 32rpx;
+  padding: 0 12rpx;
+  border-radius: 999rpx;
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
+  font-size: 22rpx;
   font-weight: 700;
+  line-height: 1.3;
 }
 
-.field {
-  min-height: 80rpx;
-  padding: 0 20rpx;
-  border: 1rpx solid #d8dde6;
-  border-radius: 10rpx;
+.verification-status::before {
+  flex: 0 0 auto;
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+  content: '';
 }
 
-.sms-row {
+.status-verified {
+  background: rgba(22, 163, 106, 0.12);
+  color: $wplink-success;
+}
+
+.status-pending {
+  background: $wplink-warning-soft;
+  color: $wplink-warning;
+}
+
+.status-rejected,
+.status-revoked {
+  background: rgba(194, 58, 0, 0.1);
+  color: $wplink-warning;
+}
+
+.quick-section {
   display: grid;
-  grid-template-columns: 1fr 180rpx;
   gap: 14rpx;
-  align-items: center;
+  margin-bottom: 20rpx;
 }
 
-.primary-button {
-  height: 84rpx;
-  border-radius: 12rpx;
-  background: #0f766e;
-  color: #ffffff;
+.quick-section-head {
+  padding: 0 4rpx;
 }
 
-.secondary-button {
-  height: 84rpx;
-  border: 1rpx solid #0f766e;
-  border-radius: 12rpx;
-  background: #ffffff;
-  color: #0f766e;
-}
-
-.sms-button {
-  height: 80rpx;
-  border: 1rpx solid #0f766e;
-  border-radius: 10rpx;
-  background: #ffffff;
-  color: #0f766e;
-  font-size: 26rpx;
-}
-
-.section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.quick-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16rpx;
 }
 
+.quick-entry {
+  display: grid;
+  grid-template-columns: 54rpx minmax(0, 1fr);
+  gap: 16rpx;
+  align-items: center;
+  min-height: 128rpx;
+  padding: 20rpx;
+  border-radius: 12rpx;
+  background: $wplink-card;
+  color: $wplink-primary;
+  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+  text-align: left;
+}
+
+.quick-entry.primary {
+  background: $wplink-card;
+  color: $wplink-primary;
+}
+
+.quick-icon {
+  position: relative;
+  width: 54rpx;
+  height: 54rpx;
+  border-radius: 12rpx;
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
+}
+
+.quick-entry.primary .quick-icon {
+  background: $wplink-warning-soft;
+  color: $wplink-warning;
+}
+
+.publish-icon::before,
+.publish-icon::after {
+  position: absolute;
+  top: 25rpx;
+  left: 15rpx;
+  width: 24rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+  content: '';
+}
+
+.publish-icon::after {
+  transform: rotate(90deg);
+}
+
+.resource-icon text:first-child {
+  position: absolute;
+  top: 13rpx;
+  left: 13rpx;
+  width: 28rpx;
+  height: 8rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+}
+
+.resource-icon text:last-child {
+  position: absolute;
+  right: 13rpx;
+  bottom: 13rpx;
+  left: 13rpx;
+  height: 22rpx;
+  border: 4rpx solid currentColor;
+  border-radius: 6rpx;
+}
+
+.quick-copy {
+  display: grid;
+  gap: 6rpx;
+  min-width: 0;
+}
+
+.quick-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.quick-desc {
+  color: $wplink-muted;
+  font-size: 22rpx;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.quick-entry.primary .quick-desc {
+  color: $wplink-muted;
+}
+
+.section-head {
+  display: grid;
+  gap: 6rpx;
+  min-width: 0;
+}
+
 .section-title {
-  color: #1f2933;
+  color: $wplink-primary;
   font-size: 32rpx;
   font-weight: 700;
+  line-height: 1.3;
 }
 
-.mini-button {
-  width: 128rpx;
-  height: 60rpx;
-  border: 1rpx solid #d8dde6;
-  border-radius: 10rpx;
-  background: #ffffff;
-  color: #364152;
-  font-size: 24rpx;
-  line-height: 60rpx;
-}
-
-.empty-state {
-  padding: 18rpx 0;
-  color: #697586;
-  font-size: 26rpx;
-}
-
-.entitlement-grid {
+.action-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14rpx;
-}
-
-.entitlement-item {
-  display: grid;
-  gap: 8rpx;
-  min-height: 148rpx;
-  padding: 18rpx;
-  border: 1rpx solid #e3e8ef;
-  border-radius: 10rpx;
-  background: #f8fafc;
-}
-
-.entitlement-label {
-  color: #364152;
-  font-size: 24rpx;
-}
-
-.entitlement-value {
-  color: #0f766e;
-  font-size: 38rpx;
-  font-weight: 700;
-}
-
-.entitlement-meta {
-  color: #697586;
-  font-size: 22rpx;
 }
 
 .action-item {
-  display: grid;
-  gap: 8rpx;
-  padding: 18rpx 0;
-  border-bottom: 1rpx solid #edf2f7;
-  color: #1f2933;
-  font-size: 32rpx;
+  min-height: 100rpx;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid $wplink-line;
+  color: $wplink-primary;
 }
 
 .action-item:last-child {
   border-bottom: 0;
 }
 
-.action-meta {
-  color: #697586;
-  font-size: 26rpx;
+.action-main {
+  display: grid;
+  gap: 8rpx;
+  min-width: 0;
+}
+
+.action-title {
+  color: $wplink-primary;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.entry-arrow {
+  position: relative;
+  flex: 0 0 18rpx;
+  width: 18rpx;
+  height: 18rpx;
+}
+
+.entry-arrow::after {
+  position: absolute;
+  top: 2rpx;
+  right: 2rpx;
+  width: 12rpx;
+  height: 12rpx;
+  border-top: 3rpx solid #aab0ba;
+  border-right: 3rpx solid #aab0ba;
+  content: '';
+  transform: rotate(45deg);
 }
 </style>

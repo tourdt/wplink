@@ -77,9 +77,9 @@ type AdminUtilityAPIStore interface {
 	task.ResourceLifecycleStore
 }
 
-func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore) {
+func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, smsVerifier authlogic.SMSVerifier) {
 	if merchantStore, ok := store.(MerchantAPIStore); ok {
-		registerMerchantRoutes(mux, merchantStore, userTokenService, adminTokenService, permissionStore)
+		registerMerchantRoutes(mux, merchantStore, userTokenService, adminTokenService, permissionStore, smsVerifier)
 	}
 	if demandStore, ok := store.(DemandAPIStore); ok {
 		registerDemandRoutes(mux, demandStore, userTokenService)
@@ -107,7 +107,7 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	}
 }
 
-func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore) {
+func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, smsVerifier authlogic.SMSVerifier) {
 	mux.HandleFunc("POST /api/v1/merchants", func(w http.ResponseWriter, r *http.Request) {
 		var body merchantlogic.CreateMerchantReq
 		if err := decodeJSONBody(r, &body); err != nil {
@@ -129,7 +129,7 @@ func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore, tokenSer
 		resp, err := merchantlogic.NewGetMerchantLogic(store).GetMerchant(r.Context(), r.PathValue("merchantId"))
 		response.JSON(w, resp, err)
 	})
-	mux.HandleFunc("PATCH /api/v1/merchants/{merchantId}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/merchants/{merchantId}", func(w http.ResponseWriter, r *http.Request) {
 		var body merchantlogic.UpdateMerchantReq
 		if err := decodeJSONBody(r, &body); err != nil {
 			response.JSON(w, nil, err)
@@ -140,7 +140,7 @@ func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore, tokenSer
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := merchantlogic.NewUpdateMerchantLogic(store).UpdateMerchant(r.Context(), merchantID, body)
+		resp, err := merchantlogic.NewUpdateMerchantLogic(store, smsVerifier).UpdateMerchant(r.Context(), merchantID, body)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/admin/merchants", func(w http.ResponseWriter, r *http.Request) {
@@ -200,7 +200,7 @@ func registerDemandRoutes(mux *http.ServeMux, store DemandAPIStore, tokenService
 		resp, err := adminlogic.NewDemandAdminLogic(store).GetDemand(r.Context(), adminlogic.GetDemandReq{DemandID: r.PathValue("demandId")})
 		response.JSON(w, resp, err)
 	})
-	mux.HandleFunc("PATCH /api/v1/admin/purchase-demands/{demandId}/status", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/admin/purchase-demands/{demandId}/status", func(w http.ResponseWriter, r *http.Request) {
 		var body adminlogic.UpdateDemandStatusReq
 		if err := decodeJSONBody(r, &body); err != nil {
 			response.JSON(w, nil, err)
@@ -249,7 +249,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, store DiscoveryAPIStore) {
 		resp, err := adminlogic.NewBannerTopicAdminLogic(store).CreateBannerTopic(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
-	mux.HandleFunc("PATCH /api/v1/admin/banner-topics/{configId}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/admin/banner-topics/{configId}", func(w http.ResponseWriter, r *http.Request) {
 		var body adminlogic.SaveBannerTopicReq
 		if err := decodeJSONBody(r, &body); err != nil {
 			response.JSON(w, nil, err)
@@ -616,7 +616,7 @@ func registerAdminUtilityRoutes(mux *http.ServeMux, store AdminUtilityAPIStore, 
 		resp, err := adminlogic.NewResourceTypeConfigLogic(store).ListResourceTypeConfigs(r.Context(), adminlogic.ListResourceTypeConfigsReq{CityCode: r.URL.Query().Get("cityCode"), Status: r.URL.Query().Get("status")})
 		response.JSON(w, resp, err)
 	})
-	mux.HandleFunc("PATCH /api/v1/admin/resource-type-configs/{configId}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/admin/resource-type-configs/{configId}", func(w http.ResponseWriter, r *http.Request) {
 		var body adminlogic.UpdateResourceTypeConfigReq
 		if err := decodeJSONBody(r, &body); err != nil {
 			response.JSON(w, nil, err)
@@ -644,7 +644,7 @@ func registerAdminUtilityRoutes(mux *http.ServeMux, store AdminUtilityAPIStore, 
 		resp, err := adminlogic.NewMatchCaseLogic(store).ListMatchCases(r.Context(), adminlogic.ListMatchCasesReq{Status: r.URL.Query().Get("status"), Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize")})
 		response.JSON(w, resp, err)
 	})
-	mux.HandleFunc("PATCH /api/v1/admin/match-cases/{matchCaseId}/status", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/admin/match-cases/{matchCaseId}/status", func(w http.ResponseWriter, r *http.Request) {
 		var body adminlogic.UpdateMatchCaseStatusReq
 		if err := decodeJSONBody(r, &body); err != nil {
 			response.JSON(w, nil, err)
