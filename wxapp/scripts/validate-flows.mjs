@@ -170,7 +170,6 @@ export const defaultFlowChecks = [
       'pendingLogoFile',
       'pendingImageFiles',
       'uploadPendingMerchantImages',
-      '图片将在保存时上传',
       'previewMerchantLogo',
       'uni.previewImage',
       'logo-upload-tile',

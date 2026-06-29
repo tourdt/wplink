@@ -99,7 +99,6 @@
               <view class="logo-copy">
                 <text class="field-label">商家 LOGO</text>
                 <text class="image-helper">正方形 LOGO，裁剪后保存</text>
-                <text v-if="pendingLogoFile" class="field-helper">图片将在保存时上传</text>
               </view>
               <view v-if="logoPreviewUrl" class="logo-preview-wrap">
                 <button class="logo-preview-tile" @click="previewMerchantLogo">
@@ -135,7 +134,6 @@
               </button>
             </view>
             <text class="image-helper">主页展示图</text>
-            <text v-if="hasPendingImages" class="field-helper">图片将在保存时上传</text>
             <view v-if="merchantImageItems.length > 0" class="image-list">
               <view v-for="item in merchantImageItems" :key="item.id" class="image-item">
                 <image class="merchant-image" :src="item.url" mode="aspectFill" />

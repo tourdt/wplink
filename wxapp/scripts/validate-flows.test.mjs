@@ -235,7 +235,6 @@ test('merchant profile page stages images and uploads them on save', () => {
     'merchantImageItems',
     'uploadPendingMerchantImages',
     'await uploadPendingMerchantImages()',
-    '图片将在保存时上传',
     '上传并保存',
   ]) {
     assert.match(profileSource, new RegExp(token))
@@ -249,6 +248,7 @@ test('merchant profile page stages images and uploads them on save', () => {
   assert.equal(profileSource.includes('图片已上传'), false)
   assert.equal(profileSource.includes('LOGO 已上传'), false)
   assert.equal(profileSource.includes('LOGO 上传中'), false)
+  assert.equal(profileSource.includes('图片将在保存时上传'), false)
 })
 
 test('merchant profile page uses wechat avatar picker for merchant logo', () => {
