@@ -1,10 +1,10 @@
 <template>
   <view class="my-page">
     <view class="mine-head">
-      <view class="avatar">服</view>
+      <view class="avatar">衣</view>
       <view>
         <text class="mine-name">{{ mineName }}</text>
-        <text class="mine-role">服链通商家 · 商家管理员</text>
+        <text class="mine-role">衣货通商家 · 商家管理员</text>
       </view>
     </view>
 

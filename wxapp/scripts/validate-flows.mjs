@@ -18,7 +18,7 @@ export const defaultFlowChecks = [
       'openDemand',
       'openPublish',
       'sceneEntries',
-      '本周重点',
+      '织里站 · 精选工厂',
       '平台推荐资源',
       'ResourceCard',
       'listResources',

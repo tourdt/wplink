@@ -27,7 +27,7 @@ SMS:
   DailySendLimit: 10
   AccessKeyID: "${SMS_ACCESS_KEY_ID}"
   AccessKeySecret: "${SMS_ACCESS_KEY_SECRET}"
-  SignName: "服链通"
+  SignName: "衣货通"
   TemplateCode: ""
   DevCode: "123456"
 

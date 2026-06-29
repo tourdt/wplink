@@ -3,7 +3,8 @@
     {
       "path": "pages/home/index",
       "style": {
-        "navigationBarTitleText": "服链通"
+        "navigationBarTitleText": "衣货通",
+        "navigationStyle": "custom"
       }
     },
     {
@@ -104,8 +105,8 @@
     }
   ],
   "tabBar": {
-    "color": "#697586",
-    "selectedColor": "#0f766e",
+    "color": "#454a54",
+    "selectedColor": "#17130f",
     "backgroundColor": "#ffffff",
     "borderStyle": "black",
     "list": [
@@ -143,7 +144,7 @@
   },
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "服链通",
+    "navigationBarTitleText": "衣货通",
     "navigationBarBackgroundColor": "#ffffff",
     "backgroundColor": "#f4f6f8"
   }

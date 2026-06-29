@@ -2,8 +2,8 @@
   <el-container class="admin-shell">
     <el-aside class="admin-aside" width="220px">
       <div class="brand">
-        <span class="brand-mark">服</span>
-        <span class="brand-name">服链通</span>
+        <span class="brand-mark">衣</span>
+        <span class="brand-name">衣货通</span>
       </div>
       <el-menu router :default-active="$route.path" class="side-menu">
         <el-menu-item index="/dashboard">

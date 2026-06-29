@@ -1,4 +1,4 @@
-# 服链通 MVP 本地运行手册
+# 衣货通 MVP 本地运行手册
 
 本文用于本地评审和演示 MVP 闭环。当前仓库已具备 API 契约、后端领域逻辑、PostgreSQL migration、管理后台、uni-app 小程序工程，以及可启动的 Go HTTP 服务入口。
 

@@ -29,7 +29,7 @@ function showScreen(name, push = true) {
 
   screens.forEach((screen) => screen.classList.remove('active'))
   next.classList.add('active')
-  title.textContent = next.dataset.title || '服链通'
+  title.textContent = next.dataset.title || '衣货通'
 
   flowSteps.forEach((step) => {
     step.classList.toggle('active', step.dataset.screen === name)

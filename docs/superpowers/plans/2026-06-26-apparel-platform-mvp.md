@@ -1435,7 +1435,7 @@ export default defineAppConfig({
   window: {
     backgroundTextStyle: "light",
     navigationBarBackgroundColor: "#111827",
-    navigationBarTitleText: "服链通·织里站",
+    navigationBarTitleText: "衣货通·织里站",
     navigationBarTextStyle: "white"
   }
 });
@@ -1523,7 +1523,7 @@ Write `apps/mobile/src/pages/home/index.config.ts`:
 
 ```ts
 export default definePageConfig({
-  navigationBarTitleText: "服链通·织里站"
+  navigationBarTitleText: "衣货通·织里站"
 });
 ```
 
@@ -2268,7 +2268,7 @@ export function App() {
   return (
     <main className="shell">
       <header className="header">
-        <h1>服链通审核台</h1>
+        <h1>衣货通审核台</h1>
         <button onClick={refresh}>刷新</button>
       </header>
 

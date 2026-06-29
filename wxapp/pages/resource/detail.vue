@@ -177,7 +177,7 @@ async function shareResource() {
 }
 
 onShareAppMessage(() => ({
-  title: resource.value.title || '服链通资源',
+  title: resource.value.title || '衣货通资源',
   path: resource.value.id ? `/pages/resource/detail?id=${resource.value.id}` : '/pages/home/index',
 }))
 </script>

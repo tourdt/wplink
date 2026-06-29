@@ -2,9 +2,9 @@
   <main class="login-page">
     <section class="login-panel">
       <div class="login-brand">
-        <span class="brand-mark">服</span>
+        <span class="brand-mark">衣</span>
         <div>
-          <h1>服链通运营后台</h1>
+          <h1>衣货通运营后台</h1>
           <p>织里站</p>
         </div>
       </div>

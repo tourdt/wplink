@@ -31,7 +31,7 @@ func TestValidateForProductionAcceptsRequiredConfig(t *testing.T) {
 		Postgres:    productionPostgresConfig(),
 		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
-		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "服链通", TemplateCode: "SMS_001"},
+		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
 		Storage: StorageConfig{
 			Provider:            "qiniu-kodo",
 			Endpoint:            "https://upload-z2.qiniup.com",
@@ -111,7 +111,7 @@ func requiredProductionConfig() Config {
 		Postgres:    productionPostgresConfig(),
 		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
-		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "服链通", TemplateCode: "SMS_001"},
+		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
 		Storage: StorageConfig{
 			Provider:            "qiniu-kodo",
 			Endpoint:            "https://upload-z2.qiniup.com",

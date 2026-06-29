@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"net/url"
 	"path"
 	"path/filepath"
 	"strings"
@@ -60,10 +61,10 @@ func (l *UploadTokenLogic) CreateUploadToken(_ context.Context, req CreateUpload
 	if err != nil {
 		return CreateUploadTokenResp{}, errx.New(errx.CodeInternalError, "生成上传凭证失败，请稍后重试")
 	}
-	encodedPolicy := base64.RawURLEncoding.EncodeToString(policyBytes)
+	encodedPolicy := base64.URLEncoding.EncodeToString(policyBytes)
 	mac := hmac.New(sha1.New, []byte(l.cfg.AccessKeySecret))
 	_, _ = mac.Write([]byte(encodedPolicy))
-	sign := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	sign := base64.URLEncoding.EncodeToString(mac.Sum(nil))
 
 	return CreateUploadTokenResp{
 		UploadToken:   l.cfg.AccessKeyID + ":" + sign + ":" + encodedPolicy,
@@ -80,6 +81,9 @@ func (l *UploadTokenLogic) validate(req CreateUploadTokenReq) error {
 	}
 	if strings.TrimSpace(l.cfg.Endpoint) == "" || strings.TrimSpace(l.cfg.Bucket) == "" || strings.TrimSpace(l.cfg.AccessKeyID) == "" || strings.TrimSpace(l.cfg.AccessKeySecret) == "" {
 		return errx.New(errx.CodeInternalError, "上传服务未配置，请稍后重试")
+	}
+	if !qiniuEndpointMatchesRegion(l.cfg.Endpoint, l.cfg.Region) {
+		return errx.New(errx.CodeInternalError, "上传服务区域配置不一致，请联系管理员处理")
 	}
 	if strings.TrimSpace(req.Purpose) == "" {
 		return errx.New(errx.CodeValidationFailed, "请提供上传用途")
@@ -102,6 +106,37 @@ func (l *UploadTokenLogic) validate(req CreateUploadTokenReq) error {
 	return nil
 }
 
+func qiniuEndpointMatchesRegion(endpoint string, region string) bool {
+	region = strings.TrimSpace(strings.ToLower(region))
+	if region == "" {
+		return true
+	}
+	endpointRegion := qiniuEndpointRegion(endpoint)
+	return endpointRegion == "" || endpointRegion == region
+}
+
+func qiniuEndpointRegion(endpoint string) string {
+	parsed, err := url.Parse(strings.TrimSpace(endpoint))
+	if err != nil {
+		return ""
+	}
+	host := strings.ToLower(parsed.Hostname())
+	switch host {
+	case "up.qiniup.com", "upload.qiniup.com", "up-z0.qiniup.com", "upload-z0.qiniup.com":
+		return "z0"
+	case "up-z1.qiniup.com", "upload-z1.qiniup.com":
+		return "z1"
+	case "up-z2.qiniup.com", "upload-z2.qiniup.com":
+		return "z2"
+	case "up-na0.qiniup.com", "upload-na0.qiniup.com":
+		return "na0"
+	case "up-as0.qiniup.com", "upload-as0.qiniup.com":
+		return "as0"
+	default:
+		return ""
+	}
+}
+
 func containsContentType(allowed []string, contentType string) bool {
 	contentType = strings.TrimSpace(strings.ToLower(contentType))
 	for _, item := range allowed {
@@ -118,7 +153,7 @@ func buildObjectKey(purpose string, fileName string) string {
 		purpose = "misc"
 	}
 	ext := strings.ToLower(filepath.Ext(path.Base(fileName)))
-	return "uploads/" + purpose + "/" + time.Now().UTC().Format("20060102") + "/" + randomHex(12) + ext
+	return "wplink/uploads/" + purpose + "/" + time.Now().UTC().Format("20060102") + "/" + randomHex(12) + ext
 }
 
 func sanitizeKeyPart(value string) string {

@@ -1,5 +1,5 @@
 import http from './http'
-import { buildUploadedFileUrl, inferContentType } from './uploadUtils'
+import { buildQiniuUploadErrorMessage, buildUploadedFileUrl, inferContentType } from './uploadUtils'
 
 export function createUploadToken(data) {
   return http.post('/api/v1/uploads/token', data)
@@ -22,7 +22,8 @@ export async function uploadBannerImage(file) {
     body: formData,
   })
   if (!resp.ok) {
-    throw new Error('封面上传失败，请稍后重试')
+    const bodyText = await resp.text().catch(() => '')
+    throw new Error(buildQiniuUploadErrorMessage(resp.status, bodyText))
   }
   return buildUploadedFileUrl(token)
 }

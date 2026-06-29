@@ -36,6 +36,36 @@ test('home banner only overlays labels and title on image', () => {
   assert.match(source, /banner-title/)
 })
 
+test('home page keeps custom brand first screen structure', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+
+  assert.equal(source.includes('search-divider'), false)
+  assert.equal(source.includes('voice-icon'), false)
+  assert.equal(source.includes('search-action-icon'), false)
+
+  for (const token of [
+    'home-fixed-header',
+    'custom-title-bar',
+    'home-brand',
+    'brand-icon',
+    '衣货通',
+    'getMenuButtonBoundingClientRect',
+    'homeContentStyle',
+    '搜索现货、厂家或求购需求',
+    'factory-hero',
+    '织里站 · 精选工厂',
+    '童装产业带数字化撮合中心',
+    'quick-action-grid',
+    '我要找货',
+    '我要清货',
+    '我要找厂',
+    '我要接单',
+  ]) {
+    assert.match(source, new RegExp(token))
+  }
+})
+
 test('reports missing API call in required page flow', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'wplink-wxapp-flow-'))
   fs.mkdirSync(path.join(root, 'pages/home'), { recursive: true })
