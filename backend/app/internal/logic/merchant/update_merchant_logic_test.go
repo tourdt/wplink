@@ -35,7 +35,6 @@ func TestUpdateMerchantPassesPatchToStore(t *testing.T) {
 		ContactWechat:  "factory-demo",
 		AddressText:    "织里镇利济路88号",
 		Location:       model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"},
-		SmsCode:        "123456",
 	})
 	if err != nil {
 		t.Fatalf("UpdateMerchant() error = %v", err)
@@ -62,21 +61,21 @@ func TestUpdateMerchantPassesPatchToStore(t *testing.T) {
 	if store.patch.Location["name"] != "织里童装城" || store.patch.Location["address"] != "织里镇利济路88号" {
 		t.Fatalf("location = %#v, want updated map location", store.patch.Location)
 	}
-	if verifier.phone != "18800000001" || verifier.code != "123456" {
-		t.Fatalf("sms verifier = %q/%q, want contact phone and sms code", verifier.phone, verifier.code)
+	if verifier.phone != "" || verifier.code != "" {
+		t.Fatalf("sms verifier = %q/%q, want no sms verification", verifier.phone, verifier.code)
 	}
 	if resp.UpdatedAt != "2026-06-27T10:00:00+08:00" {
 		t.Fatalf("updatedAt = %q, want fixed time", resp.UpdatedAt)
 	}
 }
 
-func TestUpdateMerchantRequiresSMSCodeForContactPhone(t *testing.T) {
+func TestUpdateMerchantRejectsInvalidContactPhone(t *testing.T) {
 	store := &fakeMerchantUpdateStore{updatedAt: "2026-06-27T10:00:00+08:00"}
 	logic := NewUpdateMerchantLogic(store, &fakeMerchantSMSVerifier{})
 
 	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
 		MainCategories: []string{"童装"},
-		ContactPhone:   "18800000001",
+		ContactPhone:   "1880000中文",
 	})
 
 	if errx.CodeOf(err) != errx.CodeValidationFailed {

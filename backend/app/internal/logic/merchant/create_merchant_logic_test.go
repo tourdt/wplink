@@ -21,6 +21,22 @@ func TestCreateMerchantRejectsMissingRequiredFields(t *testing.T) {
 	}
 }
 
+func TestCreateMerchantRejectsInvalidContactPhone(t *testing.T) {
+	logic := NewCreateMerchantLogic(&fakeMerchantStore{})
+
+	_, err := logic.CreateMerchant(context.Background(), CreateMerchantReq{
+		CityCode:       "zhili",
+		Name:           "织里样板童装厂",
+		MerchantType:   "factory",
+		MainCategories: []string{"童装"},
+		ContactPhone:   "1880000中文",
+	})
+
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+}
+
 func TestCreateMerchantPassesInputToStore(t *testing.T) {
 	store := &fakeMerchantStore{
 		createResult: model.CreateMerchantResult{

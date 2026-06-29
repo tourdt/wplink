@@ -38,6 +38,7 @@ type MerchantDetailResp struct {
 	CreditTags         []CreditTagInfo          `json:"creditTags"`
 	Contact            MerchantContactInfo      `json:"contact"`
 	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`
+	HeatScore          int64                    `json:"heatScore"`
 	AddressText        string                   `json:"addressText,omitempty"`
 	Location           model.JSONMap            `json:"location,omitempty"`
 	Description        string                   `json:"description,omitempty"`
@@ -86,6 +87,7 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 			PublishedCount: detail.PublishedCount,
 			DealtCount:     detail.DealtCount,
 		},
+		HeatScore:    calculateMerchantHeatScore(detail),
 		AddressText:  detail.AddressText,
 		Location:     cloneJSONMap(detail.Location),
 		Description:  detail.Description,
@@ -93,6 +95,26 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 		Images:       append([]string(nil), detail.Images...),
 		LastActiveAt: detail.LastActiveAt,
 	}, nil
+}
+
+func calculateMerchantHeatScore(detail model.MerchantDetail) int64 {
+	// 商家热度只做 0-100 的展示分，后续调整权重时不影响小程序展示范围。
+	score := detail.PublishedCount*8 + int64(len(detail.MainCategories))*2 + int64(len(detail.Images))*3
+	if detail.VerificationStatus == "verified" {
+		score += 15
+	}
+	followerScore := detail.FollowerCount * 2
+	if followerScore > 20 {
+		followerScore = 20
+	}
+	score += followerScore
+	if score > 100 {
+		return 100
+	}
+	if score < 0 {
+		return 0
+	}
+	return score
 }
 
 func cloneJSONMap(value model.JSONMap) model.JSONMap {

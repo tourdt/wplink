@@ -51,10 +51,10 @@
         <text class="section-title">常用服务</text>
       </view>
       <view class="action-list">
-        <view class="action-item" @click="openMerchantProfile">
+        <view class="action-item" @click="openMerchantHome">
           <view class="action-main">
-            <text class="action-title">商家资料</text>
-            <text class="action-meta">主页、品类、联系方式</text>
+            <text class="action-title">商家主页</text>
+            <text class="action-meta">查看自己的公开页</text>
           </view>
           <text class="entry-arrow"></text>
         </view>
@@ -170,7 +170,7 @@ function openAccountCard() {
     openLogin()
     return
   }
-  openMerchantProfile()
+  openMerchantHome()
 }
 
 function openMyDemands() {
@@ -203,10 +203,13 @@ function openMyResources() {
   uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${merchantId.value}` })
 }
 
-function openMerchantProfile() {
+function openMerchantHome() {
   if (!requireLogin()) return
-  const query = merchantId.value ? `?merchantId=${merchantId.value}` : ''
-  uni.navigateTo({ url: `/pages/merchant/profile${query}` })
+  if (!merchantId.value) {
+    uni.navigateTo({ url: '/pages/merchant/profile' })
+    return
+  }
+  uni.navigateTo({ url: `/pages/merchant/detail?id=${merchantId.value}` })
 }
 
 function openMerchantVerification() {

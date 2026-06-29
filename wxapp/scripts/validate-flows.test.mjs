@@ -87,7 +87,8 @@ test('my page separates guest and logged-in account states without merchant bind
     'verificationStatusText',
     '待完善',
     'openAccountCard',
-    'openMerchantProfile',
+    'openMerchantHome',
+    '商家主页',
     '商家认证',
     'openMerchantVerification',
     '/pages/verification/index\\?merchantId=',
@@ -178,6 +179,20 @@ test('merchant profile page labels every field and removes manual image url entr
   assert.equal(source.includes('图片 URL'), false)
 })
 
+test('merchant profile page does not require sms verification for contact phone', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+
+  assert.match(source, /sanitizeContactPhone/)
+  assert.match(source, /isValidContactPhone/)
+  assert.match(source, /手机号需为 6-20 位数字/)
+  assert.equal(source.includes('sendSmsCodeForHomepagePhone'), false)
+  assert.equal(source.includes('sendSmsCode'), false)
+  assert.equal(source.includes('smsCode'), false)
+  assert.equal(source.includes('短信验证码'), false)
+  assert.equal(source.includes('验证码'), false)
+})
+
 test('merchant profile page keeps textarea aligned with inputs', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
@@ -227,12 +242,17 @@ test('merchant profile page stages images and uploads them on save', () => {
   const uploadSource = fs.readFileSync(path.join(root, 'common/upload.js'), 'utf8')
 
   for (const token of [
-    'chooseImageFile',
+    'UniGrid',
+    'UniGridItem',
+    'chooseMerchantImageFiles',
     'uploadSelectedImage',
     'pendingLogoFile',
-    'pendingImageFiles',
+    'merchantImageEntries',
     'logoPreviewUrl',
-    'merchantImageItems',
+    'merchantImageGridItems',
+    'appendMerchantImageFiles',
+    'compressMerchantImageFile',
+    'resolveImageCompressionOptions',
     'uploadPendingMerchantImages',
     'await uploadPendingMerchantImages()',
     '上传并保存',
@@ -245,10 +265,32 @@ test('merchant profile page stages images and uploads them on save', () => {
   }
 
   assert.equal(profileSource.includes('chooseAndUploadImage'), false)
+  assert.equal(profileSource.includes('pendingImageFiles'), false)
   assert.equal(profileSource.includes('图片已上传'), false)
   assert.equal(profileSource.includes('LOGO 已上传'), false)
   assert.equal(profileSource.includes('LOGO 上传中'), false)
   assert.equal(profileSource.includes('图片将在保存时上传'), false)
+})
+
+test('merchant profile page does not toast after selecting display images', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const profileSource = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+  const homepageMatched = profileSource.match(/async function uploadMerchantImage\(\) \{([\s\S]*?)\n\}/)
+  const logoMatched = profileSource.match(/function onChooseMerchantLogoAvatar\(e\) \{([\s\S]*?)\n\}/)
+
+  assert.ok(homepageMatched, 'uploadMerchantImage should exist')
+  assert.ok(logoMatched, 'onChooseMerchantLogoAvatar should exist')
+  assert.equal(homepageMatched[1].includes('已选择，保存时上传'), false)
+  assert.equal(logoMatched[1].includes('已选择，保存时上传'), false)
+})
+
+test('merchant profile homepage image delete button is placed at top right', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const profileSource = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+
+  assert.match(profileSource, /\.img-del \{[\s\S]*right: 8rpx;[\s\S]*top: 8rpx;/)
+  assert.match(profileSource, /\.img-del\[disabled\] \{[\s\S]*background: rgba\(15, 23, 42, 0\.72\);[\s\S]*opacity: 1;/)
+  assert.doesNotMatch(profileSource, /\.img-del \{[\s\S]*bottom: 8rpx;/)
 })
 
 test('merchant profile page uses wechat avatar picker for merchant logo', () => {
@@ -263,7 +305,6 @@ test('merchant profile page uses wechat avatar picker for merchant logo', () => 
     'onChooseMerchantLogoAvatar',
     'e.detail.avatarUrl',
     'createImageFileFromPath',
-    '已选择，保存时上传',
   ]) {
     assert.match(profileSource, new RegExp(token))
   }
@@ -430,6 +471,74 @@ test('merchant detail page exposes map navigation when location exists', () => {
   }
 })
 
+test('merchant detail page previews merchant images from tapped image', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
+
+  for (const token of [
+    '@click="previewMerchantImage(url)"',
+    'previewMerchantImage',
+    'uni.previewImage',
+    'urls: merchantImages.value',
+    'current: url',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+})
+
+test('merchant detail page keeps fixed contact bar above phone safe area', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
+
+  assert.match(source, /\.contact-bar \{[\s\S]*bottom: 0;[\s\S]*padding: 18rpx 24rpx calc\(18rpx \+ env\(safe-area-inset-bottom\)\);/)
+  assert.match(source, /\.contact-bar \{[\s\S]*border-top: 1rpx solid \$wplink-line;[\s\S]*background: rgba\(255, 255, 255, 0\.96\);/)
+  assert.match(source, /\.contact-spacer \{[\s\S]*height: calc\(124rpx \+ env\(safe-area-inset-bottom\)\);/)
+})
+
+test('merchant detail page paginates published resources with reusable resource list', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const detailSource = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
+  const listSource = fs.existsSync(path.join(root, 'components/ResourceList.vue'))
+    ? fs.readFileSync(path.join(root, 'components/ResourceList.vue'), 'utf8')
+    : ''
+
+  for (const token of [
+    'ResourceList',
+    'loadMerchantResources',
+    'merchantResourcePage',
+    'merchantResourcePageSize',
+    'merchantResourceTotal',
+    'merchantResourcesLoading',
+    'hasMoreMerchantResources',
+    'onReachBottom',
+    'resetMerchantResources',
+    '@load-more="loadMerchantResources"',
+    ':loading="merchantResourcesLoading"',
+    ':has-more="hasMoreMerchantResources"',
+    'merchantResourceCountText',
+  ]) {
+    assert.match(detailSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.equal(detailSource.includes('<ResourceCard v-for="item in merchantResources"'), false)
+
+  for (const token of [
+    'ResourceCard',
+    'defineProps',
+    'defineEmits',
+    'resources',
+    'emptyText',
+    'loading',
+    'hasMore',
+    'loadMoreText',
+    'resource-list',
+    'load-more',
+    "emit('load-more')",
+  ]) {
+    assert.match(listSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+})
+
 test('login page provides reusable wechat login and redirect guard', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const loginSource = fs.existsSync(path.join(root, 'pages/login/index.vue'))
@@ -475,6 +584,52 @@ test('wxapp uses industrial b2b theme colors without legacy green primary', () =
 
   assert.equal(pagesConfig.tabBar.selectedColor, '#c23a00')
   assert.equal(pagesConfig.globalStyle.backgroundColor, '#f4f7fd')
+})
+
+test('merchant detail page uses trust-first homepage layout', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
+
+  for (const token of [
+    'merchant-hero-card',
+    'merchant-identity-row',
+    'merchant-summary',
+    'hero-stats',
+    'profile-panel',
+    'profile-chip-row',
+    'profile-description',
+    'media-section',
+    'merchant-gallery',
+    'trust-note-section',
+    'merchantCategoryTags',
+    'merchantTypeLabel',
+    'merchantTypeText',
+    'profileDescription',
+    'statCards',
+    'heatScore',
+    "' · '",
+    '商家信息',
+    'profile-chip category',
+    'profile-chip.category',
+    '商家热度',
+    '主营品类待补充',
+    '从资源详情进入可查看完整联系方式',
+  ]) {
+    assert.match(source, new RegExp(token))
+  }
+
+  for (const removedToken of [
+    'class="merchant-stats"',
+    '商家画像',
+    'v-for="tag in creditTags"',
+    'profile-chip verified',
+    '信用标签',
+    '成交反馈',
+    '发布概况</text>',
+    'benefit-section',
+  ]) {
+    assert.equal(source.includes(removedToken), false)
+  }
 })
 
 test('reports missing API call in required page flow', () => {

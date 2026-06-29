@@ -49,20 +49,13 @@
           <view v-if="merchantId" class="form-field contact-phone-card">
             <text class="field-label">主页联系电话</text>
             <text v-if="contactPhoneHint" class="field-helper">当前：{{ contactPhoneHint }}，填新号可更换</text>
-            <view class="sms-row">
-              <input v-model="form.contactPhone" class="field" type="number" placeholder="新手机号" />
-              <button class="sms-button" :disabled="smsSending || smsCountdown > 0" @click="sendSmsCodeForHomepagePhone">
-                {{ smsCountdown > 0 ? `${smsCountdown}s` : '验证码' }}
-              </button>
-            </view>
-            <view class="sms-code-field">
-              <text class="field-label field-label-small">短信验证码</text>
-              <input v-model="smsCode" class="field" type="number" placeholder="请输入短信验证码" />
-            </view>
+            <input v-model="form.contactPhone" class="field" type="number" maxlength="20" placeholder="新手机号" @input="sanitizeContactPhone" />
+            <text class="field-helper">手机号需为 6-20 位数字</text>
           </view>
           <view v-else class="form-field">
             <text class="field-label">主页联系电话</text>
-            <input v-model="form.contactPhone" class="field" type="number" placeholder="联系电话" />
+            <input v-model="form.contactPhone" class="field" type="number" maxlength="20" placeholder="联系电话" @input="sanitizeContactPhone" />
+            <text class="field-helper">手机号需为 6-20 位数字</text>
           </view>
           <view class="form-field">
             <text class="field-label">主页微信</text>
@@ -129,18 +122,26 @@
           <view class="form-field image-field">
             <view class="image-title-row">
               <text class="field-label">商家主页图片</text>
-              <button class="secondary-button" :disabled="submitting" @click="uploadMerchantImage">
-                选择图片
-              </button>
+              <text class="image-count">{{ merchantImageEntries.length }}/{{ merchantProfileImageMaxCount }}</text>
             </view>
-            <text class="image-helper">主页展示图</text>
-            <view v-if="merchantImageItems.length > 0" class="image-list">
-              <view v-for="item in merchantImageItems" :key="item.id" class="image-item">
-                <image class="merchant-image" :src="item.url" mode="aspectFill" />
-                <button class="remove-button" @click="removeMerchantImage(item)">移除</button>
-              </view>
+            <text class="image-helper">主页展示图，点击图片预览，点击最后一格添加</text>
+            <view class="image-grid-wrap">
+              <UniGrid :column="3" :show-border="false" :square="true" @change="onMerchantImageGridItemClick">
+                <UniGridItem v-for="(item, index) in merchantImageGridItems" :key="item.id" :index="index">
+                  <view v-if="item.type === 'image'" class="upload-img-item">
+                    <image class="merchant-image" :src="item.url" mode="aspectFill" />
+                    <button class="img-del" :disabled="submitting" @click.stop="removeMerchantImage(item)">
+                      <text class="img-del-line" />
+                    </button>
+                  </view>
+                  <view v-else class="upload-img-add-container">
+                    <view class="upload-img-item-add">
+                      <view class="image-add-icon" />
+                    </view>
+                  </view>
+                </UniGridItem>
+              </UniGrid>
             </view>
-            <text v-else class="empty-image-text">暂无图片</text>
           </view>
         </view>
       </view>
@@ -156,12 +157,23 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { onLoad } from '@dcloudio/uni-app'
+import UniGrid from '../../components/uni-ui/uni-grid/uni-grid.vue'
+import UniGridItem from '../../components/uni-ui/uni-grid-item/uni-grid-item.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
-import { sendSmsCode } from '../../api/auth'
 import { createMerchant, getMerchant, updateMerchant } from '../../api/merchant'
 import { getLatestVerification } from '../../api/verification'
-import { chooseImageFile, createImageFileFromPath, uploadSelectedImage } from '../../common/upload'
+import { createImageFileFromPath, uploadSelectedImage } from '../../common/upload'
+import {
+  MERCHANT_PROFILE_IMAGE_MAX_COUNT,
+  appendMerchantImageFiles,
+  createStoredMerchantImageEntry,
+  getMerchantImagePreviewUrl,
+  getMerchantImageUrlsForPreview,
+  getStoredMerchantImageUrls,
+  removeMerchantImageEntry,
+  resolveImageCompressionOptions,
+} from '../../common/merchantProfileImages'
 import { getMerchantId, saveMerchantId } from '../../store/session'
 
 const merchantTypeOptions = [
@@ -175,29 +187,33 @@ const merchantId = ref('')
 const submitting = ref(false)
 const contactSectionOpen = ref(false)
 const brandSectionOpen = ref(false)
-const smsSending = ref(false)
-const smsCountdown = ref(0)
-const smsCode = ref('')
 const contactPhoneHint = ref('')
 const contactWechatHint = ref('')
 const originalMerchantType = ref('factory')
 const merchantVerificationStatus = ref('unverified')
 const mainCategoriesText = ref('')
-const imagesText = ref('')
 const pendingLogoFile = ref(null)
-const pendingImageFiles = ref([])
-const imageUrls = computed(() => parseList(imagesText.value))
+const merchantImageEntries = ref([])
+const merchantProfileImageMaxCount = MERCHANT_PROFILE_IMAGE_MAX_COUNT
 const logoPreviewUrl = computed(() => pendingLogoFile.value?.path || form.logoUrl)
-const merchantImageItems = computed(() => [
-  ...imageUrls.value.map((url) => ({ id: url, url, local: false })),
-  ...pendingImageFiles.value.map((file) => ({ id: file.id, url: file.path, local: true })),
-])
-const hasPendingImages = computed(() => Boolean(pendingLogoFile.value || pendingImageFiles.value.length > 0))
+const merchantImageGridItems = computed(() => {
+  const imageItems = merchantImageEntries.value.map((entry) => ({
+    ...entry,
+    type: 'image',
+    url: getMerchantImagePreviewUrl(entry),
+  }))
+  if (imageItems.length < merchantProfileImageMaxCount) {
+    imageItems.push({ id: 'merchant-image-add', type: 'add' })
+  }
+  return imageItems
+})
+const hasPendingImages = computed(() => Boolean(
+  pendingLogoFile.value || merchantImageEntries.value.some((entry) => entry.kind === 'pending'),
+))
 const saveButtonText = computed(() => {
   if (hasPendingImages.value) return '上传并保存'
   return merchantId.value ? '保存资料' : '提交入驻'
 })
-let smsTimer = 0
 const form = reactive({
   cityCode: DEFAULT_CITY_CODE,
   name: '',
@@ -228,10 +244,6 @@ onLoad((options) => {
   loadMerchant()
 })
 
-onUnload(() => {
-  clearSMSCountdown()
-})
-
 async function loadMerchant() {
   if (!merchantId.value) return
   try {
@@ -252,8 +264,10 @@ async function loadMerchant() {
     form.description = detail.description || ''
     form.logoUrl = detail.logoUrl || ''
     mainCategoriesText.value = (detail.mainCategories || []).join(',')
-    imagesText.value = (detail.images || []).join(',')
-    brandSectionOpen.value = Boolean(form.logoUrl || imageUrls.value.length > 0)
+    merchantImageEntries.value = (detail.images || [])
+      .filter(Boolean)
+      .map(createStoredMerchantImageEntry)
+    brandSectionOpen.value = Boolean(form.logoUrl || merchantImageEntries.value.length > 0)
     await loadMerchantVerificationStatus()
   } catch (err) {
     uni.showToast({ title: err.message || '商家资料加载失败', icon: 'none' })
@@ -286,8 +300,8 @@ function changeMerchantType(event) {
 
 async function submitMerchantProfile() {
   const mainCategories = parseList(mainCategoriesText.value)
-  const normalizedContactPhone = form.contactPhone.trim()
-  const normalizedSmsCode = smsCode.value.trim()
+  const normalizedContactPhone = sanitizeContactPhoneValue(form.contactPhone)
+  form.contactPhone = normalizedContactPhone
   if (!form.name.trim()) {
     uni.showToast({ title: '请填写商家名称', icon: 'none' })
     return
@@ -296,15 +310,15 @@ async function submitMerchantProfile() {
     uni.showToast({ title: '请填写主营品类', icon: 'none' })
     return
   }
-  if (merchantId.value && (normalizedContactPhone || normalizedSmsCode) && (!normalizedContactPhone || !normalizedSmsCode)) {
-    uni.showToast({ title: '请填写新手机号和短信验证码', icon: 'none' })
+  if (normalizedContactPhone && !isValidContactPhone(normalizedContactPhone)) {
+    uni.showToast({ title: '手机号需为 6-20 位数字', icon: 'none' })
     return
   }
   try {
     submitting.value = true
     const needsReverifyAfterSave = merchantTypeChangeNeedsReverify.value
     await uploadPendingMerchantImages()
-    const images = imageUrls.value
+    const images = getStoredMerchantImageUrls(merchantImageEntries.value)
     if (merchantId.value) {
       const patch = {
         mainCategories,
@@ -318,7 +332,6 @@ async function submitMerchantProfile() {
       }
       if (normalizedContactPhone) {
         patch.contactPhone = normalizedContactPhone
-        patch.smsCode = normalizedSmsCode
       }
       const normalizedWechat = form.contactWechat.trim()
       if (normalizedWechat) {
@@ -338,7 +351,7 @@ async function submitMerchantProfile() {
         merchantType: form.merchantType,
         mainCategories,
         contactName: form.contactName.trim(),
-        contactPhone: form.contactPhone.trim(),
+        contactPhone: normalizedContactPhone,
         contactWechat: form.contactWechat.trim(),
         addressText: form.addressText.trim(),
         description: form.description.trim(),
@@ -395,29 +408,19 @@ function clearMerchantLocation() {
   form.location = {}
 }
 
-async function sendSmsCodeForHomepagePhone() {
-  const normalizedPhone = form.contactPhone.trim()
-  if (!normalizedPhone) {
-    uni.showToast({ title: '请填写新主页联系电话', icon: 'none' })
-    return
-  }
-  try {
-    smsSending.value = true
-    await sendSmsCode({ phone: normalizedPhone })
-    uni.showToast({ title: '验证码已发送', icon: 'none' })
-    startSMSCountdown()
-  } catch (err) {
-    uni.showToast({ title: err.message || '验证码发送失败', icon: 'none' })
-  } finally {
-    smsSending.value = false
-  }
-}
-
 async function uploadMerchantImage() {
   try {
-    const file = await chooseImageFile()
-    pendingImageFiles.value = [...pendingImageFiles.value, file]
-    uni.showToast({ title: '已选择，保存时上传', icon: 'none' })
+    const remainingCount = merchantProfileImageMaxCount - merchantImageEntries.value.length
+    if (remainingCount <= 0) {
+      uni.showToast({ title: `最多上传${merchantProfileImageMaxCount}张图片`, icon: 'none' })
+      return
+    }
+    const files = await chooseMerchantImageFiles(remainingCount)
+    merchantImageEntries.value = appendMerchantImageFiles(
+      merchantImageEntries.value,
+      files,
+      merchantProfileImageMaxCount,
+    )
   } catch (err) {
     if (String(err?.errMsg || '').includes('cancel')) return
     uni.showToast({ title: err.message || '图片选择失败，请重试', icon: 'none' })
@@ -431,7 +434,6 @@ function onChooseMerchantLogoAvatar(e) {
     return
   }
   pendingLogoFile.value = createImageFileFromPath(avatarUrl)
-  uni.showToast({ title: '已选择，保存时上传', icon: 'none' })
 }
 
 async function uploadPendingMerchantImages() {
@@ -439,21 +441,42 @@ async function uploadPendingMerchantImages() {
     form.logoUrl = await uploadSelectedImage(pendingLogoFile.value, 'merchant-logo')
     pendingLogoFile.value = null
   }
-  if (pendingImageFiles.value.length === 0) return
-  const uploadedImages = []
-  for (const file of pendingImageFiles.value) {
-    uploadedImages.push(await uploadSelectedImage(file, 'merchant-profile'))
+  if (!merchantImageEntries.value.some((entry) => entry.kind === 'pending')) return
+  const uploadedEntries = []
+  for (const entry of merchantImageEntries.value) {
+    if (entry.kind === 'stored') {
+      uploadedEntries.push(entry)
+      continue
+    }
+    const compressedFile = await compressMerchantImageFile(entry.file)
+    const uploadedUrl = await uploadSelectedImage(compressedFile, 'merchant-profile')
+    uploadedEntries.push(createStoredMerchantImageEntry(uploadedUrl))
   }
-  imagesText.value = [...imageUrls.value, ...uploadedImages].join(',')
-  pendingImageFiles.value = []
+  merchantImageEntries.value = uploadedEntries
 }
 
 function removeMerchantImage(item) {
-  if (item.local) {
-    pendingImageFiles.value = pendingImageFiles.value.filter((file) => file.id !== item.id)
+  merchantImageEntries.value = removeMerchantImageEntry(merchantImageEntries.value, item.id)
+}
+
+function onMerchantImageGridItemClick(event) {
+  const item = merchantImageGridItems.value[Number(event.detail.index)]
+  if (!item) return
+  if (item.type === 'add') {
+    uploadMerchantImage()
     return
   }
-  imagesText.value = imageUrls.value.filter((url) => url !== item.url).join(',')
+  previewMerchantImage(item)
+}
+
+function previewMerchantImage(item) {
+  const urls = getMerchantImageUrlsForPreview(merchantImageEntries.value)
+  const current = getMerchantImagePreviewUrl(item)
+  if (!current || urls.length === 0) return
+  uni.previewImage({
+    urls,
+    current,
+  })
 }
 
 function previewMerchantLogo() {
@@ -461,6 +484,85 @@ function previewMerchantLogo() {
   uni.previewImage({
     urls: [logoPreviewUrl.value],
     current: logoPreviewUrl.value,
+  })
+}
+
+function chooseMerchantImageFiles(count) {
+  return new Promise((resolve, reject) => {
+    if (typeof uni.chooseMedia === 'function') {
+      uni.chooseMedia({
+        count,
+        mediaType: ['image'],
+        sourceType: ['album', 'camera'],
+        sizeType: ['original'],
+        success: (res) => {
+          const files = (res.tempFiles || [])
+            .map((file) => createImageFileFromPath(file.tempFilePath || file.path, file))
+            .filter((file) => file.path)
+          resolve(files)
+        },
+        fail: reject,
+      })
+      return
+    }
+    uni.chooseImage({
+      count,
+      sizeType: ['original'],
+      sourceType: ['album', 'camera'],
+      success: (res) => {
+        const tempFiles = res.tempFiles || []
+        const files = (res.tempFilePaths || [])
+          .map((filePath, index) => createImageFileFromPath(filePath, tempFiles[index] || {}))
+          .filter((file) => file.path)
+        resolve(files)
+      },
+      fail: reject,
+    })
+  })
+}
+
+async function compressMerchantImageFile(file) {
+  if (typeof uni.compressImage !== 'function') return file
+  try {
+    const imageInfo = await getImageInfo(file.path)
+    const options = resolveImageCompressionOptions({
+      width: imageInfo.width,
+      height: imageInfo.height,
+      size: file.size,
+    })
+    if (!options.shouldCompress) return file
+    const compressedPath = await compressImage(file.path, options)
+    return createImageFileFromPath(compressedPath, {
+      ...file,
+      size: file.size || 1,
+    })
+  } catch (err) {
+    return file
+  }
+}
+
+function getImageInfo(src) {
+  return new Promise((resolve, reject) => {
+    uni.getImageInfo({
+      src,
+      success: resolve,
+      fail: reject,
+    })
+  })
+}
+
+function compressImage(src, options) {
+  return new Promise((resolve, reject) => {
+    const params = {
+      src,
+      quality: options.quality,
+      success: (res) => resolve(res.tempFilePath || src),
+      fail: reject,
+    }
+    if (options.compressedWidth) {
+      params.compressedWidth = options.compressedWidth
+    }
+    uni.compressImage(params)
   })
 }
 
@@ -476,22 +578,16 @@ function hasValidLocation(location) {
   return Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude))
 }
 
-function startSMSCountdown() {
-  clearSMSCountdown()
-  smsCountdown.value = 60
-  smsTimer = setInterval(() => {
-    smsCountdown.value -= 1
-    if (smsCountdown.value <= 0) {
-      clearSMSCountdown()
-    }
-  }, 1000)
+function sanitizeContactPhone(event) {
+  form.contactPhone = sanitizeContactPhoneValue(event?.detail?.value ?? form.contactPhone)
 }
 
-function clearSMSCountdown() {
-  if (smsTimer) {
-    clearInterval(smsTimer)
-    smsTimer = 0
-  }
+function sanitizeContactPhoneValue(value) {
+  return String(value || '').replace(/\D/g, '').slice(0, 20)
+}
+
+function isValidContactPhone(value) {
+  return /^\d{6,20}$/.test(value)
 }
 </script>
 
@@ -596,7 +692,6 @@ function clearSMSCountdown() {
 
 .form-field,
 .contact-phone-card,
-.sms-code-field,
 .image-field {
   display: grid;
   gap: 12rpx;
@@ -618,18 +713,6 @@ function clearSMSCountdown() {
   color: $wplink-warning;
 }
 
-.field-label-small {
-  font-size: 24rpx;
-  font-weight: 600;
-}
-
-.sms-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 180rpx;
-  gap: 14rpx;
-  align-items: center;
-}
-
 .address-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 172rpx;
@@ -637,7 +720,6 @@ function clearSMSCountdown() {
   align-items: center;
 }
 
-.sms-button,
 .map-button {
   height: 80rpx;
   border: 1rpx solid $wplink-primary;
@@ -711,16 +793,14 @@ function clearSMSCountdown() {
 
 .image-title-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 180rpx;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 14rpx;
   align-items: center;
 }
 
-.image-title-row .secondary-button {
-  height: 68rpx;
-  border-radius: 10rpx;
+.image-count {
+  color: $wplink-muted;
   font-size: 24rpx;
-  line-height: 68rpx;
 }
 
 .image-helper,
@@ -834,30 +914,96 @@ function clearSMSCountdown() {
   border-radius: 10rpx;
 }
 
-.image-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12rpx;
+.image-grid-wrap {
+  margin-right: 160rpx;
 }
 
-.image-item {
-  display: grid;
-  gap: 8rpx;
+.upload-img-item,
+.upload-img-add-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 8rpx;
+  box-sizing: border-box;
 }
 
 .merchant-image {
   width: 100%;
-  height: 160rpx;
+  height: 100%;
   border-radius: 10rpx;
   background: #e3e8ef;
 }
 
-.remove-button {
-  height: 56rpx;
-  border-radius: 8rpx;
+.img-del {
+  position: absolute;
+  right: 8rpx;
+  top: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44rpx;
+  height: 44rpx;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.img-del[disabled] {
+  background: rgba(15, 23, 42, 0.72);
+  opacity: 1;
+}
+
+.img-del::after {
+  border: 0;
+}
+
+.img-del-line,
+.img-del-line::after {
+  display: block;
+  width: 22rpx;
+  height: 3rpx;
+  border-radius: 999rpx;
+  background: #fff;
+}
+
+.img-del-line {
+  transform: rotate(45deg);
+}
+
+.img-del-line::after {
+  content: '';
+  transform: rotate(90deg);
+}
+
+.upload-img-item-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border: 1rpx dashed $wplink-line;
+  border-radius: 10rpx;
   background: #f8fafc;
-  color: $wplink-muted;
-  font-size: 24rpx;
-  line-height: 56rpx;
+}
+
+.image-add-icon,
+.image-add-icon::after {
+  display: block;
+  width: 36rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: $wplink-muted;
+}
+
+.image-add-icon {
+  position: relative;
+}
+
+.image-add-icon::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  content: '';
+  transform: rotate(90deg);
 }
 </style>

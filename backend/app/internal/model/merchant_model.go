@@ -48,6 +48,7 @@ type MerchantDetail struct {
 	WechatMasked       string
 	PublishedCount     int64
 	DealtCount         int64
+	FollowerCount      int64
 	AddressText        string
 	Location           JSONMap
 	Description        string
@@ -181,7 +182,12 @@ SELECT
   m.images,
   m.last_active_at,
   COUNT(r.id) FILTER (WHERE r.status = 'published') AS published_count,
-  COUNT(r.id) FILTER (WHERE r.status = 'dealt') AS dealt_count
+  COUNT(r.id) FILTER (WHERE r.status = 'dealt') AS dealt_count,
+  (
+    SELECT COUNT(*)
+    FROM user_followed_merchants ufm
+    WHERE ufm.merchant_id = m.id AND ufm.status = 'active'
+  ) AS follower_count
 FROM merchants m
 JOIN city_stations cs ON cs.id = m.city_station_id
 LEFT JOIN resources r ON r.merchant_id = m.id AND r.deleted_at IS NULL
@@ -205,6 +211,7 @@ GROUP BY m.id, cs.code
 		&lastActive,
 		&detail.PublishedCount,
 		&detail.DealtCount,
+		&detail.FollowerCount,
 	)
 	if err != nil {
 		return MerchantDetail{}, err

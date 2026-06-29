@@ -707,6 +707,7 @@ type MerchantDetailResp struct {
 	CreditTags         []CreditTagInfo          `json:"creditTags"`
 	Contact            MerchantContactInfo      `json:"contact"`
 	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`
+	HeatScore          int64                    `json:"heatScore"`
 	AddressText        string                   `json:"addressText,optional"`
 	Location           map[string]interface{}   `json:"location,optional"`
 	Description        string                   `json:"description,optional"`

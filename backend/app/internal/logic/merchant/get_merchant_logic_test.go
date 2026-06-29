@@ -22,9 +22,11 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 			WechatMasked:       "zhili_****",
 			PublishedCount:     12,
 			DealtCount:         3,
+			FollowerCount:      6,
 			AddressText:        "织里镇利济路88号",
 			Location:           model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"},
 			LogoURL:            "https://example.com/logo.png",
+			Images:             []string{"https://example.com/a.png", "https://example.com/b.png"},
 		},
 	}
 	logic := NewGetMerchantLogic(store)
@@ -43,6 +45,9 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	if resp.ResourcesSummary.PublishedCount != 12 || resp.ResourcesSummary.DealtCount != 3 {
 		t.Fatalf("summary = %#v, want published/dealt count", resp.ResourcesSummary)
 	}
+	if resp.HeatScore != 100 {
+		t.Fatalf("heatScore = %d, want capped 100", resp.HeatScore)
+	}
 	if resp.LogoURL != "https://example.com/logo.png" {
 		t.Fatalf("logoURL = %q, want merchant logo URL", resp.LogoURL)
 	}
@@ -51,6 +56,19 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	}
 	if resp.Location["name"] != "织里童装城" || resp.Location["address"] != "织里镇利济路88号" {
 		t.Fatalf("location = %#v, want merchant map location", resp.Location)
+	}
+}
+
+func TestCalculateMerchantHeatScoreCapsFollowerContribution(t *testing.T) {
+	score := calculateMerchantHeatScore(model.MerchantDetail{
+		MainCategories:     []string{"童装"},
+		VerificationStatus: "pending",
+		PublishedCount:     1,
+		FollowerCount:      99,
+	})
+
+	if score != 30 {
+		t.Fatalf("score = %d, want published/category plus capped follower score", score)
 	}
 }
 

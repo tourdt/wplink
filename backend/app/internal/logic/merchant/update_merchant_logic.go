@@ -34,22 +34,13 @@ type UpdateMerchantResp struct {
 }
 
 type UpdateMerchantLogic struct {
-	store       UpdateMerchantStore
-	smsVerifier interface {
-		VerifySMSCode(ctx context.Context, phone string, code string) error
-	}
+	store UpdateMerchantStore
 }
 
-func NewUpdateMerchantLogic(store UpdateMerchantStore, verifier ...interface {
+func NewUpdateMerchantLogic(store UpdateMerchantStore, _ ...interface {
 	VerifySMSCode(ctx context.Context, phone string, code string) error
 }) *UpdateMerchantLogic {
-	var smsVerifier interface {
-		VerifySMSCode(ctx context.Context, phone string, code string) error
-	}
-	if len(verifier) > 0 {
-		smsVerifier = verifier[0]
-	}
-	return &UpdateMerchantLogic{store: store, smsVerifier: smsVerifier}
+	return &UpdateMerchantLogic{store: store}
 }
 
 func (l *UpdateMerchantLogic) UpdateMerchant(ctx context.Context, merchantID string, req UpdateMerchantReq) (UpdateMerchantResp, error) {
@@ -58,20 +49,9 @@ func (l *UpdateMerchantLogic) UpdateMerchant(ctx context.Context, merchantID str
 		return UpdateMerchantResp{}, errx.New(errx.CodeValidationFailed, "商家不存在或已停用")
 	}
 	contactPhone := strings.TrimSpace(req.ContactPhone)
-	smsCode := strings.TrimSpace(req.SmsCode)
 	if contactPhone != "" {
-		if smsCode == "" {
-			return UpdateMerchantResp{}, errx.New(errx.CodeValidationFailed, "请填写手机号和短信验证码")
-		}
-		if len(contactPhone) < 6 || len(contactPhone) > 20 {
+		if !isValidContactPhone(contactPhone) {
 			return UpdateMerchantResp{}, errx.New(errx.CodeValidationFailed, "手机号格式不正确")
-		}
-		if l.smsVerifier == nil {
-			return UpdateMerchantResp{}, errx.New(errx.CodeInternalError, "短信服务未配置，请稍后重试")
-		}
-		// 商家主页联系电话会对买家展示和联系行为产生影响，保存前必须证明当前操作者能接收该手机号验证码。
-		if err := l.smsVerifier.VerifySMSCode(ctx, contactPhone, smsCode); err != nil {
-			return UpdateMerchantResp{}, err
 		}
 	}
 
@@ -95,4 +75,16 @@ func (l *UpdateMerchantLogic) UpdateMerchant(ctx context.Context, merchantID str
 		return UpdateMerchantResp{}, err
 	}
 	return UpdateMerchantResp{ID: merchantID, UpdatedAt: updatedAt}, nil
+}
+
+func isValidContactPhone(phone string) bool {
+	if len(phone) < 6 || len(phone) > 20 {
+		return false
+	}
+	for _, char := range phone {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
 }
