@@ -53,3 +53,13 @@ test('resource type config explains required field meanings', () => {
   assert.match(source, /联系电话用于买家联系和平台审核核验/)
   assert.match(source, /required-field-note/)
 })
+
+test('banner target selectors support searchable remote options', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/BannerTopicView.vue'), 'utf8')
+
+  assert.match(source, /remote-method="searchResourceTargets"/)
+  assert.match(source, /remote-method="searchMerchantTargets"/)
+  assert.match(source, /loading="resourceTargetLoading"/)
+  assert.match(source, /loading="merchantTargetLoading"/)
+  assert.match(source, /keyword: query/)
+})

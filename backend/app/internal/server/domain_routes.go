@@ -147,7 +147,8 @@ func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore, tokenSer
 		query := r.URL.Query()
 		resp, err := adminlogic.NewMerchantAdminLogic(store).ListMerchants(r.Context(), adminlogic.ListMerchantsReq{
 			CityCode: query.Get("cityCode"), MerchantType: query.Get("merchantType"), Status: query.Get("status"),
-			Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
+			Keyword: query.Get("keyword"),
+			Page:    int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
 		})
 		response.JSON(w, resp, err)
 	})

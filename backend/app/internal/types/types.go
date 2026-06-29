@@ -149,6 +149,7 @@ type AdminListMerchantsReq struct {
 	CityCode     string `form:"cityCode,optional"`
 	MerchantType string `form:"merchantType,optional"`
 	Status       string `form:"status,optional"`
+	Keyword      string `form:"keyword,optional"`
 	Page         int64  `form:"page,optional"`
 	PageSize     int64  `form:"pageSize,optional"`
 }

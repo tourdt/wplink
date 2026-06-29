@@ -63,6 +63,7 @@ type ListMerchantsFilter struct {
 	CityCode     string
 	MerchantType string
 	Status       string
+	Keyword      string
 	Page         int64
 	PageSize     int64
 }
@@ -248,12 +249,13 @@ SELECT
 FROM merchants m
 JOIN city_stations cs ON cs.id = m.city_station_id
 WHERE m.deleted_at IS NULL
-  AND ($1 = '' OR cs.code = $1)
-  AND ($2 = '' OR m.merchant_type = $2)
-  AND ($3 = '' OR m.status = $3)
-ORDER BY m.created_at DESC
-LIMIT $4 OFFSET $5
-`, filter.CityCode, filter.MerchantType, filter.Status, pageSize, offset)
+	  AND ($1 = '' OR cs.code = $1)
+	  AND ($2 = '' OR m.merchant_type = $2)
+	  AND ($3 = '' OR m.status = $3)
+	  AND ($4 = '' OR m.name ILIKE '%' || $4 || '%' OR m.contact_name ILIKE '%' || $4 || '%')
+	ORDER BY m.created_at DESC
+	LIMIT $5 OFFSET $6
+	`, filter.CityCode, filter.MerchantType, filter.Status, filter.Keyword, pageSize, offset)
 	if err != nil {
 		return ListMerchantsResult{}, err
 	}

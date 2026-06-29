@@ -51,6 +51,22 @@ for (const page of ['pages/home/index', 'pages/search/index', 'pages/publish/ind
   }
 }
 
+for (const item of pagesConfig.tabBar?.list || []) {
+  for (const key of ['iconPath', 'selectedIconPath']) {
+    const iconPath = item[key]
+    if (!iconPath) {
+      throw new Error(`tabBar ${item.text} 缺少 ${key}`)
+    }
+    if (!iconPath.startsWith('static/tabbar/')) {
+      throw new Error(`tabBar ${item.text} ${key} 必须使用 static/tabbar/ 相对路径: ${iconPath}`)
+    }
+    const iconFile = path.join(root, iconPath)
+    if (!fs.existsSync(iconFile)) {
+      throw new Error(`tabBar ${item.text} ${key} 文件不存在: ${iconPath}`)
+    }
+  }
+}
+
 for (const page of ['pages/search/index', 'pages/publish/index']) {
   const vuePath = path.join(root, `${page}.vue`)
   const source = fs.readFileSync(vuePath, 'utf8')

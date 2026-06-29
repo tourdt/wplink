@@ -117,17 +117,25 @@
             v-else-if="form.jumpType === 'resource'"
             v-model="form.jumpTarget"
             filterable
+            remote
+            reserve-keyword
+            :remote-method="searchResourceTargets"
+            :loading="resourceTargetLoading"
             placeholder="选择资源"
           >
-            <el-option v-for="item in resourceOptions" :key="item.id" :label="item.title" :value="item.id" />
+            <el-option v-for="item in resourceOptions" :key="item.id" :label="resourceOptionLabel(item)" :value="item.id" />
           </el-select>
           <el-select
             v-else-if="form.jumpType === 'merchant'"
             v-model="form.jumpTarget"
             filterable
+            remote
+            reserve-keyword
+            :remote-method="searchMerchantTargets"
+            :loading="merchantTargetLoading"
             placeholder="选择商家"
           >
-            <el-option v-for="item in merchantOptions" :key="item.id" :label="item.name" :value="item.id" />
+            <el-option v-for="item in merchantOptions" :key="item.id" :label="merchantOptionLabel(item)" :value="item.id" />
           </el-select>
           <el-select
             v-else-if="form.jumpType === 'demand'"
@@ -211,6 +219,8 @@ const filters = reactive({ cityCode: 'zhili', kind: 'banner', status: '' })
 const rows = ref([])
 const resourceOptions = ref([])
 const merchantOptions = ref([])
+const resourceTargetLoading = ref(false)
+const merchantTargetLoading = ref(false)
 const loading = ref(false)
 const errorText = ref('')
 const saving = ref(false)
@@ -256,16 +266,30 @@ async function loadRows() {
 }
 
 async function loadTargetOptions() {
+  await Promise.all([searchResourceTargets(''), searchMerchantTargets('')])
+}
+
+async function searchResourceTargets(query = '') {
+  resourceTargetLoading.value = true
   try {
-    const [resourceResp, merchantResp] = await Promise.all([
-      listResources({ cityCode: 'zhili', page: 1, pageSize: 50 }),
-      listMerchants({ cityCode: 'zhili', status: 'active', page: 1, pageSize: 50 }),
-    ])
-    resourceOptions.value = resourceResp.items || []
-    merchantOptions.value = merchantResp.items || []
+    const resp = await listResources({ cityCode: 'zhili', keyword: query, page: 1, pageSize: 30 })
+    resourceOptions.value = resp.items || []
   } catch {
     resourceOptions.value = []
+  } finally {
+    resourceTargetLoading.value = false
+  }
+}
+
+async function searchMerchantTargets(query = '') {
+  merchantTargetLoading.value = true
+  try {
+    const resp = await listMerchants({ cityCode: 'zhili', status: 'active', keyword: query, page: 1, pageSize: 30 })
+    merchantOptions.value = resp.items || []
+  } catch {
     merchantOptions.value = []
+  } finally {
+    merchantTargetLoading.value = false
   }
 }
 
@@ -313,6 +337,25 @@ function targetDisplay(row) {
 function optionLabel(options, value, labelKey = 'label') {
   const item = options.find((option) => option.value === value || option.id === value)
   return item?.[labelKey] || value || '-'
+}
+
+function resourceOptionLabel(item) {
+  return `${item.title}${item.merchantName ? ` · ${item.merchantName}` : ''}`
+}
+
+function merchantOptionLabel(item) {
+  return `${item.name}${item.merchantType ? ` · ${merchantTypeText(item.merchantType)}` : ''}`
+}
+
+function merchantTypeText(type) {
+  const typeMap = {
+    factory: '工厂',
+    stall: '档口',
+    stockist: '库存商',
+    service_provider: '服务商',
+    buyer: '采购商',
+  }
+  return typeMap[type] || type
 }
 
 function buildSubmitPayload() {

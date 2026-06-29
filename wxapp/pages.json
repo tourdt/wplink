@@ -111,23 +111,33 @@
     "list": [
       {
         "pagePath": "pages/home/index",
-        "text": "首页"
+        "text": "首页",
+        "iconPath": "static/tabbar/home.png",
+        "selectedIconPath": "static/tabbar/home-active.png"
       },
       {
         "pagePath": "pages/search/index",
-        "text": "搜索"
+        "text": "搜索",
+        "iconPath": "static/tabbar/search.png",
+        "selectedIconPath": "static/tabbar/search-active.png"
       },
       {
         "pagePath": "pages/publish/index",
-        "text": "发布"
+        "text": "发布",
+        "iconPath": "static/tabbar/publish.png",
+        "selectedIconPath": "static/tabbar/publish-active.png"
       },
       {
         "pagePath": "pages/messages/index",
-        "text": "消息"
+        "text": "消息",
+        "iconPath": "static/tabbar/messages.png",
+        "selectedIconPath": "static/tabbar/messages-active.png"
       },
       {
         "pagePath": "pages/my/index",
-        "text": "我的"
+        "text": "我的",
+        "iconPath": "static/tabbar/my.png",
+        "selectedIconPath": "static/tabbar/my-active.png"
       }
     ]
   },

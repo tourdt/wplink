@@ -23,6 +23,7 @@ func TestListMerchantsPassesFiltersToStore(t *testing.T) {
 	resp, err := logic.ListMerchants(context.Background(), ListMerchantsReq{
 		CityCode:     " zhili ",
 		MerchantType: "factory",
+		Keyword:      " 样板 ",
 		Page:         1,
 		PageSize:     20,
 	})
@@ -32,6 +33,9 @@ func TestListMerchantsPassesFiltersToStore(t *testing.T) {
 
 	if store.filter.CityCode != "zhili" {
 		t.Fatalf("cityCode = %q, want trimmed zhili", store.filter.CityCode)
+	}
+	if store.filter.Keyword != "样板" {
+		t.Fatalf("keyword = %q, want trimmed 样板", store.filter.Keyword)
 	}
 	if len(resp.Items) != 1 || resp.Items[0].Name != "织里样板童装厂" {
 		t.Fatalf("items = %#v, want merchant list item", resp.Items)

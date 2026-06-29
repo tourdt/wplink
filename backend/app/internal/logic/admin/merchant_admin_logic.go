@@ -15,6 +15,7 @@ type ListMerchantsReq struct {
 	CityCode     string
 	MerchantType string
 	Status       string
+	Keyword      string
 	Page         int64
 	PageSize     int64
 }
@@ -48,6 +49,7 @@ func (l *MerchantAdminLogic) ListMerchants(ctx context.Context, req ListMerchant
 		CityCode:     strings.TrimSpace(req.CityCode),
 		MerchantType: strings.TrimSpace(req.MerchantType),
 		Status:       strings.TrimSpace(req.Status),
+		Keyword:      strings.TrimSpace(req.Keyword),
 		Page:         req.Page,
 		PageSize:     req.PageSize,
 	})
