@@ -744,21 +744,6 @@ function clearSMSCountdown() {
   gap: 10rpx;
 }
 
-.logo-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-
-.logo-action-button {
-  min-width: 148rpx;
-  height: 58rpx;
-  padding: 0 18rpx;
-  border-radius: 8rpx;
-  font-size: 24rpx;
-  line-height: 58rpx;
-}
-
 .logo-preview-wrap {
   position: relative;
   width: 112rpx;
@@ -806,8 +791,7 @@ function clearSMSCountdown() {
 
 .logo-upload-tile::after,
 .logo-preview-tile::after,
-.logo-change-button::after,
-.logo-action-button::after {
+.logo-change-button::after {
   border: 0;
 }
 
