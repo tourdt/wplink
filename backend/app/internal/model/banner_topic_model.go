@@ -149,7 +149,7 @@ SELECT
 FROM banner_topics bt
 LEFT JOIN city_stations cs ON cs.id = bt.city_station_id
 WHERE bt.id = $1
-  AND bt.kind = 'topic'
+  AND (bt.kind = 'topic' OR (bt.kind = 'banner' AND bt.jump_type = 'topic'))
   AND bt.status = 'active'
   AND ($2 = '' OR cs.code = $2)
   AND (bt.start_at IS NULL OR bt.start_at <= now())

@@ -27,6 +27,22 @@ func TestListHomeBannersUsesActiveBannerFilter(t *testing.T) {
 	}
 }
 
+func TestListHomeBannersUsesBannerIDForTopicWithoutTarget(t *testing.T) {
+	store := &fakeDiscoveryStore{
+		banners: []model.BannerTopicConfig{{ID: "banner-topic-1", Kind: "banner", Title: "急清库存专题", JumpType: "topic"}},
+	}
+	logic := NewBannerTopicDiscoveryLogic(store)
+
+	resp, err := logic.ListHomeBanners(context.Background(), ListHomeBannersReq{CityCode: "zhili"})
+	if err != nil {
+		t.Fatalf("ListHomeBanners() error = %v", err)
+	}
+
+	if len(resp.Items) != 1 || resp.Items[0].JumpTarget != "banner-topic-1" {
+		t.Fatalf("items = %#v, want topic banner to target itself", resp.Items)
+	}
+}
+
 func TestGetTopicResourcesReturnsDemandEntryWhenEmpty(t *testing.T) {
 	store := &fakeDiscoveryStore{
 		topic: model.BannerTopicConfig{ID: "topic-1", Kind: "topic", Title: "夏季童装", TypeScope: []string{"inventory"}},

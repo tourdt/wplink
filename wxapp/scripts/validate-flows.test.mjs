@@ -25,6 +25,17 @@ test('launch UI hides matching feature copy', () => {
   assert.equal(visibleSource.includes('撮合'), false)
 })
 
+test('home banner only overlays labels and title on image', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+
+  assert.equal(source.includes('banner-pill'), false)
+  assert.equal(source.includes('banner-subtitle'), false)
+  assert.match(source, /<image[^>]+class="banner-image"/)
+  assert.match(source, /banner-kicker/)
+  assert.match(source, /banner-title/)
+})
+
 test('reports missing API call in required page flow', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'wplink-wxapp-flow-'))
   fs.mkdirSync(path.join(root, 'pages/home'), { recursive: true })

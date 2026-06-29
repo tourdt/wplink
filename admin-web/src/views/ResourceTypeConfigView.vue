@@ -6,6 +6,13 @@
     </div>
 
     <section class="panel">
+      <el-alert
+        title="必填字段控制商家发布或保存资源时必须补全的信息；不同资源类型可以要求不同字段。"
+        type="info"
+        :closable="false"
+        show-icon
+        class="config-note"
+      />
       <el-form :inline="true" class="filter-bar">
         <el-form-item label="城市站">
           <el-select v-model="filters.cityCode" style="width: 140px">
@@ -36,9 +43,19 @@
         </el-table-column>
         <el-table-column label="必填字段" min-width="220">
           <template #default="{ row }">
-            <el-tag v-for="field in row.requiredFields" :key="field" class="field-tag" size="small">
-              {{ field }}
-            </el-tag>
+            <template v-if="row.requiredFields?.length">
+              <el-tooltip
+                v-for="field in row.requiredFields"
+                :key="field"
+                :content="fieldDescription(field)"
+                placement="top"
+              >
+                <el-tag class="field-tag" size="small">
+                  {{ fieldLabel(field) }}
+                </el-tag>
+              </el-tooltip>
+            </template>
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
@@ -64,6 +81,16 @@
         <el-form-item label="默认有效期">
           <el-input-number v-model="editing.defaultValidDays" :min="1" :max="365" />
         </el-form-item>
+        <section class="required-field-note">
+          <h3>必填字段说明</h3>
+          <p>这些字段决定商家发布或保存该类型资源时，哪些信息必须填写完整。</p>
+          <dl>
+            <template v-for="field in editing.requiredFields || []" :key="field">
+              <dt>{{ fieldLabel(field) }}（{{ field }}）</dt>
+              <dd>{{ fieldDescription(field) }}</dd>
+            </template>
+          </dl>
+        </section>
         <el-form-item label="状态">
           <el-select v-model="editing.status">
             <el-option label="启用" value="active" />
@@ -107,6 +134,48 @@ const drawerVisible = ref(false)
 const editing = ref(null)
 const configJson = ref('')
 const jsonError = ref('')
+const fieldDescriptionMap = {
+  merchantId: {
+    label: '商家',
+    description: '指定资源归属的商家，用于商家主页展示、权益校验和后台追溯。',
+  },
+  cityCode: {
+    label: '城市站',
+    description: '决定资源发布到哪个城市站，影响搜索、推荐和专题筛选范围。',
+  },
+  typeCode: {
+    label: '资源类型',
+    description: '决定资源属于库存、货源、工厂、服务等哪一类，影响发布表单、搜索筛选和专题展示。',
+  },
+  title: {
+    label: '标题',
+    description: '标题用于搜索、列表卡片和详情页主标题，应该直接说明资源卖点。',
+  },
+  category: {
+    label: '品类',
+    description: '说明资源所属品类，例如童装、卫衣、套装，用于买家筛选和运营审核。',
+  },
+  quantityText: {
+    label: '数量/产能',
+    description: '说明库存数量、可供货数量或工厂产能，帮助买家判断是否匹配需求。',
+  },
+  priceText: {
+    label: '价格描述',
+    description: '说明价格、报价方式或费用范围，减少无效咨询。',
+  },
+  contactName: {
+    label: '联系人',
+    description: '买家和平台审核联系资源发布人的姓名或称呼。',
+  },
+  contactPhone: {
+    label: '联系电话',
+    description: '联系电话用于买家联系和平台审核核验。',
+  },
+  description: {
+    label: '资源描述',
+    description: '补充资源细节、交易条件和注意事项，帮助审核和买家理解资源。',
+  },
+}
 
 onMounted(loadConfigs)
 
@@ -140,6 +209,14 @@ function openEditor(row) {
   )
   jsonError.value = ''
   drawerVisible.value = true
+}
+
+function fieldLabel(field) {
+  return fieldDescriptionMap[field]?.label || field
+}
+
+function fieldDescription(field) {
+  return fieldDescriptionMap[field]?.description || '该字段是发布此类资源时必须填写的信息。'
 }
 
 async function saveConfig() {
@@ -176,3 +253,45 @@ async function saveConfig() {
   }
 }
 </script>
+
+<style scoped>
+.config-note {
+  margin-bottom: 12px;
+}
+
+.required-field-note {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.required-field-note h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.required-field-note p {
+  margin: 0 0 12px;
+  color: #697586;
+  line-height: 1.5;
+}
+
+.required-field-note dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.required-field-note dt {
+  color: #1f2933;
+  font-weight: 700;
+}
+
+.required-field-note dd {
+  margin: -4px 0 0;
+  color: #697586;
+  line-height: 1.5;
+}
+</style>

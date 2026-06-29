@@ -128,6 +128,9 @@ func normalizeBannerTopicInput(req SaveBannerTopicReq) (model.SaveBannerTopicInp
 		SortOrder:  req.SortOrder,
 		Status:     strings.TrimSpace(req.Status),
 	}
+	if input.Kind == "" {
+		input.Kind = "banner"
+	}
 	if input.Kind != "banner" && input.Kind != "topic" {
 		return model.SaveBannerTopicInput{}, errx.New(errx.CodeValidationFailed, "配置类型不正确")
 	}
@@ -137,7 +140,7 @@ func normalizeBannerTopicInput(req SaveBannerTopicReq) (model.SaveBannerTopicInp
 	if input.JumpType != "topic" && input.JumpType != "resource" && input.JumpType != "merchant" && input.JumpType != "demand" && input.JumpType != "internal" && input.JumpType != "webview" {
 		return model.SaveBannerTopicInput{}, errx.New(errx.CodeValidationFailed, "跳转类型不正确")
 	}
-	if input.JumpTarget == "" {
+	if input.JumpType != "topic" && input.JumpTarget == "" {
 		return model.SaveBannerTopicInput{}, errx.New(errx.CodeValidationFailed, "请填写跳转目标")
 	}
 	if input.JumpType == "webview" && !webview.IsAllowedURL(input.JumpTarget) {

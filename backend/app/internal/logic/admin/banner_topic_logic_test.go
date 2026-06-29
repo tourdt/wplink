@@ -68,6 +68,25 @@ func TestCreateBannerTopicPassesInputToStore(t *testing.T) {
 	}
 }
 
+func TestCreateBannerTopicAllowsTopicJumpTargetToBeEmpty(t *testing.T) {
+	store := &fakeBannerTopicAdminStore{saved: model.SaveBannerTopicResult{ID: "banner-topic-1", UpdatedAt: "2026-06-27T10:00:00Z"}}
+	logic := NewBannerTopicAdminLogic(store)
+
+	_, err := logic.CreateBannerTopic(context.Background(), SaveBannerTopicReq{
+		CityCode: "zhili",
+		Kind:     "banner",
+		Title:    "急清库存专题",
+		JumpType: "topic",
+		Status:   "active",
+	})
+	if err != nil {
+		t.Fatalf("CreateBannerTopic() error = %v, want nil", err)
+	}
+	if store.input.JumpTarget != "" {
+		t.Fatalf("jump target = %q, want empty self topic target", store.input.JumpTarget)
+	}
+}
+
 type fakeBannerTopicAdminStore struct {
 	filter model.BannerTopicFilter
 	input  model.SaveBannerTopicInput

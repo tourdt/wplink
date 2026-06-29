@@ -103,13 +103,17 @@ func (l *BannerTopicDiscoveryLogic) ListHomeBanners(ctx context.Context, req Lis
 	}
 	items := make([]DiscoveryBannerItem, 0, len(configs))
 	for _, config := range configs {
+		jumpTarget := config.JumpTarget
+		if config.JumpType == "topic" && strings.TrimSpace(jumpTarget) == "" {
+			jumpTarget = config.ID
+		}
 		items = append(items, DiscoveryBannerItem{
 			ID:         config.ID,
 			Title:      config.Title,
 			Subtitle:   config.Subtitle,
 			CoverURL:   config.CoverURL,
 			JumpType:   config.JumpType,
-			JumpTarget: config.JumpTarget,
+			JumpTarget: jumpTarget,
 			Tags:       append([]string(nil), config.Tags...),
 		})
 	}

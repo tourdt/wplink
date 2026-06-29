@@ -32,7 +32,7 @@
         </el-menu-item>
         <el-menu-item index="/banner-topics">
           <el-icon><Picture /></el-icon>
-          <span>Banner 专题</span>
+          <span>Banner 配置</span>
         </el-menu-item>
         <el-menu-item index="/resource-type-configs">
           <el-icon><Setting /></el-icon>

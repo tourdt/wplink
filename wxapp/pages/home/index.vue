@@ -7,9 +7,7 @@
         <view class="banner-copy">
           <text class="banner-kicker">{{ item.kindText || '平台推荐' }}</text>
           <text class="banner-title">{{ item.title }}</text>
-          <text class="banner-subtitle">{{ item.subtitle || '运营精选产业资源，点击查看详情' }}</text>
         </view>
-        <text class="banner-pill">{{ item.actionText }}</text>
       </view>
     </scroll-view>
     <view class="banner-dots" :style="{ width: bannerDotsWidth }">
@@ -84,8 +82,6 @@ const defaultBanners = [
     id: 'default-topic',
     kindText: '本周重点 · 平台核实资源',
     title: '急清库存专题',
-    subtitle: '32 条可看样库存，过期自动下架',
-    actionText: '查看专题',
     jumpType: 'topic',
     jumpTarget: 'default-topic',
     tone: 'topic',
@@ -94,8 +90,6 @@ const defaultBanners = [
     id: 'default-activity',
     kindText: '活动推广 · 白名单网页',
     title: '夏款供需对接会',
-    subtitle: '配置封面、文案和网页链接',
-    actionText: '打开活动',
     jumpType: 'webview',
     jumpTarget: 'https://m.fulink.example/events/zhili-summer',
     tone: 'activity',
@@ -104,8 +98,6 @@ const defaultBanners = [
     id: 'default-merchant',
     kindText: '平台推荐 · 认证工厂',
     title: '本周空档工厂',
-    subtitle: '4 条针织生产线，适合小单快返',
-    actionText: '去搜索',
     jumpType: 'search',
     jumpTarget: '小单快返',
     tone: 'factory',
@@ -114,8 +106,6 @@ const defaultBanners = [
     id: 'default-demand',
     kindText: '找货需求 · 运营跟进',
     title: '没找到合适货源？',
-    subtitle: '提交采购需求，平台继续帮你留意库存、货源和工厂',
-    actionText: '提交需求',
     jumpType: 'demand',
     jumpTarget: '/pages/demand/index',
     tone: 'demand',
@@ -124,8 +114,6 @@ const defaultBanners = [
     id: 'default-publish',
     kindText: '商家发布 · 增加曝光',
     title: '库存和产能可直接上架',
-    subtitle: '发布后进入审核，审核通过即可被搜索和推荐',
-    actionText: '去发布',
     jumpType: 'publish',
     jumpTarget: '/pages/publish/index',
     tone: 'publish',
@@ -258,8 +246,6 @@ function normalizeBanner(item) {
     ...item,
     id: item.id || `${item.jumpType || 'banner'}-${item.title}`,
     kindText: item.kindText || bannerKindText(item),
-    subtitle: item.subtitle || '运营精选产业资源，点击查看详情',
-    actionText: item.actionText || bannerActionText(item.jumpType),
     tone: item.tone || bannerTone(item.jumpType),
   }
 }
@@ -277,20 +263,6 @@ function bannerKindText(item) {
     internal: '平台入口',
   }
   return kindMap[item.jumpType] || '平台推荐'
-}
-
-function bannerActionText(jumpType) {
-  const actionMap = {
-    topic: '查看专题',
-    resource: '看详情',
-    merchant: '看主页',
-    demand: '提交需求',
-    publish: '去发布',
-    search: '去搜索',
-    webview: '打开活动',
-    internal: '立即进入',
-  }
-  return actionMap[jumpType] || '查看'
 }
 
 function bannerTone(jumpType) {
@@ -400,7 +372,7 @@ function bannerTone(jumpType) {
 .banner-copy {
   position: absolute;
   top: 36rpx;
-  right: 164rpx;
+  right: 36rpx;
   left: 36rpx;
   display: grid;
   gap: 10rpx;
@@ -417,30 +389,6 @@ function bannerTone(jumpType) {
   font-weight: 700;
   line-height: 1.15;
   word-break: break-word;
-}
-
-.banner-subtitle {
-  font-size: 28rpx;
-  line-height: 1.45;
-  opacity: 0.88;
-  word-break: break-word;
-}
-
-.banner-pill {
-  position: absolute;
-  right: 36rpx;
-  top: 50%;
-  transform: translateY(-50%);
-  max-width: 148rpx;
-  min-height: 56rpx;
-  padding: 14rpx 22rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
-  font-size: 24rpx;
-  line-height: 1.2;
-  text-align: center;
-  white-space: nowrap;
 }
 
 .banner-dots {
