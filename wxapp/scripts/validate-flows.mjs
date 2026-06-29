@@ -7,9 +7,13 @@ export const defaultFlowChecks = [
     description: '首页 Banner 和入口跳转',
     checks: [
       'listHomeBanners',
+      'banners.value.length ? banners.value : defaultBanners',
       "item.jumpType === 'topic'",
       "item.jumpType === 'resource'",
       "item.jumpType === 'merchant'",
+      "item.jumpType === 'demand'",
+      "item.jumpType === 'publish'",
+      "item.jumpType === 'search'",
       "item.jumpType === 'webview'",
       'openDemand',
       'openPublish',

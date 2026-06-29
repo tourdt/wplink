@@ -12,33 +12,13 @@
         <text class="banner-pill">{{ item.actionText }}</text>
       </view>
     </scroll-view>
-    <view class="banner-dots">
-      <text class="active"></text>
-      <text></text>
-      <text></text>
+    <view class="banner-dots" :style="{ width: bannerDotsWidth }">
+      <text v-for="(item, index) in displayBanners" :key="`dot-${item.id}`" :class="{ active: index === 0 }"></text>
     </view>
 
     <view class="search-entry" @click="openSearch()">
       <text class="search-placeholder">搜索童装库存、工厂、货源</text>
       <text class="search-action">搜索</text>
-    </view>
-
-    <view class="trust-strip">
-      <text>平台核实</text>
-      <text>认证商家</text>
-      <text>过期下架</text>
-    </view>
-
-    <view class="activity-card" @click="openActivity">
-      <view class="activity-cover">
-        <text>活动</text>
-      </view>
-      <view class="activity-copy">
-        <text class="activity-tag">活动推广</text>
-        <text class="activity-title">织里童装夏款供需对接会</text>
-        <text class="activity-desc">活动链接通过业务域名白名单校验，点击打开活动网页。</text>
-      </view>
-      <text class="activity-action">打开</text>
     </view>
 
     <view class="focus-card" @click="openSearch('急清库存')">
@@ -70,14 +50,20 @@
     <view class="recommend-card" @click="openSearch('小单快返')">
       <view>
         <text class="recommend-tag">平台推荐</text>
-        <text class="recommend-title">本周空档工厂和急清资源</text>
-        <text class="recommend-desc">推广资源需审核通过，置顶只提升曝光，不替代真实性判断。</text>
+        <text class="recommend-title">本周空档工厂：4 条针织生产线</text>
+        <text class="recommend-desc">认证工厂 · 适合小单快返 · 运营已核实</text>
       </view>
       <text class="recommend-action">查看</text>
     </view>
 
     <view v-if="homeResources.length" class="home-resource-list">
-      <ResourceCard v-for="item in homeResources" :key="item.id" :resource="item" @open="openResource" />
+      <ResourceCard
+        v-for="item in homeResources"
+        :key="item.id"
+        :resource="item"
+        variant="home"
+        @open="openResource"
+      />
     </view>
   </view>
 </template>
@@ -119,9 +105,30 @@ const defaultBanners = [
     kindText: '平台推荐 · 认证工厂',
     title: '本周空档工厂',
     subtitle: '4 条针织生产线，适合小单快返',
-    actionText: '看主页',
-    keyword: '小单快返',
+    actionText: '去搜索',
+    jumpType: 'search',
+    jumpTarget: '小单快返',
     tone: 'factory',
+  },
+  {
+    id: 'default-demand',
+    kindText: '找货需求 · 运营跟进',
+    title: '没找到合适货源？',
+    subtitle: '提交采购需求，平台继续帮你留意库存、货源和工厂',
+    actionText: '提交需求',
+    jumpType: 'demand',
+    jumpTarget: '/pages/demand/index',
+    tone: 'demand',
+  },
+  {
+    id: 'default-publish',
+    kindText: '商家发布 · 增加曝光',
+    title: '库存和产能可直接上架',
+    subtitle: '发布后进入审核，审核通过即可被搜索和推荐',
+    actionText: '去发布',
+    jumpType: 'publish',
+    jumpTarget: '/pages/publish/index',
+    tone: 'publish',
   },
 ]
 const sceneEntries = [
@@ -130,7 +137,14 @@ const sceneEntries = [
   { label: '找工厂', title: '小单快返', tone: 'blue', keyword: '小单快返' },
   { label: '商家发布', title: '资源上架', tone: 'amber', action: 'publish' },
 ]
-const displayBanners = computed(() => defaultBanners)
+const displayBanners = computed(() => {
+  const bannerSource = banners.value.length ? banners.value : defaultBanners
+  return bannerSource.filter((item) => item.title).map(normalizeBanner)
+})
+const bannerDotsWidth = computed(() => {
+  const count = Math.max(displayBanners.value.length, 3)
+  return `${64 + (count - 1) * 22}rpx`
+})
 
 onLoad(loadHomeData)
 
@@ -140,8 +154,12 @@ async function loadHomeData() {
 
 async function loadBanners() {
   // 首页首屏由运营配置驱动，失败时保留空列表，不阻断搜索和发布入口。
-  const resp = await listHomeBanners({ cityCode: DEFAULT_CITY_CODE })
-  banners.value = resp.items || []
+  try {
+    const resp = await listHomeBanners({ cityCode: DEFAULT_CITY_CODE })
+    banners.value = resp.items || []
+  } catch {
+    banners.value = []
+  }
 }
 
 async function loadHomeResources() {
@@ -152,6 +170,10 @@ async function loadHomeResources() {
 function openBanner(item) {
   if (item.keyword) {
     openSearch(item.keyword)
+    return
+  }
+  if (item.jumpType === 'search') {
+    openSearch(item.jumpTarget)
     return
   }
   if (item.jumpType === 'topic') {
@@ -168,6 +190,14 @@ function openBanner(item) {
   }
   if (item.jumpType === 'webview') {
     uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(item.jumpTarget)}` })
+    return
+  }
+  if (item.jumpType === 'demand') {
+    openDemand()
+    return
+  }
+  if (item.jumpType === 'publish') {
+    openPublish()
     return
   }
   if (item.jumpType === 'internal' && item.jumpTarget) {
@@ -198,10 +228,6 @@ function openDemand() {
   uni.navigateTo({ url: '/pages/demand/index' })
 }
 
-function openActivity() {
-  uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent('https://m.fulink.example/events/zhili-summer')}` })
-}
-
 function openPublish() {
   uni.switchTab({ url: '/pages/publish/index' })
 }
@@ -213,41 +239,106 @@ function openResource(item) {
 function openInternal(url) {
   const tabPages = ['/pages/home/index', '/pages/search/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
   const path = url.split('?')[0]
+  if (path === '/pages/search/index' && url.includes('?')) {
+    const query = url.split('?')[1] || ''
+    const keywordPair = query.split('&').find((item) => item.startsWith('keyword=') || item.startsWith('q='))
+    const keyword = keywordPair ? decodeURIComponent(keywordPair.split('=')[1] || '') : ''
+    openSearch(keyword)
+    return
+  }
   if (tabPages.includes(path)) {
     uni.switchTab({ url: path })
     return
   }
   uni.navigateTo({ url })
 }
+
+function normalizeBanner(item) {
+  return {
+    ...item,
+    id: item.id || `${item.jumpType || 'banner'}-${item.title}`,
+    kindText: item.kindText || bannerKindText(item),
+    subtitle: item.subtitle || '运营精选产业资源，点击查看详情',
+    actionText: item.actionText || bannerActionText(item.jumpType),
+    tone: item.tone || bannerTone(item.jumpType),
+  }
+}
+
+function bannerKindText(item) {
+  if (item.tags && item.tags.length) return item.tags.slice(0, 2).join(' · ')
+  const kindMap = {
+    topic: '专题推荐',
+    resource: '资源推荐',
+    merchant: '认证商家',
+    demand: '找货需求',
+    publish: '商家发布',
+    search: '热门搜索',
+    webview: '活动推广',
+    internal: '平台入口',
+  }
+  return kindMap[item.jumpType] || '平台推荐'
+}
+
+function bannerActionText(jumpType) {
+  const actionMap = {
+    topic: '查看专题',
+    resource: '看详情',
+    merchant: '看主页',
+    demand: '提交需求',
+    publish: '去发布',
+    search: '去搜索',
+    webview: '打开活动',
+    internal: '立即进入',
+  }
+  return actionMap[jumpType] || '查看'
+}
+
+function bannerTone(jumpType) {
+  const toneMap = {
+    webview: 'activity',
+    merchant: 'factory',
+    demand: 'demand',
+    publish: 'publish',
+    search: 'topic',
+  }
+  return toneMap[jumpType] || 'topic'
+}
 </script>
 
 <style scoped>
 .home-page {
   min-height: 100vh;
-  padding: 20rpx 20rpx 28rpx;
-  background: #f4f6f8;
+  padding: 28rpx 28rpx 36rpx;
+  background: #f3f5f7;
 }
 
 .search-entry {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 82rpx;
-  margin: 18rpx 0 16rpx;
-  padding: 0 24rpx;
-  border-radius: 12rpx;
+  min-height: 92rpx;
+  margin: 0 0 24rpx;
+  padding: 0 28rpx;
+  border-radius: 16rpx;
   background: #ffffff;
+  box-shadow: 0 12rpx 40rpx rgba(15, 23, 42, 0.06);
 }
 
 .search-placeholder {
+  flex: 1;
+  min-width: 0;
   color: #697586;
   font-size: 28rpx;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .search-action {
+  flex: 0 0 auto;
   color: #0f766e;
   font-size: 28rpx;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .banner-list {
@@ -261,22 +352,22 @@ function openInternal(url) {
   position: relative;
   display: inline-block;
   width: 100%;
-  height: 352rpx;
+  height: 320rpx;
   margin-right: 20rpx;
   overflow: hidden;
-  border-radius: 12rpx;
+  border-radius: 16rpx;
   background: #0f766e;
   vertical-align: top;
 }
 
 .banner-image {
   width: 100%;
-  height: 352rpx;
+  height: 320rpx;
 }
 
 .banner-pattern {
   width: 100%;
-  height: 352rpx;
+  height: 320rpx;
   background:
     linear-gradient(135deg, rgba(15, 118, 110, 0.92), rgba(37, 99, 235, 0.76)),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.16) 0 16rpx, transparent 16rpx 32rpx);
@@ -294,13 +385,25 @@ function openInternal(url) {
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0 20rpx, transparent 20rpx 40rpx);
 }
 
+.banner-card.demand .banner-pattern {
+  background:
+    linear-gradient(135deg, rgba(220, 107, 74, 0.9), rgba(183, 121, 31, 0.78)),
+    radial-gradient(circle at 80% 22%, rgba(255, 255, 255, 0.22), transparent 30%);
+}
+
+.banner-card.publish .banner-pattern {
+  background:
+    linear-gradient(135deg, rgba(31, 41, 51, 0.92), rgba(15, 118, 110, 0.78)),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0 14rpx, transparent 14rpx 30rpx);
+}
+
 .banner-copy {
   position: absolute;
-  top: 42rpx;
-  right: 166rpx;
-  left: 28rpx;
+  top: 36rpx;
+  right: 164rpx;
+  left: 36rpx;
   display: grid;
-  gap: 12rpx;
+  gap: 10rpx;
   color: #ffffff;
 }
 
@@ -310,9 +413,9 @@ function openInternal(url) {
 }
 
 .banner-title {
-  font-size: 46rpx;
+  font-size: 52rpx;
   font-weight: 700;
-  line-height: 1.12;
+  line-height: 1.15;
   word-break: break-word;
 }
 
@@ -325,11 +428,12 @@ function openInternal(url) {
 
 .banner-pill {
   position: absolute;
-  right: 28rpx;
+  right: 36rpx;
   top: 50%;
   transform: translateY(-50%);
-  max-width: 132rpx;
-  padding: 14rpx 18rpx;
+  max-width: 148rpx;
+  min-height: 56rpx;
+  padding: 14rpx 22rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.18);
   color: #ffffff;
@@ -342,106 +446,25 @@ function openInternal(url) {
 .banner-dots {
   display: flex;
   justify-content: flex-end;
-  gap: 8rpx;
-  margin: -36rpx 20rpx 28rpx 0;
+  align-items: center;
+  gap: 10rpx;
+  min-width: 108rpx;
+  margin: -66rpx 28rpx 24rpx auto;
+  padding: 10rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(15, 23, 42, 0.18);
 }
 
 .banner-dots text {
-  width: 10rpx;
-  height: 10rpx;
+  width: 12rpx;
+  height: 12rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.56);
 }
 
 .banner-dots .active {
-  width: 30rpx;
+  width: 36rpx;
   background: #ffffff;
-}
-
-.trust-strip {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12rpx;
-  margin: -4rpx 0 20rpx;
-}
-
-.trust-strip text {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 58rpx;
-  border-radius: 12rpx;
-  background: #ffffff;
-  color: #0f766e;
-  font-size: 24rpx;
-  font-weight: 700;
-  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
-}
-
-.activity-card {
-  display: grid;
-  grid-template-columns: 144rpx minmax(0, 1fr) 72rpx;
-  align-items: center;
-  gap: 20rpx;
-  margin-bottom: 20rpx;
-  padding: 20rpx;
-  border-radius: 12rpx;
-  background: #ffffff;
-  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.05);
-  overflow: hidden;
-}
-
-.activity-cover {
-  display: flex;
-  align-items: flex-end;
-  width: 144rpx;
-  height: 144rpx;
-  padding: 12rpx;
-  border-radius: 10rpx;
-  background:
-    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.26), transparent 28%),
-    #7b8fc7;
-  color: #ffffff;
-  font-size: 22rpx;
-  font-weight: 700;
-}
-
-.activity-copy {
-  display: grid;
-  gap: 8rpx;
-  min-width: 0;
-}
-
-.activity-tag {
-  color: #b7791f;
-  font-size: 22rpx;
-  font-weight: 700;
-}
-
-.activity-title {
-  color: #1f2933;
-  font-size: 28rpx;
-  font-weight: 700;
-  line-height: 1.35;
-  word-break: break-word;
-}
-
-.activity-desc {
-  color: #697586;
-  font-size: 24rpx;
-  line-height: 1.45;
-  word-break: break-word;
-}
-
-.activity-action {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #0f766e;
-  font-size: 26rpx;
-  font-weight: 700;
-  line-height: 1.25;
-  text-align: center;
 }
 
 .focus-card,
@@ -452,9 +475,9 @@ function openInternal(url) {
   gap: 20rpx;
   margin-bottom: 20rpx;
   padding: 28rpx;
-  border-radius: 12rpx;
+  border-radius: 16rpx;
   background: #ffffff;
-  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.05);
+  box-shadow: 0 16rpx 48rpx rgba(15, 23, 42, 0.06);
 }
 
 .focus-card {
@@ -464,6 +487,11 @@ function openInternal(url) {
     #ffffff;
 }
 
+.focus-card > view,
+.recommend-card > view {
+  min-width: 0;
+}
+
 .focus-label,
 .recommend-tag {
   display: inline-flex;
@@ -471,7 +499,7 @@ function openInternal(url) {
   min-height: 34rpx;
   margin-bottom: 12rpx;
   padding: 0 12rpx;
-  border-radius: 8rpx;
+  border-radius: 10rpx;
   background: #0f766e;
   color: #ffffff;
   font-size: 24rpx;
@@ -505,8 +533,10 @@ function openInternal(url) {
 .focus-action,
 .recommend-action {
   flex: 0 0 auto;
-  padding: 12rpx 16rpx;
-  border-radius: 10rpx;
+  min-width: 96rpx;
+  min-height: 64rpx;
+  padding: 14rpx 18rpx;
+  border-radius: 16rpx;
   background: #ffffff;
   color: #0f766e;
   font-size: 26rpx;
@@ -518,17 +548,25 @@ function openInternal(url) {
 .quick-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16rpx;
-  margin-bottom: 24rpx;
+  gap: 20rpx;
+  margin: 8rpx 0 32rpx;
 }
 
 .scene-card {
   display: grid;
-  gap: 8rpx;
-  min-height: 164rpx;
-  padding: 28rpx;
-  border-radius: 12rpx;
+  align-content: center;
+  gap: 14rpx;
+  min-height: 156rpx;
+  padding: 28rpx 24rpx;
+  border: 0;
+  border-radius: 16rpx;
   text-align: left;
+  line-height: 1.2;
+  box-shadow: none;
+}
+
+.scene-card::after {
+  border: 0;
 }
 
 .scene-card.green {
@@ -552,19 +590,29 @@ function openInternal(url) {
 }
 
 .scene-label {
-  font-size: 24rpx;
+  display: block;
+  width: 100%;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 26rpx;
+  font-weight: 500;
+  text-align: left;
 }
 
 .scene-title {
-  font-size: 36rpx;
+  display: block;
+  width: 100%;
+  color: #ffffff;
+  font-size: 40rpx;
   font-weight: 700;
+  line-height: 1.2;
+  text-align: left;
 }
 
 .section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14rpx;
+  margin: 32rpx 0 20rpx;
 }
 
 .section-title {
@@ -574,8 +622,9 @@ function openInternal(url) {
 }
 
 .section-link {
-  color: #697586;
+  color: #0f766e;
   font-size: 26rpx;
+  font-weight: 700;
 }
 
 .recommend-card {
@@ -583,9 +632,13 @@ function openInternal(url) {
   background: #ffffff;
 }
 
+.recommend-action {
+  background: #e6f4f1;
+}
+
 .home-resource-list {
   display: grid;
-  gap: 18rpx;
-  margin-top: 18rpx;
+  gap: 20rpx;
+  margin-top: 20rpx;
 }
 </style>

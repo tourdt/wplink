@@ -6,8 +6,8 @@
   "scripts": {
     "validate:pages": "node scripts/validate-pages.mjs",
     "validate:flows": "node scripts/validate-flows.mjs",
-    "dev:mp-weixin": "UNI_INPUT_DIR=$PWD UNI_OUTPUT_DIR=$PWD/dist/mp-weixin uni -p mp-weixin",
-    "build:mp-weixin": "UNI_INPUT_DIR=$PWD UNI_OUTPUT_DIR=$PWD/dist/mp-weixin uni build -p mp-weixin"
+    "dev:mp-weixin": "UNI_INPUT_DIR=$PWD UNI_OUTPUT_DIR=$PWD/dist/dev/mp-weixin uni -p mp-weixin",
+    "build:mp-weixin": "UNI_INPUT_DIR=$PWD UNI_OUTPUT_DIR=$PWD/dist/build/mp-weixin uni build -p mp-weixin"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-5010420260626001",

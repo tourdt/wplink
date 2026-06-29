@@ -121,6 +121,33 @@ func TestGoZeroAdminLoginRouteUsesServiceContext(t *testing.T) {
 	}
 }
 
+func TestGoZeroServerAllowsAdminLoginCORSPreflight(t *testing.T) {
+	loginService := &fakeGoZeroAdminLoginService{}
+	svcCtx := &svc.ServiceContext{AdminLoginService: loginService}
+	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, svcCtx, nil, nil)
+	if err != nil {
+		t.Fatalf("NewGoZeroServer() error = %v", err)
+	}
+	defer srv.Stop()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/admin/auth/login", nil)
+	req.Header.Set("Origin", "http://127.0.0.1:5173")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	req.Header.Set("Access-Control-Request-Headers", "content-type")
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("preflight response code = %d, want 204", rec.Code)
+	}
+	if rec.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("allow origin = %q, want *", rec.Header().Get("Access-Control-Allow-Origin"))
+	}
+	if !strings.Contains(rec.Header().Get("Access-Control-Allow-Headers"), "Authorization") {
+		t.Fatalf("allow headers = %q, want Authorization included", rec.Header().Get("Access-Control-Allow-Headers"))
+	}
+}
+
 func openReadyzTestDB(t *testing.T, pingErr error) *sql.DB {
 	t.Helper()
 	driverName := "readyz-test-" + strconv.FormatInt(readyzTestDriverSeq.Add(1), 10)

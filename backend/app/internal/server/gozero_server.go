@@ -15,7 +15,11 @@ import (
 )
 
 func NewGoZeroServer(cfg config.Config, svcCtx *svc.ServiceContext, adminHandler http.Handler, apiHandler http.Handler) (*rest.Server, error) {
-	srv, err := rest.NewServer(restConfFromConfig(cfg), rest.WithNotFoundHandler(fallbackHandler(adminHandler, apiHandler)))
+	srv, err := rest.NewServer(
+		restConfFromConfig(cfg),
+		rest.WithNotFoundHandler(fallbackHandler(adminHandler, apiHandler)),
+		rest.WithCors(),
+	)
 	if err != nil {
 		return nil, err
 	}

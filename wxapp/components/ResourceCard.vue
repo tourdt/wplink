@@ -1,5 +1,5 @@
 <template>
-  <view class="resource-card" @click="$emit('open', resource)">
+  <view :class="['resource-card', variantClass]" @click="$emit('open', resource)">
     <image v-if="coverUrl" class="resource-thumb" :src="coverUrl" mode="aspectFill" />
     <view v-else class="resource-thumb placeholder-thumb">
       <text>{{ typeLabel }}</text>
@@ -33,11 +33,16 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  variant: {
+    type: String,
+    default: '',
+  },
 })
 
 defineEmits(['open'])
 
 const hasCreditTags = computed(() => Array.isArray(props.resource.creditTags) && props.resource.creditTags.length > 0)
+const variantClass = computed(() => (props.variant === 'home' ? 'resource-card-home' : ''))
 const coverUrl = computed(() => {
   const images = props.resource.images || []
   return props.resource.coverUrl || images[0] || ''
@@ -169,5 +174,71 @@ function formatRefreshedAt(value) {
   font-size: 23rpx;
   line-height: 1.45;
   word-break: break-word;
+}
+
+.resource-card-home {
+  gap: 24rpx;
+  padding: 24rpx;
+  border-radius: 16rpx;
+  box-shadow: 0 16rpx 48rpx rgba(15, 23, 42, 0.06);
+}
+
+.resource-card-home .resource-thumb {
+  flex-basis: 160rpx;
+  width: 160rpx;
+  min-height: 160rpx;
+  border-radius: 16rpx;
+}
+
+.resource-card-home .placeholder-thumb {
+  padding: 18rpx;
+  font-size: 24rpx;
+}
+
+.resource-card-home .card-main {
+  gap: 8rpx;
+}
+
+.resource-card-home .tag-row {
+  gap: 10rpx;
+}
+
+.resource-card-home .tag {
+  min-height: 40rpx;
+  padding: 0 14rpx;
+  border-radius: 10rpx;
+  font-size: 22rpx;
+  line-height: 40rpx;
+}
+
+.resource-card-home .resource-title {
+  font-size: 30rpx;
+  line-height: 1.32;
+}
+
+.resource-card-home .resource-meta {
+  font-size: 26rpx;
+  line-height: 1.4;
+}
+
+.resource-card-home .resource-price {
+  font-size: 30rpx;
+  line-height: 1.3;
+}
+
+.resource-card-home .resource-action {
+  font-size: 26rpx;
+  white-space: nowrap;
+}
+
+.resource-card-home .merchant-name,
+.resource-card-home .refresh-time {
+  font-size: 24rpx;
+  line-height: 1.35;
+}
+
+.resource-card-home .merchant-row,
+.resource-card-home .decision-tip {
+  display: none;
 }
 </style>

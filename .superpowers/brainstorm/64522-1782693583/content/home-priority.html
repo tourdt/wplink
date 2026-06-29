@@ -1,0 +1,203 @@
+<style>
+  .priority-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .phone-card {
+    cursor: pointer;
+  }
+  .mini-phone {
+    width: 100%;
+    max-width: 270px;
+    margin: 0 auto;
+    padding: 12px;
+    border: 8px solid #111827;
+    border-radius: 28px;
+    background: #f3f5f7;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.14);
+  }
+  .mini-top {
+    height: 20px;
+    margin: -2px -2px 10px;
+    border-radius: 14px 14px 6px 6px;
+    background: #fff;
+  }
+  .hero {
+    min-height: 116px;
+    padding: 16px;
+    border-radius: 10px;
+    color: #fff;
+  }
+  .hero strong,
+  .block strong,
+  .scene strong {
+    display: block;
+  }
+  .hero p,
+  .block p {
+    margin: 6px 0 0;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+  .search {
+    display: flex;
+    justify-content: space-between;
+    margin: 10px 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #fff;
+    color: #697586;
+    font-size: 12px;
+  }
+  .trust {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .trust span {
+    padding: 8px 2px;
+    border-radius: 8px;
+    background: #fff;
+    color: #0f766e;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .scene-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .scene {
+    min-height: 58px;
+    padding: 10px;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 11px;
+  }
+  .block {
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .resource {
+    display: grid;
+    grid-template-columns: 54px 1fr;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .thumb {
+    border-radius: 8px;
+    background: #5c8a72;
+  }
+  .line {
+    height: 8px;
+    margin-bottom: 7px;
+    border-radius: 999px;
+    background: #d8dde6;
+  }
+  .line.short {
+    width: 62%;
+  }
+  .green {
+    background: #0f766e;
+  }
+  .blue {
+    background: #2563eb;
+  }
+  .coral {
+    background: #dc6b4a;
+  }
+  .amber {
+    background: #b7791f;
+  }
+  @media (max-width: 980px) {
+    .priority-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h2>wxapp 首页优化重心</h2>
+<p class="subtitle">请先选一个最重要的方向。后续我会基于它收敛首页结构、间距、文案和资源卡呈现。</p>
+
+<div class="priority-grid cards">
+  <div class="card phone-card" data-choice="search-first" onclick="toggleSelect(this)">
+    <div class="mini-phone">
+      <div class="mini-top"></div>
+      <div class="search"><span>搜索童装库存、工厂、货源</span><b>搜索</b></div>
+      <div class="hero green">
+        <strong>急清库存专题</strong>
+        <p>首屏先让买家最快进入找货、筛选、资源判断。</p>
+      </div>
+      <div class="scene-grid">
+        <div class="scene green"><span>找现货</span><strong>爆款童装</strong></div>
+        <div class="scene coral"><span>清库存</span><strong>整包急清</strong></div>
+        <div class="scene blue"><span>找工厂</span><strong>小单快返</strong></div>
+        <div class="scene amber"><span>商家发布</span><strong>资源上架</strong></div>
+      </div>
+      <div class="resource">
+        <div class="thumb"></div>
+        <div><div class="line"></div><div class="line short"></div><div class="line"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 找货效率优先</h3>
+      <p>搜索入口更靠前，场景入口更强，适合把首页作为买家找资源的工作台。</p>
+    </div>
+  </div>
+
+  <div class="card phone-card" data-choice="trust-first" onclick="toggleSelect(this)">
+    <div class="mini-phone">
+      <div class="mini-top"></div>
+      <div class="hero green">
+        <strong>平台核实资源</strong>
+        <p>强调认证、核实、过期下架，降低买家打开详情前的顾虑。</p>
+      </div>
+      <div class="trust"><span>平台核实</span><span>认证商家</span><span>过期下架</span></div>
+      <div class="search"><span>搜索童装库存、工厂、货源</span><b>搜索</b></div>
+      <div class="block">
+        <strong>本周空档工厂</strong>
+        <p>认证工厂 · 运营已核实 · 适合小单快返</p>
+      </div>
+      <div class="resource">
+        <div class="thumb"></div>
+        <div><div class="line"></div><div class="line short"></div><div class="line"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 信任感优先</h3>
+      <p>恢复并强化信任条，让推荐资源、活动和卡片都围绕“可信、可判断”。</p>
+    </div>
+  </div>
+
+  <div class="card phone-card" data-choice="operation-first" onclick="toggleSelect(this)">
+    <div class="mini-phone">
+      <div class="mini-top"></div>
+      <div class="hero blue">
+        <strong>夏款供需对接会</strong>
+        <p>首屏更像运营阵地，专题、活动、推荐位形成更明显节奏。</p>
+      </div>
+      <div class="search"><span>搜索童装库存、工厂、货源</span><b>搜索</b></div>
+      <div class="block">
+        <strong>活动推广</strong>
+        <p>白名单网页 · 运营配置 · 点击打开活动</p>
+      </div>
+      <div class="block">
+        <strong>本周重点</strong>
+        <p>急清库存榜 · 近期刷新资源优先展示</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 运营活动优先</h3>
+      <p>适合活动和专题常态运营，但首页工具效率会略弱一些。</p>
+    </div>
+  </div>
+</div>

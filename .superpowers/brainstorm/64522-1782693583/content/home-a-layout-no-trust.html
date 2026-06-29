@@ -1,0 +1,268 @@
+<style>
+  .layout-wrap {
+    display: grid;
+    grid-template-columns: 360px minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
+  }
+  .phone-preview {
+    width: 330px;
+    padding: 14px;
+    border: 9px solid #111827;
+    border-radius: 34px;
+    background: #f3f5f7;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+  }
+  .status {
+    height: 24px;
+    margin: -4px -2px 10px;
+    border-radius: 18px 18px 8px 8px;
+    background: #fff;
+  }
+  .banner {
+    position: relative;
+    min-height: 154px;
+    padding: 18px 96px 18px 18px;
+    border-radius: 12px;
+    background:
+      linear-gradient(135deg, rgba(15, 118, 110, 0.93), rgba(37, 99, 235, 0.74)),
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.16) 0 8px, transparent 8px 16px);
+    color: #fff;
+  }
+  .banner small,
+  .scenario span {
+    color: rgba(255, 255, 255, 0.9);
+  }
+  .banner h3,
+  .focus h3,
+  .promo h3 {
+    margin: 8px 0 0;
+    line-height: 1.18;
+  }
+  .banner p,
+  .focus p,
+  .promo p,
+  .notes p {
+    margin: 6px 0 0;
+    line-height: 1.45;
+  }
+  .banner b {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    white-space: nowrap;
+  }
+  .dots {
+    display: flex;
+    justify-content: flex-end;
+    gap: 5px;
+    width: 54px;
+    margin: -24px 14px 14px auto;
+    padding: 5px 7px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.18);
+  }
+  .dots i {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.58);
+  }
+  .dots i:first-child {
+    width: 18px;
+    background: #fff;
+  }
+  .search {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 46px;
+    margin-bottom: 12px;
+    padding: 0 14px;
+    border-radius: 10px;
+    background: #fff;
+    color: #697586;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  }
+  .search b,
+  .focus b,
+  .promo b,
+  .head b {
+    color: #0f766e;
+  }
+  .focus,
+  .promo,
+  .resource {
+    margin-bottom: 10px;
+    padding: 14px;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+  }
+  .focus {
+    border: 1px solid rgba(15, 118, 110, 0.16);
+    background:
+      linear-gradient(135deg, rgba(15, 118, 110, 0.1), rgba(37, 99, 235, 0.07)),
+      #fff;
+  }
+  .focus,
+  .promo {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .tag {
+    display: inline-flex;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: #0f766e;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .tag.light {
+    background: #fff7e6;
+    color: #9a5b00;
+  }
+  .scenario-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin: 2px 0 14px;
+  }
+  .scenario {
+    min-height: 74px;
+    padding: 14px 12px;
+    border-radius: 12px;
+    color: #fff;
+  }
+  .scenario strong {
+    display: block;
+    margin-top: 7px;
+    font-size: 18px;
+  }
+  .green {
+    background: #0f766e;
+  }
+  .coral {
+    background: #dc6b4a;
+  }
+  .blue {
+    background: #2563eb;
+  }
+  .amber {
+    background: #b7791f;
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .resource {
+    display: grid;
+    grid-template-columns: 78px 1fr;
+    gap: 12px;
+  }
+  .thumb {
+    min-height: 78px;
+    border-radius: 10px;
+    background:
+      linear-gradient(140deg, rgba(255, 255, 255, 0.22), transparent 38%),
+      #5c8a72;
+  }
+  .line {
+    height: 9px;
+    margin-bottom: 8px;
+    border-radius: 999px;
+    background: #d8dde6;
+  }
+  .line.short {
+    width: 62%;
+  }
+  .notes {
+    display: grid;
+    gap: 14px;
+  }
+  .note {
+    padding: 16px;
+    border: 1px solid #e5e8ee;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .note h3 {
+    margin-top: 0;
+  }
+  @media (max-width: 900px) {
+    .layout-wrap {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h2>首页 A 方案：去掉信任条</h2>
+<p class="subtitle">按你的反馈，搜索下方不再展示“平台核实 / 认证厂家 / 过期下架”独立栏目，首屏更聚焦找货效率。</p>
+
+<div class="layout-wrap">
+  <div class="phone-preview">
+    <div class="status"></div>
+    <section class="banner">
+      <small>本周重点 · 平台核实资源</small>
+      <h3>急清库存专题</h3>
+      <p>可看样库存，过期自动下架</p>
+      <b>查看专题</b>
+    </section>
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="search"><span>搜索童装库存、工厂、货源</span><b>搜索</b></div>
+    <section class="focus">
+      <div>
+        <span class="tag">本周重点</span>
+        <h3>急清库存榜</h3>
+        <p>优先看整包可看样资源，适合快速补货。</p>
+      </div>
+      <b>去看看</b>
+    </section>
+    <div class="scenario-grid">
+      <div class="scenario green"><span>找现货</span><strong>爆款童装</strong></div>
+      <div class="scenario coral"><span>清库存</span><strong>整包急清</strong></div>
+      <div class="scenario blue"><span>找工厂</span><strong>小单快返</strong></div>
+      <div class="scenario amber"><span>商家发布</span><strong>资源上架</strong></div>
+    </div>
+    <div class="head"><strong>平台推荐资源</strong><b>更多</b></div>
+    <section class="promo">
+      <div>
+        <span class="tag light">平台推荐</span>
+        <h3>本周空档工厂</h3>
+        <p>认证工厂 · 适合小单快返 · 运营已核实</p>
+      </div>
+      <b>查看</b>
+    </section>
+    <section class="resource">
+      <div class="thumb"></div>
+      <div>
+        <div class="line"></div>
+        <div class="line short"></div>
+        <div class="line"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h3>最终首页顺序</h3>
+      <p>Banner -> 搜索 -> 本周重点 -> 场景入口 -> 平台推荐资源。搜索框仍在 Banner 下方，信任条取消。</p>
+    </div>
+    <div class="note">
+      <h3>信任信息如何保留</h3>
+      <p>不单独占栏目，只在 Banner 文案、推荐资源文案、资源卡标签里出现，减少首屏碎片化。</p>
+    </div>
+    <div class="note">
+      <h3>实施范围</h3>
+      <p>只改 `wxapp/pages/home/index.vue` 的首页结构和样式；如需要保持首页资源卡紧凑，会沿用当前 `ResourceCard` 的 `home` 变体，不改接口和路由。</p>
+    </div>
+  </div>
+</div>
