@@ -177,6 +177,39 @@ func TestCreateResourceDraftCreatesDraftResource(t *testing.T) {
 	}
 }
 
+func TestUpdateResourceDraftTurnsRejectedResourceIntoDraft(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
+		},
+		updateResult: model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusDraft},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	resp, err := logic.UpdateResourceDraft(context.Background(), " resource-1 ", CreateResourceReq{
+		MerchantID:   " merchant-1 ",
+		CityCode:     "zhili",
+		TypeCode:     "inventory",
+		Title:        "修改后的童装库存",
+		Category:     "童装",
+		QuantityText: "3200 件",
+		Description:  "补充清晰图片后重新保存。",
+		Contact:      ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateResourceDraft() error = %v", err)
+	}
+
+	if store.updatedResourceID != "resource-1" || store.updateInput.Status != model.ResourceStatusDraft {
+		t.Fatalf("updatedResourceID = %q input = %#v", store.updatedResourceID, store.updateInput)
+	}
+	if store.updateInput.MerchantID != "merchant-1" || resp.Status != model.ResourceStatusDraft {
+		t.Fatalf("resp = %#v input = %#v, want draft update", resp, store.updateInput)
+	}
+}
+
 func TestCreateResourceRecordsOperationLogForOperatorProxy(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{
@@ -217,6 +250,9 @@ type fakeCreateResourceStore struct {
 	config               model.ResourcePublishConfig
 	input                model.CreateResourceInput
 	result               model.CreateResourceResult
+	updatedResourceID    string
+	updateInput          model.CreateResourceInput
+	updateResult         model.CreateResourceResult
 	operationLog         model.OperationLogInput
 	merchantContactPhone string
 	contactMerchantID    string
@@ -241,6 +277,12 @@ func (s *fakeCreateResourceStore) GetMerchantContactPhone(ctx context.Context, m
 func (s *fakeCreateResourceStore) CreateResource(ctx context.Context, input model.CreateResourceInput) (model.CreateResourceResult, error) {
 	s.input = input
 	return s.result, nil
+}
+
+func (s *fakeCreateResourceStore) UpdateResourceDraft(ctx context.Context, resourceID string, input model.CreateResourceInput) (model.CreateResourceResult, error) {
+	s.updatedResourceID = resourceID
+	s.updateInput = input
+	return s.updateResult, nil
 }
 
 func (s *fakeCreateResourceStore) RecordOperationLog(ctx context.Context, input model.OperationLogInput) error {

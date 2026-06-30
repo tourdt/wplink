@@ -18,7 +18,9 @@ export default function request(options) {
           return
         }
         const message = res.data?.message || res.data?.msg || '请求失败，请稍后重试'
-        uni.showToast({ title: message, icon: 'none' })
+        if (!options.suppressErrorToast) {
+          uni.showToast({ title: message, icon: 'none' })
+        }
         reject(new Error(message))
       },
       fail: (err) => {

@@ -153,6 +153,88 @@ test('my page presents merchant workspace and grouped service entries', () => {
   }
 })
 
+test('my resources page keeps list concise and dates day-only', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/my-resources/index.vue'), 'utf8')
+
+  for (const token of [
+    'formatDateToDay(item.publishedAt)',
+    'formatDateToDay(item.expiresAt)',
+    '管理资源状态和推广效果',
+    'displayStatusText(item)',
+    'isActivePublished(item)',
+    "{ label: '已驳回', value: 'rejected' }",
+    'rejectReason',
+    'openRejectedEditor',
+    '驳回原因',
+    "if (item.dealtAt) return '已成交'",
+  ]) {
+    assert.equal(source.includes(token), true)
+  }
+
+  for (const removedToken of [
+    'markResourceDeal',
+    'markDealt',
+    '>成交</button>',
+    'lifecycle-note',
+    'effectAdvice',
+    'effect-advice',
+    '已发布资源可刷新、置顶或下架，过期后可再发类似。',
+    '审核通过后开始展示。',
+    '可再发类似资源继续曝光。',
+    '根据曝光和联系情况刷新或置顶。',
+    '完善信息有助于买家判断。',
+    '管理资源状态、效果数据和推广权益',
+  ]) {
+    assert.equal(source.includes(removedToken), false)
+  }
+})
+
+test('my resources draft resources open editor instead of direct submit', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/my-resources/index.vue'), 'utf8')
+
+  assert.match(source, /item\.status === 'draft'[\s\S]*@click="openDraftEditor\(item\)"[\s\S]*>编辑<\/button>/)
+  assert.match(source, /function openDraftEditor\(item\) \{[\s\S]*openPublishEditor\(item\)/)
+  assert.match(source, /function openPublishEditor\(item\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}&resourceId=\$\{item\.id\}` \}\)/)
+  assert.equal(source.includes('submitDraft'), false)
+  assert.equal(source.includes('submitResource'), false)
+  assert.equal(source.includes('已提交审核'), false)
+  assert.equal(source.includes('publish:pending-edit-context'), false)
+  assert.equal(source.includes("uni.switchTab({ url: '/pages/publish/index' })"), true)
+})
+
+test('my resources repost similar opens a new resource form with old resource defaults', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/my-resources/index.vue'), 'utf8')
+  const formSource = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
+
+  assert.match(source, /getOwnResource/)
+  assert.match(source, /function buildRepostInitialForm\(detail\)/)
+  assert.match(source, /repostInitialForm/)
+  assert.match(source, /uni\.setStorageSync\('publish:repost-initial-form'/)
+  assert.match(source, /uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}&repost=1` \}\)/)
+  assert.equal(source.includes('repostSimilarResource'), false)
+  assert.equal(source.includes('已复制为草稿'), false)
+
+  assert.match(formSource, /restoreRepostInitialForm/)
+  assert.match(formSource, /applyInitialPublishForm/)
+  assert.match(formSource, /editingResourceId\.value = ''/)
+  assert.match(formSource, /uni\.removeStorageSync\('publish:repost-initial-form'\)/)
+})
+
+test('publish pages split tab creation and independent editing', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const tabSource = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
+  const editSource = fs.readFileSync(path.join(root, 'pages/publish/edit.vue'), 'utf8')
+
+  assert.match(tabSource, /<ResourcePublishForm[\s\S]*mode="create"/)
+  assert.match(editSource, /onLoad\(\(options\)/)
+  assert.match(editSource, /<ResourcePublishForm[\s\S]*mode="edit"[\s\S]*:initial-options="routeOptions"/)
+  assert.equal(tabSource.includes('onShow'), false)
+  assert.equal(tabSource.includes('publish:pending-edit-context'), false)
+})
+
 test('merchant profile page labels every field and removes manual image url entry', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
@@ -181,7 +263,7 @@ test('merchant profile page labels every field and removes manual image url entr
 
 test('publish page presents grouped fast publishing workflow', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
 
   for (const token of [
     'basic-progress',
@@ -206,6 +288,12 @@ test('publish page presents grouped fast publishing workflow', () => {
     'previewResourceImage',
     'removeResourceImage',
     'getMerchant',
+    'getEditableResource',
+    'updateResourceDraft',
+    'submitResource',
+    'editingResourceId',
+    'editingResourceStatus',
+    'loadEditableResource',
     'loadMerchantContact',
     'applyMerchantContactDefaults',
     'contact.name',
@@ -241,14 +329,27 @@ test('publish page presents grouped fast publishing workflow', () => {
   assert.equal(source.includes('sticky-action-bar'), false)
   assert.equal(source.includes('padding: 24rpx 24rpx 176rpx'), false)
   assert.equal(source.includes('点击图片预览，点击最后一格添加'), false)
-  assert.equal(source.includes('submitResource'), false)
-  assert.match(source, /\.fixed-save-bar \{[\s\S]*position: fixed;[\s\S]*right: 0;[\s\S]*bottom: 0;[\s\S]*left: 0;[\s\S]*padding: 10rpx 24rpx 4rpx;[\s\S]*border-top: 1rpx solid \$wplink-line;[\s\S]*background: rgba\(255, 255, 255, 0\.96\);[\s\S]*\}/)
-  assert.match(source, /\.fixed-save-spacer \{[\s\S]*height: 102rpx;[\s\S]*\}/)
+  assert.match(source, /reserveBottomSafeArea/)
+  assert.match(source, /fixed-save-spacer', \{ 'no-safe-area': !reserveBottomSafeArea \}/)
+  assert.match(source, /fixed-save-bar', \{ 'no-safe-area': !reserveBottomSafeArea \}/)
+  assert.match(source, /\.fixed-save-bar \{[\s\S]*position: fixed;[\s\S]*right: 0;[\s\S]*bottom: 0;[\s\S]*left: 0;[\s\S]*padding: 10rpx 24rpx calc\(4rpx \+ env\(safe-area-inset-bottom\)\);[\s\S]*border-top: 1rpx solid \$wplink-line;[\s\S]*background: rgba\(255, 255, 255, 0\.96\);[\s\S]*\}/)
+  assert.match(source, /\.fixed-save-spacer \{[\s\S]*height: calc\(102rpx \+ env\(safe-area-inset-bottom\)\);[\s\S]*\}/)
+  assert.match(source, /\.fixed-save-spacer\.no-safe-area \{[\s\S]*height: 102rpx;[\s\S]*\}/)
+  assert.match(source, /\.fixed-save-bar\.no-safe-area \{[\s\S]*padding-bottom: 4rpx;[\s\S]*\}/)
+})
+
+test('publish tab page does not reserve bottom safe area for fixed save bar', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const publishSource = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
+  const editSource = fs.readFileSync(path.join(root, 'pages/publish/edit.vue'), 'utf8')
+
+  assert.match(publishSource, /:reserve-bottom-safe-area="false"/)
+  assert.equal(editSource.includes('reserve-bottom-safe-area'), false)
 })
 
 test('publish page defaults contact phone from merchant profile masked phone', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
 
   assert.match(source, /contact\.phone \|\| contact\.phoneMasked/)
   assert.match(source, /form\.contact\.phone = contact\.phone \|\| contact\.phoneMasked/)
@@ -256,11 +357,11 @@ test('publish page defaults contact phone from merchant profile masked phone', (
 
 test('publish page autosaves local draft and clears it after successful save or submit', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
 
   for (const token of [
     'watch',
-    'onUnload',
+    'onUnmounted',
     'publishLocalDraftStorageKey',
     'buildPublishLocalDraftStorageKey',
     'restorePublishLocalDraft',
@@ -280,19 +381,19 @@ test('publish page autosaves local draft and clears it after successful save or 
 
   assert.match(source, /watch\(\s*form,[\s\S]*scheduleSavePublishLocalDraft[\s\S]*deep: true/)
   assert.match(source, /watch\(\s*resourceImageEntries,[\s\S]*scheduleSavePublishLocalDraft[\s\S]*deep: true/)
-  assert.match(source, /onUnload\(\(\) => \{[\s\S]*flushPublishLocalDraft\(\)[\s\S]*\}\)/)
+  assert.match(source, /onUnmounted\(\(\) => \{[\s\S]*flushPublishLocalDraft\(\)[\s\S]*\}\)/)
 
   const submitMatched = source.match(/async function submit\(\) \{([\s\S]*?)\n\}/)
   const saveDraftMatched = source.match(/async function saveDraft\(\) \{([\s\S]*?)\n\}/)
   assert.ok(submitMatched, 'submit should exist')
   assert.ok(saveDraftMatched, 'saveDraft should exist')
-  assert.match(submitMatched[1], /await createResource[\s\S]*clearPublishLocalDraft\(\)[\s\S]*resetPublishForm\(\)/)
-  assert.match(saveDraftMatched[1], /await createResourceDraft[\s\S]*clearPublishLocalDraft\(\)[\s\S]*resetPublishForm\(\)/)
+  assert.match(submitMatched[1], /await createResource[\s\S]*clearPublishLocalDraft\(\)[\s\S]*resetPublishForm\(\)|await submitResource/)
+  assert.match(saveDraftMatched[1], /await saveResourceDraftPayload[\s\S]*clearPublishLocalDraft\(\)[\s\S]*resetPublishForm\(\)/)
 })
 
 test('publish page stages images and uploads them only when saving or submitting', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
 
   for (const token of [
     'chooseImageFile',
@@ -315,8 +416,8 @@ test('publish page stages images and uploads them only when saving or submitting
   assert.ok(submitMatched, 'submit should exist')
   assert.ok(saveDraftMatched, 'saveDraft should exist')
   assert.ok(uploadResourceImageMatched, 'uploadResourceImage should exist')
-  assert.match(submitMatched[1], /await uploadPendingResourceImages\(\)[\s\S]*await createResource/)
-  assert.match(saveDraftMatched[1], /await uploadPendingResourceImages\(\)[\s\S]*await createResourceDraft/)
+  assert.match(submitMatched[1], /await uploadPendingResourceImages\(\)[\s\S]*(await createResource|await submitResource)/)
+  assert.match(saveDraftMatched[1], /await uploadPendingResourceImages\(\)[\s\S]*await saveResourceDraftPayload/)
   assert.equal(uploadResourceImageMatched[1].includes('uploadSelectedImage'), false)
   assert.equal(source.includes('chooseAndUploadImage'), false)
   assert.equal(source.includes('图片已上传'), false)
@@ -708,6 +809,59 @@ test('merchant detail page paginates published resources with reusable resource 
   ]) {
     assert.match(listSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
+})
+
+test('resource detail merchant row uses profile logo without extra title', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
+
+  for (const token of [
+    "import { getMerchant } from '../../api/merchant'",
+    'merchantProfile',
+    'loadMerchantProfile',
+    'merchantProfile.value.logoUrl',
+    'merchantAvatarUrl',
+    'merchantBusinessText',
+    'mainCategories',
+    'merchantTypeText',
+    'merchant-avatar',
+    'merchant-arrow',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.equal(source.includes('merchant-card-title'), false)
+  assert.equal(source.includes('商家信息</text>'), false)
+  assert.equal(source.includes('查看商家认证、发布记录和信用信息'), false)
+})
+
+test('resource detail related resources use reusable resource list', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
+  const cardSource = fs.readFileSync(path.join(root, 'components/ResourceCard.vue'), 'utf8')
+
+  for (const token of [
+    "import ResourceList from '../../components/ResourceList.vue'",
+    ':resources="relatedResources"',
+    'variant="compact"',
+    'empty-text="暂无同类资源"',
+    '@open="openRelatedResource"',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.equal(source.includes('<ResourceCard v-for="item in relatedResources"'), false)
+  assert.match(cardSource, /props\.variant === 'compact'[\s\S]*'resource-card-compact'/)
+  assert.match(cardSource, /\.resource-card-compact \.merchant-row,[\s\S]*\.resource-card-compact \.decision-tip \{[\s\S]*display: none;/)
+})
+
+test('resource detail contact bar secondary buttons look independent', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
+
+  assert.match(source, /\.contact-bar button \{[\s\S]*border: 1rpx solid \$wplink-line;[\s\S]*background: #f8fafc;[\s\S]*box-shadow: 0 8rpx 20rpx rgba\(15, 23, 42, 0\.06\);/)
+  assert.match(source, /\.contact-bar button::after \{[\s\S]*border: 0;[\s\S]*\}/)
+  assert.match(source, /\.contact-bar \.primary-button \{[\s\S]*border-color: \$wplink-primary;[\s\S]*background: \$wplink-primary;[\s\S]*box-shadow: 0 10rpx 24rpx rgba\(6, 22, 37, 0\.14\);/)
 })
 
 test('login page provides reusable wechat login and redirect guard', () => {

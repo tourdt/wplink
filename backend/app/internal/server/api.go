@@ -311,6 +311,27 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 		resp, err := resourcelogic.NewCreateResourceLogic(store).CreateResourceDraft(r.Context(), req)
 		response.JSON(w, resp, err)
 	})
+	mux.HandleFunc("PUT /api/v1/resources/{resourceId}/draft", func(w http.ResponseWriter, r *http.Request) {
+		resourceID := r.PathValue("resourceId")
+		req, err := decodeCreateResourceRequest(r)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if tokenService != nil {
+			req.MerchantID, err = resourceMerchantIDFromStore(r.Context(), store, resourceID)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+		}
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, req.MerchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := resourcelogic.NewCreateResourceLogic(store).UpdateResourceDraft(r.Context(), resourceID, req)
+		response.JSON(w, resp, err)
+	})
 	mux.HandleFunc("POST /api/v1/resources/{resourceId}/submit", func(w http.ResponseWriter, r *http.Request) {
 		resourceID := r.PathValue("resourceId")
 		merchantID, err := optionalMerchantIDFromActionRequest(r)
@@ -389,6 +410,49 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			Status:     query.Get("status"),
 			Page:       int64FromQuery(r, "page"),
 			PageSize:   int64FromQuery(r, "pageSize"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/me/resources/{resourceId}/detail", func(w http.ResponseWriter, r *http.Request) {
+		resourceID := r.PathValue("resourceId")
+		merchantID := strings.TrimSpace(r.URL.Query().Get("merchantId"))
+		var err error
+		if tokenService != nil {
+			// 自有资源详情允许查看待审核/下架等非公开状态，必须以资源真实归属做权限判断。
+			merchantID, err = resourceMerchantIDFromStore(r.Context(), store, resourceID)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+		}
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := resourcelogic.NewGetOwnResourceLogic(store).Get(r.Context(), resourcelogic.GetOwnResourceReq{
+			MerchantID: merchantID,
+			ResourceID: resourceID,
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/me/resources/{resourceId}/edit", func(w http.ResponseWriter, r *http.Request) {
+		resourceID := r.PathValue("resourceId")
+		merchantID := strings.TrimSpace(r.URL.Query().Get("merchantId"))
+		var err error
+		if tokenService != nil {
+			merchantID, err = resourceMerchantIDFromStore(r.Context(), store, resourceID)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+		}
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := resourcelogic.NewGetEditableResourceLogic(store).Get(r.Context(), resourcelogic.GetEditableResourceReq{
+			MerchantID: merchantID,
+			ResourceID: resourceID,
 		})
 		response.JSON(w, resp, err)
 	})
@@ -480,6 +544,30 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			MerchantID: body.MerchantID,
 			ResourceID: resourceID,
 			Reason:     body.Reason,
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("DELETE /api/v1/resources/{resourceId}", func(w http.ResponseWriter, r *http.Request) {
+		resourceID := r.PathValue("resourceId")
+		merchantID, err := merchantIDFromActionRequest(r)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if tokenService != nil {
+			merchantID, err = resourceMerchantIDFromStore(r.Context(), store, resourceID)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+		}
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := resourcelogic.NewDeleteTakenDownResourceLogic(store).Delete(r.Context(), resourcelogic.DeleteTakenDownResourceReq{
+			MerchantID: merchantID,
+			ResourceID: resourceID,
 		})
 		response.JSON(w, resp, err)
 	})

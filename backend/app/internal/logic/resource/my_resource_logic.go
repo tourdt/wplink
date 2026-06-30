@@ -2,6 +2,8 @@ package resource
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 
 	"wplink/backend/app/internal/model"
@@ -11,9 +13,12 @@ import (
 type MyResourceStore interface {
 	ListMyResources(ctx context.Context, filter model.ListMyResourcesFilter) (model.ListMyResourcesResult, error)
 	GetResourceOwnershipStatus(ctx context.Context, merchantID string, resourceID string) (model.ResourceOwnershipStatus, error)
+	GetEditableResourceDetail(ctx context.Context, merchantID string, resourceID string) (model.EditableResourceDetail, error)
+	GetOwnResourceDetail(ctx context.Context, merchantID string, resourceID string) (model.ResourceDetail, error)
 	RefreshResource(ctx context.Context, merchantID string, resourceID string) (model.RefreshResourceResult, error)
 	MarkDealt(ctx context.Context, input model.MarkDealtInput) (model.DealFeedbackResult, error)
 	TakeDownOwnResource(ctx context.Context, input model.TakeDownOwnResourceInput) (model.TakeDownOwnResourceResult, error)
+	DeleteTakenDownResource(ctx context.Context, merchantID string, resourceID string) (model.DeleteTakenDownResourceResult, error)
 	RepostSimilar(ctx context.Context, merchantID string, resourceID string) (model.RepostSimilarResult, error)
 }
 
@@ -32,15 +37,16 @@ type MyResourceMetrics struct {
 }
 
 type MyResourceItem struct {
-	ID          string            `json:"id"`
-	TypeCode    string            `json:"typeCode"`
-	Title       string            `json:"title"`
-	Category    string            `json:"category"`
-	Status      string            `json:"status"`
-	PublishedAt string            `json:"publishedAt,omitempty"`
-	ExpiresAt   string            `json:"expiresAt,omitempty"`
-	DealtAt     string            `json:"dealtAt,omitempty"`
-	Metrics     MyResourceMetrics `json:"metrics"`
+	ID           string            `json:"id"`
+	TypeCode     string            `json:"typeCode"`
+	Title        string            `json:"title"`
+	Category     string            `json:"category"`
+	Status       string            `json:"status"`
+	RejectReason string            `json:"rejectReason,omitempty"`
+	PublishedAt  string            `json:"publishedAt,omitempty"`
+	ExpiresAt    string            `json:"expiresAt,omitempty"`
+	DealtAt      string            `json:"dealtAt,omitempty"`
+	Metrics      MyResourceMetrics `json:"metrics"`
 }
 
 type ListMyResourcesResp struct {
@@ -48,6 +54,41 @@ type ListMyResourcesResp struct {
 	Page     int64            `json:"page"`
 	PageSize int64            `json:"pageSize"`
 	Total    int64            `json:"total"`
+}
+
+type EditableResourceContact struct {
+	Name   string `json:"name"`
+	Phone  string `json:"phone"`
+	Wechat string `json:"wechat,omitempty"`
+}
+
+type GetEditableResourceReq struct {
+	MerchantID string
+	ResourceID string
+}
+
+type GetOwnResourceReq struct {
+	MerchantID string
+	ResourceID string
+}
+
+type GetEditableResourceResp struct {
+	ID           string                  `json:"id"`
+	MerchantID   string                  `json:"merchantId"`
+	CityCode     string                  `json:"cityCode"`
+	TypeCode     string                  `json:"typeCode"`
+	Status       string                  `json:"status"`
+	Title        string                  `json:"title"`
+	Category     string                  `json:"category"`
+	District     string                  `json:"district,omitempty"`
+	PriceText    string                  `json:"priceText,omitempty"`
+	QuantityText string                  `json:"quantityText,omitempty"`
+	Description  string                  `json:"description"`
+	Attributes   model.JSONMap           `json:"attributes"`
+	Tags         []string                `json:"tags"`
+	Images       []string                `json:"images"`
+	Contact      EditableResourceContact `json:"contact"`
+	RejectReason string                  `json:"rejectReason,omitempty"`
 }
 
 type RefreshResourceReq struct {
@@ -84,6 +125,17 @@ type TakeDownOwnResourceReq struct {
 }
 
 type TakeDownOwnResourceResp struct {
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type DeleteTakenDownResourceReq struct {
+	MerchantID string
+	ResourceID string
+}
+
+type DeleteTakenDownResourceResp struct {
 	ID      string `json:"id"`
 	Status  string `json:"status"`
 	Message string `json:"message"`
@@ -126,7 +178,7 @@ func (l *ListMyResourcesLogic) ListMyResources(ctx context.Context, req ListMyRe
 	for _, item := range result.Items {
 		items = append(items, MyResourceItem{
 			ID: item.ID, TypeCode: item.TypeCode, Title: item.Title, Category: item.Category, Status: item.Status,
-			PublishedAt: item.PublishedAt, ExpiresAt: item.ExpiresAt, DealtAt: item.DealtAt,
+			RejectReason: item.RejectReason, PublishedAt: item.PublishedAt, ExpiresAt: item.ExpiresAt, DealtAt: item.DealtAt,
 			Metrics: MyResourceMetrics{
 				ExposureCount: item.Metrics.ExposureCount, DetailViewCount: item.Metrics.DetailViewCount,
 				PhoneClickCount: item.Metrics.PhoneClickCount, WechatCopyCount: item.Metrics.WechatCopyCount,
@@ -134,6 +186,71 @@ func (l *ListMyResourcesLogic) ListMyResources(ctx context.Context, req ListMyRe
 		})
 	}
 	return ListMyResourcesResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil
+}
+
+type GetEditableResourceLogic struct {
+	store MyResourceStore
+}
+
+func NewGetEditableResourceLogic(store MyResourceStore) *GetEditableResourceLogic {
+	return &GetEditableResourceLogic{store: store}
+}
+
+func (l *GetEditableResourceLogic) Get(ctx context.Context, req GetEditableResourceReq) (GetEditableResourceResp, error) {
+	merchantID, resourceID := trimMerchantResource(req.MerchantID, req.ResourceID)
+	if merchantID == "" || resourceID == "" {
+		return GetEditableResourceResp{}, errx.New(errx.CodeValidationFailed, "资源不存在或已下架")
+	}
+	detail, err := l.store.GetEditableResourceDetail(ctx, merchantID, resourceID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GetEditableResourceResp{}, errx.New(errx.CodeStateConflict, "资源不存在或当前状态不可编辑")
+		}
+		return GetEditableResourceResp{}, err
+	}
+	return GetEditableResourceResp{
+		ID:           detail.ID,
+		MerchantID:   detail.MerchantID,
+		CityCode:     detail.CityCode,
+		TypeCode:     detail.TypeCode,
+		Status:       detail.Status,
+		Title:        detail.Title,
+		Category:     detail.Category,
+		District:     detail.District,
+		PriceText:    detail.PriceText,
+		QuantityText: detail.QuantityText,
+		Description:  detail.Description,
+		Attributes:   detail.Attributes,
+		Tags:         append([]string(nil), detail.Tags...),
+		Images:       append([]string(nil), detail.Images...),
+		Contact: EditableResourceContact{
+			Name: detail.ContactName, Phone: detail.ContactPhone, Wechat: detail.ContactWechat,
+		},
+		RejectReason: detail.RejectReason,
+	}, nil
+}
+
+type GetOwnResourceLogic struct {
+	store MyResourceStore
+}
+
+func NewGetOwnResourceLogic(store MyResourceStore) *GetOwnResourceLogic {
+	return &GetOwnResourceLogic{store: store}
+}
+
+func (l *GetOwnResourceLogic) Get(ctx context.Context, req GetOwnResourceReq) (ResourceDetailResp, error) {
+	merchantID, resourceID := trimMerchantResource(req.MerchantID, req.ResourceID)
+	if merchantID == "" || resourceID == "" {
+		return ResourceDetailResp{}, errx.New(errx.CodeValidationFailed, "资源不存在或已下架")
+	}
+	detail, err := l.store.GetOwnResourceDetail(ctx, merchantID, resourceID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ResourceDetailResp{}, errx.New(errx.CodeResourceNotFound, "资源不存在或已下架")
+		}
+		return ResourceDetailResp{}, err
+	}
+	return resourceDetailRespFromModel(detail), nil
 }
 
 type RefreshResourceLogic struct {
@@ -206,6 +323,34 @@ func (l *TakeDownOwnResourceLogic) TakeDown(ctx context.Context, req TakeDownOwn
 		return TakeDownOwnResourceResp{}, err
 	}
 	return TakeDownOwnResourceResp{ID: result.ID, Status: result.Status, Message: "资源已下架"}, nil
+}
+
+type DeleteTakenDownResourceLogic struct {
+	store MyResourceStore
+}
+
+func NewDeleteTakenDownResourceLogic(store MyResourceStore) *DeleteTakenDownResourceLogic {
+	return &DeleteTakenDownResourceLogic{store: store}
+}
+
+func (l *DeleteTakenDownResourceLogic) Delete(ctx context.Context, req DeleteTakenDownResourceReq) (DeleteTakenDownResourceResp, error) {
+	merchantID, resourceID := trimMerchantResource(req.MerchantID, req.ResourceID)
+	if merchantID == "" || resourceID == "" {
+		return DeleteTakenDownResourceResp{}, errx.New(errx.CodeValidationFailed, "资源不存在")
+	}
+	status, err := l.store.GetResourceOwnershipStatus(ctx, merchantID, resourceID)
+	if err != nil {
+		return DeleteTakenDownResourceResp{}, err
+	}
+	// 删除只对已下架资源开放，避免误删正在审核或公开展示的资源。
+	if status.Status != model.ResourceStatusTakenDown {
+		return DeleteTakenDownResourceResp{}, errx.New(errx.CodeStateConflict, "仅已下架资源可以删除")
+	}
+	result, err := l.store.DeleteTakenDownResource(ctx, merchantID, resourceID)
+	if err != nil {
+		return DeleteTakenDownResourceResp{}, err
+	}
+	return DeleteTakenDownResourceResp{ID: result.ID, Status: result.Status, Message: "资源已删除"}, nil
 }
 
 type RepostSimilarLogic struct {

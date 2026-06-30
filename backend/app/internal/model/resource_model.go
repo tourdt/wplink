@@ -101,6 +101,8 @@ type ResourceDetail struct {
 	PriceText                  string
 	QuantityText               string
 	Attributes                 JSONMap
+	Tags                       []string
+	Images                     []string
 	MerchantID                 string
 	MerchantName               string
 	MerchantVerificationStatus string
@@ -190,15 +192,37 @@ type MyResourceMetrics struct {
 }
 
 type MyResourceItem struct {
-	ID          string
-	TypeCode    string
-	Title       string
-	Category    string
-	Status      string
-	PublishedAt string
-	ExpiresAt   string
-	DealtAt     string
-	Metrics     MyResourceMetrics
+	ID           string
+	TypeCode     string
+	Title        string
+	Category     string
+	Status       string
+	RejectReason string
+	PublishedAt  string
+	ExpiresAt    string
+	DealtAt      string
+	Metrics      MyResourceMetrics
+}
+
+type EditableResourceDetail struct {
+	ID            string
+	MerchantID    string
+	CityCode      string
+	TypeCode      string
+	Status        string
+	Title         string
+	Category      string
+	District      string
+	PriceText     string
+	QuantityText  string
+	Description   string
+	Attributes    JSONMap
+	Tags          []string
+	Images        []string
+	ContactName   string
+	ContactPhone  string
+	ContactWechat string
+	RejectReason  string
 }
 
 type ListMyResourcesFilter struct {
@@ -251,6 +275,11 @@ type TakeDownOwnResourceInput struct {
 }
 
 type TakeDownOwnResourceResult struct {
+	ID     string
+	Status string
+}
+
+type DeleteTakenDownResourceResult struct {
 	ID     string
 	Status string
 }
@@ -368,10 +397,63 @@ func (m *ResourceModel) SubmitResourceForReview(ctx context.Context, resourceID 
 UPDATE resources
 SET status = 'pending', updated_at = now()
 WHERE id = $1
-  AND status IN ('draft', 'rejected')
+  AND status = 'draft'
   AND deleted_at IS NULL
 RETURNING id::text, status
 `, resourceID).Scan(&result.ID, &result.Status)
+	return result, err
+}
+
+func (m *ResourceModel) UpdateResourceDraft(ctx context.Context, resourceID string, input CreateResourceInput) (CreateResourceResult, error) {
+	var result CreateResourceResult
+	err := m.db.QueryRowContext(ctx, `
+UPDATE resources
+SET
+  city_station_id = cs.id,
+  resource_type_config_id = NULLIF($4, '')::bigint,
+  type_code = $5,
+  status = 'draft',
+  title = $6,
+  category = $7,
+  district = $8,
+  price_text = $9,
+  quantity_text = $10,
+  description = $11,
+  attributes = $12,
+  tags = $13,
+  images = $14,
+  contact_name = $15,
+  contact_phone = $16,
+  contact_wechat = $17,
+  reject_reason = NULL,
+  updated_at = now()
+FROM city_stations cs
+WHERE resources.id = $1
+  AND resources.merchant_id = $2
+  AND cs.code = $3
+  AND cs.status = 'active'
+  AND resources.status IN ('draft', 'rejected')
+  AND resources.deleted_at IS NULL
+RETURNING resources.id::text, resources.status
+`,
+		resourceID,
+		input.MerchantID,
+		input.CityCode,
+		input.ResourceTypeConfigID,
+		input.TypeCode,
+		input.Title,
+		input.Category,
+		input.District,
+		input.PriceText,
+		input.QuantityText,
+		input.Description,
+		input.Attributes,
+		JSONStringSlice(input.Tags),
+		JSONStringSlice(input.Images),
+		input.ContactName,
+		input.ContactPhone,
+		input.ContactWechat,
+	).Scan(&result.ID, &result.Status)
 	return result, err
 }
 
@@ -384,6 +466,66 @@ WHERE id = $1
   AND deleted_at IS NULL
 `, resourceID).Scan(&merchantID)
 	return merchantID, err
+}
+
+func (m *ResourceModel) GetEditableResourceDetail(ctx context.Context, merchantID string, resourceID string) (EditableResourceDetail, error) {
+	var detail EditableResourceDetail
+	var attributes JSONMap
+	var tags JSONStringSlice
+	var images JSONStringSlice
+	err := m.db.QueryRowContext(ctx, `
+SELECT
+  r.id::text,
+  r.merchant_id::text,
+  cs.code,
+  r.type_code,
+  r.status,
+  r.title,
+  r.category,
+  COALESCE(r.district, ''),
+  COALESCE(r.price_text, ''),
+  COALESCE(r.quantity_text, ''),
+  r.description,
+  r.attributes,
+  r.tags,
+  r.images,
+  r.contact_name,
+  r.contact_phone,
+  COALESCE(r.contact_wechat, ''),
+  COALESCE(r.reject_reason, '')
+FROM resources r
+JOIN city_stations cs ON cs.id = r.city_station_id
+WHERE r.id = $1
+  AND r.merchant_id = $2
+  AND r.status IN ('draft', 'rejected')
+  AND r.deleted_at IS NULL
+`, resourceID, merchantID).Scan(
+		&detail.ID,
+		&detail.MerchantID,
+		&detail.CityCode,
+		&detail.TypeCode,
+		&detail.Status,
+		&detail.Title,
+		&detail.Category,
+		&detail.District,
+		&detail.PriceText,
+		&detail.QuantityText,
+		&detail.Description,
+		&attributes,
+		&tags,
+		&images,
+		&detail.ContactName,
+		&detail.ContactPhone,
+		&detail.ContactWechat,
+		&detail.RejectReason,
+	)
+	if err != nil {
+		return EditableResourceDetail{}, err
+	}
+	detail.Attributes = attributes
+	detail.Tags = []string(tags)
+	detail.Images = []string(images)
+	return detail, nil
 }
 
 func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesFilter) (ListResourcesResult, error) {
@@ -428,6 +570,8 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 
 func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resourceID string) (ResourceDetail, error) {
 	var detail ResourceDetail
+	var tags JSONStringSlice
+	var images JSONStringSlice
 	var publishedAt sql.NullTime
 	var expiresAt sql.NullTime
 	err := m.db.QueryRowContext(ctx, `
@@ -441,6 +585,8 @@ SELECT
   COALESCE(r.price_text, ''),
   COALESCE(r.quantity_text, ''),
   r.attributes,
+  r.tags,
+  r.images,
   m.id::text,
   m.name,
   m.verification_status,
@@ -465,6 +611,8 @@ WHERE r.id = $1
 		&detail.PriceText,
 		&detail.QuantityText,
 		&detail.Attributes,
+		&tags,
+		&images,
 		&detail.MerchantID,
 		&detail.MerchantName,
 		&detail.MerchantVerificationStatus,
@@ -477,8 +625,77 @@ WHERE r.id = $1
 	if err != nil {
 		return ResourceDetail{}, err
 	}
+	detail.Tags = []string(tags)
+	detail.Images = []string(images)
 	detail.PhoneMasked = maskContact(detail.PhoneMasked)
 	detail.WechatMasked = maskWechat(detail.WechatMasked)
+	if publishedAt.Valid {
+		detail.PublishedAt = publishedAt.Time.Format(time.RFC3339)
+	}
+	if expiresAt.Valid {
+		detail.ExpiresAt = expiresAt.Time.Format(time.RFC3339)
+	}
+	return detail, nil
+}
+
+func (m *ResourceModel) GetOwnResourceDetail(ctx context.Context, merchantID string, resourceID string) (ResourceDetail, error) {
+	var detail ResourceDetail
+	var tags JSONStringSlice
+	var images JSONStringSlice
+	var publishedAt sql.NullTime
+	var expiresAt sql.NullTime
+	err := m.db.QueryRowContext(ctx, `
+SELECT
+  r.id::text,
+  r.status,
+  r.type_code,
+  r.title,
+  r.category,
+  r.description,
+  COALESCE(r.price_text, ''),
+  COALESCE(r.quantity_text, ''),
+  r.attributes,
+  r.tags,
+  r.images,
+  m.id::text,
+  m.name,
+  m.verification_status,
+  r.contact_name,
+  r.contact_phone,
+  COALESCE(r.contact_wechat, ''),
+  r.published_at,
+  r.expires_at
+FROM resources r
+JOIN merchants m ON m.id = r.merchant_id
+WHERE r.id = $1
+  AND r.merchant_id = $2
+  AND r.deleted_at IS NULL
+`, resourceID, merchantID).Scan(
+		&detail.ID,
+		&detail.Status,
+		&detail.TypeCode,
+		&detail.Title,
+		&detail.Category,
+		&detail.Description,
+		&detail.PriceText,
+		&detail.QuantityText,
+		&detail.Attributes,
+		&tags,
+		&images,
+		&detail.MerchantID,
+		&detail.MerchantName,
+		&detail.MerchantVerificationStatus,
+		&detail.ContactName,
+		&detail.PhoneMasked,
+		&detail.WechatMasked,
+		&publishedAt,
+		&expiresAt,
+	)
+	if err != nil {
+		return ResourceDetail{}, err
+	}
+	detail.Tags = []string(tags)
+	detail.Images = []string(images)
 	if publishedAt.Valid {
 		detail.PublishedAt = publishedAt.Time.Format(time.RFC3339)
 	}
@@ -612,6 +829,7 @@ SELECT
   r.title,
   r.category,
   r.status,
+  COALESCE(r.reject_reason, ''),
   r.published_at,
   r.expires_at,
   r.dealt_at,
@@ -647,7 +865,7 @@ LIMIT $3 OFFSET $4
 		var dealtAt sql.NullTime
 		if err := rows.Scan(
 			&item.ID, &item.TypeCode, &item.Title, &item.Category, &item.Status,
-			&publishedAt, &expiresAt, &dealtAt,
+			&item.RejectReason, &publishedAt, &expiresAt, &dealtAt,
 			&item.Metrics.ExposureCount, &item.Metrics.DetailViewCount,
 			&item.Metrics.PhoneClickCount, &item.Metrics.WechatCopyCount,
 			&result.Total,
@@ -791,6 +1009,20 @@ VALUES ($1, 'resource_lifecycle', 'resource_taken_down', $2, '资源已下架', 
 `, "merchant:"+input.MerchantID, input.ResourceID, title+" 已下架", MerchantMyResourcesTargetURL(input.MerchantID))
 		return err
 	})
+	return result, err
+}
+
+func (m *ResourceModel) DeleteTakenDownResource(ctx context.Context, merchantID string, resourceID string) (DeleteTakenDownResourceResult, error) {
+	var result DeleteTakenDownResourceResult
+	err := m.db.QueryRowContext(ctx, `
+UPDATE resources
+SET deleted_at = now(), updated_at = now()
+WHERE id = $1
+  AND merchant_id = $2
+  AND status = 'taken_down'
+  AND deleted_at IS NULL
+RETURNING id::text, status
+`, resourceID, merchantID).Scan(&result.ID, &result.Status)
 	return result, err
 }
 

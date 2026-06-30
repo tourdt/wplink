@@ -28,13 +28,13 @@ func TestAPIRouterLogsInAdmin(t *testing.T) {
 
 func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 	store := &fakeResourceAPIStore{
+		merchantStatus: model.MerchantStatusActive,
 		publishConfig: model.ResourcePublishConfig{
 			ID:               "config-1",
 			TypeCode:         "inventory",
 			RequiredFields:   []string{"merchantId", "cityCode", "typeCode", "title", "category", "contactName", "contactPhone"},
 			DefaultValidDays: 7,
 		},
-		merchantStatus: model.MerchantStatusActive,
 	}
 	router := NewAPIRouter(store)
 
@@ -307,6 +307,7 @@ func TestResourceAPIRouterRequiresOwnedMerchantForResourceOwnerActions(t *testin
 		{name: "refresh", method: http.MethodPost, path: "/api/v1/resources/resource-2/refresh", body: `{"merchantId":"merchant-1"}`},
 		{name: "deal feedback", method: http.MethodPost, path: "/api/v1/resources/resource-2/deal-feedback", body: `{"merchantId":"merchant-1","isDealt":true}`},
 		{name: "take down", method: http.MethodPost, path: "/api/v1/resources/resource-2/take-down", body: `{"merchantId":"merchant-1","reason":"已售罄"}`},
+		{name: "delete taken down", method: http.MethodDelete, path: "/api/v1/resources/resource-2", body: `{"merchantId":"merchant-1"}`},
 		{name: "repost similar", method: http.MethodPost, path: "/api/v1/resources/resource-2/repost-similar", body: `{"merchantId":"merchant-1"}`},
 	}
 	for _, tc := range cases {
@@ -326,6 +327,100 @@ func TestResourceAPIRouterRequiresOwnedMerchantForResourceOwnerActions(t *testin
 	allowedReq.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(allowedRec, allowedReq)
 	decodeEnvelopeData(t, allowedRec, http.StatusOK)
+}
+
+func TestResourceAPIRouterDeletesTakenDownResource(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		resourceStatuses: map[string]string{"resource-1": model.ResourceStatusTakenDown},
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/resources/resource-1", strings.NewReader(`{"merchantId":"merchant-1"}`))
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	if data["id"] != "resource-1" || data["message"] != "资源已删除" {
+		t.Fatalf("delete data = %#v, want deleted resource response", data)
+	}
+	if store.deletedResourceID != "resource-1" {
+		t.Fatalf("deletedResourceID = %q, want resource-1", store.deletedResourceID)
+	}
+}
+
+func TestResourceAPIRouterGetsEditableRejectedResourceAndSavesDraft(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		merchantStatus: model.MerchantStatusActive,
+		publishConfig: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"merchantId", "cityCode", "typeCode", "title", "category", "contactName", "contactPhone"},
+		},
+		editableDetail: model.EditableResourceDetail{
+			ID: "resource-1", MerchantID: "merchant-1", CityCode: "zhili", TypeCode: "inventory", Status: model.ResourceStatusRejected,
+			Title: "女童春款卫衣库存", Category: "童装卫衣", Description: "可拿样", ContactName: "周经理", ContactPhone: "18800000002",
+			RejectReason: "图片不清晰",
+		},
+	}
+	router := NewAPIRouter(store)
+
+	getRec := httptest.NewRecorder()
+	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/me/resources/resource-1/edit?merchantId=merchant-1", nil)
+	router.ServeHTTP(getRec, getReq)
+	getData := decodeEnvelopeData(t, getRec, http.StatusOK)
+	if getData["rejectReason"] != "图片不清晰" || getData["status"] != model.ResourceStatusRejected {
+		t.Fatalf("editable data = %#v, want reject reason and rejected status", getData)
+	}
+
+	updateRec := httptest.NewRecorder()
+	updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/resources/resource-1/draft", strings.NewReader(`{
+		"merchantId":"merchant-1",
+		"cityCode":"zhili",
+		"typeCode":"inventory",
+		"title":"修改后的女童春款卫衣库存",
+		"category":"童装卫衣",
+		"description":"已补充清晰图片",
+		"contact":{"name":"周经理","phone":"18800000002"}
+	}`))
+	router.ServeHTTP(updateRec, updateReq)
+	updateData := decodeEnvelopeData(t, updateRec, http.StatusOK)
+	if updateData["status"] != model.ResourceStatusDraft || store.updatedResourceID != "resource-1" {
+		t.Fatalf("update data = %#v updatedResourceID = %q, want draft update", updateData, store.updatedResourceID)
+	}
+}
+
+func TestResourceAPIRouterGetsOwnUnpublishedResourceDetail(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		managedMerchants:    map[string]bool{"merchant-1": true},
+		resourceMerchantIDs: map[string]string{"resource-1": "merchant-1", "resource-2": "merchant-2"},
+		ownDetail: model.ResourceDetail{
+			ID: "resource-1", Status: model.ResourceStatusPending, TypeCode: "inventory", Title: "待审核童装库存",
+			Category: "童装卫衣", Description: "可拿样", PriceText: "18元/件", QuantityText: "3800件",
+			Attributes: model.JSONMap{"season": "春季"}, MerchantID: "merchant-1", MerchantName: "织里云仓",
+			MerchantVerificationStatus: "verified", ContactName: "周经理", PhoneMasked: "18800000002", WechatMasked: "stock-demo",
+		},
+	}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	forbiddenRec := httptest.NewRecorder()
+	forbiddenReq := httptest.NewRequest(http.MethodGet, "/api/v1/me/resources/resource-2/detail?merchantId=merchant-1", nil)
+	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
+	}
+
+	allowedRec := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodGet, "/api/v1/me/resources/resource-1/detail?merchantId=merchant-2", nil)
+	allowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(allowedRec, allowedReq)
+	allowedData := decodeEnvelopeData(t, allowedRec, http.StatusOK)
+	if allowedData["status"] != model.ResourceStatusPending || allowedData["title"] != "待审核童装库存" {
+		t.Fatalf("own detail = %#v, want pending own resource", allowedData)
+	}
+	if store.ownDetailMerchantID != "merchant-1" || store.ownDetailResourceID != "resource-1" {
+		t.Fatalf("store args = %q/%q, want real merchant/resource", store.ownDetailMerchantID, store.ownDetailResourceID)
+	}
 }
 
 func TestResourceAPIRouterAllowsAdminTokenForMerchantActions(t *testing.T) {
@@ -466,9 +561,18 @@ type fakeResourceAPIStore struct {
 	contactInput        model.ResourceContactEventInput
 	metricDelta         model.ResourceMetricDelta
 	myFilter            model.ListMyResourcesFilter
+	editableDetail      model.EditableResourceDetail
+	ownDetail           model.ResourceDetail
+	ownDetailMerchantID string
+	ownDetailResourceID string
 	managedMerchants    map[string]bool
 	resourceMerchantIDs map[string]string
+	resourceStatuses    map[string]string
+	updatedResourceID   string
+	deletedResourceID   string
 }
+
+var _ ResourceAPIStore = (*fakeResourceAPIStore)(nil)
 
 func (s *fakeResourceAPIStore) GetResourcePublishConfig(ctx context.Context, cityCode string, typeCode string) (model.ResourcePublishConfig, error) {
 	return s.publishConfig, nil
@@ -478,6 +582,10 @@ func (s *fakeResourceAPIStore) GetMerchantPublishStatus(ctx context.Context, mer
 	return s.merchantStatus, nil
 }
 
+func (s *fakeResourceAPIStore) GetMerchantContactPhone(ctx context.Context, merchantID string) (string, error) {
+	return "18800000002", nil
+}
+
 func (s *fakeResourceAPIStore) UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error) {
 	return s.managedMerchants[merchantID], nil
 }
@@ -485,6 +593,11 @@ func (s *fakeResourceAPIStore) UserCanManageMerchant(ctx context.Context, userID
 func (s *fakeResourceAPIStore) CreateResource(ctx context.Context, input model.CreateResourceInput) (model.CreateResourceResult, error) {
 	s.created = input
 	return model.CreateResourceResult{ID: "resource-1", Status: input.Status}, nil
+}
+
+func (s *fakeResourceAPIStore) UpdateResourceDraft(ctx context.Context, resourceID string, input model.CreateResourceInput) (model.CreateResourceResult, error) {
+	s.updatedResourceID = resourceID
+	return model.CreateResourceResult{ID: resourceID, Status: model.ResourceStatusDraft}, nil
 }
 
 func (s *fakeResourceAPIStore) SubmitResourceForReview(ctx context.Context, resourceID string) (model.SubmitResourceResult, error) {
@@ -584,7 +697,21 @@ func (s *fakeResourceAPIStore) ListMyResources(ctx context.Context, filter model
 }
 
 func (s *fakeResourceAPIStore) GetResourceOwnershipStatus(ctx context.Context, merchantID string, resourceID string) (model.ResourceOwnershipStatus, error) {
-	return model.ResourceOwnershipStatus{ID: resourceID, MerchantID: merchantID, Status: model.ResourceStatusPublished}, nil
+	status := model.ResourceStatusPublished
+	if s.resourceStatuses != nil && s.resourceStatuses[resourceID] != "" {
+		status = s.resourceStatuses[resourceID]
+	}
+	return model.ResourceOwnershipStatus{ID: resourceID, MerchantID: merchantID, Status: status}, nil
+}
+
+func (s *fakeResourceAPIStore) GetEditableResourceDetail(ctx context.Context, merchantID string, resourceID string) (model.EditableResourceDetail, error) {
+	return s.editableDetail, nil
+}
+
+func (s *fakeResourceAPIStore) GetOwnResourceDetail(ctx context.Context, merchantID string, resourceID string) (model.ResourceDetail, error) {
+	s.ownDetailMerchantID = merchantID
+	s.ownDetailResourceID = resourceID
+	return s.ownDetail, nil
 }
 
 func (s *fakeResourceAPIStore) RefreshResource(ctx context.Context, merchantID string, resourceID string) (model.RefreshResourceResult, error) {
@@ -597,6 +724,11 @@ func (s *fakeResourceAPIStore) MarkDealt(ctx context.Context, input model.MarkDe
 
 func (s *fakeResourceAPIStore) TakeDownOwnResource(ctx context.Context, input model.TakeDownOwnResourceInput) (model.TakeDownOwnResourceResult, error) {
 	return model.TakeDownOwnResourceResult{ID: input.ResourceID, Status: model.ResourceStatusTakenDown}, nil
+}
+
+func (s *fakeResourceAPIStore) DeleteTakenDownResource(ctx context.Context, merchantID string, resourceID string) (model.DeleteTakenDownResourceResult, error) {
+	s.deletedResourceID = resourceID
+	return model.DeleteTakenDownResourceResult{ID: resourceID, Status: model.ResourceStatusTakenDown}, nil
 }
 
 func (s *fakeResourceAPIStore) RepostSimilar(ctx context.Context, merchantID string, resourceID string) (model.RepostSimilarResult, error) {

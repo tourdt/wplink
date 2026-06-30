@@ -30,6 +30,8 @@ type ResourceDetailResp struct {
 	PriceText    string                `json:"priceText,omitempty"`
 	QuantityText string                `json:"quantityText,omitempty"`
 	Attributes   model.JSONMap         `json:"attributes"`
+	Tags         []string              `json:"tags"`
+	Images       []string              `json:"images"`
 	Merchant     ResourceMerchantBrief `json:"merchant"`
 	Contact      ResourceContactMasked `json:"contact"`
 	PublishedAt  string                `json:"publishedAt,omitempty"`
@@ -58,6 +60,10 @@ func (l *GetResourceLogic) GetResource(ctx context.Context, resourceID string) (
 		}
 		return ResourceDetailResp{}, err
 	}
+	return resourceDetailRespFromModel(detail), nil
+}
+
+func resourceDetailRespFromModel(detail model.ResourceDetail) ResourceDetailResp {
 	return ResourceDetailResp{
 		ID:           detail.ID,
 		Status:       detail.Status,
@@ -68,6 +74,8 @@ func (l *GetResourceLogic) GetResource(ctx context.Context, resourceID string) (
 		PriceText:    detail.PriceText,
 		QuantityText: detail.QuantityText,
 		Attributes:   detail.Attributes,
+		Tags:         append([]string(nil), detail.Tags...),
+		Images:       append([]string(nil), detail.Images...),
 		Merchant: ResourceMerchantBrief{
 			ID:                 detail.MerchantID,
 			Name:               detail.MerchantName,
@@ -80,5 +88,5 @@ func (l *GetResourceLogic) GetResource(ctx context.Context, resourceID string) (
 		},
 		PublishedAt: detail.PublishedAt,
 		ExpiresAt:   detail.ExpiresAt,
-	}, nil
+	}
 }

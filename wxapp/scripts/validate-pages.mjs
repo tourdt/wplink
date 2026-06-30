@@ -19,6 +19,7 @@ const requiredPages = [
   'pages/home/index',
   'pages/search/index',
   'pages/publish/index',
+  'pages/publish/edit',
   'pages/publish-success/index',
   'pages/demand/index',
   'pages/demand-success/index',
@@ -68,12 +69,20 @@ for (const item of pagesConfig.tabBar?.list || []) {
   }
 }
 
-for (const page of ['pages/search/index', 'pages/publish/index']) {
+for (const page of ['pages/search/index']) {
   const vuePath = path.join(root, `${page}.vue`)
   const source = fs.readFileSync(vuePath, 'utf8')
   if (!source.includes('listCityResourceTypes')) {
     throw new Error(`${page}.vue 未从城市资源类型配置加载资源类型`)
   }
+}
+
+const publishFormPath = path.join(root, 'components/ResourcePublishForm.vue')
+if (!fs.existsSync(publishFormPath)) {
+  throw new Error('缺少资源发布表单组件: components/ResourcePublishForm.vue')
+}
+if (!fs.readFileSync(publishFormPath, 'utf8').includes('listCityResourceTypes')) {
+  throw new Error('components/ResourcePublishForm.vue 未从城市资源类型配置加载资源类型')
 }
 
 if (manifestConfig.uniStatistics?.enable !== false || manifestConfig['mp-weixin']?.uniStatistics?.enable !== false) {

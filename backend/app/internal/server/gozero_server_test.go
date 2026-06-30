@@ -37,6 +37,9 @@ func TestNewGoZeroServerMountsHealthAPIAndAdmin(t *testing.T) {
 	if !hasRoute(srv.Routes(), http.MethodGet, "/api/v1/city-stations") {
 		t.Fatalf("routes = %#v, want go-zero registered city stations route", srv.Routes())
 	}
+	if !hasRoute(srv.Routes(), http.MethodGet, "/api/v1/me/resources/:resourceId/detail") {
+		t.Fatalf("routes = %#v, want own resource detail compat route", srv.Routes())
+	}
 
 	healthRec := httptest.NewRecorder()
 	srv.ServeHTTP(healthRec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -51,6 +54,12 @@ func TestNewGoZeroServerMountsHealthAPIAndAdmin(t *testing.T) {
 	srv.ServeHTTP(apiRec, httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1", nil))
 	if apiRec.Code != http.StatusOK || apiRec.Body.String() != "api:/api/v1/merchants/merchant-1" {
 		t.Fatalf("api response = %d %q, want api handler", apiRec.Code, apiRec.Body.String())
+	}
+
+	ownResourceDetailRec := httptest.NewRecorder()
+	srv.ServeHTTP(ownResourceDetailRec, httptest.NewRequest(http.MethodGet, "/api/v1/me/resources/resource-1/detail?merchantId=merchant-1", nil))
+	if ownResourceDetailRec.Code != http.StatusOK || ownResourceDetailRec.Body.String() != "api:/api/v1/me/resources/resource-1/detail" {
+		t.Fatalf("own resource detail response = %d %q, want api handler", ownResourceDetailRec.Code, ownResourceDetailRec.Body.String())
 	}
 
 	adminRec := httptest.NewRecorder()

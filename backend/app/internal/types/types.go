@@ -760,15 +760,16 @@ type MessageListItem struct {
 }
 
 type MyResourceItem struct {
-	Id          string            `json:"id"`
-	TypeCode    string            `json:"typeCode"`
-	Title       string            `json:"title"`
-	Category    string            `json:"category"`
-	Status      string            `json:"status"`
-	PublishedAt string            `json:"publishedAt,optional"`
-	ExpiresAt   string            `json:"expiresAt,optional"`
-	DealtAt     string            `json:"dealtAt,optional"`
-	Metrics     MyResourceMetrics `json:"metrics"`
+	Id           string            `json:"id"`
+	TypeCode     string            `json:"typeCode"`
+	Title        string            `json:"title"`
+	Category     string            `json:"category"`
+	Status       string            `json:"status"`
+	RejectReason string            `json:"rejectReason,optional"`
+	PublishedAt  string            `json:"publishedAt,optional"`
+	ExpiresAt    string            `json:"expiresAt,optional"`
+	DealtAt      string            `json:"dealtAt,optional"`
+	Metrics      MyResourceMetrics `json:"metrics"`
 }
 
 type MyResourceMetrics struct {
@@ -838,10 +839,35 @@ type ResourceContactMasked struct {
 	WechatMasked string `json:"wechatMasked,optional"`
 }
 
+type EditableResourceContact struct {
+	Name   string `json:"name"`
+	Phone  string `json:"phone"`
+	Wechat string `json:"wechat,optional"`
+}
+
 type ResourceContactReq struct {
 	Name   string `json:"name"`
 	Phone  string `json:"phone"`
 	Wechat string `json:"wechat,optional"`
+}
+
+type EditableResourceResp struct {
+	Id           string                  `json:"id"`
+	MerchantId   string                  `json:"merchantId"`
+	CityCode     string                  `json:"cityCode"`
+	TypeCode     string                  `json:"typeCode"`
+	Status       string                  `json:"status"`
+	Title        string                  `json:"title"`
+	Category     string                  `json:"category"`
+	District     string                  `json:"district,optional"`
+	PriceText    string                  `json:"priceText,optional"`
+	QuantityText string                  `json:"quantityText,optional"`
+	Description  string                  `json:"description"`
+	Attributes   map[string]interface{}  `json:"attributes"`
+	Tags         []string                `json:"tags"`
+	Images       []string                `json:"images"`
+	Contact      EditableResourceContact `json:"contact"`
+	RejectReason string                  `json:"rejectReason,optional"`
 }
 
 type ResourceDetailResp struct {
@@ -854,6 +880,8 @@ type ResourceDetailResp struct {
 	PriceText    string                 `json:"priceText,optional"`
 	QuantityText string                 `json:"quantityText,optional"`
 	Attributes   map[string]interface{} `json:"attributes"`
+	Tags         []string               `json:"tags"`
+	Images       []string               `json:"images"`
 	Merchant     ResourceMerchantBrief  `json:"merchant"`
 	Contact      ResourceContactMasked  `json:"contact"`
 	PublishedAt  string                 `json:"publishedAt,optional"`
@@ -991,6 +1019,16 @@ type TakeDownOwnResourceReq struct {
 }
 
 type TakeDownOwnResourceResp struct {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type DeleteTakenDownResourceReq struct {
+	MerchantId string `json:"merchantId,optional"`
+}
+
+type DeleteTakenDownResourceResp struct {
 	Id      string `json:"id"`
 	Status  string `json:"status"`
 	Message string `json:"message"`

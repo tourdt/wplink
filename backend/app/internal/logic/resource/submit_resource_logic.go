@@ -37,7 +37,7 @@ func (l *SubmitResourceLogic) SubmitResource(ctx context.Context, resourceID str
 	result, err := l.store.SubmitResourceForReview(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return SubmitResourceResp{}, errx.New(errx.CodeStateConflict, "当前资源状态不能提交审核，请刷新后重试")
+			return SubmitResourceResp{}, errx.New(errx.CodeStateConflict, "请先编辑并保存草稿后再提交审核")
 		}
 		return SubmitResourceResp{}, err
 	}

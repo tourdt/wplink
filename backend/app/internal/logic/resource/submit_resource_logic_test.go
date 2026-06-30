@@ -47,6 +47,20 @@ func TestSubmitResourceMapsUnavailableResourceToStateConflict(t *testing.T) {
 	}
 }
 
+func TestSubmitResourceRequiresSavedDraft(t *testing.T) {
+	store := &fakeSubmitResourceStore{err: sql.ErrNoRows}
+	logic := NewSubmitResourceLogic(store)
+
+	_, err := logic.SubmitResource(context.Background(), "rejected-resource")
+
+	if errx.CodeOf(err) != errx.CodeStateConflict {
+		t.Fatalf("error code = %q, want state conflict", errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "请先编辑并保存草稿后再提交审核" {
+		t.Fatalf("message = %q, want save draft first", errx.PublicMessage(err))
+	}
+}
+
 type fakeSubmitResourceStore struct {
 	resourceID string
 	result     model.SubmitResourceResult

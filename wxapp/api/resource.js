@@ -16,6 +16,14 @@ export function createResourceDraft(data) {
   })
 }
 
+export function updateResourceDraft(resourceId, data) {
+  return request({
+    url: `/api/v1/resources/${resourceId}/draft`,
+    method: 'PUT',
+    data,
+  })
+}
+
 export function submitResource(resourceId, merchantId = '') {
   return request({
     url: `/api/v1/resources/${resourceId}/submit`,
@@ -48,10 +56,28 @@ export function listMyResources(params = {}) {
   })
 }
 
-export function getResource(resourceId) {
+export function getEditableResource(resourceId, merchantId) {
+  return request({
+    url: `/api/v1/me/resources/${resourceId}/edit`,
+    method: 'GET',
+    data: { merchantId },
+  })
+}
+
+export function getResource(resourceId, options = {}) {
   return request({
     url: `/api/v1/resources/${resourceId}`,
     method: 'GET',
+    ...options,
+  })
+}
+
+export function getOwnResource(resourceId, merchantId, options = {}) {
+  const query = merchantId ? `?merchantId=${encodeURIComponent(merchantId)}` : ''
+  return request({
+    url: `/api/v1/me/resources/${resourceId}/detail${query}`,
+    method: 'GET',
+    ...options,
   })
 }
 
@@ -83,6 +109,14 @@ export function takeDownResource(resourceId, merchantId, reason) {
     url: `/api/v1/resources/${resourceId}/take-down`,
     method: 'POST',
     data: { merchantId, reason },
+  })
+}
+
+export function deleteTakenDownResource(resourceId, merchantId) {
+  return request({
+    url: `/api/v1/resources/${resourceId}`,
+    method: 'DELETE',
+    data: { merchantId },
   })
 }
 

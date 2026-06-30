@@ -3,13 +3,9 @@
     <view class="resource-manager-head">
       <view>
         <text class="manager-title">我的发布</text>
-        <text class="manager-desc">管理资源状态、效果数据和推广权益。</text>
+        <text class="manager-desc">管理资源状态和推广效果</text>
       </view>
       <button @click="openPublish">发布</button>
-    </view>
-
-    <view class="lifecycle-note">
-      <text>已发布资源可刷新、置顶、成交或下架；即将过期和已过期资源建议及时再发类似。</text>
     </view>
 
     <scroll-view class="filter-row" scroll-x>
@@ -27,23 +23,24 @@
       <view v-for="item in rows" :key="item.id" class="resource-card">
         <view class="card-head">
           <view class="tag-row">
-            <text :class="['status-tag', item.status]">{{ statusText[item.status] || item.status }}</text>
+            <text :class="['status-tag', statusClass(item)]">{{ displayStatusText(item) }}</text>
             <text v-if="canTopResource(item)" class="top-tag">可置顶</text>
           </view>
           <text class="expire-text">{{ expireText(item) }}</text>
         </view>
         <text class="resource-title">{{ item.title }}</text>
         <text class="resource-meta">{{ item.category }} · {{ item.typeCode }}</text>
-        <text class="resource-meta">发布 {{ item.publishedAt || '-' }} · 到期 {{ item.expiresAt || '-' }}</text>
+        <text class="resource-meta">发布 {{ formatDateToDay(item.publishedAt) }} · 到期 {{ formatDateToDay(item.expiresAt) }}</text>
+        <text v-if="item.status === 'rejected' && item.rejectReason" class="reject-reason">驳回原因：{{ item.rejectReason }}</text>
         <MetricStrip :items="metricItems(item)" />
-        <text class="effect-advice">{{ effectAdvice(item) }}</text>
         <view class="action-row">
-          <button v-if="item.status === 'published'" @click="refresh(item)">刷新</button>
-          <button v-if="item.status === 'published'" @click="topResource(item)">置顶</button>
-          <button v-if="item.status === 'published'" @click="markDealt(item)">成交</button>
-          <button v-if="item.status === 'published'" @click="takeDown(item)">下架</button>
-          <button v-if="item.status === 'draft'" @click="submitDraft(item)">提交审核</button>
+          <button v-if="isActivePublished(item)" @click="refresh(item)">刷新</button>
+          <button v-if="isActivePublished(item)" @click="topResource(item)">置顶</button>
+          <button v-if="isActivePublished(item)" @click="takeDown(item)">下架</button>
+          <button v-if="item.status === 'draft'" @click="openDraftEditor(item)">编辑</button>
+          <button v-if="item.status === 'rejected'" @click="openRejectedEditor(item)">编辑</button>
           <button v-if="canRepost(item)" @click="repost(item)">再发类似</button>
+          <button v-if="canDeleteTakenDown(item)" class="danger-button" @click="deleteTakenDown(item)">删除</button>
           <button @click="openResource(item)">详情</button>
         </view>
       </view>
@@ -57,13 +54,15 @@ import { onLoad } from '@dcloudio/uni-app'
 import MetricStrip from '../../components/MetricStrip.vue'
 import { getMerchantId } from '../../store/session'
 import { redeemTopVoucher, listTopVouchers } from '../../api/entitlement'
-import { listMyResources, markResourceDeal, refreshResource, repostSimilarResource, submitResource, takeDownResource } from '../../api/resource'
+import { deleteTakenDownResource, getOwnResource, listMyResources, refreshResource, takeDownResource } from '../../api/resource'
+import { formatDateToDay } from '../../common/date'
 
 const statusOptions = [
   { label: '全部', value: '' },
   { label: '草稿', value: 'draft' },
   { label: '待审核', value: 'pending' },
   { label: '已发布', value: 'published' },
+  { label: '已驳回', value: 'rejected' },
   { label: '即将过期', value: 'expiring_soon' },
   { label: '已过期', value: 'expired' },
   { label: '已成交', value: 'dealt' },
@@ -120,27 +119,67 @@ async function topResource(item) {
   await loadRows()
 }
 
-async function markDealt(item) {
-  await markResourceDeal(item.id, { merchantId: merchantId.value, isDealt: true, isReal: true, responseTimely: true, willingToCooperateAgain: true })
-  uni.showToast({ title: '已标记成交', icon: 'none' })
-  await loadRows()
-}
-
 async function takeDown(item) {
   await takeDownResource(item.id, merchantId.value, '商家主动下架')
   uni.showToast({ title: '已下架', icon: 'none' })
   await loadRows()
 }
 
-async function submitDraft(item) {
-  await submitResource(item.id, merchantId.value)
-  uni.showToast({ title: '已提交审核', icon: 'none' })
-  await loadRows()
+function openDraftEditor(item) {
+  openPublishEditor(item)
+}
+
+function openRejectedEditor(item) {
+  openPublishEditor(item)
+}
+
+function openPublishEditor(item) {
+  uni.navigateTo({ url: `/pages/publish/edit?merchantId=${merchantId.value}&resourceId=${item.id}` })
 }
 
 async function repost(item) {
-  await repostSimilarResource(item.id, merchantId.value)
-  uni.showToast({ title: '已复制为草稿', icon: 'none' })
+  const detail = await getOwnResource(item.id, merchantId.value)
+  const repostInitialForm = buildRepostInitialForm(detail)
+  uni.setStorageSync('publish:repost-initial-form', repostInitialForm)
+  uni.navigateTo({ url: `/pages/publish/edit?merchantId=${merchantId.value}&repost=1` })
+}
+
+function buildRepostInitialForm(detail) {
+  return {
+    merchantId: merchantId.value,
+    cityCode: detail.cityCode || 'zhili',
+    typeCode: detail.typeCode || '',
+    title: detail.title || '',
+    category: detail.category || '',
+    quantityText: detail.quantityText || '',
+    priceText: detail.priceText || '',
+    description: detail.description || '',
+    attributes: detail.attributes || {},
+    tags: detail.tags || [],
+    images: detail.images || [],
+    contact: {
+      name: detail.contact?.name || '',
+      phone: detail.contact?.phone || detail.contact?.phoneMasked || '',
+      wechat: detail.contact?.wechat || detail.contact?.wechatMasked || '',
+    },
+  }
+}
+
+async function deleteTakenDown(item) {
+  // 已下架资源删除后会从我的发布隐藏，保留后台统计和审计数据。
+  const confirmed = await new Promise((resolve) => {
+    uni.showModal({
+      title: '删除资源',
+      content: '删除后将不再显示在我的发布中，确认删除吗？',
+      confirmText: '删除',
+      confirmColor: '#c2410c',
+      success: (res) => resolve(Boolean(res.confirm)),
+      fail: () => resolve(false),
+    })
+  })
+  if (!confirmed) return
+  await deleteTakenDownResource(item.id, merchantId.value)
+  uni.showToast({ title: '已删除', icon: 'none' })
   await loadRows()
 }
 
@@ -148,14 +187,33 @@ function canRepost(item) {
   return item.status === 'expired' || Boolean(item.dealtAt)
 }
 
+function canDeleteTakenDown(item) {
+  return item.status === 'taken_down'
+}
+
+function isActivePublished(item) {
+  return item.status === 'published' && !item.dealtAt
+}
+
 function canTopResource(item) {
-  return item.status === 'published'
+  return isActivePublished(item)
+}
+
+function displayStatusText(item) {
+  if (item.dealtAt) return '已成交'
+  return statusText[item.status] || item.status
+}
+
+function statusClass(item) {
+  if (item.dealtAt) return 'dealt'
+  return item.status
 }
 
 function expireText(item) {
   if (item.status === 'pending') return '审核中'
+  if (item.dealtAt) return `成交 ${formatDateToDay(item.dealtAt)}`
   if (item.status === 'expired') return '已过期'
-  if (item.expiresAt) return `到期 ${item.expiresAt}`
+  if (item.expiresAt) return `到期 ${formatDateToDay(item.expiresAt)}`
   return '有效期待确认'
 }
 
@@ -164,7 +222,7 @@ function openPublish() {
 }
 
 function openResource(item) {
-  uni.navigateTo({ url: `/pages/resource/detail?id=${item.id}` })
+  uni.navigateTo({ url: `/pages/resource/detail?id=${item.id}&merchantId=${merchantId.value}&from=my-resources` })
 }
 
 function metricItems(item) {
@@ -177,12 +235,6 @@ function metricItems(item) {
   ]
 }
 
-function effectAdvice(item) {
-  if (item.status === 'pending') return '审核通过后会进入搜索、首页分类和商家主页。'
-  if (item.status === 'published') return '可根据曝光和联系情况决定是否刷新或使用置顶券。'
-  if (canRepost(item)) return '该资源已结束，可再发类似资源继续获取曝光。'
-  return '保持信息完整有助于买家快速判断。'
-}
 </script>
 
 <style lang="scss" scoped>
@@ -234,19 +286,6 @@ function effectAdvice(item) {
   color: $wplink-card;
   font-size: 26rpx;
   font-weight: 700;
-}
-
-.lifecycle-note {
-  margin-bottom: 20rpx;
-  padding: 18rpx 20rpx;
-  border-radius: 12rpx;
-  background: $wplink-warning-soft;
-}
-
-.lifecycle-note text {
-  color: #7c5a22;
-  font-size: 24rpx;
-  line-height: 1.5;
 }
 
 .filter-button {
@@ -315,6 +354,11 @@ function effectAdvice(item) {
   background: $wplink-primary-soft;
 }
 
+.status-tag.dealt {
+  background: $wplink-warning-soft;
+  color: $wplink-warning;
+}
+
 .top-tag {
   background: $wplink-warning-soft;
   color: $wplink-warning;
@@ -332,11 +376,11 @@ function effectAdvice(item) {
   line-height: 1.5;
 }
 
-.effect-advice {
-  padding: 14rpx 16rpx;
-  border-radius: 10rpx;
-  background: #f8fafc;
-  color: #4b5565;
+.reject-reason {
+  padding: 12rpx 14rpx;
+  border-radius: 8rpx;
+  background: #fff7ed;
+  color: #9a3412;
   font-size: 24rpx;
   line-height: 1.45;
 }
@@ -344,6 +388,7 @@ function effectAdvice(item) {
 .action-row {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 12rpx;
 }
 
@@ -355,5 +400,10 @@ function effectAdvice(item) {
   color: $wplink-primary;
   font-size: 26rpx;
   line-height: 1.25;
+}
+
+.action-row .danger-button {
+  background: #fff1f2;
+  color: #be123c;
 }
 </style>

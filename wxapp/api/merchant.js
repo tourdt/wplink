@@ -8,10 +8,11 @@ export function createMerchant(data) {
   })
 }
 
-export function getMerchant(merchantId) {
+export function getMerchant(merchantId, options = {}) {
   return request({
     url: `/api/v1/merchants/${merchantId}`,
     method: 'GET',
+    ...options,
   })
 }
 

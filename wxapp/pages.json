@@ -20,6 +20,12 @@
       }
     },
     {
+      "path": "pages/publish/edit",
+      "style": {
+        "navigationBarTitleText": "编辑资源"
+      }
+    },
+    {
       "path": "pages/publish-success/index",
       "style": {
         "navigationBarTitleText": "提交成功"

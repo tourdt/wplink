@@ -42,7 +42,11 @@ const props = defineProps({
 defineEmits(['open'])
 
 const hasCreditTags = computed(() => Array.isArray(props.resource.creditTags) && props.resource.creditTags.length > 0)
-const variantClass = computed(() => (props.variant === 'home' ? 'resource-card-home' : ''))
+const variantClass = computed(() => {
+  if (props.variant === 'home') return 'resource-card-home'
+  if (props.variant === 'compact') return 'resource-card-compact'
+  return ''
+})
 const coverUrl = computed(() => {
   const images = props.resource.images || []
   return props.resource.coverUrl || images[0] || ''
@@ -239,6 +243,42 @@ function formatRefreshedAt(value) {
 
 .resource-card-home .merchant-row,
 .resource-card-home .decision-tip {
+  display: none;
+}
+
+.resource-card-compact {
+  gap: 16rpx;
+  padding: 20rpx;
+}
+
+.resource-card-compact .resource-thumb {
+  flex-basis: 144rpx;
+  width: 144rpx;
+  min-height: 144rpx;
+}
+
+.resource-card-compact .card-main {
+  gap: 8rpx;
+}
+
+.resource-card-compact .resource-title {
+  font-size: 30rpx;
+}
+
+.resource-card-compact .resource-meta {
+  font-size: 26rpx;
+}
+
+.resource-card-compact .resource-price {
+  font-size: 28rpx;
+}
+
+.resource-card-compact .resource-action {
+  font-size: 24rpx;
+}
+
+.resource-card-compact .merchant-row,
+.resource-card-compact .decision-tip {
   display: none;
 }
 </style>

@@ -35,6 +35,7 @@ export const defaultFlowChecks = [
     description: '详情浏览和联系行为',
     checks: [
       'getResource',
+      'getOwnResource',
       'recordResourceDetailView',
       "recordContact('phone')",
       "recordContact('wechat')",
@@ -49,10 +50,25 @@ export const defaultFlowChecks = [
       'getResourceFavoriteState',
       'setResourceFavorite',
       'toggleFavorite',
+      '不能收藏自己发布的资源',
+      'loadOwnResourceIfCurrentMerchant',
+      'resourceUnavailable',
+      '资源暂不可查看',
+      '去找其他资源',
     ],
   },
   {
     file: 'pages/publish/index.vue',
+    description: 'tab 发布页入口',
+    checks: ['ResourcePublishForm', ':initial-options', 'mode="create"'],
+  },
+  {
+    file: 'pages/publish/edit.vue',
+    description: '独立资源编辑页入口',
+    checks: ['ResourcePublishForm', 'onLoad', 'routeOptions', 'mode="edit"'],
+  },
+  {
+    file: 'components/ResourcePublishForm.vue',
     description: '资源发布和草稿保存',
     checks: [
       'listCityResourceTypes',
@@ -69,6 +85,7 @@ export const defaultFlowChecks = [
       '请填写联系电话',
       'basic-progress',
       'completionPercent',
+      'safe-area-inset-bottom',
     ],
   },
   {
@@ -94,7 +111,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/my-resources/index.vue',
     description: '我的发布管理动作和指标',
-    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'listTopVouchers', 'redeemTopVoucher', 'markResourceDeal', 'takeDownResource', 'submitDraft', 'submitResource', 'repostSimilarResource', 'wechatCopyCount', '管理资源状态、效果数据和推广权益', 'canTopResource', '再发类似'],
+    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'listTopVouchers', 'redeemTopVoucher', 'takeDownResource', 'deleteTakenDownResource', 'canDeleteTakenDown', 'openDraftEditor', 'openRejectedEditor', 'openPublishEditor', '/pages/publish/edit?merchantId=', 'uni.navigateTo', 'rejectReason', '驳回原因', 'getOwnResource', 'buildRepostInitialForm', 'repostInitialForm', 'wechatCopyCount', 'formatDateToDay', '管理资源状态和推广效果', 'canTopResource', '再发类似', 'from=my-resources'],
   },
   {
     file: 'pages/messages/index.vue',
