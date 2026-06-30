@@ -47,7 +47,7 @@ async function submit() {
     uni.showToast({ title: '请补充需求和联系方式', icon: 'none' })
     return
   }
-  // 采购需求必须绑定发布人，后续“我的需求”和消息触达都依赖该用户 ID。
+  // 采购需求必须绑定发布人，后续个人记录和消息触达都依赖该用户 ID。
   await createDemand({
     ...form,
     userId,

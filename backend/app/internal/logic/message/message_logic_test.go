@@ -20,7 +20,7 @@ func TestListMessagesRequiresRecipient(t *testing.T) {
 func TestListMessagesPassesFiltersToStore(t *testing.T) {
 	store := &fakeMessageStore{
 		listResult: model.ListMessagesResult{
-			Items: []model.MessageItem{{ID: "message-1", MessageType: "resource_review", Title: "审核通过", Status: "unread"}},
+			Items: []model.MessageItem{{ID: "message-1", MessageType: "resource_review", TriggerID: "resource-1", Title: "审核通过", Status: "unread"}},
 			Page:  1, PageSize: 20, Total: 1,
 		},
 	}
@@ -36,6 +36,9 @@ func TestListMessagesPassesFiltersToStore(t *testing.T) {
 	}
 	if len(resp.Items) != 1 || resp.Items[0].Title != "审核通过" {
 		t.Fatalf("resp = %#v, want message item", resp)
+	}
+	if resp.Items[0].TriggerID != "resource-1" {
+		t.Fatalf("triggerID = %q, want resource trigger id", resp.Items[0].TriggerID)
 	}
 }
 

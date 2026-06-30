@@ -15,8 +15,8 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
-import { wechatLogin } from '../../api/auth'
-import { saveToken, saveUserId } from '../../store/session'
+import { getMe, wechatLogin } from '../../api/auth'
+import { saveMerchantId, saveToken, saveUserId } from '../../store/session'
 
 const TAB_PAGE_PATHS = ['/pages/home/index', '/pages/search/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
 
@@ -39,12 +39,29 @@ async function loginWithWechatAccount() {
     if (loginUser.id) {
       saveUserId(loginUser.id)
     }
+    await restoreManagedMerchantId(resp)
     uni.showToast({ title: '登录成功', icon: 'none' })
     goAfterLogin()
   } catch (err) {
     uni.showToast({ title: err.message || '登录失败，请稍后重试', icon: 'none' })
   } finally {
     loggingIn.value = false
+  }
+}
+
+async function restoreManagedMerchantId(loginResp = {}) {
+  try {
+    let managedMerchants = loginResp.managedMerchants
+    if (!Array.isArray(managedMerchants)) {
+      const me = await getMe()
+      managedMerchants = me.managedMerchants || []
+    }
+    const managedMerchant = managedMerchants[0]
+    if (managedMerchant?.id) {
+      saveMerchantId(managedMerchant.id)
+    }
+  } catch (err) {
+    // 登录主链路已成功，商户身份恢复失败时保持未配置状态，避免阻断用户进入。
   }
 }
 

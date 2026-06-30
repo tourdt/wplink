@@ -84,7 +84,8 @@
     {
       "path": "pages/favorites/index",
       "style": {
-        "navigationBarTitleText": "收藏关注"
+        "navigationBarTitleText": "收藏关注",
+        "enablePullDownRefresh": true
       }
     },
     {

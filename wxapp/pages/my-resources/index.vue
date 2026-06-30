@@ -34,18 +34,18 @@
           <view class="resource-body">
             <text class="resource-title">{{ item.title }}</text>
             <text class="resource-meta">{{ item.category }} · {{ displayResourceTypeText(item) }}</text>
-            <text class="resource-meta">发布 {{ formatDateToDay(item.publishedAt) }} · 到期 {{ formatDateToDay(item.expiresAt) }}</text>
+            <text v-if="shouldShowResourceDates(item)" class="resource-meta">发布 {{ displayDateOrPlaceholder(item.publishedAt) }} · 到期 {{ displayDateOrPlaceholder(item.expiresAt) }}</text>
           </view>
         </view>
         <text v-if="item.status === 'rejected' && item.rejectReason" class="reject-reason">驳回原因：{{ item.rejectReason }}</text>
         <MetricStrip :items="metricItems(item)" />
         <view class="action-row">
-          <button v-if="isActivePublished(item)" @click="refresh(item)">刷新</button>
+          <button v-if="isActivePublished(item)" class="primary-action" @click="refresh(item)">刷新</button>
           <button v-if="isActivePublished(item)" @click="topResource(item)">置顶</button>
           <button v-if="isActivePublished(item)" @click="takeDown(item)">下架</button>
-          <button v-if="item.status === 'draft'" @click="openDraftEditor(item)">编辑</button>
-          <button v-if="item.status === 'rejected'" @click="openRejectedEditor(item)">编辑</button>
-          <button v-if="canRepost(item)" @click="repost(item)">再发类似</button>
+          <button v-if="item.status === 'draft'" class="primary-action" @click="openDraftEditor(item)">编辑</button>
+          <button v-if="item.status === 'rejected'" class="primary-action" @click="openRejectedEditor(item)">编辑</button>
+          <button v-if="canRepost(item)" class="primary-action" @click="repost(item)">再发类似</button>
           <button v-if="canDeleteTakenDown(item)" class="danger-button" @click="deleteTakenDown(item)">删除</button>
           <button @click="openResource(item)">详情</button>
         </view>
@@ -267,6 +267,14 @@ function statusClass(item) {
 
 function displayResourceTypeText(item) {
   return resourceTypeText[item.typeCode] || item.typeCode || '资源'
+}
+
+function shouldShowResourceDates(item) {
+  return Boolean(item.publishedAt || item.expiresAt)
+}
+
+function displayDateOrPlaceholder(value) {
+  return value ? formatDateToDay(value) : '-'
 }
 
 function handleResourceCoverError(item) {
@@ -529,21 +537,52 @@ function metricItems(item) {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 12rpx;
+  gap: 10rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid #eef2f7;
 }
 
 .action-row button {
-  min-width: 120rpx;
-  height: 68rpx;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 108rpx;
+  height: 62rpx;
+  margin: 0;
+  padding: 0 22rpx;
+  border: 1rpx solid $wplink-line;
   border-radius: 10rpx;
-  background: #edf2f7;
+  background: $wplink-card;
   color: $wplink-primary;
-  font-size: 26rpx;
+  font-size: 24rpx;
+  font-weight: 600;
   line-height: 1.25;
+  box-shadow: 0 2rpx 4rpx rgba(15, 23, 42, 0.04);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.action-row button::after {
+  border: 0;
+}
+
+.action-row button:active {
+  transform: translateY(1rpx);
+  background: #f4f7fd;
+  box-shadow: 0 1rpx 2rpx rgba(15, 23, 42, 0.06);
+}
+
+.action-row .primary-action {
+  border-color: #b8c4d4;
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
+  box-shadow: 0 2rpx 4rpx rgba(6, 22, 37, 0.05);
 }
 
 .action-row .danger-button {
-  background: #fff1f2;
+  border-color: #fecdd3;
+  background: #fff8f8;
   color: #be123c;
+  box-shadow: 0 2rpx 4rpx rgba(190, 18, 60, 0.04);
 }
 </style>

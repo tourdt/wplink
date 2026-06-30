@@ -24,6 +24,7 @@ type CreateMessageResult struct {
 type MessageItem struct {
 	ID          string
 	MessageType string
+	TriggerID   string
 	Title       string
 	Content     string
 	TargetURL   string
@@ -100,7 +101,7 @@ func (m *MessageModel) ListMessages(ctx context.Context, filter ListMessagesFilt
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize
 	rows, err := m.db.QueryContext(ctx, `
-SELECT id::text, message_type, title, content, COALESCE(target_url, ''), status, created_at, COUNT(*) OVER() AS total
+SELECT id::text, message_type, COALESCE(trigger_id::text, ''), title, content, COALESCE(target_url, ''), status, created_at, COUNT(*) OVER() AS total
 FROM messages
 WHERE (
     ($1 <> '' AND recipient_user_id = $1::bigint)
@@ -119,7 +120,7 @@ LIMIT $5 OFFSET $6
 	for rows.Next() {
 		var item MessageItem
 		var createdAt time.Time
-		if err := rows.Scan(&item.ID, &item.MessageType, &item.Title, &item.Content, &item.TargetURL, &item.Status, &createdAt, &result.Total); err != nil {
+		if err := rows.Scan(&item.ID, &item.MessageType, &item.TriggerID, &item.Title, &item.Content, &item.TargetURL, &item.Status, &createdAt, &result.Total); err != nil {
 			return ListMessagesResult{}, err
 		}
 		item.CreatedAt = createdAt.Format(time.RFC3339)

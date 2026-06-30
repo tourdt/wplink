@@ -41,6 +41,27 @@ test('my resources page pins status filters and uses a compact publish action', 
   assert.match(source, /\.publish-fab \{[\s\S]*position: fixed;[\s\S]*right: 24rpx;[\s\S]*bottom: calc\(32rpx \+ env\(safe-area-inset-bottom\)\);/)
 })
 
+test('my resources card actions avoid a visible toolbar frame', () => {
+  assert.match(source, /<button v-if="isActivePublished\(item\)" class="primary-action" @click="refresh\(item\)">刷新<\/button>/)
+  assert.match(source, /\.action-row \{[\s\S]*gap: 10rpx;[\s\S]*padding-top: 14rpx;[\s\S]*border-top: 1rpx solid #eef2f7;/)
+  assert.doesNotMatch(source, /\.action-row \{[^}]*border-radius:/)
+  assert.doesNotMatch(source, /\.action-row \{[^}]*background:/)
+  assert.doesNotMatch(source, /\.action-row \{[^}]*box-shadow:/)
+  assert.match(source, /\.action-row button \{[\s\S]*min-width: 108rpx;[\s\S]*height: 62rpx;[\s\S]*border: 1rpx solid \$wplink-line;[\s\S]*background: \$wplink-card;[\s\S]*box-shadow: 0 2rpx 4rpx rgba\(15, 23, 42, 0\.04\);/)
+  assert.match(source, /\.action-row button::after \{[\s\S]*border: 0;/)
+  assert.match(source, /\.action-row \.primary-action \{[\s\S]*border-color: #b8c4d4;[\s\S]*background: \$wplink-primary-soft;[\s\S]*color: \$wplink-primary;/)
+  assert.match(source, /\.action-row \.danger-button \{[\s\S]*border-color: #fecdd3;[\s\S]*background: #fff8f8;/)
+  assert.doesNotMatch(source, /\.action-row button \{[\s\S]*background: #edf2f7;/)
+  assert.doesNotMatch(source, /\.action-row \.primary-action \{[\s\S]*background: \$wplink-primary;/)
+})
+
+test('my resources hides the date row when no publish or expiry date exists', () => {
+  assert.match(source, /<text v-if="shouldShowResourceDates\(item\)" class="resource-meta">发布 \{\{ displayDateOrPlaceholder\(item\.publishedAt\) \}\} · 到期 \{\{ displayDateOrPlaceholder\(item\.expiresAt\) \}\}<\/text>/)
+  assert.match(source, /function shouldShowResourceDates\(item\) \{[\s\S]*return Boolean\(item\.publishedAt \|\| item\.expiresAt\)[\s\S]*\}/)
+  assert.match(source, /function displayDateOrPlaceholder\(value\) \{[\s\S]*return value \? formatDateToDay\(value\) : '-'[\s\S]*\}/)
+  assert.doesNotMatch(source, /<text class="resource-meta">发布 \{\{ formatDateToDay\(item\.publishedAt\) \}\} · 到期 \{\{ formatDateToDay\(item\.expiresAt\) \}\}<\/text>/)
+})
+
 test('my resources publish action opens the standalone publish editor', () => {
   assert.match(source, /function openPublish\(\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}` \}\)[\s\S]*\}/)
   assert.doesNotMatch(source, /function openPublish\(\) \{[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)[\s\S]*\}/)

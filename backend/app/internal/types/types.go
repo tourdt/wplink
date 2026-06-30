@@ -552,6 +552,7 @@ type FollowedMerchantItem struct {
 	MerchantType       string   `json:"merchantType"`
 	VerificationStatus string   `json:"verificationStatus"`
 	MainCategories     []string `json:"mainCategories"`
+	LogoUrl            string   `json:"logoUrl,optional"`
 	FollowedAt         string   `json:"followedAt"`
 }
 
@@ -752,6 +753,7 @@ type MerchantResourcesSummary struct {
 type MessageListItem struct {
 	Id          string `json:"id"`
 	MessageType string `json:"messageType"`
+	TriggerId   string `json:"triggerId,optional"`
 	Title       string `json:"title"`
 	Content     string `json:"content"`
 	TargetUrl   string `json:"targetUrl,optional"`
@@ -1116,6 +1118,7 @@ type WechatLoginReq struct {
 }
 
 type WechatLoginResp struct {
-	Token string       `json:"token"`
-	User  AuthUserInfo `json:"user"`
+	Token            string                `json:"token"`
+	User             AuthUserInfo          `json:"user"`
+	ManagedMerchants []ManagedMerchantInfo `json:"managedMerchants"`
 }

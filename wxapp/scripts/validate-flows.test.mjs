@@ -25,6 +25,19 @@ test('launch UI hides matching feature copy', () => {
   assert.equal(visibleSource.includes('撮合'), false)
 })
 
+test('my demand list entry stays hidden from normal wxapp navigation', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const mySource = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
+  const demandSuccessSource = fs.readFileSync(path.join(root, 'pages/demand-success/index.vue'), 'utf8')
+  const messagesSource = fs.readFileSync(path.join(root, 'pages/messages/index.vue'), 'utf8')
+
+  assert.equal(mySource.includes('我的需求'), false)
+  assert.equal(mySource.includes('openMyDemands'), false)
+  assert.equal(demandSuccessSource.includes('我的需求'), false)
+  assert.equal(demandSuccessSource.includes('/pages/my-demands/index'), false)
+  assert.match(messagesSource, /stripQuery\(url\) === '\/pages\/my-demands\/index'/)
+})
+
 test('home banner only overlays labels and title on image', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
@@ -92,13 +105,18 @@ test('resource tab separates recommendation discovery from keyword search page',
     assert.equal(resourceSource.includes(removedToken), false)
   }
 
-  for (const token of ['搜索资源', 'searchResources', 'createSavedSearch', 'applySavedSearch', '暂未找到合适资源', '提交采购需求']) {
+  for (const token of ['searchResources', '暂未找到合适资源', '提交采购需求']) {
     assert.match(searchSource, new RegExp(token))
+  }
+  for (const removedToken of ['createSavedSearch', 'listSavedSearches', 'applySavedSearch', 'saveCurrentSearch', '保存搜索']) {
+    assert.equal(searchSource.includes(removedToken), false)
   }
 
   assert.match(homeSource, /uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
   assert.match(detailSource, /uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
-  assert.match(favoritesSource, /uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
+  for (const removedToken of ['searches', 'savedSearches', 'applySavedSearch', 'deleteSavedSearch', '暂无保存搜索']) {
+    assert.equal(favoritesSource.includes(removedToken), false)
+  }
 })
 
 test('my page separates guest and logged-in account states without merchant binding', () => {
@@ -108,10 +126,10 @@ test('my page separates guest and logged-in account states without merchant bind
   for (const token of [
     'isLoggedIn',
     '未登录',
-    '登录后管理需求、收藏和发布记录',
+    '登录后管理收藏和发布记录',
     '微信登录',
     '我的账号',
-    '已登录，可管理需求、收藏和消息',
+    '已登录，可管理收藏和消息',
     'getLatestVerification',
     'verificationStatusText',
     '待完善',
@@ -128,7 +146,7 @@ test('my page separates guest and logged-in account states without merchant bind
     assert.match(source, new RegExp(token))
   }
 
-  for (const hiddenToken of ['保存身份', '商家 ID', '用户 ID：', '主页配置', 'merchant-actions', '我的权益', '权益提醒', '手机号绑定', '登录后可用', '同步收藏关注', '接收审核和联系消息']) {
+  for (const hiddenToken of ['保存身份', '商家 ID', '用户 ID：', '主页配置', 'merchant-actions', '我的权益', '权益提醒', '手机号绑定', '登录后可用', '同步收藏关注', '接收审核和联系消息', '我的需求', 'openMyDemands']) {
     assert.equal(source.includes(hiddenToken), false)
   }
 })
@@ -143,27 +161,40 @@ test('my page presents merchant workspace and grouped service entries', () => {
     'account-title-main',
     'width: 104rpx',
     'font-size: 38rpx',
-    'quick-entry-grid',
+    'merchant-effect-card',
+    'merchantEffectVisible',
+    'merchantEffectItems',
+    'getMerchantMetricsSummary',
     'common-service-section',
+    '商家本周效果',
+    '近 7 天',
+    '曝光',
+    '浏览',
+    '联系',
     '我的发布',
-    '商家资料',
+    '状态、数据、推广',
     'openMyResources',
     '/pages/my-resources/index',
     'entry-arrow',
-    '发布和推广',
-    '常用服务',
     'verification-status::before',
     'border-radius: 999rpx',
     'min-height: 32rpx',
-    'quick-entry.primary .quick-icon',
   ]) {
     assert.match(source, new RegExp(token))
   }
 
   assert.equal(source.includes('grid-template-columns: 104rpx minmax(0, 1fr)'), true)
-  assert.equal(source.includes('.quick-entry.primary .quick-icon {\n  background: $wplink-warning-soft'), true)
+  assert.equal(source.includes('常用服务'), false)
+  assert.match(source, /<view class="action-list">\s*<view class="action-item" @click="openMyResources">[\s\S]*<text class="action-title">我的发布<\/text>/)
 
   for (const verboseCopy of [
+    '进入我的发布查看每条资源的表现',
+    '进入我的发布查看每条资源表现',
+    'quick-entry-grid',
+    'quick-entry',
+    '发布和推广',
+    '发布资源',
+    'openPublish',
     'quick-entry.primary {\n  background: $wplink-primary',
     'quick-entry.primary .quick-desc {\n  color: rgba(255, 255, 255',
     '商家资料待完善',
@@ -263,6 +294,62 @@ test('my resources page keeps list concise and dates day-only', () => {
 
   assert.match(source, /\.filter-button \{[\s\S]*border: 2rpx solid transparent;[\s\S]*background: #f4f7fd;[\s\S]*transition: background 0\.18s ease, color 0\.18s ease, border-color 0\.18s ease, box-shadow 0\.18s ease;/)
   assert.match(source, /\.filter-button\.active \{[\s\S]*border-color: \$wplink-primary;[\s\S]*background: \$wplink-primary;[\s\S]*color: \$wplink-card;[\s\S]*font-weight: 700;[\s\S]*box-shadow: 0 8rpx 18rpx rgba\(194, 58, 0, 0\.18\);/)
+})
+
+test('favorites page matches my resources filter and supports refresh pagination empty states', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/favorites/index.vue'), 'utf8')
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const favoritesPage = pagesConfig.pages.find((item) => item.path === 'pages/favorites/index')
+
+  assert.equal(favoritesPage?.style?.enablePullDownRefresh, true)
+
+  for (const token of [
+    '<view class="filter-row">',
+    'filter-button',
+    'selectTab(item.value)',
+    'position: fixed;',
+    'top: 0;',
+    'padding-top: 132rpx;',
+    'background: $wplink-card;',
+    'box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.06);',
+    'onPullDownRefresh',
+    'onReachBottom',
+    'uni.stopPullDownRefresh()',
+    'loadRows({ reset: true })',
+    'loadRows({ reset: false })',
+    'page.value',
+    'hasMore.value',
+    'loading.value',
+    'class="empty-state"',
+    'emptyTitle',
+    'emptyDesc',
+    'emptyActionText',
+    'openEmptyAction',
+    '暂无收藏资源',
+    '暂无关注商家',
+    '去找资源',
+    '去找商家',
+    'load-more-text',
+    'listFavoriteResources({ page: nextPage, pageSize })',
+    'listFollowedMerchants({ page: nextPage, pageSize })',
+    "import MerchantBadge from '../../components/MerchantBadge.vue'",
+    '<MerchantBadge :merchant="item" />',
+    'merchantAvatarUrl(item)',
+    'merchantAvatarText(item)',
+    'merchantBusinessText(item)',
+    'mainCategories',
+    'merchant-avatar',
+    'merchant-arrow',
+  ]) {
+    assert.equal(source.includes(token), true)
+  }
+
+  assert.match(source, /\.filter-row \{[\s\S]*position: fixed;[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*background: \$wplink-card;[\s\S]*box-shadow: 0 8rpx 20rpx rgba\(15, 23, 42, 0\.06\);/)
+  assert.match(source, /\.filter-button \{[\s\S]*border: 2rpx solid transparent;[\s\S]*background: #f4f7fd;[\s\S]*transition: background 0\.18s ease, color 0\.18s ease, border-color 0\.18s ease, box-shadow 0\.18s ease;/)
+  assert.match(source, /\.filter-button\.active \{[\s\S]*border-color: \$wplink-primary;[\s\S]*background: \$wplink-primary;[\s\S]*color: \$wplink-card;[\s\S]*font-weight: 700;[\s\S]*box-shadow: 0 8rpx 18rpx rgba\(194, 58, 0, 0\.18\);/)
+  assert.match(source, /\.merchant-item \{[\s\S]*grid-template-columns: 88rpx minmax\(0, 1fr\) 28rpx;[\s\S]*align-items: center;[\s\S]*gap: 18rpx;/)
+  assert.match(source, /\.merchant-info :deep\(\.merchant-badge\) \{[\s\S]*min-width: 0;[\s\S]*flex-wrap: wrap;/)
 })
 
 test('my resources draft resources open editor instead of direct submit', () => {

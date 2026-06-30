@@ -74,6 +74,27 @@ func TestToggleMerchantFollowPersistsState(t *testing.T) {
 	}
 }
 
+func TestListFollowedMerchantsIncludesLogoUrl(t *testing.T) {
+	store := &fakeInteractionStore{
+		followedMerchantsResult: model.ListFollowedMerchantsResult{
+			Items: []model.FollowedMerchantItem{{
+				ID: "merchant-1", Name: "织里优选工厂", MerchantType: "factory", VerificationStatus: "verified",
+				MainCategories: []string{"童装", "针织"}, LogoUrl: "https://img.example.com/logo.png", FollowedAt: "2026-06-30T10:00:00Z",
+			}},
+			Page: 1, PageSize: 20, Total: 1,
+		},
+	}
+	logic := NewInteractionLogic(store)
+
+	resp, err := logic.ListFollowedMerchants(context.Background(), " user-1 ", ListInteractionReq{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("ListFollowedMerchants() error = %v", err)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].LogoUrl != "https://img.example.com/logo.png" {
+		t.Fatalf("ListFollowedMerchants() items = %+v, want logoUrl", resp.Items)
+	}
+}
+
 func TestCreateSavedSearchRequiresSearchCondition(t *testing.T) {
 	logic := NewInteractionLogic(&fakeInteractionStore{})
 
@@ -103,6 +124,7 @@ type fakeInteractionStore struct {
 	merchantInput             model.MerchantFollowInput
 	savedSearchInput          model.SavedSearchInput
 	savedSearchResult         model.SavedSearchResult
+	followedMerchantsResult   model.ListFollowedMerchantsResult
 	resourceOwnedByUser       bool
 	setResourceFavoriteCalled bool
 }
@@ -135,6 +157,9 @@ func (s *fakeInteractionStore) GetMerchantFollowState(ctx context.Context, userI
 }
 
 func (s *fakeInteractionStore) ListFollowedMerchants(ctx context.Context, userID string, filter model.ListInteractionFilter) (model.ListFollowedMerchantsResult, error) {
+	if s.followedMerchantsResult.Items != nil {
+		return s.followedMerchantsResult, nil
+	}
 	return model.ListFollowedMerchantsResult{Page: 1, PageSize: 20}, nil
 }
 

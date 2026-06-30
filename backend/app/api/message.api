@@ -12,6 +12,7 @@ type ListMessagesReq {
 type MessageListItem {
 	Id          string `json:"id"`
 	MessageType string `json:"messageType"`
+	TriggerId   string `json:"triggerId,optional"`
 	Title       string `json:"title"`
 	Content     string `json:"content"`
 	TargetUrl   string `json:"targetUrl,optional"`

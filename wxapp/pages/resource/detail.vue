@@ -11,13 +11,29 @@
 
     <view v-else class="detail-content">
       <view class="detail-gallery">
-        <image v-if="mainImage" class="gallery-main" :src="mainImage" mode="aspectFill" />
+        <swiper
+          v-if="galleryImages.length > 1"
+          class="gallery-main gallery-swiper"
+          indicator-dots
+          indicator-color="rgba(255, 255, 255, 0.55)"
+          indicator-active-color="#ffffff"
+          :current="selectedGalleryIndex"
+          @change="handleGalleryChange"
+        >
+          <swiper-item v-for="(url, index) in galleryImages" :key="`${url}-${index}`">
+            <image class="gallery-slide-image" :src="url" mode="aspectFill" @click="previewGalleryImage(index)" />
+          </swiper-item>
+        </swiper>
+        <image
+          v-else-if="mainImage"
+          class="gallery-main"
+          :src="mainImage"
+          mode="aspectFill"
+          @click="previewGalleryImage(0)"
+        />
         <view v-else class="gallery-main gallery-placeholder">
           <text>{{ resource.category || '资源实拍' }}</text>
         </view>
-        <scroll-view v-if="galleryImages.length > 1" class="gallery-strip" scroll-x>
-          <image v-for="url in galleryImages" :key="url" class="gallery-thumb" :src="url" mode="aspectFill" />
-        </scroll-view>
       </view>
 
       <view class="resource-card">
@@ -97,6 +113,7 @@ const favorited = ref(false)
 const isOwnResource = ref(false)
 const ownerMerchantId = ref('')
 const resourceUnavailable = ref(false)
+const selectedGalleryIndex = ref(0)
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const merchantTypeText = {
   factory: '工厂',
@@ -134,7 +151,7 @@ const galleryImages = computed(() => {
   const cover = resource.value.coverUrl ? [resource.value.coverUrl] : []
   return [...cover, ...images].filter(Boolean)
 })
-const mainImage = computed(() => galleryImages.value[0] || '')
+const mainImage = computed(() => galleryImages.value[selectedGalleryIndex.value] || galleryImages.value[0] || '')
 const specItems = computed(() => [
   { label: '品类', value: resource.value.category || '待沟通' },
   { label: '数量', value: resource.value.quantityText || '待沟通' },
@@ -148,6 +165,7 @@ onLoad(async (options) => {
   ownerMerchantId.value = options.merchantId || ''
   isOwnResource.value = options.from === 'my-resources' || Boolean(ownerMerchantId.value)
   resourceUnavailable.value = false
+  selectedGalleryIndex.value = 0
   try {
     resource.value = isOwnResource.value ? await getOwnResource(options.id, ownerMerchantId.value, { suppressErrorToast: true }) : await getResource(options.id, { suppressErrorToast: true })
   } catch (err) {
@@ -156,6 +174,7 @@ onLoad(async (options) => {
     }
     resourceUnavailable.value = true
     resource.value = {}
+    selectedGalleryIndex.value = 0
     return
   }
   await loadMerchantProfile()
@@ -174,10 +193,25 @@ async function loadOwnResourceIfCurrentMerchant(resourceId) {
     resource.value = await getOwnResource(resourceId, session.merchantId, { suppressErrorToast: true })
     isOwnResource.value = true
     resourceUnavailable.value = false
+    selectedGalleryIndex.value = 0
     return true
   } catch (err) {
     return false
   }
+}
+
+function handleGalleryChange(event) {
+  const current = Number(event.detail?.current) || 0
+  selectedGalleryIndex.value = current
+}
+
+function previewGalleryImage(index = selectedGalleryIndex.value) {
+  if (!galleryImages.value.length) return
+  const current = galleryImages.value[index] || galleryImages.value[0]
+  uni.previewImage({
+    current,
+    urls: galleryImages.value,
+  })
 }
 
 async function loadMerchantProfile() {
@@ -357,6 +391,13 @@ onShareAppMessage(() => ({
   height: 420rpx;
   border-radius: 12rpx;
   background: #edf2f7;
+  overflow: hidden;
+}
+
+.gallery-slide-image {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .gallery-placeholder {
@@ -370,20 +411,6 @@ onShareAppMessage(() => ({
   color: $wplink-card;
   font-size: 30rpx;
   font-weight: 700;
-}
-
-.gallery-strip {
-  width: 100%;
-  white-space: nowrap;
-}
-
-.gallery-thumb {
-  display: inline-block;
-  width: 132rpx;
-  height: 132rpx;
-  margin-right: 12rpx;
-  border-radius: 10rpx;
-  background: #edf2f7;
 }
 
 .tag-row {

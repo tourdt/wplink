@@ -29,6 +29,10 @@ func TestAuthAPIRouterRunsLoginMeAndBindPhoneFlow(t *testing.T) {
 	if loginData["token"] != "user-token" {
 		t.Fatalf("login data = %#v, want user-token", loginData)
 	}
+	loginMerchants, ok := loginData["managedMerchants"].([]interface{})
+	if !ok || len(loginMerchants) != 1 {
+		t.Fatalf("login managed merchants = %#v, want one merchant", loginData["managedMerchants"])
+	}
 	if wechatClient.code != "wx-code" {
 		t.Fatalf("wechat code = %q, want trimmed code", wechatClient.code)
 	}

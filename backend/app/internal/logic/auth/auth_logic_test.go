@@ -30,6 +30,9 @@ func TestWechatLoginCreatesUserAndIssuesToken(t *testing.T) {
 	if resp.Token != "user-token" || resp.User.ID != "user-1" {
 		t.Fatalf("resp = %#v, want token and user", resp)
 	}
+	if len(resp.ManagedMerchants) != 1 || resp.ManagedMerchants[0].ID != "merchant-1" {
+		t.Fatalf("managed merchants = %#v, want merchant-1", resp.ManagedMerchants)
+	}
 }
 
 func TestMeLogicReturnsProfileAndManagedMerchants(t *testing.T) {

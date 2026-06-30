@@ -13,6 +13,9 @@ test('messages page removes top copy and keeps only effective status filters', (
   assert.doesNotMatch(source, /hero-desc/)
   assert.doesNotMatch(source, /消息和效果/)
   assert.doesNotMatch(source, /关注审核、过期、需求跟进和资源表现/)
+  assert.doesNotMatch(source, /商家本周效果/)
+  assert.doesNotMatch(source, /effect-card/)
+  assert.doesNotMatch(source, /查看我的资源/)
   assert.match(source, /const messageTabs = \[[\s\S]*\{ label: '全部', status: '' \}[\s\S]*\{ label: '未读', status: 'unread' \}[\s\S]*\{ label: '已读', status: 'read' \}[\s\S]*\]/)
   assert.doesNotMatch(source, /\{ label: '审核'/)
   assert.doesNotMatch(source, /\{ label: '效果'/)
@@ -50,8 +53,22 @@ test('messages page supports pull refresh and load more pagination', () => {
   assert.match(source, /function selectStatus\(status\) \{[\s\S]*loadRows\(\{ reset: true \}\)[\s\S]*\}/)
 })
 
+test('messages page shows empty placeholder when current list has no rows', () => {
+  assert.match(source, /v-if="!loading && !rows\.length" class="empty-placeholder"/)
+  assert.match(source, /<text class="empty-title">\{\{ emptyTitle \}\}<\/text>/)
+  assert.match(source, /const emptyTitle = computed\(\(\) => \{[\s\S]*if \(filters\.status === 'unread'\) return '暂无未读消息'[\s\S]*if \(filters\.status === 'read'\) return '暂无已读消息'[\s\S]*return '暂无消息'[\s\S]*\}\)/)
+  assert.match(source, /\.empty-placeholder \{[\s\S]*min-height: 360rpx;[\s\S]*align-items: center;[\s\S]*justify-content: center;[\s\S]*background: \$wplink-card;/)
+  assert.match(source, /\.empty-title \{[\s\S]*color: \$wplink-muted;[\s\S]*font-size: 28rpx;/)
+})
+
 test('messages page enables native pull down refresh in page config', () => {
   const page = pagesConfig.pages.find((entry) => entry.path === 'pages/messages/index')
 
   assert.equal(page?.style?.enablePullDownRefresh, true)
+})
+
+test('messages page builds resource detail target from resource message trigger id', () => {
+  assert.match(source, /const resourceMessageTypes = new Set\(\[[\s\S]*'resource_review'[\s\S]*'resource_lifecycle'[\s\S]*'resource_expired'[\s\S]*'resource_expiring'[\s\S]*'effect_feedback'[\s\S]*\]\)/)
+  assert.match(source, /function buildMessageTargetUrl\(item\) \{[\s\S]*if \(resourceMessageTypes\.has\(item\.messageType\) && item\.triggerId\)[\s\S]*return `\/pages\/resource\/detail\?id=\$\{encodeURIComponent\(item\.triggerId\)\}&merchantId=\$\{encodeURIComponent\(merchantId\)\}&from=my-resources`[\s\S]*return item\.targetUrl[\s\S]*\}/)
+  assert.match(source, /const targetUrl = normalizeTargetUrl\(buildMessageTargetUrl\(item\)\)/)
 })

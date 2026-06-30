@@ -29,6 +29,7 @@ type FollowedMerchantItem {
 	MerchantType       string   `json:"merchantType"`
 	VerificationStatus string   `json:"verificationStatus"`
 	MainCategories     []string `json:"mainCategories"`
+	LogoUrl            string   `json:"logoUrl,optional"`
 	FollowedAt         string   `json:"followedAt"`
 }
 

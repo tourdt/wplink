@@ -25,6 +25,7 @@ type ListMessagesReq struct {
 type MessageListItem struct {
 	ID          string `json:"id"`
 	MessageType string `json:"messageType"`
+	TriggerID   string `json:"triggerId,omitempty"`
 	Title       string `json:"title"`
 	Content     string `json:"content"`
 	TargetURL   string `json:"targetUrl,omitempty"`
@@ -77,7 +78,7 @@ func (l *ListMessagesLogic) ListMessages(ctx context.Context, req ListMessagesRe
 	items := make([]MessageListItem, 0, len(result.Items))
 	for _, item := range result.Items {
 		items = append(items, MessageListItem{
-			ID: item.ID, MessageType: item.MessageType, Title: item.Title, Content: item.Content,
+			ID: item.ID, MessageType: item.MessageType, TriggerID: item.TriggerID, Title: item.Title, Content: item.Content,
 			TargetURL: item.TargetURL, Status: item.Status, CreatedAt: item.CreatedAt,
 		})
 	}

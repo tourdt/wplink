@@ -20,35 +20,19 @@
         </view>
         <text class="message-content">{{ item.content }}</text>
         <text class="message-time">{{ item.createdAt }}</text>
-        <text v-if="item.targetUrl" class="target-hint">查看详情</text>
+        <text v-if="canOpenTarget(item)" class="target-hint">查看详情</text>
+      </view>
+      <view v-if="!loading && !rows.length" class="empty-placeholder">
+        <text class="empty-title">{{ emptyTitle }}</text>
       </view>
       <text v-if="rows.length" class="load-more-text">{{ loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了' }}</text>
     </view>
 
-    <view class="effect-card">
-      <text class="effect-title">商家本周效果</text>
-      <view class="effect-grid">
-        <view class="effect-item">
-          <text class="effect-value">386</text>
-          <text class="effect-label">曝光</text>
-        </view>
-        <view class="effect-item">
-          <text class="effect-value">52</text>
-          <text class="effect-label">浏览</text>
-        </view>
-        <view class="effect-item">
-          <text class="effect-value">9</text>
-          <text class="effect-label">联系</text>
-        </view>
-      </view>
-      <text class="effect-tip">联系率高的资源可刷新或使用置顶券延长曝光。</text>
-      <button @click="openMyResources">查看我的资源</button>
-    </view>
   </view>
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { onLoad, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import { getSession } from '../../store/session'
 import { listMessages, readMessage } from '../../api/message'
@@ -67,7 +51,19 @@ const messageTabs = [
   { label: '未读', status: 'unread' },
   { label: '已读', status: 'read' },
 ]
+const resourceMessageTypes = new Set([
+  'resource_review',
+  'resource_lifecycle',
+  'resource_expired',
+  'resource_expiring',
+  'effect_feedback',
+])
 const tabPagePaths = ['/pages/home/index', '/pages/search/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
+const emptyTitle = computed(() => {
+  if (filters.status === 'unread') return '暂无未读消息'
+  if (filters.status === 'read') return '暂无已读消息'
+  return '暂无消息'
+})
 
 onLoad((options) => {
   const session = getSession()
@@ -143,7 +139,7 @@ async function openMessageTarget(item) {
   } catch (err) {
     uni.showToast({ title: err.message || '消息已读状态更新失败', icon: 'none' })
   }
-  const targetUrl = normalizeTargetUrl(item.targetUrl)
+  const targetUrl = normalizeTargetUrl(buildMessageTargetUrl(item))
   if (!targetUrl) return
   if (isTabPage(targetUrl)) {
     uni.switchTab({ url: stripQuery(targetUrl) })
@@ -152,10 +148,39 @@ async function openMessageTarget(item) {
   uni.navigateTo({ url: targetUrl })
 }
 
+function buildMessageTargetUrl(item) {
+  if (resourceMessageTypes.has(item.messageType) && item.triggerId) {
+    const merchantId = getMessageMerchantId(item)
+    if (!merchantId) return item.targetUrl
+    return `/pages/resource/detail?id=${encodeURIComponent(item.triggerId)}&merchantId=${encodeURIComponent(merchantId)}&from=my-resources`
+  }
+  return item.targetUrl
+}
+
+function getMessageMerchantId(item) {
+  if (roleCode.value.startsWith('merchant:')) return roleCode.value.slice('merchant:'.length)
+  return getQueryParam(item.targetUrl, 'merchantId')
+}
+
+function getQueryParam(targetUrl, key) {
+  const query = String(targetUrl || '').split('?')[1] || ''
+  const pairs = query.split('&').filter(Boolean)
+  for (const pair of pairs) {
+    const [rawKey, rawValue = ''] = pair.split('=')
+    if (decodeURIComponent(rawKey) === key) return decodeURIComponent(rawValue)
+  }
+  return ''
+}
+
 function normalizeTargetUrl(targetUrl) {
   const url = String(targetUrl || '').trim()
   if (!url || !url.startsWith('/pages/')) return ''
+  if (stripQuery(url) === '/pages/my-demands/index') return ''
   return url
+}
+
+function canOpenTarget(item) {
+  return Boolean(normalizeTargetUrl(buildMessageTargetUrl(item)))
 }
 
 function isTabPage(targetUrl) {
@@ -166,9 +191,6 @@ function stripQuery(targetUrl) {
   return targetUrl.split('?')[0]
 }
 
-function openMyResources() {
-  uni.navigateTo({ url: '/pages/my-resources/index' })
-}
 </script>
 
 <style lang="scss" scoped>
@@ -233,6 +255,21 @@ function openMyResources() {
   font-size: 24rpx;
   line-height: 1.5;
   text-align: center;
+}
+
+.empty-placeholder {
+  display: flex;
+  min-height: 360rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12rpx;
+  background: $wplink-card;
+}
+
+.empty-title {
+  color: $wplink-muted;
+  font-size: 28rpx;
+  line-height: 1.5;
 }
 
 .message-card {
@@ -300,55 +337,4 @@ function openMyResources() {
   font-size: 24rpx;
 }
 
-.effect-card {
-  display: grid;
-  gap: 16rpx;
-  padding: 24rpx;
-  border-radius: 12rpx;
-  background: $wplink-card;
-}
-
-.effect-title {
-  color: $wplink-primary;
-  font-size: 32rpx;
-  font-weight: 700;
-}
-
-.effect-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12rpx;
-}
-
-.effect-item {
-  display: grid;
-  gap: 6rpx;
-  padding: 18rpx;
-  border-radius: 10rpx;
-  background: #f8fafc;
-  text-align: center;
-}
-
-.effect-value {
-  color: $wplink-primary;
-  font-size: 34rpx;
-  font-weight: 700;
-}
-
-.effect-label,
-.effect-tip {
-  color: $wplink-muted;
-  font-size: 24rpx;
-  line-height: 1.5;
-}
-
-.effect-card button {
-  height: 80rpx;
-  border-radius: 10rpx;
-  background: $wplink-primary-soft;
-  color: $wplink-primary;
-  font-size: 28rpx;
-  font-weight: 700;
-  line-height: 1.25;
-}
 </style>

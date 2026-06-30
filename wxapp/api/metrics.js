@@ -8,9 +8,10 @@ export function getResourceMetrics(resourceId, params = {}) {
   })
 }
 
-export function getMerchantMetricsSummary(merchantId) {
+export function getMerchantMetricsSummary(merchantId, options = {}) {
   return request({
     url: `/api/v1/merchants/${merchantId}/metrics/summary`,
     method: 'GET',
+    suppressErrorToast: options.suppressErrorToast,
   })
 }

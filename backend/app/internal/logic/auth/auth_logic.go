@@ -38,8 +38,9 @@ type AuthUserInfo struct {
 }
 
 type WechatLoginResp struct {
-	Token string       `json:"token"`
-	User  AuthUserInfo `json:"user"`
+	Token            string                `json:"token"`
+	User             AuthUserInfo          `json:"user"`
+	ManagedMerchants []ManagedMerchantInfo `json:"managedMerchants"`
 }
 
 type ManagedMerchantInfo struct {
@@ -118,7 +119,11 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 		return WechatLoginResp{}, err
 	}
 	profile.Roles = roles
-	return WechatLoginResp{Token: token, User: authUserInfoFromProfile(profile)}, nil
+	return WechatLoginResp{
+		Token:            token,
+		User:             authUserInfoFromProfile(profile),
+		ManagedMerchants: managedMerchantInfosFromProfile(profile),
+	}, nil
 }
 
 type MeLogic struct {
@@ -220,20 +225,24 @@ func authUserInfoFromProfile(profile model.UserProfile) AuthUserInfo {
 	}
 }
 
-func meRespFromProfile(profile model.UserProfile) MeResp {
+func managedMerchantInfosFromProfile(profile model.UserProfile) []ManagedMerchantInfo {
 	managedMerchants := make([]ManagedMerchantInfo, 0, len(profile.ManagedMerchants))
 	for _, merchant := range profile.ManagedMerchants {
 		managedMerchants = append(managedMerchants, ManagedMerchantInfo{
 			ID: merchant.ID, Name: merchant.Name, Role: merchant.Role,
 		})
 	}
+	return managedMerchants
+}
+
+func meRespFromProfile(profile model.UserProfile) MeResp {
 	return MeResp{
 		ID:               profile.ID,
 		Phone:            profile.Phone,
 		Nickname:         profile.Nickname,
 		DefaultCityCode:  profile.DefaultCityCode,
 		Roles:            normalizedRoles(profile.Roles),
-		ManagedMerchants: managedMerchants,
+		ManagedMerchants: managedMerchantInfosFromProfile(profile),
 	}
 }
 

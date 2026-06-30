@@ -43,25 +43,3 @@ export function listFollowedMerchants(params = {}) {
     data: params,
   })
 }
-
-export function listSavedSearches(params = {}) {
-  return request({
-    url: '/api/v1/me/saved-searches',
-    data: params,
-  })
-}
-
-export function createSavedSearch(data) {
-  return request({
-    url: '/api/v1/me/saved-searches',
-    method: 'POST',
-    data,
-  })
-}
-
-export function deleteSavedSearch(savedSearchId) {
-  return request({
-    url: `/api/v1/me/saved-searches/${savedSearchId}`,
-    method: 'DELETE',
-  })
-}

@@ -14,8 +14,9 @@ type AuthUserInfo {
 }
 
 type WechatLoginResp {
-	Token string       `json:"token"`
-	User  AuthUserInfo `json:"user"`
+	Token            string                `json:"token"`
+	User             AuthUserInfo          `json:"user"`
+	ManagedMerchants []ManagedMerchantInfo `json:"managedMerchants"`
 }
 
 type ManagedMerchantInfo {

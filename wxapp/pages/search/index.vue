@@ -1,29 +1,36 @@
 <template>
   <view class="resource-page">
-    <view class="search-entry" @click="openSearchPage()">
-      <text class="search-placeholder">搜索库存、货源、工厂、服务</text>
-      <text class="search-action">搜索</text>
-    </view>
+    <view class="resource-toolbar">
+      <view class="search-entry" @click="openSearchPage()">
+        <text class="search-placeholder">搜索库存、货源、工厂、服务</text>
+        <text class="search-action">搜索</text>
+      </view>
 
-    <view class="filter-shell">
-      <scroll-view class="filter-row" scroll-x>
-        <button
-          v-for="item in visibleResourceTypes"
-          :key="item.value"
-          :class="['filter-button', item.value === filters.typeCode ? 'active' : '']"
-          @click="selectType(item.value)"
+      <view class="filter-shell">
+        <scroll-view
+          class="filter-row"
+          scroll-x
+          scroll-with-animation
+          :scroll-into-view="scrollIntoTypeId"
         >
-          {{ item.label }}
+          <button
+            v-for="item in visibleResourceTypes"
+            :key="item.value"
+            :id="getTypeButtonId(item.value)"
+            :class="['filter-button', item.value === filters.typeCode ? 'active' : '']"
+            @click="selectType(item.value)"
+          >
+            {{ item.label }}
+          </button>
+        </scroll-view>
+        <button
+          v-if="resourceTypes.length > 1"
+          class="all-type-button"
+          @click="openTypeDrawer"
+        >
+          全部分类
         </button>
-      </scroll-view>
-      <button
-        v-if="resourceTypes.length > visibleResourceTypes.length"
-        class="all-type-button"
-        @click="openTypeDrawer"
-      >
-        全部分类
-      </button>
-    </view>
+      </view>
     </view>
 
     <view v-if="rows.length" class="result-list">
@@ -64,7 +71,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
@@ -72,7 +79,6 @@ import { listCityResourceTypes } from '../../api/city'
 import { listResources } from '../../api/resource'
 
 const resourceTypes = ref([{ label: '全部', value: '' }])
-const MAX_VISIBLE_RESOURCE_TYPES = 6
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const PAGE_TITLE = '资源推荐'
 const rows = ref([])
@@ -86,7 +92,8 @@ const filters = reactive({
   typeCode: '',
 })
 const showTypeDrawer = ref(false)
-const visibleResourceTypes = computed(() => resourceTypes.value.slice(0, MAX_VISIBLE_RESOURCE_TYPES))
+const scrollIntoTypeId = ref('')
+const visibleResourceTypes = computed(() => resourceTypes.value)
 
 onLoad(initResourcePage)
 
@@ -142,7 +149,22 @@ async function loadRecommendedResources({ reset = true } = {}) {
 async function selectType(typeCode) {
   filters.typeCode = typeCode
   showTypeDrawer.value = false
+  await scrollToSelectedType(typeCode)
   await loadRecommendedResources({ reset: true })
+}
+
+function getTypeButtonId(typeCode) {
+  const key = typeCode || 'all'
+  return `resource-type-${String(key).replace(/[^a-zA-Z0-9_-]/g, '-')}`
+}
+
+async function scrollToSelectedType(typeCode = filters.typeCode) {
+  const nextId = getTypeButtonId(typeCode)
+  if (scrollIntoTypeId.value === nextId) {
+    scrollIntoTypeId.value = ''
+    await nextTick()
+  }
+  scrollIntoTypeId.value = nextId
 }
 
 function openTypeDrawer() {
@@ -176,6 +198,17 @@ function openDemand() {
   min-height: 100vh;
   padding: 24rpx;
   background: $wplink-bg;
+}
+
+.resource-toolbar {
+  position: sticky;
+  position: -webkit-sticky;
+  top: 0;
+  z-index: 20;
+  margin: -24rpx -24rpx 16rpx;
+  padding: 24rpx 24rpx 16rpx;
+  background: $wplink-bg;
+  box-shadow: 0 10rpx 18rpx rgba(32, 42, 68, 0.06);
 }
 
 .search-entry {
@@ -212,7 +245,6 @@ function openDemand() {
   display: flex;
   align-items: center;
   gap: 12rpx;
-  margin-bottom: 16rpx;
 }
 
 .filter-row {

@@ -19,7 +19,6 @@
       <view class="success-actions">
         <button class="wplink-primary-button action-button" @click="openMessages">查看消息</button>
         <view class="secondary-action-row">
-          <button class="wplink-secondary-button action-button" @click="openMyDemands">我的需求</button>
           <button class="wplink-secondary-button action-button" @click="backHome">返回首页</button>
         </view>
       </view>
@@ -30,10 +29,6 @@
 <script setup>
 function openMessages() {
   uni.switchTab({ url: '/pages/messages/index' })
-}
-
-function openMyDemands() {
-  uni.navigateTo({ url: '/pages/my-demands/index' })
 }
 
 function backHome() {
@@ -132,7 +127,6 @@ function backHome() {
 
 .secondary-action-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14rpx;
 }
 

@@ -39,6 +39,7 @@ type FollowedMerchantItem struct {
 	MerchantType       string
 	VerificationStatus string
 	MainCategories     []string
+	LogoUrl            string
 	FollowedAt         string
 }
 
@@ -214,6 +215,7 @@ SELECT
   m.merchant_type,
   m.verification_status,
   m.main_categories,
+  COALESCE(m.logo_url, ''),
   ufm.updated_at,
   COUNT(*) OVER() AS total
 FROM user_followed_merchants ufm
@@ -235,7 +237,7 @@ LIMIT $2 OFFSET $3
 		var item FollowedMerchantItem
 		var categories JSONStringSlice
 		var followedAt time.Time
-		if err := rows.Scan(&item.ID, &item.Name, &item.MerchantType, &item.VerificationStatus, &categories, &followedAt, &result.Total); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name, &item.MerchantType, &item.VerificationStatus, &categories, &item.LogoUrl, &followedAt, &result.Total); err != nil {
 			return ListFollowedMerchantsResult{}, err
 		}
 		item.MainCategories = []string(categories)

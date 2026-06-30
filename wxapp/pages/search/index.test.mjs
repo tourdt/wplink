@@ -28,10 +28,14 @@ test('resource recommendation page supports pull refresh and load more paginatio
   assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
 })
 
-test('resource recommendation page keeps common categories compact and opens all categories drawer', () => {
+test('resource recommendation page shows all categories and scrolls selected category into view', () => {
   for (const token of [
     'visibleResourceTypes',
-    'MAX_VISIBLE_RESOURCE_TYPES',
+    'scrollIntoTypeId',
+    'scrollToSelectedType',
+    'getTypeButtonId',
+    'scroll-into-view',
+    'scroll-with-animation',
     'showTypeDrawer',
     'openTypeDrawer',
     'closeTypeDrawer',
@@ -44,7 +48,9 @@ test('resource recommendation page keeps common categories compact and opens all
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 
-  assert.match(source, /v-for="item in visibleResourceTypes"/)
-  assert.match(source, /v-if="resourceTypes\.length > visibleResourceTypes\.length"/)
-  assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypeDrawer\.value = false[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
+  assert.match(source, /visibleResourceTypes = computed\(\(\) => resourceTypes\.value\)/)
+  assert.match(source, /v-for="item in visibleResourceTypes"[\s\S]*:id="getTypeButtonId\(item\.value\)"/)
+  assert.doesNotMatch(source, /MAX_VISIBLE_RESOURCE_TYPES/)
+  assert.doesNotMatch(source, /resourceTypes\.value\.slice/)
+  assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypeDrawer\.value = false[\s\S]*scrollToSelectedType\(typeCode\)[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
 })
