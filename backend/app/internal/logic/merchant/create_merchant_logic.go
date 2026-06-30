@@ -56,6 +56,9 @@ func (l *CreateMerchantLogic) CreateMerchant(ctx context.Context, req CreateMerc
 	if input.CityCode == "" || input.Name == "" || input.MerchantType == "" || len(input.MainCategories) == 0 {
 		return CreateMerchantResp{}, errx.New(errx.CodeValidationFailed, "请补充商家名称、类型和主营品类")
 	}
+	if err := validateMerchantName(input.Name); err != nil {
+		return CreateMerchantResp{}, err
+	}
 	if input.ContactPhone != "" && !isValidContactPhone(input.ContactPhone) {
 		return CreateMerchantResp{}, errx.New(errx.CodeValidationFailed, "手机号格式不正确")
 	}

@@ -239,6 +239,41 @@ type ListMyResourcesResult struct {
 	Total    int64
 }
 
+const listMyResourcesSQL = `
+SELECT
+  r.id::text,
+  r.type_code,
+  r.title,
+  r.category,
+  r.status,
+  COALESCE(r.reject_reason, ''),
+  r.published_at,
+  r.expires_at,
+  r.dealt_at,
+  COALESCE(SUM(rmd.exposure_count), 0),
+  COALESCE(SUM(rmd.detail_view_count), 0),
+  COALESCE(SUM(rmd.phone_click_count), 0),
+  COALESCE(SUM(rmd.wechat_copy_count), 0),
+  COUNT(*) OVER() AS total
+FROM resources r
+LEFT JOIN resource_metrics_daily rmd ON rmd.resource_id = r.id
+WHERE r.merchant_id = $1
+  AND r.deleted_at IS NULL
+  AND (
+    $2 = ''
+    OR ($2 = 'needs_action' AND r.status IN ('draft', 'pending', 'rejected'))
+    OR ($2 = 'showing' AND r.status = 'published' AND r.dealt_at IS NULL AND (r.expires_at IS NULL OR r.expires_at > now()))
+    OR ($2 = 'ended' AND (r.status IN ('expired', 'taken_down') OR r.dealt_at IS NOT NULL OR (r.expires_at IS NOT NULL AND r.expires_at <= now())))
+    OR ($2 = 'expiring_soon' AND r.status = 'published' AND r.expires_at IS NOT NULL AND r.expires_at <= now() + interval '3 days' AND r.expires_at > now())
+    OR ($2 = 'expired' AND ((r.expires_at IS NOT NULL AND r.expires_at <= now()) OR r.status = 'expired'))
+    OR ($2 = 'dealt' AND r.dealt_at IS NOT NULL)
+    OR r.status = $2
+  )
+GROUP BY r.id
+ORDER BY r.updated_at DESC
+LIMIT $3 OFFSET $4
+`
+
 type ResourceOwnershipStatus struct {
 	ID         string
 	MerchantID string
@@ -822,37 +857,7 @@ LIMIT $4 OFFSET $5
 func (m *ResourceModel) ListMyResources(ctx context.Context, filter ListMyResourcesFilter) (ListMyResourcesResult, error) {
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize
-	rows, err := m.db.QueryContext(ctx, `
-SELECT
-  r.id::text,
-  r.type_code,
-  r.title,
-  r.category,
-  r.status,
-  COALESCE(r.reject_reason, ''),
-  r.published_at,
-  r.expires_at,
-  r.dealt_at,
-  COALESCE(SUM(rmd.exposure_count), 0),
-  COALESCE(SUM(rmd.detail_view_count), 0),
-  COALESCE(SUM(rmd.phone_click_count), 0),
-  COALESCE(SUM(rmd.wechat_copy_count), 0),
-  COUNT(*) OVER() AS total
-FROM resources r
-LEFT JOIN resource_metrics_daily rmd ON rmd.resource_id = r.id
-WHERE r.merchant_id = $1
-  AND r.deleted_at IS NULL
-  AND (
-    $2 = ''
-    OR ($2 = 'expiring_soon' AND r.status = 'published' AND r.expires_at IS NOT NULL AND r.expires_at <= now() + interval '3 days' AND r.expires_at > now())
-    OR ($2 = 'expired' AND ((r.expires_at IS NOT NULL AND r.expires_at <= now()) OR r.status = 'expired'))
-    OR ($2 = 'dealt' AND r.dealt_at IS NOT NULL)
-    OR r.status = $2
-  )
-GROUP BY r.id
-ORDER BY r.updated_at DESC
-LIMIT $3 OFFSET $4
-`, filter.MerchantID, filter.Status, pageSize, offset)
+	rows, err := m.db.QueryContext(ctx, listMyResourcesSQL, filter.MerchantID, filter.Status, pageSize, offset)
 	if err != nil {
 		return ListMyResourcesResult{}, err
 	}

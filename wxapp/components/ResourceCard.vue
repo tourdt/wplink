@@ -1,32 +1,32 @@
 <template>
   <view :class="['resource-card', variantClass]" @click="$emit('open', resource)">
-    <image v-if="coverUrl" class="resource-thumb" :src="coverUrl" mode="aspectFill" />
-    <view v-else class="resource-thumb placeholder-thumb">
-      <text>{{ typeLabel }}</text>
+    <view class="thumb-wrap">
+      <image v-if="coverUrl" class="resource-thumb" :src="coverUrl" mode="aspectFill" />
+      <view v-else class="resource-thumb placeholder-thumb">
+        <text v-if="resourceTypeLabel" class="type-corner">{{ resourceTypeLabel }}</text>
+      </view>
+      <text v-if="coverUrl && resourceTypeLabel" class="type-corner">{{ resourceTypeLabel }}</text>
     </view>
     <view class="card-main">
-      <view class="tag-row">
-        <text v-if="isVerifiedMerchant" class="tag verified">已认证</text>
-        <text v-if="hasCreditTags" class="tag verified">平台核实</text>
-        <text v-if="resource.typeCode" class="tag">{{ resource.typeCode }}</text>
-      </view>
-      <text class="resource-title">{{ resource.title || '资源标题待完善' }}</text>
-      <text class="resource-meta">{{ resource.category || '品类待沟通' }} · {{ resource.quantityText || '数量待沟通' }}</text>
-      <view class="card-foot">
-        <text class="resource-price">{{ resource.priceText || '价格面议' }}</text>
-        <text class="resource-action">查看详情</text>
-      </view>
-      <view class="merchant-row">
+      <view class="merchant-line">
+        <text v-if="isVerifiedMerchant" class="verified-badge">已认证</text>
         <text class="merchant-name">{{ merchantName }}</text>
         <text class="refresh-time">{{ formatRefreshedAt(resource.refreshedAt) }}</text>
       </view>
-      <text class="decision-tip">{{ decisionTip }}</text>
+      <text class="resource-title">{{ resource.title || '资源标题待完善' }}</text>
+      <view class="meta-price-line">
+        <text class="resource-meta">{{ resource.category || '品类待沟通' }} · {{ resource.quantityText || '数量待沟通' }}</text>
+        <text class="resource-price">{{ resource.priceText || '价格面议' }}</text>
+      </view>
     </view>
   </view>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+
+import { formatListFreshnessDate } from '../common/date'
+import { resourceTypeText } from '../common/enums'
 
 const props = defineProps({
   resource: {
@@ -41,7 +41,6 @@ const props = defineProps({
 
 defineEmits(['open'])
 
-const hasCreditTags = computed(() => Array.isArray(props.resource.creditTags) && props.resource.creditTags.length > 0)
 const variantClass = computed(() => {
   if (props.variant === 'home') return 'resource-card-home'
   if (props.variant === 'compact') return 'resource-card-compact'
@@ -53,17 +52,10 @@ const coverUrl = computed(() => {
 })
 const isVerifiedMerchant = computed(() => (props.resource.merchant || {}).verificationStatus === 'verified')
 const merchantName = computed(() => (props.resource.merchant || {}).name || '商家待确认')
-const typeLabel = computed(() => props.resource.typeCode || props.resource.category || '资源')
-const decisionTip = computed(() => {
-  if (hasCreditTags.value) return '平台已补充核实信息，联系前仍建议确认实物、价格和交付时间。'
-  if (isVerifiedMerchant.value) return '认证商家发布，建议进入详情查看规格和联系方式。'
-  return '建议进入详情确认数量、价格、看样方式和刷新时间。'
-})
+const resourceTypeLabel = computed(() => resourceTypeText[props.resource.typeCode] || '')
 
 function formatRefreshedAt(value) {
-  if (!value) return '近期更新'
-  if (value.includes('T')) return value.slice(0, 10)
-  return value
+  return formatListFreshnessDate(value)
 }
 </script>
 
@@ -79,60 +71,90 @@ function formatRefreshedAt(value) {
   overflow: hidden;
 }
 
-.resource-thumb {
+.thumb-wrap {
+  position: relative;
+  align-self: flex-start;
+  box-sizing: border-box;
   flex: 0 0 168rpx;
   width: 168rpx;
-  min-height: 168rpx;
+  height: 168rpx;
+  min-height: 0;
+  overflow: hidden;
   border-radius: 10rpx;
   background: #edf2f7;
 }
 
+.resource-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .placeholder-thumb {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  padding: 14rpx;
   background:
     linear-gradient(140deg, rgba(255, 255, 255, 0.22), transparent 38%),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.18) 0 12rpx, transparent 12rpx 24rpx),
     #5c8a72;
-  color: $wplink-card;
-  font-size: 24rpx;
+}
+
+.type-corner {
+  position: absolute;
+  top: 10rpx;
+  left: 10rpx;
+  max-width: calc(100% - 20rpx);
+  box-sizing: border-box;
+  padding: 4rpx 10rpx;
+  border-radius: 8rpx;
+  background: rgba(15, 23, 42, 0.76);
+  color: #fff;
+  font-size: 20rpx;
   font-weight: 700;
+  line-height: 1.3;
 }
 
 .card-main {
   display: grid;
   flex: 1;
-  gap: 12rpx;
+  align-content: start;
+  gap: 14rpx;
   min-width: 0;
 }
 
-.tag-row,
-.merchant-row,
-.card-foot {
+.merchant-line,
+.meta-price-line {
   display: flex;
   align-items: center;
   gap: 12rpx;
   justify-content: space-between;
 }
 
-.tag-row,
-.merchant-row {
-  flex-wrap: wrap;
-}
-
-.tag {
-  padding: 6rpx 12rpx;
+.verified-badge {
+  flex: 0 0 auto;
+  padding: 4rpx 10rpx;
   border-radius: 8rpx;
-  background: #edf2f7;
-  color: #4a5568;
-  font-size: 22rpx;
-}
-
-.tag.verified {
   background: $wplink-success-soft;
   color: $wplink-success;
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.merchant-name {
+  flex: 1;
+  min-width: 0;
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.refresh-time {
+  flex: 0 0 auto;
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.35;
 }
 
 .resource-title {
@@ -140,44 +162,34 @@ function formatRefreshedAt(value) {
   font-size: 32rpx;
   font-weight: 700;
   line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   word-break: break-word;
 }
 
 .resource-meta {
+  flex: 1;
+  min-width: 0;
   color: $wplink-muted;
   font-size: 28rpx;
   line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   word-break: break-word;
 }
 
 .resource-price {
-  flex: 1;
+  flex: 0 0 auto;
+  max-width: 42%;
   color: $wplink-warning;
   font-size: 30rpx;
   font-weight: 700;
-}
-
-.resource-action {
-  flex: 0 0 auto;
-  color: $wplink-primary;
-  font-size: 26rpx;
-  font-weight: 700;
-}
-
-.merchant-name,
-.refresh-time {
-  color: $wplink-muted;
-  font-size: 24rpx;
-}
-
-.decision-tip {
-  padding: 12rpx 14rpx;
-  border-radius: 10rpx;
-  background: #f8fafc;
-  color: #4b5565;
-  font-size: 23rpx;
-  line-height: 1.45;
-  word-break: break-word;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .resource-card-home {
@@ -187,32 +199,23 @@ function formatRefreshedAt(value) {
   box-shadow: 0 16rpx 48rpx rgba(15, 23, 42, 0.06);
 }
 
-.resource-card-home .resource-thumb {
+.resource-card-home .thumb-wrap {
   flex-basis: 160rpx;
   width: 160rpx;
-  min-height: 160rpx;
+  height: 160rpx;
+  min-height: 0;
   border-radius: 16rpx;
 }
 
-.resource-card-home .placeholder-thumb {
-  padding: 18rpx;
-  font-size: 24rpx;
-}
-
 .resource-card-home .card-main {
-  gap: 8rpx;
-}
-
-.resource-card-home .tag-row {
   gap: 10rpx;
 }
 
-.resource-card-home .tag {
-  min-height: 40rpx;
-  padding: 0 14rpx;
-  border-radius: 10rpx;
+.resource-card-home .type-corner {
+  top: 8rpx;
+  left: 8rpx;
+  max-width: calc(100% - 16rpx);
   font-size: 22rpx;
-  line-height: 40rpx;
 }
 
 .resource-card-home .resource-title {
@@ -230,20 +233,11 @@ function formatRefreshedAt(value) {
   line-height: 1.3;
 }
 
-.resource-card-home .resource-action {
-  font-size: 26rpx;
-  white-space: nowrap;
-}
-
+.resource-card-home .verified-badge,
 .resource-card-home .merchant-name,
 .resource-card-home .refresh-time {
   font-size: 24rpx;
   line-height: 1.35;
-}
-
-.resource-card-home .merchant-row,
-.resource-card-home .decision-tip {
-  display: none;
 }
 
 .resource-card-compact {
@@ -251,14 +245,22 @@ function formatRefreshedAt(value) {
   padding: 20rpx;
 }
 
-.resource-card-compact .resource-thumb {
+.resource-card-compact .thumb-wrap {
   flex-basis: 144rpx;
   width: 144rpx;
-  min-height: 144rpx;
+  height: 144rpx;
+  min-height: 0;
 }
 
 .resource-card-compact .card-main {
   gap: 8rpx;
+}
+
+.resource-card-compact .type-corner {
+  top: 8rpx;
+  left: 8rpx;
+  max-width: calc(100% - 16rpx);
+  font-size: 20rpx;
 }
 
 .resource-card-compact .resource-title {
@@ -273,12 +275,9 @@ function formatRefreshedAt(value) {
   font-size: 28rpx;
 }
 
-.resource-card-compact .resource-action {
-  font-size: 24rpx;
-}
-
-.resource-card-compact .merchant-row,
-.resource-card-compact .decision-tip {
-  display: none;
+.resource-card-compact .verified-badge,
+.resource-card-compact .merchant-name,
+.resource-card-compact .refresh-time {
+  font-size: 22rpx;
 }
 </style>

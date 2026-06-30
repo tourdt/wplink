@@ -16,3 +16,18 @@ func TestListResourcesSQLAllowsEmptyMerchantID(t *testing.T) {
 		}
 	}
 }
+
+func TestListMyResourcesSQLSupportsGroupedStatusFilters(t *testing.T) {
+	requiredSnippets := []string{
+		"$2 = 'needs_action' AND r.status IN ('draft', 'pending', 'rejected')",
+		"$2 = 'showing' AND r.status = 'published' AND r.dealt_at IS NULL",
+		"$2 = 'ended' AND (r.status IN ('expired', 'taken_down')",
+		"OR r.dealt_at IS NOT NULL",
+		"OR (r.expires_at IS NOT NULL AND r.expires_at <= now())",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(listMyResourcesSQL, snippet) {
+			t.Fatalf("listMyResourcesSQL missing %q:\n%s", snippet, listMyResourcesSQL)
+		}
+	}
+}

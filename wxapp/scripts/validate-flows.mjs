@@ -160,8 +160,8 @@ export const defaultFlowChecks = [
   },
   {
     file: 'components/ResourceCard.vue',
-    description: '资源卡可信信息和行动提示',
-    checks: ['isVerifiedMerchant', '平台核实', '查看详情', 'formatRefreshedAt'],
+    description: '资源卡三行信息和资源类型角标',
+    checks: ['isVerifiedMerchant', 'verified-badge', 'merchant-line', 'meta-price-line', 'type-corner', 'formatRefreshedAt'],
   },
   {
     file: 'components/ResourceList.vue',
@@ -217,7 +217,8 @@ export const defaultFlowChecks = [
       '已选地图位置',
       'contactSectionOpen',
       'toggleContactSection',
-      '请填写商家名称',
+      'validateMerchantName',
+      'merchantNameMessage',
       '请填写主营品类',
     ],
   },

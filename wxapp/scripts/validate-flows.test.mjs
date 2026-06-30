@@ -163,11 +163,16 @@ test('my resources page keeps list concise and dates day-only', () => {
     '管理资源状态和推广效果',
     'displayStatusText(item)',
     'isActivePublished(item)',
-    "{ label: '已驳回', value: 'rejected' }",
+    'isExpiredResource(item)',
+    "{ label: '待跟进', value: 'needs_action' }",
+    "{ label: '展示中', value: 'showing' }",
+    "{ label: '已结束', value: 'ended' }",
     'rejectReason',
     'openRejectedEditor',
     '驳回原因',
     "if (item.dealtAt) return '已成交'",
+    "if (isExpiredResource(item)) return '已过期'",
+    "return isExpiredResource(item) || Boolean(item.dealtAt)",
   ]) {
     assert.equal(source.includes(token), true)
   }
@@ -185,6 +190,14 @@ test('my resources page keeps list concise and dates day-only', () => {
     '根据曝光和联系情况刷新或置顶。',
     '完善信息有助于买家判断。',
     '管理资源状态、效果数据和推广权益',
+    "{ label: '草稿', value: 'draft' }",
+    "{ label: '待审核', value: 'pending' }",
+    "{ label: '已驳回', value: 'rejected' }",
+    "{ label: '已发布', value: 'published' }",
+    "{ label: '即将过期', value: 'expiring_soon' }",
+    "{ label: '已过期', value: 'expired' }",
+    "{ label: '已成交', value: 'dealt' }",
+    "{ label: '已下架', value: 'taken_down' }",
   ]) {
     assert.equal(source.includes(removedToken), false)
   }
@@ -852,7 +865,10 @@ test('resource detail related resources use reusable resource list', () => {
 
   assert.equal(source.includes('<ResourceCard v-for="item in relatedResources"'), false)
   assert.match(cardSource, /props\.variant === 'compact'[\s\S]*'resource-card-compact'/)
-  assert.match(cardSource, /\.resource-card-compact \.merchant-row,[\s\S]*\.resource-card-compact \.decision-tip \{[\s\S]*display: none;/)
+  assert.match(cardSource, /\.resource-card-compact \.thumb-wrap \{[\s\S]*width: 144rpx;[\s\S]*height: 144rpx;/)
+  assert.match(cardSource, /<view class="merchant-line">[\s\S]*<view class="meta-price-line">/)
+  assert.equal(cardSource.includes('平台核实'), false)
+  assert.equal(cardSource.includes('查看详情'), false)
 })
 
 test('resource detail contact bar secondary buttons look independent', () => {

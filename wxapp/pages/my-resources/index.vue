@@ -24,6 +24,7 @@
         <view class="card-head">
           <view class="tag-row">
             <text :class="['status-tag', statusClass(item)]">{{ displayStatusText(item) }}</text>
+            <text v-if="isExpiringSoon(item)" class="expire-tag">即将过期</text>
             <text v-if="canTopResource(item)" class="top-tag">可置顶</text>
           </view>
           <text class="expire-text">{{ expireText(item) }}</text>
@@ -59,14 +60,9 @@ import { formatDateToDay } from '../../common/date'
 
 const statusOptions = [
   { label: '全部', value: '' },
-  { label: '草稿', value: 'draft' },
-  { label: '待审核', value: 'pending' },
-  { label: '已发布', value: 'published' },
-  { label: '已驳回', value: 'rejected' },
-  { label: '即将过期', value: 'expiring_soon' },
-  { label: '已过期', value: 'expired' },
-  { label: '已成交', value: 'dealt' },
-  { label: '已下架', value: 'taken_down' },
+  { label: '待跟进', value: 'needs_action' },
+  { label: '展示中', value: 'showing' },
+  { label: '已结束', value: 'ended' },
 ]
 const statusText = {
   draft: '草稿',
@@ -184,7 +180,7 @@ async function deleteTakenDown(item) {
 }
 
 function canRepost(item) {
-  return item.status === 'expired' || Boolean(item.dealtAt)
+  return isExpiredResource(item) || Boolean(item.dealtAt)
 }
 
 function canDeleteTakenDown(item) {
@@ -195,24 +191,41 @@ function isActivePublished(item) {
   return item.status === 'published' && !item.dealtAt
 }
 
+function isExpiringSoon(item) {
+  if (!isActivePublished(item) || isExpiredResource(item) || !item.expiresAt) return false
+  const expiresAt = Date.parse(item.expiresAt)
+  if (Number.isNaN(expiresAt)) return false
+  const now = Date.now()
+  return expiresAt > now && expiresAt - now <= 3 * 24 * 60 * 60 * 1000
+}
+
+function isExpiredResource(item) {
+  if (item.status === 'expired') return true
+  if (!item.expiresAt) return false
+  const expiresAt = Date.parse(item.expiresAt)
+  return !Number.isNaN(expiresAt) && expiresAt <= Date.now()
+}
+
 function canTopResource(item) {
   return isActivePublished(item)
 }
 
 function displayStatusText(item) {
   if (item.dealtAt) return '已成交'
+  if (isExpiredResource(item)) return '已过期'
   return statusText[item.status] || item.status
 }
 
 function statusClass(item) {
   if (item.dealtAt) return 'dealt'
+  if (isExpiredResource(item)) return 'expired'
   return item.status
 }
 
 function expireText(item) {
   if (item.status === 'pending') return '审核中'
   if (item.dealtAt) return `成交 ${formatDateToDay(item.dealtAt)}`
-  if (item.status === 'expired') return '已过期'
+  if (isExpiredResource(item)) return '已过期'
   if (item.expiresAt) return `到期 ${formatDateToDay(item.expiresAt)}`
   return '有效期待确认'
 }
@@ -342,6 +355,7 @@ function metricItems(item) {
 }
 
 .status-tag,
+.expire-tag,
 .top-tag {
   padding: 6rpx 12rpx;
   border-radius: 8rpx;
@@ -357,6 +371,11 @@ function metricItems(item) {
 .status-tag.dealt {
   background: $wplink-warning-soft;
   color: $wplink-warning;
+}
+
+.expire-tag {
+  background: #fff7ed;
+  color: #c2410c;
 }
 
 .top-tag {

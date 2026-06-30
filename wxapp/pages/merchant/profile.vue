@@ -161,6 +161,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import UniGrid from '../../components/uni-ui/uni-grid/uni-grid.vue'
 import UniGridItem from '../../components/uni-ui/uni-grid-item/uni-grid-item.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
+import { validateMerchantName } from '../../common/merchantName'
 import { createMerchant, getMerchant, updateMerchant } from '../../api/merchant'
 import { getLatestVerification } from '../../api/verification'
 import { createImageFileFromPath, uploadSelectedImage } from '../../common/upload'
@@ -302,8 +303,9 @@ async function submitMerchantProfile() {
   const mainCategories = parseList(mainCategoriesText.value)
   const normalizedContactPhone = sanitizeContactPhoneValue(form.contactPhone)
   form.contactPhone = normalizedContactPhone
-  if (!form.name.trim()) {
-    uni.showToast({ title: '请填写商家名称', icon: 'none' })
+  const merchantNameMessage = validateMerchantName(form.name)
+  if (merchantNameMessage) {
+    uni.showToast({ title: merchantNameMessage, icon: 'none' })
     return
   }
   if (mainCategories.length === 0) {

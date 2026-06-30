@@ -37,6 +37,24 @@ func TestCreateMerchantRejectsInvalidContactPhone(t *testing.T) {
 	}
 }
 
+func TestCreateMerchantRejectsMisleadingMerchantName(t *testing.T) {
+	logic := NewCreateMerchantLogic(&fakeMerchantStore{})
+
+	_, err := logic.CreateMerchant(context.Background(), CreateMerchantReq{
+		CityCode:       "zhili",
+		Name:           "织里官方认证工厂",
+		MerchantType:   "factory",
+		MainCategories: []string{"童装"},
+	})
+
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if err == nil || err.Error() != "商家名称不能包含认证、官方等容易误导的字样" {
+		t.Fatalf("error = %v, want misleading merchant name message", err)
+	}
+}
+
 func TestCreateMerchantPassesInputToStore(t *testing.T) {
 	store := &fakeMerchantStore{
 		createResult: model.CreateMerchantResult{
