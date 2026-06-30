@@ -13,6 +13,7 @@ import (
 
 type InteractionStore interface {
 	SetResourceFavorite(ctx context.Context, input model.ResourceFavoriteInput) (model.ResourceFavoriteState, error)
+	ResourceBelongsToUser(ctx context.Context, userID string, resourceID string) (bool, error)
 	GetResourceFavoriteState(ctx context.Context, userID string, resourceID string) (model.ResourceFavoriteState, error)
 	ListFavoriteResources(ctx context.Context, userID string, filter model.ListInteractionFilter) (model.ListResourcesResult, error)
 	SetMerchantFollow(ctx context.Context, input model.MerchantFollowInput) (model.MerchantFollowState, error)
@@ -115,6 +116,16 @@ func (l *InteractionLogic) SetResourceFavorite(ctx context.Context, userID strin
 	}
 	if resourceID == "" {
 		return ResourceFavoriteStateResp{}, errx.New(errx.CodeValidationFailed, "资源不存在或已下架")
+	}
+	if req.Favorited {
+		// 收藏数据代表买家意向，商家不能收藏自己管理的资源，避免污染运营和推荐信号。
+		owned, err := l.store.ResourceBelongsToUser(ctx, userID, resourceID)
+		if err != nil {
+			return ResourceFavoriteStateResp{}, err
+		}
+		if owned {
+			return ResourceFavoriteStateResp{}, errx.New(errx.CodeForbidden, "不能收藏自己发布的资源")
+		}
 	}
 	state, err := l.store.SetResourceFavorite(ctx, model.ResourceFavoriteInput{UserID: userID, ResourceID: resourceID, Favorited: req.Favorited})
 	if errors.Is(err, sql.ErrNoRows) {

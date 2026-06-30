@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"wplink/backend/app/internal/model"
+	"wplink/backend/common/errx"
 )
 
 func TestToggleResourceFavoriteRequiresUserAndResource(t *testing.T) {
@@ -28,6 +29,35 @@ func TestToggleResourceFavoritePersistsState(t *testing.T) {
 	}
 	if !resp.Favorited || store.resourceInput.UserID != "user-1" || store.resourceInput.ResourceID != "resource-1" {
 		t.Fatalf("favorite state not persisted correctly: resp=%+v input=%+v", resp, store.resourceInput)
+	}
+}
+
+func TestToggleResourceFavoriteRejectsOwnResource(t *testing.T) {
+	store := &fakeInteractionStore{resourceOwnedByUser: true}
+	logic := NewInteractionLogic(store)
+
+	_, err := logic.SetResourceFavorite(context.Background(), "user-1", SetResourceFavoriteReq{ResourceID: "resource-1", Favorited: true})
+	if err == nil {
+		t.Fatalf("SetResourceFavorite() expected own resource error")
+	}
+	if errx.CodeOf(err) != errx.CodeForbidden {
+		t.Fatalf("SetResourceFavorite() code = %s, want %s", errx.CodeOf(err), errx.CodeForbidden)
+	}
+	if store.setResourceFavoriteCalled {
+		t.Fatalf("SetResourceFavorite() should not persist own resource favorite")
+	}
+}
+
+func TestToggleResourceFavoriteAllowsOwnResourceUnfavorite(t *testing.T) {
+	store := &fakeInteractionStore{resourceOwnedByUser: true}
+	logic := NewInteractionLogic(store)
+
+	resp, err := logic.SetResourceFavorite(context.Background(), "user-1", SetResourceFavoriteReq{ResourceID: "resource-1", Favorited: false})
+	if err != nil {
+		t.Fatalf("SetResourceFavorite() error = %v", err)
+	}
+	if resp.Favorited || !store.setResourceFavoriteCalled {
+		t.Fatalf("unfavorite state not persisted correctly: resp=%+v called=%v", resp, store.setResourceFavoriteCalled)
 	}
 }
 
@@ -69,15 +99,22 @@ func TestCreateSavedSearchPersistsNormalizedQuery(t *testing.T) {
 }
 
 type fakeInteractionStore struct {
-	resourceInput     model.ResourceFavoriteInput
-	merchantInput     model.MerchantFollowInput
-	savedSearchInput  model.SavedSearchInput
-	savedSearchResult model.SavedSearchResult
+	resourceInput             model.ResourceFavoriteInput
+	merchantInput             model.MerchantFollowInput
+	savedSearchInput          model.SavedSearchInput
+	savedSearchResult         model.SavedSearchResult
+	resourceOwnedByUser       bool
+	setResourceFavoriteCalled bool
 }
 
 func (s *fakeInteractionStore) SetResourceFavorite(ctx context.Context, input model.ResourceFavoriteInput) (model.ResourceFavoriteState, error) {
 	s.resourceInput = input
+	s.setResourceFavoriteCalled = true
 	return model.ResourceFavoriteState{ResourceID: input.ResourceID, Favorited: input.Favorited}, nil
+}
+
+func (s *fakeInteractionStore) ResourceBelongsToUser(ctx context.Context, userID string, resourceID string) (bool, error) {
+	return s.resourceOwnedByUser, nil
 }
 
 func (s *fakeInteractionStore) GetResourceFavoriteState(ctx context.Context, userID string, resourceID string) (model.ResourceFavoriteState, error) {

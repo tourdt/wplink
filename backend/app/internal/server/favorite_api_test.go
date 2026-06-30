@@ -58,6 +58,10 @@ func (s *fakeInteractionAPIStore) SetResourceFavorite(ctx context.Context, input
 	return model.ResourceFavoriteState{ResourceID: input.ResourceID, Favorited: input.Favorited}, nil
 }
 
+func (s *fakeInteractionAPIStore) ResourceBelongsToUser(ctx context.Context, userID string, resourceID string) (bool, error) {
+	return false, nil
+}
+
 func (s *fakeInteractionAPIStore) GetResourceFavoriteState(ctx context.Context, userID string, resourceID string) (model.ResourceFavoriteState, error) {
 	return model.ResourceFavoriteState{ResourceID: resourceID, Favorited: true}, nil
 }

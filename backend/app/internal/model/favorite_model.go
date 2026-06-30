@@ -107,6 +107,27 @@ RETURNING resource_id::text, status = 'active'
 	return state, err
 }
 
+func (m *FavoriteModel) ResourceBelongsToUser(ctx context.Context, userID string, resourceID string) (bool, error) {
+	var exists bool
+	err := m.db.QueryRowContext(ctx, `
+SELECT EXISTS (
+  SELECT 1
+  FROM resources r
+  JOIN merchant_admin_bindings mab ON mab.merchant_id = r.merchant_id
+  JOIN merchants m ON m.id = r.merchant_id
+  WHERE r.id = $1::bigint
+    AND mab.user_id = $2::bigint
+    AND r.deleted_at IS NULL
+    AND r.status = 'published'
+    AND (r.expires_at IS NULL OR r.expires_at > now())
+    AND mab.status = 'active'
+    AND m.deleted_at IS NULL
+    AND m.status = 'active'
+)
+`, resourceID, userID).Scan(&exists)
+	return exists, err
+}
+
 func (m *FavoriteModel) GetResourceFavoriteState(ctx context.Context, userID string, resourceID string) (ResourceFavoriteState, error) {
 	state := ResourceFavoriteState{ResourceID: resourceID}
 	err := m.db.QueryRowContext(ctx, `
