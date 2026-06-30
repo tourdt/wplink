@@ -1,14 +1,6 @@
 <template>
   <view class="my-resources-page">
-    <view class="resource-manager-head">
-      <view>
-        <text class="manager-title">我的发布</text>
-        <text class="manager-desc">管理资源状态和推广效果</text>
-      </view>
-      <button @click="openPublish">发布</button>
-    </view>
-
-    <scroll-view class="filter-row" scroll-x>
+    <view class="filter-row">
       <button
         v-for="item in statusOptions"
         :key="item.value"
@@ -17,9 +9,15 @@
       >
         {{ item.label }}
       </button>
-    </scroll-view>
+    </view>
 
-    <view class="resource-list">
+    <view v-if="!loading && rows.length === 0" class="empty-state">
+      <text class="empty-title">暂无发布资源</text>
+      <text class="empty-desc">发布资源后，可在这里查看审核进度、曝光数据和推广效果。</text>
+      <button class="empty-action" @click="openPublish">继续发布</button>
+    </view>
+
+    <view v-else class="resource-list">
       <view v-for="item in rows" :key="item.id" class="resource-card">
         <view class="card-head">
           <view class="tag-row">
@@ -29,9 +27,16 @@
           </view>
           <text class="expire-text">{{ expireText(item) }}</text>
         </view>
-        <text class="resource-title">{{ item.title }}</text>
-        <text class="resource-meta">{{ item.category }} · {{ item.typeCode }}</text>
-        <text class="resource-meta">发布 {{ formatDateToDay(item.publishedAt) }} · 到期 {{ formatDateToDay(item.expiresAt) }}</text>
+        <view class="resource-summary">
+          <view class="resource-thumb-wrap">
+            <image class="resource-thumb" :src="item.coverUrl || DEFAULT_RESOURCE_COVER" mode="aspectFill" @error="handleResourceCoverError(item)" />
+          </view>
+          <view class="resource-body">
+            <text class="resource-title">{{ item.title }}</text>
+            <text class="resource-meta">{{ item.category }} · {{ displayResourceTypeText(item) }}</text>
+            <text class="resource-meta">发布 {{ formatDateToDay(item.publishedAt) }} · 到期 {{ formatDateToDay(item.expiresAt) }}</text>
+          </view>
+        </view>
         <text v-if="item.status === 'rejected' && item.rejectReason" class="reject-reason">驳回原因：{{ item.rejectReason }}</text>
         <MetricStrip :items="metricItems(item)" />
         <view class="action-row">
@@ -45,18 +50,24 @@
           <button @click="openResource(item)">详情</button>
         </view>
       </view>
+      <text v-if="rows.length" class="load-more-text">{{ loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了' }}</text>
     </view>
+
+    <button class="publish-fab" @click="openPublish">发布</button>
   </view>
 </template>
 
 <script setup>
 import { reactive, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import MetricStrip from '../../components/MetricStrip.vue'
 import { getMerchantId } from '../../store/session'
 import { redeemTopVoucher, listTopVouchers } from '../../api/entitlement'
 import { deleteTakenDownResource, getOwnResource, listMyResources, refreshResource, takeDownResource } from '../../api/resource'
 import { formatDateToDay } from '../../common/date'
+import { resourceTypeText } from '../../common/enums'
+
+const DEFAULT_RESOURCE_COVER = '/static/resource/default-resource-cover.png'
 
 const statusOptions = [
   { label: '全部', value: '' },
@@ -76,31 +87,63 @@ const statusText = {
 const rows = ref([])
 const merchantId = ref('')
 const filters = reactive({ status: '' })
+const page = ref(1)
+const pageSize = 20
+const total = ref(0)
+const hasMore = ref(true)
+const loading = ref(false)
 
 onLoad((options) => {
   // 我的发布必须绑定当前商家；路由参数用于后台调试，正常用户流程使用我的页保存的商家 ID。
   merchantId.value = options.merchantId || getMerchantId()
-  loadRows()
+  loadRows({ reset: true })
 })
 
-async function loadRows() {
+onPullDownRefresh(async () => {
+  try {
+    await loadRows({ reset: true })
+  } finally {
+    uni.stopPullDownRefresh()
+  }
+})
+
+onReachBottom(() => {
+  loadRows({ reset: false })
+})
+
+async function loadRows({ reset = true } = {}) {
+  if (loading.value) return
   if (!merchantId.value) {
+    rows.value = []
+    total.value = 0
+    hasMore.value = false
     uni.showToast({ title: '请先填写商家 ID', icon: 'none' })
     return
   }
-  const resp = await listMyResources({ merchantId: merchantId.value, status: filters.status, page: 1, pageSize: 20 })
-  rows.value = resp.items || []
+  if (!reset && !hasMore.value) return
+  loading.value = true
+  try {
+    const nextPage = reset ? 1 : page.value + 1
+    const resp = await listMyResources({ merchantId: merchantId.value, status: filters.status, page: nextPage, pageSize })
+    const items = resp.items || []
+    rows.value = reset ? items : [...rows.value, ...items]
+    page.value = nextPage
+    total.value = resp.total || rows.value.length
+    hasMore.value = rows.value.length < total.value
+  } finally {
+    loading.value = false
+  }
 }
 
 function selectStatus(status) {
   filters.status = status
-  loadRows()
+  loadRows({ reset: true })
 }
 
 async function refresh(item) {
   await refreshResource(item.id, merchantId.value)
   uni.showToast({ title: '已刷新', icon: 'none' })
-  await loadRows()
+  await loadRows({ reset: true })
 }
 
 async function topResource(item) {
@@ -112,13 +155,13 @@ async function topResource(item) {
   }
   await redeemTopVoucher(voucher.id, item.id, merchantId.value)
   uni.showToast({ title: '已置顶', icon: 'none' })
-  await loadRows()
+  await loadRows({ reset: true })
 }
 
 async function takeDown(item) {
   await takeDownResource(item.id, merchantId.value, '商家主动下架')
   uni.showToast({ title: '已下架', icon: 'none' })
-  await loadRows()
+  await loadRows({ reset: true })
 }
 
 function openDraftEditor(item) {
@@ -176,7 +219,7 @@ async function deleteTakenDown(item) {
   if (!confirmed) return
   await deleteTakenDownResource(item.id, merchantId.value)
   uni.showToast({ title: '已删除', icon: 'none' })
-  await loadRows()
+  await loadRows({ reset: true })
 }
 
 function canRepost(item) {
@@ -222,6 +265,14 @@ function statusClass(item) {
   return item.status
 }
 
+function displayResourceTypeText(item) {
+  return resourceTypeText[item.typeCode] || item.typeCode || '资源'
+}
+
+function handleResourceCoverError(item) {
+  item.coverUrl = ''
+}
+
 function expireText(item) {
   if (item.status === 'pending') return '审核中'
   if (item.dealtAt) return `成交 ${formatDateToDay(item.dealtAt)}`
@@ -231,7 +282,7 @@ function expireText(item) {
 }
 
 function openPublish() {
-  uni.switchTab({ url: '/pages/publish/index' })
+  uni.navigateTo({ url: `/pages/publish/edit?merchantId=${merchantId.value}` })
 }
 
 function openResource(item) {
@@ -254,46 +305,102 @@ function metricItems(item) {
 .my-resources-page {
   min-height: 100vh;
   padding: 24rpx;
+  padding-top: 132rpx;
+  padding-bottom: calc(128rpx + env(safe-area-inset-bottom));
+  overflow-x: hidden;
   background: $wplink-bg;
 }
 
 .filter-row {
-  width: 100%;
-  margin-bottom: 20rpx;
-  white-space: nowrap;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12rpx;
+  padding: 24rpx 24rpx 16rpx;
+  overflow: hidden;
+  background: $wplink-card;
+  box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.06);
 }
 
-.resource-manager-head {
+.publish-fab {
+  position: fixed;
+  right: 24rpx;
+  bottom: calc(32rpx + env(safe-area-inset-bottom));
+  z-index: 20;
+  width: 132rpx;
+  height: 76rpx;
+  border-radius: 999rpx;
+  background: $wplink-primary;
+  color: $wplink-card;
+  font-size: 26rpx;
+  font-weight: 700;
+  box-shadow: 0 12rpx 28rpx rgba(6, 22, 37, 0.18);
+}
+
+.filter-button {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  height: 72rpx;
+  padding: 0 8rpx;
+  border: 2rpx solid transparent;
+  border-radius: 10rpx;
+  background: #f4f7fd;
+  color: #364152;
+  font-size: 25rpx;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.filter-button.active {
+  border-color: $wplink-primary;
+  background: $wplink-primary;
+  color: $wplink-card;
+  font-weight: 700;
+  box-shadow: 0 8rpx 18rpx rgba(194, 58, 0, 0.18);
+}
+
+.resource-list {
+  display: grid;
   gap: 18rpx;
-  margin-bottom: 20rpx;
-  padding: 24rpx;
+}
+
+.empty-state {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 16rpx;
+  min-height: 360rpx;
+  padding: 40rpx 28rpx;
   border-radius: 12rpx;
   background: $wplink-card;
-  min-width: 0;
+  text-align: center;
 }
 
-.manager-title {
-  display: block;
-  margin-bottom: 8rpx;
+.empty-title {
   color: $wplink-primary;
-  font-size: 38rpx;
+  font-size: 32rpx;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.35;
 }
 
-.manager-desc {
+.empty-desc {
+  max-width: 520rpx;
   color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
 }
 
-.resource-manager-head button {
-  flex: 0 0 auto;
-  width: 116rpx;
-  height: 68rpx;
+.empty-action {
+  min-width: 180rpx;
+  height: 72rpx;
   border-radius: 10rpx;
   background: $wplink-primary;
   color: $wplink-card;
@@ -301,27 +408,12 @@ function metricItems(item) {
   font-weight: 700;
 }
 
-.filter-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 128rpx;
-  height: 72rpx;
-  margin-right: 12rpx;
-  padding: 0 20rpx;
-  border-radius: 10rpx;
-  background: $wplink-card;
-  color: #364152;
-}
-
-.filter-button.active {
-  background: $wplink-warning-soft;
-  color: $wplink-primary;
-}
-
-.resource-list {
-  display: grid;
-  gap: 18rpx;
+.load-more-text {
+  padding: 8rpx 0 18rpx;
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .resource-card {
@@ -330,6 +422,35 @@ function metricItems(item) {
   padding: 24rpx;
   border-radius: 12rpx;
   background: $wplink-card;
+}
+
+.resource-summary {
+  display: grid;
+  grid-template-columns: 112rpx minmax(0, 1fr);
+  gap: 16rpx;
+  align-items: start;
+}
+
+.resource-thumb-wrap {
+  width: 112rpx;
+  height: 112rpx;
+  overflow: hidden;
+  border-radius: 10rpx;
+  background: #edf2f7;
+}
+
+.resource-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 112rpx;
+  height: 112rpx;
+}
+
+.resource-body {
+  display: grid;
+  gap: 8rpx;
+  min-width: 0;
 }
 
 .card-head {

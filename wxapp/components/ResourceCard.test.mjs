@@ -30,9 +30,16 @@ test('resource card image slot keeps a fixed square size instead of stretching w
   assert.equal(source.includes('min-height: 144rpx'), false)
 })
 
-test('resource card uses a compact three-line content layout', () => {
+test('resource type corner label stays visually secondary on the image', () => {
+  assert.match(source, /\.type-corner \{[\s\S]*padding: 3rpx 8rpx;[\s\S]*border-radius: 7rpx;[\s\S]*font-size: 20rpx;/)
+  assert.match(source, /\.resource-card-home \.type-corner \{[\s\S]*font-size: 20rpx;/)
+  assert.match(source, /\.resource-card-compact \.type-corner \{[\s\S]*font-size: 18rpx;/)
+})
+
+test('resource card uses a readable four-line content layout', () => {
+  assert.match(source, /<text class="resource-title">\{\{ resource\.title \|\| '资源标题待完善' \}\}<\/text>[\s\S]*<text class="resource-meta">\{\{ resource\.category \|\| '品类待沟通' \}\} · \{\{ resource\.quantityText \|\| '数量待沟通' \}\}<\/text>[\s\S]*<text class="resource-price">\{\{ resource\.priceText \|\| '价格面议' \}\}<\/text>[\s\S]*<view class="merchant-line">/)
   assert.match(source, /<view class="merchant-line">[\s\S]*<text v-if="isVerifiedMerchant" class="verified-badge">已认证<\/text>[\s\S]*<text class="merchant-name">\{\{ merchantName \}\}<\/text>[\s\S]*<text class="refresh-time">\{\{ formatRefreshedAt\(resource\.refreshedAt\) \}\}<\/text>[\s\S]*<\/view>/)
-  assert.match(source, /<view class="meta-price-line">[\s\S]*<text class="resource-meta">[\s\S]*<\/text>[\s\S]*<text class="resource-price">[\s\S]*<\/text>[\s\S]*<\/view>/)
+  assert.equal(source.includes('meta-price-line'), false)
   assert.equal(source.includes('平台核实'), false)
   assert.equal(source.includes('hasCreditTags'), false)
   assert.equal(source.includes('查看详情'), false)

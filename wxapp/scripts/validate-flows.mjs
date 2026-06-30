@@ -111,7 +111,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/my-resources/index.vue',
     description: '我的发布管理动作和指标',
-    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'listTopVouchers', 'redeemTopVoucher', 'takeDownResource', 'deleteTakenDownResource', 'canDeleteTakenDown', 'openDraftEditor', 'openRejectedEditor', 'openPublishEditor', '/pages/publish/edit?merchantId=', 'uni.navigateTo', 'rejectReason', '驳回原因', 'getOwnResource', 'buildRepostInitialForm', 'repostInitialForm', 'wechatCopyCount', 'formatDateToDay', '管理资源状态和推广效果', 'canTopResource', '再发类似', 'from=my-resources'],
+    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'listTopVouchers', 'redeemTopVoucher', 'takeDownResource', 'deleteTakenDownResource', 'canDeleteTakenDown', 'openDraftEditor', 'openRejectedEditor', 'openPublishEditor', '/pages/publish/edit?merchantId=', 'uni.navigateTo', 'rejectReason', '驳回原因', 'getOwnResource', 'buildRepostInitialForm', 'repostInitialForm', 'wechatCopyCount', 'formatDateToDay', 'publish-fab', 'position: fixed', 'canTopResource', '再发类似', 'from=my-resources'],
   },
   {
     file: 'pages/messages/index.vue',
@@ -160,8 +160,8 @@ export const defaultFlowChecks = [
   },
   {
     file: 'components/ResourceCard.vue',
-    description: '资源卡三行信息和资源类型角标',
-    checks: ['isVerifiedMerchant', 'verified-badge', 'merchant-line', 'meta-price-line', 'type-corner', 'formatRefreshedAt'],
+    description: '资源卡四行信息和资源类型角标',
+    checks: ['isVerifiedMerchant', 'verified-badge', 'merchant-line', 'resource-title', 'resource-meta', 'resource-price', 'type-corner', 'formatRefreshedAt'],
   },
   {
     file: 'components/ResourceList.vue',

@@ -8,9 +8,10 @@ import (
 )
 
 type envelope struct {
-	Code int         `json:"code"`
-	Msg  string      `json:"msg"`
-	Data interface{} `json:"data,omitempty"`
+	Code      int         `json:"code"`
+	ErrorCode string      `json:"errorCode,omitempty"`
+	Msg       string      `json:"msg"`
+	Data      interface{} `json:"data,omitempty"`
 }
 
 func JSON(w http.ResponseWriter, data interface{}, err error) {
@@ -20,8 +21,9 @@ func JSON(w http.ResponseWriter, data interface{}, err error) {
 		status := errx.HTTPStatus(err)
 		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(envelope{
-			Code: status,
-			Msg:  errx.PublicMessage(err),
+			Code:      status,
+			ErrorCode: errx.CodeOf(err),
+			Msg:       errx.PublicMessage(err),
 		})
 		return
 	}

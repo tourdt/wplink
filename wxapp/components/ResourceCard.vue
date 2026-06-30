@@ -8,15 +8,13 @@
       <text v-if="coverUrl && resourceTypeLabel" class="type-corner">{{ resourceTypeLabel }}</text>
     </view>
     <view class="card-main">
+      <text class="resource-title">{{ resource.title || '资源标题待完善' }}</text>
+      <text class="resource-meta">{{ resource.category || '品类待沟通' }} · {{ resource.quantityText || '数量待沟通' }}</text>
+      <text class="resource-price">{{ resource.priceText || '价格面议' }}</text>
       <view class="merchant-line">
         <text v-if="isVerifiedMerchant" class="verified-badge">已认证</text>
         <text class="merchant-name">{{ merchantName }}</text>
         <text class="refresh-time">{{ formatRefreshedAt(resource.refreshedAt) }}</text>
-      </view>
-      <text class="resource-title">{{ resource.title || '资源标题待完善' }}</text>
-      <view class="meta-price-line">
-        <text class="resource-meta">{{ resource.category || '品类待沟通' }} · {{ resource.quantityText || '数量待沟通' }}</text>
-        <text class="resource-price">{{ resource.priceText || '价格面议' }}</text>
       </view>
     </view>
   </view>
@@ -103,8 +101,8 @@ function formatRefreshedAt(value) {
   left: 10rpx;
   max-width: calc(100% - 20rpx);
   box-sizing: border-box;
-  padding: 4rpx 10rpx;
-  border-radius: 8rpx;
+  padding: 3rpx 8rpx;
+  border-radius: 7rpx;
   background: rgba(15, 23, 42, 0.76);
   color: #fff;
   font-size: 20rpx;
@@ -120,8 +118,7 @@ function formatRefreshedAt(value) {
   min-width: 0;
 }
 
-.merchant-line,
-.meta-price-line {
+.merchant-line {
   display: flex;
   align-items: center;
   gap: 12rpx;
@@ -169,8 +166,6 @@ function formatRefreshedAt(value) {
 }
 
 .resource-meta {
-  flex: 1;
-  min-width: 0;
   color: $wplink-muted;
   font-size: 28rpx;
   line-height: 1.45;
@@ -181,8 +176,6 @@ function formatRefreshedAt(value) {
 }
 
 .resource-price {
-  flex: 0 0 auto;
-  max-width: 42%;
   color: $wplink-warning;
   font-size: 30rpx;
   font-weight: 700;
@@ -215,7 +208,7 @@ function formatRefreshedAt(value) {
   top: 8rpx;
   left: 8rpx;
   max-width: calc(100% - 16rpx);
-  font-size: 22rpx;
+  font-size: 20rpx;
 }
 
 .resource-card-home .resource-title {
@@ -260,7 +253,7 @@ function formatRefreshedAt(value) {
   top: 8rpx;
   left: 8rpx;
   max-width: calc(100% - 16rpx);
-  font-size: 20rpx;
+  font-size: 18rpx;
 }
 
 .resource-card-compact .resource-title {

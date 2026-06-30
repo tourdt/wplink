@@ -31,3 +31,10 @@ func TestListMyResourcesSQLSupportsGroupedStatusFilters(t *testing.T) {
 		}
 	}
 }
+
+func TestListMyResourcesSQLFallsBackToFirstImageWhenCoverURLIsEmpty(t *testing.T) {
+	requiredSnippet := "COALESCE(NULLIF(r.cover_url, ''), r.images ->> 0, '')"
+	if !strings.Contains(listMyResourcesSQL, requiredSnippet) {
+		t.Fatalf("listMyResourcesSQL missing %q:\n%s", requiredSnippet, listMyResourcesSQL)
+	}
+}

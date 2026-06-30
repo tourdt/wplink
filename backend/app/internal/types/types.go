@@ -764,6 +764,7 @@ type MyResourceItem struct {
 	TypeCode     string            `json:"typeCode"`
 	Title        string            `json:"title"`
 	Category     string            `json:"category"`
+	CoverUrl     string            `json:"coverUrl,optional"`
 	Status       string            `json:"status"`
 	RejectReason string            `json:"rejectReason,optional"`
 	PublishedAt  string            `json:"publishedAt,optional"`

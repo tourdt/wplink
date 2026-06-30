@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	authlogic "wplink/backend/app/internal/logic/auth"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
+	"wplink/backend/common/errx"
 )
 
 func TestAuthAPIRouterRunsLoginMeAndBindPhoneFlow(t *testing.T) {
@@ -63,6 +66,26 @@ func TestAuthAPIRouterRunsLoginMeAndBindPhoneFlow(t *testing.T) {
 	}
 }
 
+func TestAuthAPIRouterReturnsUnauthorizedErrorCodeForInvalidSession(t *testing.T) {
+	router := NewAPIRouter(&fakeAuthAPIStore{}, WithUserTokenService(&fakeUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req.Header.Set("Authorization", "Bearer invalid-token")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d body = %s, want %d", rec.Code, rec.Body.String(), http.StatusUnauthorized)
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["errorCode"] != errx.CodeUnauthorized {
+		t.Fatalf("errorCode = %#v, want %s", body["errorCode"], errx.CodeUnauthorized)
+	}
+}
+
 type fakeAuthAPIStore struct {
 	fakeCityAPIStore
 
@@ -103,6 +126,9 @@ func (s *fakeUserTokenService) IssueUserToken(ctx context.Context, subject sessi
 }
 
 func (s *fakeUserTokenService) ParseUserToken(ctx context.Context, token string) (session.UserTokenSubject, error) {
+	if token != "user-token" {
+		return session.UserTokenSubject{}, errors.New("登录状态无效，请重新登录")
+	}
 	return session.UserTokenSubject{UserID: "user-1", Roles: []string{authlogic.RoleNormalUser}}, nil
 }
 

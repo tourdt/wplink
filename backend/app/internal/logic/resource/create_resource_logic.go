@@ -162,6 +162,7 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		District:             strings.TrimSpace(req.District),
 		PriceText:            values["priceText"],
 		QuantityText:         values["quantityText"],
+		CoverURL:             firstResourceImage(req.Images),
 		Description:          values["description"],
 		Attributes:           req.Attributes,
 		Tags:                 append([]string(nil), req.Tags...),
@@ -176,6 +177,15 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 func isOperatorProxy(role string) bool {
 	role = strings.TrimSpace(role)
 	return role == "platform_operator" || role == "super_admin"
+}
+
+func firstResourceImage(images []string) string {
+	for _, image := range images {
+		if trimmed := strings.TrimSpace(image); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func shouldUseMerchantContactPhone(phone string) bool {

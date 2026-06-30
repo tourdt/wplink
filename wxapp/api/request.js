@@ -1,5 +1,9 @@
 import { API_BASE_URL, STORAGE_KEYS } from '../common/constants'
+import { redirectToLogin } from '../common/auth'
 import { buildApiUrl } from '../common/url'
+import { clearSession } from '../store/session'
+
+const UNAUTHORIZED_ERROR_CODE = 'UNAUTHORIZED'
 
 export default function request(options) {
   return new Promise((resolve, reject) => {
@@ -18,7 +22,12 @@ export default function request(options) {
           return
         }
         const message = res.data?.message || res.data?.msg || '请求失败，请稍后重试'
-        if (!options.suppressErrorToast) {
+        const unauthorizedSession = isUnauthorizedSession(res)
+        if (unauthorizedSession) {
+          clearSession()
+          redirectToLogin()
+        }
+        if (unauthorizedSession || !options.suppressErrorToast) {
           uni.showToast({ title: message, icon: 'none' })
         }
         reject(new Error(message))
@@ -29,4 +38,8 @@ export default function request(options) {
       },
     })
   })
+}
+
+function isUnauthorizedSession(res) {
+  return res.statusCode === 401 || res.data?.code === 401 || res.data?.errorCode === UNAUTHORIZED_ERROR_CODE
 }

@@ -33,6 +33,7 @@ type CreateResourceInput struct {
 	District             string
 	PriceText            string
 	QuantityText         string
+	CoverURL             string
 	Description          string
 	Attributes           JSONMap
 	Tags                 []string
@@ -196,6 +197,7 @@ type MyResourceItem struct {
 	TypeCode     string
 	Title        string
 	Category     string
+	CoverURL     string
 	Status       string
 	RejectReason string
 	PublishedAt  string
@@ -245,6 +247,7 @@ SELECT
   r.type_code,
   r.title,
   r.category,
+  COALESCE(NULLIF(r.cover_url, ''), r.images ->> 0, ''),
   r.status,
   COALESCE(r.reject_reason, ''),
   r.published_at,
@@ -372,6 +375,7 @@ INSERT INTO resources (
   district,
   price_text,
   quantity_text,
+  cover_url,
   description,
   attributes,
   tags,
@@ -399,7 +403,8 @@ SELECT
   $15,
   $16,
   $17,
-  NULLIF($18, '')::bigint
+  $18,
+  NULLIF($19, '')::bigint
 FROM city_stations cs
 WHERE cs.code = $2 AND cs.status = 'active'
 RETURNING id::text, status
@@ -414,6 +419,7 @@ RETURNING id::text, status
 		input.District,
 		input.PriceText,
 		input.QuantityText,
+		input.CoverURL,
 		input.Description,
 		input.Attributes,
 		JSONStringSlice(input.Tags),
@@ -453,13 +459,14 @@ SET
   district = $8,
   price_text = $9,
   quantity_text = $10,
-  description = $11,
-  attributes = $12,
-  tags = $13,
-  images = $14,
-  contact_name = $15,
-  contact_phone = $16,
-  contact_wechat = $17,
+  cover_url = NULLIF($11, ''),
+  description = $12,
+  attributes = $13,
+  tags = $14,
+  images = $15,
+  contact_name = $16,
+  contact_phone = $17,
+  contact_wechat = $18,
   reject_reason = NULL,
   updated_at = now()
 FROM city_stations cs
@@ -481,6 +488,7 @@ RETURNING resources.id::text, resources.status
 		input.District,
 		input.PriceText,
 		input.QuantityText,
+		input.CoverURL,
 		input.Description,
 		input.Attributes,
 		JSONStringSlice(input.Tags),
@@ -869,7 +877,7 @@ func (m *ResourceModel) ListMyResources(ctx context.Context, filter ListMyResour
 		var expiresAt sql.NullTime
 		var dealtAt sql.NullTime
 		if err := rows.Scan(
-			&item.ID, &item.TypeCode, &item.Title, &item.Category, &item.Status,
+			&item.ID, &item.TypeCode, &item.Title, &item.Category, &item.CoverURL, &item.Status,
 			&item.RejectReason, &publishedAt, &expiresAt, &dealtAt,
 			&item.Metrics.ExposureCount, &item.Metrics.DetailViewCount,
 			&item.Metrics.PhoneClickCount, &item.Metrics.WechatCopyCount,

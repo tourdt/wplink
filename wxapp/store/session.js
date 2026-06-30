@@ -16,6 +16,12 @@ export function saveToken(token) {
   uni.setStorageSync(STORAGE_KEYS.token, token)
 }
 
+export function clearSession() {
+  uni.removeStorageSync(STORAGE_KEYS.token)
+  uni.removeStorageSync(STORAGE_KEYS.userId)
+  uni.removeStorageSync(STORAGE_KEYS.merchantId)
+}
+
 export function getMerchantId() {
   return uni.getStorageSync(STORAGE_KEYS.merchantId) || ''
 }

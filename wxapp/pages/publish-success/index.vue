@@ -17,8 +17,8 @@
       </view>
 
       <view class="success-actions">
-        <button class="wplink-primary-button action-button" @click="openMessages">查看消息</button>
-        <button class="wplink-secondary-button action-button" @click="openMyResources">查看我的发布</button>
+        <button class="wplink-primary-button action-button" @click="openMyResources">查看我的发布</button>
+        <button class="wplink-secondary-button action-button" @click="openMessages">查看消息</button>
       </view>
     </view>
   </view>

@@ -13,7 +13,8 @@ func TestListMyResourcesPassesFiltersToStore(t *testing.T) {
 		listResult: model.ListMyResourcesResult{
 			Items: []model.MyResourceItem{{
 				ID: "resource-1", Title: "童装库存", Status: "rejected", RejectReason: "图片不清晰",
-				Metrics: model.MyResourceMetrics{ExposureCount: 10, DetailViewCount: 3, PhoneClickCount: 2, WechatCopyCount: 1},
+				CoverURL: "https://img.example.com/resource-cover.jpg",
+				Metrics:  model.MyResourceMetrics{ExposureCount: 10, DetailViewCount: 3, PhoneClickCount: 2, WechatCopyCount: 1},
 			}},
 			Page: 1, PageSize: 20, Total: 1,
 		},
@@ -30,6 +31,9 @@ func TestListMyResourcesPassesFiltersToStore(t *testing.T) {
 	}
 	if len(resp.Items) != 1 || resp.Items[0].Metrics.DetailViewCount != 3 || resp.Items[0].RejectReason != "图片不清晰" {
 		t.Fatalf("resp = %#v, want metrics item with reject reason", resp)
+	}
+	if resp.Items[0].CoverURL != "https://img.example.com/resource-cover.jpg" {
+		t.Fatalf("coverUrl = %q, want list cover image", resp.Items[0].CoverURL)
 	}
 }
 

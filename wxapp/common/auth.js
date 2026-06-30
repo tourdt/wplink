@@ -22,9 +22,14 @@ export function buildLoginUrl(redirect) {
   return `${LOGIN_PAGE}?redirect=${encodeURIComponent(redirectUrl)}`
 }
 
+export function redirectToLogin(options = EMPTY_OPTIONS) {
+  if (getCurrentPageUrl().startsWith(LOGIN_PAGE)) return
+  uni.navigateTo({ url: buildLoginUrl(options.redirect) })
+}
+
 export function requireLogin(options = EMPTY_OPTIONS) {
   if (isLoggedIn()) return true
-  uni.navigateTo({ url: buildLoginUrl(options.redirect) })
+  redirectToLogin(options)
   return false
 }
 

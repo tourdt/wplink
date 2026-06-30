@@ -75,6 +75,9 @@ func TestCreateResourceCreatesPendingResource(t *testing.T) {
 	if store.input.Status != "pending" {
 		t.Fatalf("status = %q, want pending", store.input.Status)
 	}
+	if store.input.CoverURL != "https://example.com/a.jpg" {
+		t.Fatalf("coverURL = %q, want first resource image", store.input.CoverURL)
+	}
 	if resp.ID != "resource-1" || resp.Status != "pending" {
 		t.Fatalf("resp = %#v, want pending resource", resp)
 	}
@@ -196,6 +199,7 @@ func TestUpdateResourceDraftTurnsRejectedResourceIntoDraft(t *testing.T) {
 		Category:     "童装",
 		QuantityText: "3200 件",
 		Description:  "补充清晰图片后重新保存。",
+		Images:       []string{"https://example.com/draft-cover.jpg"},
 		Contact:      ResourceContactReq{Name: "张老板", Phone: "13800000000"},
 	})
 	if err != nil {
@@ -204,6 +208,9 @@ func TestUpdateResourceDraftTurnsRejectedResourceIntoDraft(t *testing.T) {
 
 	if store.updatedResourceID != "resource-1" || store.updateInput.Status != model.ResourceStatusDraft {
 		t.Fatalf("updatedResourceID = %q input = %#v", store.updatedResourceID, store.updateInput)
+	}
+	if store.updateInput.CoverURL != "https://example.com/draft-cover.jpg" {
+		t.Fatalf("coverURL = %q, want first draft image", store.updateInput.CoverURL)
 	}
 	if store.updateInput.MerchantID != "merchant-1" || resp.Status != model.ResourceStatusDraft {
 		t.Fatalf("resp = %#v input = %#v, want draft update", resp, store.updateInput)

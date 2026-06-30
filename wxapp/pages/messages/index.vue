@@ -1,20 +1,15 @@
 <template>
   <view class="messages-page">
-    <view class="message-hero">
-      <text class="hero-title">消息和效果</text>
-      <text class="hero-desc">关注审核、过期、需求跟进和资源表现，及时处理会影响资源曝光。</text>
-    </view>
-
-    <scroll-view class="filter-row" scroll-x>
+    <view class="filter-row">
       <button
         v-for="item in messageTabs"
         :key="item.label"
-        :class="['filter-button', activeMessageTab === item.label ? 'active' : '']"
-        @click="selectMessageTab(item)"
+        :class="['filter-button', filters.status === item.status ? 'active' : '']"
+        @click="selectStatusFromTab(item)"
       >
         {{ item.label }}
       </button>
-    </scroll-view>
+    </view>
 
     <view class="message-list">
       <view v-for="item in rows" :key="item.id" :class="['message-card', item.status === 'read' ? 'read' : 'unread']" @click="openMessageTarget(item)">
@@ -60,14 +55,11 @@ import { listMessages, readMessage } from '../../api/message'
 const rows = ref([])
 const userId = ref('')
 const roleCode = ref('')
-const activeMessageTab = ref('全部')
 const filters = reactive({ status: '' })
 const messageTabs = [
   { label: '全部', status: '' },
-  { label: '未读', status: 'unread', action: () => selectStatus('unread') },
-  { label: '已读', status: 'read', action: () => selectStatus('read') },
-  { label: '审核', status: '' },
-  { label: '效果', status: '' },
+  { label: '未读', status: 'unread' },
+  { label: '已读', status: 'read' },
 ]
 const tabPagePaths = ['/pages/home/index', '/pages/search/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
 
@@ -95,13 +87,16 @@ function selectStatus(status) {
   loadRows()
 }
 
-function selectMessageTab(item) {
-  activeMessageTab.value = item.label
-  if (item.action) {
-    item.action()
+function selectStatusFromTab(item) {
+  if (item.status === 'unread') {
+    selectStatus('unread')
     return
   }
-  selectStatus(item.status)
+  if (item.status === 'read') {
+    selectStatus('read')
+    return
+  }
+  selectStatus('')
 }
 
 async function markRead(item) {
@@ -148,54 +143,50 @@ function openMyResources() {
 .messages-page {
   min-height: 100vh;
   padding: 24rpx;
+  padding-top: 132rpx;
+  overflow-x: hidden;
   background: $wplink-bg;
 }
 
-.message-hero {
-  display: grid;
-  gap: 8rpx;
-  margin-bottom: 20rpx;
-  padding: 24rpx;
-  border-radius: 12rpx;
-  background:
-    linear-gradient(135deg, rgba($wplink-primary, 0.08), rgba($wplink-warning, 0.08)),
-    $wplink-card;
-}
-
-.hero-title {
-  color: $wplink-primary;
-  font-size: 36rpx;
-  font-weight: 700;
-}
-
-.hero-desc {
-  color: $wplink-muted;
-  font-size: 26rpx;
-  line-height: 1.5;
-}
-
 .filter-row {
-  width: 100%;
-  margin-bottom: 20rpx;
-  white-space: nowrap;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12rpx;
+  padding: 24rpx 24rpx 16rpx;
+  overflow: hidden;
+  background: $wplink-card;
+  box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.06);
 }
 
 .filter-button {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 112rpx;
+  width: 100%;
+  min-width: 0;
   height: 72rpx;
-  margin-right: 12rpx;
+  padding: 0 8rpx;
+  border: 2rpx solid transparent;
   border-radius: 10rpx;
-  background: $wplink-card;
+  background: #f4f7fd;
   color: #364152;
-  font-size: 26rpx;
+  font-size: 25rpx;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .filter-button.active {
-  background: $wplink-warning-soft;
-  color: $wplink-primary;
+  border-color: $wplink-primary;
+  background: $wplink-primary;
+  color: $wplink-card;
+  font-weight: 700;
+  box-shadow: 0 8rpx 18rpx rgba(194, 58, 0, 0.18);
 }
 
 .message-list {

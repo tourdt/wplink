@@ -45,3 +45,23 @@ func TestJSONMapsBusinessErrorToFriendlyMessage(t *testing.T) {
 		t.Fatalf("msg = %#v, want friendly forbidden message", body["msg"])
 	}
 }
+
+func TestJSONIncludesBusinessErrorCode(t *testing.T) {
+	rec := httptest.NewRecorder()
+
+	JSON(rec, nil, errx.New(errx.CodeUnauthorized, "登录已过期，请重新登录"))
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body["code"] != float64(http.StatusUnauthorized) {
+		t.Fatalf("code = %#v, want %d", body["code"], http.StatusUnauthorized)
+	}
+	if body["errorCode"] != errx.CodeUnauthorized {
+		t.Fatalf("errorCode = %#v, want %s", body["errorCode"], errx.CodeUnauthorized)
+	}
+}

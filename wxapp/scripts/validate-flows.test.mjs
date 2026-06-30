@@ -156,14 +156,39 @@ test('my page presents merchant workspace and grouped service entries', () => {
 test('my resources page keeps list concise and dates day-only', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/my-resources/index.vue'), 'utf8')
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const myResourcesPage = pagesConfig.pages.find((item) => item.path === 'pages/my-resources/index')
+
+  assert.equal(myResourcesPage?.style?.enablePullDownRefresh, true)
 
   for (const token of [
     'formatDateToDay(item.publishedAt)',
     'formatDateToDay(item.expiresAt)',
-    '管理资源状态和推广效果',
+    'class="publish-fab"',
+    'position: fixed;',
+    'top: 0;',
+    'padding-top: 132rpx;',
+    'background: $wplink-card;',
+    'box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.06);',
     'displayStatusText(item)',
     'isActivePublished(item)',
     'isExpiredResource(item)',
+    '<view class="filter-row">',
+    'grid-template-columns: repeat(4, minmax(0, 1fr));',
+    'onPullDownRefresh',
+    'onReachBottom',
+    'uni.stopPullDownRefresh()',
+    'loadRows({ reset: true })',
+    'loadRows({ reset: false })',
+    'page.value',
+    'hasMore.value',
+    'loading.value',
+    'class="empty-state"',
+    '暂无发布资源',
+    '继续发布',
+    'load-more-text',
+    'padding-bottom: calc(128rpx + env(safe-area-inset-bottom));',
+    'min-height: 360rpx;',
     "{ label: '待跟进', value: 'needs_action' }",
     "{ label: '展示中', value: 'showing' }",
     "{ label: '已结束', value: 'ended' }",
@@ -184,12 +209,17 @@ test('my resources page keeps list concise and dates day-only', () => {
     'lifecycle-note',
     'effectAdvice',
     'effect-advice',
+    '<scroll-view class="filter-row" scroll-x>',
     '已发布资源可刷新、置顶或下架，过期后可再发类似。',
     '审核通过后开始展示。',
     '可再发类似资源继续曝光。',
     '根据曝光和联系情况刷新或置顶。',
     '完善信息有助于买家判断。',
     '管理资源状态、效果数据和推广权益',
+    '管理资源状态和推广效果',
+    'resource-manager-head',
+    'manager-title',
+    'manager-desc',
     "{ label: '草稿', value: 'draft' }",
     "{ label: '待审核', value: 'pending' }",
     "{ label: '已驳回', value: 'rejected' }",
@@ -201,6 +231,9 @@ test('my resources page keeps list concise and dates day-only', () => {
   ]) {
     assert.equal(source.includes(removedToken), false)
   }
+
+  assert.match(source, /\.filter-button \{[\s\S]*border: 2rpx solid transparent;[\s\S]*background: #f4f7fd;[\s\S]*transition: background 0\.18s ease, color 0\.18s ease, border-color 0\.18s ease, box-shadow 0\.18s ease;/)
+  assert.match(source, /\.filter-button\.active \{[\s\S]*border-color: \$wplink-primary;[\s\S]*background: \$wplink-primary;[\s\S]*color: \$wplink-card;[\s\S]*font-weight: 700;[\s\S]*box-shadow: 0 8rpx 18rpx rgba\(194, 58, 0, 0\.18\);/)
 })
 
 test('my resources draft resources open editor instead of direct submit', () => {
@@ -214,7 +247,8 @@ test('my resources draft resources open editor instead of direct submit', () => 
   assert.equal(source.includes('submitResource'), false)
   assert.equal(source.includes('已提交审核'), false)
   assert.equal(source.includes('publish:pending-edit-context'), false)
-  assert.equal(source.includes("uni.switchTab({ url: '/pages/publish/index' })"), true)
+  assert.match(source, /function openPublish\(\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}` \}\)[\s\S]*\}/)
+  assert.equal(source.includes("uni.switchTab({ url: '/pages/publish/index' })"), false)
 })
 
 test('my resources repost similar opens a new resource form with old resource defaults', () => {
@@ -246,6 +280,14 @@ test('publish pages split tab creation and independent editing', () => {
   assert.match(editSource, /<ResourcePublishForm[\s\S]*mode="edit"[\s\S]*:initial-options="routeOptions"/)
   assert.equal(tabSource.includes('onShow'), false)
   assert.equal(tabSource.includes('publish:pending-edit-context'), false)
+})
+
+test('publish success page highlights my resources as the primary action', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/publish-success/index.vue'), 'utf8')
+
+  assert.match(source, /<button class="wplink-primary-button action-button" @click="openMyResources">查看我的发布<\/button>/)
+  assert.match(source, /<button class="wplink-secondary-button action-button" @click="openMessages">查看消息<\/button>/)
 })
 
 test('merchant profile page labels every field and removes manual image url entry', () => {
@@ -866,7 +908,8 @@ test('resource detail related resources use reusable resource list', () => {
   assert.equal(source.includes('<ResourceCard v-for="item in relatedResources"'), false)
   assert.match(cardSource, /props\.variant === 'compact'[\s\S]*'resource-card-compact'/)
   assert.match(cardSource, /\.resource-card-compact \.thumb-wrap \{[\s\S]*width: 144rpx;[\s\S]*height: 144rpx;/)
-  assert.match(cardSource, /<view class="merchant-line">[\s\S]*<view class="meta-price-line">/)
+  assert.match(cardSource, /<text class="resource-title">[\s\S]*<text class="resource-meta">[\s\S]*<text class="resource-price">[\s\S]*<view class="merchant-line">/)
+  assert.equal(cardSource.includes('meta-price-line'), false)
   assert.equal(cardSource.includes('平台核实'), false)
   assert.equal(cardSource.includes('查看详情'), false)
 })

@@ -170,6 +170,9 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 	if myMetrics["detailViewCount"] != float64(1) || myMetrics["phoneClickCount"] != float64(1) || myMetrics["wechatCopyCount"] != float64(1) {
 		t.Fatalf("my metrics = %#v, want updated loop metrics", myMetrics)
 	}
+	if myItem["coverUrl"] != "https://img.example.com/resource-cover.jpg" {
+		t.Fatalf("my coverUrl = %#v, want compact list cover", myItem["coverUrl"])
+	}
 }
 
 func TestResourceAPIRouterRequiresManagedMerchantWhenTokenConfigured(t *testing.T) {
@@ -690,7 +693,8 @@ func (s *fakeResourceAPIStore) ListMyResources(ctx context.Context, filter model
 	return model.ListMyResourcesResult{
 		Items: []model.MyResourceItem{{
 			ID: "resource-1", TypeCode: "inventory", Title: "女童春款卫衣库存", Category: "童装卫衣", Status: model.ResourceStatusPublished,
-			Metrics: model.MyResourceMetrics{DetailViewCount: 1, PhoneClickCount: 1, WechatCopyCount: 1},
+			CoverURL: "https://img.example.com/resource-cover.jpg",
+			Metrics:  model.MyResourceMetrics{DetailViewCount: 1, PhoneClickCount: 1, WechatCopyCount: 1},
 		}},
 		Page: filter.Page, PageSize: filter.PageSize, Total: 1,
 	}, nil

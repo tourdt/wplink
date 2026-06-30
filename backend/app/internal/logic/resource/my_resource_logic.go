@@ -41,6 +41,7 @@ type MyResourceItem struct {
 	TypeCode     string            `json:"typeCode"`
 	Title        string            `json:"title"`
 	Category     string            `json:"category"`
+	CoverURL     string            `json:"coverUrl,omitempty"`
 	Status       string            `json:"status"`
 	RejectReason string            `json:"rejectReason,omitempty"`
 	PublishedAt  string            `json:"publishedAt,omitempty"`
@@ -178,7 +179,7 @@ func (l *ListMyResourcesLogic) ListMyResources(ctx context.Context, req ListMyRe
 	for _, item := range result.Items {
 		items = append(items, MyResourceItem{
 			ID: item.ID, TypeCode: item.TypeCode, Title: item.Title, Category: item.Category, Status: item.Status,
-			RejectReason: item.RejectReason, PublishedAt: item.PublishedAt, ExpiresAt: item.ExpiresAt, DealtAt: item.DealtAt,
+			CoverURL: item.CoverURL, RejectReason: item.RejectReason, PublishedAt: item.PublishedAt, ExpiresAt: item.ExpiresAt, DealtAt: item.DealtAt,
 			Metrics: MyResourceMetrics{
 				ExposureCount: item.Metrics.ExposureCount, DetailViewCount: item.Metrics.DetailViewCount,
 				PhoneClickCount: item.Metrics.PhoneClickCount, WechatCopyCount: item.Metrics.WechatCopyCount,
