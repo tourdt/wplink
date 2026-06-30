@@ -112,7 +112,7 @@ function applySavedSearch(item) {
     typeCode: item.typeCode || '',
     cityCode: item.cityCode || '',
   })
-  uni.switchTab({ url: '/pages/search/index' })
+  uni.navigateTo({ url: '/pages/search/result' })
 }
 
 async function removeSavedSearch(item) {

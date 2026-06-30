@@ -14,8 +14,11 @@ test('resource card displays type code as Chinese resource type text', () => {
   assert.equal(source.includes('{{ resource.typeCode }}'), false)
 })
 
-test('resource card placeholder does not duplicate the resource type label', () => {
-  assert.match(source, /<view v-else class="resource-thumb placeholder-thumb">[\s\S]*<text v-if="resourceTypeLabel" class="type-corner">\{\{ resourceTypeLabel \}\}<\/text>[\s\S]*<\/view>/)
+test('resource card uses the default cover when resource image is missing', () => {
+  assert.match(source, /const DEFAULT_RESOURCE_COVER = '\/static\/resource\/default-resource-cover\.png'/)
+  assert.match(source, /<image class="resource-thumb" :src="coverUrl \|\| DEFAULT_RESOURCE_COVER" mode="aspectFill" \/>/)
+  assert.match(source, /<text v-if="resourceTypeLabel" class="type-corner">\{\{ resourceTypeLabel \}\}<\/text>/)
+  assert.equal(source.includes('placeholder-thumb'), false)
   assert.equal(source.includes('placeholderLabel'), false)
   assert.equal(source.includes('资源图片'), false)
   assert.equal(source.includes('props.resource.typeCode || props.resource.category'), false)

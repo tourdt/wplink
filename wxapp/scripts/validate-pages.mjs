@@ -18,6 +18,7 @@ const pagePaths = (pagesConfig.pages || []).map((item) => item.path)
 const requiredPages = [
   'pages/home/index',
   'pages/search/index',
+  'pages/search/result',
   'pages/publish/index',
   'pages/publish/edit',
   'pages/publish-success/index',
@@ -69,7 +70,7 @@ for (const item of pagesConfig.tabBar?.list || []) {
   }
 }
 
-for (const page of ['pages/search/index']) {
+for (const page of ['pages/search/index', 'pages/search/result']) {
   const vuePath = path.join(root, `${page}.vue`)
   const source = fs.readFileSync(vuePath, 'utf8')
   if (!source.includes('listCityResourceTypes')) {

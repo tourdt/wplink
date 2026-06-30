@@ -1,11 +1,8 @@
 <template>
   <view :class="['resource-card', variantClass]" @click="$emit('open', resource)">
     <view class="thumb-wrap">
-      <image v-if="coverUrl" class="resource-thumb" :src="coverUrl" mode="aspectFill" />
-      <view v-else class="resource-thumb placeholder-thumb">
-        <text v-if="resourceTypeLabel" class="type-corner">{{ resourceTypeLabel }}</text>
-      </view>
-      <text v-if="coverUrl && resourceTypeLabel" class="type-corner">{{ resourceTypeLabel }}</text>
+      <image class="resource-thumb" :src="coverUrl || DEFAULT_RESOURCE_COVER" mode="aspectFill" />
+      <text v-if="resourceTypeLabel" class="type-corner">{{ resourceTypeLabel }}</text>
     </view>
     <view class="card-main">
       <text class="resource-title">{{ resource.title || '资源标题待完善' }}</text>
@@ -25,6 +22,8 @@ import { computed } from 'vue'
 
 import { formatListFreshnessDate } from '../common/date'
 import { resourceTypeText } from '../common/enums'
+
+const DEFAULT_RESOURCE_COVER = '/static/resource/default-resource-cover.png'
 
 const props = defineProps({
   resource: {
@@ -86,13 +85,6 @@ function formatRefreshedAt(value) {
   display: block;
   width: 100%;
   height: 100%;
-}
-
-.placeholder-thumb {
-  background:
-    linear-gradient(140deg, rgba(255, 255, 255, 0.22), transparent 38%),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.18) 0 12rpx, transparent 12rpx 24rpx),
-    #5c8a72;
 }
 
 .type-corner {

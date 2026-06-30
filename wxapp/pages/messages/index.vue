@@ -22,6 +22,7 @@
         <text class="message-time">{{ item.createdAt }}</text>
         <text v-if="item.targetUrl" class="target-hint">查看详情</text>
       </view>
+      <text v-if="rows.length" class="load-more-text">{{ loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了' }}</text>
     </view>
 
     <view class="effect-card">
@@ -48,7 +49,7 @@
 
 <script setup>
 import { reactive, ref } from 'vue'
-import { onLoad, onShow } from '@dcloudio/uni-app'
+import { onLoad, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import { getSession } from '../../store/session'
 import { listMessages, readMessage } from '../../api/message'
 
@@ -56,6 +57,11 @@ const rows = ref([])
 const userId = ref('')
 const roleCode = ref('')
 const filters = reactive({ status: '' })
+const page = ref(1)
+const pageSize = 20
+const total = ref(0)
+const hasMore = ref(true)
+const loading = ref(false)
 const messageTabs = [
   { label: '全部', status: '' },
   { label: '未读', status: 'unread' },
@@ -69,22 +75,48 @@ onLoad((options) => {
   roleCode.value = options.roleCode || (session.merchantId ? `merchant:${session.merchantId}` : '')
 })
 
-onShow(loadRows)
+onShow(() => {
+  loadRows({ reset: true })
+})
 
-async function loadRows() {
-  const resp = await listMessages({
-    userId: userId.value,
-    roleCode: roleCode.value,
-    status: filters.status,
-    page: 1,
-    pageSize: 30,
-  })
-  rows.value = resp.items || []
+onPullDownRefresh(async () => {
+  try {
+    await loadRows({ reset: true })
+  } finally {
+    uni.stopPullDownRefresh()
+  }
+})
+
+onReachBottom(() => {
+  loadRows({ reset: false })
+})
+
+async function loadRows({ reset = true } = {}) {
+  if (loading.value) return
+  if (!reset && !hasMore.value) return
+  loading.value = true
+  try {
+    const nextPage = reset ? 1 : page.value + 1
+    const resp = await listMessages({
+      userId: userId.value,
+      roleCode: roleCode.value,
+      status: filters.status,
+      page: nextPage,
+      pageSize,
+    })
+    const items = resp.items || []
+    rows.value = reset ? items : [...rows.value, ...items]
+    page.value = nextPage
+    total.value = resp.total || rows.value.length
+    hasMore.value = rows.value.length < total.value
+  } finally {
+    loading.value = false
+  }
 }
 
 function selectStatus(status) {
   filters.status = status
-  loadRows()
+  loadRows({ reset: true })
 }
 
 function selectStatusFromTab(item) {
@@ -193,6 +225,14 @@ function openMyResources() {
   display: grid;
   gap: 18rpx;
   margin-bottom: 20rpx;
+}
+
+.load-more-text {
+  padding: 8rpx 0 18rpx;
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .message-card {

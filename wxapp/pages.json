@@ -10,6 +10,12 @@
     {
       "path": "pages/search/index",
       "style": {
+        "navigationBarTitleText": "资源推荐"
+      }
+    },
+    {
+      "path": "pages/search/result",
+      "style": {
         "navigationBarTitleText": "搜索资源"
       }
     },
@@ -52,7 +58,8 @@
     {
       "path": "pages/messages/index",
       "style": {
-        "navigationBarTitleText": "消息"
+        "navigationBarTitleText": "消息",
+        "enablePullDownRefresh": true
       }
     },
     {
@@ -131,7 +138,7 @@
       },
       {
         "pagePath": "pages/search/index",
-        "text": "搜索",
+        "text": "资源",
         "iconPath": "static/tabbar/search.png",
         "selectedIconPath": "static/tabbar/search-active.png"
       },

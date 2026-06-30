@@ -5,6 +5,7 @@ import test from 'node:test'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'pages/messages/index.vue'), 'utf8')
+const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
 
 test('messages page removes top copy and keeps only effective status filters', () => {
   assert.doesNotMatch(source, /message-hero/)
@@ -25,4 +26,32 @@ test('messages page follows my resources fixed compact filter style', () => {
   assert.match(source, /\.filter-row \{[\s\S]*position: fixed;[\s\S]*top: 0;[\s\S]*right: 0;[\s\S]*left: 0;[\s\S]*z-index: 10;[\s\S]*display: grid;[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*padding: 24rpx 24rpx 16rpx;[\s\S]*overflow: hidden;[\s\S]*background: \$wplink-card;[\s\S]*box-shadow: 0 8rpx 20rpx rgba\(15, 23, 42, 0\.06\);/)
   assert.match(source, /\.filter-button \{[\s\S]*background: #f4f7fd;/)
   assert.match(source, /\.filter-button\.active \{[\s\S]*border-color: \$wplink-primary;[\s\S]*background: \$wplink-primary;[\s\S]*color: \$wplink-card;/)
+})
+
+test('messages page supports pull refresh and load more pagination', () => {
+  for (const token of [
+    'onPullDownRefresh',
+    'onReachBottom',
+    'uni.stopPullDownRefresh',
+    'loadRows({ reset: true })',
+    'loadRows({ reset: false })',
+    'const page = ref(1)',
+    'const pageSize = 20',
+    'const total = ref(0)',
+    'const hasMore = ref(true)',
+    'const loading = ref(false)',
+    "loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了'",
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(source, /rows\.value = reset \? items : \[\.\.\.rows\.value, \.\.\.items\]/)
+  assert.match(source, /hasMore\.value = rows\.value\.length < total\.value/)
+  assert.match(source, /function selectStatus\(status\) \{[\s\S]*loadRows\(\{ reset: true \}\)[\s\S]*\}/)
+})
+
+test('messages page enables native pull down refresh in page config', () => {
+  const page = pagesConfig.pages.find((entry) => entry.path === 'pages/messages/index')
+
+  assert.equal(page?.style?.enablePullDownRefresh, true)
 })

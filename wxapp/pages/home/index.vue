@@ -3,16 +3,7 @@
     <view class="home-fixed-header" :style="fixedHeaderStyle">
       <view class="custom-title-bar" :style="customTitleBarStyle">
         <view class="home-brand">
-          <view class="brand-icon" aria-hidden="true">
-            <view class="brand-hanger">
-              <text class="brand-hanger-hook"></text>
-              <text class="brand-hanger-line"></text>
-            </view>
-            <view class="brand-cargo-box">
-              <text class="brand-cargo-tape"></text>
-            </view>
-          </view>
-          <text class="brand-name">衣货通</text>
+          <image class="brand-logo" src="/static/brand/yihuotong-header-logo.png" mode="aspectFit" />
         </view>
       </view>
 
@@ -287,7 +278,7 @@ function openSearch(keyword = '') {
   } else {
     uni.removeStorageSync(SEARCH_KEY)
   }
-  uni.switchTab({ url: '/pages/search/index' })
+  uni.navigateTo({ url: '/pages/search/result' })
 }
 
 function openDemand() {
@@ -392,79 +383,13 @@ function bannerTone(jumpType) {
 .home-brand {
   display: flex;
   align-items: center;
-  gap: 20rpx;
   min-width: 0;
 }
 
-.brand-icon {
-  position: relative;
-  width: 56rpx;
-  height: 56rpx;
-  overflow: hidden;
-  border-radius: 14rpx;
-  background: linear-gradient(135deg, $wplink-primary 0%, $wplink-primary 100%);
-  box-shadow: inset 0 0 0 1rpx rgba(255, 255, 255, 0.18), 0 8rpx 18rpx rgba($wplink-primary, 0.16);
-}
-
-.brand-hanger {
-  position: absolute;
-  top: 8rpx;
-  right: 0;
-  left: 0;
-  height: 26rpx;
-}
-
-.brand-hanger-hook {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 13rpx;
-  height: 13rpx;
-  border: 4rpx solid rgba(255, 255, 255, 0.96);
-  border-bottom: 0;
-  border-left-color: transparent;
-  border-radius: 999rpx 999rpx 0 0;
-  transform: translateX(-50%) rotate(26deg);
-}
-
-.brand-hanger-line {
-  position: absolute;
-  top: 17rpx;
-  left: 14rpx;
-  width: 28rpx;
-  height: 13rpx;
-  border-right: 4rpx solid rgba(255, 255, 255, 0.96);
-  border-bottom: 4rpx solid rgba(255, 255, 255, 0.96);
-  border-left: 4rpx solid rgba(255, 255, 255, 0.96);
-  border-radius: 0 0 5rpx 5rpx;
-}
-
-.brand-cargo-box {
-  position: absolute;
-  right: 11rpx;
-  bottom: 9rpx;
-  left: 11rpx;
-  height: 19rpx;
-  border-radius: 5rpx;
-  background: #ffb454;
-  box-shadow: inset 0 -4rpx 0 rgba(154, 91, 0, 0.18);
-}
-
-.brand-cargo-tape {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 6rpx;
-  background: rgba(255, 255, 255, 0.52);
-  transform: translateX(-50%);
-}
-
-.brand-name {
-  color: #12243a;
-  font-size: 32rpx;
-  font-weight: 800;
-  line-height: 1.2;
+.brand-logo {
+  display: block;
+  width: 246rpx;
+  height: 82rpx;
 }
 
 .search-entry {

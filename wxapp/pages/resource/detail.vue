@@ -254,7 +254,7 @@ function openSearch() {
   } else {
     uni.removeStorageSync(SEARCH_KEY)
   }
-  uni.switchTab({ url: '/pages/search/index' })
+  uni.navigateTo({ url: '/pages/search/result' })
 }
 
 function backHome() {

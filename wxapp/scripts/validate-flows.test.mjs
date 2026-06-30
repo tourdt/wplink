@@ -72,6 +72,35 @@ test('home page keeps custom brand first screen structure', () => {
   }
 })
 
+test('resource tab separates recommendation discovery from keyword search page', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const resourceTab = pagesConfig.tabBar.list.find((item) => item.pagePath === 'pages/search/index')
+  const resourceSource = fs.readFileSync(path.join(root, 'pages/search/index.vue'), 'utf8')
+  const searchSource = fs.readFileSync(path.join(root, 'pages/search/result.vue'), 'utf8')
+  const homeSource = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const detailSource = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
+  const favoritesSource = fs.readFileSync(path.join(root, 'pages/favorites/index.vue'), 'utf8')
+
+  assert.ok(pagesConfig.pages.some((item) => item.path === 'pages/search/result'))
+  assert.equal(resourceTab?.text, '资源')
+
+  for (const token of ['资源推荐', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectType']) {
+    assert.match(resourceSource, new RegExp(token))
+  }
+  for (const removedToken of ['createSavedSearch', 'applySavedSearch', 'saveCurrentSearch']) {
+    assert.equal(resourceSource.includes(removedToken), false)
+  }
+
+  for (const token of ['搜索资源', 'searchResources', 'createSavedSearch', 'applySavedSearch', '暂未找到合适资源', '提交采购需求']) {
+    assert.match(searchSource, new RegExp(token))
+  }
+
+  assert.match(homeSource, /uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
+  assert.match(detailSource, /uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
+  assert.match(favoritesSource, /uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
+})
+
 test('my page separates guest and logged-in account states without merchant binding', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
