@@ -8,6 +8,8 @@ import (
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type MyResourceStore interface {
@@ -273,6 +275,12 @@ func (l *RefreshResourceLogic) RefreshResource(ctx context.Context, req RefreshR
 	}
 	result, err := l.store.RefreshResource(ctx, merchantID, resourceID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// 刷新额度扣减未命中时数据库返回 no rows，这里转成前端可处理的业务提示。
+			logx.Infof("刷新资源额度不足: merchantId=%s resourceId=%s", merchantID, resourceID)
+			return RefreshResourceResp{}, errx.New(errx.CodeQuotaNotEnough, "刷新额度不足，请联系平台开通后再试")
+		}
+		logx.Errorf("刷新资源失败: merchantId=%s resourceId=%s err=%+v", merchantID, resourceID, err)
 		return RefreshResourceResp{}, err
 	}
 	return RefreshResourceResp{ID: result.ID, RefreshedAt: result.RefreshedAt, RemainingRefreshQuota: result.RemainingRefreshQuota}, nil

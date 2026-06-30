@@ -63,6 +63,7 @@ type FollowedMerchantItem struct {
 	MerchantType       string   `json:"merchantType"`
 	VerificationStatus string   `json:"verificationStatus"`
 	MainCategories     []string `json:"mainCategories"`
+	LogoUrl            string   `json:"logoUrl,omitempty"`
 	FollowedAt         string   `json:"followedAt"`
 }
 
@@ -213,7 +214,7 @@ func (l *InteractionLogic) ListFollowedMerchants(ctx context.Context, userID str
 	for _, item := range result.Items {
 		items = append(items, FollowedMerchantItem{
 			ID: item.ID, Name: item.Name, MerchantType: item.MerchantType, VerificationStatus: item.VerificationStatus,
-			MainCategories: append([]string(nil), item.MainCategories...), FollowedAt: item.FollowedAt,
+			MainCategories: append([]string(nil), item.MainCategories...), LogoUrl: item.LogoUrl, FollowedAt: item.FollowedAt,
 		})
 	}
 	return ListFollowedMerchantsResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil

@@ -39,13 +39,10 @@
     </view>
 
     <view v-else class="empty-card">
-      <view class="empty-visual">
-        <text>资源</text>
-      </view>
-      <text class="empty-title">当前类型暂无推荐资源</text>
-      <text class="empty-desc">可以换个类型继续浏览，或直接搜索关键词、提交采购需求。</text>
+      <view class="empty-visual"></view>
+      <text class="empty-title">暂无推荐资源</text>
+      <text class="empty-desc">换个类型或搜索关键词。</text>
       <button class="primary-button" @click="openSearchPage()">去搜索</button>
-      <button class="secondary-button" @click="openDemand">提交采购需求</button>
     </view>
 
     <view v-if="showTypeDrawer" class="type-drawer-mask" @click="closeTypeDrawer">
@@ -187,10 +184,6 @@ function openSearchPage(keyword = '') {
 function openResource(item) {
   uni.navigateTo({ url: `/pages/resource/detail?id=${item.id}` })
 }
-
-function openDemand() {
-  uni.navigateTo({ url: '/pages/demand/index' })
-}
 </script>
 
 <style lang="scss" scoped>
@@ -299,45 +292,40 @@ function openDemand() {
 .empty-card {
   display: grid;
   justify-items: center;
-  gap: 14rpx;
-  padding: 40rpx 24rpx;
+  gap: 12rpx;
+  padding: 32rpx 24rpx;
   border-radius: 12rpx;
   background: $wplink-card;
   text-align: center;
 }
 
 .empty-visual {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  width: 188rpx;
-  height: 136rpx;
-  padding: 18rpx;
+  display: block;
+  width: 148rpx;
+  height: 104rpx;
+  padding: 0;
   border-radius: 12rpx;
   background:
-    linear-gradient(140deg, rgba(255, 255, 255, 0.22), transparent 38%),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.18) 0 12rpx, transparent 12rpx 24rpx),
-    #7b8fc7;
-  color: $wplink-card;
-  font-size: 26rpx;
-  font-weight: 700;
+    linear-gradient(140deg, rgba(255, 255, 255, 0.42), transparent 42%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.22) 0 10rpx, transparent 10rpx 20rpx),
+    rgba($wplink-primary, 0.18);
 }
 
 .empty-title {
-  color: $wplink-primary;
-  font-size: 32rpx;
+  color: $wplink-text;
+  font-size: 28rpx;
   font-weight: 700;
 }
 
 .empty-desc {
   color: $wplink-muted;
-  font-size: 28rpx;
+  font-size: 24rpx;
   line-height: 1.5;
 }
 
-.primary-button,
-.secondary-button {
+.primary-button {
   width: 100%;
+  max-width: 360rpx;
   height: 84rpx;
   border-radius: 12rpx;
 }
@@ -345,11 +333,6 @@ function openDemand() {
 .primary-button {
   background: $wplink-primary;
   color: $wplink-card;
-}
-
-.secondary-button {
-  background: $wplink-primary-soft;
-  color: $wplink-primary;
 }
 
 .type-drawer-mask {

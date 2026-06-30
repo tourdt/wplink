@@ -42,9 +42,14 @@
           @click="openScene(item)"
         >
           <view :class="['quick-icon', item.icon]">
-            <text v-if="item.icon === 'stock'" class="icon-stock-line"></text>
-            <text v-if="item.icon === 'stock'" class="icon-stock-dot"></text>
-            <text v-if="item.icon === 'clear'" class="icon-clear-flame"></text>
+            <view v-if="item.icon === 'market'" class="icon-market-stall">
+              <text></text>
+              <text></text>
+              <text></text>
+            </view>
+            <view v-if="item.icon === 'clearance'" class="icon-clearance-tag">
+              <text></text>
+            </view>
             <view v-if="item.icon === 'factory'" class="icon-factory-grid">
               <text></text>
               <text></text>
@@ -53,7 +58,7 @@
               <text></text>
               <text></text>
             </view>
-            <view v-if="item.icon === 'order'" class="icon-order-lines">
+            <view v-if="item.icon === 'orders'" class="icon-orders-board">
               <text></text>
               <text></text>
               <text></text>
@@ -106,6 +111,7 @@ const headerMetrics = ref({
   headerHeight: 154,
 })
 const SEARCH_KEY = 'wplink_pending_search_keyword'
+const PUBLISH_TYPE_KEY = 'wplink_pending_publish_type_code'
 const SEARCH_BLOCK_RPX = 116
 const defaultBanners = [
   {
@@ -135,12 +141,13 @@ const defaultBanners = [
     tone: 'factory',
   },
   {
-    id: 'default-demand',
-    kindText: '找货需求 · 运营跟进',
-    title: '没找到合适货源？',
-    jumpType: 'demand',
-    jumpTarget: '/pages/demand/index',
-    tone: 'demand',
+    id: 'default-order',
+    kindText: '订单需求 · 工厂接单',
+    title: '有空档产能？查看订单',
+    jumpType: 'search',
+    jumpTarget: '订单',
+    typeCode: 'order',
+    tone: 'order',
   },
   {
     id: 'default-publish',
@@ -152,10 +159,10 @@ const defaultBanners = [
   },
 ]
 const sceneEntries = [
-  { title: '我要找货', tone: 'navy', icon: 'stock', keyword: '现货' },
-  { title: '我要清货', tone: 'red', icon: 'clear', action: 'publish' },
-  { title: '我要找厂', tone: 'teal', icon: 'factory', keyword: '小单快返' },
-  { title: '我要接单', tone: 'amber', icon: 'order', action: 'demand' },
+  { title: '货源市场', tone: 'navy', icon: 'market', typeCode: 'goods', keyword: '现货' },
+  { title: '库存清仓', tone: 'red', icon: 'clearance', typeCode: 'inventory', keyword: '库存' },
+  { title: '工厂产能', tone: 'teal', icon: 'factory', typeCode: 'factory', keyword: '小单快返' },
+  { title: '订单大厅', tone: 'amber', icon: 'orders', typeCode: 'order', keyword: '订单' },
 ]
 const displayBanners = computed(() => {
   const bannerSource = banners.value.length ? banners.value : defaultBanners
@@ -222,11 +229,11 @@ async function loadHomeResources() {
 
 function openBanner(item) {
   if (item.keyword) {
-    openSearch(item.keyword)
+    openSearch({ keyword: item.keyword, typeCode: item.typeCode })
     return
   }
   if (item.jumpType === 'search') {
-    openSearch(item.jumpTarget)
+    openSearch({ keyword: item.jumpTarget, typeCode: item.typeCode })
     return
   }
   if (item.jumpType === 'topic') {
@@ -245,47 +252,37 @@ function openBanner(item) {
     uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(item.jumpTarget)}` })
     return
   }
-  if (item.jumpType === 'demand') {
-    openDemand()
-    return
-  }
   if (item.jumpType === 'publish') {
-    openPublish()
+    openPublish(item.typeCode)
     return
   }
   if (item.jumpType === 'internal' && item.jumpTarget) {
     openInternal(item.jumpTarget)
     return
   }
-  openDemand()
+  openSearch()
 }
 
 function openScene(item) {
-  if (item.action === 'publish') {
-    openPublish()
-    return
-  }
-  if (item.action === 'demand') {
-    openDemand()
-    return
-  }
-  openSearch(item.keyword)
+  openSearch({ keyword: item.keyword, typeCode: item.typeCode })
 }
 
-function openSearch(keyword = '') {
-  if (keyword) {
-    uni.setStorageSync(SEARCH_KEY, keyword)
+function openSearch(options = {}) {
+  const searchOptions = typeof options === 'string' ? { keyword: options } : { ...options }
+  if (searchOptions.keyword || searchOptions.typeCode || searchOptions.cityCode) {
+    uni.setStorageSync(SEARCH_KEY, searchOptions)
   } else {
     uni.removeStorageSync(SEARCH_KEY)
   }
   uni.navigateTo({ url: '/pages/search/result' })
 }
 
-function openDemand() {
-  uni.navigateTo({ url: '/pages/demand/index' })
-}
-
-function openPublish() {
+function openPublish(typeCode = '') {
+  if (typeCode) {
+    uni.setStorageSync(PUBLISH_TYPE_KEY, typeCode)
+  } else {
+    uni.removeStorageSync(PUBLISH_TYPE_KEY)
+  }
   uni.switchTab({ url: '/pages/publish/index' })
 }
 
@@ -299,8 +296,10 @@ function openInternal(url) {
   if (path === '/pages/search/index' && url.includes('?')) {
     const query = url.split('?')[1] || ''
     const keywordPair = query.split('&').find((item) => item.startsWith('keyword=') || item.startsWith('q='))
+    const typePair = query.split('&').find((item) => item.startsWith('typeCode='))
     const keyword = keywordPair ? decodeURIComponent(keywordPair.split('=')[1] || '') : ''
-    openSearch(keyword)
+    const typeCode = typePair ? decodeURIComponent(typePair.split('=')[1] || '') : ''
+    openSearch({ keyword, typeCode })
     return
   }
   if (tabPages.includes(path)) {
@@ -325,7 +324,6 @@ function bannerKindText(item) {
     topic: '专题推荐',
     resource: '资源推荐',
     merchant: '认证商家',
-    demand: '找货需求',
     publish: '商家发布',
     search: '热门搜索',
     webview: '活动推广',
@@ -338,7 +336,6 @@ function bannerTone(jumpType) {
   const toneMap = {
     webview: 'activity',
     merchant: 'factory',
-    demand: 'demand',
     publish: 'publish',
     search: 'topic',
   }
@@ -488,7 +485,7 @@ function bannerTone(jumpType) {
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0 20rpx, transparent 20rpx 40rpx);
 }
 
-.banner-card.demand .banner-pattern {
+.banner-card.order .banner-pattern {
   background:
     linear-gradient(135deg, rgba($wplink-coral, 0.9), rgba($wplink-warning, 0.78)),
     radial-gradient(circle at 80% 22%, rgba(255, 255, 255, 0.22), transparent 30%);
@@ -601,41 +598,6 @@ function bannerTone(jumpType) {
   word-break: keep-all;
 }
 
-.icon-stock-line {
-  width: 36rpx;
-  height: 28rpx;
-  border: 5rpx solid $wplink-primary;
-  border-radius: 4rpx;
-}
-
-.icon-stock-dot {
-  position: absolute;
-  top: 36rpx;
-  width: 20rpx;
-  height: 5rpx;
-  border-radius: 999rpx;
-  background: $wplink-primary;
-}
-
-.icon-clear-flame {
-  width: 30rpx;
-  height: 38rpx;
-  border-radius: 50% 50% 48% 48%;
-  background: $wplink-warning;
-  clip-path: polygon(50% 0, 78% 28%, 94% 58%, 82% 88%, 50% 100%, 18% 88%, 6% 58%, 28% 30%);
-}
-
-.icon-clear-flame::after {
-  position: absolute;
-  top: 42rpx;
-  left: 43rpx;
-  width: 14rpx;
-  height: 20rpx;
-  border-radius: 50%;
-  background: $wplink-card;
-  content: '';
-}
-
 .icon-factory-grid {
   display: grid;
   grid-template-columns: repeat(3, 9rpx);
@@ -649,24 +611,109 @@ function bannerTone(jumpType) {
   background: $wplink-success;
 }
 
-.icon-order-lines {
+.icon-market-stall {
+  position: relative;
   display: grid;
-  gap: 8rpx;
-  width: 36rpx;
+  grid-template-columns: repeat(3, 12rpx);
+  gap: 2rpx;
+  width: 42rpx;
+  height: 38rpx;
+  padding-top: 10rpx;
 }
 
-.icon-order-lines text {
+.icon-market-stall::before,
+.icon-market-stall::after {
+  position: absolute;
+  right: 0;
+  left: 0;
+  content: '';
+}
+
+.icon-market-stall::before {
+  top: 0;
+  height: 11rpx;
+  border-radius: 6rpx 6rpx 2rpx 2rpx;
+  background: repeating-linear-gradient(90deg, $wplink-primary 0 10rpx, rgba($wplink-primary, 0.45) 10rpx 20rpx);
+}
+
+.icon-market-stall::after {
+  bottom: 0;
+  height: 5rpx;
+  border-radius: 999rpx;
+  background: $wplink-primary;
+}
+
+.icon-market-stall text {
+  align-self: end;
+  height: 20rpx;
+  border-radius: 2rpx 2rpx 0 0;
+  background: rgba($wplink-primary, 0.72);
+}
+
+.icon-clearance-tag {
+  position: relative;
+  width: 42rpx;
+  height: 30rpx;
+  border-radius: 6rpx 8rpx 8rpx 6rpx;
+  background: $wplink-warning;
+  transform: rotate(-10deg);
+}
+
+.icon-clearance-tag::before {
+  position: absolute;
+  top: 10rpx;
+  left: 7rpx;
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 999rpx;
+  background: $wplink-card;
+  content: '';
+}
+
+.icon-clearance-tag::after {
+  position: absolute;
+  top: 12rpx;
+  right: -10rpx;
+  width: 20rpx;
+  height: 20rpx;
+  border-radius: 3rpx;
+  background: $wplink-warning;
+  content: '';
+  transform: rotate(45deg);
+}
+
+.icon-clearance-tag text {
+  position: absolute;
+  right: 8rpx;
+  bottom: 7rpx;
+  width: 18rpx;
+  height: 5rpx;
+  border-radius: 999rpx;
+  background: $wplink-card;
+  z-index: 1;
+}
+
+.icon-orders-board {
+  display: grid;
+  gap: 7rpx;
+  width: 40rpx;
+  padding: 8rpx 7rpx;
+  border: 5rpx solid #f59e0b;
+  border-radius: 4rpx;
+}
+
+.icon-orders-board text {
   display: block;
   height: 5rpx;
   border-radius: 999rpx;
   background: #f59e0b;
 }
 
-.icon-order-lines text:nth-child(2) {
+.icon-orders-board text:nth-child(2) {
   width: 26rpx;
 }
 
-.icon-order-lines text:nth-child(3) {
+.icon-orders-board text:nth-child(3) {
   width: 18rpx;
 }
 

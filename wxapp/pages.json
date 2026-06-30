@@ -130,6 +130,8 @@
     "selectedColor": "#c23a00",
     "backgroundColor": "#ffffff",
     "borderStyle": "black",
+    "fontSize": "10px",
+    "iconWidth": "28px",
     "list": [
       {
         "pagePath": "pages/home/index",

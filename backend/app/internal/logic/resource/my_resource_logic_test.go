@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -92,6 +93,19 @@ func TestRefreshResourceUpdatesPublishedResource(t *testing.T) {
 	}
 }
 
+func TestRefreshResourceReturnsQuotaErrorWhenNoRefreshQuota(t *testing.T) {
+	store := &fakeMyResourceStore{
+		resourceStatus: model.ResourceOwnershipStatus{ID: "resource-1", MerchantID: "merchant-1", Status: model.ResourceStatusPublished},
+		refreshErr:     sql.ErrNoRows,
+	}
+	logic := NewRefreshResourceLogic(store)
+
+	_, err := logic.RefreshResource(context.Background(), RefreshResourceReq{MerchantID: "merchant-1", ResourceID: "resource-1"})
+	if err == nil || errx.CodeOf(err) != errx.CodeQuotaNotEnough {
+		t.Fatalf("RefreshResource() error = %v, want quota not enough", err)
+	}
+}
+
 func TestMarkDealtRequiresPublishedResource(t *testing.T) {
 	store := &fakeMyResourceStore{resourceStatus: model.ResourceOwnershipStatus{ID: "resource-1", MerchantID: "merchant-1", Status: model.ResourceStatusRejected}}
 	logic := NewMarkDealtLogic(store)
@@ -165,6 +179,7 @@ type fakeMyResourceStore struct {
 	ownDetailResourceID string
 	refreshedResourceID string
 	refreshResult       model.RefreshResourceResult
+	refreshErr          error
 	dealInput           model.MarkDealtInput
 	dealResult          model.DealFeedbackResult
 	takeDownInput       model.TakeDownOwnResourceInput
@@ -196,6 +211,9 @@ func (s *fakeMyResourceStore) GetOwnResourceDetail(ctx context.Context, merchant
 
 func (s *fakeMyResourceStore) RefreshResource(ctx context.Context, merchantID string, resourceID string) (model.RefreshResourceResult, error) {
 	s.refreshedResourceID = resourceID
+	if s.refreshErr != nil {
+		return model.RefreshResourceResult{}, s.refreshErr
+	}
 	return s.refreshResult, nil
 }
 

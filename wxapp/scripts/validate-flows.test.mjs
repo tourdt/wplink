@@ -76,10 +76,10 @@ test('home page keeps custom brand first screen structure', () => {
     '织里站 · 精选工厂',
     '童装产业带数字化撮合中心',
     'quick-action-grid',
-    '我要找货',
-    '我要清货',
-    '我要找厂',
-    '我要接单',
+    '货源市场',
+    '库存清仓',
+    '工厂产能',
+    '订单大厅',
   ]) {
     assert.match(source, new RegExp(token))
   }
@@ -105,8 +105,11 @@ test('resource tab separates recommendation discovery from keyword search page',
     assert.equal(resourceSource.includes(removedToken), false)
   }
 
-  for (const token of ['searchResources', '暂未找到合适资源', '提交采购需求']) {
+  for (const token of ['searchResources', '暂未找到合适资源', '换个条件']) {
     assert.match(searchSource, new RegExp(token))
+  }
+  for (const removedToken of ['提交采购需求', 'openDemand', '/pages/demand/index']) {
+    assert.equal(searchSource.includes(removedToken), false)
   }
   for (const removedToken of ['createSavedSearch', 'listSavedSearches', 'applySavedSearch', 'saveCurrentSearch', '保存搜索']) {
     assert.equal(searchSource.includes(removedToken), false)
@@ -116,6 +119,42 @@ test('resource tab separates recommendation discovery from keyword search page',
   assert.match(detailSource, /uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
   for (const removedToken of ['searches', 'savedSearches', 'applySavedSearch', 'deleteSavedSearch', '暂无保存搜索']) {
     assert.equal(favoritesSource.includes(removedToken), false)
+  }
+})
+
+test('home quick actions map to resource type flows without demand submission', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+
+  assert.match(source, /\{ title: '货源市场'[\s\S]*icon: 'market'[\s\S]*typeCode: 'goods'[\s\S]*keyword: '现货'/)
+  assert.match(source, /\{ title: '库存清仓'[\s\S]*icon: 'clearance'[\s\S]*typeCode: 'inventory'[\s\S]*keyword: '库存'/)
+  assert.match(source, /\{ title: '工厂产能'[\s\S]*icon: 'factory'[\s\S]*typeCode: 'factory'[\s\S]*keyword: '小单快返'/)
+  assert.match(source, /\{ title: '订单大厅'[\s\S]*icon: 'orders'[\s\S]*typeCode: 'order'[\s\S]*keyword: '订单'/)
+  assert.match(source, /item\.icon === 'market'/)
+  assert.match(source, /item\.icon === 'clearance'/)
+  assert.match(source, /item\.icon === 'orders'/)
+  assert.match(source, /function openScene\(item\) \{[\s\S]*openSearch\(\{ keyword: item\.keyword, typeCode: item\.typeCode \}\)[\s\S]*\}/)
+  assert.match(source, /function openSearch\(options = \{\}\) \{[\s\S]*typeof options === 'string'[\s\S]*uni\.setStorageSync\(SEARCH_KEY, searchOptions\)[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
+  assert.match(source, /function openPublish\(typeCode = ''\) \{[\s\S]*uni\.setStorageSync\(PUBLISH_TYPE_KEY, typeCode\)[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)/)
+
+  for (const removedToken of ["action: 'demand'", 'openDemand', "item.jumpType === 'demand'", '/pages/demand/index', "action: 'publish'"]) {
+    assert.equal(source.includes(removedToken), false)
+  }
+  for (const removedText of ['quick-desc', "desc: '现货货源'", "desc: '发布库存'", "desc: '工厂产能'", "desc: '订单需求'", '我要找货', '我要清货', '我要找厂', '我要接单']) {
+    assert.equal(source.includes(removedText), false)
+  }
+})
+
+test('topic empty state does not expose demand submission in MVP', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/topic/index.vue'), 'utf8')
+
+  for (const token of ['getTopicResources', 'ResourceCard', 'Banner 专题', 'topicStats', '继续浏览资源', 'openSearch']) {
+    assert.match(source, new RegExp(token))
+  }
+
+  for (const removedToken of ['demandEntry', 'openDemand', '提交找货需求', '提交需求', '/pages/demand/index', '可提交需求']) {
+    assert.equal(source.includes(removedToken), false)
   }
 })
 
@@ -392,9 +431,11 @@ test('publish pages split tab creation and independent editing', () => {
   const editSource = fs.readFileSync(path.join(root, 'pages/publish/edit.vue'), 'utf8')
 
   assert.match(tabSource, /<ResourcePublishForm[\s\S]*mode="create"/)
+  assert.match(tabSource, /PUBLISH_TYPE_KEY/)
+  assert.match(tabSource, /onShow\(applyPendingPublishType\)/)
+  assert.match(tabSource, /function applyPendingPublishType\(\) \{[\s\S]*uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*initialOptions\.value = \{ typeCode: pendingTypeCode \}/)
   assert.match(editSource, /onLoad\(\(options\)/)
   assert.match(editSource, /<ResourcePublishForm[\s\S]*mode="edit"[\s\S]*:initial-options="routeOptions"/)
-  assert.equal(tabSource.includes('onShow'), false)
   assert.equal(tabSource.includes('publish:pending-edit-context'), false)
 })
 

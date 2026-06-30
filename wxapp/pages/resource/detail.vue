@@ -58,8 +58,8 @@
       </view>
 
       <view class="trust-card">
-        <text class="section-title">联系提示</text>
-        <text class="section-content">平台已记录联系行为，电话和微信可能因隐私保护展示为脱敏信息。联系时建议确认实物、价格和交付方式。</text>
+        <text class="section-title">友情提示</text>
+        <text class="section-content contact-tip-content">联系商家前，建议先确认实物、价格、数量和交付方式。</text>
       </view>
 
       <view class="merchant-card" @click="openMerchant">
@@ -87,7 +87,35 @@
         />
       </view>
 
-      <view class="contact-bar">
+      <view v-if="showManagementSheet" class="sheet-mask" @click="closeManagementSheet">
+        <view class="management-sheet" @click.stop>
+          <view class="sheet-head">
+            <view class="sheet-copy">
+              <text class="sheet-title">{{ managementTitle }}</text>
+              <text v-if="!managementActions.length" class="sheet-desc">{{ managementNotice }}</text>
+            </view>
+            <button class="sheet-close" @click="closeManagementSheet">关闭</button>
+          </view>
+          <view v-if="managementActions.length" class="management-actions">
+            <button
+              v-for="action in managementActions"
+              :key="action.key"
+              :class="['management-action', action.primary ? 'primary' : '', action.danger ? 'danger' : '']"
+              @click="handleManagementAction(action.key)"
+            >
+              {{ action.label }}
+            </button>
+          </view>
+          <text v-else class="empty-management">暂无可操作功能</text>
+        </view>
+      </view>
+
+      <view v-if="isOwnResource" class="owner-action-bar">
+        <button class="share-button" @click="shareOwnResource" :open-type="canShareOwnResource ? 'share' : ''">分享</button>
+        <button class="primary-button" @click="openManagementSheet">管理</button>
+      </view>
+
+      <view v-else class="contact-bar">
         <button @click="copyWechat">复制微信</button>
         <button class="primary-button" @click="callPhone">联系商家</button>
         <button open-type="share" @click="shareResource">分享</button>
@@ -101,9 +129,19 @@ import { computed, ref } from 'vue'
 import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import MerchantBadge from '../../components/MerchantBadge.vue'
 import ResourceList from '../../components/ResourceList.vue'
+import { listTopVouchers, redeemTopVoucher } from '../../api/entitlement'
 import { getResourceFavoriteState, setResourceFavorite } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
-import { getOwnResource, getResource, listResources, recordResourceContact, recordResourceDetailView } from '../../api/resource'
+import {
+  deleteTakenDownResource,
+  getOwnResource,
+  getResource,
+  listResources,
+  recordResourceContact,
+  recordResourceDetailView,
+  refreshResource,
+  takeDownResource,
+} from '../../api/resource'
 import { getSession } from '../../store/session'
 
 const resource = ref({})
@@ -114,6 +152,8 @@ const isOwnResource = ref(false)
 const ownerMerchantId = ref('')
 const resourceUnavailable = ref(false)
 const selectedGalleryIndex = ref(0)
+const showManagementSheet = ref(false)
+const managementBusy = ref(false)
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const merchantTypeText = {
   factory: '工厂',
@@ -158,6 +198,49 @@ const specItems = computed(() => [
   { label: '价格', value: resource.value.priceText || '面议' },
   { label: '刷新', value: resource.value.refreshedAt || '近期更新' },
 ])
+const isExpiredResource = computed(() => {
+  if (resource.value.status === 'expired') return true
+  if (!resource.value.expiresAt) return false
+  const expiresAt = Date.parse(resource.value.expiresAt)
+  return !Number.isNaN(expiresAt) && expiresAt <= Date.now()
+})
+const isDealtResource = computed(() => resource.value.status === 'dealt' || Boolean(resource.value.dealtAt))
+const canShareOwnResource = computed(() => resource.value.status === 'published' && !isExpiredResource.value && !resource.value.dealtAt)
+const managementTitle = computed(() => statusText[resource.value.status] || '资源管理')
+const managementNotice = computed(() => {
+  if (resource.value.status === 'pending') {
+    return '资源正在审核，审核通过后会公开展示。当前暂不能刷新、置顶、下架或分享。'
+  }
+  if (resource.value.status === 'draft') return '草稿可继续编辑，完善后再提交审核。'
+  if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : '资源已被驳回，可编辑后重新提交审核。'
+  if (isExpiredResource.value) return '资源已过期，建议再发类似资源后重新提交审核。'
+  if (isDealtResource.value) return '资源已成交，不再公开展示，可再发类似资源。'
+  if (resource.value.status === 'taken_down') return '资源已下架，不再公开展示。'
+  return '资源展示中，可按需刷新、置顶或下架。'
+})
+const managementActions = computed(() => {
+  if (resource.value.status === 'pending') return []
+  if (resource.value.status === 'draft' || resource.value.status === 'rejected') {
+    return [{ key: 'edit', label: '编辑', primary: true }]
+  }
+  if (resource.value.status === 'taken_down') {
+    return [
+      { key: 'repost', label: '再发类似', primary: true },
+      { key: 'delete', label: '删除', danger: true },
+    ]
+  }
+  if (isExpiredResource.value || isDealtResource.value) {
+    return [{ key: 'repost', label: '再发类似', primary: true }]
+  }
+  if (resource.value.status === 'published') {
+    return [
+      { key: 'refresh', label: '刷新', primary: true },
+      { key: 'top', label: '置顶' },
+      { key: 'take-down', label: '下架', danger: true },
+    ]
+  }
+  return []
+})
 
 onLoad(async (options) => {
   if (!options.id) return
@@ -198,6 +281,12 @@ async function loadOwnResourceIfCurrentMerchant(resourceId) {
   } catch (err) {
     return false
   }
+}
+
+async function reloadOwnResource() {
+  if (!resource.value.id || !ownerMerchantId.value) return
+  resource.value = await getOwnResource(resource.value.id, ownerMerchantId.value, { suppressErrorToast: true })
+  await loadMerchantProfile()
 }
 
 function handleGalleryChange(event) {
@@ -256,9 +345,6 @@ async function toggleFavorite() {
 async function recordContact(action) {
   if (!resource.value.id) return false
   if (isOwnResource.value) {
-    if (action !== 'merchant_home') {
-      uni.showToast({ title: '这是你发布的资源，可在我的发布中管理', icon: 'none' })
-    }
     return false
   }
   await recordResourceContact(resource.value.id, action)
@@ -295,6 +381,145 @@ function backHome() {
   uni.switchTab({ url: '/pages/home/index' })
 }
 
+function openManagementSheet() {
+  showManagementSheet.value = true
+}
+
+function closeManagementSheet() {
+  showManagementSheet.value = false
+}
+
+function shareOwnResource() {
+  if (canShareOwnResource.value) return
+  uni.showToast({ title: '资源审核通过后可分享', icon: 'none' })
+}
+
+async function handleManagementAction(action) {
+  if (managementBusy.value) return
+  managementBusy.value = true
+  try {
+    if (action === 'edit') {
+      openPublishEditor()
+      return
+    }
+    if (action === 'refresh') {
+      await refreshOwnResource()
+      return
+    }
+    if (action === 'top') {
+      await topOwnResource()
+      return
+    }
+    if (action === 'take-down') {
+      await takeDownOwnResource()
+      return
+    }
+    if (action === 'repost') {
+      await repostOwnResource()
+      return
+    }
+    if (action === 'delete') {
+      await deleteOwnResource()
+    }
+  } finally {
+    managementBusy.value = false
+  }
+}
+
+function openPublishEditor() {
+  if (!resource.value.id || !ownerMerchantId.value) return
+  closeManagementSheet()
+  uni.navigateTo({ url: `/pages/publish/edit?merchantId=${ownerMerchantId.value}&resourceId=${resource.value.id}` })
+}
+
+async function refreshOwnResource() {
+  await refreshResource(resource.value.id, ownerMerchantId.value)
+  uni.showToast({ title: '已刷新', icon: 'none' })
+  closeManagementSheet()
+  await reloadOwnResource()
+}
+
+async function topOwnResource() {
+  const resp = await listTopVouchers(ownerMerchantId.value)
+  const voucher = (resp.items || []).find((entry) => entry.status === 'unused')
+  if (!voucher) {
+    uni.showToast({ title: '暂无可用置顶券', icon: 'none' })
+    return
+  }
+  await redeemTopVoucher(voucher.id, resource.value.id, ownerMerchantId.value)
+  uni.showToast({ title: '已置顶', icon: 'none' })
+  closeManagementSheet()
+}
+
+async function takeDownOwnResource() {
+  const confirmed = await confirmManagementAction({
+    title: '下架资源',
+    content: '下架后资源将不再公开展示，确认下架吗？',
+    confirmText: '下架',
+    confirmColor: '#c2410c',
+  })
+  if (!confirmed) return
+  await takeDownResource(resource.value.id, ownerMerchantId.value, '商家主动下架')
+  uni.showToast({ title: '已下架', icon: 'none' })
+  closeManagementSheet()
+  await reloadOwnResource()
+}
+
+async function repostOwnResource() {
+  const detail = await getOwnResource(resource.value.id, ownerMerchantId.value)
+  uni.setStorageSync('publish:repost-initial-form', buildRepostInitialForm(detail))
+  closeManagementSheet()
+  uni.navigateTo({ url: `/pages/publish/edit?merchantId=${ownerMerchantId.value}&repost=1` })
+}
+
+function buildRepostInitialForm(detail) {
+  return {
+    merchantId: ownerMerchantId.value,
+    cityCode: detail.cityCode || 'zhili',
+    typeCode: detail.typeCode || '',
+    title: detail.title || '',
+    category: detail.category || '',
+    quantityText: detail.quantityText || '',
+    priceText: detail.priceText || '',
+    description: detail.description || '',
+    attributes: detail.attributes || {},
+    tags: detail.tags || [],
+    images: detail.images || [],
+    contact: {
+      name: detail.contact?.name || '',
+      phone: detail.contact?.phone || detail.contact?.phoneMasked || '',
+      wechat: detail.contact?.wechat || detail.contact?.wechatMasked || '',
+    },
+  }
+}
+
+async function deleteOwnResource() {
+  const confirmed = await confirmManagementAction({
+    title: '删除资源',
+    content: '删除后将不再显示在我的发布中，确认删除吗？',
+    confirmText: '删除',
+    confirmColor: '#c2410c',
+  })
+  if (!confirmed) return
+  await deleteTakenDownResource(resource.value.id, ownerMerchantId.value)
+  uni.showToast({ title: '已删除', icon: 'none' })
+  closeManagementSheet()
+  resourceUnavailable.value = true
+}
+
+function confirmManagementAction(options) {
+  return new Promise((resolve) => {
+    uni.showModal({
+      title: options.title,
+      content: options.content,
+      confirmText: options.confirmText,
+      confirmColor: options.confirmColor || '#061625',
+      success: (res) => resolve(Boolean(res.confirm)),
+      fail: () => resolve(false),
+    })
+  })
+}
+
 async function callPhone() {
   if (!(await recordContact('phone'))) return
   const phone = (resource.value.contact || {}).phoneMasked || ''
@@ -316,6 +541,7 @@ async function copyWechat() {
 }
 
 async function shareResource() {
+  if (isOwnResource.value) return
   await recordContact('share')
 }
 
@@ -517,6 +743,11 @@ onShareAppMessage(() => ({
   color: $wplink-primary;
 }
 
+.contact-tip-content {
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
 .related-section {
   display: grid;
   gap: 12rpx;
@@ -570,7 +801,8 @@ onShareAppMessage(() => ({
   text-align: right;
 }
 
-.contact-bar {
+.contact-bar,
+.owner-action-bar {
   position: fixed;
   right: 0;
   bottom: 0;
@@ -585,7 +817,22 @@ onShareAppMessage(() => ({
   z-index: 20;
 }
 
+.owner-action-bar {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .contact-bar button {
+  height: 88rpx;
+  border: 1rpx solid $wplink-line;
+  border-radius: 12rpx;
+  background: #f8fafc;
+  color: #364152;
+  font-size: 28rpx;
+  line-height: 1.25;
+  box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.06);
+}
+
+.owner-action-bar button {
   height: 88rpx;
   border: 1rpx solid $wplink-line;
   border-radius: 12rpx;
@@ -600,11 +847,122 @@ onShareAppMessage(() => ({
   border: 0;
 }
 
+.owner-action-bar button::after {
+  border: 0;
+}
+
 .contact-bar .primary-button {
   border-color: $wplink-primary;
   background: $wplink-primary;
   color: $wplink-card;
   box-shadow: 0 10rpx 24rpx rgba(6, 22, 37, 0.14);
+}
+
+.owner-action-bar .primary-button {
+  border-color: $wplink-primary;
+  background: $wplink-primary;
+  color: $wplink-card;
+  box-shadow: 0 10rpx 24rpx rgba(6, 22, 37, 0.14);
+}
+
+.owner-action-bar .share-button {
+  background: $wplink-card;
+  color: $wplink-primary;
+}
+
+.sheet-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(15, 23, 42, 0.36);
+}
+
+.management-sheet {
+  display: grid;
+  gap: 24rpx;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 28rpx 24rpx calc(30rpx + env(safe-area-inset-bottom));
+  border-radius: 18rpx 18rpx 0 0;
+  background: $wplink-card;
+  box-shadow: 0 -12rpx 36rpx rgba(15, 23, 42, 0.16);
+}
+
+.sheet-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120rpx;
+  gap: 16rpx;
+  align-items: start;
+}
+
+.sheet-copy {
+  display: grid;
+  gap: 8rpx;
+  min-width: 0;
+}
+
+.sheet-title {
+  color: $wplink-primary;
+  font-size: 34rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.sheet-desc,
+.empty-management {
+  color: $wplink-muted;
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+.sheet-close {
+  height: 62rpx;
+  border-radius: 10rpx;
+  background: #f4f7fd;
+  color: #364152;
+  font-size: 24rpx;
+  line-height: 1.25;
+}
+
+.sheet-close::after {
+  border: 0;
+}
+
+.management-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
+}
+
+.management-action {
+  min-width: 0;
+  height: 76rpx;
+  padding: 0 12rpx;
+  border: 1rpx solid $wplink-line;
+  border-radius: 10rpx;
+  background: #f8fafc;
+  color: $wplink-primary;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.management-action::after {
+  border: 0;
+}
+
+.management-action.primary {
+  border-color: $wplink-primary;
+  background: $wplink-primary;
+  color: $wplink-card;
+}
+
+.management-action.danger {
+  border-color: #fecdd3;
+  background: #fff8f8;
+  color: #be123c;
 }
 
 .primary-button {

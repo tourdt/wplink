@@ -6,6 +6,12 @@ import test from 'node:test'
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'pages/search/index.vue'), 'utf8')
 
+function cssBlock(selector) {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = source.match(new RegExp(`${escapedSelector} \\{([\\s\\S]*?)\\n\\}`))
+  return match?.[1] || ''
+}
+
 test('resource recommendation page supports pull refresh and load more pagination', () => {
   for (const token of [
     'onPullDownRefresh',
@@ -53,4 +59,27 @@ test('resource recommendation page shows all categories and scrolls selected cat
   assert.doesNotMatch(source, /MAX_VISIBLE_RESOURCE_TYPES/)
   assert.doesNotMatch(source, /resourceTypes\.value\.slice/)
   assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypeDrawer\.value = false[\s\S]*scrollToSelectedType\(typeCode\)[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
+})
+
+test('resource recommendation page does not expose demand submission in MVP', () => {
+  for (const removedText of ['提交采购需求', 'openDemand', '/pages/demand/index']) {
+    assert.doesNotMatch(source, new RegExp(removedText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+})
+
+test('resource recommendation empty state uses concise copy without image text', () => {
+  assert.match(source, /<text class="empty-title">暂无推荐资源<\/text>/)
+  assert.match(source, /<text class="empty-desc">换个类型或搜索关键词。<\/text>/)
+  assert.doesNotMatch(source, /<text>资源<\/text>/)
+  assert.doesNotMatch(source, /当前类型暂无推荐资源/)
+  assert.doesNotMatch(source, /可以换个类型继续浏览/)
+})
+
+test('resource recommendation empty state is visually subdued', () => {
+  assert.match(cssBlock('.empty-card'), /padding:\s*32rpx 24rpx;/)
+  assert.match(cssBlock('.empty-visual'), /width:\s*148rpx;/)
+  assert.match(cssBlock('.empty-visual'), /height:\s*104rpx;/)
+  assert.match(cssBlock('.empty-title'), /font-size:\s*28rpx;/)
+  assert.match(cssBlock('.empty-title'), /color:\s*\$wplink-text;/)
+  assert.match(cssBlock('.empty-desc'), /font-size:\s*24rpx;/)
 })

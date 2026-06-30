@@ -11,13 +11,12 @@ export const defaultFlowChecks = [
       "item.jumpType === 'topic'",
       "item.jumpType === 'resource'",
       "item.jumpType === 'merchant'",
-      "item.jumpType === 'demand'",
       "item.jumpType === 'publish'",
       "item.jumpType === 'search'",
       "item.jumpType === 'webview'",
-      'openDemand',
       'openPublish',
       'sceneEntries',
+      'PUBLISH_TYPE_KEY',
       '织里站 · 精选工厂',
       '平台推荐资源',
       'ResourceCard',
@@ -28,12 +27,12 @@ export const defaultFlowChecks = [
   {
     file: 'pages/search/index.vue',
     description: '资源 tab 推荐和类型筛选',
-    checks: ['资源推荐', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'openSearchPage', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom', '提交采购需求'],
+    checks: ['资源推荐', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'openSearchPage', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
   },
   {
     file: 'pages/search/result.vue',
-    description: '独立搜索和无结果提交需求',
-    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', 'openDemand', '暂未找到合适资源', 'hotKeywords', '提交采购需求'],
+    description: '独立搜索和无结果换条件',
+    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', '暂未找到合适资源', 'hotKeywords', '换个条件'],
   },
   {
     file: 'pages/resource/detail.vue',
@@ -50,7 +49,8 @@ export const defaultFlowChecks = [
       'onShareAppMessage',
       'uni.makePhoneCall',
       'uni.setClipboardData',
-      '平台已记录联系行为',
+      '友情提示',
+      '联系商家前，建议先确认实物、价格、数量和交付方式。',
       '同类推荐',
       'getResourceFavoriteState',
       'setResourceFavorite',
@@ -65,7 +65,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/publish/index.vue',
     description: 'tab 发布页入口',
-    checks: ['ResourcePublishForm', ':initial-options', 'mode="create"'],
+    checks: ['ResourcePublishForm', ':initial-options', 'mode="create"', 'PUBLISH_TYPE_KEY', 'applyPendingPublishType'],
   },
   {
     file: 'pages/publish/edit.vue',
@@ -169,8 +169,8 @@ export const defaultFlowChecks = [
   },
   {
     file: 'pages/topic/index.vue',
-    description: '专题资源和需求兜底',
-    checks: ['getTopicResources', 'ResourceCard', 'demandEntry', 'openDemand', 'Banner 专题', 'topicStats', '没有找到想要的款'],
+    description: '专题资源和继续浏览兜底',
+    checks: ['getTopicResources', 'ResourceCard', 'openSearch', 'Banner 专题', 'topicStats', '继续浏览资源'],
   },
   {
     file: 'pages/webview/index.vue',

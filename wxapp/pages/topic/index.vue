@@ -30,8 +30,8 @@
 
     <view v-else class="empty-card">
       <text class="empty-title">{{ emptyTitle }}</text>
-      <text class="empty-desc">提交需求后，运营会按专题条件继续帮你匹配。</text>
-      <button class="primary-button" @click="openDemand">{{ emptyButtonText }}</button>
+      <text class="empty-desc">可以先去资源页按类型继续浏览，平台会持续更新专题资源。</text>
+      <button class="primary-button" @click="openSearch">继续浏览资源</button>
     </view>
   </view>
 </template>
@@ -45,29 +45,26 @@ import { getTopicResources } from '../../api/discovery'
 
 const topic = ref({})
 const rows = ref([])
-const demandEntry = ref(null)
 const topicStats = computed(() => [
   { label: '专题资源', value: rows.value.length },
   { label: '平台内资源', value: rows.value.filter((item) => item.status === 'published').length || rows.value.length },
-  { label: '可提交需求', value: demandEntry.value ? 1 : 0 },
+  { label: '持续更新', value: rows.value.length ? '有资源' : '待更新' },
 ])
-const emptyTitle = computed(() => (demandEntry.value || {}).title || '没有找到想要的款？')
-const emptyButtonText = computed(() => (demandEntry.value || {}).buttonText || '提交找货需求')
+const emptyTitle = computed(() => '专题资源暂未更新')
 
 onLoad(async (options) => {
   if (!options.id) return
   const resp = await getTopicResources(options.id, { cityCode: DEFAULT_CITY_CODE, page: 1, pageSize: 20 })
   topic.value = resp.topic || {}
   rows.value = resp.items || []
-  demandEntry.value = resp.demandEntry || null
 })
 
 function openResource(item) {
   uni.navigateTo({ url: `/pages/resource/detail?id=${item.id}` })
 }
 
-function openDemand() {
-  uni.navigateTo({ url: '/pages/demand/index' })
+function openSearch() {
+  uni.switchTab({ url: '/pages/search/index' })
 }
 </script>
 
