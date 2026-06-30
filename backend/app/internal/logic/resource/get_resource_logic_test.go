@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -41,12 +42,26 @@ func TestGetResourceReturnsPublishedDetail(t *testing.T) {
 	}
 }
 
+func TestGetResourceMapsMissingPublishedResourceToNotFound(t *testing.T) {
+	logic := NewGetResourceLogic(&fakeGetResourceStore{err: sql.ErrNoRows})
+
+	_, err := logic.GetResource(context.Background(), "resource-missing")
+
+	if errx.CodeOf(err) != errx.CodeResourceNotFound {
+		t.Fatalf("error code = %q, want resource not found", errx.CodeOf(err))
+	}
+}
+
 type fakeGetResourceStore struct {
 	resourceID string
 	detail     model.ResourceDetail
+	err        error
 }
 
 func (s *fakeGetResourceStore) GetPublishedResourceDetail(ctx context.Context, resourceID string) (model.ResourceDetail, error) {
 	s.resourceID = resourceID
+	if s.err != nil {
+		return model.ResourceDetail{}, s.err
+	}
 	return s.detail, nil
 }

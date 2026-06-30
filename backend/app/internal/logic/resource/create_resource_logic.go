@@ -11,6 +11,7 @@ import (
 
 type CreateResourceStore interface {
 	GetMerchantPublishStatus(ctx context.Context, merchantID string) (string, error)
+	GetMerchantContactPhone(ctx context.Context, merchantID string) (string, error)
 	GetResourcePublishConfig(ctx context.Context, cityCode string, typeCode string) (model.ResourcePublishConfig, error)
 	CreateResource(ctx context.Context, input model.CreateResourceInput) (model.CreateResourceResult, error)
 	RecordOperationLog(ctx context.Context, input model.OperationLogInput) error
@@ -82,6 +83,14 @@ func (l *CreateResourceLogic) create(ctx context.Context, req CreateResourceReq,
 		"contactPhone": strings.TrimSpace(req.Contact.Phone),
 		"description":  strings.TrimSpace(req.Description),
 	}
+	if shouldUseMerchantContactPhone(values["contactPhone"]) {
+		// 发布页只能从公开商家资料拿到脱敏手机号，保存资源前用商家资料真实电话兜底。
+		merchantPhone, err := l.store.GetMerchantContactPhone(ctx, values["merchantId"])
+		if err != nil {
+			return CreateResourceResp{}, err
+		}
+		values["contactPhone"] = strings.TrimSpace(merchantPhone)
+	}
 	for _, field := range config.RequiredFields {
 		if strings.TrimSpace(values[field]) == "" {
 			return CreateResourceResp{}, errx.New(errx.CodeValidationFailed, fmt.Sprintf("请补充%s", field))
@@ -137,4 +146,9 @@ func (l *CreateResourceLogic) create(ctx context.Context, req CreateResourceReq,
 func isOperatorProxy(role string) bool {
 	role = strings.TrimSpace(role)
 	return role == "platform_operator" || role == "super_admin"
+}
+
+func shouldUseMerchantContactPhone(phone string) bool {
+	phone = strings.TrimSpace(phone)
+	return phone == "" || strings.Contains(phone, "*")
 }

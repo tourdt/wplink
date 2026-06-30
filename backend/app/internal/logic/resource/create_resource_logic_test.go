@@ -80,6 +80,39 @@ func TestCreateResourceCreatesPendingResource(t *testing.T) {
 	}
 }
 
+func TestCreateResourceUsesMerchantContactPhoneWhenRequestPhoneIsMasked(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
+		},
+		result:               model.CreateResourceResult{ID: "resource-1", Status: "pending"},
+		merchantContactPhone: "18800000002",
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:   "merchant-1",
+		CityCode:     "zhili",
+		TypeCode:     "inventory",
+		Title:        "女童春款卫衣库存整包清",
+		Category:     "童装",
+		QuantityText: "3200 件",
+		Contact:      ResourceContactReq{Name: "张老板", Phone: "188****0002"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+
+	if store.contactMerchantID != "merchant-1" {
+		t.Fatalf("contact merchantID = %q, want merchant-1", store.contactMerchantID)
+	}
+	if store.input.ContactPhone != "18800000002" {
+		t.Fatalf("contact phone = %q, want merchant profile phone", store.input.ContactPhone)
+	}
+}
+
 func TestCreateResourceRejectsBlockedMerchant(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		merchantStatus: "blocked",
@@ -180,11 +213,13 @@ func TestCreateResourceRecordsOperationLogForOperatorProxy(t *testing.T) {
 }
 
 type fakeCreateResourceStore struct {
-	merchantStatus string
-	config         model.ResourcePublishConfig
-	input          model.CreateResourceInput
-	result         model.CreateResourceResult
-	operationLog   model.OperationLogInput
+	merchantStatus       string
+	config               model.ResourcePublishConfig
+	input                model.CreateResourceInput
+	result               model.CreateResourceResult
+	operationLog         model.OperationLogInput
+	merchantContactPhone string
+	contactMerchantID    string
 }
 
 func (s *fakeCreateResourceStore) GetMerchantPublishStatus(ctx context.Context, merchantID string) (string, error) {
@@ -196,6 +231,11 @@ func (s *fakeCreateResourceStore) GetMerchantPublishStatus(ctx context.Context, 
 
 func (s *fakeCreateResourceStore) GetResourcePublishConfig(ctx context.Context, cityCode string, typeCode string) (model.ResourcePublishConfig, error) {
 	return s.config, nil
+}
+
+func (s *fakeCreateResourceStore) GetMerchantContactPhone(ctx context.Context, merchantID string) (string, error) {
+	s.contactMerchantID = merchantID
+	return s.merchantContactPhone, nil
 }
 
 func (s *fakeCreateResourceStore) CreateResource(ctx context.Context, input model.CreateResourceInput) (model.CreateResourceResult, error) {

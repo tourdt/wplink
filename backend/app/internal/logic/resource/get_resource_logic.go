@@ -2,6 +2,8 @@ package resource
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 
 	"wplink/backend/app/internal/model"
@@ -50,6 +52,10 @@ func (l *GetResourceLogic) GetResource(ctx context.Context, resourceID string) (
 
 	detail, err := l.store.GetPublishedResourceDetail(ctx, resourceID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// 详情页只展示已发布且未过期资源，查不到时统一按下架/不存在处理，避免把数据库空结果暴露成 500。
+			return ResourceDetailResp{}, errx.New(errx.CodeResourceNotFound, "资源不存在或已下架")
+		}
 		return ResourceDetailResp{}, err
 	}
 	return ResourceDetailResp{

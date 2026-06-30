@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -35,12 +36,24 @@ func TestSubmitResourceSetsPending(t *testing.T) {
 	}
 }
 
+func TestSubmitResourceMapsUnavailableResourceToStateConflict(t *testing.T) {
+	store := &fakeSubmitResourceStore{err: sql.ErrNoRows}
+	logic := NewSubmitResourceLogic(store)
+
+	_, err := logic.SubmitResource(context.Background(), "resource-1")
+
+	if errx.CodeOf(err) != errx.CodeStateConflict {
+		t.Fatalf("error code = %q, want state conflict", errx.CodeOf(err))
+	}
+}
+
 type fakeSubmitResourceStore struct {
 	resourceID string
 	result     model.SubmitResourceResult
+	err        error
 }
 
 func (s *fakeSubmitResourceStore) SubmitResourceForReview(ctx context.Context, resourceID string) (model.SubmitResourceResult, error) {
 	s.resourceID = resourceID
-	return s.result, nil
+	return s.result, s.err
 }

@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -231,6 +232,17 @@ GROUP BY m.id, cs.code
 	}
 	detail.CreditTags = tags
 	return detail, nil
+}
+
+func (m *MerchantModel) GetMerchantContactPhone(ctx context.Context, merchantID string) (string, error) {
+	var phone string
+	err := m.db.QueryRowContext(ctx, `
+SELECT contact_phone
+FROM merchants
+WHERE id = $1 AND deleted_at IS NULL
+LIMIT 1
+`, merchantID).Scan(&phone)
+	return strings.TrimSpace(phone), err
 }
 
 func (m *MerchantModel) UpdateMerchant(ctx context.Context, merchantID string, patch UpdateMerchantPatch) (string, error) {

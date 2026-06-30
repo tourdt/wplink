@@ -1,74 +1,127 @@
 <template>
   <view class="publish-page">
-    <view class="quota-card">
-      <view>
-        <text class="quota-label">认证商家权益</text>
-        <text class="quota-title">本月可发布资源</text>
-        <text class="quota-desc">审核通过后进入搜索、首页分类和商家主页，置顶券可提升曝光。</text>
+    <view class="form-section basic-section">
+      <view class="section-head">
+        <text class="section-title">基础信息</text>
+        <text class="section-note">必填</text>
       </view>
-      <button @click="openMyResources">查看权益</button>
+      <view class="basic-progress">
+        <view class="progress-copy">
+          <text class="progress-title">{{ publishReadyText }}</text>
+          <text class="progress-desc">标题、品类、联系人和联系电话为必填项</text>
+        </view>
+        <text class="completion-percent">{{ completionPercent }}%</text>
+      </view>
+      <view class="completion-bar">
+        <view class="completion-bar-fill" :style="completionBarStyle"></view>
+      </view>
+      <view class="field-group">
+        <text class="field-label">资源类型</text>
+        <picker :range="resourceTypeNames" :value="selectedTypeIndex" @change="selectType">
+          <view class="field picker-field">
+            <text>{{ selectedTypeLabel }}</text>
+            <text class="picker-arrow">›</text>
+          </view>
+        </picker>
+        <text class="field-helper">资源类型会用于搜索筛选和分类展示。</text>
+      </view>
+      <view class="field-group">
+        <text class="field-label">标题</text>
+        <input v-model="form.title" class="field" placeholder="例如：童装春款现货 3000 件" />
+      </view>
+      <view class="field-group">
+        <text class="field-label">品类</text>
+        <input v-model="form.category" class="field" placeholder="例如：童装、女装、面料、加工" />
+      </view>
     </view>
 
-    <scroll-view class="publish-types" scroll-x>
-      <button
-        v-for="item in publishTypeOptions"
-        :key="item.value"
-        :class="['type-button', form.typeCode === item.value ? 'active' : '']"
-        @click="selectTypeByCode(item.value)"
-      >
-        {{ item.label }}
-      </button>
-    </scroll-view>
+    <view class="form-section supply-section">
+      <view class="section-head">
+        <text class="section-title">供应信息</text>
+        <text class="section-note">建议填写</text>
+      </view>
+      <view class="field-group">
+        <text class="field-label">数量/产能</text>
+        <input v-model="form.quantityText" class="field" placeholder="例如：3000 件、日产 800 件" />
+      </view>
+      <view class="field-group">
+        <text class="field-label">价格描述</text>
+        <input v-model="form.priceText" class="field" placeholder="例如：18-25 元/件，量大可议" />
+      </view>
+      <view class="field-group">
+        <text class="field-label">资源描述</text>
+        <textarea v-model="form.description" class="textarea" placeholder="说明货品状态、尺码颜色、交期、看样方式等关键信息" />
+      </view>
+    </view>
 
-    <view class="form-card">
-      <text class="page-title">发布资源</text>
-      <view class="form-status">
-        <text>{{ publishReadyText }}</text>
-        <strong>{{ canSubmit ? '可提交审核' : '继续补充必填项' }}</strong>
+    <view class="form-section image-section">
+      <view class="section-head">
+        <text class="section-title">资源图片</text>
+        <text class="image-count">{{ resourceImageEntries.length }}/{{ resourceImageMaxCount }}</text>
       </view>
-      <picker :range="resourceTypeNames" :value="selectedTypeIndex" @change="selectType">
-        <view class="field picker-field">{{ selectedTypeLabel }}</view>
-      </picker>
-      <input v-model="form.title" class="field" placeholder="标题" />
-      <input v-model="form.category" class="field" placeholder="品类" />
-      <input v-model="form.quantityText" class="field" placeholder="数量/产能" />
-      <input v-model="form.priceText" class="field" placeholder="价格描述" />
-      <textarea v-model="form.description" class="textarea" placeholder="资源描述" />
-      <view class="effect-preview">
-        <text class="effect-label">发布后可获得</text>
-        <text class="effect-value">搜索曝光 · 商家主页展示 · 联系统计</text>
+      <view class="image-grid-wrap">
+        <UniGrid :column="3" :show-border="false" :square="true" @change="onResourceImageGridItemClick">
+          <UniGridItem v-for="(item, index) in resourceImageGridItems" :key="item.id" :index="index">
+            <view v-if="item.type === 'image'" class="upload-img-item">
+              <image class="resource-image" :src="item.url" mode="aspectFill" />
+              <button class="img-del" @click.stop="removeResourceImage(item)">
+                <text class="img-del-line" />
+              </button>
+            </view>
+            <view v-else class="upload-img-add-container">
+              <view class="upload-img-item-add">
+                <view class="image-add-icon" />
+              </view>
+            </view>
+          </UniGridItem>
+        </UniGrid>
       </view>
-      <button class="secondary-button" @click="uploadResourceImage">上传资源图片</button>
-      <view v-if="form.images.length" class="image-list">
-        <text v-for="image in form.images" :key="image" class="image-url">{{ image }}</text>
+    </view>
+
+    <view class="form-section contact-section">
+      <view class="section-head">
+        <text class="section-title">联系信息</text>
+        <text class="section-note">必填</text>
       </view>
-      <input v-model="form.contact.name" class="field" placeholder="联系人" />
-      <input v-model="form.contact.phone" class="field" placeholder="联系电话" />
-      <view class="action-row">
+      <view class="field-group">
+        <text class="field-label">联系人</text>
+        <input v-model="form.contact.name" class="field" placeholder="买家看到的联系人" />
+      </view>
+      <view class="field-group">
+        <text class="field-label">联系电话</text>
+        <input v-model="form.contact.phone" class="field" placeholder="用于买家发起联系" />
+      </view>
+    </view>
+
+    <view class="fixed-save-spacer" />
+    <view class="fixed-save-bar">
+      <view class="fixed-save-actions">
         <button class="secondary-button" @click="saveDraft">保存草稿</button>
-        <button class="primary-button" @click="submit">提交审核</button>
+        <button :class="['primary-button', canSubmit ? '' : 'is-disabled']" @click="submit">提交审核</button>
       </view>
     </view>
   </view>
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { computed, reactive, ref, watch } from 'vue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import UniGrid from '../../components/uni-ui/uni-grid/uni-grid.vue'
+import UniGridItem from '../../components/uni-ui/uni-grid-item/uni-grid-item.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { getMerchantId, saveMerchantId } from '../../store/session'
 import { listCityResourceTypes } from '../../api/city'
-import { createResource, createResourceDraft, submitResource } from '../../api/resource'
-import { chooseAndUploadImage } from '../../common/upload'
+import { getMerchant } from '../../api/merchant'
+import { createResource, createResourceDraft } from '../../api/resource'
+import { chooseImageFile, uploadSelectedImage } from '../../common/upload'
 
 const resourceTypes = ref([])
 const selectedTypeIndex = ref(0)
-const publishTypeOptions = [
-  { label: '发布库存', value: 'inventory' },
-  { label: '发布货源', value: 'goods' },
-  { label: '发布工厂产能', value: 'factory' },
-  { label: '发布服务', value: 'service' },
-]
+const resourceImageMaxCount = 9
+const resourceImageEntries = ref([])
+const publishLocalDraftStorageKey = ref('')
+const autosaveReady = ref(false)
+let localDraftSaveTimer = null
 const form = reactive({
   merchantId: '',
   cityCode: DEFAULT_CITY_CODE,
@@ -94,14 +147,58 @@ const selectedTypeLabel = computed(() => {
   return current.typeName || '请选择资源类型'
 })
 const canSubmit = computed(() => Boolean(form.typeCode && form.title.trim() && form.category.trim() && form.contact.name.trim() && form.contact.phone.trim()))
-const publishReadyText = computed(() => (canSubmit.value ? '必填项已完整' : '标题、品类、联系人和联系电话为必填项'))
+const requiredFields = computed(() => [form.typeCode, form.title.trim(), form.category.trim(), form.contact.name.trim(), form.contact.phone.trim()])
+const completedRequiredCount = computed(() => requiredFields.value.filter(Boolean).length)
+const completionPercent = computed(() => Math.round((completedRequiredCount.value / requiredFields.value.length) * 100))
+const completionBarStyle = computed(() => `width: ${completionPercent.value}%;`)
+const resourceImageGridItems = computed(() => {
+  const imageItems = resourceImageEntries.value.map((entry, index) => ({
+    id: entry.id,
+    type: 'image',
+    url: getResourceImagePreviewUrl(entry),
+    index,
+  }))
+  if (imageItems.length < resourceImageMaxCount) {
+    imageItems.push({ id: 'resource-image-add', type: 'add' })
+  }
+  return imageItems
+})
+const publishReadyText = computed(() => {
+  if (canSubmit.value) {
+    return '必填项已完整，可提交审核'
+  }
+  return `还差 ${requiredFields.value.length - completedRequiredCount.value} 项必填信息`
+})
 
 onLoad(async (options) => {
   // 发布页优先使用路由带入的商家 ID，其次使用我的页保存的商家，减少商家重复输入。
   form.merchantId = options.merchantId || getMerchantId()
   form.typeCode = options.typeCode || ''
-  await loadResourceTypes()
+  publishLocalDraftStorageKey.value = buildPublishLocalDraftStorageKey(form.merchantId)
+  await Promise.all([loadResourceTypes(), loadMerchantContact()])
+  restorePublishLocalDraft()
+  autosaveReady.value = true
 })
+
+onUnload(() => {
+  flushPublishLocalDraft()
+})
+
+watch(
+  form,
+  () => {
+    scheduleSavePublishLocalDraft()
+  },
+  { deep: true },
+)
+
+watch(
+  resourceImageEntries,
+  () => {
+    scheduleSavePublishLocalDraft()
+  },
+  { deep: true },
+)
 
 async function loadResourceTypes() {
   const resp = await listCityResourceTypes(form.cityCode)
@@ -121,16 +218,23 @@ function selectType(event) {
   form.typeCode = current.typeCode || ''
 }
 
-function selectTypeByCode(typeCode) {
-  const index = resourceTypes.value.findIndex((item) => item.typeCode === typeCode)
-  if (index >= 0) {
-    selectedTypeIndex.value = index
+async function loadMerchantContact() {
+  if (!form.merchantId) return
+  try {
+    const detail = await getMerchant(form.merchantId)
+    applyMerchantContactDefaults(detail.contact || {})
+  } catch (err) {
+    // 商户资料无法加载时不阻断发布，联系人继续由用户手动填写。
   }
-  form.typeCode = typeCode
 }
 
-function openMyResources() {
-  uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${form.merchantId}` })
+function applyMerchantContactDefaults(contact) {
+  if (!form.contact.name.trim() && contact.name) {
+    form.contact.name = contact.name
+  }
+  if (!form.contact.phone.trim() && (contact.phone || contact.phoneMasked)) {
+    form.contact.phone = contact.phone || contact.phoneMasked
+  }
 }
 
 async function submit() {
@@ -138,10 +242,10 @@ async function submit() {
     return
   }
   saveMerchantId(form.merchantId)
-  const result = await createResource({ ...form })
-  if (result.id) {
-    await submitResource(result.id, form.merchantId)
-  }
+  const images = await uploadPendingResourceImages()
+  await createResource({ ...form, images })
+  clearPublishLocalDraft()
+  resetPublishForm()
   uni.showToast({ title: '已提交审核', icon: 'none' })
   uni.navigateTo({ url: '/pages/publish-success/index' })
 }
@@ -151,19 +255,209 @@ async function saveDraft() {
     return
   }
   saveMerchantId(form.merchantId)
-  await createResourceDraft({ ...form })
+  const merchantId = form.merchantId
+  const images = await uploadPendingResourceImages()
+  await createResourceDraft({ ...form, images })
+  clearPublishLocalDraft()
+  resetPublishForm()
   uni.showToast({ title: '草稿已保存', icon: 'none' })
-  uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${form.merchantId}` })
+  uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${merchantId}` })
+}
+
+function buildPublishLocalDraftStorageKey(merchantId) {
+  return `publish:local-draft:${merchantId || 'default'}`
+}
+
+function restorePublishLocalDraft() {
+  if (!publishLocalDraftStorageKey.value) return
+  let draft = null
+  try {
+    draft = uni.getStorageSync(publishLocalDraftStorageKey.value)
+  } catch (err) {
+    return
+  }
+  if (!draft || typeof draft !== 'object') return
+  Object.assign(form, createEmptyPublishForm(), draft.form || {})
+  resourceImageEntries.value = Array.isArray(draft.resourceImageEntries)
+    ? draft.resourceImageEntries.filter((entry) => entry?.id && entry?.url)
+    : []
+  syncSelectedTypeIndex()
+}
+
+function scheduleSavePublishLocalDraft() {
+  if (!autosaveReady.value || !publishLocalDraftStorageKey.value) return
+  if (localDraftSaveTimer) {
+    clearTimeout(localDraftSaveTimer)
+  }
+  localDraftSaveTimer = setTimeout(savePublishLocalDraft, 500)
+}
+
+function savePublishLocalDraft() {
+  if (!publishLocalDraftStorageKey.value) return
+  localDraftSaveTimer = null
+  // 图片本地路径只作为意外退出后的辅助恢复，最终仍以保存/提交时上传 OSS 为准。
+  uni.setStorageSync(publishLocalDraftStorageKey.value, {
+    form: clonePublishForm(),
+    resourceImageEntries: resourceImageEntries.value.map(serializeResourceImageEntry),
+    savedAt: Date.now(),
+  })
+}
+
+function flushPublishLocalDraft() {
+  if (!autosaveReady.value) return
+  if (localDraftSaveTimer) {
+    clearTimeout(localDraftSaveTimer)
+    localDraftSaveTimer = null
+  }
+  savePublishLocalDraft()
+}
+
+function clearPublishLocalDraft() {
+  if (localDraftSaveTimer) {
+    clearTimeout(localDraftSaveTimer)
+    localDraftSaveTimer = null
+  }
+  if (publishLocalDraftStorageKey.value) {
+    uni.removeStorageSync(publishLocalDraftStorageKey.value)
+  }
+}
+
+function resetPublishForm() {
+  autosaveReady.value = false
+  Object.assign(form, createEmptyPublishForm())
+  resourceImageEntries.value = []
+  selectedTypeIndex.value = 0
+}
+
+function createEmptyPublishForm() {
+  return {
+    merchantId: '',
+    cityCode: DEFAULT_CITY_CODE,
+    typeCode: '',
+    title: '',
+    category: '',
+    quantityText: '',
+    priceText: '',
+    description: '',
+    attributes: {},
+    tags: [],
+    images: [],
+    contact: {
+      name: '',
+      phone: '',
+      wechat: '',
+    },
+  }
+}
+
+function clonePublishForm() {
+  return JSON.parse(JSON.stringify(form))
+}
+
+function serializeResourceImageEntry(entry) {
+  return {
+    id: entry.id,
+    kind: entry.kind,
+    url: entry.url,
+    file: entry.file,
+  }
+}
+
+function syncSelectedTypeIndex() {
+  if (!resourceTypes.value.length) return
+  const matchIndex = resourceTypes.value.findIndex((item) => item.typeCode === form.typeCode)
+  selectedTypeIndex.value = matchIndex >= 0 ? matchIndex : 0
+  form.typeCode = resourceTypes.value[selectedTypeIndex.value]?.typeCode || ''
 }
 
 async function uploadResourceImage() {
   try {
-    // 资源图片先上传到对象存储，业务接口只保存最终 CDN URL，避免后端转发大文件。
-    const url = await chooseAndUploadImage('resource')
-    form.images.push(url)
-    uni.showToast({ title: '图片已上传', icon: 'none' })
+    if (resourceImageEntries.value.length >= resourceImageMaxCount) {
+      uni.showToast({ title: `最多上传${resourceImageMaxCount}张图片`, icon: 'none' })
+      return
+    }
+    const file = await chooseImageFile()
+    resourceImageEntries.value.push(createPendingResourceImageEntry(file))
   } catch (err) {
-    uni.showToast({ title: err.message || '图片上传失败，请重试', icon: 'none' })
+    if (String(err?.errMsg || '').includes('cancel')) return
+    uni.showToast({ title: err.message || '图片选择失败，请重试', icon: 'none' })
+  }
+}
+
+async function uploadPendingResourceImages() {
+  if (!resourceImageEntries.value.some((entry) => entry.kind === 'pending')) {
+    return getStoredResourceImageUrls(resourceImageEntries.value)
+  }
+  const uploadedEntries = []
+  for (const entry of resourceImageEntries.value) {
+    if (entry.kind === 'stored') {
+      uploadedEntries.push(entry)
+      continue
+    }
+    const uploadedUrl = await uploadSelectedImage(entry.file, 'resource')
+    uploadedEntries.push(createStoredResourceImageEntry(uploadedUrl))
+  }
+  resourceImageEntries.value = uploadedEntries
+  form.images = getStoredResourceImageUrls(uploadedEntries)
+  return form.images
+}
+
+function createPendingResourceImageEntry(file) {
+  return {
+    id: file.id || `pending:${Date.now()}:${file.path}`,
+    kind: 'pending',
+    url: file.path,
+    file,
+  }
+}
+
+function createStoredResourceImageEntry(url) {
+  return {
+    id: `stored:${url}`,
+    kind: 'stored',
+    url,
+  }
+}
+
+function getResourceImagePreviewUrl(entry) {
+  return entry?.url || ''
+}
+
+function getResourceImagePreviewUrls(entries) {
+  return entries.map(getResourceImagePreviewUrl).filter(Boolean)
+}
+
+function getStoredResourceImageUrls(entries) {
+  return entries
+    .filter((entry) => entry.kind === 'stored')
+    .map((entry) => entry.url)
+    .filter(Boolean)
+}
+
+function onResourceImageGridItemClick(event) {
+  const item = resourceImageGridItems.value[Number(event.detail.index)]
+  if (!item) return
+  if (item.type === 'add') {
+    uploadResourceImage()
+    return
+  }
+  previewResourceImage(item)
+}
+
+function previewResourceImage(item) {
+  const urls = getResourceImagePreviewUrls(resourceImageEntries.value)
+  if (!item.url || !urls.length) return
+  uni.previewImage({
+    urls,
+    current: item.url,
+  })
+}
+
+function removeResourceImage(item) {
+  const index = Number(item.index)
+  if (index >= 0) {
+    resourceImageEntries.value.splice(index, 1)
+    form.images = getStoredResourceImageUrls(resourceImageEntries.value)
   }
 }
 
@@ -203,166 +497,271 @@ function validatePublishForm() {
   background: $wplink-bg;
 }
 
-.form-card {
+.form-section {
   display: grid;
-  gap: 18rpx;
+  gap: 20rpx;
   margin-bottom: 20rpx;
   padding: 24rpx;
   border-radius: 12rpx;
   background: $wplink-card;
+  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
 
-.quota-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-  margin-bottom: 20rpx;
-  padding: 24rpx;
-  border-radius: 12rpx;
-  background: linear-gradient(135deg, $wplink-warning-soft, $wplink-primary-soft);
-}
-
-.quota-card button {
-  flex: 0 0 auto;
-  width: 148rpx;
-  height: 68rpx;
-  border-radius: 10rpx;
-  background: $wplink-card;
-  color: $wplink-primary;
-  font-size: 26rpx;
-  font-weight: 700;
-}
-
-.quota-label,
-.effect-label {
-  color: $wplink-muted;
-  font-size: 24rpx;
-}
-
-.quota-title {
-  display: block;
-  margin: 8rpx 0;
-  color: $wplink-primary;
-  font-size: 36rpx;
-  font-weight: 700;
-}
-
-.quota-desc {
-  color: $wplink-muted;
-  font-size: 26rpx;
-  line-height: 1.5;
-}
-
-.publish-types {
-  width: 100%;
-  margin-bottom: 20rpx;
-  white-space: nowrap;
-}
-
-.type-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 152rpx;
-  height: 72rpx;
-  margin-right: 12rpx;
-  padding: 0 20rpx;
-  border-radius: 10rpx;
-  background: $wplink-card;
-  color: #364152;
-  font-size: 26rpx;
-}
-
-.type-button.active {
-  background: $wplink-primary;
-  color: $wplink-card;
-}
-
-.page-title {
-  font-size: 36rpx;
-  font-weight: 700;
-}
-
-.form-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  padding: 18rpx;
-  border-radius: 10rpx;
-  background: #f8fafc;
-  min-width: 0;
-}
-
-.form-status text {
+.section-note,
+.field-helper {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.45;
 }
 
-.form-status strong {
-  flex: 0 0 auto;
-  color: $wplink-primary;
-  font-size: 26rpx;
-  line-height: 1.25;
-  text-align: right;
-}
-
-.field,
-.textarea {
-  min-height: 80rpx;
-  padding: 0 20rpx;
-  border: 1rpx solid $wplink-line;
-  border-radius: 10rpx;
-}
-
-.picker-field {
+.basic-progress {
   display: flex;
   align-items: center;
-  color: $wplink-primary;
-}
-
-.textarea {
-  min-height: 160rpx;
-  padding-top: 18rpx;
-}
-
-.action-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: space-between;
   gap: 16rpx;
-}
-
-.image-list {
-  display: grid;
-  gap: 8rpx;
-}
-
-.effect-preview {
-  display: grid;
-  gap: 8rpx;
   padding: 18rpx;
   border-radius: 10rpx;
   background: #f8fafc;
 }
 
-.effect-value {
+.progress-copy {
+  display: grid;
+  gap: 4rpx;
+  min-width: 0;
+}
+
+.progress-title {
+  color: $wplink-primary;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.progress-desc {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.completion-percent {
+  flex: 0 0 auto;
+  color: $wplink-primary;
+  font-size: 34rpx;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.completion-bar {
+  width: 100%;
+  height: 12rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: rgba(6, 22, 37, 0.1);
+}
+
+.completion-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: $wplink-warning;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  min-width: 0;
+}
+
+.section-title {
+  color: $wplink-primary;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.section-note {
+  flex: 0 0 auto;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  background: #f8fafc;
+}
+
+.field-group {
+  display: grid;
+  gap: 10rpx;
+}
+
+.field-label {
   color: $wplink-primary;
   font-size: 26rpx;
   font-weight: 700;
 }
 
-.image-url {
+.field-helper {
+  display: block;
+}
+
+.field,
+.textarea,
+.picker-field {
+  width: 100%;
+  border: 1rpx solid $wplink-line;
+  border-radius: 10rpx;
+  background: #ffffff;
+  font-size: 26rpx;
+  color: $wplink-primary;
+}
+
+.field {
+  min-height: 80rpx;
+  padding: 0 20rpx;
+}
+
+.picker-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 80rpx;
+  padding: 0 20rpx;
+}
+
+.picker-arrow {
+  color: $wplink-muted;
+  font-size: 36rpx;
+  line-height: 1;
+}
+
+.textarea {
+  min-height: 160rpx;
+  padding: 18rpx 20rpx;
+  line-height: 1.5;
+}
+
+.image-count {
   color: $wplink-muted;
   font-size: 24rpx;
-  word-break: break-all;
+  line-height: 1.45;
+}
+
+.image-grid-wrap {
+  margin-right: 160rpx;
+}
+
+.upload-img-item,
+.upload-img-add-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 8rpx;
+  box-sizing: border-box;
+}
+
+.resource-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 10rpx;
+  background: #e3e8ef;
+}
+
+.img-del {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44rpx;
+  height: 44rpx;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.img-del::after {
+  border: 0;
+}
+
+.img-del-line,
+.img-del-line::after {
+  display: block;
+  width: 22rpx;
+  height: 3rpx;
+  border-radius: 999rpx;
+  background: #ffffff;
+}
+
+.img-del-line {
+  transform: rotate(45deg);
+}
+
+.img-del-line::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  content: '';
+  transform: rotate(90deg);
+}
+
+.upload-img-item-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border: 1rpx dashed $wplink-line;
+  border-radius: 10rpx;
+  background: #f8fafc;
+}
+
+.image-add-icon,
+.image-add-icon::after {
+  display: block;
+  width: 36rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: $wplink-muted;
+}
+
+.image-add-icon {
+  position: relative;
+}
+
+.image-add-icon::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  content: '';
+  transform: rotate(90deg);
+}
+
+.fixed-save-spacer {
+  height: 102rpx;
+}
+
+.fixed-save-bar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  padding: 10rpx 24rpx 4rpx;
+  border-top: 1rpx solid $wplink-line;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.fixed-save-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 16rpx;
 }
 
 .secondary-button,
 .primary-button {
   height: 88rpx;
   border-radius: 12rpx;
+  font-size: 28rpx;
+  font-weight: 700;
   line-height: 1.25;
 }
 
@@ -374,5 +773,9 @@ function validatePublishForm() {
 .primary-button {
   background: $wplink-primary;
   color: $wplink-card;
+}
+
+.primary-button.is-disabled {
+  opacity: 0.56;
 }
 </style>

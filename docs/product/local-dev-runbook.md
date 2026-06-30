@@ -29,6 +29,9 @@
 psql "$DATABASE_URL" -f backend/migrations/000001_admin_auth.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000002_core_domain.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000003_seed_zhili.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000004_user_interactions.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000005_merchant_logo.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000006_merchant_type_change_logs.up.sql
 psql "$DATABASE_URL" -f backend/scripts/seed_demo_data.sql
 ```
 

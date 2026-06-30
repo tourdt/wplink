@@ -179,6 +179,177 @@ test('merchant profile page labels every field and removes manual image url entr
   assert.equal(source.includes('图片 URL'), false)
 })
 
+test('publish page presents grouped fast publishing workflow', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
+
+  for (const token of [
+    'basic-progress',
+    'completion-percent',
+    'completion-bar-fill',
+    'form-section basic-section',
+    'form-section supply-section',
+    'form-section image-section',
+    'form-section contact-section',
+    'field-label',
+    'field-helper',
+    'UniGrid',
+    'UniGridItem',
+    'resourceImageGridItems',
+    'resourceImageMaxCount',
+    'onResourceImageGridItemClick',
+    'image-count',
+    'image-grid-wrap',
+    'upload-img-item',
+    'upload-img-add-container',
+    'img-del',
+    'previewResourceImage',
+    'removeResourceImage',
+    'getMerchant',
+    'loadMerchantContact',
+    'applyMerchantContactDefaults',
+    'contact.name',
+    'contact.phone',
+    'contact.phoneMasked',
+    'fixed-save-spacer',
+    'fixed-save-bar',
+    'fixed-save-actions',
+    '资源类型',
+    '基础信息',
+    '供应信息',
+    '资源图片',
+    '联系信息',
+    '保存草稿',
+    '提交审核',
+  ]) {
+    assert.match(source, new RegExp(token))
+  }
+
+  assert.equal(source.includes('class="form-card"'), false)
+  assert.equal(source.includes('class="image-url"'), false)
+  assert.equal(source.includes('type-section section-card'), false)
+  assert.equal(source.includes('publish-hero'), false)
+  assert.equal(source.includes('publish-benefits'), false)
+  assert.equal(source.includes('认证商家权益'), false)
+  assert.equal(source.includes('发布后可获得'), false)
+  assert.equal(source.includes('发布类型'), false)
+  assert.equal(source.includes('publishTypeOptions'), false)
+  assert.equal(source.includes('selectTypeByCode'), false)
+  assert.equal(source.includes('publish-types-in-basic'), false)
+  assert.equal(source.includes('image-upload-tile'), false)
+  assert.equal(source.includes('image-preview-grid'), false)
+  assert.equal(source.includes('sticky-action-bar'), false)
+  assert.equal(source.includes('padding: 24rpx 24rpx 176rpx'), false)
+  assert.equal(source.includes('点击图片预览，点击最后一格添加'), false)
+  assert.equal(source.includes('submitResource'), false)
+  assert.match(source, /\.fixed-save-bar \{[\s\S]*position: fixed;[\s\S]*right: 0;[\s\S]*bottom: 0;[\s\S]*left: 0;[\s\S]*padding: 10rpx 24rpx 4rpx;[\s\S]*border-top: 1rpx solid \$wplink-line;[\s\S]*background: rgba\(255, 255, 255, 0\.96\);[\s\S]*\}/)
+  assert.match(source, /\.fixed-save-spacer \{[\s\S]*height: 102rpx;[\s\S]*\}/)
+})
+
+test('publish page defaults contact phone from merchant profile masked phone', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
+
+  assert.match(source, /contact\.phone \|\| contact\.phoneMasked/)
+  assert.match(source, /form\.contact\.phone = contact\.phone \|\| contact\.phoneMasked/)
+})
+
+test('publish page autosaves local draft and clears it after successful save or submit', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
+
+  for (const token of [
+    'watch',
+    'onUnload',
+    'publishLocalDraftStorageKey',
+    'buildPublishLocalDraftStorageKey',
+    'restorePublishLocalDraft',
+    'scheduleSavePublishLocalDraft',
+    'savePublishLocalDraft',
+    'flushPublishLocalDraft',
+    'clearPublishLocalDraft',
+    'resetPublishForm',
+    'autosaveReady',
+    'localDraftSaveTimer',
+    'uni.setStorageSync',
+    'uni.getStorageSync',
+    'uni.removeStorageSync',
+  ]) {
+    assert.match(source, new RegExp(token))
+  }
+
+  assert.match(source, /watch\(\s*form,[\s\S]*scheduleSavePublishLocalDraft[\s\S]*deep: true/)
+  assert.match(source, /watch\(\s*resourceImageEntries,[\s\S]*scheduleSavePublishLocalDraft[\s\S]*deep: true/)
+  assert.match(source, /onUnload\(\(\) => \{[\s\S]*flushPublishLocalDraft\(\)[\s\S]*\}\)/)
+
+  const submitMatched = source.match(/async function submit\(\) \{([\s\S]*?)\n\}/)
+  const saveDraftMatched = source.match(/async function saveDraft\(\) \{([\s\S]*?)\n\}/)
+  assert.ok(submitMatched, 'submit should exist')
+  assert.ok(saveDraftMatched, 'saveDraft should exist')
+  assert.match(submitMatched[1], /await createResource[\s\S]*clearPublishLocalDraft\(\)[\s\S]*resetPublishForm\(\)/)
+  assert.match(saveDraftMatched[1], /await createResourceDraft[\s\S]*clearPublishLocalDraft\(\)[\s\S]*resetPublishForm\(\)/)
+})
+
+test('publish page stages images and uploads them only when saving or submitting', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
+
+  for (const token of [
+    'chooseImageFile',
+    'uploadSelectedImage',
+    'resourceImageEntries',
+    'createPendingResourceImageEntry',
+    'createStoredResourceImageEntry',
+    'getResourceImagePreviewUrls',
+    'uploadPendingResourceImages',
+    'await uploadPendingResourceImages()',
+    "await uploadSelectedImage(entry.file, 'resource')",
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  const submitMatched = source.match(/async function submit\(\) \{([\s\S]*?)\n\}/)
+  const saveDraftMatched = source.match(/async function saveDraft\(\) \{([\s\S]*?)\n\}/)
+  const uploadResourceImageMatched = source.match(/async function uploadResourceImage\(\) \{([\s\S]*?)\n\}/)
+
+  assert.ok(submitMatched, 'submit should exist')
+  assert.ok(saveDraftMatched, 'saveDraft should exist')
+  assert.ok(uploadResourceImageMatched, 'uploadResourceImage should exist')
+  assert.match(submitMatched[1], /await uploadPendingResourceImages\(\)[\s\S]*await createResource/)
+  assert.match(saveDraftMatched[1], /await uploadPendingResourceImages\(\)[\s\S]*await createResourceDraft/)
+  assert.equal(uploadResourceImageMatched[1].includes('uploadSelectedImage'), false)
+  assert.equal(source.includes('chooseAndUploadImage'), false)
+  assert.equal(source.includes('图片已上传'), false)
+})
+
+test('success pages explain the result and next step consistently', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const publishSource = fs.readFileSync(path.join(root, 'pages/publish-success/index.vue'), 'utf8')
+  const demandSource = fs.readFileSync(path.join(root, 'pages/demand-success/index.vue'), 'utf8')
+
+  for (const source of [publishSource, demandSource]) {
+    for (const token of [
+      'success-icon',
+      'success-result-list',
+      'success-result-item',
+      'result-label',
+      'result-value',
+      'wplink-primary-button',
+      'wplink-secondary-button',
+    ]) {
+      assert.match(source, new RegExp(token))
+    }
+  }
+
+  for (const token of ['审核结果', '消息中心通知', '通过后曝光', '搜索、推荐和商家主页']) {
+    assert.match(publishSource, new RegExp(token))
+  }
+
+  for (const token of ['跟进通知', '消息中心查看', '后续处理', '运营继续对接合适资源']) {
+    assert.match(demandSource, new RegExp(token))
+  }
+})
+
 test('merchant profile page does not require sms verification for contact phone', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
