@@ -27,3 +27,24 @@ test('resource recommendation page supports pull refresh and load more paginatio
   assert.match(source, /hasMore\.value = rows\.value\.length < total\.value/)
   assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
 })
+
+test('resource recommendation page keeps common categories compact and opens all categories drawer', () => {
+  for (const token of [
+    'visibleResourceTypes',
+    'MAX_VISIBLE_RESOURCE_TYPES',
+    'showTypeDrawer',
+    'openTypeDrawer',
+    'closeTypeDrawer',
+    'type-drawer-mask',
+    'type-drawer-panel',
+    '全部分类',
+    '常用分类',
+    'drawer-type-grid',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(source, /v-for="item in visibleResourceTypes"/)
+  assert.match(source, /v-if="resourceTypes\.length > visibleResourceTypes\.length"/)
+  assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypeDrawer\.value = false[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
+})

@@ -28,7 +28,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/search/index.vue',
     description: '资源 tab 推荐和类型筛选',
-    checks: ['资源推荐', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'openSearchPage', 'selectType', 'onPullDownRefresh', 'onReachBottom', '提交采购需求'],
+    checks: ['资源推荐', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'openSearchPage', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom', '提交采购需求'],
   },
   {
     file: 'pages/search/result.vue',

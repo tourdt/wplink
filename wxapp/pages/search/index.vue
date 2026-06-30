@@ -5,15 +5,25 @@
       <text class="search-action">搜索</text>
     </view>
 
-    <view class="filter-row">
+    <view class="filter-shell">
+      <scroll-view class="filter-row" scroll-x>
+        <button
+          v-for="item in visibleResourceTypes"
+          :key="item.value"
+          :class="['filter-button', item.value === filters.typeCode ? 'active' : '']"
+          @click="selectType(item.value)"
+        >
+          {{ item.label }}
+        </button>
+      </scroll-view>
       <button
-        v-for="item in resourceTypes"
-        :key="item.value"
-        :class="['filter-button', item.value === filters.typeCode ? 'active' : '']"
-        @click="selectType(item.value)"
+        v-if="resourceTypes.length > visibleResourceTypes.length"
+        class="all-type-button"
+        @click="openTypeDrawer"
       >
-        {{ item.label }}
+        全部分类
       </button>
+    </view>
     </view>
 
     <view v-if="rows.length" class="result-list">
@@ -30,11 +40,31 @@
       <button class="primary-button" @click="openSearchPage()">去搜索</button>
       <button class="secondary-button" @click="openDemand">提交采购需求</button>
     </view>
+
+    <view v-if="showTypeDrawer" class="type-drawer-mask" @click="closeTypeDrawer">
+      <view class="type-drawer-panel" @click.stop>
+        <view class="type-drawer-head">
+          <text class="type-drawer-title">全部分类</text>
+          <button class="type-drawer-close" @click="closeTypeDrawer">关闭</button>
+        </view>
+        <text class="type-drawer-subtitle">常用分类</text>
+        <view class="drawer-type-grid">
+          <button
+            v-for="item in resourceTypes"
+            :key="item.value"
+            :class="['drawer-type-button', item.value === filters.typeCode ? 'active' : '']"
+            @click="selectType(item.value)"
+          >
+            {{ item.label }}
+          </button>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
@@ -42,6 +72,7 @@ import { listCityResourceTypes } from '../../api/city'
 import { listResources } from '../../api/resource'
 
 const resourceTypes = ref([{ label: '全部', value: '' }])
+const MAX_VISIBLE_RESOURCE_TYPES = 6
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const PAGE_TITLE = '资源推荐'
 const rows = ref([])
@@ -54,6 +85,8 @@ const filters = reactive({
   cityCode: DEFAULT_CITY_CODE,
   typeCode: '',
 })
+const showTypeDrawer = ref(false)
+const visibleResourceTypes = computed(() => resourceTypes.value.slice(0, MAX_VISIBLE_RESOURCE_TYPES))
 
 onLoad(initResourcePage)
 
@@ -108,7 +141,16 @@ async function loadRecommendedResources({ reset = true } = {}) {
 
 async function selectType(typeCode) {
   filters.typeCode = typeCode
+  showTypeDrawer.value = false
   await loadRecommendedResources({ reset: true })
+}
+
+function openTypeDrawer() {
+  showTypeDrawer.value = true
+}
+
+function closeTypeDrawer() {
+  showTypeDrawer.value = false
 }
 
 function openSearchPage(keyword = '') {
@@ -166,17 +208,27 @@ function openDemand() {
   font-weight: 700;
 }
 
-.filter-row {
+.filter-shell {
   display: flex;
+  align-items: center;
   gap: 12rpx;
   margin-bottom: 16rpx;
+}
+
+.filter-row {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
   overflow-x: auto;
 }
 
 .filter-button {
-  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 112rpx;
   height: 80rpx;
+  margin-right: 12rpx;
   padding: 0 20rpx;
   border-radius: 10rpx;
   background: $wplink-card;
@@ -187,6 +239,17 @@ function openDemand() {
 .filter-button.active {
   background: $wplink-warning-soft;
   color: $wplink-primary;
+}
+
+.all-type-button {
+  flex: 0 0 auto;
+  width: 156rpx;
+  height: 80rpx;
+  border-radius: 10rpx;
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
+  font-size: 24rpx;
+  font-weight: 700;
 }
 
 .result-list {
@@ -255,5 +318,75 @@ function openDemand() {
 .secondary-button {
   background: $wplink-primary-soft;
   color: $wplink-primary;
+}
+
+.type-drawer-mask {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(15, 23, 42, 0.38);
+}
+
+.type-drawer-panel {
+  width: 100%;
+  max-height: 72vh;
+  padding: 26rpx 24rpx calc(30rpx + env(safe-area-inset-bottom));
+  border-radius: 16rpx 16rpx 0 0;
+  background: $wplink-bg;
+}
+
+.type-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+
+.type-drawer-title {
+  color: $wplink-primary;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.type-drawer-close {
+  width: 112rpx;
+  height: 58rpx;
+  border-radius: 10rpx;
+  background: $wplink-card;
+  color: $wplink-muted;
+  font-size: 24rpx;
+}
+
+.type-drawer-subtitle {
+  display: block;
+  margin-bottom: 16rpx;
+  color: $wplink-muted;
+  font-size: 24rpx;
+}
+
+.drawer-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.drawer-type-button {
+  height: 72rpx;
+  padding: 0 10rpx;
+  border-radius: 10rpx;
+  background: $wplink-card;
+  color: #364152;
+  font-size: 24rpx;
+}
+
+.drawer-type-button.active {
+  background: $wplink-warning-soft;
+  color: $wplink-primary;
+  font-weight: 700;
 }
 </style>
