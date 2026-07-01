@@ -501,6 +501,24 @@ func TestResourceAPIRouterUsesTokenSubjectForContactEvents(t *testing.T) {
 	}
 }
 
+func TestResourceAPIRouterUnlocksOwnResourceContactWithoutRecordingEvent(t *testing.T) {
+	store := &fakeResourceAPIStore{managedMerchants: map[string]bool{"merchant-1": true}}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-events", strings.NewReader(`{"action":"phone"}`))
+	req.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	if data["phone"] != "18800000002" || data["message"] != "电话已解锁" {
+		t.Fatalf("contact data = %#v, want own phone unlocked", data)
+	}
+	if store.contactInput.ResourceID != "" || store.metricDelta.ContactClickCount != 0 {
+		t.Fatalf("contact input = %#v metric = %#v, want no event or metric for own resource", store.contactInput, store.metricDelta)
+	}
+}
+
 func TestResourceAPIRouterUsesTokenSubjectForSearchLogs(t *testing.T) {
 	store := &fakeResourceAPIStore{}
 	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))

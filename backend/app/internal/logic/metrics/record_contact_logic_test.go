@@ -89,19 +89,46 @@ func TestRecordContactRejectsWechatWithoutPersistingMetricWhenWechatMissing(t *t
 	}
 }
 
-func TestRecordContactRejectsOwnResourceWithoutPersistingMetric(t *testing.T) {
-	store := &fakeContactStore{
-		contact:             model.ResourceContactUnlockInfo{ResourceID: "resource-1", MerchantID: "merchant-1", Status: model.ResourceStatusPublished, Phone: "18800000002"},
-		userManagedMerchant: true,
+func TestRecordContactReturnsOwnResourceContactWithoutPersistingMetric(t *testing.T) {
+	tests := []struct {
+		name        string
+		action      string
+		contact     model.ResourceContactUnlockInfo
+		wantPhone   string
+		wantWechat  string
+		wantMessage string
+	}{
+		{
+			name:        "phone",
+			action:      "phone",
+			contact:     model.ResourceContactUnlockInfo{ResourceID: "resource-1", MerchantID: "merchant-1", Status: model.ResourceStatusPublished, Phone: "18800000002"},
+			wantPhone:   "18800000002",
+			wantMessage: "电话已解锁",
+		},
+		{
+			name:        "wechat",
+			action:      "wechat",
+			contact:     model.ResourceContactUnlockInfo{ResourceID: "resource-1", MerchantID: "merchant-1", Status: model.ResourceStatusPublished, Wechat: "stock-demo"},
+			wantWechat:  "stock-demo",
+			wantMessage: "微信号已解锁",
+		},
 	}
-	logic := NewRecordContactLogic(store)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &fakeContactStore{contact: tt.contact, userManagedMerchant: true}
+			logic := NewRecordContactLogic(store)
 
-	_, err := logic.RecordContact(context.Background(), RecordContactReq{ResourceID: "resource-1", UserID: "user-1", Action: "phone"})
-	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
-		t.Fatalf("RecordContact() error = %v, want validation failed", err)
-	}
-	if store.eventInput.ResourceID != "" || store.metricDelta.ContactClickCount != 0 {
-		t.Fatalf("eventInput = %#v metricDelta = %#v, want no writes", store.eventInput, store.metricDelta)
+			resp, err := logic.RecordContact(context.Background(), RecordContactReq{ResourceID: "resource-1", UserID: "user-1", Action: tt.action})
+			if err != nil {
+				t.Fatalf("RecordContact() error = %v", err)
+			}
+			if resp.Phone != tt.wantPhone || resp.Wechat != tt.wantWechat || resp.Message != tt.wantMessage {
+				t.Fatalf("resp = %#v, want phone=%q wechat=%q message=%q", resp, tt.wantPhone, tt.wantWechat, tt.wantMessage)
+			}
+			if store.eventInput.ResourceID != "" || store.metricDelta.ContactClickCount != 0 {
+				t.Fatalf("eventInput = %#v metricDelta = %#v, want no writes", store.eventInput, store.metricDelta)
+			}
+		})
 	}
 }
 
