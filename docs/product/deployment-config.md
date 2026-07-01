@@ -77,7 +77,7 @@ bash deploy/scripts/build-release.sh
 
 置顶券核销 `POST /api/v1/top-vouchers/{voucherId}/redeem` 在生产启用用户 token 后，会按置顶券真实所属商家校验管理权限，不接受请求体中的 `merchantId` 作为权限依据；兑换 SQL 仍会校验资源与置顶券属于同一商家且资源已发布。
 
-资源联系行为 `POST /api/v1/resources/{resourceId}/contact-events` 允许匿名记录运营指标；请求携带用户 token 时以后端解析出的 token 用户为准，不接受前端 body 中的 `userId` 作为归因身份。
+资源联系行为 `POST /api/v1/resources/{resourceId}/contact-events` 中，`phone` 和 `wechat` 属于完整联系方式解锁动作，生产环境必须携带用户 token，成功解锁后才计入电话点击或微信复制指标；后端解析出的 token 用户为归因身份，不接受前端 body 中的 `userId`。`merchant_home`、`merchant_profile` 和 `share` 可继续作为非联系方式解锁事件记录。
 
 资源搜索日志 `GET /api/v1/resource-search` 允许匿名记录关键词和筛选条件；请求携带用户 token 时以后端解析出的 token 用户为准，不接受 query 中的 `userId` 作为搜索归因身份。
 
