@@ -5,14 +5,43 @@
         <text class="section-title">认证状态</text>
         <text class="status-text">{{ statusLabel(latestVerification.status) }}</text>
         <text class="status-meta" v-if="latestVerification.verificationType">
-          {{ typeLabel(latestVerification.verificationType) }} · {{ latestVerification.reviewedAt || '等待审核' }}
+          {{ typeLabel(latestVerification.verificationType) }} · {{ verificationReviewedDate }}
         </text>
-        <text class="status-meta">{{ billingSummary }}</text>
+        <text class="status-meta" v-if="showBillingSummary">{{ billingSummary }}</text>
       </view>
       <button v-if="canPayVerification" class="primary-button" :loading="paying" @click="payVerification">支付认证费</button>
     </view>
 
-    <view class="form-card">
+    <view v-if="isLimitedFreeActive" class="billing-free-banner">
+      <text class="billing-free-title">限时免费</text>
+      <text class="billing-free-desc">原认证费 {{ billingFeeText }}，现在提交，审核通过后免费生效</text>
+    </view>
+
+    <view v-if="isVerificationPending" class="review-progress-card">
+      <view class="review-progress-icon">
+        <view class="review-progress-dot" />
+      </view>
+      <view class="review-progress-copy">
+        <text class="review-progress-title">资料已提交</text>
+        <text class="review-progress-desc">平台正在审核，审核结果会通过站内消息通知。</text>
+        <text class="review-progress-meta">审核中无需重复提交，资料有问题时可按驳回提示修改后重新提交。</text>
+      </view>
+    </view>
+
+    <view v-if="isVerificationRejected" class="review-reject-card">
+      <text class="review-reject-title">认证未通过</text>
+      <text class="review-reject-desc">驳回原因：{{ verificationRejectReason }}</text>
+      <text class="review-reject-meta">请按原因修改资料后重新提交。</text>
+    </view>
+
+    <view v-if="showVerifiedSummary" class="verified-summary-card">
+      <text class="verified-summary-title">认证已通过</text>
+      <text class="verified-summary-desc">认证资料已生效，买家可在商家信息中看到认证状态。</text>
+      <text class="verified-summary-meta">如主体资质、营业执照或经营场地变化，请重新提交审核。</text>
+      <button class="secondary-button verified-change-button" @click="startCertificationChange">变更认证资料</button>
+    </view>
+
+    <view v-if="showVerificationForm" class="form-card">
       <view class="form-section">
         <view class="section-heading">
           <view class="section-title-row">
@@ -51,7 +80,7 @@
       <view class="form-section">
         <view class="section-heading">
           <view class="section-title-row">
-            <text class="section-title">联系人和地址</text>
+            <text class="section-title">联系信息</text>
             <text class="required-badge">必填</text>
           </view>
         </view>
@@ -121,19 +150,33 @@
               </button>
             </view>
           </view>
-          <checkbox-group @change="changeCommitment">
-            <label class="commitment-row">
-              <checkbox value="accepted" :checked="form.commitmentAccepted" />
-              <text>我承诺资料真实有效。</text>
-            </label>
-          </checkbox-group>
         </view>
+      </view>
+
+      <view class="form-section commitment-section">
+        <checkbox-group @change="changeCommitment">
+          <label class="commitment-row">
+            <checkbox class="commitment-checkbox" value="accepted" :checked="form.commitmentAccepted" />
+            <text class="commitment-text">我承诺资料真实有效。</text>
+          </label>
+        </checkbox-group>
       </view>
     </view>
 
-    <view class="fixed-save-spacer" />
-    <view class="fixed-save-bar">
-      <button class="primary-button" @click="submit">提交认证</button>
+    <view v-if="showSubmitBar" class="fixed-save-spacer" />
+    <view v-if="showSubmitBar" class="fixed-save-bar">
+      <button
+        class="primary-button submit-button"
+        :class="{ 'submit-button-loading': submitting }"
+        :disabled="submitting"
+        @click="submit"
+      >
+        <view class="submit-button-main-row">
+          <view v-if="submitting" class="submit-spinner" />
+          <text class="submit-button-main">{{ submitButtonMainText }}</text>
+        </view>
+        <text v-if="submitButtonSubText" class="submit-button-sub">{{ submitButtonSubText }}</text>
+      </button>
     </view>
   </view>
 </template>
@@ -144,7 +187,8 @@ import { onLoad } from '@dcloudio/uni-app'
 import { getMerchantId, getUserId } from '../../store/session'
 import { getMerchant } from '../../api/merchant'
 import { createVerificationPayment, getLatestVerification, getVerificationBillingConfig, submitVerification } from '../../api/verification'
-import { chooseAndUploadImage } from '../../common/upload'
+import { chooseImageFile, uploadSelectedImage } from '../../common/upload'
+import { formatDateToDay } from '../../common/date'
 
 const merchantIdentityOptions = [
   { label: '源头工厂', value: 'factory' },
@@ -169,6 +213,7 @@ const form = reactive({
   qualificationUrl: '',
   commitmentAccepted: false,
 })
+const pendingVerificationFiles = reactive({})
 
 const proofUploadItems = computed(() => [
   { kind: 'license', group: 'subject', label: '营业执照', required: true, url: form.licenseUrl },
@@ -180,15 +225,43 @@ const proofUploadItems = computed(() => [
 const latestVerification = ref({ status: 'none' })
 const billingConfig = ref({ chargeEnabled: false, feeAmount: 0, currency: 'CNY', freeEnabled: false })
 const paying = ref(false)
+const submitting = ref(false)
+const changingVerifiedCertification = ref(false)
+const billingFeeText = computed(() => `¥${(Number(billingConfig.value.feeAmount || 0) / 100).toFixed(2)}`)
+const isLimitedFreeActive = computed(() => {
+  return billingConfig.value.chargeEnabled && Number(billingConfig.value.feeAmount || 0) > 0 && isFreeWindowActive()
+})
+const showBillingSummary = computed(() => !isLimitedFreeActive.value && !isVerificationVerified.value)
 const billingSummary = computed(() => {
   if (!billingConfig.value.chargeEnabled) return '当前认证免费，审核通过后直接生效'
-  const feeText = `认证费 ¥${(Number(billingConfig.value.feeAmount || 0) / 100).toFixed(2)}`
-  if (isFreeWindowActive()) return `${feeText}，当前限时免费`
+  const feeText = `认证费 ${billingFeeText.value}`
   if (latestVerification.value.status === 'payment_pending') return `${feeText}，支付成功后认证生效`
   return `${feeText}，资料审核通过后在线支付`
 })
 const canPayVerification = computed(() => {
-  return latestVerification.value.status === 'payment_pending' && billingConfig.value.chargeEnabled && !isFreeWindowActive() && latestVerification.value.id
+  return latestVerification.value.status === 'payment_pending' && billingConfig.value.chargeEnabled && !isLimitedFreeActive.value && latestVerification.value.id
+})
+const isVerificationPending = computed(() => latestVerification.value.status === 'pending')
+const isVerificationRejected = computed(() => latestVerification.value.status === 'rejected')
+const isVerificationVerified = computed(() => latestVerification.value.status === 'verified')
+const verificationReviewedDate = computed(() => formatDateToDay(latestVerification.value.reviewedAt, '等待审核'))
+const verificationRejectReason = computed(() => {
+  const reason = String(latestVerification.value.reviewNote || '').trim()
+  return reason || '平台未填写具体原因，请检查资料后重新提交'
+})
+const showVerifiedSummary = computed(() => isVerificationVerified.value && !changingVerifiedCertification.value)
+const showVerificationForm = computed(() => !isVerificationPending.value && (!isVerificationVerified.value || changingVerifiedCertification.value))
+const showSubmitBar = computed(() => showVerificationForm.value)
+const submitButtonMainText = computed(() => {
+  if (submitting.value) return '正在提交'
+  if (isVerificationVerified.value && changingVerifiedCertification.value) return '提交变更审核'
+  return '提交认证'
+})
+const submitButtonSubText = computed(() => {
+  if (submitting.value) return '图片上传和资料提交中'
+  if (isVerificationVerified.value && changingVerifiedCertification.value) return '审核通过后更新认证资料'
+  if (isLimitedFreeActive.value) return '审核通过后免费生效'
+  return ''
 })
 
 onLoad(async (options) => {
@@ -211,12 +284,17 @@ async function loadMerchantProfile() {
 async function loadLatestVerification() {
   if (!form.merchantId) {
     latestVerification.value = { status: 'none' }
+    changingVerifiedCertification.value = false
     return
   }
   try {
-    latestVerification.value = await getLatestVerification(form.merchantId)
+    const latest = await getLatestVerification(form.merchantId)
+    latestVerification.value = latest
+    if (latest.status === 'verified') applyVerificationFormDefaults(latest)
+    if (latest.status !== 'verified') changingVerifiedCertification.value = false
   } catch (err) {
     latestVerification.value = { status: 'none' }
+    changingVerifiedCertification.value = false
   }
 }
 
@@ -259,12 +337,21 @@ async function uploadProof(item) {
 
 async function uploadVerificationImage(kind) {
   try {
-    // 认证材料上传成功后只提交 CDN URL，后台审核无需接收二进制文件。
-    const url = await chooseAndUploadImage(`verification-${kind}`)
-    form[imageFieldName(kind)] = url
-    uni.showToast({ title: '图片已上传', icon: 'none' })
+    const file = await chooseImageFile()
+    pendingVerificationFiles[kind] = file
+    form[imageFieldName(kind)] = file.path
   } catch (err) {
-    uni.showToast({ title: err.message || '图片上传失败，请重试', icon: 'none' })
+    uni.showToast({ title: err.message || '图片选择失败，请重试', icon: 'none' })
+  }
+}
+
+async function uploadPendingVerificationImages() {
+  const entries = Object.entries(pendingVerificationFiles)
+  for (const [kind, file] of entries) {
+    if (!file) continue
+    const uploadedUrl = await uploadSelectedImage(file, `verification-${kind}`)
+    form[imageFieldName(kind)] = uploadedUrl
+    delete pendingVerificationFiles[kind]
   }
 }
 
@@ -283,7 +370,31 @@ function proofItems(group) {
   return proofUploadItems.value.filter((item) => item.group === group)
 }
 
+function startCertificationChange() {
+  applyVerificationFormDefaults(latestVerification.value)
+  // 已认证资料变更需要重新审核，避免商家误以为修改后会立即生效。
+  changingVerifiedCertification.value = true
+}
+
+function applyVerificationFormDefaults(verification) {
+  if (!verification) return
+  const materials = verification.materials || {}
+  form.verificationType = verification.verificationType || form.verificationType
+  form.businessName = verification.businessName || form.businessName
+  form.licenseUrl = verification.licenseUrl || form.licenseUrl
+  form.storefrontUrl = verification.storefrontUrl || form.storefrontUrl
+  form.socialCreditCode = String(materials.socialCreditCode || form.socialCreditCode || '')
+  form.applicantName = String(materials.applicantName || form.applicantName || '')
+  form.contactPhone = sanitizeContactPhoneValue(materials.contactPhone || form.contactPhone)
+  form.contactWechat = String(materials.contactWechat || form.contactWechat || '')
+  form.addressText = String(materials.addressText || form.addressText || '')
+  form.sceneUrl = String(materials.sceneUrl || form.sceneUrl || '')
+  form.authorizationUrl = String(materials.authorizationUrl || form.authorizationUrl || '')
+  form.qualificationUrl = String(materials.qualificationUrl || form.qualificationUrl || '')
+}
+
 async function submit() {
+  if (submitting.value) return
   const userId = getUserId()
   if (!userId) {
     uni.showToast({ title: '请先在我的页保存用户 ID', icon: 'none' })
@@ -295,18 +406,28 @@ async function submit() {
     uni.showToast({ title: validationMessage, icon: 'none' })
     return
   }
-  const verificationMaterials = buildVerificationMaterials()
-  // 认证申请需要记录提交人，便于后台审核留痕和后续消息通知。
-  await submitVerification(form.merchantId.trim(), {
-    applicantUserId: userId,
-    verificationType: form.verificationType,
-    businessName: form.businessName.trim(),
-    licenseUrl: form.licenseUrl.trim(),
-    storefrontUrl: form.storefrontUrl.trim(),
-    materials: verificationMaterials,
-  })
-  uni.showToast({ title: '认证已提交', icon: 'none' })
-  await loadLatestVerification()
+
+  const isChangeSubmit = isVerificationVerified.value && changingVerifiedCertification.value
+  submitting.value = true
+  try {
+    await uploadPendingVerificationImages()
+    const verificationMaterials = buildVerificationMaterials()
+    // 认证申请需要记录提交人，便于后台审核留痕和后续消息通知。
+    await submitVerification(form.merchantId.trim(), {
+      applicantUserId: userId,
+      verificationType: form.verificationType,
+      businessName: form.businessName.trim(),
+      licenseUrl: form.licenseUrl.trim(),
+      storefrontUrl: form.storefrontUrl.trim(),
+      materials: verificationMaterials,
+    })
+    uni.showToast({ title: isChangeSubmit ? '变更审核已提交' : '认证已提交', icon: 'none' })
+    await loadLatestVerification()
+  } catch (err) {
+    uni.showToast({ title: err.message || '提交失败，请重试', icon: 'none' })
+  } finally {
+    submitting.value = false
+  }
 }
 
 function validateForm() {
@@ -429,6 +550,143 @@ function isFreeWindowActive() {
   background: $wplink-card;
 }
 
+.billing-free-banner {
+  display: grid;
+  gap: 6rpx;
+  margin-bottom: 20rpx;
+  padding: 22rpx 24rpx;
+  border: 1rpx solid rgba(217, 119, 6, 0.22);
+  border-radius: 12rpx;
+  background: #fff7ed;
+}
+
+.billing-free-title {
+  color: $wplink-warning;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.billing-free-desc {
+  color: #92400e;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.review-progress-card {
+  display: flex;
+  gap: 18rpx;
+  margin-bottom: 20rpx;
+  padding: 24rpx;
+  border: 1rpx solid rgba(2, 132, 199, 0.16);
+  border-radius: 12rpx;
+  background: $wplink-card;
+}
+
+.review-progress-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 999rpx;
+  background: #e0f2fe;
+}
+
+.review-progress-dot {
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 999rpx;
+  background: #0284c7;
+}
+
+.review-progress-copy {
+  display: grid;
+  flex: 1;
+  gap: 8rpx;
+}
+
+.review-progress-title {
+  color: $wplink-primary;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.review-progress-desc {
+  color: $wplink-primary;
+  font-size: 26rpx;
+  line-height: 1.45;
+}
+
+.review-progress-meta {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.review-reject-card {
+  display: grid;
+  gap: 8rpx;
+  margin-bottom: 20rpx;
+  padding: 24rpx;
+  border: 1rpx solid rgba(220, 38, 38, 0.16);
+  border-radius: 12rpx;
+  background: #fef2f2;
+}
+
+.review-reject-title {
+  color: #b91c1c;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.review-reject-desc {
+  color: #7f1d1d;
+  font-size: 26rpx;
+  line-height: 1.45;
+}
+
+.review-reject-meta {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.verified-summary-card {
+  display: grid;
+  gap: 8rpx;
+  margin-bottom: 20rpx;
+  padding: 24rpx;
+  border: 1rpx solid rgba(5, 150, 105, 0.18);
+  border-radius: 12rpx;
+  background: #ecfdf5;
+}
+
+.verified-summary-title {
+  color: #047857;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.verified-summary-desc {
+  color: #064e3b;
+  font-size: 26rpx;
+  line-height: 1.45;
+}
+
+.verified-summary-meta {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.verified-change-button {
+  margin-top: 10rpx;
+}
+
 .status-copy {
   display: grid;
   gap: 10rpx;
@@ -517,6 +775,56 @@ function isFreeWindowActive() {
   border-radius: 12rpx;
   background: $wplink-primary;
   color: $wplink-card;
+}
+
+.submit-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+  line-height: 1.2;
+}
+
+.submit-button-loading,
+.submit-button[disabled] {
+  opacity: 0.88;
+}
+
+.submit-button-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  line-height: 1.2;
+}
+
+.submit-spinner {
+  width: 26rpx;
+  height: 26rpx;
+  border: 3rpx solid rgba(255, 255, 255, 0.38);
+  border-top-color: $wplink-card;
+  border-radius: 999rpx;
+  animation: submit-spin 0.8s linear infinite;
+}
+
+@keyframes submit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.submit-button-main {
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.submit-button-sub {
+  font-size: 22rpx;
+  font-weight: 400;
+  line-height: 1.2;
+  opacity: 0.86;
 }
 
 .secondary-button {
@@ -642,14 +950,29 @@ function isFreeWindowActive() {
   min-height: 156rpx;
 }
 
+.commitment-section {
+  padding: 20rpx 24rpx;
+}
+
 .commitment-row {
-  display: grid;
-  grid-template-columns: 48rpx minmax(0, 1fr);
-  gap: 12rpx;
-  align-items: start;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  min-height: 56rpx;
   color: $wplink-primary;
-  font-size: 25rpx;
-  line-height: 1.5;
+}
+
+.commitment-checkbox {
+  flex: none;
+  transform: scale(0.82);
+  transform-origin: center;
+}
+
+.commitment-text {
+  flex: 1;
+  font-size: 26rpx;
+  font-weight: 500;
+  line-height: 1.35;
 }
 
 .fixed-save-bar {

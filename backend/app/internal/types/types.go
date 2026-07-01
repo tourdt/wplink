@@ -257,12 +257,16 @@ type AdminPendingResourcesResp struct {
 }
 
 type AdminPendingVerificationItem struct {
-	Id               string `json:"id"`
-	MerchantId       string `json:"merchantId"`
-	MerchantName     string `json:"merchantName"`
-	VerificationType string `json:"verificationType"`
-	Status           string `json:"status"`
-	SubmittedAt      string `json:"submittedAt"`
+	Id               string                 `json:"id"`
+	MerchantId       string                 `json:"merchantId"`
+	MerchantName     string                 `json:"merchantName"`
+	VerificationType string                 `json:"verificationType"`
+	Status           string                 `json:"status"`
+	SubmittedAt      string                 `json:"submittedAt"`
+	BusinessName     string                 `json:"businessName"`
+	LicenseUrl       string                 `json:"licenseUrl"`
+	StorefrontUrl    string                 `json:"storefrontUrl"`
+	Materials        map[string]interface{} `json:"materials"`
 }
 
 type AdminPendingVerificationsReq struct {
@@ -579,6 +583,7 @@ type LatestVerificationResp struct {
 	VerificationType string `json:"verificationType"`
 	Status           string `json:"status"`
 	ReviewedAt       string `json:"reviewedAt,optional"`
+	ReviewNote       string `json:"reviewNote,optional"`
 }
 
 type ListCityStationsResp struct {

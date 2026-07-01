@@ -19,6 +19,11 @@ type LatestVerificationResp {
 	VerificationType string `json:"verificationType"`
 	Status           string `json:"status"`
 	ReviewedAt       string `json:"reviewedAt,optional"`
+	ReviewNote       string `json:"reviewNote,optional"`
+	BusinessName     string `json:"businessName,optional"`
+	LicenseUrl       string `json:"licenseUrl,optional"`
+	StorefrontUrl    string `json:"storefrontUrl,optional"`
+	Materials        map[string]interface{} `json:"materials,optional"`
 }
 
 type VerificationBillingConfigResp {

@@ -124,3 +124,33 @@ test('admin merchant identity wording matches mini program copy', () => {
     assert.equal(merchantSource.includes(oldOption), false)
   }
 })
+
+test('verification review drawer shows submitted certification materials', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/VerificationView.vue'), 'utf8')
+
+  for (const token of [
+    '营业主体',
+    '统一社会信用代码',
+    '联系人姓名',
+    '联系电话',
+    '联系微信',
+    '经营地址',
+    '营业执照',
+    '门头/场地',
+    '经营实拍',
+    '授权证明',
+    '其他证明',
+    '未提交',
+  ]) {
+    assert.match(source, new RegExp(token))
+  }
+
+  assert.match(source, /materialInfoItems/)
+  assert.match(source, /materialImageItems/)
+  assert.match(source, /socialCreditCode/)
+  assert.match(source, /businessName/)
+  assert.match(source, /licenseUrl/)
+  assert.match(source, /storefrontUrl/)
+  assert.match(source, /sceneUrl/)
+  assert.match(source, /<el-image/)
+})

@@ -32,10 +32,15 @@ type SubmitVerificationResp struct {
 }
 
 type LatestVerificationResp struct {
-	ID               string `json:"id"`
-	VerificationType string `json:"verificationType"`
-	Status           string `json:"status"`
-	ReviewedAt       string `json:"reviewedAt,omitempty"`
+	ID               string        `json:"id"`
+	VerificationType string        `json:"verificationType"`
+	Status           string        `json:"status"`
+	ReviewedAt       string        `json:"reviewedAt,omitempty"`
+	ReviewNote       string        `json:"reviewNote,omitempty"`
+	BusinessName     string        `json:"businessName,omitempty"`
+	LicenseURL       string        `json:"licenseUrl,omitempty"`
+	StorefrontURL    string        `json:"storefrontUrl,omitempty"`
+	Materials        model.JSONMap `json:"materials,omitempty"`
 }
 
 type SubmitVerificationLogic struct {
@@ -91,6 +96,8 @@ func (l *GetLatestVerificationLogic) GetLatestVerification(ctx context.Context, 
 	}
 	return LatestVerificationResp{
 		ID: result.ID, VerificationType: result.VerificationType, Status: result.Status, ReviewedAt: result.ReviewedAt,
+		ReviewNote: result.ReviewNote, BusinessName: result.BusinessName, LicenseURL: result.LicenseURL, StorefrontURL: result.StorefrontURL,
+		Materials: cloneJSONMap(result.Materials),
 	}, nil
 }
 
@@ -101,4 +108,15 @@ func isSupportedVerificationType(verificationType string) bool {
 	default:
 		return false
 	}
+}
+
+func cloneJSONMap(value model.JSONMap) model.JSONMap {
+	if value == nil {
+		return nil
+	}
+	cloned := make(model.JSONMap, len(value))
+	for key, item := range value {
+		cloned[key] = item
+	}
+	return cloned
 }

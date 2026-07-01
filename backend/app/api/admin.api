@@ -74,6 +74,10 @@ type AdminPendingVerificationItem {
 	VerificationType string `json:"verificationType"`
 	Status           string `json:"status"`
 	SubmittedAt      string `json:"submittedAt"`
+	BusinessName     string                 `json:"businessName"`
+	LicenseUrl       string                 `json:"licenseUrl"`
+	StorefrontUrl    string                 `json:"storefrontUrl"`
+	Materials        map[string]interface{} `json:"materials"`
 }
 
 type AdminPendingVerificationsReq {

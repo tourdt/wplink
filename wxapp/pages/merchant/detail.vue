@@ -37,6 +37,27 @@
       <text class="profile-description">{{ profileDescription }}</text>
     </view>
 
+    <view v-if="showVerificationInfo" class="section verification-info-section">
+      <view class="section-head">
+        <text class="section-title">认证信息</text>
+        <text class="verification-status-pill">平台已认证</text>
+      </view>
+      <view class="verification-info-list">
+        <view class="verification-info-row">
+          <text class="verification-info-label">认证身份</text>
+          <text class="verification-info-value">{{ merchantVerificationTypeLabel }}</text>
+        </view>
+        <view class="verification-info-row">
+          <text class="verification-info-label">已核验</text>
+          <text class="verification-info-value">{{ merchantVerificationCheckedText }}</text>
+        </view>
+        <view v-if="merchantVerificationReviewedDate" class="verification-info-row">
+          <text class="verification-info-label">认证时间</text>
+          <text class="verification-info-value">{{ merchantVerificationReviewedDate }}</text>
+        </view>
+      </view>
+    </view>
+
     <view class="section" v-if="merchant.addressText || hasMerchantLocation">
       <view class="section-head">
         <text class="section-title">商家地址</text>
@@ -97,6 +118,7 @@ import { getMerchantFollowState, setMerchantFollow } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
 import { listResources } from '../../api/resource'
 import { getSession } from '../../store/session'
+import { formatDateToDay } from '../../common/date'
 
 const merchant = ref({})
 const currentMerchantId = ref('')
@@ -120,10 +142,24 @@ const merchantImages = computed(() => merchant.value.images || [])
 const merchantLocation = computed(() => merchant.value.location || {})
 const hasMerchantLocation = computed(() => hasValidLocation(merchantLocation.value))
 const resourcesSummary = computed(() => merchant.value.resourcesSummary || {})
+const merchantVerificationInfo = computed(() => merchant.value.verificationInfo || {})
 const isOwnMerchant = computed(() => Boolean(merchant.value.id) && merchant.value.id === ownMerchantId.value)
 const merchantInitial = computed(() => String(merchant.value.name || '商').slice(0, 1))
 const merchantCategoryTags = computed(() => merchant.value.mainCategories || [])
 const merchantTypeLabel = computed(() => merchantTypeText[merchant.value.merchantType] || merchant.value.merchantType || '')
+const showVerificationInfo = computed(() => merchant.value.verificationStatus === 'verified')
+const merchantVerificationTypeLabel = computed(() => {
+  const type = merchantVerificationInfo.value.type || merchant.value.merchantType
+  return merchantTypeText[type] || type || '商家'
+})
+const merchantVerificationCheckedText = computed(() => {
+  const items = merchantVerificationInfo.value.checkedItems || []
+  return items.length ? items.join('、') : '主体资质、经营场地'
+})
+const merchantVerificationReviewedDate = computed(() => {
+  const reviewedAt = merchantVerificationInfo.value.reviewedAt
+  return reviewedAt ? formatDateToDay(reviewedAt, '') : ''
+})
 const profileDescription = computed(() => merchant.value.description || '暂无简介')
 const merchantSubtitle = computed(() => {
   const categories = merchantCategoryTags.value.join('、')
@@ -460,6 +496,48 @@ function hasValidLocation(location) {
   color: $wplink-primary;
   font-size: 30rpx;
   line-height: 1.6;
+  word-break: break-word;
+}
+
+.verification-info-section {
+  border: 1rpx solid rgba($wplink-success, 0.16);
+  background: #f0fdf4;
+}
+
+.verification-status-pill {
+  min-height: 44rpx;
+  padding: 0 16rpx;
+  border-radius: 8rpx;
+  background: $wplink-success-soft;
+  color: $wplink-success;
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 44rpx;
+}
+
+.verification-info-list {
+  display: grid;
+  gap: 12rpx;
+}
+
+.verification-info-row {
+  display: grid;
+  grid-template-columns: 148rpx minmax(0, 1fr);
+  gap: 16rpx;
+  align-items: start;
+}
+
+.verification-info-label {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.verification-info-value {
+  color: $wplink-primary;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 1.45;
   word-break: break-word;
 }
 

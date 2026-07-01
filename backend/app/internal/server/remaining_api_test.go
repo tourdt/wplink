@@ -135,6 +135,23 @@ func TestAPIRouterUsesTokenSubjectAndMerchantPermissionForVerification(t *testin
 	if store.submitVerificationInput.ApplicantUserID != "user-1" {
 		t.Fatalf("applicantUserID = %q, want token user", store.submitVerificationInput.ApplicantUserID)
 	}
+
+	latestForbiddenRec := httptest.NewRecorder()
+	latestForbiddenReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-2/verifications/latest", nil)
+	latestForbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(latestForbiddenRec, latestForbiddenReq)
+	if latestForbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("latest status = %d body = %s, want forbidden", latestForbiddenRec.Code, latestForbiddenRec.Body.String())
+	}
+
+	latestAllowedRec := httptest.NewRecorder()
+	latestAllowedReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1/verifications/latest", nil)
+	latestAllowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(latestAllowedRec, latestAllowedReq)
+	decodeEnvelopeData(t, latestAllowedRec, http.StatusOK)
+	if store.latestVerificationMerchantID != "merchant-1" {
+		t.Fatalf("latest merchantID = %q, want merchant-1", store.latestVerificationMerchantID)
+	}
 }
 
 func TestAPIRouterMarksMerchantRoleMessageRead(t *testing.T) {
@@ -418,19 +435,20 @@ func newFakeFullAPIStore() *fakeFullAPIStore {
 
 type fakeFullAPIStore struct {
 	fakeResourceAPIStore
-	createMerchantInput     model.CreateMerchantInput
-	updateMerchantPatch     model.UpdateMerchantPatch
-	createDemandInput       model.CreateDemandInput
-	myDemandUserID          string
-	submitVerificationInput model.SubmitVerificationInput
-	messageFilter           model.ListMessagesFilter
-	readMessageUserID       string
-	readMessageRoleCode     string
-	redeemVoucherID         string
-	redeemResourceID        string
-	topVoucherMerchantIDs   map[string]string
-	grantEntitlementInput   model.GrantEntitlementInput
-	createMatchInput        model.CreateMatchCaseInput
+	createMerchantInput          model.CreateMerchantInput
+	updateMerchantPatch          model.UpdateMerchantPatch
+	createDemandInput            model.CreateDemandInput
+	myDemandUserID               string
+	submitVerificationInput      model.SubmitVerificationInput
+	latestVerificationMerchantID string
+	messageFilter                model.ListMessagesFilter
+	readMessageUserID            string
+	readMessageRoleCode          string
+	redeemVoucherID              string
+	redeemResourceID             string
+	topVoucherMerchantIDs        map[string]string
+	grantEntitlementInput        model.GrantEntitlementInput
+	createMatchInput             model.CreateMatchCaseInput
 }
 
 type fakeAdminTokenService struct {
@@ -526,6 +544,7 @@ func (s *fakeFullAPIStore) SubmitVerification(ctx context.Context, input model.S
 }
 
 func (s *fakeFullAPIStore) GetLatestVerification(ctx context.Context, merchantID string) (model.VerificationBrief, error) {
+	s.latestVerificationMerchantID = merchantID
 	return model.VerificationBrief{ID: "verification-1", VerificationType: "stockist", Status: "pending"}, nil
 }
 

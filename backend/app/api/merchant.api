@@ -35,6 +35,13 @@ type MerchantResourcesSummary {
 	DealtCount     int64 `json:"dealtCount"`
 }
 
+type MerchantVerificationInfo {
+	Status       string   `json:"status"`
+	Type         string   `json:"type"`
+	ReviewedAt   string   `json:"reviewedAt,optional"`
+	CheckedItems []string `json:"checkedItems"`
+}
+
 type MerchantDetailResp {
 	Id                 string                   `json:"id"`
 	Name               string                   `json:"name"`
@@ -42,6 +49,7 @@ type MerchantDetailResp {
 	CityCode           string                   `json:"cityCode"`
 	MainCategories     []string                 `json:"mainCategories"`
 	VerificationStatus string                   `json:"verificationStatus"`
+	VerificationInfo   MerchantVerificationInfo `json:"verificationInfo,optional"`
 	CreditTags         []CreditTagInfo          `json:"creditTags"`
 	Contact            MerchantContactInfo      `json:"contact"`
 	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`

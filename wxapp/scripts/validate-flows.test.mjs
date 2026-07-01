@@ -553,6 +553,24 @@ test('merchant identity wording is unified across profile and display pages', ()
   assert.equal(verificationSource.includes('工厂认证'), false)
 })
 
+test('verification images are saved when submitting certification', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/verification/index.vue'), 'utf8')
+
+  for (const token of [
+    'chooseImageFile',
+    'uploadSelectedImage',
+    'pendingVerificationFiles',
+    'uploadPendingVerificationImages',
+    'await uploadPendingVerificationImages()',
+  ]) {
+    assert.match(source, new RegExp(token))
+  }
+
+  assert.equal(source.includes('chooseAndUploadImage'), false)
+  assert.equal(source.includes('图片已上传'), false)
+})
+
 test('publish page presents grouped fast publishing workflow', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')

@@ -11,8 +11,22 @@ import (
 func TestListPendingVerificationsReturnsItems(t *testing.T) {
 	store := &fakeVerificationAdminStore{
 		pending: model.ListPendingVerificationsResult{
-			Items: []model.PendingVerificationItem{{ID: "verification-1", MerchantName: "织里样板童装厂", VerificationType: "factory", Status: "pending"}},
-			Page:  1, PageSize: 20, Total: 1,
+			Items: []model.PendingVerificationItem{{
+				ID:               "verification-1",
+				MerchantName:     "织里样板童装厂",
+				VerificationType: "factory",
+				Status:           "pending",
+				BusinessName:     "织里样板童装有限公司",
+				LicenseURL:       "https://example.com/license.jpg",
+				StorefrontURL:    "https://example.com/storefront.jpg",
+				Materials: model.JSONMap{
+					"socialCreditCode": "91330000MA00000000",
+					"applicantName":    "张三",
+					"contactPhone":     "13800138000",
+					"sceneUrl":         "https://example.com/scene.jpg",
+				},
+			}},
+			Page: 1, PageSize: 20, Total: 1,
 		},
 	}
 	logic := NewVerificationAdminLogic(store)
@@ -24,6 +38,13 @@ func TestListPendingVerificationsReturnsItems(t *testing.T) {
 
 	if len(resp.Items) != 1 || resp.Items[0].MerchantName != "织里样板童装厂" {
 		t.Fatalf("items = %#v, want pending verification", resp.Items)
+	}
+	item := resp.Items[0]
+	if item.BusinessName != "织里样板童装有限公司" || item.LicenseURL == "" || item.StorefrontURL == "" {
+		t.Fatalf("item = %#v, want submitted business and image materials", item)
+	}
+	if item.Materials["socialCreditCode"] != "91330000MA00000000" || item.Materials["contactPhone"] != "13800138000" {
+		t.Fatalf("materials = %#v, want submitted contact materials", item.Materials)
 	}
 }
 

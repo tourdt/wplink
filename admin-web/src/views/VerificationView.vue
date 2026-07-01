@@ -19,6 +19,9 @@
       </div>
       <el-table v-loading="loading" :data="rows" stripe empty-text="暂无待审核认证">
         <el-table-column prop="merchantName" label="商家" min-width="180" />
+        <el-table-column label="营业主体" min-width="180">
+          <template #default="{ row }">{{ displayValue(row.businessName) }}</template>
+        </el-table-column>
         <el-table-column label="认证身份" width="140">
           <template #default="{ row }">{{ typeText[row.verificationType] || row.verificationType }}</template>
         </el-table-column>
@@ -27,7 +30,7 @@
           <template #default="{ row }">
             <el-button type="primary" link @click="approve(row)">通过</el-button>
             <el-button type="danger" link @click="openReject(row)">驳回</el-button>
-            <el-button link @click="openMaterial(row)">材料</el-button>
+            <el-button link @click="openMaterial(row)">查看资料</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -71,13 +74,43 @@
       </el-form>
     </el-drawer>
 
-    <el-drawer v-model="materialVisible" title="认证材料" size="420px">
-      <el-descriptions v-if="materialRow" :column="1" border>
-        <el-descriptions-item label="商家">{{ materialRow.merchantName }}</el-descriptions-item>
-        <el-descriptions-item label="认证身份">{{ typeText[materialRow.verificationType] || materialRow.verificationType }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{ materialRow.status }}</el-descriptions-item>
-        <el-descriptions-item label="提交时间">{{ materialRow.submittedAt }}</el-descriptions-item>
-      </el-descriptions>
+    <el-drawer v-model="materialVisible" title="认证材料" size="620px">
+      <div v-if="materialRow" class="material-drawer">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="商家">{{ materialRow.merchantName }}</el-descriptions-item>
+          <el-descriptions-item label="营业主体">{{ displayValue(materialRow.businessName) }}</el-descriptions-item>
+          <el-descriptions-item label="认证身份">{{ typeText[materialRow.verificationType] || materialRow.verificationType }}</el-descriptions-item>
+          <el-descriptions-item label="状态">{{ materialRow.status }}</el-descriptions-item>
+          <el-descriptions-item label="提交时间">{{ materialRow.submittedAt }}</el-descriptions-item>
+        </el-descriptions>
+
+        <section class="material-section">
+          <h3>联系人和地址</h3>
+          <el-descriptions :column="1" border>
+            <el-descriptions-item v-for="item in materialInfoItems" :key="item.label" :label="item.label">
+              {{ item.value }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </section>
+
+        <section class="material-section">
+          <h3>图片材料</h3>
+          <div class="material-image-grid">
+            <div v-for="item in materialImageItems" :key="item.label" class="material-image-item">
+              <span class="material-image-label">{{ item.label }}</span>
+              <el-image
+                v-if="item.url"
+                class="material-image"
+                :src="item.url"
+                fit="cover"
+                :preview-src-list="materialImagePreviewList"
+                preview-teleported
+              />
+              <div v-else class="material-empty">未提交</div>
+            </div>
+          </div>
+        </section>
+      </div>
     </el-drawer>
   </section>
 </template>
@@ -126,6 +159,30 @@ const billingSummary = computed(() => {
 })
 
 const billingFeeText = computed(() => `¥${(billingForm.feeAmount / 100).toFixed(2)}`)
+const materialInfoItems = computed(() => {
+  const row = materialRow.value
+  if (!row) return []
+  return [
+    { label: '统一社会信用代码', value: materialValue(row, 'socialCreditCode') },
+    { label: '联系人姓名', value: materialValue(row, 'applicantName') },
+    { label: '联系电话', value: materialValue(row, 'contactPhone') },
+    { label: '联系微信', value: materialValue(row, 'contactWechat') },
+    { label: '经营地址', value: materialValue(row, 'addressText') },
+    { label: '资料真实承诺', value: materialValue(row, 'commitmentAccepted') === true ? '已承诺' : '未确认' },
+  ].map((item) => ({ ...item, value: displayValue(item.value) }))
+})
+const materialImageItems = computed(() => {
+  const row = materialRow.value
+  if (!row) return []
+  return [
+    { label: '营业执照', url: row.licenseUrl },
+    { label: '门头/场地', url: row.storefrontUrl },
+    { label: '经营实拍', url: materialValue(row, 'sceneUrl') },
+    { label: '授权证明', url: materialValue(row, 'authorizationUrl') },
+    { label: '其他证明', url: materialValue(row, 'qualificationUrl') },
+  ].map((item) => ({ ...item, url: materialUrl(item.url) }))
+})
+const materialImagePreviewList = computed(() => materialImageItems.value.map((item) => item.url).filter(Boolean))
 
 onMounted(async () => {
   await Promise.all([loadRows(), loadBillingConfig()])
@@ -216,6 +273,22 @@ function openMaterial(row) {
   materialVisible.value = true
 }
 
+function materialValue(row, key) {
+  return row?.materials?.[key]
+}
+
+function materialUrl(value) {
+  if (typeof value !== 'string') return ''
+  return value.trim()
+}
+
+function displayValue(value) {
+  if (value === true) return '是'
+  if (value === false) return '否'
+  const text = String(value ?? '').trim()
+  return text || '未提交'
+}
+
 function currentOperatorId() {
   return auth.user?.userId || ''
 }
@@ -267,5 +340,59 @@ function isFreeWindowActive() {
 .billing-header p {
   margin: 6px 0 0;
   color: #697586;
+}
+
+.material-drawer {
+  display: grid;
+  gap: 18px;
+}
+
+.material-section {
+  display: grid;
+  gap: 12px;
+}
+
+.material-section h3 {
+  margin: 0;
+  color: #202939;
+  font-size: 15px;
+}
+
+.material-image-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.material-image-item {
+  display: grid;
+  gap: 8px;
+}
+
+.material-image-label {
+  color: #364152;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.material-image,
+.material-empty {
+  width: 100%;
+  height: 150px;
+  border-radius: 8px;
+}
+
+.material-image {
+  border: 1px solid #e3e8ef;
+}
+
+.material-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #cdd5df;
+  color: #697586;
+  background: #f8fafc;
+  font-size: 13px;
 }
 </style>

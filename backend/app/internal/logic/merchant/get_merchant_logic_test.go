@@ -10,23 +10,24 @@ import (
 func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	store := &fakeMerchantDetailStore{
 		detail: model.MerchantDetail{
-			ID:                 "merchant-1",
-			Name:               "织里样板童装厂",
-			MerchantType:       "factory",
-			CityCode:           "zhili",
-			MainCategories:     []string{"童装"},
-			VerificationStatus: "verified",
-			CreditTags:         []model.CreditTag{{Code: "verified_factory", Label: "已认证工厂"}},
-			ContactName:        "李厂长",
-			PhoneMasked:        "138****0000",
-			WechatMasked:       "zhili_****",
-			PublishedCount:     12,
-			DealtCount:         3,
-			FollowerCount:      6,
-			AddressText:        "织里镇利济路88号",
-			Location:           model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"},
-			LogoURL:            "https://example.com/logo.png",
-			Images:             []string{"https://example.com/a.png", "https://example.com/b.png"},
+			ID:                     "merchant-1",
+			Name:                   "织里样板童装厂",
+			MerchantType:           "factory",
+			CityCode:               "zhili",
+			MainCategories:         []string{"童装"},
+			VerificationStatus:     "verified",
+			VerificationReviewedAt: "2026-06-30T10:24:00+08:00",
+			CreditTags:             []model.CreditTag{{Code: "verified_factory", Label: "已认证工厂"}},
+			ContactName:            "李厂长",
+			PhoneMasked:            "138****0000",
+			WechatMasked:           "zhili_****",
+			PublishedCount:         12,
+			DealtCount:             3,
+			FollowerCount:          6,
+			AddressText:            "织里镇利济路88号",
+			Location:               model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"},
+			LogoURL:                "https://example.com/logo.png",
+			Images:                 []string{"https://example.com/a.png", "https://example.com/b.png"},
 		},
 	}
 	logic := NewGetMerchantLogic(store)
@@ -56,6 +57,15 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	}
 	if resp.Location["name"] != "织里童装城" || resp.Location["address"] != "织里镇利济路88号" {
 		t.Fatalf("location = %#v, want merchant map location", resp.Location)
+	}
+	if resp.VerificationInfo == nil {
+		t.Fatalf("verificationInfo = nil, want verified summary")
+	}
+	if resp.VerificationInfo.Type != "factory" || resp.VerificationInfo.ReviewedAt != "2026-06-30T10:24:00+08:00" {
+		t.Fatalf("verificationInfo = %#v, want type and reviewed time", resp.VerificationInfo)
+	}
+	if len(resp.VerificationInfo.CheckedItems) != 2 || resp.VerificationInfo.CheckedItems[0] != "主体资质" || resp.VerificationInfo.CheckedItems[1] != "经营场地" {
+		t.Fatalf("checkedItems = %#v, want public safe verification items", resp.VerificationInfo.CheckedItems)
 	}
 }
 

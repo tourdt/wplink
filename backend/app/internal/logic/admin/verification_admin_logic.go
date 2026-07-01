@@ -24,12 +24,16 @@ type ListPendingVerificationsReq struct {
 }
 
 type PendingVerificationItem struct {
-	ID               string `json:"id"`
-	MerchantID       string `json:"merchantId"`
-	MerchantName     string `json:"merchantName"`
-	VerificationType string `json:"verificationType"`
-	Status           string `json:"status"`
-	SubmittedAt      string `json:"submittedAt"`
+	ID               string                 `json:"id"`
+	MerchantID       string                 `json:"merchantId"`
+	MerchantName     string                 `json:"merchantName"`
+	VerificationType string                 `json:"verificationType"`
+	Status           string                 `json:"status"`
+	SubmittedAt      string                 `json:"submittedAt"`
+	BusinessName     string                 `json:"businessName"`
+	LicenseURL       string                 `json:"licenseUrl"`
+	StorefrontURL    string                 `json:"storefrontUrl"`
+	Materials        map[string]interface{} `json:"materials"`
 }
 
 type ListPendingVerificationsResp struct {
@@ -67,9 +71,15 @@ func (l *VerificationAdminLogic) ListPendingVerifications(ctx context.Context, r
 	}
 	items := make([]PendingVerificationItem, 0, len(result.Items))
 	for _, item := range result.Items {
+		materials := map[string]interface{}{}
+		if item.Materials != nil {
+			materials = map[string]interface{}(item.Materials)
+		}
 		items = append(items, PendingVerificationItem{
 			ID: item.ID, MerchantID: item.MerchantID, MerchantName: item.MerchantName,
 			VerificationType: item.VerificationType, Status: item.Status, SubmittedAt: item.SubmittedAt,
+			BusinessName: item.BusinessName, LicenseURL: item.LicenseURL, StorefrontURL: item.StorefrontURL,
+			Materials: materials,
 		})
 	}
 	return ListPendingVerificationsResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil

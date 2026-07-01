@@ -50,7 +50,19 @@ func TestGetLatestVerificationRequiresMerchantID(t *testing.T) {
 }
 
 func TestGetLatestVerificationMapsStoreResult(t *testing.T) {
-	store := &fakeVerificationStore{latest: model.VerificationBrief{ID: "verification-1", VerificationType: "factory", Status: "verified"}}
+	store := &fakeVerificationStore{latest: model.VerificationBrief{
+		ID:               "verification-1",
+		VerificationType: "factory",
+		Status:           "rejected",
+		BusinessName:     "织里样板童装厂",
+		LicenseURL:       "https://cdn.example.com/license.jpg",
+		StorefrontURL:    "https://cdn.example.com/storefront.jpg",
+		Materials: model.JSONMap{
+			"socialCreditCode": "91330000MA00000000",
+			"contactPhone":     "13800138000",
+		},
+		ReviewNote: "营业执照照片不清晰，请重新上传",
+	}}
 	logic := NewGetLatestVerificationLogic(store)
 
 	resp, err := logic.GetLatestVerification(context.Background(), " merchant-1 ")
@@ -58,8 +70,14 @@ func TestGetLatestVerificationMapsStoreResult(t *testing.T) {
 		t.Fatalf("GetLatestVerification() error = %v", err)
 	}
 
-	if store.latestMerchantID != "merchant-1" || resp.Status != "verified" {
+	if store.latestMerchantID != "merchant-1" || resp.Status != "rejected" || resp.ReviewNote != "营业执照照片不清晰，请重新上传" {
 		t.Fatalf("merchantID = %q, resp = %#v", store.latestMerchantID, resp)
+	}
+	if resp.BusinessName != "织里样板童装厂" || resp.LicenseURL == "" || resp.StorefrontURL == "" {
+		t.Fatalf("resp = %#v, want submitted business and image fields", resp)
+	}
+	if resp.Materials["socialCreditCode"] != "91330000MA00000000" || resp.Materials["contactPhone"] != "13800138000" {
+		t.Fatalf("materials = %#v, want submitted verification materials", resp.Materials)
 	}
 }
 

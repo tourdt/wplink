@@ -37,25 +37,26 @@ type CreditTag struct {
 }
 
 type MerchantDetail struct {
-	ID                 string
-	Name               string
-	MerchantType       string
-	CityCode           string
-	MainCategories     []string
-	VerificationStatus string
-	CreditTags         []CreditTag
-	ContactName        string
-	PhoneMasked        string
-	WechatMasked       string
-	PublishedCount     int64
-	DealtCount         int64
-	FollowerCount      int64
-	AddressText        string
-	Location           JSONMap
-	Description        string
-	LogoURL            string
-	Images             []string
-	LastActiveAt       string
+	ID                     string
+	Name                   string
+	MerchantType           string
+	CityCode               string
+	MainCategories         []string
+	VerificationStatus     string
+	VerificationReviewedAt string
+	CreditTags             []CreditTag
+	ContactName            string
+	PhoneMasked            string
+	WechatMasked           string
+	PublishedCount         int64
+	DealtCount             int64
+	FollowerCount          int64
+	AddressText            string
+	Location               JSONMap
+	Description            string
+	LogoURL                string
+	Images                 []string
+	LastActiveAt           string
 }
 
 type UpdateMerchantPatch struct {
@@ -164,6 +165,7 @@ func (m *MerchantModel) GetMerchantDetail(ctx context.Context, merchantID string
 	var categories JSONStringSlice
 	var images JSONStringSlice
 	var lastActive sql.NullTime
+	var verificationReviewedAt sql.NullTime
 
 	err := m.db.QueryRowContext(ctx, `
 SELECT
@@ -182,6 +184,13 @@ SELECT
   COALESCE(m.logo_url, ''),
   m.images,
   m.last_active_at,
+  (
+    SELECT v.reviewed_at
+    FROM verifications v
+    WHERE v.merchant_id = m.id AND v.status = 'verified'
+    ORDER BY v.reviewed_at DESC NULLS LAST, v.submitted_at DESC
+    LIMIT 1
+  ) AS verification_reviewed_at,
   COUNT(r.id) FILTER (WHERE r.status = 'published') AS published_count,
   COUNT(r.id) FILTER (WHERE r.status = 'dealt') AS dealt_count,
   (
@@ -210,6 +219,7 @@ GROUP BY m.id, cs.code
 		&detail.LogoURL,
 		&images,
 		&lastActive,
+		&verificationReviewedAt,
 		&detail.PublishedCount,
 		&detail.DealtCount,
 		&detail.FollowerCount,
@@ -224,6 +234,9 @@ GROUP BY m.id, cs.code
 	detail.WechatMasked = maskWechat(detail.WechatMasked)
 	if lastActive.Valid {
 		detail.LastActiveAt = lastActive.Time.Format(time.RFC3339)
+	}
+	if verificationReviewedAt.Valid {
+		detail.VerificationReviewedAt = verificationReviewedAt.Time.Format(time.RFC3339)
 	}
 
 	tags, err := m.listMerchantCreditTags(ctx, merchantID)

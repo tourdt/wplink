@@ -332,7 +332,12 @@ func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, 
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/verifications/latest", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := verificationlogic.NewGetLatestVerificationLogic(store).GetLatestVerification(r.Context(), r.PathValue("merchantId"))
+		merchantID := r.PathValue("merchantId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := verificationlogic.NewGetLatestVerificationLogic(store).GetLatestVerification(r.Context(), merchantID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/admin/verifications/pending", func(w http.ResponseWriter, r *http.Request) {

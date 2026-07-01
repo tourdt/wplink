@@ -27,6 +27,11 @@ type VerificationBrief struct {
 	VerificationType string
 	Status           string
 	ReviewedAt       string
+	ReviewNote       string
+	BusinessName     string
+	LicenseURL       string
+	StorefrontURL    string
+	Materials        JSONMap
 }
 
 type PendingVerificationsFilter struct {
@@ -41,6 +46,10 @@ type PendingVerificationItem struct {
 	VerificationType string
 	Status           string
 	SubmittedAt      string
+	BusinessName     string
+	LicenseURL       string
+	StorefrontURL    string
+	Materials        JSONMap
 }
 
 type ListPendingVerificationsResult struct {
@@ -93,15 +102,31 @@ RETURNING id::text, status
 func (m *VerificationModel) GetLatestVerification(ctx context.Context, merchantID string) (VerificationBrief, error) {
 	var result VerificationBrief
 	var reviewedAt sql.NullTime
+	var reviewNote sql.NullString
 	err := m.db.QueryRowContext(ctx, `
-SELECT id::text, verification_type, status, reviewed_at
+SELECT
+  id::text,
+  verification_type,
+  status,
+  reviewed_at,
+  review_note,
+  COALESCE(business_name, '') AS business_name,
+  COALESCE(license_url, '') AS license_url,
+  COALESCE(storefront_url, '') AS storefront_url,
+  COALESCE(materials, '{}'::jsonb) AS materials
 FROM verifications
 WHERE merchant_id = $1
 ORDER BY submitted_at DESC, created_at DESC
 LIMIT 1
-`, merchantID).Scan(&result.ID, &result.VerificationType, &result.Status, &reviewedAt)
+`, merchantID).Scan(&result.ID, &result.VerificationType, &result.Status, &reviewedAt, &reviewNote, &result.BusinessName, &result.LicenseURL, &result.StorefrontURL, &result.Materials)
 	if reviewedAt.Valid {
 		result.ReviewedAt = reviewedAt.Time.Format(time.RFC3339)
+	}
+	if reviewNote.Valid {
+		result.ReviewNote = reviewNote.String
+	}
+	if result.Materials == nil {
+		result.Materials = JSONMap{}
 	}
 	return result, err
 }
@@ -136,6 +161,10 @@ SELECT
   v.verification_type,
   v.status,
   v.submitted_at,
+  COALESCE(v.business_name, '') AS business_name,
+  COALESCE(v.license_url, '') AS license_url,
+  COALESCE(v.storefront_url, '') AS storefront_url,
+  COALESCE(v.materials, '{}'::jsonb) AS materials,
   COUNT(*) OVER() AS total
 FROM verifications v
 JOIN merchants m ON m.id = v.merchant_id
@@ -153,7 +182,19 @@ LIMIT $1 OFFSET $2
 	for rows.Next() {
 		var item PendingVerificationItem
 		var submittedAt time.Time
-		if err := rows.Scan(&item.ID, &item.MerchantID, &item.MerchantName, &item.VerificationType, &item.Status, &submittedAt, &result.Total); err != nil {
+		if err := rows.Scan(
+			&item.ID,
+			&item.MerchantID,
+			&item.MerchantName,
+			&item.VerificationType,
+			&item.Status,
+			&submittedAt,
+			&item.BusinessName,
+			&item.LicenseURL,
+			&item.StorefrontURL,
+			&item.Materials,
+			&result.Total,
+		); err != nil {
 			return ListPendingVerificationsResult{}, err
 		}
 		item.SubmittedAt = submittedAt.Format(time.RFC3339)

@@ -28,23 +28,31 @@ type MerchantResourcesSummary struct {
 	DealtCount     int64 `json:"dealtCount"`
 }
 
+type MerchantVerificationInfo struct {
+	Status       string   `json:"status"`
+	Type         string   `json:"type"`
+	ReviewedAt   string   `json:"reviewedAt,omitempty"`
+	CheckedItems []string `json:"checkedItems"`
+}
+
 type MerchantDetailResp struct {
-	ID                 string                   `json:"id"`
-	Name               string                   `json:"name"`
-	MerchantType       string                   `json:"merchantType"`
-	CityCode           string                   `json:"cityCode"`
-	MainCategories     []string                 `json:"mainCategories"`
-	VerificationStatus string                   `json:"verificationStatus"`
-	CreditTags         []CreditTagInfo          `json:"creditTags"`
-	Contact            MerchantContactInfo      `json:"contact"`
-	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`
-	HeatScore          int64                    `json:"heatScore"`
-	AddressText        string                   `json:"addressText,omitempty"`
-	Location           model.JSONMap            `json:"location,omitempty"`
-	Description        string                   `json:"description,omitempty"`
-	LogoURL            string                   `json:"logoUrl,omitempty"`
-	Images             []string                 `json:"images,omitempty"`
-	LastActiveAt       string                   `json:"lastActiveAt,omitempty"`
+	ID                 string                    `json:"id"`
+	Name               string                    `json:"name"`
+	MerchantType       string                    `json:"merchantType"`
+	CityCode           string                    `json:"cityCode"`
+	MainCategories     []string                  `json:"mainCategories"`
+	VerificationStatus string                    `json:"verificationStatus"`
+	VerificationInfo   *MerchantVerificationInfo `json:"verificationInfo,omitempty"`
+	CreditTags         []CreditTagInfo           `json:"creditTags"`
+	Contact            MerchantContactInfo       `json:"contact"`
+	ResourcesSummary   MerchantResourcesSummary  `json:"resourcesSummary"`
+	HeatScore          int64                     `json:"heatScore"`
+	AddressText        string                    `json:"addressText,omitempty"`
+	Location           model.JSONMap             `json:"location,omitempty"`
+	Description        string                    `json:"description,omitempty"`
+	LogoURL            string                    `json:"logoUrl,omitempty"`
+	Images             []string                  `json:"images,omitempty"`
+	LastActiveAt       string                    `json:"lastActiveAt,omitempty"`
 }
 
 type GetMerchantLogic struct {
@@ -77,6 +85,7 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 		CityCode:           detail.CityCode,
 		MainCategories:     append([]string(nil), detail.MainCategories...),
 		VerificationStatus: detail.VerificationStatus,
+		VerificationInfo:   buildMerchantVerificationInfo(detail),
 		CreditTags:         tags,
 		Contact: MerchantContactInfo{
 			Name:         detail.ContactName,
@@ -95,6 +104,19 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 		Images:       append([]string(nil), detail.Images...),
 		LastActiveAt: detail.LastActiveAt,
 	}, nil
+}
+
+func buildMerchantVerificationInfo(detail model.MerchantDetail) *MerchantVerificationInfo {
+	if detail.VerificationStatus != "verified" {
+		return nil
+	}
+	// 商家主页只公开核验结论，不透出营业执照、信用代码、联系人等审核材料。
+	return &MerchantVerificationInfo{
+		Status:       detail.VerificationStatus,
+		Type:         detail.MerchantType,
+		ReviewedAt:   detail.VerificationReviewedAt,
+		CheckedItems: []string{"主体资质", "经营场地"},
+	}
 }
 
 func calculateMerchantHeatScore(detail model.MerchantDetail) int64 {
