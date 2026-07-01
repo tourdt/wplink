@@ -62,7 +62,7 @@ node backend/scripts/validate_migrations.mjs
 
 ## 后端验证
 
-当前后端已有 HTTP 服务入口，已挂载 `/healthz`、`/readyz`、`/admin/` 一体化后台静态路由，并接入 `backend/app/api/app.api` 中的账号、城市站、商家、资源、需求、发现、认证、权益、消息、指标和后台管理 API。账号链路包含 `/api/v1/auth/wechat-login`、`/api/v1/auth/sms-code`、`/api/v1/me` 和 `/api/v1/me/phone`。未配置 API handler 的兜底路由仍会返回 `API_NOT_CONNECTED`，用于暴露后续新增接口尚未接线的问题。
+当前后端已有 HTTP 服务入口，已挂载 `/healthz`、`/readyz`、`/admin/` 一体化后台静态路由，并接入 `backend/app/api/app.api` 中的账号、城市站、商家、资源、需求、发现、认证、权益、消息、指标和后台管理 API。账号链路首发使用 `/api/v1/auth/wechat-login` 和 `/api/v1/me`；`/api/v1/auth/sms-code`、`/api/v1/me/phone` 为手机号绑定后续版本预留接口。未配置 API handler 的兜底路由仍会返回 `API_NOT_CONNECTED`，用于暴露后续新增接口尚未接线的问题。
 
 先运行领域测试和 API 契约校验：
 
@@ -175,7 +175,7 @@ VITE_API_BASE_URL=http://127.0.0.1:4000 npm run build:mp-weixin
 - 服务商管理员：`19900000004`
 - 采购商买家：`19900000005`
 
-小程序“我的”页可填写商家 ID：
+演示商家标识：
 
 - 认证工厂：`8020000000000000001`
 - 认证库存商：`8020000000000000002`
@@ -185,5 +185,5 @@ VITE_API_BASE_URL=http://127.0.0.1:4000 npm run build:mp-weixin
 
 - migration 静态校验不能替代真实 PostgreSQL up/down；数据库可连接时应运行 `go run ./scripts/verify_migrations.go -config etc/app.yaml`，由临时数据库完成 up/down 验证。
 - 当前后端 HTTP 服务入口已可启动，业务 API 已接入账号、城市站、商家、资源、需求、发现、认证、权益、消息、指标和后台管理路由。
-- 短信验证码本地可用 `SMS.Provider: dev` 和固定 `DevCode` 验证；正式运营建议配置 `SMS.Provider: http`，通过 `SendURL`、`VerifyURL` 接入已有验证码服务。后端默认按手机号限制 60 秒发送间隔、每天 10 次；小程序“我的”页已接入发送验证码和绑定手机号流程。
+- 短信验证码本地可用 `SMS.Provider: dev` 和固定 `DevCode` 验证；相关后端接口已预留。首发小程序不开放手机号绑定入口，正式运营验收不要求短信验证码服务可用。
 - 小程序构建会出现 Sass `@import` 和 legacy JS API 的上游弃用警告，不影响当前构建产物。

@@ -397,7 +397,7 @@ async function submit() {
   if (submitting.value) return
   const userId = getUserId()
   if (!userId) {
-    uni.showToast({ title: '请先在我的页保存用户 ID', icon: 'none' })
+    uni.showToast({ title: '请先登录', icon: 'none' })
     return
   }
   form.contactPhone = sanitizeContactPhoneValue(form.contactPhone)

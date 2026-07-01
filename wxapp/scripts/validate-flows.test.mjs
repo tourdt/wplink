@@ -85,17 +85,19 @@ test('home page keeps custom brand first screen structure', () => {
   assert.equal(source.includes('search-action-icon'), false)
   assert.equal(source.includes('brand-roof'), false)
   assert.equal(source.includes('brand-window-row'), false)
+  assert.equal(source.includes('brand-icon'), false)
+  assert.equal(source.includes('brand-hanger-hook'), false)
+  assert.equal(source.includes('brand-hanger-line'), false)
+  assert.equal(source.includes('brand-cargo-box'), false)
+  assert.equal(source.includes('brand-cargo-tape'), false)
 
   for (const token of [
     'home-fixed-header',
     'custom-title-bar',
     'home-brand',
-    'brand-icon',
-    'brand-hanger-hook',
-    'brand-hanger-line',
-    'brand-cargo-box',
-    'brand-cargo-tape',
-    '衣货通',
+    'brand-logo',
+    '/static/brand/yihuotong-header-logo.png',
+    'mode="aspectFit"',
     'getMenuButtonBoundingClientRect',
     'homeContentStyle',
     '搜索现货、厂家或求购需求',
@@ -298,8 +300,10 @@ test('my resources page keeps list concise and dates day-only', () => {
   assert.equal(myResourcesPage?.style?.enablePullDownRefresh, true)
 
   for (const token of [
-    'formatDateToDay(item.publishedAt)',
-    'formatDateToDay(item.expiresAt)',
+    'displayDateOrPlaceholder(item.publishedAt)',
+    'displayDateOrPlaceholder(item.expiresAt)',
+    'function displayDateOrPlaceholder(value)',
+    "return value ? formatDateToDay(value) : '-'",
     'class="publish-fab"',
     'position: fixed;',
     'top: 0;',

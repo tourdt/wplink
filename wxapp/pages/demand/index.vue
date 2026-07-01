@@ -40,7 +40,7 @@ const form = reactive({
 async function submit() {
   const userId = getUserId()
   if (!userId) {
-    uni.showToast({ title: '请先在我的页保存用户 ID', icon: 'none' })
+    uni.showToast({ title: '请先登录', icon: 'none' })
     return
   }
   if (!form.title || !form.category || !form.contact.name || !form.contact.phone) {

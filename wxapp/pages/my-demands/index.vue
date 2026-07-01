@@ -71,7 +71,7 @@ onPullDownRefresh(async () => {
 async function loadRows() {
   if (!userId.value) {
     rows.value = []
-    uni.showToast({ title: '请先登录或保存用户 ID', icon: 'none' })
+    uni.showToast({ title: '请先登录', icon: 'none' })
     return
   }
   const resp = await listMyDemands({ userId: userId.value, status: filters.status, page: 1, pageSize: 20 })

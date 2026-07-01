@@ -22,9 +22,9 @@
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
 | `POST /api/v1/auth/wechat-login` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | 登录/启动流程 | 已接 handler，测试通过 |
-| `POST /api/v1/auth/sms-code` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | `wxapp/pages/my/index.vue` | 已接 handler，测试通过 |
+| `POST /api/v1/auth/sms-code` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | 后续手机号绑定预留 | 已接 handler，首发不验收 |
 | `GET /api/v1/me` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | `wxapp/pages/my/index.vue` | 已接 handler，测试通过 |
-| `POST /api/v1/me/phone` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | 绑定手机号流程 | 已接 handler，测试通过 |
+| `POST /api/v1/me/phone` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | 后续手机号绑定预留 | 已接 handler，首发不验收 |
 | `POST /api/v1/admin/auth/login` | `backend/app/api/admin.api` | `backend/app/internal/logic/adminauth/login_service.go` | `admin-web/src/views/LoginView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/uploads/token` | `backend/app/api/upload.api` | `backend/app/internal/logic/upload/upload_token_logic.go` | Banner/认证资料 URL 上传前置 | 发布/认证图片上传前置 | 已接 handler，测试通过 |
 

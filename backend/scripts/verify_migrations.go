@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -128,22 +129,17 @@ func verifyMigrationUpDown(ctx context.Context, sourceDSN string, rootDir string
 		return fmt.Errorf("连接临时数据库失败: %w", err)
 	}
 
-	files := []string{
-		"migrations/000001_admin_auth.up.sql",
-		"migrations/000002_core_domain.up.sql",
-		"migrations/000003_seed_zhili.up.sql",
-		"migrations/000004_user_interactions.up.sql",
-		"migrations/000005_merchant_logo.up.sql",
-		"migrations/000006_merchant_type_change_logs.up.sql",
-		"migrations/000006_merchant_type_change_logs.down.sql",
-		"migrations/000005_merchant_logo.down.sql",
-		"migrations/000004_user_interactions.down.sql",
-		"migrations/000003_seed_zhili.down.sql",
-		"migrations/000002_core_domain.down.sql",
-		"migrations/000001_admin_auth.down.sql",
+	upFiles, err := collectMigrationFiles(rootDir, "up")
+	if err != nil {
+		return err
 	}
+	downFiles, err := collectMigrationFiles(rootDir, "down")
+	if err != nil {
+		return err
+	}
+	files := append(upFiles, downFiles...)
 	for _, file := range files {
-		if err := executeSQLFile(ctx, tempDB, filepath.Join(rootDir, file)); err != nil {
+		if err := executeSQLFile(ctx, tempDB, file); err != nil {
 			return err
 		}
 	}
@@ -193,21 +189,38 @@ func verifyDemoSeedImport(ctx context.Context, sourceDSN string, rootDir string,
 		return fmt.Errorf("连接临时数据库失败: %w", err)
 	}
 
-	files := []string{
-		"migrations/000001_admin_auth.up.sql",
-		"migrations/000002_core_domain.up.sql",
-		"migrations/000003_seed_zhili.up.sql",
-		"migrations/000004_user_interactions.up.sql",
-		"migrations/000005_merchant_logo.up.sql",
-		"migrations/000006_merchant_type_change_logs.up.sql",
-		"scripts/seed_demo_data.sql",
+	files, err := collectMigrationFiles(rootDir, "up")
+	if err != nil {
+		return err
 	}
+	files = append(files, filepath.Join(rootDir, "scripts/seed_demo_data.sql"))
 	for _, file := range files {
-		if err := executeSQLFile(ctx, tempDB, filepath.Join(rootDir, file)); err != nil {
+		if err := executeSQLFile(ctx, tempDB, file); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func collectMigrationFiles(rootDir string, direction string) ([]string, error) {
+	if direction != "up" && direction != "down" {
+		return nil, fmt.Errorf("migration direction must be up or down, got %q", direction)
+	}
+	pattern := filepath.Join(rootDir, "migrations", "*."+direction+".sql")
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, err
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("未找到 migration 文件: %s", pattern)
+	}
+	sort.Strings(files)
+	if direction == "down" {
+		for left, right := 0, len(files)-1; left < right; left, right = left+1, right-1 {
+			files[left], files[right] = files[right], files[left]
+		}
+	}
+	return files, nil
 }
 
 func executeSQLFile(ctx context.Context, db *sql.DB, filePath string) error {

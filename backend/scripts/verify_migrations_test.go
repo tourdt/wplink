@@ -62,3 +62,47 @@ func TestTempDatabaseNameUsesSafeIdentifier(t *testing.T) {
 		}
 	}
 }
+
+func TestCollectMigrationFilesUsesAllFilesInOrder(t *testing.T) {
+	rootDir := t.TempDir()
+	migrationsDir := filepath.Join(rootDir, "migrations")
+	if err := os.MkdirAll(migrationsDir, 0o755); err != nil {
+		t.Fatalf("mkdir migrations: %v", err)
+	}
+	for _, name := range []string{
+		"000001_init.up.sql",
+		"000001_init.down.sql",
+		"000002_extra.up.sql",
+		"000002_extra.down.sql",
+		"000003_future.up.sql",
+		"000003_future.down.sql",
+	} {
+		if err := os.WriteFile(filepath.Join(migrationsDir, name), []byte("-- "+name), 0o600); err != nil {
+			t.Fatalf("write migration %s: %v", name, err)
+		}
+	}
+
+	upFiles, err := collectMigrationFiles(rootDir, "up")
+	if err != nil {
+		t.Fatalf("collectMigrationFiles(up) error = %v", err)
+	}
+	downFiles, err := collectMigrationFiles(rootDir, "down")
+	if err != nil {
+		t.Fatalf("collectMigrationFiles(down) error = %v", err)
+	}
+
+	if got, want := baseNames(upFiles), []string{"000001_init.up.sql", "000002_extra.up.sql", "000003_future.up.sql"}; strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("up files = %#v, want %#v", got, want)
+	}
+	if got, want := baseNames(downFiles), []string{"000003_future.down.sql", "000002_extra.down.sql", "000001_init.down.sql"}; strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("down files = %#v, want %#v", got, want)
+	}
+}
+
+func baseNames(paths []string) []string {
+	names := make([]string, 0, len(paths))
+	for _, item := range paths {
+		names = append(names, filepath.Base(item))
+	}
+	return names
+}

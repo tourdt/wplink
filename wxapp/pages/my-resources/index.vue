@@ -117,7 +117,7 @@ async function loadRows({ reset = true } = {}) {
     rows.value = []
     total.value = 0
     hasMore.value = false
-    uni.showToast({ title: '请先填写商家 ID', icon: 'none' })
+    uni.showToast({ title: '请先完善商家资料', icon: 'none' })
     return
   }
   if (!reset && !hasMore.value) return
