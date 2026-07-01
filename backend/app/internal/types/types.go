@@ -433,6 +433,9 @@ type ContactEventReq struct {
 
 type ContactEventResp struct {
 	Message string `json:"message"`
+	Action  string `json:"action,optional"`
+	Phone   string `json:"phone,optional"`
+	Wechat  string `json:"wechat,optional"`
 }
 
 type CreateMerchantReq struct {

@@ -221,6 +221,9 @@ type ContactEventReq {
 
 type ContactEventResp {
 	Message string `json:"message"`
+	Action  string `json:"action,optional"`
+	Phone   string `json:"phone,optional"`
+	Wechat  string `json:"wechat,optional"`
 }
 
 type DetailViewResp {

@@ -18,7 +18,10 @@ func TestRecordContactRejectsUnsupportedAction(t *testing.T) {
 }
 
 func TestRecordContactRecordsPhoneEventAndMetric(t *testing.T) {
-	store := &fakeContactStore{eventResult: model.ResourceContactEventResult{ID: "event-1", MerchantID: "merchant-1"}}
+	store := &fakeContactStore{
+		contact:     model.ResourceContactUnlockInfo{ResourceID: "resource-1", MerchantID: "merchant-1", Status: model.ResourceStatusPublished, Phone: "18800000002"},
+		eventResult: model.ResourceContactEventResult{ID: "event-1", MerchantID: "merchant-1"},
+	}
 	logic := NewRecordContactLogic(store)
 
 	resp, err := logic.RecordContact(context.Background(), RecordContactReq{ResourceID: " resource-1 ", UserID: " user-1 ", Action: "phone"})
@@ -32,8 +35,73 @@ func TestRecordContactRecordsPhoneEventAndMetric(t *testing.T) {
 	if store.metricDelta.ContactClickCount != 1 || store.metricDelta.PhoneClickCount != 1 {
 		t.Fatalf("metricDelta = %#v, want phone contact counters", store.metricDelta)
 	}
-	if resp.Message == "" {
-		t.Fatal("message is empty")
+	if resp.Phone != "18800000002" || resp.Action != "phone" || resp.Message != "电话已解锁" {
+		t.Fatalf("resp = %#v, want unlocked phone", resp)
+	}
+}
+
+func TestRecordContactReturnsWechatOnlyAfterSuccessfulUnlock(t *testing.T) {
+	store := &fakeContactStore{
+		contact:     model.ResourceContactUnlockInfo{ResourceID: "resource-1", MerchantID: "merchant-1", Status: model.ResourceStatusPublished, Wechat: "stock-demo"},
+		eventResult: model.ResourceContactEventResult{ID: "event-1", MerchantID: "merchant-1"},
+	}
+	logic := NewRecordContactLogic(store)
+
+	resp, err := logic.RecordContact(context.Background(), RecordContactReq{ResourceID: " resource-1 ", UserID: " user-1 ", Action: "wechat"})
+	if err != nil {
+		t.Fatalf("RecordContact() error = %v", err)
+	}
+	if resp.Wechat != "stock-demo" || resp.Action != "wechat" || resp.Message != "微信号已解锁" {
+		t.Fatalf("resp = %#v, want unlocked wechat", resp)
+	}
+	if store.metricDelta.WechatCopyCount != 1 || store.metricDelta.ContactClickCount != 1 {
+		t.Fatalf("metricDelta = %#v, want wechat contact metric", store.metricDelta)
+	}
+}
+
+func TestRecordContactRequiresLoginForWechatUnlock(t *testing.T) {
+	store := &fakeContactStore{
+		contact: model.ResourceContactUnlockInfo{ResourceID: "resource-1", MerchantID: "merchant-1", Status: model.ResourceStatusPublished, Wechat: "stock-demo"},
+	}
+	logic := NewRecordContactLogic(store)
+
+	_, err := logic.RecordContact(context.Background(), RecordContactReq{ResourceID: "resource-1", Action: "wechat"})
+	if err == nil || errx.CodeOf(err) != errx.CodeUnauthorized {
+		t.Fatalf("RecordContact() error = %v, want unauthorized", err)
+	}
+	if store.eventInput.ResourceID != "" || store.metricDelta.ContactClickCount != 0 {
+		t.Fatalf("eventInput = %#v metricDelta = %#v, want no writes", store.eventInput, store.metricDelta)
+	}
+}
+
+func TestRecordContactRejectsWechatWithoutPersistingMetricWhenWechatMissing(t *testing.T) {
+	store := &fakeContactStore{
+		contact: model.ResourceContactUnlockInfo{ResourceID: "resource-1", MerchantID: "merchant-1", Status: model.ResourceStatusPublished},
+	}
+	logic := NewRecordContactLogic(store)
+
+	_, err := logic.RecordContact(context.Background(), RecordContactReq{ResourceID: "resource-1", UserID: "user-1", Action: "wechat"})
+	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("RecordContact() error = %v, want validation failed", err)
+	}
+	if store.eventInput.ResourceID != "" || store.metricDelta.ContactClickCount != 0 {
+		t.Fatalf("eventInput = %#v metricDelta = %#v, want no writes", store.eventInput, store.metricDelta)
+	}
+}
+
+func TestRecordContactRejectsOwnResourceWithoutPersistingMetric(t *testing.T) {
+	store := &fakeContactStore{
+		contact:             model.ResourceContactUnlockInfo{ResourceID: "resource-1", MerchantID: "merchant-1", Status: model.ResourceStatusPublished, Phone: "18800000002"},
+		userManagedMerchant: true,
+	}
+	logic := NewRecordContactLogic(store)
+
+	_, err := logic.RecordContact(context.Background(), RecordContactReq{ResourceID: "resource-1", UserID: "user-1", Action: "phone"})
+	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("RecordContact() error = %v, want validation failed", err)
+	}
+	if store.eventInput.ResourceID != "" || store.metricDelta.ContactClickCount != 0 {
+		t.Fatalf("eventInput = %#v metricDelta = %#v, want no writes", store.eventInput, store.metricDelta)
 	}
 }
 
@@ -65,9 +133,20 @@ func TestRecordContactAcceptsMerchantProfileAlias(t *testing.T) {
 }
 
 type fakeContactStore struct {
-	eventInput  model.ResourceContactEventInput
-	eventResult model.ResourceContactEventResult
-	metricDelta model.ResourceMetricDelta
+	contact             model.ResourceContactUnlockInfo
+	eventInput          model.ResourceContactEventInput
+	eventResult         model.ResourceContactEventResult
+	metricDelta         model.ResourceMetricDelta
+	userManagedMerchant bool
+}
+
+func (s *fakeContactStore) GetResourceContactUnlockInfo(ctx context.Context, resourceID string) (model.ResourceContactUnlockInfo, error) {
+	s.contact.ResourceID = resourceID
+	return s.contact, nil
+}
+
+func (s *fakeContactStore) UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error) {
+	return s.userManagedMerchant, nil
 }
 
 func (s *fakeContactStore) RecordResourceContactEvent(ctx context.Context, input model.ResourceContactEventInput) (model.ResourceContactEventResult, error) {

@@ -142,6 +142,7 @@ import {
   refreshResource,
   takeDownResource,
 } from '../../api/resource'
+import { requireLogin } from '../../common/auth'
 import { getSession } from '../../store/session'
 
 const resource = ref({})
@@ -347,8 +348,13 @@ async function recordContact(action) {
   if (isOwnResource.value) {
     return false
   }
-  await recordResourceContact(resource.value.id, action)
-  return true
+  if (isContactUnlockAction(action) && !requireLogin()) return false
+  const resp = await recordResourceContact(resource.value.id, action)
+  return resp || {}
+}
+
+function isContactUnlockAction(action) {
+  return action === 'phone' || action === 'wechat'
 }
 
 async function openMerchant() {
@@ -521,23 +527,24 @@ function confirmManagementAction(options) {
 }
 
 async function callPhone() {
-  if (!(await recordContact('phone'))) return
-  const phone = (resource.value.contact || {}).phoneMasked || ''
-  if (phone && !phone.includes('*')) {
-    uni.makePhoneCall({ phoneNumber: phone })
+  const resp = await recordContact('phone')
+  if (!resp) return
+  if (resp.phone) {
+    uni.makePhoneCall({ phoneNumber: resp.phone })
     return
   }
-  uni.showToast({ title: '已记录联系，完整电话由平台保护', icon: 'none' })
+  uni.showToast({ title: '商家暂未填写电话', icon: 'none' })
 }
 
 async function copyWechat() {
-  if (!(await recordContact('wechat'))) return
-  const wechat = (resource.value.contact || {}).wechatMasked || ''
-  if (wechat && !wechat.includes('*')) {
-    uni.setClipboardData({ data: wechat })
+  const resp = await recordContact('wechat')
+  if (!resp) return
+  if (resp.wechat) {
+    uni.setClipboardData({ data: resp.wechat })
+    uni.showToast({ title: '微信号已复制', icon: 'none' })
     return
   }
-  uni.showToast({ title: '已记录联系，完整微信由平台保护', icon: 'none' })
+  uni.showToast({ title: '商家暂未填写微信，可电话联系', icon: 'none' })
 }
 
 async function shareResource() {

@@ -395,10 +395,21 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			response.JSON(w, nil, err)
 			return
 		}
-		userID, err := optionalUserIDFromBearerToken(r, tokenService)
-		if err != nil {
-			response.JSON(w, nil, err)
-			return
+		var userID string
+		var err error
+		if isContactUnlockAction(body.Action) {
+			subject, authErr := userSubjectFromBearerToken(r, tokenService)
+			if authErr != nil {
+				response.JSON(w, nil, errx.New(errx.CodeUnauthorized, "请先登录后联系商家"))
+				return
+			}
+			userID = subject.UserID
+		} else {
+			userID, err = optionalUserIDFromBearerToken(r, tokenService)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
 		}
 		resp, err := metricslogic.NewRecordContactLogic(store).RecordContact(r.Context(), metricslogic.RecordContactReq{
 			ResourceID: r.PathValue("resourceId"),
@@ -674,6 +685,11 @@ func decodeCreateResourceRequest(r *http.Request) (resourcelogic.CreateResourceR
 		QuantityText: body.QuantityText, Description: body.Description, Attributes: body.Attributes,
 		Tags: body.Tags, Images: body.Images, Contact: body.Contact,
 	}, nil
+}
+
+func isContactUnlockAction(action string) bool {
+	action = strings.TrimSpace(action)
+	return action == "phone" || action == "wechat"
 }
 
 func listResourcesReqFromQuery(r *http.Request) resourcelogic.ListResourcesReq {

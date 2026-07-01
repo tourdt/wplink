@@ -80,6 +80,9 @@ func optionalUserIDFromBearerToken(r *http.Request, tokenService authlogic.Token
 }
 
 func userSubjectFromBearerToken(r *http.Request, tokenService authlogic.TokenService) (session.UserTokenSubject, error) {
+	if tokenService == nil {
+		return session.UserTokenSubject{}, errx.New(errx.CodeUnauthorized, "请先登录")
+	}
 	header := strings.TrimSpace(r.Header.Get("Authorization"))
 	if header == "" {
 		return session.UserTokenSubject{}, errx.New(errx.CodeUnauthorized, "请先登录")

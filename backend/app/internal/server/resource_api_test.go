@@ -125,9 +125,11 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 
 	contactRec := httptest.NewRecorder()
 	contactReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-events", strings.NewReader(`{"action":"phone"}`))
-	router.ServeHTTP(contactRec, contactReq)
+	contactReq.Header.Set("Authorization", "Bearer user-token")
+	contactRouter := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+	contactRouter.ServeHTTP(contactRec, contactReq)
 	contactData := decodeEnvelopeData(t, contactRec, http.StatusOK)
-	if contactData["message"] != "联系行为已记录" {
+	if contactData["message"] != "电话已解锁" || contactData["phone"] != "18800000002" {
 		t.Fatalf("contact data = %#v, want message", contactData)
 	}
 	if store.contactInput.Action != "phone" || store.metricDelta.PhoneClickCount != 1 {
@@ -136,9 +138,10 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 
 	wechatRec := httptest.NewRecorder()
 	wechatReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-events", strings.NewReader(`{"action":"wechat"}`))
-	router.ServeHTTP(wechatRec, wechatReq)
+	wechatReq.Header.Set("Authorization", "Bearer user-token")
+	contactRouter.ServeHTTP(wechatRec, wechatReq)
 	wechatData := decodeEnvelopeData(t, wechatRec, http.StatusOK)
-	if wechatData["message"] != "联系行为已记录" {
+	if wechatData["message"] != "微信号已解锁" || wechatData["wechat"] != "stock-demo" {
 		t.Fatalf("wechat data = %#v, want message", wechatData)
 	}
 	if store.contactInput.Action != "wechat" || store.metricDelta.WechatCopyCount != 1 {
@@ -474,17 +477,27 @@ func TestResourceAPIRouterUsesTokenSubjectForContactEvents(t *testing.T) {
 	authorizedReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-events", strings.NewReader(`{"userId":"attacker","action":"phone"}`))
 	authorizedReq.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(authorizedRec, authorizedReq)
-	decodeEnvelopeData(t, authorizedRec, http.StatusOK)
+	authorizedData := decodeEnvelopeData(t, authorizedRec, http.StatusOK)
 	if store.contactInput.UserID != "user-1" {
 		t.Fatalf("contact userID = %q, want token user", store.contactInput.UserID)
+	}
+	if authorizedData["phone"] != "18800000002" {
+		t.Fatalf("authorized contact data = %#v, want full phone", authorizedData)
 	}
 
 	anonymousRec := httptest.NewRecorder()
 	anonymousReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-events", strings.NewReader(`{"userId":"attacker","action":"wechat"}`))
 	router.ServeHTTP(anonymousRec, anonymousReq)
-	decodeEnvelopeData(t, anonymousRec, http.StatusOK)
-	if store.contactInput.UserID != "" {
-		t.Fatalf("anonymous contact userID = %q, want empty user", store.contactInput.UserID)
+	if anonymousRec.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous contact status = %d body = %s, want 401", anonymousRec.Code, anonymousRec.Body.String())
+	}
+
+	missingTokenServiceRec := httptest.NewRecorder()
+	missingTokenServiceReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-events", strings.NewReader(`{"action":"phone"}`))
+	missingTokenServiceReq.Header.Set("Authorization", "Bearer user-token")
+	NewAPIRouter(store).ServeHTTP(missingTokenServiceRec, missingTokenServiceReq)
+	if missingTokenServiceRec.Code != http.StatusUnauthorized {
+		t.Fatalf("missing token service status = %d body = %s, want 401", missingTokenServiceRec.Code, missingTokenServiceRec.Body.String())
 	}
 }
 
@@ -638,6 +651,24 @@ func (s *fakeResourceAPIStore) ListResources(ctx context.Context, filter model.L
 func (s *fakeResourceAPIStore) RecordSearchLog(ctx context.Context, input model.SearchLogInput) error {
 	s.searchLog = input
 	return nil
+}
+
+func (s *fakeResourceAPIStore) GetResourceContactUnlockInfo(ctx context.Context, resourceID string) (model.ResourceContactUnlockInfo, error) {
+	merchantID := "merchant-1"
+	if s.resourceMerchantIDs != nil && s.resourceMerchantIDs[resourceID] != "" {
+		merchantID = s.resourceMerchantIDs[resourceID]
+	}
+	status := model.ResourceStatusPublished
+	if s.resourceStatuses != nil && s.resourceStatuses[resourceID] != "" {
+		status = s.resourceStatuses[resourceID]
+	}
+	return model.ResourceContactUnlockInfo{
+		ResourceID: resourceID,
+		MerchantID: merchantID,
+		Status:     status,
+		Phone:      "18800000002",
+		Wechat:     "stock-demo",
+	}, nil
 }
 
 func (s *fakeResourceAPIStore) GetPublishedResourceDetail(ctx context.Context, resourceID string) (model.ResourceDetail, error) {

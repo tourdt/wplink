@@ -54,3 +54,16 @@ test('own resource management sheet does not expose deal action', () => {
   assert.doesNotMatch(source, /markOwnResourceDealt/)
   assert.doesNotMatch(source, /markResourceDeal/)
 })
+
+test('resource detail unlocks contact through backend before copy or call', () => {
+  assert.match(source, /import \{ requireLogin \} from '\.\.\/\.\.\/common\/auth'/)
+  assert.match(source, /if \(isContactUnlockAction\(action\) && !requireLogin\(\)\) return false/)
+  assert.match(source, /function isContactUnlockAction\(action\) \{[\s\S]*return action === 'phone' \|\| action === 'wechat'[\s\S]*\}/)
+  assert.match(source, /const resp = await recordResourceContact\(resource\.value\.id, action\)/)
+  assert.match(source, /return resp \|\| \{\}/)
+  assert.match(source, /uni\.setClipboardData\(\{ data: resp\.wechat \}\)/)
+  assert.match(source, /uni\.makePhoneCall\(\{ phoneNumber: resp\.phone \}\)/)
+  assert.match(source, /微信号已复制/)
+  assert.equal(source.includes('已记录联系，完整微信由平台保护'), false)
+  assert.equal(source.includes('已记录联系，完整电话由平台保护'), false)
+})
