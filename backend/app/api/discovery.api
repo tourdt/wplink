@@ -18,6 +18,35 @@ type HomeBannersResp {
 	Items []HomeBannerItem `json:"items"`
 }
 
+type HomeRecommendCardsReq {
+	CityCode string `form:"cityCode,optional"`
+}
+
+type HomeRecommendCardItem {
+	Id         string `json:"id"`
+	Tag        string `json:"tag,optional"`
+	Title      string `json:"title"`
+	Subtitle   string `json:"subtitle,optional"`
+	JumpType   string `json:"jumpType"`
+	JumpTarget string `json:"jumpTarget"`
+}
+
+type HomeRecommendCardsResp {
+	Items []HomeRecommendCardItem `json:"items"`
+}
+
+type HotSearchKeywordsReq {
+	CityCode string `form:"cityCode,optional"`
+}
+
+type HotSearchKeywordItem {
+	Keyword string `json:"keyword"`
+}
+
+type HotSearchKeywordsResp {
+	Items []HotSearchKeywordItem `json:"items"`
+}
+
 type TopicResourcesReq {
 	CityCode string `form:"cityCode,optional"`
 	Page     int64  `form:"page,optional"`
@@ -73,6 +102,12 @@ type ValidateWebviewResp {
 service wplink-api {
 	@handler ListHomeBanners
 	get /home/banners (HomeBannersReq) returns (HomeBannersResp)
+
+	@handler ListHomeRecommendCards
+	get /home/recommend-cards (HomeRecommendCardsReq) returns (HomeRecommendCardsResp)
+
+	@handler ListHotSearchKeywords
+	get /search/hot-keywords (HotSearchKeywordsReq) returns (HotSearchKeywordsResp)
 
 	@handler GetTopicResources
 	get /topics/:topicId/resources (TopicResourcesReq) returns (TopicResourcesResp)

@@ -18,7 +18,7 @@ export const defaultFlowChecks = [
       'sceneEntries',
       'PUBLISH_TYPE_KEY',
       '织里站 · 精选工厂',
-      '平台推荐资源',
+      '精选资源',
       'ResourceCard',
       'listResources',
       'homeResources',
@@ -32,7 +32,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/search/result.vue',
     description: '独立搜索和无结果换条件',
-    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', '暂未找到合适资源', 'hotKeywords', '换个条件'],
+    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', '暂无匹配资源', 'hotKeywords', '换个条件'],
   },
   {
     file: 'pages/resource/detail.vue',

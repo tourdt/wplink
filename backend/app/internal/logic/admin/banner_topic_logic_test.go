@@ -87,6 +87,48 @@ func TestCreateBannerTopicAllowsTopicJumpTargetToBeEmpty(t *testing.T) {
 	}
 }
 
+func TestCreateBannerTopicAllowsHomeRecommendCardWithoutCover(t *testing.T) {
+	store := &fakeBannerTopicAdminStore{saved: model.SaveBannerTopicResult{ID: "recommend-card-1", UpdatedAt: "2026-06-27T10:00:00Z"}}
+	logic := NewBannerTopicAdminLogic(store)
+
+	resp, err := logic.CreateBannerTopic(context.Background(), SaveBannerTopicReq{
+		CityCode:   "zhili",
+		Kind:       "home_recommend_card",
+		Title:      "本周空档工厂：4 条针织生产线",
+		Subtitle:   "认证工厂 · 适合小单快返 · 运营已核实",
+		CoverURL:   "   ",
+		JumpType:   "internal",
+		JumpTarget: "/pages/search/index",
+		Tags:       []string{" 平台推荐 "},
+		Status:     "active",
+	})
+	if err != nil {
+		t.Fatalf("CreateBannerTopic() error = %v, want nil", err)
+	}
+
+	if store.input.Kind != "home_recommend_card" || store.input.CoverURL != "" || store.input.Tags[0] != "平台推荐" {
+		t.Fatalf("input = %#v, want home recommend card without cover", store.input)
+	}
+	if resp.ID != "recommend-card-1" {
+		t.Fatalf("id = %q, want recommend-card-1", resp.ID)
+	}
+}
+
+func TestCreateHomeRecommendCardRequiresExplicitTopicTarget(t *testing.T) {
+	logic := NewBannerTopicAdminLogic(&fakeBannerTopicAdminStore{})
+
+	_, err := logic.CreateBannerTopic(context.Background(), SaveBannerTopicReq{
+		CityCode: "zhili",
+		Kind:     "home_recommend_card",
+		Title:    "专题推荐",
+		JumpType: "topic",
+		Status:   "active",
+	})
+	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("CreateBannerTopic() error = %v, want validation error", err)
+	}
+}
+
 type fakeBannerTopicAdminStore struct {
 	filter model.BannerTopicFilter
 	input  model.SaveBannerTopicInput

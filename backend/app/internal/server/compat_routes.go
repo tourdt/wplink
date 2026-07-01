@@ -44,11 +44,16 @@ func registerCompatAPIRoutes(srv *rest.Server, apiHandler http.Handler) {
 		{Method: http.MethodGet, Path: "/api/v1/me/purchase-demands", Handler: handler},
 
 		{Method: http.MethodGet, Path: "/api/v1/home/banners", Handler: handler},
+		{Method: http.MethodGet, Path: "/api/v1/home/recommend-cards", Handler: handler},
+		{Method: http.MethodGet, Path: "/api/v1/search/hot-keywords", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/topics/:topicId/resources", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/webview/validate", Handler: handler},
 
 		{Method: http.MethodPost, Path: "/api/v1/merchants/:merchantId/verifications", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/merchants/:merchantId/verifications/latest", Handler: handler},
+		{Method: http.MethodGet, Path: "/api/v1/verification-billing", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/merchants/:merchantId/verifications/:verificationId/payment", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/wechat-pay/verification/notify", Handler: handler},
 
 		{Method: http.MethodGet, Path: "/api/v1/merchants/:merchantId/entitlements", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/merchants/:merchantId/top-vouchers", Handler: handler},
@@ -65,6 +70,8 @@ func registerCompatAPIRoutes(srv *rest.Server, apiHandler http.Handler) {
 		{Method: http.MethodPost, Path: "/api/v1/admin/resources/:resourceId/review", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/admin/verifications/pending", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/admin/verifications/:verificationId/review", Handler: handler},
+		{Method: http.MethodGet, Path: "/api/v1/admin/verification-billing", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/admin/verification-billing", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/admin/merchants/:merchantId/entitlements", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/admin/match-cases", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/admin/match-cases", Handler: handler},
@@ -81,6 +88,9 @@ func registerCompatAPIRoutes(srv *rest.Server, apiHandler http.Handler) {
 		{Method: http.MethodGet, Path: "/api/v1/admin/banner-topics", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/admin/banner-topics", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/admin/banner-topics/:configId", Handler: handler},
+		{Method: http.MethodGet, Path: "/api/v1/admin/hot-search-keywords", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/admin/hot-search-keywords", Handler: handler},
+		{Method: http.MethodPost, Path: "/api/v1/admin/hot-search-keywords/:configId", Handler: handler},
 		{Method: http.MethodGet, Path: "/api/v1/admin/resource-type-configs", Handler: handler},
 		{Method: http.MethodPost, Path: "/api/v1/admin/resource-type-configs/:configId", Handler: handler},
 	})

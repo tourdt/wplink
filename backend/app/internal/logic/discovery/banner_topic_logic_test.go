@@ -43,6 +43,33 @@ func TestListHomeBannersUsesBannerIDForTopicWithoutTarget(t *testing.T) {
 	}
 }
 
+func TestListHomeRecommendCardsUsesActiveRecommendCardFilter(t *testing.T) {
+	store := &fakeDiscoveryStore{
+		banners: []model.BannerTopicConfig{{
+			ID:         "recommend-card-1",
+			Kind:       "home_recommend_card",
+			Title:      "本周空档工厂",
+			Subtitle:   "认证工厂 · 适合小单快返",
+			JumpType:   "search",
+			JumpTarget: "小单快返",
+			Tags:       []string{"平台推荐"},
+		}},
+	}
+	logic := NewBannerTopicDiscoveryLogic(store)
+
+	resp, err := logic.ListHomeRecommendCards(context.Background(), ListHomeRecommendCardsReq{CityCode: " zhili "})
+	if err != nil {
+		t.Fatalf("ListHomeRecommendCards() error = %v", err)
+	}
+
+	if store.bannerFilter.CityCode != "zhili" || store.bannerFilter.Kind != "home_recommend_card" || store.bannerFilter.Status != "active" {
+		t.Fatalf("filter = %#v, want active home recommend card filter", store.bannerFilter)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Tag != "平台推荐" || resp.Items[0].Title != "本周空档工厂" {
+		t.Fatalf("items = %#v, want recommend card item", resp.Items)
+	}
+}
+
 func TestGetTopicResourcesReturnsDemandEntryWhenEmpty(t *testing.T) {
 	store := &fakeDiscoveryStore{
 		topic: model.BannerTopicConfig{ID: "topic-1", Kind: "topic", Title: "夏季童装", TypeScope: []string{"inventory"}},

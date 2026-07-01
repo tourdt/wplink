@@ -6,6 +6,8 @@
       <text class="status-meta" v-if="latestVerification.verificationType">
         {{ typeLabel(latestVerification.verificationType) }} · {{ latestVerification.reviewedAt || '等待审核' }}
       </text>
+      <text class="status-meta">{{ billingSummary }}</text>
+      <button v-if="canPayVerification" class="primary-button" :loading="paying" @click="payVerification">支付认证费</button>
     </view>
 
     <view class="form-card">
@@ -28,7 +30,7 @@
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getMerchantId, getUserId } from '../../store/session'
-import { getLatestVerification, submitVerification } from '../../api/verification'
+import { createVerificationPayment, getLatestVerification, getVerificationBillingConfig, submitVerification } from '../../api/verification'
 import { chooseAndUploadImage } from '../../common/upload'
 
 const typeOptions = [
@@ -52,10 +54,22 @@ const currentTypeLabel = computed(() => {
   return matched.label || '工厂认证'
 })
 const latestVerification = ref({ status: 'none' })
+const billingConfig = ref({ chargeEnabled: false, feeAmount: 0, currency: 'CNY', freeEnabled: false })
+const paying = ref(false)
+const billingSummary = computed(() => {
+  if (!billingConfig.value.chargeEnabled) return '当前认证免费，审核通过后直接生效'
+  const feeText = `认证费 ¥${(Number(billingConfig.value.feeAmount || 0) / 100).toFixed(2)}`
+  if (isFreeWindowActive()) return `${feeText}，当前限时免费`
+  if (latestVerification.value.status === 'payment_pending') return `${feeText}，支付成功后认证生效`
+  return `${feeText}，资料审核通过后在线支付`
+})
+const canPayVerification = computed(() => {
+  return latestVerification.value.status === 'payment_pending' && billingConfig.value.chargeEnabled && !isFreeWindowActive() && latestVerification.value.id
+})
 
 onLoad(async (options) => {
   form.merchantId = options.merchantId || getMerchantId()
-  await loadLatestVerification()
+  await Promise.all([loadLatestVerification(), loadBillingConfig()])
 })
 
 async function loadLatestVerification() {
@@ -67,6 +81,14 @@ async function loadLatestVerification() {
     latestVerification.value = await getLatestVerification(form.merchantId)
   } catch (err) {
     latestVerification.value = { status: 'none' }
+  }
+}
+
+async function loadBillingConfig() {
+  try {
+    billingConfig.value = await getVerificationBillingConfig('zhili')
+  } catch (err) {
+    billingConfig.value = { chargeEnabled: false, feeAmount: 0, currency: 'CNY', freeEnabled: false }
   }
 }
 
@@ -84,6 +106,7 @@ function statusLabel(status) {
   const statusText = {
     none: '未提交认证',
     pending: '审核中',
+    payment_pending: '待支付',
     verified: '已认证',
     rejected: '未通过',
   }
@@ -134,6 +157,52 @@ async function submit() {
   })
   uni.showToast({ title: '认证已提交', icon: 'none' })
   await loadLatestVerification()
+}
+
+async function payVerification() {
+  const userId = getUserId()
+  if (!userId) {
+    uni.showToast({ title: '请先登录后支付', icon: 'none' })
+    return
+  }
+  paying.value = true
+  try {
+    // 小程序端只负责调起收银台，认证生效必须以后端收到微信支付成功通知为准。
+    const resp = await createVerificationPayment(form.merchantId, latestVerification.value.id, { userId })
+    const payment = resp.payment || {}
+    await requestWechatPayment(payment)
+    uni.showToast({ title: '支付成功，正在更新认证状态', icon: 'none' })
+    await loadLatestVerification()
+  } catch (err) {
+    uni.showToast({ title: err.message || '支付未完成，请稍后重试', icon: 'none' })
+  } finally {
+    paying.value = false
+  }
+}
+
+function requestWechatPayment(payment) {
+  return new Promise((resolve, reject) => {
+    uni.requestPayment({
+      timeStamp: payment.timeStamp,
+      nonceStr: payment.nonceStr,
+      package: payment.package,
+      signType: payment.signType || 'RSA',
+      paySign: payment.paySign,
+      success: resolve,
+      fail: reject,
+    })
+  })
+}
+
+function isFreeWindowActive() {
+  const config = billingConfig.value || {}
+  if (!config.freeEnabled) return false
+  const now = Date.now()
+  const start = config.freeStartAt ? Date.parse(config.freeStartAt) : null
+  const end = config.freeEndAt ? Date.parse(config.freeEndAt) : null
+  if (start && now < start) return false
+  if (end && now > end) return false
+  return true
 }
 </script>
 

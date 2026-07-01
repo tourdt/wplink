@@ -130,6 +130,8 @@ func applyConfigValue(cfg *Config, section string, key string, value string) err
 			}
 			cfg.Wechat.AllowDevCode = allow
 		}
+	case "WechatPay":
+		return applyWechatPayValue(&cfg.WechatPay, key, value)
 	case "SMS":
 		switch key {
 		case "Provider":
@@ -172,6 +174,38 @@ func applyConfigValue(cfg *Config, section string, key string, value string) err
 		}
 	case "Storage":
 		return applyStorageValue(&cfg.Storage, key, value)
+	}
+	return nil
+}
+
+func applyWechatPayValue(cfg *WechatPayConfig, key string, value string) error {
+	switch key {
+	case "Enabled":
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("WechatPay.Enabled 配置必须是布尔值: %w", err)
+		}
+		cfg.Enabled = enabled
+	case "MchID":
+		cfg.MchID = value
+	case "AppID":
+		cfg.AppID = value
+	case "APIv3Key":
+		cfg.APIv3Key = value
+	case "MerchantSerialNo":
+		cfg.MerchantSerialNo = value
+	case "MerchantPrivateKeyPath":
+		cfg.MerchantPrivateKeyPath = value
+	case "PlatformPublicKeyPath":
+		cfg.PlatformPublicKeyPath = value
+	case "NotifyURL":
+		cfg.NotifyURL = value
+	case "RequestTimeout":
+		timeout, err := time.ParseDuration(value)
+		if err != nil {
+			return fmt.Errorf("WechatPay.RequestTimeout 配置不正确: %w", err)
+		}
+		cfg.RequestTimeout = timeout
 	}
 	return nil
 }

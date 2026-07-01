@@ -41,6 +41,7 @@ func ValidateForProduction(cfg Config) error {
 	require("AdminAuth.TokenSecret", cfg.AdminAuth.TokenSecret)
 	require("Wechat.AppID", cfg.Wechat.AppID)
 	require("Wechat.AppSecret", cfg.Wechat.AppSecret)
+	validateProductionWechatPay(cfg.WechatPay, require, requirePositiveDuration)
 	validateProductionSMS(cfg.SMS, require, &missing)
 	requirePositiveDuration("Tasks.ResourceLifecycleInterval", cfg.Tasks.ResourceLifecycleInterval)
 	require("Storage.Provider", cfg.Storage.Provider)
@@ -57,6 +58,20 @@ func ValidateForProduction(cfg Config) error {
 		return fmt.Errorf("生产配置不允许启用 Wechat.AllowDevCode")
 	}
 	return nil
+}
+
+func validateProductionWechatPay(cfg WechatPayConfig, require func(string, string), requirePositiveDuration func(string, time.Duration)) {
+	if !cfg.Enabled {
+		return
+	}
+	require("WechatPay.MchID", cfg.MchID)
+	require("WechatPay.AppID", cfg.AppID)
+	require("WechatPay.APIv3Key", cfg.APIv3Key)
+	require("WechatPay.MerchantSerialNo", cfg.MerchantSerialNo)
+	require("WechatPay.MerchantPrivateKeyPath", cfg.MerchantPrivateKeyPath)
+	require("WechatPay.PlatformPublicKeyPath", cfg.PlatformPublicKeyPath)
+	require("WechatPay.NotifyURL", cfg.NotifyURL)
+	requirePositiveDuration("WechatPay.RequestTimeout", cfg.RequestTimeout)
 }
 
 func validateProductionSMS(cfg SMSConfig, require func(string, string), missing *[]string) {

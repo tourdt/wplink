@@ -19,6 +19,17 @@ Wechat:
   AppSecret: "${WECHAT_APP_SECRET}"
   AllowDevCode: true
 
+WechatPay:
+  Enabled: false
+  MchID: "${WECHAT_PAY_MCH_ID}"
+  AppID: "${WECHAT_APP_ID}"
+  APIv3Key: "${WECHAT_PAY_API_V3_KEY}"
+  MerchantSerialNo: "${WECHAT_PAY_MERCHANT_SERIAL_NO}"
+  MerchantPrivateKeyPath: "${WECHAT_PAY_MERCHANT_PRIVATE_KEY_PATH}"
+  PlatformPublicKeyPath: "${WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH}"
+  NotifyURL: "${WECHAT_PAY_NOTIFY_URL}"
+  RequestTimeout: 10s
+
 SMS:
   Provider: "dev"
   SendURL: "${SMS_SEND_URL}"

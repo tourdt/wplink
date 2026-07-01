@@ -14,6 +14,7 @@ import (
 	authlogic "wplink/backend/app/internal/logic/auth"
 	citylogic "wplink/backend/app/internal/logic/city"
 	metricslogic "wplink/backend/app/internal/logic/metrics"
+	paymentlogic "wplink/backend/app/internal/logic/payment"
 	resourcelogic "wplink/backend/app/internal/logic/resource"
 	uploadlogic "wplink/backend/app/internal/logic/upload"
 	"wplink/backend/app/internal/model"
@@ -68,6 +69,7 @@ type apiRouterOptions struct {
 	userTokenService    authlogic.TokenService
 	wechatSessionClient authlogic.WechatSessionClient
 	smsVerifier         authlogic.SMSVerifier
+	wechatPayGateway    paymentlogic.WechatPayGateway
 }
 
 type APIRouterOption func(*apiRouterOptions)
@@ -108,6 +110,12 @@ func WithSMSVerifier(verifier authlogic.SMSVerifier) APIRouterOption {
 	}
 }
 
+func WithWechatPayGateway(gateway paymentlogic.WechatPayGateway) APIRouterOption {
+	return func(options *apiRouterOptions) {
+		options.wechatPayGateway = gateway
+	}
+}
+
 func NewAPIRouter(store CityAPIStore, opts ...APIRouterOption) http.Handler {
 	options := apiRouterOptions{}
 	for _, opt := range opts {
@@ -142,7 +150,7 @@ func NewAPIRouter(store CityAPIStore, opts ...APIRouterOption) http.Handler {
 		permissionStore, _ := any(store).(MerchantPermissionStore)
 		registerResourceRoutes(mux, resourceStore, options.userTokenService, options.adminTokenService, permissionStore)
 	}
-	registerOptionalDomainRoutes(mux, store, options.userTokenService, options.adminTokenService, permissionStoreFromStore(store), options.smsVerifier)
+	registerOptionalDomainRoutes(mux, store, options.userTokenService, options.adminTokenService, permissionStoreFromStore(store), options.smsVerifier, options.wechatPayGateway)
 	if options.adminTokenService != nil {
 		return requireAdminToken(mux, options.adminTokenService)
 	}

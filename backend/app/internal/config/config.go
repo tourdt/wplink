@@ -10,6 +10,7 @@ type Config struct {
 	Postgres    PostgresConfig
 	AdminAuth   AdminAuthConfig
 	Wechat      WechatConfig
+	WechatPay   WechatPayConfig
 	SMS         SMSConfig
 	Tasks       TasksConfig
 	Storage     StorageConfig
@@ -32,6 +33,18 @@ type WechatConfig struct {
 	AppID        string
 	AppSecret    string
 	AllowDevCode bool
+}
+
+type WechatPayConfig struct {
+	Enabled                bool
+	MchID                  string
+	AppID                  string
+	APIv3Key               string
+	MerchantSerialNo       string
+	MerchantPrivateKeyPath string
+	PlatformPublicKeyPath  string
+	NotifyURL              string
+	RequestTimeout         time.Duration
 }
 
 type SMSConfig struct {

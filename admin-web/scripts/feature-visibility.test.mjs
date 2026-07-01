@@ -33,15 +33,25 @@ test('banner config unifies topic entry and uses selectable non-web targets', ()
   const source = fs.readFileSync(path.join(root, 'src/views/BannerTopicView.vue'), 'utf8')
   const layoutSource = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.vue'), 'utf8')
 
-  assert.match(source, /<h2>Banner 配置<\/h2>/)
-  assert.match(layoutSource, /<span>Banner 配置<\/span>/)
+  assert.match(source, /<h2>首页运营位<\/h2>/)
+  assert.match(layoutSource, /<span>首页运营位<\/span>/)
   assert.match(source, /v-if="form\.jumpType === 'webview'"/)
   assert.match(source, /v-else-if="form\.jumpType === 'internal'"/)
   assert.match(source, /internalPageOptions/)
   assert.match(source, /resourceOptions/)
   assert.match(source, /merchantOptions/)
-  assert.equal(source.includes('el-segmented v-model="form.kind"'), false)
+  assert.match(source, /kindOptions/)
   assert.equal(source.includes('<el-option label="专题" value="topic" />'), false)
+})
+
+test('home recommend card config hides banner image fields', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/BannerTopicView.vue'), 'utf8')
+
+  assert.match(source, /home_recommend_card/)
+  assert.match(source, /v-if="isBannerKind"/)
+  assert.match(source, /form\.kind === 'home_recommend_card'/)
+  assert.match(source, /角标/)
+  assert.match(source, /buildSubmitPayload\(\)[\s\S]*payload\.coverUrl = ''/)
 })
 
 test('resource type config explains required field meanings', () => {
@@ -62,4 +72,19 @@ test('banner target selectors support searchable remote options', () => {
   assert.match(source, /loading="resourceTargetLoading"/)
   assert.match(source, /loading="merchantTargetLoading"/)
   assert.match(source, /keyword: query/)
+})
+
+test('hot search keywords are configurable from admin web', () => {
+  const routeSource = fs.readFileSync(path.join(root, 'src/router/index.js'), 'utf8')
+  const layoutSource = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.vue'), 'utf8')
+  const apiSource = fs.readFileSync(path.join(root, 'src/api/hotSearchKeyword.js'), 'utf8')
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/HotSearchKeywordView.vue'), 'utf8')
+
+  assert.match(routeSource, /HotSearchKeywordView/)
+  assert.match(routeSource, /hot-search-keywords/)
+  assert.match(layoutSource, /<span>热门搜索词<\/span>/)
+  assert.match(apiSource, /\/api\/v1\/admin\/hot-search-keywords/)
+  assert.match(viewSource, /<h2>热门搜索词<\/h2>/)
+  assert.match(viewSource, /v-model="form\.keyword"/)
+  assert.match(viewSource, /v-model="form\.status"/)
 })

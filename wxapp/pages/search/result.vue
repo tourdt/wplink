@@ -1,37 +1,39 @@
 <template>
   <view class="search-page">
-    <view class="search-bar">
-      <input v-model="keyword" class="search-input" placeholder="搜索库存、货源、工厂、服务" @confirm="search" />
-      <button class="search-button" @click="search">搜索</button>
-    </view>
+    <view class="search-toolbar">
+      <view class="search-bar">
+        <input v-model="keyword" class="search-input" placeholder="搜索库存、货源、工厂、服务" @confirm="search" />
+        <button class="search-button" @click="search">搜索</button>
+      </view>
 
-    <view class="filter-shell">
-      <scroll-view
-        class="filter-row"
-        scroll-x
-        scroll-with-animation
-        :scroll-into-view="scrollIntoTypeId"
-      >
-        <button
-          v-for="item in visibleResourceTypes"
-          :key="item.value"
-          :id="getTypeButtonId(item.value)"
-          :class="['filter-button', item.value === filters.typeCode ? 'active' : '']"
-          @click="selectType(item.value)"
+      <view class="filter-shell">
+        <scroll-view
+          class="filter-row"
+          scroll-x
+          scroll-with-animation
+          :scroll-into-view="scrollIntoTypeId"
         >
-          {{ item.label }}
+          <button
+            v-for="item in visibleResourceTypes"
+            :key="item.value"
+            :id="getTypeButtonId(item.value)"
+            :class="['filter-button', item.value === filters.typeCode ? 'active' : '']"
+            @click="selectType(item.value)"
+          >
+            {{ item.label }}
+          </button>
+        </scroll-view>
+        <button
+          v-if="resourceTypes.length > 1"
+          class="all-type-button"
+          @click="openTypeDrawer"
+        >
+          全部分类
         </button>
-      </scroll-view>
-      <button
-        v-if="resourceTypes.length > 1"
-        class="all-type-button"
-        @click="openTypeDrawer"
-      >
-        全部分类
-      </button>
+      </view>
     </view>
 
-    <view class="hot-row">
+    <view v-if="hotKeywords.length" class="hot-row">
       <text class="hot-label">热门：</text>
       <button v-for="item in hotKeywords" :key="item" class="hot-button" @click="searchHotKeyword(item)">
         {{ item }}
@@ -95,11 +97,12 @@ import { computed, nextTick, reactive, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
+import { loadHotSearchKeywords } from '../../common/hotSearchKeywords'
 import { listCityResourceTypes } from '../../api/city'
 import { searchResources } from '../../api/resource'
 
 const resourceTypes = ref([{ label: '全部', value: '' }])
-const hotKeywords = ['夏款现货', '急清库存', '小单快返', '直播供货']
+const hotKeywords = ref([])
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const keyword = ref('')
 const rows = ref([])
@@ -114,13 +117,17 @@ const visibleResourceTypes = computed(() => resourceTypes.value)
 const trimmedKeyword = computed(() => keyword.value.trim())
 const emptyTitle = '暂无匹配资源'
 const emptyDesc = '换个关键词或分类试试。'
-const emptySuggestions = computed(() => hotKeywords
+const emptySuggestions = computed(() => hotKeywords.value
   .filter((item) => item !== trimmedKeyword.value)
   .slice(0, 3))
 
 onLoad(async (options = {}) => {
+  loadHotKeywordOptions()
   await loadResourceTypes()
-  await applyRouteSearch(options)
+  const routeSearched = await applyRouteSearch(options)
+  if (!routeSearched && !hasPendingSearch()) {
+    await search()
+  }
 })
 onShow(applyPendingKeyword)
 
@@ -136,15 +143,20 @@ async function loadResourceTypes() {
   }
 }
 
+async function loadHotKeywordOptions() {
+  hotKeywords.value = await loadHotSearchKeywords(filters.cityCode)
+}
+
 async function applyRouteSearch(options = {}) {
   const routeKeyword = decodeSearchValue(options.keyword || options.q || '')
   const routeTypeCode = decodeSearchValue(options.typeCode || '')
-  if (!routeKeyword && !routeTypeCode) return
+  if (!routeKeyword && !routeTypeCode) return false
   keyword.value = routeKeyword
   filters.typeCode = routeTypeCode
   filters.cityCode = decodeSearchValue(options.cityCode || '') || DEFAULT_CITY_CODE
   await scrollToSelectedType(routeTypeCode)
   await search()
+  return true
 }
 
 async function applyPendingKeyword() {
@@ -160,6 +172,10 @@ async function applyPendingKeyword() {
   }
   await scrollToSelectedType(filters.typeCode)
   await search()
+}
+
+function hasPendingSearch() {
+  return Boolean(uni.getStorageSync(SEARCH_KEY))
 }
 
 async function search() {
@@ -181,9 +197,8 @@ function searchHotKeyword(value) {
 async function resetSearchConditions() {
   keyword.value = ''
   filters.typeCode = ''
-  rows.value = []
-  searched.value = false
   await scrollToSelectedType('')
+  await search()
 }
 
 async function selectType(typeCode) {
@@ -236,15 +251,26 @@ function openResource(item) {
   background: $wplink-bg;
 }
 
+.search-toolbar {
+  position: sticky;
+  position: -webkit-sticky;
+  top: 0;
+  z-index: 20;
+  margin: -24rpx -24rpx 16rpx;
+  padding: 24rpx 24rpx 16rpx;
+  background: $wplink-bg;
+  box-shadow: 0 10rpx 18rpx rgba(32, 42, 68, 0.06);
+}
+
 .search-bar {
   display: grid;
-  grid-template-columns: 1fr 144rpx;
+  grid-template-columns: 1fr 116rpx;
+  align-items: center;
   gap: 16rpx;
   margin-bottom: 20rpx;
 }
 
 .search-input,
-.search-button,
 .filter-button,
 .all-type-button {
   height: 80rpx;
@@ -258,15 +284,24 @@ function openResource(item) {
 }
 
 .search-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 76rpx;
+  padding: 0;
+  border-radius: 10rpx;
   background: $wplink-primary;
   color: $wplink-card;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .filter-shell {
   display: flex;
   align-items: center;
   gap: 12rpx;
-  margin-bottom: 16rpx;
+  margin-bottom: 0;
 }
 
 .filter-row {

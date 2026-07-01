@@ -21,6 +21,36 @@ type LatestVerificationResp {
 	ReviewedAt       string `json:"reviewedAt,optional"`
 }
 
+type VerificationBillingConfigResp {
+	CityCode      string `json:"cityCode"`
+	ChargeEnabled bool   `json:"chargeEnabled"`
+	FeeAmount     int64  `json:"feeAmount"`
+	Currency      string `json:"currency"`
+	FreeEnabled   bool   `json:"freeEnabled"`
+	FreeStartAt   string `json:"freeStartAt,optional"`
+	FreeEndAt     string `json:"freeEndAt,optional"`
+	Notice        string `json:"notice,optional"`
+	UpdatedAt     string `json:"updatedAt,optional"`
+}
+
+type CreateVerificationPaymentReq {
+	UserId string `json:"userId,optional"`
+}
+
+type WechatPayParams {
+	TimeStamp string `json:"timeStamp"`
+	NonceStr  string `json:"nonceStr"`
+	Package   string `json:"package"`
+	SignType  string `json:"signType"`
+	PaySign   string `json:"paySign"`
+}
+
+type CreateVerificationPaymentResp {
+	OrderId string          `json:"orderId"`
+	Status  string          `json:"status"`
+	Payment WechatPayParams `json:"payment"`
+}
+
 @server(
 	prefix: /api/v1
 	group: verification
@@ -31,4 +61,10 @@ service wplink-api {
 
 	@handler GetLatestVerification
 	get /merchants/:merchantId/verifications/latest returns (LatestVerificationResp)
+
+	@handler GetVerificationBillingConfig
+	get /verification-billing returns (VerificationBillingConfigResp)
+
+	@handler CreateVerificationPayment
+	post /merchants/:merchantId/verifications/:verificationId/payment (CreateVerificationPaymentReq) returns (CreateVerificationPaymentResp)
 }

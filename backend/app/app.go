@@ -70,6 +70,7 @@ func main() {
 		server.WithUserTokenService(svcCtx.UserTokenService),
 		server.WithWechatSessionClient(svcCtx.WechatSessionClient),
 		server.WithSMSVerifier(svcCtx.SMSVerifier),
+		server.WithWechatPayGateway(svcCtx.WechatPayGateway),
 	)
 	goZeroServer, err := server.NewGoZeroServer(cfg, svcCtx, adminHandler, apiHandler)
 	if err != nil {

@@ -8,31 +8,46 @@
       </view>
 
       <view class="search-entry" @click="openSearch()">
-        <view class="search-icon" aria-hidden="true">
-          <text></text>
-        </view>
+        <view class="search-icon" aria-hidden="true"></view>
         <text class="search-placeholder">搜索现货、厂家或求购需求...</text>
       </view>
     </view>
 
     <view class="home-content" :style="homeContentStyle">
-      <scroll-view class="banner-list" scroll-x>
-        <view
-          v-for="item in displayBanners"
-          :key="item.id"
-          :class="['banner-card', 'factory-hero', item.tone]"
-          @click="openBanner(item)"
+      <view class="banner-list">
+        <swiper
+          class="banner-swiper"
+          autoplay
+          circular
+          :interval="4200"
+          :duration="450"
+          :current="activeBannerIndex"
+          @change="handleBannerChange"
         >
-          <image v-if="item.coverUrl" class="banner-image" :src="item.coverUrl" mode="aspectFill" />
-          <view v-else class="banner-pattern"></view>
-          <view class="banner-shade"></view>
-          <view class="banner-copy">
-            <text class="banner-kicker">{{ item.kindText || '平台推荐' }}</text>
-            <text class="banner-title">{{ item.title }}</text>
-            <text class="banner-subcopy">{{ item.subTitle || '本周新增 128 家金牌工厂' }}</text>
-          </view>
+          <swiper-item v-for="(item, index) in displayBanners" :key="item.id">
+            <view
+              :class="['banner-card', 'factory-hero', item.tone]"
+              @click="openBanner(item)"
+            >
+              <image v-if="item.coverUrl" class="banner-image" :src="item.coverUrl" mode="aspectFill" />
+              <view v-else class="banner-pattern"></view>
+              <view class="banner-shade"></view>
+              <view class="banner-copy">
+                <text class="banner-kicker">{{ item.kindText || '平台推荐' }}</text>
+                <text class="banner-title">{{ item.title }}</text>
+                <text class="banner-subcopy">{{ item.subTitle || '本周新增 128 家金牌工厂' }}</text>
+              </view>
+            </view>
+          </swiper-item>
+        </swiper>
+        <view v-if="displayBanners.length > 1" class="banner-dots">
+          <view
+            v-for="(item, index) in displayBanners"
+            :key="`${item.id}-dot`"
+            :class="['banner-dot', { active: activeBannerIndex === index }]"
+          ></view>
         </view>
-      </scroll-view>
+      </view>
 
       <view class="quick-action-grid">
         <button
@@ -69,15 +84,15 @@
       </view>
 
       <view class="section-head">
-        <text class="section-title">平台推荐资源</text>
+        <text class="section-title">精选资源</text>
         <text class="section-link" @click="openSearch()">更多</text>
       </view>
 
-      <view class="recommend-card" @click="openSearch('小单快返')">
+      <view class="recommend-card" v-if="displayRecommendCard" @click="openRecommendCard(displayRecommendCard)">
         <view>
-          <text class="recommend-tag">平台推荐</text>
-          <text class="recommend-title">本周空档工厂：4 条针织生产线</text>
-          <text class="recommend-desc">认证工厂 · 适合小单快返 · 运营已核实</text>
+          <text class="recommend-tag">{{ displayRecommendCard.tag || '平台推荐' }}</text>
+          <text class="recommend-title">{{ displayRecommendCard.title }}</text>
+          <text v-if="displayRecommendCard.subtitle" class="recommend-desc">{{ displayRecommendCard.subtitle }}</text>
         </view>
         <text class="recommend-action">查看</text>
       </view>
@@ -100,11 +115,13 @@ import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
-import { listHomeBanners } from '../../api/discovery'
+import { listHomeBanners, listHomeRecommendCards } from '../../api/discovery'
 import { listResources } from '../../api/resource'
 
 const banners = ref([])
+const recommendCards = ref([])
 const homeResources = ref([])
+const activeBannerIndex = ref(0)
 const headerMetrics = ref({
   statusBarHeight: 44,
   navBarHeight: 44,
@@ -168,6 +185,10 @@ const displayBanners = computed(() => {
   const bannerSource = banners.value.length ? banners.value : defaultBanners
   return bannerSource.filter((item) => item.title).map(normalizeBanner)
 })
+const displayRecommendCard = computed(() => {
+  const item = recommendCards.value.find((card) => card.title)
+  return item ? normalizeRecommendCard(item) : null
+})
 const fixedHeaderStyle = computed(() => `padding-top: ${headerMetrics.value.statusBarHeight}px;`)
 const customTitleBarStyle = computed(() => `height: ${headerMetrics.value.navBarHeight}px;`)
 const homeContentStyle = computed(() => `padding-top: ${headerMetrics.value.headerHeight}px;`)
@@ -209,7 +230,7 @@ function updateHeaderMetrics() {
 }
 
 async function loadHomeData() {
-  await Promise.all([loadBanners(), loadHomeResources()])
+  await Promise.all([loadBanners(), loadRecommendCards(), loadHomeResources()])
 }
 
 async function loadBanners() {
@@ -217,14 +238,31 @@ async function loadBanners() {
   try {
     const resp = await listHomeBanners({ cityCode: DEFAULT_CITY_CODE })
     banners.value = resp.items || []
+    activeBannerIndex.value = 0
   } catch {
     banners.value = []
+    activeBannerIndex.value = 0
   }
 }
 
 async function loadHomeResources() {
   const resp = await listResources({ cityCode: DEFAULT_CITY_CODE, page: 1, pageSize: 2 })
   homeResources.value = resp.items || []
+}
+
+async function loadRecommendCards() {
+  // 首页推荐卡由后台运营位配置驱动；加载失败只隐藏该卡片，不影响下方资源列表。
+  try {
+    const resp = await listHomeRecommendCards({ cityCode: DEFAULT_CITY_CODE })
+    recommendCards.value = resp.items || []
+  } catch {
+    recommendCards.value = []
+  }
+}
+
+function handleBannerChange(event) {
+  const current = Number(event?.detail?.current)
+  activeBannerIndex.value = Number.isFinite(current) ? current : 0
 }
 
 function openBanner(item) {
@@ -248,6 +286,10 @@ function openBanner(item) {
     uni.navigateTo({ url: `/pages/merchant/detail?id=${item.jumpTarget}` })
     return
   }
+  if (item.jumpType === 'demand') {
+    openInternal(item.jumpTarget || '/pages/demand/index')
+    return
+  }
   if (item.jumpType === 'webview') {
     uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(item.jumpTarget)}` })
     return
@@ -265,6 +307,10 @@ function openBanner(item) {
 
 function openScene(item) {
   openSearch({ keyword: item.keyword, typeCode: item.typeCode })
+}
+
+function openRecommendCard(item) {
+  openBanner(item)
 }
 
 function openSearch(options = {}) {
@@ -315,6 +361,14 @@ function normalizeBanner(item) {
     id: item.id || `${item.jumpType || 'banner'}-${item.title}`,
     kindText: item.kindText || bannerKindText(item),
     tone: item.tone || bannerTone(item.jumpType),
+  }
+}
+
+function normalizeRecommendCard(item) {
+  return {
+    ...item,
+    id: item.id || `recommend-card-${item.title}`,
+    tag: item.tag || (item.tags && item.tags[0]) || '平台推荐',
   }
 }
 
@@ -392,50 +446,52 @@ function bannerTone(jumpType) {
 .search-entry {
   display: flex;
   align-items: center;
-  gap: 22rpx;
+  gap: 18rpx;
   min-height: 78rpx;
   margin-top: 18rpx;
   padding: 0 34rpx;
   border-radius: 22rpx;
-  background: #fbfcff;
-  box-shadow: inset 0 0 0 1rpx rgba(226, 232, 240, 0.34);
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1rpx rgba(176, 186, 200, 0.56), 0 8rpx 18rpx rgba(15, 23, 42, 0.04);
 }
 
 .search-icon {
   position: relative;
-  flex: 0 0 30rpx;
-  width: 30rpx;
-  height: 30rpx;
+  flex: 0 0 32rpx;
+  width: 32rpx;
+  height: 32rpx;
 }
 
 .search-icon::before {
   position: absolute;
-  top: 0;
-  left: 0;
+  top: 3rpx;
+  left: 2rpx;
   width: 20rpx;
   height: 20rpx;
-  border: 4rpx solid #a9afb8;
+  border: 3rpx solid #7b8492;
   border-radius: 999rpx;
   content: '';
 }
 
-.search-icon text {
+.search-icon::after {
   position: absolute;
-  right: 1rpx;
-  bottom: 2rpx;
+  right: 4rpx;
+  bottom: 5rpx;
   width: 14rpx;
-  height: 4rpx;
+  height: 3rpx;
   border-radius: 999rpx;
-  background: #a9afb8;
+  background: #7b8492;
+  content: '';
+  transform-origin: right center;
   transform: rotate(45deg);
 }
 
 .search-placeholder {
   flex: 1;
   min-width: 0;
-  color: #aab0ba;
+  color: #707987;
   font-size: 28rpx;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
   word-break: break-word;
 }
@@ -443,21 +499,24 @@ function bannerTone(jumpType) {
 .banner-list {
   position: relative;
   width: 100%;
+  height: 326rpx;
   margin-bottom: 48rpx;
-  white-space: nowrap;
+}
+
+.banner-swiper {
+  width: 100%;
+  height: 326rpx;
 }
 
 .banner-card {
   position: relative;
-  display: inline-block;
+  display: block;
   width: 100%;
   height: 326rpx;
-  margin-right: 20rpx;
   overflow: hidden;
   border-radius: 26rpx;
   background: $wplink-primary;
   box-shadow: 0 18rpx 34rpx rgba($wplink-primary, 0.12);
-  vertical-align: top;
 }
 
 .banner-image {
@@ -542,6 +601,28 @@ function bannerTone(jumpType) {
   font-weight: 700;
   line-height: 1.3;
   opacity: 0.95;
+}
+
+.banner-dots {
+  position: absolute;
+  right: 28rpx;
+  bottom: 24rpx;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.banner-dot {
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.banner-dot.active {
+  width: 22rpx;
+  background: #ffffff;
 }
 
 .quick-action-grid {

@@ -32,7 +32,11 @@
         </el-menu-item>
         <el-menu-item index="/banner-topics">
           <el-icon><Picture /></el-icon>
-          <span>Banner 配置</span>
+          <span>首页运营位</span>
+        </el-menu-item>
+        <el-menu-item index="/hot-search-keywords">
+          <el-icon><Search /></el-icon>
+          <span>热门搜索词</span>
         </el-menu-item>
         <el-menu-item index="/resource-type-configs">
           <el-icon><Setting /></el-icon>

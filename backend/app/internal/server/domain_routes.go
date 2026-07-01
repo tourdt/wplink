@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -16,6 +18,7 @@ import (
 	merchantlogic "wplink/backend/app/internal/logic/merchant"
 	messagelogic "wplink/backend/app/internal/logic/message"
 	metricslogic "wplink/backend/app/internal/logic/metrics"
+	paymentlogic "wplink/backend/app/internal/logic/payment"
 	verificationlogic "wplink/backend/app/internal/logic/verification"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/task"
@@ -38,12 +41,22 @@ type DemandAPIStore interface {
 
 type DiscoveryAPIStore interface {
 	discoverylogic.BannerTopicDiscoveryStore
+	discoverylogic.HotSearchKeywordDiscoveryStore
 	adminlogic.BannerTopicAdminStore
+	adminlogic.HotSearchKeywordAdminStore
 }
 
 type VerificationAPIStore interface {
 	verificationlogic.VerificationStore
 	adminlogic.VerificationAdminStore
+}
+
+type VerificationBillingAPIStore interface {
+	adminlogic.VerificationBillingConfigStore
+}
+
+type VerificationPaymentAPIStore interface {
+	paymentlogic.VerificationPaymentStore
 }
 
 type EntitlementAPIStore interface {
@@ -77,7 +90,7 @@ type AdminUtilityAPIStore interface {
 	task.ResourceLifecycleStore
 }
 
-func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, smsVerifier authlogic.SMSVerifier) {
+func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, smsVerifier authlogic.SMSVerifier, wechatPayGateway paymentlogic.WechatPayGateway) {
 	if merchantStore, ok := store.(MerchantAPIStore); ok {
 		registerMerchantRoutes(mux, merchantStore, userTokenService, adminTokenService, permissionStore, smsVerifier)
 	}
@@ -88,7 +101,11 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 		registerDiscoveryRoutes(mux, discoveryStore)
 	}
 	if verificationStore, ok := store.(VerificationAPIStore); ok {
-		registerVerificationRoutes(mux, verificationStore, userTokenService, adminTokenService, permissionStore)
+		paymentStore, _ := store.(VerificationPaymentAPIStore)
+		registerVerificationRoutes(mux, verificationStore, paymentStore, userTokenService, adminTokenService, permissionStore, wechatPayGateway)
+	}
+	if billingStore, ok := store.(VerificationBillingAPIStore); ok {
+		registerVerificationBillingRoutes(mux, billingStore)
 	}
 	if entitlementStore, ok := store.(EntitlementAPIStore); ok {
 		registerEntitlementRoutes(mux, entitlementStore, userTokenService, adminTokenService, permissionStore)
@@ -217,6 +234,14 @@ func registerDiscoveryRoutes(mux *http.ServeMux, store DiscoveryAPIStore) {
 		resp, err := discoverylogic.NewBannerTopicDiscoveryLogic(store).ListHomeBanners(r.Context(), discoverylogic.ListHomeBannersReq{CityCode: r.URL.Query().Get("cityCode")})
 		response.JSON(w, resp, err)
 	})
+	mux.HandleFunc("GET /api/v1/home/recommend-cards", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := discoverylogic.NewBannerTopicDiscoveryLogic(store).ListHomeRecommendCards(r.Context(), discoverylogic.ListHomeRecommendCardsReq{CityCode: r.URL.Query().Get("cityCode")})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/search/hot-keywords", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := discoverylogic.NewHotSearchKeywordDiscoveryLogic(store).ListHotSearchKeywords(r.Context(), discoverylogic.ListHotSearchKeywordsReq{CityCode: r.URL.Query().Get("cityCode")})
+		response.JSON(w, resp, err)
+	})
 	mux.HandleFunc("GET /api/v1/topics/{topicId}/resources", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := discoverylogic.NewBannerTopicDiscoveryLogic(store).GetTopicResources(r.Context(), discoverylogic.TopicResourcesReq{
 			TopicID: r.PathValue("topicId"), CityCode: r.URL.Query().Get("cityCode"),
@@ -240,6 +265,29 @@ func registerDiscoveryRoutes(mux *http.ServeMux, store DiscoveryAPIStore) {
 		resp, err := adminlogic.NewBannerTopicAdminLogic(store).ListBannerTopics(r.Context(), adminlogic.ListBannerTopicsReq{CityCode: query.Get("cityCode"), Kind: query.Get("kind"), Status: query.Get("status")})
 		response.JSON(w, resp, err)
 	})
+	mux.HandleFunc("GET /api/v1/admin/hot-search-keywords", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		resp, err := adminlogic.NewHotSearchKeywordAdminLogic(store).ListHotSearchKeywords(r.Context(), adminlogic.ListHotSearchKeywordsReq{CityCode: query.Get("cityCode"), Status: query.Get("status")})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/hot-search-keywords", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveHotSearchKeywordReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewHotSearchKeywordAdminLogic(store).CreateHotSearchKeyword(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/hot-search-keywords/{configId}", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveHotSearchKeywordReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewHotSearchKeywordAdminLogic(store).UpdateHotSearchKeyword(r.Context(), r.PathValue("configId"), body)
+		response.JSON(w, resp, err)
+	})
 	mux.HandleFunc("POST /api/v1/admin/banner-topics", func(w http.ResponseWriter, r *http.Request) {
 		var body adminlogic.SaveBannerTopicReq
 		if err := decodeJSONBody(r, &body); err != nil {
@@ -260,7 +308,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, store DiscoveryAPIStore) {
 	})
 }
 
-func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore) {
+func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, paymentStore VerificationPaymentAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, wechatPayGateway paymentlogic.WechatPayGateway) {
 	mux.HandleFunc("POST /api/v1/merchants/{merchantId}/verifications", func(w http.ResponseWriter, r *http.Request) {
 		var body verificationlogic.SubmitVerificationReq
 		if err := decodeJSONBody(r, &body); err != nil {
@@ -305,6 +353,79 @@ func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, 
 			body.ReviewerID = reviewerID
 		}
 		resp, err := adminlogic.NewVerificationAdminLogic(store).ReviewVerification(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
+	if paymentStore == nil {
+		return
+	}
+	mux.HandleFunc("POST /api/v1/merchants/{merchantId}/verifications/{verificationId}/payment", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			UserID string `json:"userId"`
+		}
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		merchantID := r.PathValue("merchantId")
+		if tokenService != nil {
+			var err error
+			body.UserID, err = userIDFromBearerToken(r, tokenService)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+			if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+		}
+		resp, err := paymentlogic.NewCreateVerificationPaymentLogic(paymentStore, wechatPayGateway).CreateVerificationPayment(r.Context(), paymentlogic.CreateVerificationPaymentReq{
+			MerchantID:     merchantID,
+			VerificationID: r.PathValue("verificationId"),
+			UserID:         body.UserID,
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/wechat-pay/verification/notify", func(w http.ResponseWriter, r *http.Request) {
+		body, err := readLimitedBody(r, 1<<20)
+		if err != nil {
+			writeWechatPayNotifyError(w)
+			return
+		}
+		headers := map[string]string{}
+		for key, values := range r.Header {
+			if len(values) > 0 {
+				headers[key] = values[0]
+			}
+		}
+		resp, err := paymentlogic.NewWechatPayNotifyLogic(paymentStore, wechatPayGateway).HandleNotify(r.Context(), paymentlogic.WechatPayNotifyReq{Headers: headers, Body: body})
+		if err != nil {
+			writeWechatPayNotifyError(w)
+			return
+		}
+		writeRawJSON(w, http.StatusOK, resp)
+	})
+}
+
+func registerVerificationBillingRoutes(mux *http.ServeMux, store VerificationBillingAPIStore) {
+	mux.HandleFunc("GET /api/v1/verification-billing", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := adminlogic.NewVerificationBillingConfigLogic(store).GetVerificationBillingConfig(r.Context(), adminlogic.GetVerificationBillingConfigReq{CityCode: r.URL.Query().Get("cityCode")})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/verification-billing", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := adminlogic.NewVerificationBillingConfigLogic(store).GetVerificationBillingConfig(r.Context(), adminlogic.GetVerificationBillingConfigReq{CityCode: r.URL.Query().Get("cityCode")})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/verification-billing", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.UpdateVerificationBillingConfigReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if body.CityCode == "" {
+			body.CityCode = r.URL.Query().Get("cityCode")
+		}
+		resp, err := adminlogic.NewVerificationBillingConfigLogic(store).UpdateVerificationBillingConfig(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
 }
@@ -367,6 +488,24 @@ func registerEntitlementRoutes(mux *http.ServeMux, store EntitlementAPIStore, to
 		}
 		resp, err := adminlogic.NewEntitlementAdminLogic(store).GrantMerchantEntitlement(r.Context(), body)
 		response.JSON(w, resp, err)
+	})
+}
+
+func readLimitedBody(r *http.Request, limit int64) ([]byte, error) {
+	defer r.Body.Close()
+	return io.ReadAll(io.LimitReader(r.Body, limit))
+}
+
+func writeRawJSON(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(data)
+}
+
+func writeWechatPayNotifyError(w http.ResponseWriter) {
+	writeRawJSON(w, http.StatusInternalServerError, map[string]string{
+		"code":    "FAIL",
+		"message": "处理失败",
 	})
 }
 

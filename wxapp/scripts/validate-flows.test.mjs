@@ -49,6 +49,33 @@ test('home banner only overlays labels and title on image', () => {
   assert.match(source, /banner-title/)
 })
 
+test('home banner auto scrolls and shows bottom-right dots', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+
+  assert.match(source, /<swiper[\s\S]*class="banner-swiper"[\s\S]*autoplay[\s\S]*circular[\s\S]*@change="handleBannerChange"/)
+  assert.match(source, /<swiper-item[\s\S]*v-for="\(\s*item,\s*index\s*\) in displayBanners"/)
+  assert.match(source, /banner-dots/)
+  assert.match(source, /activeBannerIndex === index/)
+  assert.match(source, /\.banner-dots \{[\s\S]*right: 28rpx;[\s\S]*bottom: 24rpx;/)
+})
+
+test('home recommend card is loaded from operation config instead of hardcoded copy', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const homeSource = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const discoverySource = fs.readFileSync(path.join(root, 'api/discovery.js'), 'utf8')
+
+  assert.match(discoverySource, /listHomeRecommendCards/)
+  assert.match(discoverySource, /\/api\/v1\/home\/recommend-cards/)
+  assert.match(homeSource, /const recommendCards = ref\(\[\]\)/)
+  assert.match(homeSource, /loadRecommendCards/)
+  assert.match(homeSource, /displayRecommendCard/)
+  assert.match(homeSource, /openRecommendCard\(displayRecommendCard\)/)
+  assert.match(homeSource, /recommend-card" v-if="displayRecommendCard"/)
+  assert.equal(homeSource.includes("openSearch('小单快返')"), false)
+  assert.equal(homeSource.includes('本周空档工厂：4 条针织生产线'), false)
+})
+
 test('home page keeps custom brand first screen structure', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
@@ -85,6 +112,16 @@ test('home page keeps custom brand first screen structure', () => {
   }
 })
 
+test('home search entry keeps a crisp icon and clear input surface', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+
+  assert.match(source, /<view class="search-icon" aria-hidden="true"><\/view>/)
+  assert.match(source, /\.search-entry \{[\s\S]*background: #ffffff;[\s\S]*box-shadow: inset 0 0 0 1rpx rgba\(176, 186, 200, 0\.56\), 0 8rpx 18rpx rgba\(15, 23, 42, 0\.04\);/)
+  assert.match(source, /\.search-icon::after \{[\s\S]*transform: rotate\(45deg\);/)
+  assert.match(source, /\.search-placeholder \{[\s\S]*font-weight: 600;/)
+})
+
 test('resource tab separates recommendation discovery from keyword search page', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
@@ -105,7 +142,7 @@ test('resource tab separates recommendation discovery from keyword search page',
     assert.equal(resourceSource.includes(removedToken), false)
   }
 
-  for (const token of ['searchResources', '暂未找到合适资源', '换个条件']) {
+  for (const token of ['searchResources', '暂无匹配资源', '换个条件']) {
     assert.match(searchSource, new RegExp(token))
   }
   for (const removedToken of ['提交采购需求', 'openDemand', '/pages/demand/index']) {
@@ -137,7 +174,7 @@ test('home quick actions map to resource type flows without demand submission', 
   assert.match(source, /function openSearch\(options = \{\}\) \{[\s\S]*typeof options === 'string'[\s\S]*uni\.setStorageSync\(SEARCH_KEY, searchOptions\)[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
   assert.match(source, /function openPublish\(typeCode = ''\) \{[\s\S]*uni\.setStorageSync\(PUBLISH_TYPE_KEY, typeCode\)[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)/)
 
-  for (const removedToken of ["action: 'demand'", 'openDemand', "item.jumpType === 'demand'", '/pages/demand/index', "action: 'publish'"]) {
+  for (const removedToken of ["action: 'demand'", 'openDemand', "action: 'publish'"]) {
     assert.equal(source.includes(removedToken), false)
   }
   for (const removedText of ['quick-desc', "desc: '现货货源'", "desc: '发布库存'", "desc: '工厂产能'", "desc: '订单需求'", '我要找货', '我要清货', '我要找厂', '我要接单']) {

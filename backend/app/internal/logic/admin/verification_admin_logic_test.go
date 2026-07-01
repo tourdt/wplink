@@ -57,10 +57,66 @@ func TestReviewVerificationApprovesAndPassesReviewer(t *testing.T) {
 	}
 }
 
+func TestReviewVerificationQueuesPaymentWhenBillingRequiresOnlinePayment(t *testing.T) {
+	store := &fakeVerificationAdminStore{
+		billingConfig: model.VerificationBillingConfig{
+			ChargeEnabled: true,
+			FeeAmount:     29900,
+			Currency:      "CNY",
+		},
+		reviewResult: model.ReviewVerificationResult{ID: "verification-1", Status: model.VerificationStatusPaymentPending},
+	}
+	logic := NewVerificationAdminLogic(store)
+
+	resp, err := logic.ReviewVerification(context.Background(), ReviewVerificationReq{
+		VerificationID: "verification-1", ReviewerID: "admin-1", Action: "approve",
+	})
+	if err != nil {
+		t.Fatalf("ReviewVerification() error = %v", err)
+	}
+
+	if !store.reviewInput.RequirePayment {
+		t.Fatalf("RequirePayment = false, want true when billing is enabled outside free window")
+	}
+	if resp.Status != model.VerificationStatusPaymentPending {
+		t.Fatalf("status = %q, want payment pending", resp.Status)
+	}
+}
+
+func TestReviewVerificationApprovesDirectlyDuringFreeWindow(t *testing.T) {
+	store := &fakeVerificationAdminStore{
+		billingConfig: model.VerificationBillingConfig{
+			ChargeEnabled: true,
+			FeeAmount:     29900,
+			Currency:      "CNY",
+			FreeEnabled:   true,
+			FreeStartAt:   "2026-06-01T00:00:00+08:00",
+			FreeEndAt:     "2099-12-31T23:59:59+08:00",
+		},
+		reviewResult: model.ReviewVerificationResult{ID: "verification-1", Status: model.VerificationStatusVerified},
+	}
+	logic := NewVerificationAdminLogic(store)
+
+	resp, err := logic.ReviewVerification(context.Background(), ReviewVerificationReq{
+		VerificationID: "verification-1", ReviewerID: "admin-1", Action: "approve",
+	})
+	if err != nil {
+		t.Fatalf("ReviewVerification() error = %v", err)
+	}
+
+	if store.reviewInput.RequirePayment {
+		t.Fatalf("RequirePayment = true, want false during free window")
+	}
+	if resp.Status != model.VerificationStatusVerified {
+		t.Fatalf("status = %q, want verified", resp.Status)
+	}
+}
+
 type fakeVerificationAdminStore struct {
-	pending      model.ListPendingVerificationsResult
-	reviewInput  model.ReviewVerificationInput
-	reviewResult model.ReviewVerificationResult
+	pending       model.ListPendingVerificationsResult
+	billingConfig model.VerificationBillingConfig
+	reviewInput   model.ReviewVerificationInput
+	reviewResult  model.ReviewVerificationResult
 }
 
 func (s *fakeVerificationAdminStore) ListPendingVerifications(ctx context.Context, filter model.PendingVerificationsFilter) (model.ListPendingVerificationsResult, error) {
@@ -70,4 +126,8 @@ func (s *fakeVerificationAdminStore) ListPendingVerifications(ctx context.Contex
 func (s *fakeVerificationAdminStore) ReviewVerification(ctx context.Context, input model.ReviewVerificationInput) (model.ReviewVerificationResult, error) {
 	s.reviewInput = input
 	return s.reviewResult, nil
+}
+
+func (s *fakeVerificationAdminStore) GetVerificationBillingConfigForVerification(ctx context.Context, verificationID string) (model.VerificationBillingConfig, error) {
+	return s.billingConfig, nil
 }

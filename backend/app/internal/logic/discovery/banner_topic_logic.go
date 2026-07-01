@@ -21,6 +21,10 @@ type ListHomeBannersReq struct {
 	CityCode string
 }
 
+type ListHomeRecommendCardsReq struct {
+	CityCode string
+}
+
 type TopicResourcesReq struct {
 	TopicID  string
 	CityCode string
@@ -44,6 +48,19 @@ type DiscoveryBannerItem struct {
 
 type ListHomeBannersResp struct {
 	Items []DiscoveryBannerItem `json:"items"`
+}
+
+type HomeRecommendCardItem struct {
+	ID         string `json:"id"`
+	Tag        string `json:"tag,omitempty"`
+	Title      string `json:"title"`
+	Subtitle   string `json:"subtitle,omitempty"`
+	JumpType   string `json:"jumpType"`
+	JumpTarget string `json:"jumpTarget"`
+}
+
+type ListHomeRecommendCardsResp struct {
+	Items []HomeRecommendCardItem `json:"items"`
 }
 
 type TopicInfo struct {
@@ -118,6 +135,33 @@ func (l *BannerTopicDiscoveryLogic) ListHomeBanners(ctx context.Context, req Lis
 		})
 	}
 	return ListHomeBannersResp{Items: items}, nil
+}
+
+func (l *BannerTopicDiscoveryLogic) ListHomeRecommendCards(ctx context.Context, req ListHomeRecommendCardsReq) (ListHomeRecommendCardsResp, error) {
+	configs, err := l.store.ListActiveBannerTopics(ctx, model.BannerTopicFilter{
+		CityCode: strings.TrimSpace(req.CityCode),
+		Kind:     "home_recommend_card",
+		Status:   "active",
+	})
+	if err != nil {
+		return ListHomeRecommendCardsResp{}, err
+	}
+	items := make([]HomeRecommendCardItem, 0, len(configs))
+	for _, config := range configs {
+		tag := ""
+		if len(config.Tags) > 0 {
+			tag = config.Tags[0]
+		}
+		items = append(items, HomeRecommendCardItem{
+			ID:         config.ID,
+			Tag:        tag,
+			Title:      config.Title,
+			Subtitle:   config.Subtitle,
+			JumpType:   config.JumpType,
+			JumpTarget: config.JumpTarget,
+		})
+	}
+	return ListHomeRecommendCardsResp{Items: items}, nil
 }
 
 func (l *BannerTopicDiscoveryLogic) GetTopicResources(ctx context.Context, req TopicResourcesReq) (TopicResourcesResp, error) {

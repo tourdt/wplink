@@ -346,6 +346,8 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "create demand", method: http.MethodPost, path: "/api/v1/purchase-demands", body: `{"userId":"user-1","cityCode":"zhili","demandType":"inventory","title":"找童装库存","category":"童装","contact":{"name":"王采购","phone":"18800000005"}}`},
 		{name: "list my demands", method: http.MethodGet, path: "/api/v1/me/purchase-demands?userId=user-1"},
 		{name: "home banners", method: http.MethodGet, path: "/api/v1/home/banners?cityCode=zhili"},
+		{name: "home recommend cards", method: http.MethodGet, path: "/api/v1/home/recommend-cards?cityCode=zhili"},
+		{name: "hot search keywords", method: http.MethodGet, path: "/api/v1/search/hot-keywords?cityCode=zhili"},
 		{name: "topic resources", method: http.MethodGet, path: "/api/v1/topics/topic-1/resources?cityCode=zhili"},
 		{name: "validate webview", method: http.MethodPost, path: "/api/v1/webview/validate", body: `{"url":"https://www.wplink.cn/activity"}`},
 		{name: "submit verification", method: http.MethodPost, path: "/api/v1/merchants/merchant-1/verifications", body: `{"applicantUserId":"user-1","verificationType":"stockist","businessName":"织里云仓"}`},
@@ -365,6 +367,9 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "list admin banners", method: http.MethodGet, path: "/api/v1/admin/banner-topics?cityCode=zhili"},
 		{name: "create admin banner", method: http.MethodPost, path: "/api/v1/admin/banner-topics", body: `{"cityCode":"zhili","kind":"banner","title":"现货活动","jumpType":"demand","jumpTarget":"/pages/demand/index","status":"active"}`},
 		{name: "update admin banner", method: http.MethodPost, path: "/api/v1/admin/banner-topics/banner-1", body: `{"cityCode":"zhili","kind":"banner","title":"现货活动","jumpType":"demand","jumpTarget":"/pages/demand/index","status":"active"}`},
+		{name: "list admin hot keywords", method: http.MethodGet, path: "/api/v1/admin/hot-search-keywords?cityCode=zhili"},
+		{name: "create admin hot keyword", method: http.MethodPost, path: "/api/v1/admin/hot-search-keywords", body: `{"cityCode":"zhili","keyword":"夏款现货","status":"active","sortOrder":20}`},
+		{name: "update admin hot keyword", method: http.MethodPost, path: "/api/v1/admin/hot-search-keywords/keyword-1", body: `{"cityCode":"zhili","keyword":"夏款现货","status":"active","sortOrder":20}`},
 		{name: "list resource configs", method: http.MethodGet, path: "/api/v1/admin/resource-type-configs?cityCode=zhili"},
 		{name: "update resource config", method: http.MethodPost, path: "/api/v1/admin/resource-type-configs/config-1", body: `{"fieldSchema":{},"requiredFields":["title"],"filterFields":["category"],"displayTemplate":{},"reviewRules":{},"sortWeights":{},"messageRules":{},"defaultValidDays":7,"status":"active"}`},
 		{name: "list pending verifications", method: http.MethodGet, path: "/api/v1/admin/verifications/pending"},
@@ -499,6 +504,22 @@ func (s *fakeFullAPIStore) UpdateBannerTopic(ctx context.Context, configID strin
 	return model.SaveBannerTopicResult{ID: configID, UpdatedAt: "2026-06-28T10:00:00Z"}, nil
 }
 
+func (s *fakeFullAPIStore) ListHotSearchKeywords(ctx context.Context, filter model.HotSearchKeywordFilter) ([]model.HotSearchKeywordConfig, error) {
+	return []model.HotSearchKeywordConfig{{ID: "keyword-1", CityCode: "zhili", Keyword: "夏款现货", Status: "active", UpdatedAt: "2026-06-28T10:00:00Z"}}, nil
+}
+
+func (s *fakeFullAPIStore) ListActiveHotSearchKeywords(ctx context.Context, cityCode string) ([]model.HotSearchKeywordConfig, error) {
+	return s.ListHotSearchKeywords(ctx, model.HotSearchKeywordFilter{CityCode: cityCode, Status: "active"})
+}
+
+func (s *fakeFullAPIStore) CreateHotSearchKeyword(ctx context.Context, input model.SaveHotSearchKeywordInput) (model.SaveHotSearchKeywordResult, error) {
+	return model.SaveHotSearchKeywordResult{ID: "keyword-1", UpdatedAt: "2026-06-28T10:00:00Z"}, nil
+}
+
+func (s *fakeFullAPIStore) UpdateHotSearchKeyword(ctx context.Context, configID string, input model.SaveHotSearchKeywordInput) (model.SaveHotSearchKeywordResult, error) {
+	return model.SaveHotSearchKeywordResult{ID: configID, UpdatedAt: "2026-06-28T10:00:00Z"}, nil
+}
+
 func (s *fakeFullAPIStore) SubmitVerification(ctx context.Context, input model.SubmitVerificationInput) (model.VerificationResult, error) {
 	s.submitVerificationInput = input
 	return model.VerificationResult{ID: "verification-1", Status: "pending"}, nil
@@ -510,6 +531,10 @@ func (s *fakeFullAPIStore) GetLatestVerification(ctx context.Context, merchantID
 
 func (s *fakeFullAPIStore) ListPendingVerifications(ctx context.Context, filter model.PendingVerificationsFilter) (model.ListPendingVerificationsResult, error) {
 	return model.ListPendingVerificationsResult{Items: []model.PendingVerificationItem{{ID: "verification-1", MerchantID: "merchant-1", MerchantName: "织里云仓", VerificationType: "stockist", Status: "pending", SubmittedAt: "2026-06-28T10:00:00Z"}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
+}
+
+func (s *fakeFullAPIStore) GetVerificationBillingConfigForVerification(ctx context.Context, verificationID string) (model.VerificationBillingConfig, error) {
+	return model.VerificationBillingConfig{}, nil
 }
 
 func (s *fakeFullAPIStore) ReviewVerification(ctx context.Context, input model.ReviewVerificationInput) (model.ReviewVerificationResult, error) {

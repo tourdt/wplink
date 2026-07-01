@@ -12,6 +12,7 @@ import OperationLogView from '../views/OperationLogView.vue'
 import SearchLogView from '../views/SearchLogView.vue'
 import ResourceTypeConfigView from '../views/ResourceTypeConfigView.vue'
 import BannerTopicView from '../views/BannerTopicView.vue'
+import HotSearchKeywordView from '../views/HotSearchKeywordView.vue'
 
 const routes = [
   {
@@ -32,6 +33,7 @@ const routes = [
       { path: 'verifications', name: 'verifications', component: VerificationView },
       { path: 'entitlements', name: 'entitlements', component: EntitlementView },
       { path: 'banner-topics', name: 'bannerTopics', component: BannerTopicView },
+      { path: 'hot-search-keywords', name: 'hotSearchKeywords', component: HotSearchKeywordView },
       { path: 'resource-type-configs', name: 'resourceTypeConfigs', component: ResourceTypeConfigView },
       { path: 'operation-logs', name: 'operationLogs', component: OperationLogView },
       { path: 'search-logs', name: 'searchLogs', component: SearchLogView },

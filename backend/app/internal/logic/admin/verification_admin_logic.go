@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"strings"
+	"time"
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
@@ -11,6 +12,10 @@ import (
 type VerificationAdminStore interface {
 	ListPendingVerifications(ctx context.Context, filter model.PendingVerificationsFilter) (model.ListPendingVerificationsResult, error)
 	ReviewVerification(ctx context.Context, input model.ReviewVerificationInput) (model.ReviewVerificationResult, error)
+}
+
+type VerificationBillingForReviewStore interface {
+	GetVerificationBillingConfigForVerification(ctx context.Context, verificationID string) (model.VerificationBillingConfig, error)
 }
 
 type ListPendingVerificationsReq struct {
@@ -85,6 +90,16 @@ func (l *VerificationAdminLogic) ReviewVerification(ctx context.Context, req Rev
 	}
 	if (input.Action == "reject" || input.Action == "revoke") && input.ReviewNote == "" {
 		return ReviewVerificationResp{}, errx.New(errx.CodeValidationFailed, "请填写处理原因")
+	}
+	if input.Action == "approve" {
+		if billingStore, ok := l.store.(VerificationBillingForReviewStore); ok {
+			billingConfig, err := billingStore.GetVerificationBillingConfigForVerification(ctx, input.VerificationID)
+			if err != nil {
+				return ReviewVerificationResp{}, err
+			}
+			// 开启认证收费且当前不处于限免窗口时，审核通过仅代表资料合格，认证需等线上支付成功后生效。
+			input.RequirePayment = billingConfig.RequiresOnlinePayment(time.Now())
+		}
 	}
 	result, err := l.store.ReviewVerification(ctx, input)
 	if err != nil {

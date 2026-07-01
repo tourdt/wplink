@@ -64,6 +64,12 @@ type SaveBannerTopicResp struct {
 	UpdatedAt string `json:"updatedAt"`
 }
 
+const (
+	BannerTopicKindBanner            = "banner"
+	BannerTopicKindTopic             = "topic"
+	BannerTopicKindHomeRecommendCard = "home_recommend_card"
+)
+
 type BannerTopicAdminLogic struct {
 	store BannerTopicAdminStore
 }
@@ -129,9 +135,9 @@ func normalizeBannerTopicInput(req SaveBannerTopicReq) (model.SaveBannerTopicInp
 		Status:     strings.TrimSpace(req.Status),
 	}
 	if input.Kind == "" {
-		input.Kind = "banner"
+		input.Kind = BannerTopicKindBanner
 	}
-	if input.Kind != "banner" && input.Kind != "topic" {
+	if input.Kind != BannerTopicKindBanner && input.Kind != BannerTopicKindTopic && input.Kind != BannerTopicKindHomeRecommendCard {
 		return model.SaveBannerTopicInput{}, errx.New(errx.CodeValidationFailed, "配置类型不正确")
 	}
 	if input.Title == "" {
@@ -139,6 +145,9 @@ func normalizeBannerTopicInput(req SaveBannerTopicReq) (model.SaveBannerTopicInp
 	}
 	if input.JumpType != "topic" && input.JumpType != "resource" && input.JumpType != "merchant" && input.JumpType != "demand" && input.JumpType != "internal" && input.JumpType != "webview" {
 		return model.SaveBannerTopicInput{}, errx.New(errx.CodeValidationFailed, "跳转类型不正确")
+	}
+	if input.Kind == BannerTopicKindHomeRecommendCard && input.JumpType == "topic" && input.JumpTarget == "" {
+		return model.SaveBannerTopicInput{}, errx.New(errx.CodeValidationFailed, "请选择专题")
 	}
 	if input.JumpType != "topic" && input.JumpTarget == "" {
 		return model.SaveBannerTopicInput{}, errx.New(errx.CodeValidationFailed, "请填写跳转目标")

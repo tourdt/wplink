@@ -33,7 +33,9 @@ export default function request(options) {
         reject(new Error(message))
       },
       fail: (err) => {
-        uni.showToast({ title: '网络异常，请稍后重试', icon: 'none' })
+        if (!options.suppressErrorToast) {
+          uni.showToast({ title: '网络异常，请稍后重试', icon: 'none' })
+        }
         reject(err)
       },
     })

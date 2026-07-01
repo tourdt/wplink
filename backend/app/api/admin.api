@@ -99,6 +99,29 @@ type AdminReviewVerificationResp {
 	Message string `json:"message"`
 }
 
+type AdminVerificationBillingConfigReq {
+	CityCode      string `json:"cityCode,optional"`
+	ChargeEnabled bool   `json:"chargeEnabled"`
+	FeeAmount     int64  `json:"feeAmount"`
+	Currency      string `json:"currency,optional"`
+	FreeEnabled   bool   `json:"freeEnabled,optional"`
+	FreeStartAt   string `json:"freeStartAt,optional"`
+	FreeEndAt     string `json:"freeEndAt,optional"`
+	Notice        string `json:"notice,optional"`
+}
+
+type AdminVerificationBillingConfigResp {
+	CityCode      string `json:"cityCode"`
+	ChargeEnabled bool   `json:"chargeEnabled"`
+	FeeAmount     int64  `json:"feeAmount"`
+	Currency      string `json:"currency"`
+	FreeEnabled   bool   `json:"freeEnabled"`
+	FreeStartAt   string `json:"freeStartAt,optional"`
+	FreeEndAt     string `json:"freeEndAt,optional"`
+	Notice        string `json:"notice,optional"`
+	UpdatedAt     string `json:"updatedAt,optional"`
+}
+
 type AdminGrantEntitlementReq {
 	EntitlementType string `json:"entitlementType"`
 	SourceType      string `json:"sourceType"`
@@ -377,6 +400,40 @@ type AdminSaveBannerTopicResp {
 	UpdatedAt string `json:"updatedAt"`
 }
 
+type AdminHotSearchKeywordItem {
+	Id        string `json:"id"`
+	CityCode  string `json:"cityCode,optional"`
+	Keyword   string `json:"keyword"`
+	SortOrder int64  `json:"sortOrder"`
+	Status    string `json:"status"`
+	StartAt   string `json:"startAt,optional"`
+	EndAt     string `json:"endAt,optional"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+type AdminListHotSearchKeywordsReq {
+	CityCode string `form:"cityCode,optional"`
+	Status   string `form:"status,optional"`
+}
+
+type AdminListHotSearchKeywordsResp {
+	Items []AdminHotSearchKeywordItem `json:"items"`
+}
+
+type AdminSaveHotSearchKeywordReq {
+	CityCode  string `json:"cityCode,optional"`
+	Keyword   string `json:"keyword"`
+	SortOrder int64  `json:"sortOrder,optional"`
+	Status    string `json:"status,optional"`
+	StartAt   string `json:"startAt,optional"`
+	EndAt     string `json:"endAt,optional"`
+}
+
+type AdminSaveHotSearchKeywordResp {
+	Id        string `json:"id"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
 type AdminUpdateResourceTypeConfigReq {
 	FieldSchema      map[string]interface{} `json:"fieldSchema,optional"`
 	RequiredFields   []string               `json:"requiredFields,optional"`
@@ -434,6 +491,12 @@ service wplink-api {
 
 	@handler AdminReviewVerification
 	post /verifications/:verificationId/review (AdminReviewVerificationReq) returns (AdminReviewVerificationResp)
+
+	@handler AdminGetVerificationBillingConfig
+	get /verification-billing returns (AdminVerificationBillingConfigResp)
+
+	@handler AdminUpdateVerificationBillingConfig
+	post /verification-billing (AdminVerificationBillingConfigReq) returns (AdminVerificationBillingConfigResp)
 }
 
 @server(
@@ -518,6 +581,21 @@ service wplink-api {
 
 	@handler AdminUpdateBannerTopic
 	post /banner-topics/:configId (AdminSaveBannerTopicReq) returns (AdminSaveBannerTopicResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminhotsearchkeyword
+)
+service wplink-api {
+	@handler AdminListHotSearchKeywords
+	get /hot-search-keywords (AdminListHotSearchKeywordsReq) returns (AdminListHotSearchKeywordsResp)
+
+	@handler AdminCreateHotSearchKeyword
+	post /hot-search-keywords (AdminSaveHotSearchKeywordReq) returns (AdminSaveHotSearchKeywordResp)
+
+	@handler AdminUpdateHotSearchKeyword
+	post /hot-search-keywords/:configId (AdminSaveHotSearchKeywordReq) returns (AdminSaveHotSearchKeywordResp)
 }
 
 @server(

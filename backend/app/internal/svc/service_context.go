@@ -3,11 +3,13 @@ package svc
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"wplink/backend/app/internal/config"
 	"wplink/backend/app/internal/logic/adminauth"
 	authlogic "wplink/backend/app/internal/logic/auth"
 	citylogic "wplink/backend/app/internal/logic/city"
+	paymentlogic "wplink/backend/app/internal/logic/payment"
 	uploadlogic "wplink/backend/app/internal/logic/upload"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
@@ -31,6 +33,7 @@ type APIStore struct {
 	*model.ResourceModel
 	*model.DemandModel
 	*model.BannerTopicModel
+	*model.HotSearchKeywordModel
 	*model.VerificationModel
 	*model.MerchantEntitlementModel
 	*model.MessageModel
@@ -53,12 +56,17 @@ type ServiceContext struct {
 	UserTokenService    *session.HMACUserTokenService
 	WechatSessionClient authlogic.WechatSessionClient
 	SMSVerifier         authlogic.SMSVerifier
+	WechatPayGateway    paymentlogic.WechatPayGateway
 }
 
 func NewServiceContext(c config.Config, db *sql.DB) *ServiceContext {
 	adminTokenService := session.NewHMACAdminTokenIssuer(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL)
 	adminTokenIssuer := adminauth.NewSessionTokenIssuer(adminTokenService)
 	apiStore := newAPIStore(db)
+	wechatPayGateway, err := paymentlogic.NewHTTPWechatPayGateway(c.WechatPay)
+	if err != nil {
+		panic(fmt.Sprintf("初始化微信支付失败: %v", err))
+	}
 	return &ServiceContext{
 		Config:              c,
 		DB:                  db,
@@ -70,6 +78,7 @@ func NewServiceContext(c config.Config, db *sql.DB) *ServiceContext {
 		UserTokenService:    session.NewHMACUserTokenService(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL),
 		WechatSessionClient: authlogic.NewWechatSessionClient(c.Wechat, "", nil),
 		SMSVerifier:         authlogic.NewConfiguredSMSVerifier(c.SMS),
+		WechatPayGateway:    wechatPayGateway,
 	}
 }
 
@@ -83,6 +92,7 @@ func newAPIStore(db *sql.DB) *APIStore {
 		ResourceModel:             model.NewResourceModel(db),
 		DemandModel:               model.NewDemandModel(db),
 		BannerTopicModel:          model.NewBannerTopicModel(db),
+		HotSearchKeywordModel:     model.NewHotSearchKeywordModel(db),
 		VerificationModel:         model.NewVerificationModel(db),
 		MerchantEntitlementModel:  model.NewMerchantEntitlementModel(db),
 		MessageModel:              model.NewMessageModel(db),

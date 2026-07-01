@@ -55,6 +55,7 @@ type ReviewVerificationInput struct {
 	ReviewerID     string
 	Action         string
 	ReviewNote     string
+	RequirePayment bool
 }
 
 type ReviewVerificationResult struct {
@@ -103,6 +104,25 @@ LIMIT 1
 		result.ReviewedAt = reviewedAt.Time.Format(time.RFC3339)
 	}
 	return result, err
+}
+
+func (m *VerificationModel) GetVerificationBillingConfigForVerification(ctx context.Context, verificationID string) (VerificationBillingConfig, error) {
+	var cityCode string
+	var config JSONMap
+	err := m.db.QueryRowContext(ctx, `
+SELECT
+  cs.code,
+  COALESCE(cs.config->'verificationBilling', '{}'::jsonb)
+FROM verifications v
+JOIN merchants m ON m.id = v.merchant_id
+JOIN city_stations cs ON cs.id = m.city_station_id
+WHERE v.id = $1
+LIMIT 1
+`, verificationID).Scan(&cityCode, &config)
+	if err != nil {
+		return VerificationBillingConfig{}, err
+	}
+	return VerificationBillingConfigFromJSON(cityCode, config), nil
 }
 
 func (m *VerificationModel) ListPendingVerifications(ctx context.Context, filter PendingVerificationsFilter) (ListPendingVerificationsResult, error) {
@@ -154,11 +174,15 @@ func (m *VerificationModel) ReviewVerification(ctx context.Context, input Review
 		var nextStatus string
 		switch input.Action {
 		case "approve":
-			nextStatus = "verified"
+			if input.RequirePayment {
+				nextStatus = VerificationStatusPaymentPending
+			} else {
+				nextStatus = VerificationStatusVerified
+			}
 		case "reject":
-			nextStatus = "rejected"
+			nextStatus = VerificationStatusRejected
 		case "revoke":
-			nextStatus = "revoked"
+			nextStatus = VerificationStatusRevoked
 		}
 
 		err := tx.QueryRowContext(ctx, `
@@ -171,7 +195,7 @@ RETURNING id::text, merchant_id::text, resource_id::text, verification_type, sta
 			return err
 		}
 
-		if input.Action == "approve" {
+		if input.Action == "approve" && !input.RequirePayment {
 			if _, err := tx.ExecContext(ctx, `UPDATE merchants SET verification_status = 'verified', updated_at = now() WHERE id = $1`, merchantID); err != nil {
 				return err
 			}
@@ -194,6 +218,10 @@ RETURNING id::text, merchant_id::text, resource_id::text, verification_type, sta
 		}
 		messageTitle := "认证审核通过"
 		messageContent := verificationLabel(verificationType) + " 已通过"
+		if input.Action == "approve" && input.RequirePayment {
+			messageTitle = "认证资料审核通过"
+			messageContent = verificationLabel(verificationType) + " 资料已通过，请完成认证费支付后生效"
+		}
 		if input.Action == "reject" {
 			messageTitle = "认证审核驳回"
 			messageContent = verificationLabel(verificationType) + " 未通过，请修改资料后重新提交"
@@ -233,7 +261,7 @@ func verificationMessageTargetURL(merchantID string) string {
 func grantVerificationBenefits(ctx context.Context, tx *sql.Tx, merchantID string, resourceID sql.NullString, verificationType string, reviewerID string) error {
 	if _, err := tx.ExecContext(ctx, `
 INSERT INTO credit_records (merchant_id, resource_id, source_type, tag_code, tag_label, description, visibility, created_by)
-VALUES ($1, NULLIF($2, '')::bigint, 'verification', $3, $4, '认证审核通过后自动生成', 'public', $5)
+VALUES ($1, NULLIF($2, '')::bigint, 'verification', $3, $4, '认证审核通过后自动生成', 'public', NULLIF($5, '')::bigint)
 `, merchantID, nullStringValue(resourceID), verificationType+"_verified", verificationLabel(verificationType), reviewerID); err != nil {
 		return err
 	}

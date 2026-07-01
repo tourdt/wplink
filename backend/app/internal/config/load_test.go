@@ -36,6 +36,17 @@ SMS:
   DailySendLimit: 8
   AccessKeySecret: "sms-secret"
 
+WechatPay:
+  Enabled: true
+  MchID: "1900000001"
+  AppID: "wx-pay-app"
+  APIv3Key: "${WECHAT_PAY_API_V3_KEY}"
+  MerchantSerialNo: "serial-no"
+  MerchantPrivateKeyPath: "/secure/apiclient_key.pem"
+  PlatformPublicKeyPath: "/secure/wechatpay_pub.pem"
+  NotifyURL: "https://api.example.com/api/v1/wechat-pay/verification/notify"
+  RequestTimeout: 10s
+
 Tasks:
   ResourceLifecycleInterval: 1h
 
@@ -75,6 +86,9 @@ Storage:
 	}
 	if cfg.SMS.Provider != "http" || cfg.SMS.SendMinInterval != 45*time.Second || cfg.SMS.DailySendLimit != 8 {
 		t.Fatalf("sms = %#v, want http rate limit config", cfg.SMS)
+	}
+	if !cfg.WechatPay.Enabled || cfg.WechatPay.MchID != "1900000001" || cfg.WechatPay.RequestTimeout != 10*time.Second {
+		t.Fatalf("wechat pay = %#v, want enabled merchant config", cfg.WechatPay)
 	}
 	if cfg.Tasks.ResourceLifecycleInterval != time.Hour {
 		t.Fatalf("tasks = %#v, want resource lifecycle interval", cfg.Tasks)

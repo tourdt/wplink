@@ -1,7 +1,7 @@
 <template>
   <section>
     <div class="page-title">
-      <h2>Banner 配置</h2>
+      <h2>首页运营位</h2>
       <el-button type="primary" @click="openCreate">新增配置</el-button>
     </div>
 
@@ -10,6 +10,11 @@
         <el-form-item label="城市站">
           <el-select v-model="filters.cityCode" style="width: 140px">
             <el-option label="织里" value="zhili" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="运营位">
+          <el-select v-model="filters.kind" style="width: 160px">
+            <el-option v-for="item in kindOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -29,7 +34,10 @@
         <span>{{ errorText }}</span>
         <el-button type="danger" plain @click="loadRows">重试</el-button>
       </div>
-      <el-table v-loading="loading" :data="rows" stripe empty-text="暂无 Banner 配置">
+      <el-table v-loading="loading" :data="rows" stripe empty-text="暂无首页运营位配置">
+        <el-table-column label="运营位" width="130">
+          <template #default="{ row }">{{ kindText[row.kind] || row.kind }}</template>
+        </el-table-column>
         <el-table-column prop="title" label="标题" min-width="180" />
         <el-table-column label="资源范围" width="180">
           <template #default="{ row }">{{ row.typeScope?.join('、') || '-' }}</template>
@@ -59,13 +67,18 @@
             <el-option label="织里" value="zhili" />
           </el-select>
         </el-form-item>
+        <el-form-item label="运营位">
+          <el-select v-model="form.kind" @change="handleFormKindChange">
+            <el-option v-for="item in kindOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="标题">
           <el-input v-model="form.title" />
         </el-form-item>
         <el-form-item label="副标题">
           <el-input v-model="form.subtitle" />
         </el-form-item>
-        <el-form-item label="封面">
+        <el-form-item v-if="isBannerKind" label="封面">
           <div class="cover-upload-field">
             <el-upload
               class="cover-uploader"
@@ -86,7 +99,7 @@
             </div>
           </div>
         </el-form-item>
-        <el-form-item label="资源类型范围">
+        <el-form-item v-if="isBannerKind" label="资源类型范围">
           <el-select v-model="form.typeScope" multiple>
             <el-option label="库存" value="inventory" />
             <el-option label="货源" value="goods" />
@@ -96,7 +109,7 @@
         </el-form-item>
         <el-form-item label="跳转类型">
           <el-select v-model="form.jumpType" @change="handleJumpTypeChange">
-            <el-option v-for="item in jumpTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+            <el-option v-for="item in visibleJumpTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="跳转目标">
@@ -152,8 +165,9 @@
             show-icon
           />
         </el-form-item>
-        <el-form-item label="标签">
+        <el-form-item :label="form.kind === 'home_recommend_card' ? '角标' : '标签'">
           <el-select v-model="form.tags" multiple filterable allow-create>
+            <el-option label="平台推荐" value="平台推荐" />
             <el-option label="首页推荐" value="首页推荐" />
             <el-option label="童装" value="童装" />
             <el-option label="库存" value="库存" />
@@ -185,7 +199,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createBannerTopic, listBannerTopics, updateBannerTopic } from '../api/bannerTopic'
 import { listMerchants } from '../api/merchant'
@@ -193,8 +207,13 @@ import { listResources } from '../api/resource'
 import { uploadBannerImage } from '../api/upload'
 
 const jumpTypeText = { topic: '专题落地页', resource: '资源', merchant: '商家', demand: '需求', internal: '内部页', webview: '网页' }
+const kindText = { banner: '首页 Banner', home_recommend_card: '首页推荐卡' }
 const statusText = { draft: '草稿', active: '启用', disabled: '停用' }
 const statusTagType = { draft: 'info', active: 'success', disabled: 'warning' }
+const kindOptions = [
+  { label: '首页 Banner', value: 'banner' },
+  { label: '首页推荐卡', value: 'home_recommend_card' },
+]
 const jumpTypeOptions = [
   { label: '专题落地页', value: 'topic' },
   { label: '资源详情', value: 'resource' },
@@ -228,6 +247,12 @@ const uploadingCover = ref(false)
 const drawerVisible = ref(false)
 const editingId = ref('')
 const form = reactive(defaultForm())
+const isBannerKind = computed(() => form.kind === 'banner')
+const visibleJumpTypeOptions = computed(() => (
+  form.kind === 'home_recommend_card'
+    ? jumpTypeOptions.filter((item) => item.value !== 'topic')
+    : jumpTypeOptions
+))
 
 onMounted(() => {
   loadRows()
@@ -256,10 +281,10 @@ async function loadRows() {
   loading.value = true
   errorText.value = ''
   try {
-    const resp = await listBannerTopics({ ...filters, kind: 'banner' })
+    const resp = await listBannerTopics({ ...filters })
     rows.value = resp.items || []
   } catch {
-    errorText.value = 'Banner 配置加载失败，请重试'
+    errorText.value = '首页运营位配置加载失败，请重试'
   } finally {
     loading.value = false
   }
@@ -293,8 +318,9 @@ async function searchMerchantTargets(query = '') {
   }
 }
 
-function resetForm(data = defaultForm()) {
-  Object.assign(form, defaultForm(), data, { kind: 'banner' })
+function resetForm(data = {}) {
+  Object.assign(form, defaultForm(), data, { kind: data.kind || filters.kind })
+  applyKindDefaults()
   applyJumpTargetDefault()
 }
 
@@ -317,6 +343,25 @@ function applyJumpTargetDefault() {
   if (form.jumpType === 'demand') {
     form.jumpTarget = '/pages/demand/index'
   }
+}
+
+function applyKindDefaults() {
+  if (form.kind === 'home_recommend_card') {
+    form.coverUrl = ''
+    form.typeScope = []
+    if (form.jumpType === 'topic') {
+      form.jumpType = 'internal'
+      form.jumpTarget = '/pages/search/index'
+    }
+    if (!form.tags.length) {
+      form.tags = ['平台推荐']
+    }
+  }
+}
+
+function handleFormKindChange() {
+  applyKindDefaults()
+  applyJumpTargetDefault()
 }
 
 function handleJumpTypeChange(value) {
@@ -359,12 +404,19 @@ function merchantTypeText(type) {
 }
 
 function buildSubmitPayload() {
-  const payload = { ...form, kind: 'banner' }
+  const payload = { ...form }
   if (payload.jumpType === 'topic') {
     payload.jumpTarget = ''
   }
   if (payload.jumpType === 'demand') {
     payload.jumpTarget = '/pages/demand/index'
+  }
+  if (payload.kind === 'home_recommend_card') {
+    payload.coverUrl = ''
+    payload.typeScope = []
+    if (!payload.tags.length) {
+      payload.tags = ['平台推荐']
+    }
   }
   return payload
 }
@@ -385,7 +437,7 @@ async function uploadCover(options) {
 
 async function submit() {
   try {
-    await ElMessageBox.confirm('确认保存当前 Banner 配置吗？', '确认保存配置', {
+    await ElMessageBox.confirm('确认保存当前首页运营位配置吗？', '确认保存配置', {
       type: 'warning',
       confirmButtonText: '确认保存',
       cancelButtonText: '取消',
