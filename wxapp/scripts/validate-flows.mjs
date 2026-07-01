@@ -180,7 +180,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/merchant/detail.vue',
     description: '商家主页认证和发布记录',
-    checks: ['getMerchant', 'listResources', 'ResourceList', 'merchantResources', 'loadMerchantResources', 'hasMoreMerchantResources', 'onReachBottom', 'openResource', 'verificationStatus', 'resourcesSummary', 'heatScore', '商家热度', 'merchantLogo', 'merchantImages', 'merchantLocation', 'openMerchantLocation', 'uni.openLocation', '地图导航', 'merchant-hero-card', 'merchant-gallery', 'merchant-image', 'previewMerchantImage', 'uni.previewImage', 'trust-note-section', '从资源详情进入可查看完整联系方式', 'getMerchantFollowState', 'setMerchantFollow', 'toggleFollow', 'isOwnMerchant', 'openMerchantEditor', '编辑', '/pages/merchant/profile?merchantId='],
+    checks: ['getMerchant', 'listResources', 'ResourceList', 'merchantResources', 'loadMerchantResources', 'hasMoreMerchantResources', 'onReachBottom', 'openResource', 'verificationStatus', 'resourcesSummary', 'heatScore', '热度', 'merchantLogo', 'merchantImages', 'merchantLocation', 'openMerchantLocation', 'uni.openLocation', '导航', 'merchant-hero-card', 'merchant-gallery', 'merchant-image', 'previewMerchantImage', 'uni.previewImage', 'trust-note-section', '电话和微信见资源详情', 'getMerchantFollowState', 'setMerchantFollow', 'toggleFollow', 'isOwnMerchant', 'openMerchantEditor', '编辑', '/pages/merchant/profile?merchantId='],
   },
   {
     file: 'api/favorite.js',

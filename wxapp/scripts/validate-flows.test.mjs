@@ -1049,8 +1049,8 @@ test('merchant detail page exposes map navigation when location exists', () => {
     'hasMerchantLocation',
     'openMerchantLocation',
     'uni.openLocation',
-    '地图导航',
-    '商家地址',
+    '导航',
+    '地址',
     'addressText',
   ]) {
     assert.match(source, new RegExp(token))
@@ -1072,13 +1072,22 @@ test('merchant detail page previews merchant images from tapped image', () => {
   }
 })
 
-test('merchant detail page keeps fixed contact bar above phone safe area', () => {
+test('merchant detail page does not show misleading direct contact buttons', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
 
-  assert.match(source, /\.contact-bar \{[\s\S]*bottom: 0;[\s\S]*padding: 18rpx 24rpx calc\(18rpx \+ env\(safe-area-inset-bottom\)\);/)
-  assert.match(source, /\.contact-bar \{[\s\S]*border-top: 1rpx solid \$wplink-line;[\s\S]*background: rgba\(255, 255, 255, 0\.96\);/)
-  assert.match(source, /\.contact-spacer \{[\s\S]*height: calc\(124rpx \+ env\(safe-area-inset-bottom\)\);/)
+  for (const token of [
+    'class="contact-bar"',
+    'contact-spacer',
+    'copyWechat',
+    'callPhone',
+    '微信联系',
+    '电话联系',
+    '请到资源详情页查看电话',
+    '请到资源详情页查看微信',
+  ]) {
+    assert.equal(source.includes(token), false)
+  }
 })
 
 test('merchant detail page paginates published resources with reusable resource list', () => {
@@ -1251,12 +1260,12 @@ test('merchant detail page uses trust-first homepage layout', () => {
     'statCards',
     'heatScore',
     "' · '",
-    '商家信息',
+    '商家简介',
     'profile-chip category',
     'profile-chip.category',
-    '商家热度',
-    '主营品类待补充',
-    '从资源详情进入可查看完整联系方式',
+    '热度',
+    '主营待补充',
+    '电话和微信见资源详情',
   ]) {
     assert.match(source, new RegExp(token))
   }
@@ -1268,6 +1277,9 @@ test('merchant detail page uses trust-first homepage layout', () => {
     'profile-chip verified',
     '信用标签',
     '成交反馈',
+    'class="contact-bar"',
+    '微信联系',
+    '电话联系',
     '发布概况</text>',
     'benefit-section',
   ]) {

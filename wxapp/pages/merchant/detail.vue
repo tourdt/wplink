@@ -9,8 +9,8 @@
             <text class="merchant-name">{{ merchant.name || '商家' }}</text>
             <text class="merchant-summary">{{ merchantSubtitle }}</text>
             <view class="hero-tag-row">
-              <text class="hero-tag verified" v-if="merchant.verificationStatus === 'verified'">已认证</text>
-              <text class="hero-tag verified" v-if="creditTags.length">平台核实</text>
+              <text class="hero-tag verified" v-if="merchant.verificationStatus === 'verified'">认证</text>
+              <text class="hero-tag verified" v-if="creditTags.length">已核实</text>
             </view>
           </view>
         </view>
@@ -28,10 +28,10 @@
 
     <view class="profile-panel">
       <view class="section-head">
-        <text class="section-title">商家信息</text>
+        <text class="section-title">商家简介</text>
       </view>
       <view class="profile-chip-row">
-        <text v-if="merchantCategoryTags.length === 0" class="profile-chip muted">主营品类待补充</text>
+        <text v-if="merchantCategoryTags.length === 0" class="profile-chip muted">主营待补充</text>
         <text v-for="category in merchantCategoryTags" :key="category" class="profile-chip category">{{ category }}</text>
       </view>
       <text class="profile-description">{{ profileDescription }}</text>
@@ -39,20 +39,20 @@
 
     <view v-if="showVerificationInfo" class="section verification-info-section">
       <view class="section-head">
-        <text class="section-title">认证信息</text>
-        <text class="verification-status-pill">平台已认证</text>
+        <text class="section-title">认证</text>
+        <text class="verification-status-pill">已认证</text>
       </view>
       <view class="verification-info-list">
         <view class="verification-info-row">
-          <text class="verification-info-label">认证身份</text>
+          <text class="verification-info-label">身份</text>
           <text class="verification-info-value">{{ merchantVerificationTypeLabel }}</text>
         </view>
         <view class="verification-info-row">
-          <text class="verification-info-label">已核验</text>
+          <text class="verification-info-label">核验项</text>
           <text class="verification-info-value">{{ merchantVerificationCheckedText }}</text>
         </view>
         <view v-if="merchantVerificationReviewedDate" class="verification-info-row">
-          <text class="verification-info-label">认证时间</text>
+          <text class="verification-info-label">时间</text>
           <text class="verification-info-value">{{ merchantVerificationReviewedDate }}</text>
         </view>
       </view>
@@ -60,14 +60,14 @@
 
     <view class="section" v-if="merchant.addressText || hasMerchantLocation">
       <view class="section-head">
-        <text class="section-title">商家地址</text>
-        <button v-if="hasMerchantLocation" class="address-action" @click="openMerchantLocation">地图导航</button>
+        <text class="section-title">地址</text>
+        <button v-if="hasMerchantLocation" class="address-action" @click="openMerchantLocation">导航</button>
       </view>
       <text class="section-content">{{ merchant.addressText || merchantLocation.address || merchantLocation.name }}</text>
     </view>
 
     <view class="section media-section" v-if="merchantImages.length">
-      <text class="section-title">商家图片</text>
+      <text class="section-title">实拍图片</text>
       <scroll-view class="merchant-gallery" scroll-x>
         <image
           v-for="url in merchantImages"
@@ -81,14 +81,14 @@
     </view>
 
     <view class="section trust-note-section">
-      <text class="section-title">联系提示</text>
-      <text class="section-content">认证商家、运营推荐和置顶权益会影响资源曝光，但不会替代平台审核和买家自行确认。</text>
-      <text class="section-tip">从资源详情进入可查看完整联系方式，便于平台记录浏览、电话和微信行为。</text>
+      <text class="section-title">温馨提醒</text>
+      <text class="section-content">联系前请确认实物、价格和交期。</text>
+      <text class="section-tip">电话和微信见资源详情。</text>
     </view>
 
     <view class="section">
       <view class="section-head">
-        <text class="section-title">发布记录</text>
+        <text class="section-title">公开资源</text>
         <text class="section-link" v-if="merchantResourceCountText">{{ merchantResourceCountText }}</text>
       </view>
       <ResourceList
@@ -96,17 +96,12 @@
         empty-text="暂无公开资源"
         :loading="merchantResourcesLoading"
         :has-more="hasMoreMerchantResources"
-        load-more-text="查看更多发布记录"
+        load-more-text="查看更多资源"
         @open="openResource"
         @load-more="loadMerchantResources"
       />
     </view>
 
-    <view class="contact-bar">
-      <button class="contact-button" @click="copyWechat">复制微信</button>
-      <button class="primary-button" @click="callPhone">拨打电话</button>
-    </view>
-    <view class="contact-spacer" />
   </view>
 </template>
 
@@ -160,11 +155,11 @@ const merchantVerificationReviewedDate = computed(() => {
   const reviewedAt = merchantVerificationInfo.value.reviewedAt
   return reviewedAt ? formatDateToDay(reviewedAt, '') : ''
 })
-const profileDescription = computed(() => merchant.value.description || '暂无简介')
+const profileDescription = computed(() => merchant.value.description || '暂无介绍')
 const merchantSubtitle = computed(() => {
   const categories = merchantCategoryTags.value.join('、')
   const identity = [merchantTypeLabel.value, categories].filter(Boolean).join(' · ')
-  return identity || merchant.value.description || '服装产业资源商家'
+  return identity || merchant.value.description || '服装资源商家'
 })
 const hasMoreMerchantResources = computed(() => merchantResourceTotal.value > merchantResources.value.length)
 const merchantResourceCountText = computed(() => {
@@ -174,7 +169,7 @@ const merchantResourceCountText = computed(() => {
 })
 const statCards = computed(() => [
   {
-    label: '当前资源',
+    label: '在售资源',
     value: resourcesSummary.value.publishedCount || merchantResourceTotal.value || merchantResources.value.length || 0,
   },
   {
@@ -182,7 +177,7 @@ const statCards = computed(() => [
     value: resourcesSummary.value.totalCount || resourcesSummary.value.publishedCount || merchantResourceTotal.value || merchantResources.value.length || 0,
   },
   {
-    label: '商家热度',
+    label: '热度',
     value: merchant.value.heatScore || 0,
   },
 ])
@@ -229,7 +224,7 @@ async function loadMerchantResources() {
     merchantResourceTotal.value = resp.total || merchantResources.value.length + items.length
     merchantResources.value = nextPage === 1 ? items : [...merchantResources.value, ...items]
   } catch (err) {
-    uni.showToast({ title: err.message || '发布记录加载失败，请稍后重试', icon: 'none' })
+    uni.showToast({ title: err.message || '资源加载失败，请稍后重试', icon: 'none' })
   } finally {
     merchantResourcesLoading.value = false
   }
@@ -247,9 +242,9 @@ async function toggleFollow() {
     // 关注商家用于后续复访和提醒，当前只改变关注列表，不触发营销消息。
     const resp = await setMerchantFollow(merchant.value.id, !followed.value)
     followed.value = Boolean(resp.followed)
-    uni.showToast({ title: followed.value ? '已关注商家' : '已取消关注', icon: 'none' })
+    uni.showToast({ title: followed.value ? '已关注' : '已取消关注', icon: 'none' })
   } catch (err) {
-    uni.showToast({ title: err.message || '关注失败，请稍后重试', icon: 'none' })
+    uni.showToast({ title: err.message || '操作失败，请稍后重试', icon: 'none' })
   }
 }
 
@@ -279,14 +274,6 @@ function previewMerchantImage(url) {
     urls: merchantImages.value,
     current: url,
   })
-}
-
-function callPhone() {
-  uni.showToast({ title: '请在资源详情页查看完整电话', icon: 'none' })
-}
-
-function copyWechat() {
-  uni.showToast({ title: '请在资源详情页查看完整微信', icon: 'none' })
 }
 
 function hasValidLocation(location) {
@@ -595,34 +582,4 @@ function hasValidLocation(location) {
   background: #e3e8ef;
 }
 
-.contact-bar {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 20;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16rpx;
-  padding: 18rpx 24rpx calc(18rpx + env(safe-area-inset-bottom));
-  border-top: 1rpx solid $wplink-line;
-  background: rgba(255, 255, 255, 0.96);
-}
-
-.contact-button,
-.primary-button {
-  height: 88rpx;
-  border-radius: 12rpx;
-  font-size: 30rpx;
-  line-height: 1.25;
-}
-
-.primary-button {
-  background: $wplink-primary;
-  color: $wplink-card;
-}
-
-.contact-spacer {
-  height: calc(124rpx + env(safe-area-inset-bottom));
-}
 </style>
