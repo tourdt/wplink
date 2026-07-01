@@ -3,6 +3,16 @@ RuntimeMode: production
 Host: 127.0.0.1
 Port: 4000
 
+Log:
+  Mode: "file"
+  Encoding: "json"
+  Path: "logs"
+  Level: "info"
+  Rotation: "daily"
+  KeepDays: 7
+  Compress: false
+  Stat: true
+
 Postgres:
   DSN: "${DATABASE_URL}"
   MaxOpenConns: 30

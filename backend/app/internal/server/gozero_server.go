@@ -72,6 +72,8 @@ func restConfFromConfig(cfg config.Config) rest.RestConf {
 		Port: port,
 	}
 	restConf.Name = cfg.Name
+	restConf.Log = cfg.Log
+	restConf.Middlewares.Log = true
 	return restConf
 }
 

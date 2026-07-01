@@ -36,6 +36,16 @@ SMS:
   DailySendLimit: 8
   AccessKeySecret: "sms-secret"
 
+Log:
+  Mode: "file"
+  Encoding: "json"
+  Path: "var/log/wplink"
+  Level: "debug"
+  Rotation: "daily"
+  KeepDays: 7
+  Compress: true
+  Stat: false
+
 WechatPay:
   Enabled: true
   DevMockEnabled: true
@@ -88,6 +98,9 @@ Storage:
 	if cfg.SMS.Provider != "http" || cfg.SMS.SendMinInterval != 45*time.Second || cfg.SMS.DailySendLimit != 8 {
 		t.Fatalf("sms = %#v, want http rate limit config", cfg.SMS)
 	}
+	if cfg.Log.Mode != "file" || cfg.Log.Encoding != "json" || cfg.Log.Path != "var/log/wplink" || cfg.Log.Level != "debug" || cfg.Log.Rotation != "daily" || cfg.Log.KeepDays != 7 || !cfg.Log.Compress || cfg.Log.Stat {
+		t.Fatalf("log = %#v, want file daily log config", cfg.Log)
+	}
 	if !cfg.WechatPay.Enabled || !cfg.WechatPay.DevMockEnabled || cfg.WechatPay.MchID != "1900000001" || cfg.WechatPay.RequestTimeout != 10*time.Second {
 		t.Fatalf("wechat pay = %#v, want enabled merchant config", cfg.WechatPay)
 	}
@@ -99,5 +112,23 @@ Storage:
 	}
 	if len(cfg.Storage.AllowedContentTypes) != 2 || cfg.Storage.AllowedContentTypes[0] != "image/jpeg" {
 		t.Fatalf("allowed content types = %#v", cfg.Storage.AllowedContentTypes)
+	}
+}
+
+func TestLoadDefaultsToDailyFileLogsKeptSevenDays(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yaml")
+	if err := os.WriteFile(path, []byte(`
+Name: wplink-api
+`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Log.Mode != "file" || cfg.Log.Path != "logs" || cfg.Log.Rotation != "daily" || cfg.Log.KeepDays != 7 {
+		t.Fatalf("log = %#v, want default daily file logs kept 7 days", cfg.Log)
 	}
 }

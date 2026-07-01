@@ -16,7 +16,7 @@ func Load(path string) (Config, error) {
 	}
 	defer file.Close()
 
-	var cfg Config
+	cfg := Config{Log: defaultLogConfig()}
 	var section string
 	var listKey string
 	scanner := bufio.NewScanner(file)
@@ -132,6 +132,8 @@ func applyConfigValue(cfg *Config, section string, key string, value string) err
 		}
 	case "WechatPay":
 		return applyWechatPayValue(&cfg.WechatPay, key, value)
+	case "Log":
+		return applyLogValue(&cfg.Log, key, value)
 	case "SMS":
 		switch key {
 		case "Provider":
@@ -174,6 +176,82 @@ func applyConfigValue(cfg *Config, section string, key string, value string) err
 		}
 	case "Storage":
 		return applyStorageValue(&cfg.Storage, key, value)
+	}
+	return nil
+}
+
+func defaultLogConfig() LogConfig {
+	return LogConfig{
+		Mode:     "file",
+		Encoding: "json",
+		Path:     "logs",
+		Level:    "info",
+		Rotation: "daily",
+		KeepDays: 7,
+		Stat:     true,
+	}
+}
+
+func applyLogValue(cfg *LogConfig, key string, value string) error {
+	switch key {
+	case "ServiceName":
+		cfg.ServiceName = value
+	case "Mode":
+		cfg.Mode = value
+	case "Encoding":
+		cfg.Encoding = value
+	case "TimeFormat":
+		cfg.TimeFormat = value
+	case "Path":
+		cfg.Path = value
+	case "Level":
+		cfg.Level = value
+	case "MaxContentLength":
+		length, err := strconv.ParseUint(value, 10, 32)
+		if err != nil {
+			return fmt.Errorf("Log.MaxContentLength 配置必须是数字: %w", err)
+		}
+		cfg.MaxContentLength = uint32(length)
+	case "Compress":
+		compress, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("Log.Compress 配置必须是布尔值: %w", err)
+		}
+		cfg.Compress = compress
+	case "Stat":
+		stat, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("Log.Stat 配置必须是布尔值: %w", err)
+		}
+		cfg.Stat = stat
+	case "KeepDays":
+		days, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("Log.KeepDays 配置必须是数字: %w", err)
+		}
+		cfg.KeepDays = days
+	case "StackCooldownMillis":
+		millis, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("Log.StackCooldownMillis 配置必须是数字: %w", err)
+		}
+		cfg.StackCooldownMillis = millis
+	case "MaxBackups":
+		count, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("Log.MaxBackups 配置必须是数字: %w", err)
+		}
+		cfg.MaxBackups = count
+	case "MaxSize":
+		size, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("Log.MaxSize 配置必须是数字: %w", err)
+		}
+		cfg.MaxSize = size
+	case "Rotation":
+		cfg.Rotation = value
+	case "FileTimeFormat":
+		cfg.FileTimeFormat = value
 	}
 	return nil
 }

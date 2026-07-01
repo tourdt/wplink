@@ -43,6 +43,7 @@ func ValidateForProduction(cfg Config) error {
 	require("Wechat.AppSecret", cfg.Wechat.AppSecret)
 	validateProductionWechatPay(cfg.WechatPay, require, requirePositiveDuration)
 	validateProductionSMS(cfg.SMS, require, &missing)
+	validateProductionLog(cfg.Log, require, requirePositiveInt)
 	requirePositiveDuration("Tasks.ResourceLifecycleInterval", cfg.Tasks.ResourceLifecycleInterval)
 	require("Storage.Provider", cfg.Storage.Provider)
 	require("Storage.Endpoint", cfg.Storage.Endpoint)
@@ -59,6 +60,9 @@ func ValidateForProduction(cfg Config) error {
 	}
 	if cfg.WechatPay.DevMockEnabled {
 		return fmt.Errorf("生产配置不允许启用 WechatPay.DevMockEnabled")
+	}
+	if err := validateProductionLogPolicy(cfg.Log); err != nil {
+		return err
 	}
 	return nil
 }
@@ -95,4 +99,25 @@ func validateProductionSMS(cfg SMSConfig, require func(string, string), missing 
 		require("SMS.SignName", cfg.SignName)
 		require("SMS.TemplateCode", cfg.TemplateCode)
 	}
+}
+
+func validateProductionLog(cfg LogConfig, require func(string, string), requirePositiveInt func(string, int)) {
+	require("Log.Mode", cfg.Mode)
+	require("Log.Path", cfg.Path)
+	require("Log.Rotation", cfg.Rotation)
+	requirePositiveInt("Log.KeepDays", cfg.KeepDays)
+}
+
+func validateProductionLogPolicy(cfg LogConfig) error {
+	mode := strings.TrimSpace(strings.ToLower(cfg.Mode))
+	if mode != "file" && mode != "volume" {
+		return fmt.Errorf("生产配置 Log.Mode 必须为 file 或 volume")
+	}
+	if strings.TrimSpace(strings.ToLower(cfg.Rotation)) != "daily" {
+		return fmt.Errorf("生产配置 Log.Rotation 必须为 daily")
+	}
+	if cfg.KeepDays > 7 {
+		return fmt.Errorf("生产配置 Log.KeepDays 不能超过 7 天")
+	}
+	return nil
 }

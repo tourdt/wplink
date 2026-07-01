@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strings"
 
 	"wplink/backend/app/internal/adminweb"
 	"wplink/backend/app/internal/config"
@@ -12,6 +13,8 @@ import (
 	"wplink/backend/app/internal/server"
 	"wplink/backend/app/internal/svc"
 	"wplink/backend/app/internal/task"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 func main() {
@@ -22,8 +25,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("加载配置失败: path=%s err=%v", *configPath, err)
 	}
+	if err := setupLogging(cfg); err != nil {
+		log.Fatalf("初始化日志失败: path=%s err=%v", cfg.Log.Path, err)
+	}
 	if err := config.ValidateForProduction(cfg); err != nil {
-		log.Fatalf("生产配置校验失败: err=%v", err)
+		fatalf("生产配置校验失败: err=%v", err)
 	}
 	host := cfg.Host
 	if host == "" {
@@ -36,7 +42,7 @@ func main() {
 
 	adminHandler, err := adminweb.EmbeddedHandler("/admin/")
 	if err != nil {
-		log.Fatalf("加载管理后台静态资源失败: err=%v", err)
+		fatalf("加载管理后台静态资源失败: err=%v", err)
 	}
 	db, err := model.OpenPostgres(cfg.Postgres.DSN, model.PostgresOptions{
 		MaxOpenConns:    cfg.Postgres.MaxOpenConns,
@@ -45,7 +51,7 @@ func main() {
 		ConnMaxIdleTime: cfg.Postgres.ConnMaxIdleTime,
 	})
 	if err != nil {
-		log.Fatalf("连接 PostgreSQL 失败: err=%v", err)
+		fatalf("连接 PostgreSQL 失败: err=%v", err)
 	}
 	defer db.Close()
 	svcCtx := svc.NewServiceContext(cfg, db)
@@ -58,7 +64,7 @@ func main() {
 		log.Default(),
 	)
 	if lifecycleScheduler.Enabled() {
-		log.Printf("资源生命周期自动任务已启用: interval=%s", cfg.Tasks.ResourceLifecycleInterval)
+		logx.Infof("资源生命周期自动任务已启用: interval=%s", cfg.Tasks.ResourceLifecycleInterval)
 		lifecycleScheduler.Start(appCtx)
 	}
 
@@ -75,10 +81,35 @@ func main() {
 	)
 	goZeroServer, err := server.NewGoZeroServer(cfg, svcCtx, adminHandler, apiHandler)
 	if err != nil {
-		log.Fatalf("初始化 go-zero HTTP 服务失败: err=%v", err)
+		fatalf("初始化 go-zero HTTP 服务失败: err=%v", err)
 	}
 	defer goZeroServer.Stop()
 
-	log.Printf("启动 %s: addr=%s:%d pid=%d", cfg.Name, host, port, os.Getpid())
+	logx.Infof("启动 %s: addr=%s:%d pid=%d", cfg.Name, host, port, os.Getpid())
 	goZeroServer.Start()
+}
+
+func setupLogging(cfg config.Config) error {
+	if err := logx.SetUp(cfg.Log); err != nil {
+		return err
+	}
+	log.SetFlags(0)
+	log.SetOutput(logxStdWriter{})
+	return nil
+}
+
+func fatalf(format string, v ...any) {
+	logx.Errorf(format, v...)
+	logx.Close()
+	os.Exit(1)
+}
+
+type logxStdWriter struct{}
+
+func (logxStdWriter) Write(p []byte) (int, error) {
+	msg := strings.TrimSpace(string(p))
+	if msg != "" {
+		logx.Infof("%s", msg)
+	}
+	return len(p), nil
 }

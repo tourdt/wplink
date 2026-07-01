@@ -16,3 +16,5 @@ app.yaml
 backend/app/__debug*
 backend/etc/AppleRootCA-G3.cer
 backend/etc/SubscriptionKey.p8
+logs/
+backend/logs/

@@ -1,12 +1,17 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/zeromicro/go-zero/core/logx"
+)
 
 type Config struct {
 	Name        string
 	RuntimeMode string
 	Host        string
 	Port        int
+	Log         LogConfig
 	Postgres    PostgresConfig
 	AdminAuth   AdminAuthConfig
 	Wechat      WechatConfig
@@ -15,6 +20,8 @@ type Config struct {
 	Tasks       TasksConfig
 	Storage     StorageConfig
 }
+
+type LogConfig = logx.LogConf
 
 type PostgresConfig struct {
 	DSN             string

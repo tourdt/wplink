@@ -157,6 +157,34 @@ func TestGoZeroServerAllowsAdminLoginCORSPreflight(t *testing.T) {
 	}
 }
 
+func TestRestConfFromConfigEnablesSafeAccessLogs(t *testing.T) {
+	cfg := config.Config{
+		Name: "wplink-api",
+		Host: "127.0.0.1",
+		Port: 4000,
+		Log: config.LogConfig{
+			Mode:     "file",
+			Encoding: "json",
+			Path:     "logs",
+			Level:    "info",
+			Rotation: "daily",
+			KeepDays: 7,
+			Stat:     true,
+		},
+	}
+
+	restConf := restConfFromConfig(cfg)
+	if restConf.Log.Mode != "file" || restConf.Log.Path != "logs" || restConf.Log.Rotation != "daily" || restConf.Log.KeepDays != 7 {
+		t.Fatalf("rest log config = %#v, want copied daily file log config", restConf.Log)
+	}
+	if !restConf.Middlewares.Log {
+		t.Fatalf("middlewares = %#v, want access log middleware enabled", restConf.Middlewares)
+	}
+	if restConf.Verbose {
+		t.Fatal("Verbose = true, want false to avoid dumping request bodies and sensitive headers")
+	}
+}
+
 func openReadyzTestDB(t *testing.T, pingErr error) *sql.DB {
 	t.Helper()
 	driverName := "readyz-test-" + strconv.FormatInt(readyzTestDriverSeq.Add(1), 10)

@@ -18,7 +18,7 @@ func TestValidateForProductionRejectsMissingCriticalConfig(t *testing.T) {
 		t.Fatal("ValidateForProduction() error = nil, want missing config error")
 	}
 	message := err.Error()
-	for _, want := range []string{"Postgres.DSN", "AdminAuth.TokenSecret", "Wechat.AppID", "Wechat.AppSecret", "SMS.Provider", "Storage.AccessKeyID", "Tasks.ResourceLifecycleInterval"} {
+	for _, want := range []string{"Postgres.DSN", "AdminAuth.TokenSecret", "Wechat.AppID", "Wechat.AppSecret", "SMS.Provider", "Storage.AccessKeyID", "Tasks.ResourceLifecycleInterval", "Log.Mode", "Log.Path", "Log.KeepDays"} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("error = %q, want mention %s", message, want)
 		}
@@ -32,6 +32,7 @@ func TestValidateForProductionAcceptsRequiredConfig(t *testing.T) {
 		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
 		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
+		Log:         defaultProductionLogConfig(),
 		Storage: StorageConfig{
 			Provider:            "qiniu-kodo",
 			Endpoint:            "https://upload-z2.qiniup.com",
@@ -99,6 +100,36 @@ func TestValidateForProductionRejectsWechatPayDevMock(t *testing.T) {
 	}
 }
 
+func TestValidateForProductionRejectsConsoleLogMode(t *testing.T) {
+	cfg := requiredProductionConfig()
+	cfg.Log.Mode = "console"
+
+	err := ValidateForProduction(cfg)
+	if err == nil || !strings.Contains(err.Error(), "Log.Mode") {
+		t.Fatalf("ValidateForProduction() error = %v, want reject console log mode", err)
+	}
+}
+
+func TestValidateForProductionRejectsLogRetentionOverSevenDays(t *testing.T) {
+	cfg := requiredProductionConfig()
+	cfg.Log.KeepDays = 8
+
+	err := ValidateForProduction(cfg)
+	if err == nil || !strings.Contains(err.Error(), "Log.KeepDays") {
+		t.Fatalf("ValidateForProduction() error = %v, want reject log retention over 7 days", err)
+	}
+}
+
+func TestValidateForProductionRejectsNonDailyLogRotation(t *testing.T) {
+	cfg := requiredProductionConfig()
+	cfg.Log.Rotation = "size"
+
+	err := ValidateForProduction(cfg)
+	if err == nil || !strings.Contains(err.Error(), "Log.Rotation") {
+		t.Fatalf("ValidateForProduction() error = %v, want reject non-daily log rotation", err)
+	}
+}
+
 func TestValidateForProductionRequiresPostgresPoolConfig(t *testing.T) {
 	cfg := requiredProductionConfig()
 	cfg.Postgres = PostgresConfig{DSN: cfg.Postgres.DSN}
@@ -122,6 +153,7 @@ func requiredProductionConfig() Config {
 		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
 		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
+		Log:         defaultProductionLogConfig(),
 		Storage: StorageConfig{
 			Provider:            "qiniu-kodo",
 			Endpoint:            "https://upload-z2.qiniup.com",
@@ -132,6 +164,18 @@ func requiredProductionConfig() Config {
 			AllowedContentTypes: []string{"image/png"},
 		},
 		Tasks: TasksConfig{ResourceLifecycleInterval: time.Hour},
+	}
+}
+
+func defaultProductionLogConfig() LogConfig {
+	return LogConfig{
+		Mode:     "file",
+		Encoding: "json",
+		Path:     "logs",
+		Level:    "info",
+		Rotation: "daily",
+		KeepDays: 7,
+		Stat:     true,
 	}
 }
 
