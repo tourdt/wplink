@@ -70,6 +70,7 @@ type apiRouterOptions struct {
 	wechatSessionClient authlogic.WechatSessionClient
 	smsVerifier         authlogic.SMSVerifier
 	wechatPayGateway    paymentlogic.WechatPayGateway
+	wechatPayDevMock    bool
 }
 
 type APIRouterOption func(*apiRouterOptions)
@@ -116,6 +117,12 @@ func WithWechatPayGateway(gateway paymentlogic.WechatPayGateway) APIRouterOption
 	}
 }
 
+func WithWechatPayDevMock(enabled bool) APIRouterOption {
+	return func(options *apiRouterOptions) {
+		options.wechatPayDevMock = enabled
+	}
+}
+
 func NewAPIRouter(store CityAPIStore, opts ...APIRouterOption) http.Handler {
 	options := apiRouterOptions{}
 	for _, opt := range opts {
@@ -150,7 +157,7 @@ func NewAPIRouter(store CityAPIStore, opts ...APIRouterOption) http.Handler {
 		permissionStore, _ := any(store).(MerchantPermissionStore)
 		registerResourceRoutes(mux, resourceStore, options.userTokenService, options.adminTokenService, permissionStore)
 	}
-	registerOptionalDomainRoutes(mux, store, options.userTokenService, options.adminTokenService, permissionStoreFromStore(store), options.smsVerifier, options.wechatPayGateway)
+	registerOptionalDomainRoutes(mux, store, options.userTokenService, options.adminTokenService, permissionStoreFromStore(store), options.smsVerifier, options.wechatPayGateway, options.wechatPayDevMock)
 	if options.adminTokenService != nil {
 		return requireAdminToken(mux, options.adminTokenService)
 	}

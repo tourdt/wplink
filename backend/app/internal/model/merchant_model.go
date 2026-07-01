@@ -44,6 +44,7 @@ type MerchantDetail struct {
 	MainCategories         []string
 	VerificationStatus     string
 	VerificationReviewedAt string
+	VerificationExpiresAt  string
 	CreditTags             []CreditTag
 	ContactName            string
 	PhoneMasked            string
@@ -166,6 +167,7 @@ func (m *MerchantModel) GetMerchantDetail(ctx context.Context, merchantID string
 	var images JSONStringSlice
 	var lastActive sql.NullTime
 	var verificationReviewedAt sql.NullTime
+	var verificationExpiresAt sql.NullTime
 
 	err := m.db.QueryRowContext(ctx, `
 SELECT
@@ -191,6 +193,13 @@ SELECT
     ORDER BY v.reviewed_at DESC NULLS LAST, v.submitted_at DESC
     LIMIT 1
   ) AS verification_reviewed_at,
+  (
+    SELECT v.expires_at
+    FROM verifications v
+    WHERE v.merchant_id = m.id AND v.status = 'verified'
+    ORDER BY v.reviewed_at DESC NULLS LAST, v.submitted_at DESC
+    LIMIT 1
+  ) AS verification_expires_at,
   COUNT(r.id) FILTER (WHERE r.status = 'published') AS published_count,
   COUNT(r.id) FILTER (WHERE r.status = 'dealt') AS dealt_count,
   (
@@ -220,6 +229,7 @@ GROUP BY m.id, cs.code
 		&images,
 		&lastActive,
 		&verificationReviewedAt,
+		&verificationExpiresAt,
 		&detail.PublishedCount,
 		&detail.DealtCount,
 		&detail.FollowerCount,
@@ -237,6 +247,9 @@ GROUP BY m.id, cs.code
 	}
 	if verificationReviewedAt.Valid {
 		detail.VerificationReviewedAt = verificationReviewedAt.Time.Format(time.RFC3339)
+	}
+	if verificationExpiresAt.Valid {
+		detail.VerificationExpiresAt = verificationExpiresAt.Time.Format(time.RFC3339)
 	}
 
 	tags, err := m.listMerchantCreditTags(ctx, merchantID)

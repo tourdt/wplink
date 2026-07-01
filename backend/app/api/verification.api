@@ -19,6 +19,7 @@ type LatestVerificationResp {
 	VerificationType string `json:"verificationType"`
 	Status           string `json:"status"`
 	ReviewedAt       string `json:"reviewedAt,optional"`
+	ExpiresAt        string `json:"expiresAt,optional"`
 	ReviewNote       string `json:"reviewNote,optional"`
 	BusinessName     string `json:"businessName,optional"`
 	LicenseUrl       string `json:"licenseUrl,optional"`

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/zeromicro/go-zero/core/logx"
+
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
 )
@@ -36,6 +38,7 @@ type LatestVerificationResp struct {
 	VerificationType string        `json:"verificationType"`
 	Status           string        `json:"status"`
 	ReviewedAt       string        `json:"reviewedAt,omitempty"`
+	ExpiresAt        string        `json:"expiresAt,omitempty"`
 	ReviewNote       string        `json:"reviewNote,omitempty"`
 	BusinessName     string        `json:"businessName,omitempty"`
 	LicenseURL       string        `json:"licenseUrl,omitempty"`
@@ -67,6 +70,22 @@ func (l *SubmitVerificationLogic) SubmitVerification(ctx context.Context, req Su
 	if !isSupportedVerificationType(input.VerificationType) {
 		return SubmitVerificationResp{}, errx.New(errx.CodeValidationFailed, "认证类型不正确")
 	}
+	latest, err := l.store.GetLatestVerification(ctx, input.MerchantID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		logx.Errorf("查询最新认证记录失败: merchantId=%s err=%+v", input.MerchantID, err)
+		return SubmitVerificationResp{}, errx.New(errx.CodeInternalError, "认证状态查询失败，请稍后重试")
+	}
+	if err == nil {
+		// 审核中和待支付都属于同一轮认证未结束，继续提交会覆盖支付入口或制造重复审核单。
+		switch latest.Status {
+		case model.VerificationStatusPending:
+			logx.Infof("认证资料重复提交已拦截: merchantId=%s verificationId=%s status=%s", input.MerchantID, latest.ID, latest.Status)
+			return SubmitVerificationResp{}, errx.New(errx.CodeStateConflict, "认证资料正在审核中，请等待审核结果")
+		case model.VerificationStatusPaymentPending:
+			logx.Infof("认证待支付重复提交已拦截: merchantId=%s verificationId=%s status=%s", input.MerchantID, latest.ID, latest.Status)
+			return SubmitVerificationResp{}, errx.New(errx.CodeStateConflict, "认证资料已审核通过，请先完成认证费支付")
+		}
+	}
 	result, err := l.store.SubmitVerification(ctx, input)
 	if err != nil {
 		return SubmitVerificationResp{}, err
@@ -95,7 +114,7 @@ func (l *GetLatestVerificationLogic) GetLatestVerification(ctx context.Context, 
 		return LatestVerificationResp{}, err
 	}
 	return LatestVerificationResp{
-		ID: result.ID, VerificationType: result.VerificationType, Status: result.Status, ReviewedAt: result.ReviewedAt,
+		ID: result.ID, VerificationType: result.VerificationType, Status: result.Status, ReviewedAt: result.ReviewedAt, ExpiresAt: result.ExpiresAt,
 		ReviewNote: result.ReviewNote, BusinessName: result.BusinessName, LicenseURL: result.LicenseURL, StorefrontURL: result.StorefrontURL,
 		Materials: cloneJSONMap(result.Materials),
 	}, nil

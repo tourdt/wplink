@@ -27,6 +27,7 @@ type VerificationBrief struct {
 	VerificationType string
 	Status           string
 	ReviewedAt       string
+	ExpiresAt        string
 	ReviewNote       string
 	BusinessName     string
 	LicenseURL       string
@@ -102,6 +103,7 @@ RETURNING id::text, status
 func (m *VerificationModel) GetLatestVerification(ctx context.Context, merchantID string) (VerificationBrief, error) {
 	var result VerificationBrief
 	var reviewedAt sql.NullTime
+	var expiresAt sql.NullTime
 	var reviewNote sql.NullString
 	err := m.db.QueryRowContext(ctx, `
 SELECT
@@ -109,6 +111,7 @@ SELECT
   verification_type,
   status,
   reviewed_at,
+  expires_at,
   review_note,
   COALESCE(business_name, '') AS business_name,
   COALESCE(license_url, '') AS license_url,
@@ -118,9 +121,12 @@ FROM verifications
 WHERE merchant_id = $1
 ORDER BY submitted_at DESC, created_at DESC
 LIMIT 1
-`, merchantID).Scan(&result.ID, &result.VerificationType, &result.Status, &reviewedAt, &reviewNote, &result.BusinessName, &result.LicenseURL, &result.StorefrontURL, &result.Materials)
+`, merchantID).Scan(&result.ID, &result.VerificationType, &result.Status, &reviewedAt, &expiresAt, &reviewNote, &result.BusinessName, &result.LicenseURL, &result.StorefrontURL, &result.Materials)
 	if reviewedAt.Valid {
 		result.ReviewedAt = reviewedAt.Time.Format(time.RFC3339)
+	}
+	if expiresAt.Valid {
+		result.ExpiresAt = expiresAt.Time.Format(time.RFC3339)
 	}
 	if reviewNote.Valid {
 		result.ReviewNote = reviewNote.String
@@ -228,10 +234,15 @@ func (m *VerificationModel) ReviewVerification(ctx context.Context, input Review
 
 		err := tx.QueryRowContext(ctx, `
 UPDATE verifications
-SET status = $2, review_note = NULLIF($3, ''), reviewed_by = $4, reviewed_at = now(), updated_at = now()
+SET status = $2,
+    review_note = NULLIF($3, ''),
+    reviewed_by = $4,
+    reviewed_at = now(),
+    expires_at = CASE WHEN $5 THEN now() + interval '1 year' ELSE expires_at END,
+    updated_at = now()
 WHERE id = $1
 RETURNING id::text, merchant_id::text, resource_id::text, verification_type, status
-`, input.VerificationID, nextStatus, input.ReviewNote, input.ReviewerID).Scan(&result.ID, &merchantID, &resourceID, &verificationType, &result.Status)
+`, input.VerificationID, nextStatus, input.ReviewNote, input.ReviewerID, input.Action == "approve" && !input.RequirePayment).Scan(&result.ID, &merchantID, &resourceID, &verificationType, &result.Status)
 		if err != nil {
 			return err
 		}
@@ -294,6 +305,10 @@ VALUES ($1, 'verification_result', $2, $3, $4, $5, $6, 'unread')
 }
 
 func verificationMessageTargetURL(merchantID string) string {
+	return MerchantVerificationTargetURL(merchantID)
+}
+
+func MerchantVerificationTargetURL(merchantID string) string {
 	values := url.Values{}
 	values.Set("merchantId", merchantID)
 	return "/pages/verification/index?" + values.Encode()

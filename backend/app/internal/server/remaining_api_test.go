@@ -430,6 +430,7 @@ func newFakeFullAPIStore() *fakeFullAPIStore {
 			publishConfig:  model.ResourcePublishConfig{ID: "config-1", TypeCode: "inventory", RequiredFields: []string{"merchantId", "cityCode", "typeCode", "title", "category", "contactName", "contactPhone"}, DefaultValidDays: 7},
 			merchantStatus: model.MerchantStatusActive,
 		},
+		latestVerificationErr: sql.ErrNoRows,
 	}
 }
 
@@ -441,6 +442,7 @@ type fakeFullAPIStore struct {
 	myDemandUserID               string
 	submitVerificationInput      model.SubmitVerificationInput
 	latestVerificationMerchantID string
+	latestVerificationErr        error
 	messageFilter                model.ListMessagesFilter
 	readMessageUserID            string
 	readMessageRoleCode          string
@@ -545,6 +547,9 @@ func (s *fakeFullAPIStore) SubmitVerification(ctx context.Context, input model.S
 
 func (s *fakeFullAPIStore) GetLatestVerification(ctx context.Context, merchantID string) (model.VerificationBrief, error) {
 	s.latestVerificationMerchantID = merchantID
+	if s.latestVerificationErr != nil {
+		return model.VerificationBrief{}, s.latestVerificationErr
+	}
 	return model.VerificationBrief{ID: "verification-1", VerificationType: "stockist", Status: "pending"}, nil
 }
 
@@ -656,6 +661,14 @@ func (s *fakeFullAPIStore) MarkExpiredResources(ctx context.Context) ([]model.Li
 
 func (s *fakeFullAPIStore) ListResourcesExpiringSoon(ctx context.Context) ([]model.LifecycleResource, error) {
 	return []model.LifecycleResource{{ID: "resource-expiring", MerchantID: "merchant-1", Title: "即将过期资源"}}, nil
+}
+
+func (s *fakeFullAPIStore) MarkExpiredVerifications(ctx context.Context) ([]model.LifecycleResource, error) {
+	return []model.LifecycleResource{{ID: "verification-expired", MerchantID: "merchant-1", Title: "源头工厂认证"}}, nil
+}
+
+func (s *fakeFullAPIStore) ListVerificationsExpiringSoon(ctx context.Context) ([]model.LifecycleResource, error) {
+	return []model.LifecycleResource{{ID: "verification-expiring", MerchantID: "merchant-1", Title: "源头工厂认证"}}, nil
 }
 
 func (s *fakeFullAPIStore) CreateMessage(ctx context.Context, input model.CreateMessageInput) (model.CreateMessageResult, error) {

@@ -55,6 +55,10 @@
           <text class="verification-info-label">时间</text>
           <text class="verification-info-value">{{ merchantVerificationReviewedDate }}</text>
         </view>
+        <view v-if="merchantVerificationExpiresDate" class="verification-info-row">
+          <text class="verification-info-label">有效期</text>
+          <text class="verification-info-value">至 {{ merchantVerificationExpiresDate }}</text>
+        </view>
       </view>
     </view>
 
@@ -154,6 +158,10 @@ const merchantVerificationCheckedText = computed(() => {
 const merchantVerificationReviewedDate = computed(() => {
   const reviewedAt = merchantVerificationInfo.value.reviewedAt
   return reviewedAt ? formatDateToDay(reviewedAt, '') : ''
+})
+const merchantVerificationExpiresDate = computed(() => {
+  const expiresAt = merchantVerificationInfo.value.expiresAt
+  return expiresAt ? formatDateToDay(expiresAt, '') : ''
 })
 const profileDescription = computed(() => merchant.value.description || '暂无介绍')
 const merchantSubtitle = computed(() => {

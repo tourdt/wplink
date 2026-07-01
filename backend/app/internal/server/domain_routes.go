@@ -90,7 +90,7 @@ type AdminUtilityAPIStore interface {
 	task.ResourceLifecycleStore
 }
 
-func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, smsVerifier authlogic.SMSVerifier, wechatPayGateway paymentlogic.WechatPayGateway) {
+func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, smsVerifier authlogic.SMSVerifier, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool) {
 	if merchantStore, ok := store.(MerchantAPIStore); ok {
 		registerMerchantRoutes(mux, merchantStore, userTokenService, adminTokenService, permissionStore, smsVerifier)
 	}
@@ -102,7 +102,7 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	}
 	if verificationStore, ok := store.(VerificationAPIStore); ok {
 		paymentStore, _ := store.(VerificationPaymentAPIStore)
-		registerVerificationRoutes(mux, verificationStore, paymentStore, userTokenService, adminTokenService, permissionStore, wechatPayGateway)
+		registerVerificationRoutes(mux, verificationStore, paymentStore, userTokenService, adminTokenService, permissionStore, wechatPayGateway, wechatPayDevMock)
 	}
 	if billingStore, ok := store.(VerificationBillingAPIStore); ok {
 		registerVerificationBillingRoutes(mux, billingStore)
@@ -308,7 +308,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, store DiscoveryAPIStore) {
 	})
 }
 
-func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, paymentStore VerificationPaymentAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, wechatPayGateway paymentlogic.WechatPayGateway) {
+func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, paymentStore VerificationPaymentAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool) {
 	mux.HandleFunc("POST /api/v1/merchants/{merchantId}/verifications", func(w http.ResponseWriter, r *http.Request) {
 		var body verificationlogic.SubmitVerificationReq
 		if err := decodeJSONBody(r, &body); err != nil {
@@ -384,7 +384,7 @@ func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, 
 				return
 			}
 		}
-		resp, err := paymentlogic.NewCreateVerificationPaymentLogic(paymentStore, wechatPayGateway).CreateVerificationPayment(r.Context(), paymentlogic.CreateVerificationPaymentReq{
+		resp, err := paymentlogic.NewCreateVerificationPaymentLogic(paymentStore, wechatPayGateway, wechatPayDevMock).CreateVerificationPayment(r.Context(), paymentlogic.CreateVerificationPaymentReq{
 			MerchantID:     merchantID,
 			VerificationID: r.PathValue("verificationId"),
 			UserID:         body.UserID,

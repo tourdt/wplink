@@ -58,6 +58,54 @@ func TestCreateVerificationPaymentCreatesWechatPrepay(t *testing.T) {
 	}
 }
 
+func TestCreateVerificationPaymentUsesDevMockWhenGatewayMissing(t *testing.T) {
+	store := &fakeVerificationPaymentStore{
+		context: model.VerificationPaymentContext{
+			VerificationID: "verification-1",
+			MerchantID:     "merchant-1",
+			UserID:         "user-1",
+			OpenID:         "dev:local-dev-1",
+			Status:         model.VerificationStatusPaymentPending,
+			Billing: model.VerificationBillingConfig{
+				ChargeEnabled: true,
+				FeeAmount:     29900,
+				Currency:      "CNY",
+			},
+		},
+		order: model.VerificationPaymentOrder{
+			ID:          "payment-1",
+			OutTradeNo:  "VP202607010001",
+			AmountTotal: 29900,
+			Currency:    "CNY",
+			Status:      model.PaymentOrderStatusPending,
+		},
+		markResult: model.VerificationPaymentResult{
+			OrderID:        "payment-1",
+			VerificationID: "verification-1",
+			MerchantID:     "merchant-1",
+			Status:         model.PaymentOrderStatusPaid,
+		},
+	}
+	logic := NewCreateVerificationPaymentLogic(store, nil, true)
+
+	resp, err := logic.CreateVerificationPayment(context.Background(), CreateVerificationPaymentReq{
+		MerchantID: "merchant-1", VerificationID: "verification-1", UserID: "user-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateVerificationPayment() error = %v", err)
+	}
+
+	if store.markInput.OutTradeNo != "VP202607010001" || store.markInput.TransactionID != "mock-VP202607010001" {
+		t.Fatalf("markInput = %#v, want mock payment identifiers", store.markInput)
+	}
+	if store.markInput.AmountTotal != 29900 {
+		t.Fatalf("markInput.AmountTotal = %d, want 29900", store.markInput.AmountTotal)
+	}
+	if resp.OrderID != "payment-1" || resp.Status != model.PaymentOrderStatusPaid || resp.Payment.Package != "" {
+		t.Fatalf("resp = %#v, want paid mock response without wechat params", resp)
+	}
+}
+
 func TestHandleWechatPayNotifyActivatesVerification(t *testing.T) {
 	store := &fakeVerificationPaymentStore{
 		markResult: model.VerificationPaymentResult{

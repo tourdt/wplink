@@ -42,6 +42,7 @@
 
     <view v-if="rows.length" class="result-list">
       <ResourceCard v-for="item in rows" :key="item.id" :resource="item" @open="openResource" />
+      <text class="load-more-text">{{ loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了' }}</text>
     </view>
 
     <view v-else-if="searched" class="empty-card">
@@ -94,7 +95,7 @@
 
 <script setup>
 import { computed, nextTick, reactive, ref } from 'vue'
-import { onLoad, onShow } from '@dcloudio/uni-app'
+import { onLoad, onReachBottom, onShow } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { loadHotSearchKeywords } from '../../common/hotSearchKeywords'
@@ -107,6 +108,11 @@ const SEARCH_KEY = 'wplink_pending_search_keyword'
 const keyword = ref('')
 const rows = ref([])
 const searched = ref(false)
+const page = ref(1)
+const pageSize = 20
+const total = ref(0)
+const hasMore = ref(true)
+const loading = ref(false)
 const filters = reactive({
   cityCode: DEFAULT_CITY_CODE,
   typeCode: '',
@@ -130,6 +136,11 @@ onLoad(async (options = {}) => {
   }
 })
 onShow(applyPendingKeyword)
+
+// 搜索结果使用接口分页；上拉只追加下一页，切换关键词或分类时重置到第一页。
+onReachBottom(() => {
+  search({ reset: false })
+})
 
 async function loadResourceTypes() {
   const resp = await listCityResourceTypes(filters.cityCode)
@@ -178,15 +189,27 @@ function hasPendingSearch() {
   return Boolean(uni.getStorageSync(SEARCH_KEY))
 }
 
-async function search() {
-  const resp = await searchResources({
-    ...filters,
-    keyword: keyword.value.trim(),
-    page: 1,
-    pageSize: 20,
-  })
-  rows.value = resp.items || []
-  searched.value = true
+async function search({ reset = true } = {}) {
+  if (loading.value) return
+  if (!reset && !hasMore.value) return
+  loading.value = true
+  try {
+    const nextPage = reset ? 1 : page.value + 1
+    const resp = await searchResources({
+      ...filters,
+      keyword: keyword.value.trim(),
+      page: nextPage,
+      pageSize,
+    })
+    const items = resp.items || []
+    rows.value = reset ? items : [...rows.value, ...items]
+    page.value = nextPage
+    total.value = resp.total || rows.value.length
+    hasMore.value = rows.value.length < total.value
+    searched.value = true
+  } finally {
+    loading.value = false
+  }
 }
 
 function searchHotKeyword(value) {
@@ -365,6 +388,13 @@ function openResource(item) {
 .result-list {
   display: grid;
   gap: 18rpx;
+}
+
+.load-more-text {
+  padding: 8rpx 0 18rpx;
+  color: $wplink-muted;
+  font-size: 24rpx;
+  text-align: center;
 }
 
 .empty-card {

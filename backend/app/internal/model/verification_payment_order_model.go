@@ -115,11 +115,14 @@ RETURNING id::text, verification_id::text, merchant_id::text, status
 
 		err = tx.QueryRowContext(ctx, `
 UPDATE verifications
-SET status = 'verified', reviewed_at = COALESCE(reviewed_at, now()), updated_at = now()
+SET status = 'verified',
+    reviewed_at = COALESCE(reviewed_at, now()),
+    expires_at = COALESCE(expires_at, COALESCE($2, now()) + interval '1 year'),
+    updated_at = now()
 WHERE id = $1
   AND status IN ('payment_pending', 'verified')
 RETURNING verification_type
-`, result.VerificationID).Scan(&verificationType)
+`, result.VerificationID, paidAt).Scan(&verificationType)
 		if err != nil {
 			return err
 		}

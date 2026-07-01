@@ -3,9 +3,12 @@ package payment
 import (
 	"context"
 	"strings"
+	"time"
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type VerificationPaymentStore interface {
@@ -67,18 +70,20 @@ type WechatPayNotifyResp struct {
 }
 
 type CreateVerificationPaymentLogic struct {
-	store   VerificationPaymentStore
-	gateway WechatPayGateway
+	store          VerificationPaymentStore
+	gateway        WechatPayGateway
+	devMockEnabled bool
 }
 
-func NewCreateVerificationPaymentLogic(store VerificationPaymentStore, gateway WechatPayGateway) *CreateVerificationPaymentLogic {
-	return &CreateVerificationPaymentLogic{store: store, gateway: gateway}
+func NewCreateVerificationPaymentLogic(store VerificationPaymentStore, gateway WechatPayGateway, devMockEnabled ...bool) *CreateVerificationPaymentLogic {
+	mockEnabled := false
+	if len(devMockEnabled) > 0 {
+		mockEnabled = devMockEnabled[0]
+	}
+	return &CreateVerificationPaymentLogic{store: store, gateway: gateway, devMockEnabled: mockEnabled}
 }
 
 func (l *CreateVerificationPaymentLogic) CreateVerificationPayment(ctx context.Context, req CreateVerificationPaymentReq) (CreateVerificationPaymentResp, error) {
-	if l.gateway == nil {
-		return CreateVerificationPaymentResp{}, errx.New(errx.CodeInternalError, "微信支付暂未配置，请联系平台运营")
-	}
 	input := model.GetVerificationPaymentContextInput{
 		MerchantID:     strings.TrimSpace(req.MerchantID),
 		VerificationID: strings.TrimSpace(req.VerificationID),
@@ -86,6 +91,9 @@ func (l *CreateVerificationPaymentLogic) CreateVerificationPayment(ctx context.C
 	}
 	if input.MerchantID == "" || input.VerificationID == "" || input.UserID == "" {
 		return CreateVerificationPaymentResp{}, errx.New(errx.CodeValidationFailed, "认证记录不存在或未登录")
+	}
+	if l.gateway == nil && !l.devMockEnabled {
+		return CreateVerificationPaymentResp{}, errx.New(errx.CodeInternalError, "微信支付暂未配置，请联系平台运营")
 	}
 	contextInfo, err := l.store.GetVerificationPaymentContext(ctx, input)
 	if err != nil {
@@ -111,6 +119,9 @@ func (l *CreateVerificationPaymentLogic) CreateVerificationPayment(ctx context.C
 	if err != nil {
 		return CreateVerificationPaymentResp{}, err
 	}
+	if l.gateway == nil {
+		return l.completeDevMockPayment(ctx, order)
+	}
 	params, err := l.gateway.CreatePrepay(ctx, WechatPrepayInput{
 		OutTradeNo:  order.OutTradeNo,
 		Description: "商家认证费",
@@ -123,6 +134,25 @@ func (l *CreateVerificationPaymentLogic) CreateVerificationPayment(ctx context.C
 		return CreateVerificationPaymentResp{}, err
 	}
 	return CreateVerificationPaymentResp{OrderID: order.ID, Status: order.Status, Payment: params}, nil
+}
+
+func (l *CreateVerificationPaymentLogic) completeDevMockPayment(ctx context.Context, order model.VerificationPaymentOrder) (CreateVerificationPaymentResp, error) {
+	result, err := l.store.MarkVerificationPaymentPaid(ctx, model.MarkVerificationPaymentPaidInput{
+		OutTradeNo:    order.OutTradeNo,
+		TransactionID: "mock-" + order.OutTradeNo,
+		AmountTotal:   order.AmountTotal,
+		SuccessTime:   nowFunc().Format(time.RFC3339),
+		NotifyPayload: model.JSONMap{
+			"trade_state":  "SUCCESS",
+			"mock":         true,
+			"out_trade_no": order.OutTradeNo,
+		},
+	})
+	if err != nil {
+		return CreateVerificationPaymentResp{}, err
+	}
+	logx.Infof("开发模拟认证支付已完成: verificationId=%s merchantId=%s orderId=%s outTradeNo=%s", result.VerificationID, result.MerchantID, result.OrderID, order.OutTradeNo)
+	return CreateVerificationPaymentResp{OrderID: result.OrderID, Status: result.Status}, nil
 }
 
 type WechatPayNotifyLogic struct {

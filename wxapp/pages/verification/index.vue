@@ -28,6 +28,12 @@
       </view>
     </view>
 
+    <view v-if="isVerificationPaymentPending" class="payment-pending-card">
+      <text class="payment-pending-title">资料已审核通过</text>
+      <text class="payment-pending-desc">请完成认证费支付，支付认证费后生效。</text>
+      <text class="payment-pending-meta">待支付期间资料已锁定，如需修改请联系平台运营处理。</text>
+    </view>
+
     <view v-if="isVerificationRejected" class="review-reject-card">
       <text class="review-reject-title">认证未通过</text>
       <text class="review-reject-desc">驳回原因：{{ verificationRejectReason }}</text>
@@ -37,6 +43,7 @@
     <view v-if="showVerifiedSummary" class="verified-summary-card">
       <text class="verified-summary-title">认证已通过</text>
       <text class="verified-summary-desc">认证资料已生效，买家可在商家信息中看到认证状态。</text>
+      <text v-if="verificationExpiresDate" class="verified-summary-meta">有效期至 {{ verificationExpiresDate }}</text>
       <text class="verified-summary-meta">如主体资质、营业执照或经营场地变化，请重新提交审核。</text>
       <button class="secondary-button verified-change-button" @click="startCertificationChange">变更认证资料</button>
     </view>
@@ -242,15 +249,17 @@ const canPayVerification = computed(() => {
   return latestVerification.value.status === 'payment_pending' && billingConfig.value.chargeEnabled && !isLimitedFreeActive.value && latestVerification.value.id
 })
 const isVerificationPending = computed(() => latestVerification.value.status === 'pending')
+const isVerificationPaymentPending = computed(() => latestVerification.value.status === 'payment_pending')
 const isVerificationRejected = computed(() => latestVerification.value.status === 'rejected')
 const isVerificationVerified = computed(() => latestVerification.value.status === 'verified')
 const verificationReviewedDate = computed(() => formatDateToDay(latestVerification.value.reviewedAt, '等待审核'))
+const verificationExpiresDate = computed(() => formatDateToDay(latestVerification.value.expiresAt, ''))
 const verificationRejectReason = computed(() => {
   const reason = String(latestVerification.value.reviewNote || '').trim()
   return reason || '平台未填写具体原因，请检查资料后重新提交'
 })
 const showVerifiedSummary = computed(() => isVerificationVerified.value && !changingVerifiedCertification.value)
-const showVerificationForm = computed(() => !isVerificationPending.value && (!isVerificationVerified.value || changingVerifiedCertification.value))
+const showVerificationForm = computed(() => !isVerificationPending.value && !isVerificationPaymentPending.value && (!isVerificationVerified.value || changingVerifiedCertification.value))
 const showSubmitBar = computed(() => showVerificationForm.value)
 const submitButtonMainText = computed(() => {
   if (submitting.value) return '正在提交'
@@ -290,7 +299,7 @@ async function loadLatestVerification() {
   try {
     const latest = await getLatestVerification(form.merchantId)
     latestVerification.value = latest
-    if (latest.status === 'verified') applyVerificationFormDefaults(latest)
+    if (['verified', 'expired'].includes(latest.status)) applyVerificationFormDefaults(latest)
     if (latest.status !== 'verified') changingVerifiedCertification.value = false
   } catch (err) {
     latestVerification.value = { status: 'none' }
@@ -318,6 +327,7 @@ function statusLabel(status) {
     payment_pending: '待支付',
     verified: '已认证',
     rejected: '未通过',
+    expired: '已过期',
   }
   return statusText[status] || status || '未提交认证'
 }
@@ -432,6 +442,7 @@ async function submit() {
 
 function validateForm() {
   if (!form.merchantId.trim()) return '请先完成商家入驻'
+  if (isVerificationPaymentPending.value) return '认证资料已审核通过，请先支付认证费'
   if (!form.businessName.trim()) return '请填写营业主体名称'
   if (!form.socialCreditCode.trim()) return '请填写统一社会信用代码'
   if (!form.licenseUrl.trim()) return '请上传营业执照'
@@ -492,7 +503,15 @@ async function payVerification() {
   try {
     // 小程序端只负责调起收银台，认证生效必须以后端收到微信支付成功通知为准。
     const resp = await createVerificationPayment(form.merchantId, latestVerification.value.id, { userId })
+    if (resp.status === 'paid') {
+      uni.showToast({ title: '支付成功，认证已生效', icon: 'none' })
+      await loadLatestVerification()
+      return
+    }
     const payment = resp.payment || {}
+    if (!payment.timeStamp || !payment.nonceStr || !payment.package || !payment.paySign) {
+      throw new Error('支付参数无效，请稍后重试')
+    }
     await requestWechatPayment(payment)
     uni.showToast({ title: '支付成功，正在更新认证状态', icon: 'none' })
     await loadLatestVerification()
@@ -649,6 +668,35 @@ function isFreeWindowActive() {
 }
 
 .review-reject-meta {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.payment-pending-card {
+  display: grid;
+  gap: 8rpx;
+  margin-bottom: 20rpx;
+  padding: 24rpx;
+  border: 1rpx solid rgba(217, 119, 6, 0.18);
+  border-radius: 12rpx;
+  background: #fff7ed;
+}
+
+.payment-pending-title {
+  color: $wplink-warning;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.payment-pending-desc {
+  color: #92400e;
+  font-size: 26rpx;
+  line-height: 1.45;
+}
+
+.payment-pending-meta {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.45;

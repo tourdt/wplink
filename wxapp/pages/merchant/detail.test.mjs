@@ -17,6 +17,8 @@ test('merchant detail page shows a safe verification summary for verified mercha
   assert.match(source, /核验项/)
   assert.match(source, /主体资质、经营场地/)
   assert.match(source, /merchantVerificationReviewedDate/)
+  assert.match(source, /merchantVerificationExpiresDate/)
+  assert.match(source, /有效期/)
   assert.match(source, /formatDateToDay/)
   assert.doesNotMatch(source, /licenseUrl/)
   assert.doesNotMatch(source, /socialCreditCode/)

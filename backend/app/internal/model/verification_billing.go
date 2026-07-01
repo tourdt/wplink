@@ -12,6 +12,7 @@ const (
 	VerificationStatusRejected       = "rejected"
 	VerificationStatusRevoked        = "revoked"
 	VerificationStatusPaymentPending = "payment_pending"
+	VerificationStatusExpired        = "expired"
 
 	PaymentOrderStatusPending = "pending"
 	PaymentOrderStatusPaid    = "paid"

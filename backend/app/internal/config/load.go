@@ -186,6 +186,12 @@ func applyWechatPayValue(cfg *WechatPayConfig, key string, value string) error {
 			return fmt.Errorf("WechatPay.Enabled 配置必须是布尔值: %w", err)
 		}
 		cfg.Enabled = enabled
+	case "DevMockEnabled":
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("WechatPay.DevMockEnabled 配置必须是布尔值: %w", err)
+		}
+		cfg.DevMockEnabled = enabled
 	case "MchID":
 		cfg.MchID = value
 	case "AppID":

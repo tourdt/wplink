@@ -39,6 +39,7 @@ type MerchantVerificationInfo {
 	Status       string   `json:"status"`
 	Type         string   `json:"type"`
 	ReviewedAt   string   `json:"reviewedAt,optional"`
+	ExpiresAt    string   `json:"expiresAt,optional"`
 	CheckedItems []string `json:"checkedItems"`
 }
 

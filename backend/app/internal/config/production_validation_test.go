@@ -89,6 +89,16 @@ func TestValidateForProductionRejectsDevSMSProvider(t *testing.T) {
 	}
 }
 
+func TestValidateForProductionRejectsWechatPayDevMock(t *testing.T) {
+	cfg := requiredProductionConfig()
+	cfg.WechatPay.DevMockEnabled = true
+
+	err := ValidateForProduction(cfg)
+	if err == nil || !strings.Contains(err.Error(), "WechatPay.DevMockEnabled") {
+		t.Fatalf("ValidateForProduction() error = %v, want reject wechat pay dev mock", err)
+	}
+}
+
 func TestValidateForProductionRequiresPostgresPoolConfig(t *testing.T) {
 	cfg := requiredProductionConfig()
 	cfg.Postgres = PostgresConfig{DSN: cfg.Postgres.DSN}

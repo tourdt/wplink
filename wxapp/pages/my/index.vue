@@ -115,6 +115,7 @@ const verificationStatusText = computed(() => {
     verified: '已认证',
     rejected: '未通过',
     revoked: '已撤销',
+    expired: '已过期',
   }
   return statusText[verificationStatus.value] || '未认证'
 })
@@ -127,6 +128,7 @@ const verificationActionMeta = computed(() => {
     verified: '查看认证状态',
     rejected: '修改后重提',
     revoked: '可重新提交',
+    expired: '重新认证',
   }
   return actionMeta[verificationStatus.value] || actionMeta.none
 })
@@ -388,7 +390,8 @@ function openMerchantVerification() {
 }
 
 .status-rejected,
-.status-revoked {
+.status-revoked,
+.status-expired {
   background: rgba(194, 58, 0, 0.1);
   color: $wplink-warning;
 }

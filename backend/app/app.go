@@ -71,6 +71,7 @@ func main() {
 		server.WithWechatSessionClient(svcCtx.WechatSessionClient),
 		server.WithSMSVerifier(svcCtx.SMSVerifier),
 		server.WithWechatPayGateway(svcCtx.WechatPayGateway),
+		server.WithWechatPayDevMock(cfg.WechatPay.DevMockEnabled && !config.IsProductionMode(cfg.RuntimeMode)),
 	)
 	goZeroServer, err := server.NewGoZeroServer(cfg, svcCtx, adminHandler, apiHandler)
 	if err != nil {

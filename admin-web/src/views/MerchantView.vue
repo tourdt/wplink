@@ -123,6 +123,7 @@ const verificationText = {
   pending: '待审核',
   verified: '已认证',
   rejected: '已驳回',
+  expired: '已过期',
 }
 
 const filters = reactive({

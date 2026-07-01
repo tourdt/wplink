@@ -96,6 +96,23 @@ test('search result page runs default search when opened without search conditio
   assert.match(source, /function hasPendingSearch\(\) \{[\s\S]*return Boolean\(uni\.getStorageSync\(SEARCH_KEY\)\)[\s\S]*\}/)
 })
 
+test('search result page supports load more pagination', () => {
+  for (const token of [
+    'onReachBottom',
+    'const page = ref(1)',
+    'const pageSize = 20',
+    'const total = ref(0)',
+    'const hasMore = ref(true)',
+    'const loading = ref(false)',
+    "loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了'",
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(source, /onReachBottom\(\(\) => \{[\s\S]*search\(\{ reset: false \}\)[\s\S]*\}\)/)
+  assert.match(source, /async function search\(\{ reset = true \} = \{\}\) \{[\s\S]*if \(loading\.value\) return[\s\S]*if \(!reset && !hasMore\.value\) return[\s\S]*const nextPage = reset \? 1 : page\.value \+ 1[\s\S]*page: nextPage,[\s\S]*pageSize,[\s\S]*rows\.value = reset \? items : \[\.\.\.rows\.value, \.\.\.items\][\s\S]*page\.value = nextPage[\s\S]*total\.value = resp\.total \|\| rows\.value\.length[\s\S]*hasMore\.value = rows\.value\.length < total\.value[\s\S]*\}/)
+})
+
 test('search result page uses recommendation category font size', () => {
   assert.match(cssBlock('.filter-button'), /font-size:\s*26rpx;/)
 })

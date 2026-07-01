@@ -32,6 +32,7 @@ type MerchantVerificationInfo struct {
 	Status       string   `json:"status"`
 	Type         string   `json:"type"`
 	ReviewedAt   string   `json:"reviewedAt,omitempty"`
+	ExpiresAt    string   `json:"expiresAt,omitempty"`
 	CheckedItems []string `json:"checkedItems"`
 }
 
@@ -115,6 +116,7 @@ func buildMerchantVerificationInfo(detail model.MerchantDetail) *MerchantVerific
 		Status:       detail.VerificationStatus,
 		Type:         detail.MerchantType,
 		ReviewedAt:   detail.VerificationReviewedAt,
+		ExpiresAt:    detail.VerificationExpiresAt,
 		CheckedItems: []string{"主体资质", "经营场地"},
 	}
 }

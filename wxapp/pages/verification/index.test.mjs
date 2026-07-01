@@ -100,10 +100,29 @@ test('verification pending state shows review progress instead of editable form'
   assert.match(source, /资料已提交/)
   assert.match(source, /平台正在审核/)
   assert.match(source, /审核结果会通过站内消息通知/)
-  assert.match(source, /const showVerificationForm = computed\(\(\) => !isVerificationPending\.value && \(!isVerificationVerified\.value \|\| changingVerifiedCertification\.value\)/)
+  assert.match(source, /const showVerificationForm = computed\(\(\) => !isVerificationPending\.value && !isVerificationPaymentPending\.value && \(!isVerificationVerified\.value \|\| changingVerifiedCertification\.value\)/)
   assert.match(source, /<view v-if="showVerificationForm" class="form-card">/)
   assert.match(source, /<view v-if="showSubmitBar" class="fixed-save-spacer" \/>/)
   assert.match(source, /<view v-if="showSubmitBar" class="fixed-save-bar">/)
+})
+
+test('verification payment pending state shows payment prompt instead of editable form', () => {
+  const source = fs.readFileSync(sourcePath, 'utf8')
+
+  assert.match(source, /const isVerificationPaymentPending = computed\(\(\) => latestVerification\.value\.status === 'payment_pending'\)/)
+  assert.match(source, /<view v-if="isVerificationPaymentPending" class="payment-pending-card">/)
+  assert.match(source, /资料已审核通过/)
+  assert.match(source, /支付认证费后生效/)
+  assert.match(source, /const showVerificationForm = computed\(\(\) => !isVerificationPending\.value && !isVerificationPaymentPending\.value && \(!isVerificationVerified\.value \|\| changingVerifiedCertification\.value\)/)
+  assert.match(source, /if \(isVerificationPaymentPending\.value\) return '认证资料已审核通过，请先支付认证费'/)
+})
+
+test('verification dev mock payment skips wechat cashier after backend marks paid', () => {
+  const source = fs.readFileSync(sourcePath, 'utf8')
+
+  assert.match(source, /if \(resp\.status === 'paid'\) \{[\s\S]*?await loadLatestVerification\(\)[\s\S]*?return[\s\S]*?\}/)
+  assert.match(source, /const payment = resp\.payment \|\| \{\}/)
+  assert.match(source, /await requestWechatPayment\(payment\)/)
 })
 
 test('verification rejected state shows the review note to the merchant', () => {
@@ -123,10 +142,12 @@ test('verification verified state asks merchants to start a change request befor
 
   assert.match(source, /const changingVerifiedCertification = ref\(false\)/)
   assert.match(source, /const isVerificationVerified = computed\(\(\) => latestVerification\.value\.status === 'verified'\)/)
+  assert.match(source, /const verificationExpiresDate = computed\(\(\) => formatDateToDay\(latestVerification\.value\.expiresAt, ''\)\)/)
   assert.match(source, /const showVerifiedSummary = computed\(\(\) => isVerificationVerified\.value && !changingVerifiedCertification\.value\)/)
   assert.match(source, /<view v-if="showVerifiedSummary" class="verified-summary-card">/)
   assert.match(source, /认证已通过/)
   assert.match(source, /认证资料已生效/)
+  assert.match(source, /有效期至/)
   assert.match(source, /变更认证资料/)
   assert.match(source, /function startCertificationChange\(\)/)
   assert.match(source, /changingVerifiedCertification\.value = true/)
@@ -145,7 +166,7 @@ test('verification change request prefills the last certified materials', () => 
   assert.match(source, /form\.applicantName = String\(materials\.applicantName \|\| form\.applicantName \|\| ''\)/)
   assert.match(source, /form\.contactPhone = sanitizeContactPhoneValue\(materials\.contactPhone \|\| form\.contactPhone\)/)
   assert.match(source, /form\.addressText = String\(materials\.addressText \|\| form\.addressText \|\| ''\)/)
-  assert.match(source, /if \(latest\.status === 'verified'\) applyVerificationFormDefaults\(latest\)/)
+  assert.match(source, /if \(\['verified', 'expired'\]\.includes\(latest\.status\)\) applyVerificationFormDefaults\(latest\)/)
   assert.match(source, /applyVerificationFormDefaults\(latestVerification\.value\)[\s\S]*changingVerifiedCertification\.value = true/)
 })
 

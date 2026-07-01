@@ -21,6 +21,7 @@ Wechat:
 
 WechatPay:
   Enabled: false
+  DevMockEnabled: true
   MchID: "${WECHAT_PAY_MCH_ID}"
   AppID: "${WECHAT_APP_ID}"
   APIv3Key: "${WECHAT_PAY_API_V3_KEY}"

@@ -37,6 +37,7 @@ type WechatConfig struct {
 
 type WechatPayConfig struct {
 	Enabled                bool
+	DevMockEnabled         bool
 	MchID                  string
 	AppID                  string
 	APIv3Key               string
