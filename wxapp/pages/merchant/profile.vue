@@ -14,10 +14,11 @@
             <input v-model="form.name" class="field" :disabled="Boolean(merchantId)" placeholder="请输入商家名称" />
           </view>
           <view class="form-field">
-            <text class="field-label">商家类型</text>
+            <text class="field-label">主要身份</text>
             <picker :range="merchantTypeOptions" range-key="label" @change="changeMerchantType">
               <view class="field picker-field">{{ currentMerchantTypeLabel }}</view>
             </picker>
+            <text class="field-helper">选择最主要的经营身份，其他业务可写在主营品类和介绍里。</text>
             <text v-if="merchantTypeChangeNeedsReverify" class="field-helper warning-helper">
               修改后可能需要重新认证，保存后需重新提交认证。
             </text>
@@ -178,10 +179,10 @@ import {
 import { getMerchantId, saveMerchantId } from '../../store/session'
 
 const merchantTypeOptions = [
-  { label: '工厂', value: 'factory' },
-  { label: '档口', value: 'stall' },
-  { label: '库存商', value: 'stockist' },
-  { label: '服务商', value: 'service_provider' },
+  { label: '源头工厂', value: 'factory' },
+  { label: '现货档口', value: 'stall' },
+  { label: '库存货源', value: 'stockist' },
+  { label: '配套服务', value: 'service_provider' },
 ]
 
 const merchantId = ref('')
@@ -230,7 +231,7 @@ const form = reactive({
 
 const currentMerchantTypeLabel = computed(() => {
   const matched = merchantTypeOptions.find((item) => item.value === form.merchantType) || {}
-  return matched.label || '工厂'
+  return matched.label || '源头工厂'
 })
 const contactWechatPlaceholder = computed(() => {
   if (!merchantId.value || !contactWechatHint.value) return '微信号'

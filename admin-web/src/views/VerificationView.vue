@@ -19,7 +19,7 @@
       </div>
       <el-table v-loading="loading" :data="rows" stripe empty-text="暂无待审核认证">
         <el-table-column prop="merchantName" label="商家" min-width="180" />
-        <el-table-column label="认证类型" width="140">
+        <el-table-column label="认证身份" width="140">
           <template #default="{ row }">{{ typeText[row.verificationType] || row.verificationType }}</template>
         </el-table-column>
         <el-table-column prop="submittedAt" label="提交时间" width="180" />
@@ -74,7 +74,7 @@
     <el-drawer v-model="materialVisible" title="认证材料" size="420px">
       <el-descriptions v-if="materialRow" :column="1" border>
         <el-descriptions-item label="商家">{{ materialRow.merchantName }}</el-descriptions-item>
-        <el-descriptions-item label="认证类型">{{ typeText[materialRow.verificationType] || materialRow.verificationType }}</el-descriptions-item>
+        <el-descriptions-item label="认证身份">{{ typeText[materialRow.verificationType] || materialRow.verificationType }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ materialRow.status }}</el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ materialRow.submittedAt }}</el-descriptions-item>
       </el-descriptions>
@@ -86,14 +86,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getVerificationBillingConfig, listPendingVerifications, reviewVerification, updateVerificationBillingConfig } from '../api/verification'
+import { verificationTypeText as typeText } from '../common/merchantIdentity'
 import { useAuthStore } from '../stores/auth'
-
-const typeText = {
-  factory: '工厂认证',
-  stall: '档口认证',
-  stockist: '库存商认证',
-  service_provider: '服务商认证',
-}
 
 const rows = ref([])
 const loading = ref(false)

@@ -490,7 +490,7 @@ test('merchant profile page labels every field and removes manual image url entr
 
   for (const token of [
     '商家名称',
-    '商家类型',
+    '主要身份',
     '主营品类',
     '主页联系人',
     '主页联系电话',
@@ -508,6 +508,49 @@ test('merchant profile page labels every field and removes manual image url entr
 
   assert.equal(source.includes('也可粘贴图片 URL'), false)
   assert.equal(source.includes('图片 URL'), false)
+})
+
+test('merchant identity wording is unified across profile and display pages', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const profileSource = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+  const verificationSource = fs.readFileSync(path.join(root, 'pages/verification/index.vue'), 'utf8')
+  const enumSource = fs.readFileSync(path.join(root, 'common/enums.js'), 'utf8')
+  const displaySources = [
+    'pages/merchant/detail.vue',
+    'pages/resource/detail.vue',
+    'pages/favorites/index.vue',
+  ].map((file) => fs.readFileSync(path.join(root, file), 'utf8'))
+
+  for (const token of [
+    '主要身份',
+    '选择最主要的经营身份',
+    '源头工厂',
+    '现货档口',
+    '库存货源',
+    '配套服务',
+  ]) {
+    assert.match(profileSource, new RegExp(token))
+  }
+
+  for (const source of displaySources) {
+    for (const token of ['源头工厂', '现货档口', '库存货源', '配套服务']) {
+      assert.match(source, new RegExp(token))
+    }
+  }
+  for (const token of ['源头工厂', '现货档口', '库存货源', '配套服务']) {
+    assert.match(enumSource, new RegExp(token))
+  }
+
+  assert.equal(profileSource.includes("label: '工厂'"), false)
+  assert.equal(profileSource.includes("label: '档口'"), false)
+  assert.equal(profileSource.includes("label: '库存商'"), false)
+  assert.equal(profileSource.includes("label: '服务商'"), false)
+  assert.equal(enumSource.includes("factory: '工厂'"), false)
+  assert.equal(enumSource.includes("stall: '档口'"), false)
+  assert.equal(enumSource.includes("stockist: '库存商'"), false)
+  assert.equal(enumSource.includes("service_provider: '服务商'"), false)
+  assert.equal(verificationSource.includes('认证类型'), false)
+  assert.equal(verificationSource.includes('工厂认证'), false)
 })
 
 test('publish page presents grouped fast publishing workflow', () => {

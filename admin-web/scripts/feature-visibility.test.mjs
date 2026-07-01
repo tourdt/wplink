@@ -88,3 +88,39 @@ test('hot search keywords are configurable from admin web', () => {
   assert.match(viewSource, /v-model="form\.keyword"/)
   assert.match(viewSource, /v-model="form\.status"/)
 })
+
+test('admin merchant identity wording matches mini program copy', () => {
+  const merchantSource = fs.readFileSync(path.join(root, 'src/views/MerchantView.vue'), 'utf8')
+  const verificationSource = fs.readFileSync(path.join(root, 'src/views/VerificationView.vue'), 'utf8')
+  const entitlementSource = fs.readFileSync(path.join(root, 'src/views/EntitlementView.vue'), 'utf8')
+  const bannerSource = fs.readFileSync(path.join(root, 'src/views/BannerTopicView.vue'), 'utf8')
+  const identitySource = fs.readFileSync(path.join(root, 'src/common/merchantIdentity.js'), 'utf8')
+  const combinedSource = [merchantSource, verificationSource, entitlementSource, bannerSource, identitySource].join('\n')
+
+  for (const token of ['主要身份', '源头工厂', '现货档口', '库存货源', '配套服务']) {
+    assert.match(combinedSource, new RegExp(token))
+  }
+
+  for (const oldToken of [
+    '商家类型',
+    "factory: '工厂'",
+    "stall: '档口'",
+    "stockist: '库存商'",
+    "service_provider: '服务商'",
+    "factory: '工厂认证'",
+    "stall: '档口认证'",
+    "stockist: '库存商认证'",
+    "service_provider: '服务商认证'",
+  ]) {
+    assert.equal(combinedSource.includes(oldToken), false)
+  }
+
+  for (const oldOption of [
+    "label=\"工厂\" value=\"factory\"",
+    "label=\"档口\" value=\"stall\"",
+    "label=\"库存商\" value=\"stockist\"",
+    "label=\"服务商\" value=\"service_provider\"",
+  ]) {
+    assert.equal(merchantSource.includes(oldOption), false)
+  }
+})

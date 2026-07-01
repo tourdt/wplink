@@ -309,10 +309,10 @@ WHERE id = $1 AND deleted_at IS NULL
 			return nil
 		}
 
-		// 商家类型影响认证含义；一旦从已认证或待审状态切换类型，需要撤销旧认证痕迹并要求重新认证。
+		// 主要身份影响认证含义；一旦从已认证或待审状态切换身份，需要撤销旧认证痕迹并要求重新认证。
 		if _, err := tx.ExecContext(ctx, `
 UPDATE verifications
-SET status = 'revoked', review_note = COALESCE(NULLIF(review_note, ''), '商家类型已变更，请按新类型重新提交认证'), reviewed_at = $2, updated_at = $2
+SET status = 'revoked', review_note = COALESCE(NULLIF(review_note, ''), '主要身份已变更，请按新身份重新提交认证'), reviewed_at = $2, updated_at = $2
 WHERE merchant_id = $1 AND status = 'pending'
 `, merchantID, updatedAt); err != nil {
 			return err

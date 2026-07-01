@@ -11,7 +11,7 @@
       </div>
       <el-table v-loading="loading" :data="rows" stripe empty-text="暂无可发放商家">
         <el-table-column prop="name" label="商家" min-width="180" />
-        <el-table-column label="类型" width="140">
+        <el-table-column label="主要身份" width="140">
           <template #default="{ row }">{{ merchantTypeText[row.merchantType] || row.merchantType }}</template>
         </el-table-column>
         <el-table-column label="认证状态" width="120">
@@ -59,15 +59,8 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { grantMerchantEntitlement } from '../api/entitlement'
 import { listMerchants } from '../api/merchant'
+import { merchantTypeText } from '../common/merchantIdentity'
 import { useAuthStore } from '../stores/auth'
-
-const merchantTypeText = {
-  factory: '工厂',
-  stall: '档口',
-  stockist: '库存商',
-  service_provider: '服务商',
-  buyer: '采购商',
-}
 
 const rows = ref([])
 const loading = ref(false)

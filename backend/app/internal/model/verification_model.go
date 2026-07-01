@@ -293,13 +293,13 @@ VALUES ($1, 'verification', '[]'::jsonb, 24, 'unused')
 func verificationLabel(verificationType string) string {
 	switch verificationType {
 	case "factory":
-		return "工厂认证"
+		return "源头工厂认证"
 	case "stall":
-		return "档口认证"
+		return "现货档口认证"
 	case "stockist":
-		return "库存商认证"
+		return "库存货源认证"
 	case "service_provider":
-		return "服务商认证"
+		return "配套服务认证"
 	default:
 		return "商家认证"
 	}

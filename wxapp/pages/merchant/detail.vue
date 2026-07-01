@@ -108,10 +108,10 @@ const merchantResourcesLoading = ref(false)
 const followed = ref(false)
 const ownMerchantId = ref('')
 const merchantTypeText = {
-  factory: '工厂',
-  stall: '档口',
-  stockist: '库存商',
-  service_provider: '服务商',
+  factory: '源头工厂',
+  stall: '现货档口',
+  stockist: '库存货源',
+  service_provider: '配套服务',
   buyer: '采购商',
 }
 const creditTags = computed(() => merchant.value.creditTags || [])

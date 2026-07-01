@@ -205,6 +205,7 @@ import { createBannerTopic, listBannerTopics, updateBannerTopic } from '../api/b
 import { listMerchants } from '../api/merchant'
 import { listResources } from '../api/resource'
 import { uploadBannerImage } from '../api/upload'
+import { merchantTypeLabel } from '../common/merchantIdentity'
 
 const jumpTypeText = { topic: '专题落地页', resource: '资源', merchant: '商家', demand: '需求', internal: '内部页', webview: '网页' }
 const kindText = { banner: '首页 Banner', home_recommend_card: '首页推荐卡' }
@@ -389,18 +390,7 @@ function resourceOptionLabel(item) {
 }
 
 function merchantOptionLabel(item) {
-  return `${item.name}${item.merchantType ? ` · ${merchantTypeText(item.merchantType)}` : ''}`
-}
-
-function merchantTypeText(type) {
-  const typeMap = {
-    factory: '工厂',
-    stall: '档口',
-    stockist: '库存商',
-    service_provider: '服务商',
-    buyer: '采购商',
-  }
-  return typeMap[type] || type
+  return `${item.name}${item.merchantType ? ` · ${merchantTypeLabel(item.merchantType)}` : ''}`
 }
 
 function buildSubmitPayload() {
