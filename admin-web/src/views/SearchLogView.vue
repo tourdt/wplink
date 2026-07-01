@@ -6,7 +6,9 @@
     <section class="panel">
       <el-form :inline="true" class="filter-bar">
         <el-form-item label="城市">
-          <el-input v-model="filters.cityCode" placeholder="zhili" style="width: 160px" />
+          <el-select v-model="filters.cityCode" style="width: 160px">
+            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
+          </el-select>
         </el-form-item>
         <el-form-item label="关键词">
           <el-input v-model="filters.keyword" placeholder="搜索关键词" style="width: 220px" />
@@ -49,9 +51,10 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { listSearchLogs } from '../api/searchLog'
+import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 
 const filters = reactive({
-  cityCode: 'zhili',
+  cityCode: defaultCityCode,
   keyword: '',
 })
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 })

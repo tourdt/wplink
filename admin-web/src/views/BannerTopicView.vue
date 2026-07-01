@@ -9,7 +9,7 @@
       <el-form :inline="true" class="filter-bar">
         <el-form-item label="城市站">
           <el-select v-model="filters.cityCode" style="width: 140px">
-            <el-option label="织里" value="zhili" />
+            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="运营位">
@@ -63,8 +63,8 @@
     <el-drawer v-model="drawerVisible" :title="editingId ? '编辑配置' : '新增配置'" size="560px">
       <el-form label-position="top">
         <el-form-item label="城市站">
-          <el-select v-model="form.cityCode">
-            <el-option label="织里" value="zhili" />
+          <el-select v-model="form.cityCode" @change="loadTargetOptions">
+            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="运营位">
@@ -205,6 +205,7 @@ import { createBannerTopic, listBannerTopics, updateBannerTopic } from '../api/b
 import { listMerchants } from '../api/merchant'
 import { listResources } from '../api/resource'
 import { uploadBannerImage } from '../api/upload'
+import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { merchantTypeLabel } from '../common/merchantIdentity'
 
 const jumpTypeText = { topic: '专题落地页', resource: '资源', merchant: '商家', demand: '需求', internal: '内部页', webview: '网页' }
@@ -235,7 +236,7 @@ const internalPageOptions = [
   { label: '认证页', value: '/pages/verification/index' },
 ]
 
-const filters = reactive({ cityCode: 'zhili', kind: 'banner', status: '' })
+const filters = reactive({ cityCode: defaultCityCode, kind: 'banner', status: '' })
 const rows = ref([])
 const resourceOptions = ref([])
 const merchantOptions = ref([])
@@ -262,7 +263,7 @@ onMounted(() => {
 
 function defaultForm() {
   return {
-    cityCode: 'zhili',
+    cityCode: defaultCityCode,
     kind: 'banner',
     title: '',
     subtitle: '',
@@ -298,7 +299,7 @@ async function loadTargetOptions() {
 async function searchResourceTargets(query = '') {
   resourceTargetLoading.value = true
   try {
-    const resp = await listResources({ cityCode: 'zhili', keyword: query, page: 1, pageSize: 30 })
+    const resp = await listResources({ cityCode: form.cityCode, keyword: query, page: 1, pageSize: 30 })
     resourceOptions.value = resp.items || []
   } catch {
     resourceOptions.value = []
@@ -310,7 +311,7 @@ async function searchResourceTargets(query = '') {
 async function searchMerchantTargets(query = '') {
   merchantTargetLoading.value = true
   try {
-    const resp = await listMerchants({ cityCode: 'zhili', status: 'active', keyword: query, page: 1, pageSize: 30 })
+    const resp = await listMerchants({ cityCode: form.cityCode, status: 'active', keyword: query, page: 1, pageSize: 30 })
     merchantOptions.value = resp.items || []
   } catch {
     merchantOptions.value = []
@@ -328,12 +329,14 @@ function resetForm(data = {}) {
 function openCreate() {
   editingId.value = ''
   resetForm()
+  loadTargetOptions()
   drawerVisible.value = true
 }
 
 function openEdit(row) {
   editingId.value = row.id
   resetForm(row)
+  loadTargetOptions()
   drawerVisible.value = true
 }
 

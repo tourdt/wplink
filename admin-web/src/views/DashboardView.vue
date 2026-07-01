@@ -34,6 +34,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { getDashboardOverview } from '../api/dashboard'
+import { defaultCityCode } from '../common/cityStations'
 
 const loading = ref(false)
 const errorText = ref('')
@@ -61,7 +62,7 @@ async function loadOverview() {
   loading.value = true
   errorText.value = ''
   try {
-    overview.value = await getDashboardOverview({ cityCode: 'zhili' })
+    overview.value = await getDashboardOverview({ cityCode: defaultCityCode })
   } catch {
     errorText.value = '数据概览加载失败，请重试'
   } finally {

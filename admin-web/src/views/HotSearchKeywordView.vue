@@ -9,7 +9,7 @@
       <el-form :inline="true" class="filter-bar">
         <el-form-item label="城市站">
           <el-select v-model="filters.cityCode" style="width: 140px">
-            <el-option label="织里" value="zhili" />
+            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -55,7 +55,7 @@
       <el-form label-position="top">
         <el-form-item label="城市站">
           <el-select v-model="form.cityCode">
-            <el-option label="织里" value="zhili" />
+            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="搜索词">
@@ -90,10 +90,11 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createHotSearchKeyword, listHotSearchKeywords, updateHotSearchKeyword } from '../api/hotSearchKeyword'
+import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 
 const statusText = { draft: '草稿', active: '启用', disabled: '停用' }
 const statusTagType = { draft: 'info', active: 'success', disabled: 'warning' }
-const filters = reactive({ cityCode: 'zhili', status: '' })
+const filters = reactive({ cityCode: defaultCityCode, status: '' })
 const rows = ref([])
 const loading = ref(false)
 const errorText = ref('')
@@ -106,7 +107,7 @@ onMounted(loadRows)
 
 function defaultForm() {
   return {
-    cityCode: 'zhili',
+    cityCode: defaultCityCode,
     keyword: '',
     startAt: '',
     endAt: '',

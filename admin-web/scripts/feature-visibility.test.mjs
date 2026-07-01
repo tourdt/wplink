@@ -89,6 +89,38 @@ test('hot search keywords are configurable from admin web', () => {
   assert.match(viewSource, /v-model="form\.status"/)
 })
 
+test('admin city station filters use dropdown options', () => {
+  const citySource = fs.readFileSync(path.join(root, 'src/common/cityStations.js'), 'utf8')
+  const filterFiles = [
+    'src/views/SearchLogView.vue',
+    'src/views/DemandView.vue',
+    'src/views/HotSearchKeywordView.vue',
+    'src/views/ResourceReviewView.vue',
+    'src/views/BannerTopicView.vue',
+    'src/views/MerchantView.vue',
+    'src/views/ResourceTypeConfigView.vue',
+  ]
+
+  assert.match(citySource, /cityStationOptions/)
+  assert.match(citySource, /label:\s*'织里'/)
+  assert.match(citySource, /value:\s*'zhili'/)
+
+  for (const file of filterFiles) {
+    const source = fs.readFileSync(path.join(root, file), 'utf8')
+    assert.match(source, /cityStationOptions/)
+    assert.match(source, /<el-select[^>]+v-model="filters\.cityCode"/)
+    assert.equal(/<el-input[^>]+v-model(?:\.trim)?="filters\.cityCode"/.test(source), false)
+  }
+
+  const searchLogSource = fs.readFileSync(path.join(root, 'src/views/SearchLogView.vue'), 'utf8')
+  assert.match(searchLogSource, /<el-option v-for="station in cityStationOptions"/)
+  assert.equal(searchLogSource.includes('placeholder="zhili"'), false)
+
+  const verificationSource = fs.readFileSync(path.join(root, 'src/views/VerificationView.vue'), 'utf8')
+  assert.match(verificationSource, /<el-select[^>]+v-model="billingForm\.cityCode"/)
+  assert.equal(/<el-input[^>]+v-model(?:\.trim)?="billingForm\.cityCode"/.test(verificationSource), false)
+})
+
 test('admin merchant identity wording matches mini program copy', () => {
   const merchantSource = fs.readFileSync(path.join(root, 'src/views/MerchantView.vue'), 'utf8')
   const verificationSource = fs.readFileSync(path.join(root, 'src/views/VerificationView.vue'), 'utf8')

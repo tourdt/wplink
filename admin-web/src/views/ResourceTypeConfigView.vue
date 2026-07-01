@@ -16,7 +16,7 @@
       <el-form :inline="true" class="filter-bar">
         <el-form-item label="城市站">
           <el-select v-model="filters.cityCode" style="width: 140px">
-            <el-option label="织里" value="zhili" />
+            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -121,9 +121,10 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listResourceTypeConfigs, updateResourceTypeConfig } from '../api/city'
+import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 
 const filters = reactive({
-  cityCode: 'zhili',
+  cityCode: defaultCityCode,
   status: '',
 })
 const configs = ref([])

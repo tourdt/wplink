@@ -47,7 +47,9 @@
     <el-drawer v-model="billingDrawerVisible" title="认证收费设置" size="460px">
       <el-form label-position="top">
         <el-form-item label="城市站">
-          <el-input v-model.trim="billingForm.cityCode" />
+          <el-select v-model="billingForm.cityCode" @change="loadBillingConfig">
+            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
+          </el-select>
         </el-form-item>
         <el-form-item label="认证收费">
           <el-switch v-model="billingForm.chargeEnabled" active-text="开启" inactive-text="关闭" />
@@ -119,6 +121,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getVerificationBillingConfig, listPendingVerifications, reviewVerification, updateVerificationBillingConfig } from '../api/verification'
+import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { verificationTypeText as typeText } from '../common/merchantIdentity'
 import { useAuthStore } from '../stores/auth'
 
@@ -134,7 +137,7 @@ const materialRow = ref(null)
 const billingDrawerVisible = ref(false)
 const savingBilling = ref(false)
 const billingForm = reactive({
-  cityCode: 'zhili',
+  cityCode: defaultCityCode,
   chargeEnabled: false,
   feeAmount: 0,
   currency: 'CNY',
@@ -295,7 +298,7 @@ function currentOperatorId() {
 
 function normalizeBillingConfig(config = {}) {
   return {
-    cityCode: config.cityCode || 'zhili',
+    cityCode: config.cityCode || defaultCityCode,
     chargeEnabled: Boolean(config.chargeEnabled),
     feeAmount: Number(config.feeAmount || 0),
     currency: config.currency || 'CNY',

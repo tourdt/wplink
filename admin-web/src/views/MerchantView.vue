@@ -9,7 +9,7 @@
       <el-form :inline="true" class="filter-bar">
         <el-form-item label="城市站">
           <el-select v-model="filters.cityCode" style="width: 140px">
-            <el-option label="织里" value="zhili" />
+            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="主要身份">
@@ -70,7 +70,7 @@
       <el-form label-position="top">
         <el-form-item label="城市站">
           <el-select v-model="form.cityCode">
-            <el-option label="织里" value="zhili" />
+            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="商家名称">
@@ -117,6 +117,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createMerchant, getMerchant, listMerchants } from '../api/merchant'
+import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { merchantIdentityOptions, merchantTypeText } from '../common/merchantIdentity'
 const verificationText = {
   unverified: '未认证',
@@ -127,11 +128,11 @@ const verificationText = {
 }
 
 const filters = reactive({
-  cityCode: 'zhili',
+  cityCode: defaultCityCode,
   merchantType: '',
 })
 const form = reactive({
-  cityCode: 'zhili',
+  cityCode: defaultCityCode,
   name: '',
   merchantType: 'factory',
   mainCategories: ['童装'],

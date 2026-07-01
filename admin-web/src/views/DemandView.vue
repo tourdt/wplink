@@ -8,7 +8,7 @@
       <el-form :inline="true" class="filter-bar">
         <el-form-item label="城市站">
           <el-select v-model="filters.cityCode" style="width: 140px">
-            <el-option label="织里" value="zhili" />
+            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="需求类型">
@@ -84,6 +84,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getDemand, listDemands, updateDemandStatus } from '../api/demand'
+import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 
 const demandTypeText = {
   inventory: '找库存',
@@ -105,7 +106,7 @@ const statusTagType = {
 }
 
 const filters = reactive({
-  cityCode: 'zhili',
+  cityCode: defaultCityCode,
   demandType: '',
   status: '',
 })

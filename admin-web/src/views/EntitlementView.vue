@@ -59,6 +59,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { grantMerchantEntitlement } from '../api/entitlement'
 import { listMerchants } from '../api/merchant'
+import { defaultCityCode } from '../common/cityStations'
 import { merchantTypeText } from '../common/merchantIdentity'
 import { useAuthStore } from '../stores/auth'
 
@@ -82,7 +83,7 @@ async function loadRows() {
   loading.value = true
   errorText.value = ''
   try {
-    const resp = await listMerchants({ cityCode: 'zhili', page: 1, pageSize: 50 })
+    const resp = await listMerchants({ cityCode: defaultCityCode, page: 1, pageSize: 50 })
     rows.value = resp.items || []
   } catch {
     errorText.value = '商家列表加载失败，请重试'

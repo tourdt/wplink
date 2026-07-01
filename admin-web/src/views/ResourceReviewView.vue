@@ -9,7 +9,7 @@
       <el-form :inline="true" class="filter-bar">
         <el-form-item label="城市站">
           <el-select v-model="filters.cityCode" style="width: 140px">
-            <el-option label="织里" value="zhili" />
+            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="资源类型">
@@ -114,6 +114,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createResource, listPendingResources, reviewResource } from '../api/resource'
+import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { useAuthStore } from '../stores/auth'
 
 const typeText = {
@@ -127,7 +128,7 @@ const typeText = {
 }
 
 const filters = reactive({
-  cityCode: 'zhili',
+  cityCode: defaultCityCode,
   typeCode: '',
 })
 const rows = ref([])
@@ -239,7 +240,7 @@ function openRowDetail(row) {
 function defaultProxyForm() {
   return {
     merchantId: '',
-    cityCode: 'zhili',
+    cityCode: defaultCityCode,
     typeCode: 'inventory',
     title: '',
     category: '',
