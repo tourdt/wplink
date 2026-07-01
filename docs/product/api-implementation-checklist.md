@@ -63,6 +63,8 @@
 
 ## 采购需求
 
+说明：采购需求相关接口和页面已预留，但“提交需求”、“我的需求”和后台“采购需求”处理流程暂不纳入首发上线与 MVP 验收。
+
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
 | `POST /api/v1/purchase-demands` | `backend/app/api/demand.api` | `backend/app/internal/logic/demand/create_demand_logic.go` | 需求线索池 | `wxapp/pages/demand/index.vue` | 已接 handler，测试通过 |

@@ -48,11 +48,17 @@ psql "$DATABASE_URL" -f backend/migrations/000003_seed_zhili.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000004_user_interactions.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000005_merchant_logo.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000006_merchant_type_change_logs.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000007_verification_payments.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000008_hot_search_keywords.up.sql
 ```
 
 演示数据 `backend/scripts/seed_demo_data.sql` 只用于评审或演示环境，生产正式库按运营需要决定是否导入。
 
-## 4. 启动检查
+## 4. 首发功能口径
+
+首发正式运营暂不开放“提交需求”、“我的需求”和后台“采购需求”处理流程；搜索无结果只验收空态、热门词和换条件能力。相关表、接口和页面可作为后续版本预留，但不作为本次上线验收项。
+
+## 5. 启动检查
 
 部署后执行：
 
@@ -67,7 +73,7 @@ curl -I https://YOUR_DOMAIN/admin/
 
 `/readyz` 必须返回 `ok` 后再切入流量。
 
-## 5. 小程序真机验收
+## 6. 小程序真机验收
 
 构建微信小程序：
 
@@ -84,7 +90,7 @@ VITE_API_BASE_URL=https://YOUR_DOMAIN npm run build:mp-weixin
 - uploadFile 合法域名：七牛上传域名
 - downloadFile 合法域名：七牛 CDN 域名
 
-## 6. 回滚
+## 7. 回滚
 
 保留上一版：
 
