@@ -124,7 +124,8 @@
           </view>
         </view>
         <view class="contact-actions">
-          <button class="primary-button" @click="callSelectedObject">拨打电话</button>
+          <button class="primary-button" @click="openSelectedObjectLocation">导航</button>
+          <button class="secondary-button" @click="callSelectedObject">拨打电话</button>
           <button class="secondary-button" @click="copySelectedWechat">复制微信</button>
         </view>
         <view v-if="nearbyPois.length" class="nearby-section">
@@ -455,6 +456,44 @@ function copySelectedWechat() {
   uni.setClipboardData({ data: wechat })
 }
 
+function openSelectedObjectLocation() {
+  const payload = buildNavigationPayload(selectedObject.value)
+  if (!payload.address && (!payload.latitude || !payload.longitude)) {
+    uni.showToast({ title: '该点位暂未提供可导航地址', icon: 'none' })
+    return
+  }
+  if (!payload.latitude || !payload.longitude) {
+    uni.setClipboardData({ data: payload.address })
+    uni.showToast({ title: '没有精确定位，已复制地址', icon: 'none' })
+    return
+  }
+
+  uni.openLocation({
+    latitude: payload.latitude,
+    longitude: payload.longitude,
+    name: payload.name,
+    address: payload.address,
+    scale: 18,
+    fail() {
+      if (payload.address) {
+        uni.setClipboardData({ data: payload.address })
+        uni.showToast({ title: '导航打开失败，已复制地址', icon: 'none' })
+      }
+    },
+  })
+}
+
+function buildNavigationPayload(object) {
+  const latitude = parseCoordinate(object?.lat)
+  const longitude = parseCoordinate(object?.lng)
+  return {
+    latitude,
+    longitude,
+    name: object?.name || object?.code || selectedSceneName.value,
+    address: object?.address || '',
+  }
+}
+
 function objectStyle(object) {
   const geometry = object.geometry || {}
   const scale = stageScale.value
@@ -514,6 +553,11 @@ function toNumber(value, fallback) {
 function toPositiveNumber(value, fallback) {
   const parsed = toNumber(value, fallback)
   return parsed > 0 ? parsed : fallback
+}
+
+function parseCoordinate(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function rpxToPx(value) {
@@ -958,7 +1002,7 @@ function rpxToPx(value) {
 
 .contact-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16rpx;
 }
 

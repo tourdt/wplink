@@ -98,3 +98,18 @@ test('sourcing map page focuses and highlights selected map objects', () => {
   assert.match(source, /function selectMapObject\(object,\s*options = \{ focus: true \}\)/)
   assert.match(source, /if \(options\.focus\) \{\s*focusMapObject\(object\)\s*\}/)
 })
+
+test('sourcing map page provides navigation with address fallback', () => {
+  for (const token of [
+    '导航',
+    'openSelectedObjectLocation',
+    'uni.openLocation',
+    'buildNavigationPayload',
+    '没有精确定位，已复制地址',
+    '该点位暂未提供可导航地址',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.match(source, /openLocation\(\{[\s\S]*latitude:\s*payload\.latitude,[\s\S]*longitude:\s*payload\.longitude,[\s\S]*name:\s*payload\.name,[\s\S]*address:\s*payload\.address/)
+  assert.match(source, /if \(!payload\.latitude \|\| !payload\.longitude\) \{[\s\S]*uni\.setClipboardData\(\{ data: payload\.address \}\)/)
+})
