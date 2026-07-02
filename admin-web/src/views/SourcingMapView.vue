@@ -115,15 +115,29 @@
                   <el-input-number v-model="sceneForm.height" :min="1" />
                 </el-form-item>
               </div>
-              <div class="scene-size-grid">
-                <el-form-item label="默认缩放">
-                  <el-input v-model="sceneForm.defaultScale" />
-                </el-form-item>
-                <el-form-item label="状态">
-                  <el-select v-model="sceneForm.status">
-                    <el-option v-for="item in sceneStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
+              <div class="scene-default-viewport">
+                <div class="section-subtitle">
+                  <span>默认视野</span>
+                  <el-button type="primary" link :disabled="!sceneForm.backgroundUrl" @click="setSceneDefaultCenterFromCanvas">设为当前画布中心</el-button>
+                </div>
+                <div class="scene-size-grid">
+                  <el-form-item label="默认缩放">
+                    <el-input v-model="sceneForm.defaultScale" placeholder="1" />
+                  </el-form-item>
+                  <el-form-item label="默认中心 X">
+                    <el-input v-model="sceneForm.defaultCenterX" placeholder="1500" />
+                  </el-form-item>
+                </div>
+                <div class="scene-size-grid">
+                  <el-form-item label="默认中心 Y">
+                    <el-input v-model="sceneForm.defaultCenterY" placeholder="900" />
+                  </el-form-item>
+                  <el-form-item label="状态">
+                    <el-select v-model="sceneForm.status">
+                      <el-option v-for="item in sceneStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
+                    </el-select>
+                  </el-form-item>
+                </div>
               </div>
               <div class="drawer-actions">
                 <el-button type="primary" :loading="sceneSaving" @click="submitScene">保存场景</el-button>
@@ -1025,6 +1039,20 @@ function scrollCanvasToObject(object) {
   canvas.scrollTop = clampNumber(Math.round(centerY - canvas.clientHeight / 2), 0, maxTop)
 }
 
+function setSceneDefaultCenterFromCanvas() {
+  const canvas = mapCanvasRef.value
+  const stage = canvas?.querySelector('.map-canvas-stage')
+  if (!canvas || !stage) {
+    ElMessage.error('请先上传底图并打开画布')
+    return
+  }
+  const centerX = clampNumber(Math.round(canvas.scrollLeft + canvas.clientWidth / 2), 0, toPositiveNumber(sceneForm.width, stage.clientWidth))
+  const centerY = clampNumber(Math.round(canvas.scrollTop + canvas.clientHeight / 2), 0, toPositiveNumber(sceneForm.height, stage.clientHeight))
+  sceneForm.defaultCenterX = String(centerX)
+  sceneForm.defaultCenterY = String(centerY)
+  ElMessage.success('当前画布中心已写入默认视野')
+}
+
 function syncGeometryType() {
   objectForm.geometry = { ...defaultGeometry(objectForm.geometryType), ...objectForm.geometry }
 }
@@ -1449,6 +1477,24 @@ function clampNumber(value, min, max) {
 
 .background-url-input {
   margin-top: 8px;
+}
+
+.scene-default-viewport {
+  margin-bottom: 18px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.section-subtitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .scene-size-grid {

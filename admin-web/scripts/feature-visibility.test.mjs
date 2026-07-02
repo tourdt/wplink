@@ -251,6 +251,30 @@ test('sourcing map admin can filter map scenes', () => {
   )
 })
 
+test('sourcing map admin can configure default scene viewport', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    '默认视野',
+    '默认缩放',
+    '默认中心 X',
+    '默认中心 Y',
+    '设为当前画布中心',
+    'sceneForm.defaultScale',
+    'sceneForm.defaultCenterX',
+    'sceneForm.defaultCenterY',
+    'setSceneDefaultCenterFromCanvas',
+    'mapCanvasRef.value',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /v-model="sceneForm\.defaultCenterX"/)
+  assert.match(viewSource, /v-model="sceneForm\.defaultCenterY"/)
+  assert.match(viewSource, /sceneForm\.defaultCenterX = String\(centerX\)/)
+  assert.match(viewSource, /sceneForm\.defaultCenterY = String\(centerY\)/)
+})
+
 test('sourcing map admin can quickly update object status', () => {
   const apiSource = fs.readFileSync(path.join(root, 'src/api/sourcingMap.js'), 'utf8')
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
