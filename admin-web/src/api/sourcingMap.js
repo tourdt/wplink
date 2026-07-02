@@ -37,3 +37,7 @@ export function batchGenerateMapObjects(sceneCode, payload) {
 export function listMapCategories(params = {}) {
   return http.get('/api/v1/admin/map/categories', { params })
 }
+
+export function saveMapCategory(payload) {
+  return http.post('/api/v1/admin/map/categories', payload)
+}

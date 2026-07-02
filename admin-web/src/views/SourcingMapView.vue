@@ -221,22 +221,22 @@
               </div>
               <el-form-item label="主营分类">
                 <el-select v-model="objectForm.categoryCodes" multiple filterable allow-create default-first-option placeholder="选择或输入分类">
-                  <el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  <el-option v-for="item in mergedCategoryOptions" :key="item.value" :label="item.label" :value="item.value" />
                 </el-select>
               </el-form-item>
               <el-form-item label="档口服务">
                 <el-select v-model="objectForm.serviceTags" multiple filterable allow-create default-first-option placeholder="选择或输入服务标签">
-                  <el-option v-for="item in serviceTagOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  <el-option v-for="item in mergedServiceTagOptions" :key="item.value" :label="item.label" :value="item.value" />
                 </el-select>
               </el-form-item>
               <el-form-item label="平台标签">
                 <el-select v-model="objectForm.platformTags" multiple filterable allow-create default-first-option placeholder="运营侧推荐/认证标签">
-                  <el-option v-for="item in platformTagOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  <el-option v-for="item in mergedPlatformTagOptions" :key="item.value" :label="item.label" :value="item.value" />
                 </el-select>
               </el-form-item>
               <el-form-item label="配套服务">
                 <el-select v-model="objectForm.poiServiceTags" multiple filterable allow-create default-first-option placeholder="打包/物流/快递服务">
-                  <el-option v-for="item in poiServiceTagOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  <el-option v-for="item in mergedPoiServiceTagOptions" :key="item.value" :label="item.label" :value="item.value" />
                 </el-select>
               </el-form-item>
               <el-form-item label="营业时间">
@@ -272,6 +272,78 @@
               </el-form-item>
               <div class="drawer-actions">
                 <el-button type="primary" :disabled="!selectedScene" :loading="objectSaving" @click="submitObject">保存点位</el-button>
+              </div>
+            </el-form>
+          </el-tab-pane>
+          <el-tab-pane label="标签" name="category">
+            <div class="panel-heading object-heading">
+              <h3>标准标签</h3>
+              <el-button type="primary" link @click="newCategory">新增标签</el-button>
+            </div>
+
+            <div v-if="categoryErrorText" class="table-state table-state-error">
+              <span>{{ categoryErrorText }}</span>
+              <el-button type="danger" plain @click="loadCategories">重试</el-button>
+            </div>
+
+            <el-table
+              v-loading="categoryLoading"
+              :data="mapCategories"
+              size="small"
+              height="168"
+              highlight-current-row
+              empty-text="暂无标准标签"
+              @row-click="selectCategory"
+            >
+              <el-table-column prop="code" label="编码" width="92" />
+              <el-table-column prop="name" label="名称" min-width="100" />
+              <el-table-column label="类型" width="86">
+                <template #default="{ row }">
+                  {{ categoryTypeText[row.type] || row.type }}
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="58">
+                <template #default="{ row }">
+                  {{ categoryStatusText[row.status] || row.status }}
+                </template>
+              </el-table-column>
+            </el-table>
+
+            <el-form class="object-form" label-position="top">
+              <el-form-item label="标签编码">
+                <el-input v-model.trim="categoryForm.code" placeholder="girl" />
+              </el-form-item>
+              <el-form-item label="标签名称">
+                <el-input v-model.trim="categoryForm.name" placeholder="女童" />
+              </el-form-item>
+              <div class="scene-size-grid">
+                <el-form-item label="标签类型">
+                  <el-select v-model="categoryForm.type">
+                    <el-option v-for="item in categoryTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="排序">
+                  <el-input-number v-model="categoryForm.sort" :min="0" controls-position="right" />
+                </el-form-item>
+              </div>
+              <el-form-item label="图标 URL">
+                <el-input v-model.trim="categoryForm.iconUrl" placeholder="可选" />
+              </el-form-item>
+              <div class="scene-size-grid">
+                <el-form-item label="前端展示">
+                  <el-switch v-model="categoryForm.isVisible" />
+                </el-form-item>
+                <el-form-item label="状态">
+                  <el-select v-model="categoryForm.status">
+                    <el-option label="正常" value="normal" />
+                    <el-option label="隐藏" value="hidden" />
+                    <el-option label="停用" value="closed" />
+                  </el-select>
+                </el-form-item>
+              </div>
+              <div class="drawer-actions">
+                <el-button @click="newCategory">新增标签</el-button>
+                <el-button type="primary" :loading="categorySaving" @click="submitCategory">保存标签</el-button>
               </div>
             </el-form>
           </el-tab-pane>
@@ -330,10 +402,12 @@
         </el-form-item>
         <el-form-item label="分类编码">
           <el-select v-model="batchForm.categoryCodes" multiple filterable allow-create default-first-option placeholder="输入后回车">
+            <el-option v-for="item in mergedCategoryOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="服务标签">
           <el-select v-model="batchForm.serviceTags" multiple filterable allow-create default-first-option placeholder="输入后回车">
+            <el-option v-for="item in mergedServiceTagOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <div class="drawer-actions">
@@ -350,9 +424,11 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   batchGenerateMapObjects,
+  listMapCategories,
   listMapObjects,
   listMapScenes,
   publishMapScene,
+  saveMapCategory,
   saveMapObject,
   saveMapScene,
 } from '../api/sourcingMap'
@@ -362,6 +438,15 @@ import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 const sceneStatusText = { draft: '草稿', published: '已发布', archived: '已归档' }
 const sceneStatusTagType = { draft: 'info', published: 'success', archived: 'warning' }
 const objectStatusText = { normal: '正常', hidden: '隐藏', closed: '歇业' }
+const categoryTypeOptions = [
+  { label: '主营分类', value: 'booth_category' },
+  { label: '档口服务', value: 'booth_service' },
+  { label: '平台标签', value: 'platform_tag' },
+  { label: '配套服务', value: 'poi_service' },
+  { label: 'POI 类型', value: 'poi_type' },
+]
+const categoryTypeText = Object.fromEntries(categoryTypeOptions.map((item) => [item.value, item.label]))
+const categoryStatusText = { normal: '正常', hidden: '隐藏', closed: '停用' }
 const categoryOptions = [
   { label: '女童', value: 'girl' },
   { label: '男童', value: 'boy' },
@@ -431,22 +516,34 @@ const scenePublishing = ref(false)
 const objectLoading = ref(false)
 const objectSaving = ref(false)
 const batchSaving = ref(false)
+const categoryLoading = ref(false)
+const categorySaving = ref(false)
 const sceneErrorText = ref('')
 const objectErrorText = ref('')
+const categoryErrorText = ref('')
 const scenes = ref([])
 const objects = ref([])
+const mapCategories = ref([])
 const selectedSceneCode = ref('')
 const selectedObjectId = ref('')
 const sceneForm = reactive(defaultSceneForm())
 const objectForm = reactive(defaultObjectForm())
 const batchForm = reactive(defaultBatchForm())
+const categoryForm = reactive(defaultCategoryForm())
 const selectedScene = computed(() => scenes.value.find((scene) => scene.code === selectedSceneCode.value) || null)
+const mergedCategoryOptions = computed(() => mergeCategoryOptions(categoryOptions, mapCategoryOptions('booth_category')))
+const mergedServiceTagOptions = computed(() => mergeCategoryOptions(serviceTagOptions, mapCategoryOptions('booth_service')))
+const mergedPlatformTagOptions = computed(() => mergeCategoryOptions(platformTagOptions, mapCategoryOptions('platform_tag')))
+const mergedPoiServiceTagOptions = computed(() => mergeCategoryOptions(poiServiceTagOptions, mapCategoryOptions('poi_service')))
 const stageStyle = computed(() => ({
   width: `${toPositiveNumber(sceneForm.width, 1200)}px`,
   height: `${toPositiveNumber(sceneForm.height, 720)}px`,
 }))
 
-onMounted(loadScenes)
+onMounted(() => {
+  loadScenes()
+  loadCategories()
+})
 
 function defaultSceneForm() {
   return {
@@ -519,6 +616,19 @@ function defaultBatchForm() {
   }
 }
 
+function defaultCategoryForm(data = {}) {
+  return {
+    code: '',
+    name: '',
+    type: 'booth_category',
+    iconUrl: '',
+    sort: 0,
+    isVisible: true,
+    status: 'normal',
+    ...data,
+  }
+}
+
 function resetSceneForm(data = {}) {
   Object.assign(sceneForm, defaultSceneForm(), data)
 }
@@ -528,6 +638,10 @@ function resetObjectForm(data = {}) {
   next.geometry = { ...defaultGeometry(next.geometryType), ...(data.geometry || {}) }
   next.extra = normalizeExtraForm(next.extra)
   Object.assign(objectForm, next)
+}
+
+function resetCategoryForm(data = {}) {
+  Object.assign(categoryForm, defaultCategoryForm(data))
 }
 
 async function loadScenes() {
@@ -579,6 +693,70 @@ async function loadObjects(sceneCode) {
   } finally {
     objectLoading.value = false
   }
+}
+
+async function loadCategories() {
+  categoryLoading.value = true
+  categoryErrorText.value = ''
+  try {
+    const resp = await listMapCategories()
+    mapCategories.value = resp.items || []
+  } catch {
+    categoryErrorText.value = '标准标签加载失败，请重试'
+  } finally {
+    categoryLoading.value = false
+  }
+}
+
+function selectCategory(row) {
+  resetCategoryForm(row)
+  activePanel.value = 'category'
+}
+
+function newCategory() {
+  resetCategoryForm()
+  activePanel.value = 'category'
+}
+
+async function submitCategory() {
+  if (!categoryForm.code || !categoryForm.name) {
+    ElMessage.error('请填写标签编码和名称')
+    return
+  }
+  categorySaving.value = true
+  try {
+    const resp = await saveMapCategory({
+      ...categoryForm,
+      sort: toPositiveInteger(categoryForm.sort, 0),
+    })
+    ElMessage.success('标准标签已保存')
+    await loadCategories()
+    if (resp.item?.code) {
+      resetCategoryForm(resp.item)
+    }
+  } catch (err) {
+    ElMessage.error(err.message || '标准标签保存失败，请重试')
+  } finally {
+    categorySaving.value = false
+  }
+}
+
+function mapCategoryOptions(type) {
+  return mapCategories.value
+    .filter((item) => item.type === type && item.isVisible !== false && item.status !== 'hidden' && item.status !== 'closed')
+    .sort((left, right) => toNumber(left.sort, 0) - toNumber(right.sort, 0))
+    .map((item) => ({ label: item.name, value: item.code }))
+}
+
+function mergeCategoryOptions(defaultOptions, configuredOptions) {
+  const seen = new Set()
+  return [...configuredOptions, ...defaultOptions].filter((item) => {
+    if (!item.value || seen.has(item.value)) {
+      return false
+    }
+    seen.add(item.value)
+    return true
+  })
 }
 
 async function uploadBackground(options) {

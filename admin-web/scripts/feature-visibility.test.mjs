@@ -160,6 +160,37 @@ test('sourcing map admin can maintain object tags and poi detail fields', () => 
   assert.match(viewSource, /extra:\s*normalizedExtra\(\)/)
 })
 
+test('sourcing map admin can maintain standard map categories', () => {
+  const apiSource = fs.readFileSync(path.join(root, 'src/api/sourcingMap.js'), 'utf8')
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    'saveMapCategory',
+    '/api/v1/admin/map/categories',
+    '标准标签',
+    '新增标签',
+    '保存标签',
+    'categoryForm.code',
+    'categoryForm.name',
+    'categoryForm.type',
+    'categoryTypeOptions',
+    'booth_category',
+    'booth_service',
+    'poi_service',
+    'normal',
+    'loadCategories',
+    'submitCategory',
+    'selectCategory',
+    'mergedCategoryOptions',
+    'mergedServiceTagOptions',
+    'mergedPlatformTagOptions',
+    'mergedPoiServiceTagOptions',
+  ]) {
+    const source = token === '/api/v1/admin/map/categories' || token === 'saveMapCategory' ? apiSource + viewSource : viewSource
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+})
+
 test('admin city station filters use dropdown options', () => {
   const citySource = fs.readFileSync(path.join(root, 'src/common/cityStations.js'), 'utf8')
   const filterFiles = [

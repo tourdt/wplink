@@ -81,7 +81,7 @@ func TestEmbeddedAdminDistIncludesSourcingMapPage(t *testing.T) {
 	}
 
 	source := bundle.String()
-	for _, token := range []string{"sourcing-map", "拿货地图", "/api/v1/admin/map/scenes", "主营分类", "营业时间", "物流线路"} {
+	for _, token := range []string{"sourcing-map", "拿货地图", "/api/v1/admin/map/scenes", "主营分类", "营业时间", "物流线路", "标准标签", "保存标签"} {
 		if !strings.Contains(source, token) {
 			t.Fatalf("embedded admin dist missing %q", token)
 		}
