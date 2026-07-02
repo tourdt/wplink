@@ -256,6 +256,14 @@
                   <el-input-number v-model="objectForm.sort" :min="0" controls-position="right" />
                 </el-form-item>
               </div>
+              <div class="scene-size-grid">
+                <el-form-item label="最小显示级别">
+                  <el-input-number v-model="objectForm.minZoom" :min="1" :max="5" controls-position="right" />
+                </el-form-item>
+                <el-form-item label="最大显示级别">
+                  <el-input-number v-model="objectForm.maxZoom" :min="1" :max="5" controls-position="right" />
+                </el-form-item>
+              </div>
               <div class="geometry-grid">
                 <el-form-item label="X">
                   <el-input-number v-model="objectForm.geometry.x" :min="0" controls-position="right" />

@@ -243,6 +243,24 @@ test('sourcing map admin can configure object display order', () => {
   assert.match(viewSource, /<el-input-number v-model="objectForm\.sort" :min="0" controls-position="right" \/>/)
 })
 
+test('sourcing map admin can configure object zoom visibility', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    '最小显示级别',
+    '最大显示级别',
+    'objectForm.minZoom',
+    'objectForm.maxZoom',
+    'minZoom: objectForm.minZoom',
+    'maxZoom: objectForm.maxZoom',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /<el-input-number v-model="objectForm\.minZoom" :min="1" :max="5" controls-position="right" \/>/)
+  assert.match(viewSource, /<el-input-number v-model="objectForm\.maxZoom" :min="1" :max="5" controls-position="right" \/>/)
+})
+
 test('sourcing map admin syncs object layer from selected type', () => {
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
 
