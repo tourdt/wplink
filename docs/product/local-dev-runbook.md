@@ -32,6 +32,10 @@ psql "$DATABASE_URL" -f backend/migrations/000003_seed_zhili.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000004_user_interactions.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000005_merchant_logo.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000006_merchant_type_change_logs.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000007_verification_payments.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000008_hot_search_keywords.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000009_verification_expiration.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000010_sourcing_map.up.sql
 psql "$DATABASE_URL" -f backend/scripts/seed_demo_data.sql
 ```
 
@@ -53,6 +57,7 @@ node backend/scripts/validate_migrations.mjs
 - 织里城市站和七类资源类型配置
 - 认证工厂、认证库存商、服务商、采购商
 - 七类已发布资源，以及待审核、已驳回、即将过期、已过期资源
+- 已发布的织里利济路拿货地图示范场景、档口和配套点位
 - 采购需求
 - 消息、资源指标、联系事件、操作日志、置顶券和权益
 

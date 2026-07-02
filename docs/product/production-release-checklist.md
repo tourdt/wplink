@@ -50,6 +50,8 @@ psql "$DATABASE_URL" -f backend/migrations/000005_merchant_logo.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000006_merchant_type_change_logs.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000007_verification_payments.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000008_hot_search_keywords.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000009_verification_expiration.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000010_sourcing_map.up.sql
 ```
 
 演示数据 `backend/scripts/seed_demo_data.sql` 只用于评审或演示环境，生产正式库按运营需要决定是否导入。

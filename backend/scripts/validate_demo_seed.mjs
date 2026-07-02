@@ -27,6 +27,14 @@ const requiredSnippets = [
   'match_cases',
   'messages',
   'resource_metrics_daily',
+  'map_scene',
+  'map_object',
+  'zhili_lijilu_demo',
+  '利济路童装拿货示范图',
+  '晨星童装 A 区',
+  '云仓尾货 B 区',
+  '利济路打包点',
+  'published',
 ]
 
 for (const snippet of requiredSnippets) {
