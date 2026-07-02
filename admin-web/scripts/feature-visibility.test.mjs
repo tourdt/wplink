@@ -177,6 +177,8 @@ test('sourcing map admin can maintain standard map categories', () => {
     'categoryFilters.status',
     'categoryTypeOptions',
     'categoryStatusOptions',
+    'categoryOptionItems',
+    'loadCategoryOptions',
     '全部类型',
     '全部状态',
     '筛选标签',
@@ -197,6 +199,8 @@ test('sourcing map admin can maintain standard map categories', () => {
   }
 
   assert.match(viewSource, /listMapCategories\(\{\s*type:\s*categoryFilters\.type,\s*status:\s*categoryFilters\.status,\s*\}\)/)
+  assert.match(viewSource, /listMapCategories\(\{\s*status:\s*'normal'\s*\}\)/)
+  assert.match(viewSource, /function mapCategoryOptions\(type\)[\s\S]*categoryOptionItems\.value/)
 })
 
 test('admin city station filters use dropdown options', () => {

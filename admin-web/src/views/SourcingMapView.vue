@@ -538,6 +538,7 @@ const categoryErrorText = ref('')
 const scenes = ref([])
 const objects = ref([])
 const mapCategories = ref([])
+const categoryOptionItems = ref([])
 const selectedSceneCode = ref('')
 const selectedObjectId = ref('')
 const sceneForm = reactive(defaultSceneForm())
@@ -558,6 +559,7 @@ const stageStyle = computed(() => ({
 onMounted(() => {
   loadScenes()
   loadCategories()
+  loadCategoryOptions()
 })
 
 function defaultSceneForm() {
@@ -733,6 +735,15 @@ async function loadCategories() {
   }
 }
 
+async function loadCategoryOptions() {
+  try {
+    const resp = await listMapCategories({ status: 'normal' })
+    categoryOptionItems.value = resp.items || []
+  } catch {
+    categoryOptionItems.value = []
+  }
+}
+
 function selectCategory(row) {
   resetCategoryForm(row)
   activePanel.value = 'category'
@@ -756,6 +767,7 @@ async function submitCategory() {
     })
     ElMessage.success('标准标签已保存')
     await loadCategories()
+    await loadCategoryOptions()
     if (resp.item?.code) {
       resetCategoryForm(resp.item)
     }
@@ -767,7 +779,7 @@ async function submitCategory() {
 }
 
 function mapCategoryOptions(type) {
-  return mapCategories.value
+  return categoryOptionItems.value
     .filter((item) => item.type === type && item.isVisible !== false && item.status !== 'hidden' && item.status !== 'closed')
     .sort((left, right) => toNumber(left.sort, 0) - toNumber(right.sort, 0))
     .map((item) => ({ label: item.name, value: item.code }))
