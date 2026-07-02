@@ -1,0 +1,300 @@
+syntax = "v1"
+
+type MapSceneItem {
+	Code           string `json:"code"`
+	Name           string `json:"name"`
+	Type           string `json:"type"`
+	ParentCode     string `json:"parentCode,optional"`
+	BackgroundUrl  string `json:"backgroundUrl,optional"`
+	Width          int64  `json:"width,optional"`
+	Height         int64  `json:"height,optional"`
+	DefaultScale   string `json:"defaultScale,optional"`
+	DefaultCenterX string `json:"defaultCenterX,optional"`
+	DefaultCenterY string `json:"defaultCenterY,optional"`
+	FloorNo        string `json:"floorNo,optional"`
+	Sort           int64  `json:"sort"`
+	Status         string `json:"status"`
+}
+
+type MapGeometry {
+	Type string                 `json:"type"`
+	Data map[string]interface{} `json:"data"`
+}
+
+type MapObjectItem {
+	Id             string                 `json:"id"`
+	SceneCode      string                 `json:"sceneCode"`
+	Code           string                 `json:"code"`
+	Name           string                 `json:"name"`
+	Type           string                 `json:"type"`
+	Layer          string                 `json:"layer"`
+	GeometryType   string                 `json:"geometryType"`
+	Geometry       map[string]interface{} `json:"geometry"`
+	CenterX        string                 `json:"centerX,optional"`
+	CenterY        string                 `json:"centerY,optional"`
+	CategoryCodes  []string               `json:"categoryCodes"`
+	ServiceTags    []string               `json:"serviceTags"`
+	PlatformTags   []string               `json:"platformTags"`
+	PoiServiceTags []string               `json:"poiServiceTags"`
+	Address        string                 `json:"address,optional"`
+	Phone          string                 `json:"phone,optional"`
+	Wechat         string                 `json:"wechat,optional"`
+	Lat            string                 `json:"lat,optional"`
+	Lng            string                 `json:"lng,optional"`
+	Extra          map[string]interface{} `json:"extra"`
+	Status         string                 `json:"status"`
+}
+
+type MapCategoryItem {
+	Code      string `json:"code"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	IconUrl   string `json:"iconUrl,optional"`
+	Sort      int64  `json:"sort"`
+	IsVisible bool   `json:"isVisible"`
+	Status    string `json:"status"`
+}
+
+type ListMapScenesReq {
+	CityCode   string `form:"cityCode,optional"`
+	ParentCode string `form:"parentCode,optional"`
+	Type       string `form:"type,optional"`
+}
+
+type ListMapScenesResp {
+	Items []MapSceneItem `json:"items"`
+}
+
+type MapSceneResp {
+	Item MapSceneItem `json:"item"`
+}
+
+type ListMapObjectsReq {
+	Types          string `form:"types,optional"`
+	Categories     string `form:"categories,optional"`
+	ServiceTags    string `form:"serviceTags,optional"`
+	PoiServiceTags string `form:"poiServiceTags,optional"`
+	Keyword        string `form:"keyword,optional"`
+}
+
+type ListMapObjectsResp {
+	SceneCode string          `json:"sceneCode"`
+	Items     []MapObjectItem `json:"items"`
+}
+
+type SearchMapObjectsReq {
+	SceneCode string `form:"sceneCode,optional"`
+	Keyword   string `form:"keyword,optional"`
+	Types     string `form:"types,optional"`
+	Limit     int64  `form:"limit,optional"`
+}
+
+type SearchMapObjectsResp {
+	Items []MapObjectItem `json:"items"`
+}
+
+type MapObjectDetailResp {
+	Item MapObjectItem `json:"item"`
+}
+
+type ListNearbyPoisReq {
+	Types string `form:"types,optional"`
+	Limit int64  `form:"limit,optional"`
+}
+
+type NearbyPoiItem {
+	Id           string `json:"id"`
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	DistanceText string `json:"distanceText"`
+	CenterX      string `json:"centerX,optional"`
+	CenterY      string `json:"centerY,optional"`
+}
+
+type ListNearbyPoisResp {
+	Items []NearbyPoiItem `json:"items"`
+}
+
+type AdminListMapScenesReq {
+	CityCode string `form:"cityCode,optional"`
+	Status   string `form:"status,optional"`
+	Type     string `form:"type,optional"`
+}
+
+type AdminSaveMapSceneReq {
+	CityCode       string `json:"cityCode,optional"`
+	Code           string `json:"code"`
+	Name           string `json:"name"`
+	Type           string `json:"type"`
+	ParentCode     string `json:"parentCode,optional"`
+	BackgroundUrl  string `json:"backgroundUrl"`
+	Width          int64  `json:"width"`
+	Height         int64  `json:"height"`
+	MinScale       string `json:"minScale,optional"`
+	MaxScale       string `json:"maxScale,optional"`
+	DefaultScale   string `json:"defaultScale,optional"`
+	DefaultCenterX string `json:"defaultCenterX,optional"`
+	DefaultCenterY string `json:"defaultCenterY,optional"`
+	FloorNo        string `json:"floorNo,optional"`
+	Sort           int64  `json:"sort,optional"`
+	Status         string `json:"status,optional"`
+}
+
+type AdminSaveMapSceneResp {
+	Item MapSceneItem `json:"item"`
+}
+
+type AdminPublishMapSceneResp {
+	Item    MapSceneItem `json:"item"`
+	Message string       `json:"message"`
+}
+
+type AdminListMapObjectsReq {
+	Types   string `form:"types,optional"`
+	Status  string `form:"status,optional"`
+	Keyword string `form:"keyword,optional"`
+}
+
+type AdminSaveMapObjectReq {
+	Id             string                 `json:"id,optional"`
+	Code           string                 `json:"code"`
+	Name           string                 `json:"name"`
+	Type           string                 `json:"type"`
+	Layer          string                 `json:"layer"`
+	GeometryType   string                 `json:"geometryType"`
+	Geometry       map[string]interface{} `json:"geometry"`
+	MinZoom        int64                  `json:"minZoom,optional"`
+	MaxZoom        int64                  `json:"maxZoom,optional"`
+	CategoryCodes  []string               `json:"categoryCodes,optional"`
+	ServiceTags    []string               `json:"serviceTags,optional"`
+	PlatformTags   []string               `json:"platformTags,optional"`
+	PoiServiceTags []string               `json:"poiServiceTags,optional"`
+	Address        string                 `json:"address,optional"`
+	Phone          string                 `json:"phone,optional"`
+	Wechat         string                 `json:"wechat,optional"`
+	Lat            string                 `json:"lat,optional"`
+	Lng            string                 `json:"lng,optional"`
+	Extra          map[string]interface{} `json:"extra,optional"`
+	Sort           int64                  `json:"sort,optional"`
+	Status         string                 `json:"status,optional"`
+}
+
+type AdminSaveMapObjectResp {
+	Item MapObjectItem `json:"item"`
+}
+
+type AdminUpdateMapObjectStatusReq {
+	Status string `json:"status"`
+}
+
+type AdminUpdateMapObjectStatusResp {
+	Item MapObjectItem `json:"item"`
+}
+
+type AdminBatchGenerateMapObjectsReq {
+	StartCode     string   `json:"startCode"`
+	Count         int64    `json:"count"`
+	Direction     string   `json:"direction"`
+	StartX        string   `json:"startX"`
+	StartY        string   `json:"startY"`
+	Width         string   `json:"width"`
+	Height        string   `json:"height"`
+	Gap           string   `json:"gap"`
+	Type          string   `json:"type"`
+	Layer         string   `json:"layer"`
+	CategoryCodes []string `json:"categoryCodes,optional"`
+	ServiceTags   []string `json:"serviceTags,optional"`
+}
+
+type AdminBatchGenerateMapObjectsResp {
+	Items []MapObjectItem `json:"items"`
+}
+
+type AdminListMapCategoriesReq {
+	Type   string `form:"type,optional"`
+	Status string `form:"status,optional"`
+}
+
+type AdminListMapCategoriesResp {
+	Items []MapCategoryItem `json:"items"`
+}
+
+type AdminSaveMapCategoryReq {
+	Code      string `json:"code"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	IconUrl   string `json:"iconUrl,optional"`
+	Sort      int64  `json:"sort,optional"`
+	IsVisible bool   `json:"isVisible,optional"`
+	Status    string `json:"status,optional"`
+}
+
+type AdminSaveMapCategoryResp {
+	Item MapCategoryItem `json:"item"`
+}
+
+@server(
+	prefix: /api/v1
+	group: map
+)
+service wplink-api {
+	@handler ListMapScenes
+	get /map/scenes (ListMapScenesReq) returns (ListMapScenesResp)
+
+	@handler GetMapScene
+	get /map/scenes/:sceneCode returns (MapSceneResp)
+
+	@handler ListMapObjects
+	get /map/scenes/:sceneCode/objects (ListMapObjectsReq) returns (ListMapObjectsResp)
+
+	@handler SearchMapObjects
+	get /map/objects/search (SearchMapObjectsReq) returns (SearchMapObjectsResp)
+
+	@handler GetMapObject
+	get /map/objects/:objectId returns (MapObjectDetailResp)
+
+	@handler ListNearbyPois
+	get /map/objects/:objectId/nearby-pois (ListNearbyPoisReq) returns (ListNearbyPoisResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: map
+)
+service wplink-api {
+	@handler AdminListMapScenes
+	get /map/scenes (AdminListMapScenesReq) returns (ListMapScenesResp)
+
+	@handler AdminSaveMapScene
+	post /map/scenes (AdminSaveMapSceneReq) returns (AdminSaveMapSceneResp)
+
+	@handler AdminGetMapScene
+	get /map/scenes/:sceneCode returns (MapSceneResp)
+
+	@handler AdminUpdateMapScene
+	post /map/scenes/:sceneCode (AdminSaveMapSceneReq) returns (AdminSaveMapSceneResp)
+
+	@handler AdminPublishMapScene
+	post /map/scenes/:sceneCode/publish returns (AdminPublishMapSceneResp)
+
+	@handler AdminListMapObjects
+	get /map/scenes/:sceneCode/objects (AdminListMapObjectsReq) returns (ListMapObjectsResp)
+
+	@handler AdminSaveMapObject
+	post /map/scenes/:sceneCode/objects (AdminSaveMapObjectReq) returns (AdminSaveMapObjectResp)
+
+	@handler AdminUpdateMapObject
+	post /map/objects/:objectId (AdminSaveMapObjectReq) returns (AdminSaveMapObjectResp)
+
+	@handler AdminUpdateMapObjectStatus
+	post /map/objects/:objectId/status (AdminUpdateMapObjectStatusReq) returns (AdminUpdateMapObjectStatusResp)
+
+	@handler AdminBatchGenerateMapObjects
+	post /map/scenes/:sceneCode/objects/batch-generate (AdminBatchGenerateMapObjectsReq) returns (AdminBatchGenerateMapObjectsResp)
+
+	@handler AdminListMapCategories
+	get /map/categories (AdminListMapCategoriesReq) returns (AdminListMapCategoriesResp)
+
+	@handler AdminSaveMapCategory
+	post /map/categories (AdminSaveMapCategoryReq) returns (AdminSaveMapCategoryResp)
+}
