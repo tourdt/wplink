@@ -280,6 +280,17 @@
               <h3>标准标签</h3>
               <el-button type="primary" link @click="newCategory">新增标签</el-button>
             </div>
+            <div class="category-filter-bar">
+              <el-select v-model="categoryFilters.type" placeholder="全部类型" clearable @change="loadCategories">
+                <el-option label="全部类型" value="" />
+                <el-option v-for="item in categoryTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+              <el-select v-model="categoryFilters.status" placeholder="全部状态" clearable @change="loadCategories">
+                <el-option label="全部状态" value="" />
+                <el-option v-for="item in categoryStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+              <el-button :loading="categoryLoading" @click="loadCategories">筛选标签</el-button>
+            </div>
 
             <div v-if="categoryErrorText" class="table-state table-state-error">
               <span>{{ categoryErrorText }}</span>
@@ -335,9 +346,7 @@
                 </el-form-item>
                 <el-form-item label="状态">
                   <el-select v-model="categoryForm.status">
-                    <el-option label="正常" value="normal" />
-                    <el-option label="隐藏" value="hidden" />
-                    <el-option label="停用" value="closed" />
+                    <el-option v-for="item in categoryStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
                   </el-select>
                 </el-form-item>
               </div>
@@ -447,6 +456,11 @@ const categoryTypeOptions = [
 ]
 const categoryTypeText = Object.fromEntries(categoryTypeOptions.map((item) => [item.value, item.label]))
 const categoryStatusText = { normal: '正常', hidden: '隐藏', closed: '停用' }
+const categoryStatusOptions = [
+  { label: '正常', value: 'normal' },
+  { label: '隐藏', value: 'hidden' },
+  { label: '停用', value: 'closed' },
+]
 const categoryOptions = [
   { label: '女童', value: 'girl' },
   { label: '男童', value: 'boy' },
@@ -530,6 +544,7 @@ const sceneForm = reactive(defaultSceneForm())
 const objectForm = reactive(defaultObjectForm())
 const batchForm = reactive(defaultBatchForm())
 const categoryForm = reactive(defaultCategoryForm())
+const categoryFilters = reactive(defaultCategoryFilters())
 const selectedScene = computed(() => scenes.value.find((scene) => scene.code === selectedSceneCode.value) || null)
 const mergedCategoryOptions = computed(() => mergeCategoryOptions(categoryOptions, mapCategoryOptions('booth_category')))
 const mergedServiceTagOptions = computed(() => mergeCategoryOptions(serviceTagOptions, mapCategoryOptions('booth_service')))
@@ -629,6 +644,13 @@ function defaultCategoryForm(data = {}) {
   }
 }
 
+function defaultCategoryFilters() {
+  return {
+    type: '',
+    status: '',
+  }
+}
+
 function resetSceneForm(data = {}) {
   Object.assign(sceneForm, defaultSceneForm(), data)
 }
@@ -699,7 +721,10 @@ async function loadCategories() {
   categoryLoading.value = true
   categoryErrorText.value = ''
   try {
-    const resp = await listMapCategories()
+    const resp = await listMapCategories({
+      type: categoryFilters.type,
+      status: categoryFilters.status,
+    })
     mapCategories.value = resp.items || []
   } catch {
     categoryErrorText.value = '标准标签加载失败，请重试'
@@ -1190,6 +1215,13 @@ function toPositiveInteger(value, fallback) {
 
 .object-heading {
   margin-top: 4px;
+}
+
+.category-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .object-form {

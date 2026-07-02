@@ -173,7 +173,13 @@ test('sourcing map admin can maintain standard map categories', () => {
     'categoryForm.code',
     'categoryForm.name',
     'categoryForm.type',
+    'categoryFilters.type',
+    'categoryFilters.status',
     'categoryTypeOptions',
+    'categoryStatusOptions',
+    '全部类型',
+    '全部状态',
+    '筛选标签',
     'booth_category',
     'booth_service',
     'poi_service',
@@ -189,6 +195,8 @@ test('sourcing map admin can maintain standard map categories', () => {
     const source = token === '/api/v1/admin/map/categories' || token === 'saveMapCategory' ? apiSource + viewSource : viewSource
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
+
+  assert.match(viewSource, /listMapCategories\(\{\s*type:\s*categoryFilters\.type,\s*status:\s*categoryFilters\.status,\s*\}\)/)
 })
 
 test('admin city station filters use dropdown options', () => {
