@@ -113,14 +113,13 @@
           </view>
           <button class="close-button" @click="clearSelectedObject">收起</button>
         </view>
+        <view v-if="detailTags.length" class="detail-tag-list">
+          <text v-for="tag in detailTags" :key="tag" class="detail-tag">{{ tag }}</text>
+        </view>
         <view class="detail-grid">
-          <view>
-            <text class="detail-label">地址</text>
-            <text class="detail-value">{{ selectedObjectAddress }}</text>
-          </view>
-          <view>
-            <text class="detail-label">标签</text>
-            <text class="detail-value">{{ selectedObjectTags }}</text>
+          <view v-for="field in detailFields" :key="field.label">
+            <text class="detail-label">{{ field.label }}</text>
+            <text class="detail-value">{{ field.value }}</text>
           </view>
         </view>
         <view class="contact-actions">
@@ -130,10 +129,10 @@
         </view>
         <view v-if="nearbyPois.length" class="nearby-section">
           <text class="nearby-title">附近配套</text>
-          <view v-for="poi in nearbyPois" :key="poi.id" class="nearby-row">
+          <button v-for="poi in nearbyPois" :key="poi.id" class="nearby-row" @click="selectNearbyPoi(poi)">
             <text>{{ poi.name }}</text>
             <text>{{ poi.distanceText || '附近' }}</text>
-          </view>
+          </button>
         </view>
       </view>
     </view>
@@ -145,6 +144,7 @@ import { computed, ref } from 'vue'
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import {
+  getMapObject,
   getMapScene,
   listMapObjects,
   listMapScenes,
@@ -155,6 +155,40 @@ import {
 const MAP_MAX_WIDTH_RPX = 690
 const MAP_VIEWPORT_HEIGHT_RPX = 720
 const DEFAULT_SCENE_NAME = '织里童装拿货地图'
+const labelDictionary = {
+  girl: '女童',
+  boy: '男童',
+  baby: '婴童',
+  middle_child: '中大童',
+  school_uniform: '校服',
+  down_jacket: '羽绒',
+  sweater: '毛衫',
+  dress: '裙装',
+  suit: '套装',
+  spot: '现货',
+  factory: '源头工厂',
+  sample: '支持打样',
+  drop_shipping: '一件代发',
+  mixed_batch: '支持混批',
+  verified: '实地认证',
+  recommended: '平台推荐',
+  packing: '打包',
+  labeling: '贴单',
+  carton: '纸箱',
+  tape: '胶带',
+  storage: '临时寄存',
+  national: '全国物流',
+  cod: '到付',
+  less_than_truckload: '零担',
+  full_truckload: '整车',
+  zto: '中通',
+  yto: '圆通',
+  sto: '申通',
+  yunda: '韵达',
+  jtexpress: '极兔',
+  sf: '顺丰',
+  bulk_shipping: '批量发货',
+}
 const filterGroups = [
   {
     key: 'categories',
@@ -223,14 +257,31 @@ const stageStyle = computed(() => {
 const selectedObjectName = computed(() => selectedObject.value?.name || selectedObject.value?.code || '点位详情')
 const selectedObjectMeta = computed(() => selectedObject.value ? `${objectTypeText(selectedObject.value)} · ${selectedObject.value.code || '无编号'}` : '')
 const selectedObjectAddress = computed(() => selectedObject.value?.address || '地址待完善')
-const selectedObjectTags = computed(() => {
-  if (!selectedObject.value) return '暂无标签'
+const detailTags = computed(() => {
+  if (!selectedObject.value) return []
   const tags = [
     ...(selectedObject.value.categoryCodes || []),
     ...(selectedObject.value.serviceTags || []),
+    ...(selectedObject.value.platformTags || []),
     ...(selectedObject.value.poiServiceTags || []),
   ]
-  return tags.length ? tags.join('、') : '暂无标签'
+  return formatLabelList(tags)
+})
+const detailFields = computed(() => {
+  if (!selectedObject.value) return []
+  const extra = selectedObject.value.extra || {}
+  return [
+    { label: '地址', value: selectedObjectAddress.value },
+    { label: '营业时间', value: formatExtraValue(extra.openHours) },
+    { label: '支持服务', value: formatExtraValue(extra.services) },
+    { label: '物流线路', value: formatExtraValue(extra.lines) },
+    { label: '发货方式', value: formatExtraValue(extra.deliveryTypes) },
+    { label: '发车时间', value: formatExtraValue(extra.departureTime) },
+    { label: '快递品牌', value: formatExtraValue(extra.brands) },
+    { label: '收费说明', value: formatExtraValue(extra.priceNote) },
+    { label: '联系电话', value: selectedObject.value.phone || '' },
+    { label: '微信', value: selectedObject.value.wechat || '' },
+  ].filter((field) => field.value)
 })
 
 onLoad((options = {}) => {
@@ -438,6 +489,22 @@ async function loadNearbyPois(object) {
   }
 }
 
+async function selectNearbyPoi(poi) {
+  if (!poi?.id) return
+  const localObject = mapObjects.value.find((item) => objectIdentity(item) === poi.id)
+  if (localObject) {
+    selectMapObject(localObject, { focus: true })
+    return
+  }
+
+  try {
+    const detail = await getMapObject(poi.id, { suppressErrorToast: true })
+    selectMapObject(detail.item || poi, { focus: true })
+  } catch {
+    selectMapObject(poi, { focus: true })
+  }
+}
+
 function callSelectedObject() {
   const phone = selectedObject.value?.phone || ''
   if (!phone) {
@@ -519,13 +586,43 @@ function objectIdentity(object) {
 function objectTypeText(object) {
   const typeMap = {
     booth: '档口',
+    factory_booth: '源头工厂',
+    market_booth: '市场档口',
+    warehouse: '仓库',
+    sample_room: '样衣间',
     packing_station: '打包站',
     logistics_point: '物流点',
     express_point: '快递点',
+    delivery_station: '发货点',
     parking: '停车场',
     restaurant: '餐饮',
+    hotel: '酒店',
+    toilet: '厕所',
+    bank: '银行',
+    convenience_store: '便利店',
   }
   return typeMap[object.type] || (object.layer === 'poi' ? '配套' : '点位')
+}
+
+function formatLabelList(values) {
+  return [...new Set((values || []).filter(Boolean).map((value) => labelDictionary[value] || value))]
+}
+
+function formatExtraValue(value) {
+  if (Array.isArray(value)) {
+    return formatLabelList(value).join('、')
+  }
+  if (typeof value === 'boolean') {
+    return value ? '支持' : ''
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([, entryValue]) => entryValue !== '' && entryValue !== false && entryValue != null)
+      .map(([key, entryValue]) => `${labelDictionary[key] || key}：${formatExtraValue(entryValue)}`)
+      .filter(Boolean)
+      .join('；')
+  }
+  return value ? String(value) : ''
 }
 
 function defaultActiveFilters() {
@@ -630,7 +727,8 @@ function rpxToPx(value) {
 .scene-tab::after,
 .filter-chip::after,
 .map-object::after,
-.object-row::after {
+.object-row::after,
+.nearby-row::after {
   border: 0;
 }
 
@@ -978,6 +1076,22 @@ function rpxToPx(value) {
   gap: 18rpx;
 }
 
+.detail-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.detail-tag {
+  padding: 8rpx 14rpx;
+  border-radius: 999rpx;
+  background: $wplink-warning-soft;
+  color: #9a5b00;
+  font-size: 22rpx;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1020,7 +1134,14 @@ function rpxToPx(value) {
 }
 
 .nearby-row {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: $wplink-muted;
   font-size: 24rpx;
+  line-height: 1.35;
 }
 </style>

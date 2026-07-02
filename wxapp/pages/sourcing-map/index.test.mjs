@@ -113,3 +113,26 @@ test('sourcing map page provides navigation with address fallback', () => {
   assert.match(source, /openLocation\(\{[\s\S]*latitude:\s*payload\.latitude,[\s\S]*longitude:\s*payload\.longitude,[\s\S]*name:\s*payload\.name,[\s\S]*address:\s*payload\.address/)
   assert.match(source, /if \(!payload\.latitude \|\| !payload\.longitude\) \{[\s\S]*uni\.setClipboardData\(\{ data: payload\.address \}\)/)
 })
+
+test('sourcing map page renders readable object and poi details', () => {
+  for (const token of [
+    'detailFields',
+    'detailTags',
+    'labelDictionary',
+    'formatLabelList',
+    'formatExtraValue',
+    '营业时间',
+    '支持服务',
+    '物流线路',
+    '发车时间',
+    '收费说明',
+    'selectNearbyPoi',
+    'getMapObject',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.match(source, /<view v-if="detailTags\.length" class="detail-tag-list">/)
+  assert.match(source, /v-for="field in detailFields"/)
+  assert.match(source, /@click="selectNearbyPoi\(poi\)"/)
+  assert.match(source, /const detail = await getMapObject\(poi\.id/)
+})
