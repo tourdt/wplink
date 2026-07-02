@@ -327,6 +327,10 @@ func (m *MapModel) ListObjectsBySceneAndTypes(ctx context.Context, sceneCode str
 	})
 }
 
+func (m *MapModel) ListAdminObjects(ctx context.Context, filter ListMapObjectsFilter) ([]MapObject, error) {
+	return m.listObjects(ctx, filter)
+}
+
 func (m *MapModel) ListAdminScenes(ctx context.Context, filter ListMapScenesFilter) ([]MapScene, error) {
 	query := `
 SELECT s.id::text, COALESCE(c.code, ''), s.code, s.name, s.type, COALESCE(s.parent_code, ''),
