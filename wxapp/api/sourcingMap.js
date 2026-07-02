@@ -35,6 +35,15 @@ export function searchMapObjects(params = {}) {
   })
 }
 
+export function listMapCategories(params = {}) {
+  return request({
+    url: '/api/v1/map/categories',
+    method: 'GET',
+    data: params,
+    suppressErrorToast: true,
+  })
+}
+
 export function getMapObject(objectId, options = {}) {
   return request({
     url: `/api/v1/map/objects/${objectId}`,

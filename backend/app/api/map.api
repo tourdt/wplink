@@ -83,10 +83,13 @@ type ListMapObjectsResp {
 }
 
 type SearchMapObjectsReq {
-	SceneCode string `form:"sceneCode,optional"`
-	Keyword   string `form:"keyword,optional"`
-	Types     string `form:"types,optional"`
-	Limit     int64  `form:"limit,optional"`
+	SceneCode      string `form:"sceneCode,optional"`
+	Keyword        string `form:"keyword,optional"`
+	Types          string `form:"types,optional"`
+	Categories     string `form:"categories,optional"`
+	ServiceTags    string `form:"serviceTags,optional"`
+	PoiServiceTags string `form:"poiServiceTags,optional"`
+	Limit          int64  `form:"limit,optional"`
 }
 
 type SearchMapObjectsResp {
@@ -113,6 +116,14 @@ type NearbyPoiItem {
 
 type ListNearbyPoisResp {
 	Items []NearbyPoiItem `json:"items"`
+}
+
+type ListMapCategoriesReq {
+	Type string `form:"type,optional"`
+}
+
+type ListMapCategoriesResp {
+	Items []MapCategoryItem `json:"items"`
 }
 
 type AdminListMapScenesReq {
@@ -255,6 +266,9 @@ service wplink-api {
 
 	@handler ListNearbyPois
 	get /map/objects/:objectId/nearby-pois (ListNearbyPoisReq) returns (ListNearbyPoisResp)
+
+	@handler ListMapCategories
+	get /map/categories (ListMapCategoriesReq) returns (ListMapCategoriesResp)
 }
 
 @server(

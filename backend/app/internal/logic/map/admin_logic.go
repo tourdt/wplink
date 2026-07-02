@@ -346,7 +346,7 @@ func (l *AdminLogic) ListCategories(ctx context.Context, req ListCategoriesReq) 
 func (l *AdminLogic) SaveCategory(ctx context.Context, req SaveCategoryReq) (SaveCategoryResp, error) {
 	status := strings.TrimSpace(req.Status)
 	if status == "" {
-		status = model.MapObjectStatusNormal
+		status = model.MapCategoryStatusNormal
 	}
 	if strings.TrimSpace(req.Code) == "" || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.Type) == "" {
 		return SaveCategoryResp{}, errx.New(errx.CodeValidationFailed, "请填写分类编码、名称和类型")

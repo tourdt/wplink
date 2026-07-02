@@ -61,13 +61,51 @@ func TestPublicMapLogicSearchUsesDefaultLimit(t *testing.T) {
 	}
 	logic := NewPublicLogic(store)
 
-	_, err := logic.SearchObjects(context.Background(), SearchObjectsReq{Keyword: " 女童 "})
+	_, err := logic.SearchObjects(context.Background(), SearchObjectsReq{
+		Keyword:        " 女童 ",
+		Categories:     " girl ",
+		ServiceTags:    " spot ",
+		PoiServiceTags: " packing ",
+	})
 	if err != nil {
 		t.Fatalf("SearchObjects() error = %v", err)
 	}
 
 	if store.objectFilter.Keyword != "女童" || store.objectFilter.Limit != 10 {
 		t.Fatalf("filter = %#v, want trimmed keyword and default limit", store.objectFilter)
+	}
+	if len(store.objectFilter.Categories) != 1 || store.objectFilter.Categories[0] != "girl" {
+		t.Fatalf("categories = %#v, want parsed category filter", store.objectFilter.Categories)
+	}
+	if len(store.objectFilter.ServiceTags) != 1 || store.objectFilter.ServiceTags[0] != "spot" {
+		t.Fatalf("serviceTags = %#v, want parsed service tag filter", store.objectFilter.ServiceTags)
+	}
+	if len(store.objectFilter.PoiServiceTags) != 1 || store.objectFilter.PoiServiceTags[0] != "packing" {
+		t.Fatalf("poiServiceTags = %#v, want parsed poi service filter", store.objectFilter.PoiServiceTags)
+	}
+}
+
+func TestPublicMapLogicListsVisibleNormalCategories(t *testing.T) {
+	store := &fakePublicMapStore{
+		categories: []model.MapCategory{
+			{Code: "girl", Name: "女童", Type: "booth_category", IsVisible: true, Status: model.MapCategoryStatusNormal},
+			{Code: "hidden", Name: "隐藏分类", Type: "booth_category", IsVisible: true, Status: model.MapCategoryStatusHidden},
+			{Code: "closed", Name: "停用分类", Type: "booth_category", IsVisible: true, Status: model.MapCategoryStatusClosed},
+			{Code: "invisible", Name: "不展示分类", Type: "booth_category", IsVisible: false, Status: model.MapCategoryStatusNormal},
+		},
+	}
+	logic := NewPublicLogic(store)
+
+	resp, err := logic.ListCategories(context.Background(), ListCategoriesReq{Type: " booth_category "})
+	if err != nil {
+		t.Fatalf("ListCategories() error = %v", err)
+	}
+
+	if store.categoryType != "booth_category" {
+		t.Fatalf("categoryType = %q, want booth_category", store.categoryType)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Code != "girl" || resp.Items[0].Name != "女童" {
+		t.Fatalf("items = %#v, want only visible normal category", resp.Items)
 	}
 }
 
@@ -101,6 +139,7 @@ type fakePublicMapStore struct {
 	sceneFilter     model.ListMapScenesFilter
 	objectFilter    model.ListMapObjectsFilter
 	objectID        string
+	categoryType    string
 	nearbySceneCode string
 	nearbyTypes     []string
 	scenes          []model.MapScene
@@ -108,6 +147,7 @@ type fakePublicMapStore struct {
 	objects         []model.MapObject
 	object          model.MapObject
 	nearby          []model.MapObject
+	categories      []model.MapCategory
 }
 
 func (s *fakePublicMapStore) ListPublishedScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error) {
@@ -138,4 +178,9 @@ func (s *fakePublicMapStore) ListObjectsBySceneAndTypes(ctx context.Context, sce
 	s.nearbySceneCode = sceneCode
 	s.nearbyTypes = append([]string(nil), types...)
 	return append([]model.MapObject(nil), s.nearby...), nil
+}
+
+func (s *fakePublicMapStore) ListCategories(ctx context.Context, categoryType string) ([]model.MapCategory, error) {
+	s.categoryType = categoryType
+	return append([]model.MapCategory(nil), s.categories...), nil
 }

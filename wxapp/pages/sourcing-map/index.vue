@@ -6,7 +6,7 @@
         <text class="header-title">拿货地图</text>
         <text class="header-subtitle">{{ currentSceneName }}</text>
       </view>
-      <button class="refresh-button" :disabled="loading" @click="loadScenes">刷新</button>
+      <button class="refresh-button" :disabled="loading" @click="refreshMapData">刷新</button>
     </view>
 
     <view class="search-panel">
@@ -152,6 +152,7 @@ import { DEFAULT_CITY_CODE } from '../../common/constants'
 import {
   getMapObject,
   getMapScene,
+  listMapCategories,
   listMapObjects,
   listMapScenes,
   listNearbyPois,
@@ -164,7 +165,7 @@ const MAP_MIN_SCALE = 1
 const MAP_MAX_SCALE = 3
 const MAP_SCALE_STEP = 0.35
 const DEFAULT_SCENE_NAME = '织里童装拿货地图'
-const labelDictionary = {
+const defaultLabelDictionary = {
   girl: '女童',
   boy: '男童',
   baby: '婴童',
@@ -198,10 +199,11 @@ const labelDictionary = {
   sf: '顺丰',
   bulk_shipping: '批量发货',
 }
-const filterGroups = [
+const defaultFilterGroups = [
   {
     key: 'categories',
     label: '档口分类',
+    type: 'booth_category',
     items: [
       { label: '女童', value: 'girl' },
       { label: '男童', value: 'boy' },
@@ -212,6 +214,7 @@ const filterGroups = [
   {
     key: 'serviceTags',
     label: '档口服务',
+    type: 'booth_service',
     items: [
       { label: '现货', value: 'spot' },
       { label: '源头工厂', value: 'factory' },
@@ -221,12 +224,24 @@ const filterGroups = [
   },
   {
     key: 'types',
-    label: '配套服务',
+    label: '配套类型',
+    type: 'poi_type',
     items: [
       { label: '打包站', value: 'packing_station' },
       { label: '物流点', value: 'logistics_point' },
       { label: '快递点', value: 'express_point' },
       { label: '停车场', value: 'parking' },
+    ],
+  },
+  {
+    key: 'poiServiceTags',
+    label: '配套服务',
+    type: 'poi_service',
+    items: [
+      { label: '打包', value: 'packing' },
+      { label: '贴单', value: 'labeling' },
+      { label: '纸箱', value: 'carton' },
+      { label: '全国物流', value: 'national' },
     ],
   },
 ]
@@ -239,12 +254,14 @@ const selectedSceneCode = ref('')
 const routeSceneCode = ref('')
 const keyword = ref('')
 const mapObjects = ref([])
+const mapCategories = ref([])
 const selectedObject = ref(null)
 const selectedObjectId = ref('')
 const nearbyPois = ref([])
 const mapScale = ref(1)
 const mapScrollLeft = ref(0)
 const mapScrollTop = ref(0)
+const categoryLabels = ref({ ...defaultLabelDictionary })
 const activeFilters = ref(defaultActiveFilters())
 const sceneErrorText = ref('地图数据发布后可在这里查看档口和配套点位。')
 
@@ -255,6 +272,7 @@ const sceneTabsVisible = computed(() => scenes.value.length > 1)
 const sceneUnavailable = computed(() => !selectedScene.value || !selectedSceneBackground.value)
 const hasActiveFilters = computed(() => activeFilterCount.value > 0)
 const activeFilterCount = computed(() => Object.values(activeFilters.value).reduce((total, values) => total + values.length, 0))
+const filterGroups = computed(() => buildFilterGroups(mapCategories.value))
 const stageScale = computed(() => {
   const width = toPositiveNumber(selectedScene.value?.width, MAP_MAX_WIDTH_RPX)
   return Math.min(1, MAP_MAX_WIDTH_RPX / width)
@@ -300,14 +318,20 @@ const detailFields = computed(() => {
 onLoad((options = {}) => {
   routeSceneCode.value = decodeRouteValue(options.sceneCode || '')
   keyword.value = decodeRouteValue(options.keyword || options.q || '')
+  loadMapCategories()
   loadScenes()
 })
 
 onPullDownRefresh(async () => {
   // 下拉刷新保留当前场景和关键词，让买手核对档口时不会被重置到默认地图。
-  await loadScenes({ keepSelection: true })
+  await refreshMapData({ keepSelection: true })
   uni.stopPullDownRefresh()
 })
+
+async function refreshMapData(options = {}) {
+  await loadMapCategories()
+  await loadScenes(options)
+}
 
 async function loadScenes(options = {}) {
   loading.value = true
@@ -333,6 +357,52 @@ async function loadScenes(options = {}) {
   } finally {
     loading.value = false
   }
+}
+
+async function loadMapCategories() {
+  try {
+    const resp = await listMapCategories()
+    mapCategories.value = (resp.items || []).filter(isVisibleNormalCategory)
+    categoryLabels.value = {
+      ...defaultLabelDictionary,
+      ...Object.fromEntries(mapCategories.value.map((item) => [item.code, item.name])),
+    }
+  } catch {
+    // 分类接口只影响筛选项和标签文案，失败时保留默认字典，不阻断买手查看地图。
+    mapCategories.value = []
+    categoryLabels.value = { ...defaultLabelDictionary }
+  }
+}
+
+function buildFilterGroups(categories) {
+  return defaultFilterGroups
+    .map((group) => ({
+      ...group,
+      items: mergeCategoryOptions(group.items, categoryOptionsByType(categories, group.type)),
+    }))
+    .filter((group) => group.items.length)
+}
+
+function categoryOptionsByType(categories, type) {
+  return (categories || [])
+    .filter((item) => item.type === type && isVisibleNormalCategory(item))
+    .sort((left, right) => toNumber(left.sort, 0) - toNumber(right.sort, 0))
+    .map((item) => ({ label: item.name, value: item.code }))
+}
+
+function mergeCategoryOptions(defaultOptions, configuredOptions) {
+  const seen = new Set()
+  return [...configuredOptions, ...defaultOptions].filter((item) => {
+    if (!item.value || seen.has(item.value)) {
+      return false
+    }
+    seen.add(item.value)
+    return true
+  })
+}
+
+function isVisibleNormalCategory(item) {
+  return item?.isVisible !== false && item?.status === 'normal'
 }
 
 async function selectScene(scene) {
@@ -636,11 +706,11 @@ function objectTypeText(object) {
     bank: '银行',
     convenience_store: '便利店',
   }
-  return typeMap[object.type] || (object.layer === 'poi' ? '配套' : '点位')
+  return categoryLabels.value[object.type] || typeMap[object.type] || (object.layer === 'poi' ? '配套' : '点位')
 }
 
 function formatLabelList(values) {
-  return [...new Set((values || []).filter(Boolean).map((value) => labelDictionary[value] || value))]
+  return [...new Set((values || []).filter(Boolean).map((value) => categoryLabels.value[value] || value))]
 }
 
 function formatExtraValue(value) {
@@ -653,7 +723,7 @@ function formatExtraValue(value) {
   if (value && typeof value === 'object') {
     return Object.entries(value)
       .filter(([, entryValue]) => entryValue !== '' && entryValue !== false && entryValue != null)
-      .map(([key, entryValue]) => `${labelDictionary[key] || key}：${formatExtraValue(entryValue)}`)
+      .map(([key, entryValue]) => `${categoryLabels.value[key] || key}：${formatExtraValue(entryValue)}`)
       .filter(Boolean)
       .join('；')
   }

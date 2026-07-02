@@ -38,10 +38,13 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore) {
 	mux.HandleFunc("GET /api/v1/map/objects/search", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
 		resp, err := publicLogic.SearchObjects(r.Context(), maplogic.SearchObjectsReq{
-			SceneCode: query.Get("sceneCode"),
-			Keyword:   query.Get("keyword"),
-			Types:     query.Get("types"),
-			Limit:     int64FromQuery(r, "limit"),
+			SceneCode:      query.Get("sceneCode"),
+			Keyword:        query.Get("keyword"),
+			Types:          query.Get("types"),
+			Categories:     query.Get("categories"),
+			ServiceTags:    query.Get("serviceTags"),
+			PoiServiceTags: query.Get("poiServiceTags"),
+			Limit:          int64FromQuery(r, "limit"),
 		})
 		response.JSON(w, resp, err)
 	})
@@ -55,6 +58,10 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore) {
 			Types: query.Get("types"),
 			Limit: int64FromQuery(r, "limit"),
 		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/map/categories", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := publicLogic.ListCategories(r.Context(), maplogic.ListCategoriesReq{Type: r.URL.Query().Get("type")})
 		response.JSON(w, resp, err)
 	})
 

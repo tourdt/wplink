@@ -20,6 +20,7 @@ type PublicStore interface {
 	SearchPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) ([]model.MapObject, error)
 	GetPublishedObject(ctx context.Context, objectID string) (model.MapObject, error)
 	ListObjectsBySceneAndTypes(ctx context.Context, sceneCode string, types []string) ([]model.MapObject, error)
+	ListCategories(ctx context.Context, categoryType string) ([]model.MapCategory, error)
 }
 
 type PublicLogic struct {
@@ -74,10 +75,13 @@ type ListObjectsResp struct {
 }
 
 type SearchObjectsReq struct {
-	SceneCode string
-	Keyword   string
-	Types     string
-	Limit     int64
+	SceneCode      string
+	Keyword        string
+	Types          string
+	Categories     string
+	ServiceTags    string
+	PoiServiceTags string
+	Limit          int64
 }
 
 type SearchObjectsResp struct {
@@ -188,11 +192,14 @@ func (l *PublicLogic) SearchObjects(ctx context.Context, req SearchObjectsReq) (
 		limit = 10
 	}
 	filter := model.ListMapObjectsFilter{
-		SceneCode: strings.TrimSpace(req.SceneCode),
-		Types:     splitCSV(req.Types),
-		Keyword:   strings.TrimSpace(req.Keyword),
-		Status:    model.MapObjectStatusNormal,
-		Limit:     limit,
+		SceneCode:      strings.TrimSpace(req.SceneCode),
+		Types:          splitCSV(req.Types),
+		Categories:     splitCSV(req.Categories),
+		ServiceTags:    splitCSV(req.ServiceTags),
+		PoiServiceTags: splitCSV(req.PoiServiceTags),
+		Keyword:        strings.TrimSpace(req.Keyword),
+		Status:         model.MapObjectStatusNormal,
+		Limit:          limit,
 	}
 	objects, err := l.store.SearchPublishedObjects(ctx, filter)
 	if err != nil {
@@ -200,6 +207,16 @@ func (l *PublicLogic) SearchObjects(ctx context.Context, req SearchObjectsReq) (
 		return SearchObjectsResp{}, errx.New(errx.CodeInternalError, "地图搜索失败，请稍后重试")
 	}
 	return SearchObjectsResp{Items: mapObjectItems(objects)}, nil
+}
+
+func (l *PublicLogic) ListCategories(ctx context.Context, req ListCategoriesReq) (ListCategoriesResp, error) {
+	categoryType := strings.TrimSpace(req.Type)
+	categories, err := l.store.ListCategories(ctx, categoryType)
+	if err != nil {
+		logx.Errorf("查询公开地图分类失败: type=%s err=%+v", req.Type, err)
+		return ListCategoriesResp{}, errx.New(errx.CodeInternalError, "地图筛选项加载失败，请稍后重试")
+	}
+	return ListCategoriesResp{Items: publicMapCategoryItems(categories)}, nil
 }
 
 func (l *PublicLogic) GetObject(ctx context.Context, objectID string) (ObjectDetailResp, error) {
@@ -257,6 +274,17 @@ func (l *PublicLogic) ListNearbyPois(ctx context.Context, objectID string, req L
 		})
 	}
 	return ListNearbyPoisResp{Items: items}, nil
+}
+
+func publicMapCategoryItems(categories []model.MapCategory) []MapCategoryItem {
+	items := make([]MapCategoryItem, 0, len(categories))
+	for _, category := range categories {
+		if !category.IsVisible || category.Status != model.MapCategoryStatusNormal {
+			continue
+		}
+		items = append(items, mapCategoryItem(category))
+	}
+	return items
 }
 
 func mapSceneItems(scenes []model.MapScene) []MapSceneItem {

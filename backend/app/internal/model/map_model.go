@@ -24,6 +24,10 @@ const (
 	MapObjectStatusHidden = "hidden"
 	MapObjectStatusClosed = "closed"
 
+	MapCategoryStatusNormal = "normal"
+	MapCategoryStatusHidden = "hidden"
+	MapCategoryStatusClosed = "closed"
+
 	MapGeometryTypeRect  = "rect"
 	MapGeometryTypePoint = "point"
 )

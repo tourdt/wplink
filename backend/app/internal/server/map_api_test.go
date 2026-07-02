@@ -82,11 +82,40 @@ func TestMapAPIRouterGetsAdminDraftScene(t *testing.T) {
 	}
 }
 
+func TestMapAPIRouterListsPublicVisibleCategories(t *testing.T) {
+	store := &fakeMapAPIStore{
+		fakeCityAPIStore: fakeCityAPIStore{},
+		categories: []model.MapCategory{
+			{Code: "girl", Name: "女童", Type: "booth_category", IsVisible: true, Status: model.MapCategoryStatusNormal},
+			{Code: "hidden", Name: "隐藏分类", Type: "booth_category", IsVisible: true, Status: model.MapCategoryStatusHidden},
+		},
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/categories?type=booth_category", nil)
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	items := data["items"].([]interface{})
+	if len(items) != 1 {
+		t.Fatalf("items = %#v, want one visible category", items)
+	}
+	item := items[0].(map[string]interface{})
+	if item["code"] != "girl" || item["name"] != "女童" {
+		t.Fatalf("item = %#v, want visible girl category", item)
+	}
+	if store.categoryType != "booth_category" {
+		t.Fatalf("categoryType = %q, want booth_category", store.categoryType)
+	}
+}
+
 type fakeMapAPIStore struct {
 	fakeCityAPIStore
 	sceneFilter      model.ListMapScenesFilter
 	objectFilter     model.ListMapObjectsFilter
 	adminSceneCode   string
+	categoryType     string
 	savedSceneInput  model.MapSceneInput
 	savedObjectInput model.MapObjectInput
 	scenes           []model.MapScene
@@ -161,6 +190,7 @@ func (s *fakeMapAPIStore) BatchCreateObjects(ctx context.Context, inputs []model
 }
 
 func (s *fakeMapAPIStore) ListCategories(ctx context.Context, categoryType string) ([]model.MapCategory, error) {
+	s.categoryType = categoryType
 	return append([]model.MapCategory(nil), s.categories...), nil
 }
 

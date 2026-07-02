@@ -29,8 +29,10 @@ test('sourcing map api uses public map endpoints', () => {
     'searchMapObjects',
     'getMapObject',
     'listNearbyPois',
+    'listMapCategories',
     '/api/v1/map/scenes',
     '/api/v1/map/objects/search',
+    '/api/v1/map/categories',
   ]) {
     assert.match(apiSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
@@ -63,6 +65,11 @@ test('sourcing map page loads scenes, renders objects and shows contact actions'
 test('sourcing map page supports quick category and poi filters', () => {
   for (const token of [
     'filterGroups',
+    'mapCategories',
+    'loadMapCategories',
+    'buildFilterGroups',
+    'mergeCategoryOptions',
+    'categoryLabels',
     'activeFilters',
     'toggleFilter',
     'clearFilters',
@@ -75,6 +82,10 @@ test('sourcing map page supports quick category and poi filters', () => {
     '打包站',
     '物流点',
     '停车场',
+    'booth_category',
+    'booth_service',
+    'poi_type',
+    'poi_service',
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
@@ -118,7 +129,8 @@ test('sourcing map page renders readable object and poi details', () => {
   for (const token of [
     'detailFields',
     'detailTags',
-    'labelDictionary',
+    'defaultLabelDictionary',
+    'categoryLabels',
     'formatLabelList',
     'formatExtraValue',
     '营业时间',
