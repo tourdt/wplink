@@ -120,6 +120,46 @@ test('sourcing map admin is configurable from admin web', () => {
   assert.match(viewSource, /direction/)
 })
 
+test('sourcing map admin can maintain object tags and poi detail fields', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    '主营分类',
+    '档口服务',
+    '平台标签',
+    '配套服务',
+    '营业时间',
+    '支持服务',
+    '物流线路',
+    '发货方式',
+    '发车时间',
+    '快递品牌',
+    '收费说明',
+    'categoryOptions',
+    'serviceTagOptions',
+    'platformTagOptions',
+    'poiServiceTagOptions',
+    'extraServiceOptions',
+    'logisticsLineOptions',
+    'deliveryTypeOptions',
+    'expressBrandOptions',
+    'objectForm.extra.openHours',
+    'objectForm.extra.services',
+    'objectForm.extra.lines',
+    'objectForm.extra.deliveryTypes',
+    'objectForm.extra.departureTime',
+    'objectForm.extra.priceNote',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /categoryCodes:\s*objectForm\.categoryCodes \|\| \[\]/)
+  assert.match(viewSource, /serviceTags:\s*objectForm\.serviceTags \|\| \[\]/)
+  assert.match(viewSource, /platformTags:\s*objectForm\.platformTags \|\| \[\]/)
+  assert.match(viewSource, /poiServiceTags:\s*objectForm\.poiServiceTags \|\| \[\]/)
+  assert.match(viewSource, /extra:\s*normalizedExtra\(\)/)
+})
+
 test('admin city station filters use dropdown options', () => {
   const citySource = fs.readFileSync(path.join(root, 'src/common/cityStations.js'), 'utf8')
   const filterFiles = [

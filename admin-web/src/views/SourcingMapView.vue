@@ -163,7 +163,11 @@
                 <el-form-item label="类型">
                   <el-select v-model="objectForm.type">
                     <el-option label="档口" value="booth" />
+                    <el-option label="源头工厂" value="factory_booth" />
+                    <el-option label="仓库" value="warehouse" />
                     <el-option label="打包站" value="packing_station" />
+                    <el-option label="物流点" value="logistics_point" />
+                    <el-option label="快递点" value="express_point" />
                     <el-option label="停车场" value="parking" />
                     <el-option label="餐饮" value="restaurant" />
                   </el-select>
@@ -215,6 +219,57 @@
                   <el-input v-model="objectForm.wechat" />
                 </el-form-item>
               </div>
+              <el-form-item label="主营分类">
+                <el-select v-model="objectForm.categoryCodes" multiple filterable allow-create default-first-option placeholder="选择或输入分类">
+                  <el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="档口服务">
+                <el-select v-model="objectForm.serviceTags" multiple filterable allow-create default-first-option placeholder="选择或输入服务标签">
+                  <el-option v-for="item in serviceTagOptions" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="平台标签">
+                <el-select v-model="objectForm.platformTags" multiple filterable allow-create default-first-option placeholder="运营侧推荐/认证标签">
+                  <el-option v-for="item in platformTagOptions" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="配套服务">
+                <el-select v-model="objectForm.poiServiceTags" multiple filterable allow-create default-first-option placeholder="打包/物流/快递服务">
+                  <el-option v-for="item in poiServiceTagOptions" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="营业时间">
+                <el-input v-model="objectForm.extra.openHours" placeholder="08:00-22:00" />
+              </el-form-item>
+              <el-form-item label="支持服务">
+                <el-select v-model="objectForm.extra.services" multiple filterable allow-create default-first-option placeholder="打包/贴单/纸箱/胶带">
+                  <el-option v-for="item in extraServiceOptions" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="物流线路">
+                <el-select v-model="objectForm.extra.lines" multiple filterable allow-create default-first-option placeholder="杭州/上海/江苏/全国">
+                  <el-option v-for="item in logisticsLineOptions" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="发货方式">
+                <el-select v-model="objectForm.extra.deliveryTypes" multiple filterable allow-create default-first-option placeholder="零担/整车/到付">
+                  <el-option v-for="item in deliveryTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
+              <div class="scene-size-grid">
+                <el-form-item label="发车时间">
+                  <el-input v-model="objectForm.extra.departureTime" placeholder="每天 18:00 前" />
+                </el-form-item>
+                <el-form-item label="收费说明">
+                  <el-input v-model="objectForm.extra.priceNote" placeholder="按件计费" />
+                </el-form-item>
+              </div>
+              <el-form-item label="快递品牌">
+                <el-select v-model="objectForm.extra.brands" multiple filterable allow-create default-first-option placeholder="中通/圆通/极兔/顺丰">
+                  <el-option v-for="item in expressBrandOptions" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
               <div class="drawer-actions">
                 <el-button type="primary" :disabled="!selectedScene" :loading="objectSaving" @click="submitObject">保存点位</el-button>
               </div>
@@ -307,6 +362,67 @@ import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 const sceneStatusText = { draft: '草稿', published: '已发布', archived: '已归档' }
 const sceneStatusTagType = { draft: 'info', published: 'success', archived: 'warning' }
 const objectStatusText = { normal: '正常', hidden: '隐藏', closed: '歇业' }
+const categoryOptions = [
+  { label: '女童', value: 'girl' },
+  { label: '男童', value: 'boy' },
+  { label: '婴童', value: 'baby' },
+  { label: '中大童', value: 'middle_child' },
+  { label: '套装', value: 'suit' },
+  { label: '裙装', value: 'dress' },
+  { label: '外套', value: 'coat' },
+  { label: '校服', value: 'school_uniform' },
+]
+const serviceTagOptions = [
+  { label: '现货', value: 'spot' },
+  { label: '源头工厂', value: 'factory' },
+  { label: '支持打样', value: 'sample' },
+  { label: '一件代发', value: 'drop_shipping' },
+  { label: '可小单', value: 'small_order' },
+  { label: '支持混批', value: 'mixed_batch' },
+]
+const platformTagOptions = [
+  { label: '实地认证', value: 'verified' },
+  { label: '热门推荐', value: 'hot' },
+  { label: '新手推荐', value: 'newbie_friendly' },
+  { label: '优质档口', value: 'quality_booth' },
+  { label: '平台精选', value: 'recommended' },
+]
+const poiServiceTagOptions = [
+  { label: '打包', value: 'packing' },
+  { label: '贴单', value: 'labeling' },
+  { label: '纸箱', value: 'carton' },
+  { label: '胶带', value: 'tape' },
+  { label: '零担', value: 'less_than_truckload' },
+  { label: '全国物流', value: 'national' },
+  { label: '批量发货', value: 'bulk_shipping' },
+]
+const extraServiceOptions = [
+  { label: '打包', value: 'packing' },
+  { label: '贴单', value: 'labeling' },
+  { label: '纸箱', value: 'carton' },
+  { label: '胶带', value: 'tape' },
+  { label: '临时寄存', value: 'storage' },
+]
+const logisticsLineOptions = [
+  { label: '杭州', value: '杭州' },
+  { label: '上海', value: '上海' },
+  { label: '江苏', value: '江苏' },
+  { label: '全国', value: '全国' },
+]
+const deliveryTypeOptions = [
+  { label: '零担', value: 'less_than_truckload' },
+  { label: '整车', value: 'full_truckload' },
+  { label: '到付', value: 'cod' },
+  { label: '代收', value: 'collection' },
+]
+const expressBrandOptions = [
+  { label: '中通', value: 'zto' },
+  { label: '圆通', value: 'yto' },
+  { label: '申通', value: 'sto' },
+  { label: '韵达', value: 'yunda' },
+  { label: '极兔', value: 'jtexpress' },
+  { label: '顺丰', value: 'sf' },
+]
 const activePanel = ref('scene')
 const batchDrawerVisible = ref(false)
 const sceneLoading = ref(false)
@@ -358,7 +474,7 @@ function defaultGeometry(geometryType = 'rect') {
 
 function defaultObjectForm(data = {}) {
   const geometryType = data.geometryType || 'rect'
-  return {
+  const form = {
     id: '',
     code: '',
     name: '',
@@ -382,6 +498,8 @@ function defaultObjectForm(data = {}) {
     status: 'normal',
     ...data,
   }
+  form.extra = normalizeExtraForm(form.extra)
+  return form
 }
 
 function defaultBatchForm() {
@@ -408,6 +526,7 @@ function resetSceneForm(data = {}) {
 function resetObjectForm(data = {}) {
   const next = defaultObjectForm(data)
   next.geometry = { ...defaultGeometry(next.geometryType), ...(data.geometry || {}) }
+  next.extra = normalizeExtraForm(next.extra)
   Object.assign(objectForm, next)
 }
 
@@ -674,10 +793,33 @@ function buildObjectPayload() {
     wechat: objectForm.wechat,
     lat: objectForm.lat,
     lng: objectForm.lng,
-    extra: objectForm.extra || {},
+    extra: normalizedExtra(),
     sort: objectForm.sort,
     status: objectForm.status,
   }
+}
+
+function normalizeExtraForm(extra = {}) {
+  return {
+    ...(extra || {}),
+    openHours: extra?.openHours || '',
+    services: Array.isArray(extra?.services) ? [...extra.services] : [],
+    lines: Array.isArray(extra?.lines) ? [...extra.lines] : [],
+    deliveryTypes: Array.isArray(extra?.deliveryTypes) ? [...extra.deliveryTypes] : [],
+    departureTime: extra?.departureTime || '',
+    brands: Array.isArray(extra?.brands) ? [...extra.brands] : [],
+    priceNote: extra?.priceNote || '',
+  }
+}
+
+function normalizedExtra() {
+  const extra = normalizeExtraForm(objectForm.extra)
+  return Object.fromEntries(
+    Object.entries(extra).filter(([, value]) => {
+      if (Array.isArray(value)) return value.length > 0
+      return value !== ''
+    }),
+  )
 }
 
 async function submitBatchGenerate() {
