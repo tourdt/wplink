@@ -229,7 +229,7 @@
               </el-form-item>
               <div class="scene-size-grid">
                 <el-form-item label="类型">
-                  <el-select v-model="objectForm.type">
+                  <el-select v-model="objectForm.type" @change="syncObjectLayerByType">
                     <el-option v-for="item in objectTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
                   </el-select>
                 </el-form-item>
@@ -530,7 +530,7 @@ const objectTypeOptions = [
   { label: '停车场', value: 'parking' },
   { label: '餐饮', value: 'restaurant' },
 ]
-const batchPoiTypeValues = new Set(['packing_station', 'logistics_point', 'express_point', 'parking', 'restaurant'])
+const poiTypeValues = new Set(['packing_station', 'logistics_point', 'express_point', 'parking', 'restaurant'])
 const objectStatusOptions = [
   { label: '正常', value: 'normal' },
   { label: '隐藏', value: 'hidden' },
@@ -1060,6 +1060,10 @@ function syncGeometryType() {
   objectForm.geometry = { ...defaultGeometry(objectForm.geometryType), ...objectForm.geometry }
 }
 
+function syncObjectLayerByType() {
+  objectForm.layer = poiTypeValues.has(objectForm.type) ? 'poi' : 'booth'
+}
+
 function handleCanvasClick(event) {
   if (!selectedScene.value || !objectForm.code) {
     return
@@ -1268,7 +1272,7 @@ async function submitBatchGenerate() {
 }
 
 function syncBatchLayerByType() {
-  batchForm.layer = batchPoiTypeValues.has(batchForm.type) ? 'poi' : 'booth'
+  batchForm.layer = poiTypeValues.has(batchForm.type) ? 'poi' : 'booth'
 }
 
 function buildBatchPayload() {

@@ -243,6 +243,24 @@ test('sourcing map admin can configure object display order', () => {
   assert.match(viewSource, /<el-input-number v-model="objectForm\.sort" :min="0" controls-position="right" \/>/)
 })
 
+test('sourcing map admin syncs object layer from selected type', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    'syncObjectLayerByType',
+    'poiTypeValues',
+    'packing_station',
+    'logistics_point',
+    'parking',
+    'objectForm.layer',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /<el-select v-model="objectForm\.type" @change="syncObjectLayerByType">/)
+  assert.match(viewSource, /objectForm\.layer = poiTypeValues\.has\(objectForm\.type\) \? 'poi' : 'booth'/)
+})
+
 test('sourcing map admin batch generation supports all object types', () => {
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
 
@@ -253,7 +271,7 @@ test('sourcing map admin batch generation supports all object types', () => {
     'objectTypeOptions',
     'batchForm.type',
     'syncBatchLayerByType',
-    'batchPoiTypeValues',
+    'poiTypeValues',
     'factory_booth',
     'logistics_point',
     'restaurant',
@@ -263,7 +281,7 @@ test('sourcing map admin batch generation supports all object types', () => {
 
   assert.match(viewSource, /<el-option v-for="item in objectTypeOptions" :key="item\.value" :label="item\.label" :value="item\.value" \/>/)
   assert.match(viewSource, /<el-select v-model="batchForm\.type" @change="syncBatchLayerByType">/)
-  assert.match(viewSource, /batchForm\.layer = batchPoiTypeValues\.has\(batchForm\.type\) \? 'poi' : 'booth'/)
+  assert.match(viewSource, /batchForm\.layer = poiTypeValues\.has\(batchForm\.type\) \? 'poi' : 'booth'/)
 })
 
 test('sourcing map admin can filter map scenes', () => {
