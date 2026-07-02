@@ -16,6 +16,21 @@
           <el-button type="primary" link @click="newScene">新增</el-button>
         </div>
 
+        <div class="scene-filter-bar">
+          <el-select v-model="sceneFilters.type" placeholder="全部场景类型" clearable @change="loadScenes">
+            <el-option label="全部场景类型" value="" />
+            <el-option v-for="item in sceneTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+          <el-select v-model="sceneFilters.status" placeholder="全部场景状态" clearable @change="loadScenes">
+            <el-option label="全部场景状态" value="" />
+            <el-option v-for="item in sceneStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+          <div class="scene-filter-actions">
+            <el-button :loading="sceneLoading" @click="loadScenes">筛选场景</el-button>
+            <el-button @click="clearSceneFilters">清空</el-button>
+          </div>
+        </div>
+
         <div v-if="sceneErrorText" class="table-state table-state-error">
           <span>{{ sceneErrorText }}</span>
           <el-button type="danger" plain @click="loadScenes">重试</el-button>
@@ -74,11 +89,7 @@
               </el-form-item>
               <el-form-item label="场景类型">
                 <el-select v-model="sceneForm.type">
-                  <el-option label="总览" value="overview" />
-                  <el-option label="街区" value="street" />
-                  <el-option label="路段" value="street_segment" />
-                  <el-option label="商场" value="mall" />
-                  <el-option label="楼层" value="floor" />
+                  <el-option v-for="item in sceneTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
                 </el-select>
               </el-form-item>
               <el-form-item label="城市站">
@@ -106,9 +117,7 @@
                 </el-form-item>
                 <el-form-item label="状态">
                   <el-select v-model="sceneForm.status">
-                    <el-option label="草稿" value="draft" />
-                    <el-option label="已发布" value="published" />
-                    <el-option label="已归档" value="archived" />
+                    <el-option v-for="item in sceneStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
                   </el-select>
                 </el-form-item>
               </div>
@@ -474,7 +483,19 @@ import {
 import { uploadMapBackgroundImage } from '../api/upload'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 
-const sceneStatusText = { draft: '草稿', published: '已发布', archived: '已归档' }
+const sceneTypeOptions = [
+  { label: '总览', value: 'overview' },
+  { label: '街区', value: 'street' },
+  { label: '路段', value: 'street_segment' },
+  { label: '商场', value: 'mall' },
+  { label: '楼层', value: 'floor' },
+]
+const sceneStatusOptions = [
+  { label: '草稿', value: 'draft' },
+  { label: '已发布', value: 'published' },
+  { label: '已归档', value: 'archived' },
+]
+const sceneStatusText = Object.fromEntries(sceneStatusOptions.map((item) => [item.value, item.label]))
 const sceneStatusTagType = { draft: 'info', published: 'success', archived: 'warning' }
 const objectTypeOptions = [
   { label: '档口', value: 'booth' },
@@ -591,6 +612,7 @@ const sceneForm = reactive(defaultSceneForm())
 const objectForm = reactive(defaultObjectForm())
 const batchForm = reactive(defaultBatchForm())
 const categoryForm = reactive(defaultCategoryForm())
+const sceneFilters = reactive(defaultSceneFilters())
 const categoryFilters = reactive(defaultCategoryFilters())
 const objectFilters = reactive(defaultObjectFilters())
 const selectedScene = computed(() => scenes.value.find((scene) => scene.code === selectedSceneCode.value) || null)
@@ -700,6 +722,13 @@ function defaultCategoryFilters() {
   }
 }
 
+function defaultSceneFilters() {
+  return {
+    type: '',
+    status: '',
+  }
+}
+
 function defaultObjectFilters() {
   return {
     keyword: '',
@@ -727,8 +756,19 @@ async function loadScenes() {
   sceneLoading.value = true
   sceneErrorText.value = ''
   try {
-    const resp = await listMapScenes({ cityCode: defaultCityCode })
+    const resp = await listMapScenes({
+      cityCode: defaultCityCode,
+      type: sceneFilters.type,
+      status: sceneFilters.status,
+    })
     scenes.value = resp.items || []
+    if (selectedSceneCode.value && !scenes.value.some((scene) => scene.code === selectedSceneCode.value)) {
+      selectedSceneCode.value = ''
+      selectedObjectId.value = ''
+      objects.value = []
+      resetSceneForm()
+      resetObjectForm()
+    }
     if (!selectedSceneCode.value && scenes.value.length) {
       selectScene(scenes.value[0])
     }
@@ -737,6 +777,11 @@ async function loadScenes() {
   } finally {
     sceneLoading.value = false
   }
+}
+
+function clearSceneFilters() {
+  Object.assign(sceneFilters, defaultSceneFilters())
+  loadScenes()
 }
 
 function selectScene(row) {
@@ -1230,6 +1275,23 @@ function toPositiveInteger(value, fallback) {
 .panel-heading h3 {
   margin: 0;
   font-size: 16px;
+}
+
+.scene-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.scene-filter-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+
+.scene-filter-actions .el-button {
+  flex: 1;
 }
 
 .map-toolbar {

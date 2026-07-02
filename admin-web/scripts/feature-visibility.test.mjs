@@ -228,6 +228,29 @@ test('sourcing map admin can filter map objects in a selected scene', () => {
   )
 })
 
+test('sourcing map admin can filter map scenes', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    'sceneFilters.type',
+    'sceneFilters.status',
+    'defaultSceneFilters',
+    'clearSceneFilters',
+    'sceneTypeOptions',
+    'sceneStatusOptions',
+    '筛选场景',
+    '全部场景类型',
+    '全部场景状态',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(
+    viewSource,
+    /listMapScenes\(\{\s*cityCode:\s*defaultCityCode,\s*type:\s*sceneFilters\.type,\s*status:\s*sceneFilters\.status,\s*\}\)/,
+  )
+})
+
 test('sourcing map admin can quickly update object status', () => {
   const apiSource = fs.readFileSync(path.join(root, 'src/api/sourcingMap.js'), 'utf8')
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
