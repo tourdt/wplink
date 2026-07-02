@@ -302,6 +302,10 @@ func (m *MapModel) GetPublishedScene(ctx context.Context, sceneCode string) (Map
 	return m.getScene(ctx, strings.TrimSpace(sceneCode), MapSceneStatusPublished)
 }
 
+func (m *MapModel) GetAdminScene(ctx context.Context, sceneCode string) (MapScene, error) {
+	return m.getScene(ctx, strings.TrimSpace(sceneCode), "")
+}
+
 func (m *MapModel) ListPublishedObjects(ctx context.Context, filter ListMapObjectsFilter) ([]MapObject, error) {
 	filter.Status = MapObjectStatusNormal
 	return m.listObjects(ctx, filter)

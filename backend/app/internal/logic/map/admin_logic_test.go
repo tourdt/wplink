@@ -121,6 +121,10 @@ func (s *fakeAdminMapStore) ListAdminScenes(ctx context.Context, filter model.Li
 	return append([]model.MapScene(nil), s.scenes...), nil
 }
 
+func (s *fakeAdminMapStore) GetAdminScene(ctx context.Context, sceneCode string) (model.MapScene, error) {
+	return s.scene, nil
+}
+
 func (s *fakeAdminMapStore) SaveScene(ctx context.Context, input model.MapSceneInput) (model.MapScene, error) {
 	s.sceneInput = input
 	return s.scene, nil

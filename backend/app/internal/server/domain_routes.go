@@ -15,6 +15,7 @@ import (
 	discoverylogic "wplink/backend/app/internal/logic/discovery"
 	entitlementlogic "wplink/backend/app/internal/logic/entitlement"
 	favoritelogic "wplink/backend/app/internal/logic/favorite"
+	maplogic "wplink/backend/app/internal/logic/map"
 	merchantlogic "wplink/backend/app/internal/logic/merchant"
 	messagelogic "wplink/backend/app/internal/logic/message"
 	metricslogic "wplink/backend/app/internal/logic/metrics"
@@ -90,6 +91,11 @@ type AdminUtilityAPIStore interface {
 	task.ResourceLifecycleStore
 }
 
+type MapAPIStore interface {
+	maplogic.PublicStore
+	maplogic.AdminStore
+}
+
 func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, smsVerifier authlogic.SMSVerifier, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool) {
 	if merchantStore, ok := store.(MerchantAPIStore); ok {
 		registerMerchantRoutes(mux, merchantStore, userTokenService, adminTokenService, permissionStore, smsVerifier)
@@ -121,6 +127,9 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	}
 	if adminStore, ok := store.(AdminUtilityAPIStore); ok {
 		registerAdminUtilityRoutes(mux, adminStore, adminTokenService)
+	}
+	if mapStore, ok := store.(MapAPIStore); ok {
+		registerMapRoutes(mux, mapStore)
 	}
 }
 

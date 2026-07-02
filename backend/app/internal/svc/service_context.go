@@ -43,6 +43,7 @@ type APIStore struct {
 	*model.ResourceMetricDailyModel
 	*model.OperationLogModel
 	*model.FavoriteModel
+	*model.MapModel
 }
 
 type ServiceContext struct {
@@ -102,5 +103,6 @@ func newAPIStore(db *sql.DB) *APIStore {
 		ResourceMetricDailyModel:  model.NewResourceMetricDailyModel(db),
 		OperationLogModel:         model.NewOperationLogModel(db),
 		FavoriteModel:             model.NewFavoriteModel(db),
+		MapModel:                  model.NewMapModel(db),
 	}
 }

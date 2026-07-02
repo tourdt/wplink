@@ -15,6 +15,7 @@ import (
 
 type AdminStore interface {
 	ListAdminScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error)
+	GetAdminScene(ctx context.Context, sceneCode string) (model.MapScene, error)
 	SaveScene(ctx context.Context, input model.MapSceneInput) (model.MapScene, error)
 	PublishScene(ctx context.Context, sceneCode string) (model.MapScene, error)
 	ListAdminObjects(ctx context.Context, filter model.ListMapObjectsFilter) ([]model.MapObject, error)
@@ -169,6 +170,19 @@ func (l *AdminLogic) ListScenes(ctx context.Context, req ListAdminScenesReq) (Li
 	return ListScenesResp{Items: mapSceneItems(scenes)}, nil
 }
 
+func (l *AdminLogic) GetScene(ctx context.Context, sceneCode string) (SceneResp, error) {
+	sceneCode = strings.TrimSpace(sceneCode)
+	if sceneCode == "" {
+		return SceneResp{}, errx.New(errx.CodeValidationFailed, "请选择地图场景")
+	}
+	scene, err := l.store.GetAdminScene(ctx, sceneCode)
+	if err != nil {
+		logx.Errorf("后台查询拿货地图场景详情失败: sceneCode=%s err=%+v", sceneCode, err)
+		return SceneResp{}, errx.New(errx.CodeInternalError, "地图场景加载失败，请稍后重试")
+	}
+	return SceneResp{Item: mapSceneItem(scene)}, nil
+}
+
 func (l *AdminLogic) SaveScene(ctx context.Context, req SaveSceneReq) (SaveSceneResp, error) {
 	status := strings.TrimSpace(req.Status)
 	if status == "" {
@@ -244,7 +258,8 @@ func (l *AdminLogic) ListObjects(ctx context.Context, sceneCode string, req List
 
 func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveObjectReq) (SaveObjectResp, error) {
 	sceneCode = strings.TrimSpace(sceneCode)
-	if sceneCode == "" {
+	objectID := strings.TrimSpace(req.Id)
+	if sceneCode == "" && objectID == "" {
 		return SaveObjectResp{}, errx.New(errx.CodeValidationFailed, "请选择地图场景")
 	}
 	status := strings.TrimSpace(req.Status)
@@ -255,7 +270,7 @@ func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveO
 		return SaveObjectResp{}, err
 	}
 	object, err := l.store.SaveObject(ctx, model.MapObjectInput{
-		ID:             strings.TrimSpace(req.Id),
+		ID:             objectID,
 		SceneCode:      sceneCode,
 		Code:           strings.TrimSpace(req.Code),
 		Name:           strings.TrimSpace(req.Name),
