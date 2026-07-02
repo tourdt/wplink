@@ -38,6 +38,10 @@
           <el-icon><Search /></el-icon>
           <span>热门搜索词</span>
         </el-menu-item>
+        <el-menu-item index="/sourcing-map">
+          <el-icon><MapLocation /></el-icon>
+          <span>拿货地图</span>
+        </el-menu-item>
         <el-menu-item index="/resource-type-configs">
           <el-icon><Setting /></el-icon>
           <span>资源配置</span>
@@ -81,7 +85,7 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { CircleCheck, DataLine, Document, Picture, Search, Setting, Shop, Ticket, Tickets, User } from '@element-plus/icons-vue'
+import { CircleCheck, DataLine, Document, MapLocation, Picture, Search, Setting, Shop, Ticket, Tickets, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()

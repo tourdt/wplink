@@ -13,6 +13,7 @@ import SearchLogView from '../views/SearchLogView.vue'
 import ResourceTypeConfigView from '../views/ResourceTypeConfigView.vue'
 import BannerTopicView from '../views/BannerTopicView.vue'
 import HotSearchKeywordView from '../views/HotSearchKeywordView.vue'
+import SourcingMapView from '../views/SourcingMapView.vue'
 
 const routes = [
   {
@@ -34,6 +35,7 @@ const routes = [
       { path: 'entitlements', name: 'entitlements', component: EntitlementView },
       { path: 'banner-topics', name: 'bannerTopics', component: BannerTopicView },
       { path: 'hot-search-keywords', name: 'hotSearchKeywords', component: HotSearchKeywordView },
+      { path: 'sourcing-map', name: 'sourcingMap', component: SourcingMapView },
       { path: 'resource-type-configs', name: 'resourceTypeConfigs', component: ResourceTypeConfigView },
       { path: 'operation-logs', name: 'operationLogs', component: OperationLogView },
       { path: 'search-logs', name: 'searchLogs', component: SearchLogView },

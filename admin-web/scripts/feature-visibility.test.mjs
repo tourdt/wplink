@@ -89,6 +89,23 @@ test('hot search keywords are configurable from admin web', () => {
   assert.match(viewSource, /v-model="form\.status"/)
 })
 
+test('sourcing map admin is configurable from admin web', () => {
+  const routeSource = fs.readFileSync(path.join(root, 'src/router/index.js'), 'utf8')
+  const layoutSource = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.vue'), 'utf8')
+  const apiSource = fs.readFileSync(path.join(root, 'src/api/sourcingMap.js'), 'utf8')
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  assert.match(routeSource, /SourcingMapView/)
+  assert.match(routeSource, /sourcing-map/)
+  assert.match(layoutSource, /<span>拿货地图<\/span>/)
+  assert.match(apiSource, /\/api\/v1\/admin\/map\/scenes/)
+  assert.match(viewSource, /<h2>拿货地图<\/h2>/)
+  assert.match(viewSource, /添加档口/)
+  assert.match(viewSource, /添加配套/)
+  assert.match(viewSource, /批量生成/)
+  assert.match(viewSource, /map-canvas/)
+})
+
 test('admin city station filters use dropdown options', () => {
   const citySource = fs.readFileSync(path.join(root, 'src/common/cityStations.js'), 'utf8')
   const filterFiles = [
