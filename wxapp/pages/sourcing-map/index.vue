@@ -72,11 +72,20 @@
           <button class="zoom-button" @click="zoomInMap">放大</button>
           <button class="zoom-button" @click="resetMapZoom">复位</button>
         </view>
-        <scroll-view class="map-scroll" scroll-x scroll-y scroll-with-animation :scroll-left="mapScrollLeft" :scroll-top="mapScrollTop">
+        <scroll-view class="map-scroll" scroll-x scroll-y scroll-with-animation :scroll-left="mapScrollLeft" :scroll-top="mapScrollTop" @scroll="handleMapScroll">
           <view class="map-stage" :style="stageStyle">
             <image class="map-background" :src="selectedSceneBackground" mode="aspectFill" />
+            <view
+              v-for="object in polygonObjects"
+              :key="`${object.id || object.code}-polygon`"
+              :class="['map-polygon', object.layer === 'booth' ? 'booth' : 'poi', { active: selectedObjectId === objectIdentity(object) }]"
+              :style="polygonObjectStyle(object)"
+              @click="selectMapObject(object)"
+            >
+              <text>{{ objectDisplayLabel(object) }}</text>
+            </view>
             <button
-              v-for="object in mapObjects"
+              v-for="object in rectAndPointObjects"
               :key="object.id || object.code"
               :class="['map-object', object.layer === 'booth' ? 'booth' : 'poi', { active: selectedObjectId === objectIdentity(object) }]"
               :style="objectStyle(object)"
@@ -168,6 +177,8 @@ const MAP_VIEWPORT_HEIGHT_RPX = 720
 const MAP_MIN_SCALE = 1
 const MAP_MAX_SCALE = 3
 const MAP_SCALE_STEP = 0.35
+const VIEWPORT_PADDING_RATIO = 0.35
+const VIEWPORT_RELOAD_DELAY_MS = 220
 const DEFAULT_SCENE_NAME = '织里童装拿货地图'
 const defaultLabelDictionary = {
   girl: '女童',
@@ -268,6 +279,7 @@ const mapScrollTop = ref(0)
 const categoryLabels = ref({ ...defaultLabelDictionary })
 const activeFilters = ref(defaultActiveFilters())
 const sceneErrorText = ref('地图数据发布后可在这里查看档口和配套点位。')
+let viewportReloadTimer = null
 
 const currentSceneName = computed(() => selectedScene.value ? selectedScene.value.name : DEFAULT_SCENE_NAME)
 const selectedSceneName = computed(() => selectedScene.value ? selectedScene.value.name : DEFAULT_SCENE_NAME)
@@ -285,6 +297,8 @@ const effectiveStageScale = computed(() => stageScale.value * mapScale.value)
 const mapZoomLevel = computed(() => getZoomLevelByScale(mapScale.value))
 const visibleMapObjects = computed(() => rawMapObjects.value.filter((object) => isObjectVisibleAtZoom(object, mapZoomLevel.value)))
 const mapObjects = computed(() => visibleMapObjects.value)
+const polygonObjects = computed(() => mapObjects.value.filter((object) => object.geometryType === 'polygon'))
+const rectAndPointObjects = computed(() => mapObjects.value.filter((object) => object.geometryType !== 'polygon'))
 const mapZoomPercent = computed(() => `${Math.round(mapScale.value * 100)}%`)
 const stageStyle = computed(() => {
   const width = toPositiveNumber(selectedScene.value?.width, MAP_MAX_WIDTH_RPX)
@@ -441,12 +455,12 @@ async function loadSceneObjects(options = {}) {
     const term = keyword.value.trim()
     const resp = term
       ? await searchMapObjects({
-          ...buildObjectQueryParams(),
+          ...buildObjectQueryParams({ includeViewport: false }),
           sceneCode: selectedSceneCode.value,
           keyword: term,
           limit: 50,
         })
-      : await listMapObjects(selectedSceneCode.value, buildObjectQueryParams())
+      : await listMapObjects(selectedSceneCode.value, buildObjectQueryParams({ includeViewport: true }))
     rawMapObjects.value = applyLocalFilters(resp.items || [])
     if (options.focusFirst) {
       selectFirstObjectAfterSearch()
@@ -490,13 +504,35 @@ function isFilterActive(key, value) {
   return (activeFilters.value[key] || []).includes(value)
 }
 
-function buildObjectQueryParams() {
+function buildObjectQueryParams(options = {}) {
   const params = {}
   if (activeFilters.value.types.length) params.types = activeFilters.value.types.join(',')
   if (activeFilters.value.categories.length) params.categories = activeFilters.value.categories.join(',')
   if (activeFilters.value.serviceTags.length) params.serviceTags = activeFilters.value.serviceTags.join(',')
   if (activeFilters.value.poiServiceTags.length) params.poiServiceTags = activeFilters.value.poiServiceTags.join(',')
-  return params
+  return options.includeViewport ? { ...params, ...buildViewportQueryParams() } : params
+}
+
+function buildViewportQueryParams() {
+  if (!selectedScene.value) return {}
+  const scale = effectiveStageScale.value || 1
+  const leftRpx = pxToRpx(mapScrollLeft.value)
+  const topRpx = pxToRpx(mapScrollTop.value)
+  const visibleWidth = MAP_MAX_WIDTH_RPX / scale
+  const visibleHeight = MAP_VIEWPORT_HEIGHT_RPX / scale
+  const paddingX = visibleWidth * VIEWPORT_PADDING_RATIO
+  const paddingY = visibleHeight * VIEWPORT_PADDING_RATIO
+  const minX = clampNumber(leftRpx / scale - paddingX, 0, toPositiveNumber(selectedScene.value.width, MAP_MAX_WIDTH_RPX))
+  const minY = clampNumber(topRpx / scale - paddingY, 0, toPositiveNumber(selectedScene.value.height, 420))
+  const maxX = clampNumber(leftRpx / scale + visibleWidth + paddingX, 0, toPositiveNumber(selectedScene.value.width, MAP_MAX_WIDTH_RPX))
+  const maxY = clampNumber(topRpx / scale + visibleHeight + paddingY, 0, toPositiveNumber(selectedScene.value.height, 420))
+  return {
+    minX: Math.floor(minX),
+    minY: Math.floor(minY),
+    maxX: Math.ceil(maxX),
+    maxY: Math.ceil(maxY),
+    zoom: mapZoomLevel.value,
+  }
 }
 
 function selectMapObject(object, options = { focus: true }) {
@@ -601,10 +637,30 @@ function changeMapScale(nextScale) {
   if (selectedObject.value) {
     focusMapObject(selectedObject.value)
   }
+  scheduleViewportObjectReload()
+}
+
+function handleMapScroll(event) {
+  mapScrollLeft.value = toNumber(event?.detail?.scrollLeft, mapScrollLeft.value)
+  mapScrollTop.value = toNumber(event?.detail?.scrollTop, mapScrollTop.value)
+  scheduleViewportObjectReload()
+}
+
+function scheduleViewportObjectReload() {
+  if (!selectedSceneCode.value || keyword.value.trim()) {
+    return
+  }
+  clearTimeout(viewportReloadTimer)
+  viewportReloadTimer = setTimeout(async () => {
+    await loadSceneObjects({ keepSelection: true })
+  }, VIEWPORT_RELOAD_DELAY_MS)
 }
 
 function calculateObjectCenter(object) {
   const geometry = object.geometry || {}
+  if (object.geometryType === 'polygon') {
+    return calculatePolygonCenter(geometry)
+  }
   const x = toNumber(geometry.x, toNumber(object.centerX, 0))
   const y = toNumber(geometry.y, toNumber(object.centerY, 0))
   if (object.geometryType === 'point') {
@@ -614,6 +670,21 @@ function calculateObjectCenter(object) {
     x: x + toPositiveNumber(geometry.width, 80) / 2,
     y: y + toPositiveNumber(geometry.height, 50) / 2,
   }
+}
+
+function calculatePolygonCenter(geometry = {}) {
+  const points = Array.isArray(geometry.points) ? geometry.points : []
+  if (!points.length) {
+    return { x: 0, y: 0 }
+  }
+  const sums = points.reduce(
+    (acc, point) => ({
+      x: acc.x + toNumber(point.x, 0),
+      y: acc.y + toNumber(point.y, 0),
+    }),
+    { x: 0, y: 0 },
+  )
+  return { x: sums.x / points.length, y: sums.y / points.length }
 }
 
 async function loadNearbyPois(object) {
@@ -710,6 +781,63 @@ function objectStyle(object) {
   const width = toPositiveNumber(geometry.width, 80) * scale
   const height = toPositiveNumber(geometry.height, 50) * scale
   return `left: ${Math.round(x)}rpx; top: ${Math.round(y)}rpx; width: ${Math.round(width)}rpx; height: ${Math.round(height)}rpx;`
+}
+
+function polygonObjectStyle(object) {
+  const geometry = object.geometry || {}
+  const bounds = calculatePolygonBounds(geometry)
+  const scale = effectiveStageScale.value
+  const width = Math.max(1, Math.round((bounds.maxX - bounds.minX) * scale))
+  const height = Math.max(1, Math.round((bounds.maxY - bounds.minY) * scale))
+  return [
+    `left: ${Math.round(bounds.minX * scale)}rpx`,
+    `top: ${Math.round(bounds.minY * scale)}rpx`,
+    `width: ${width}rpx`,
+    `height: ${height}rpx`,
+    `clip-path: polygon(${polygonStagePoints(object)})`,
+    `-webkit-clip-path: polygon(${polygonStagePoints(object)})`,
+  ].join('; ')
+}
+
+function polygonStagePoints(object) {
+  const geometry = object.geometry || {}
+  const points = Array.isArray(geometry.points) ? geometry.points : []
+  if (!points.length) return '0% 0%, 100% 0%, 100% 100%'
+  const bounds = calculatePolygonBounds(geometry)
+  const width = Math.max(1, bounds.maxX - bounds.minX)
+  const height = Math.max(1, bounds.maxY - bounds.minY)
+  return points
+    .map((point) => {
+      const x = ((toNumber(point.x, 0) - bounds.minX) / width) * 100
+      const y = ((toNumber(point.y, 0) - bounds.minY) / height) * 100
+      return `${x.toFixed(2)}% ${y.toFixed(2)}%`
+    })
+    .join(', ')
+}
+
+function calculatePolygonBounds(geometry = {}) {
+  const points = Array.isArray(geometry.points) ? geometry.points : []
+  if (!points.length) {
+    return { minX: 0, minY: 0, maxX: 1, maxY: 1 }
+  }
+  return points.reduce(
+    (bounds, point) => {
+      const x = toNumber(point.x, 0)
+      const y = toNumber(point.y, 0)
+      return {
+        minX: Math.min(bounds.minX, x),
+        minY: Math.min(bounds.minY, y),
+        maxX: Math.max(bounds.maxX, x),
+        maxY: Math.max(bounds.maxY, y),
+      }
+    },
+    {
+      minX: toNumber(points[0].x, 0),
+      minY: toNumber(points[0].y, 0),
+      maxX: toNumber(points[0].x, 0),
+      maxY: toNumber(points[0].y, 0),
+    },
+  )
 }
 
 function objectDisplayLabel(object) {
@@ -814,6 +942,18 @@ function rpxToPx(value) {
     return uni.upx2px(value)
   }
   return value
+}
+
+function pxToRpx(value) {
+  if (typeof uni !== 'undefined' && typeof uni.upx2px === 'function') {
+    const oneRpx = uni.upx2px(1)
+    return oneRpx > 0 ? value / oneRpx : value
+  }
+  return value
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value))
 }
 </script>
 
@@ -1161,6 +1301,29 @@ function rpxToPx(value) {
   line-height: 1.1;
 }
 
+.map-polygon {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0 8rpx;
+  border: 3rpx solid $wplink-primary;
+  background: rgba($wplink-primary, 0.2);
+  color: $wplink-primary;
+  font-size: 18rpx;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.map-polygon text {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .map-object.poi {
   padding: 0;
   border-color: $wplink-warning;
@@ -1168,7 +1331,8 @@ function rpxToPx(value) {
   background: $wplink-warning;
 }
 
-.map-object.active {
+.map-object.active,
+.map-polygon.active {
   border-color: $wplink-success;
   box-shadow: 0 0 0 5rpx rgba($wplink-success, 0.18);
 }

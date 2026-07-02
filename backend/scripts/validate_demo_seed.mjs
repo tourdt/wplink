@@ -34,6 +34,11 @@ const requiredSnippets = [
   '晨星童装 A 区',
   '云仓尾货 B 区',
   '利济路打包点',
+  'A006',
+  'C306',
+  '童装城快递集包点',
+  '利济路样衣中心',
+  '早餐简餐补给点',
   'published',
 ]
 
@@ -41,6 +46,15 @@ for (const snippet of requiredSnippets) {
   if (!sql.includes(snippet)) {
     throw new Error(`演示种子缺少关键内容: ${snippet}`)
   }
+}
+
+const demoSceneRefs = sql.match(/'zhili_lijilu_demo'/g) || []
+if (demoSceneRefs.length < 13) {
+  throw new Error(`拿货地图演示数据对象偏少: scene refs=${demoSceneRefs.length}, want >= 13`)
+}
+
+if (sql.includes('8020000000000002,')) {
+  throw new Error('演示种子包含疑似截断的商家 ID: 8020000000000002')
 }
 
 console.log('demo seed static check ok')

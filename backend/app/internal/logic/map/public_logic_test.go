@@ -58,6 +58,32 @@ func TestPublicMapLogicListsNormalObjectsWithParsedFilters(t *testing.T) {
 	}
 }
 
+func TestPublicMapLogicListsObjectsWithViewportAndZoom(t *testing.T) {
+	store := &fakePublicMapStore{}
+	logic := NewPublicLogic(store)
+
+	_, err := logic.ListObjects(context.Background(), " scene-1 ", ListObjectsReq{
+		MinX: " 100 ",
+		MinY: "200",
+		MaxX: " 900 ",
+		MaxY: "700",
+		Zoom: 4,
+	})
+	if err != nil {
+		t.Fatalf("ListObjects() error = %v", err)
+	}
+
+	if store.objectFilter.Viewport == nil {
+		t.Fatalf("viewport = nil, want parsed viewport")
+	}
+	if store.objectFilter.Viewport.MinX != 100 || store.objectFilter.Viewport.MinY != 200 || store.objectFilter.Viewport.MaxX != 900 || store.objectFilter.Viewport.MaxY != 700 {
+		t.Fatalf("viewport = %#v, want parsed bounds", store.objectFilter.Viewport)
+	}
+	if store.objectFilter.Zoom != 4 {
+		t.Fatalf("zoom = %d, want 4", store.objectFilter.Zoom)
+	}
+}
+
 func TestPublicMapLogicSearchUsesDefaultLimit(t *testing.T) {
 	store := &fakePublicMapStore{
 		objects: []model.MapObject{{ID: "object-1", SceneCode: "scene-1", Code: "A001", Name: "A001 小鹿童装"}},

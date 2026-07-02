@@ -51,16 +51,54 @@ func TestBuildMapObjectDerivedFieldsForPoint(t *testing.T) {
 	}
 }
 
-func TestBuildMapObjectDerivedFieldsRejectsUnsupportedGeometry(t *testing.T) {
-	_, err := BuildMapObjectDerivedFields(MapObjectInput{
-		Code:         "P001",
-		Name:         "多边形档口",
+func TestBuildMapObjectDerivedFieldsForPolygon(t *testing.T) {
+	input := MapObjectInput{
+		Code:         "A088",
+		Name:         "转角异形档口",
 		Type:         "booth",
 		GeometryType: "polygon",
-		Geometry:     JSONMap{},
-	})
-	if err == nil {
-		t.Fatal("BuildMapObjectDerivedFields() error = nil, want unsupported geometry error")
+		Geometry: JSONMap{"points": []interface{}{
+			map[string]interface{}{"x": float64(100), "y": float64(120)},
+			map[string]interface{}{"x": float64(220), "y": float64(120)},
+			map[string]interface{}{"x": float64(240), "y": float64(180)},
+			map[string]interface{}{"x": float64(130), "y": float64(210)},
+		}},
+	}
+
+	fields, err := BuildMapObjectDerivedFields(input)
+	if err != nil {
+		t.Fatalf("BuildMapObjectDerivedFields() error = %v", err)
+	}
+	if fields.MinX != 100 || fields.MinY != 120 || fields.MaxX != 240 || fields.MaxY != 210 {
+		t.Fatalf("fields = %#v, want polygon bounds", fields)
+	}
+	if fields.CenterX != 172.5 || fields.CenterY != 157.5 {
+		t.Fatalf("fields = %#v, want polygon centroid average", fields)
+	}
+}
+
+func TestBuildMapObjectDerivedFieldsRejectsInvalidPolygon(t *testing.T) {
+	for _, geometry := range []JSONMap{
+		{"points": []interface{}{
+			map[string]interface{}{"x": float64(100), "y": float64(120)},
+			map[string]interface{}{"x": float64(220), "y": float64(120)},
+		}},
+		{"points": []interface{}{
+			map[string]interface{}{"x": float64(100), "y": float64(120)},
+			map[string]interface{}{"x": float64(-1), "y": float64(120)},
+			map[string]interface{}{"x": float64(220), "y": float64(180)},
+		}},
+	} {
+		_, err := BuildMapObjectDerivedFields(MapObjectInput{
+			Code:         "P001",
+			Name:         "多边形档口",
+			Type:         "booth",
+			GeometryType: "polygon",
+			Geometry:     geometry,
+		})
+		if err == nil {
+			t.Fatalf("BuildMapObjectDerivedFields() error = nil, geometry=%#v", geometry)
+		}
 	}
 }
 

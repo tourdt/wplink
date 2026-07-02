@@ -51,13 +51,61 @@ func TestAdminMapLogicSavesSceneAsDraftByDefault(t *testing.T) {
 
 func TestAdminMapLogicRejectsPublishWithoutObjects(t *testing.T) {
 	store := &fakeAdminMapStore{
-		scene: model.MapScene{Code: "zhili_lijilu_middle", Status: model.MapSceneStatusDraft},
+		scene: model.MapScene{Code: "zhili_lijilu_middle", BackgroundURL: "https://img.example.com/maps/lijilu.png", Width: 3000, Height: 1800, Status: model.MapSceneStatusDraft},
 	}
 	logic := NewAdminLogic(store)
 
 	_, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle")
 	if err == nil {
 		t.Fatal("PublishScene() error = nil, want validation error")
+	}
+}
+
+func TestAdminMapLogicRejectsPublishWithIncompleteVisibleObjects(t *testing.T) {
+	store := &fakeAdminMapStore{
+		scene: model.MapScene{Code: "zhili_lijilu_middle", BackgroundURL: "https://img.example.com/maps/lijilu.png", Width: 3000, Height: 1800, Status: model.MapSceneStatusDraft},
+		objects: []model.MapObject{{
+			ID:           "object-1",
+			Code:         "A001",
+			Name:         "A001 小鹿童装",
+			Layer:        "booth",
+			Status:       model.MapObjectStatusNormal,
+			GeometryType: model.MapGeometryTypeRect,
+			Geometry:     model.JSONMap{"x": float64(100), "y": float64(120), "width": float64(80), "height": float64(50)},
+		}},
+	}
+	logic := NewAdminLogic(store)
+
+	_, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle")
+	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("PublishScene() error = %v, want validation error", err)
+	}
+}
+
+func TestAdminMapLogicPublishesCompleteVisibleObjects(t *testing.T) {
+	store := &fakeAdminMapStore{
+		scene: model.MapScene{Code: "zhili_lijilu_middle", BackgroundURL: "https://img.example.com/maps/lijilu.png", Width: 3000, Height: 1800, Status: model.MapSceneStatusDraft},
+		objects: []model.MapObject{{
+			ID:            "object-1",
+			Code:          "A001",
+			Name:          "A001 小鹿童装",
+			Layer:         "booth",
+			Status:        model.MapObjectStatusNormal,
+			GeometryType:  model.MapGeometryTypeRect,
+			Geometry:      model.JSONMap{"x": float64(100), "y": float64(120), "width": float64(80), "height": float64(50)},
+			CategoryCodes: []string{"girl"},
+			ServiceTags:   []string{"spot"},
+			Phone:         "18800000001",
+		}},
+	}
+	logic := NewAdminLogic(store)
+
+	resp, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle")
+	if err != nil {
+		t.Fatalf("PublishScene() error = %v", err)
+	}
+	if resp.Item.Status != model.MapSceneStatusPublished {
+		t.Fatalf("resp = %#v, want published scene", resp)
 	}
 }
 
@@ -94,6 +142,32 @@ func TestAdminMapLogicRejectsInvalidObjectZoomRange(t *testing.T) {
 				t.Fatalf("SaveObject saved invalid zoom range: %#v", store.objectInput)
 			}
 		})
+	}
+}
+
+func TestAdminMapLogicListsObjectsWithViewport(t *testing.T) {
+	store := &fakeAdminMapStore{}
+	logic := NewAdminLogic(store)
+
+	_, err := logic.ListObjects(context.Background(), " scene-1 ", ListAdminObjectsReq{
+		Types: "booth",
+		MinX:  "10",
+		MinY:  "20",
+		MaxX:  "510",
+		MaxY:  "420",
+	})
+	if err != nil {
+		t.Fatalf("ListObjects() error = %v", err)
+	}
+
+	if store.objectFilter.SceneCode != "scene-1" || len(store.objectFilter.Types) != 1 {
+		t.Fatalf("filter = %#v, want scene and type", store.objectFilter)
+	}
+	if store.objectFilter.Viewport == nil {
+		t.Fatalf("viewport = nil, want parsed viewport")
+	}
+	if store.objectFilter.Viewport.MinX != 10 || store.objectFilter.Viewport.MaxY != 420 {
+		t.Fatalf("viewport = %#v, want parsed bounds", store.objectFilter.Viewport)
 	}
 }
 
@@ -161,6 +235,7 @@ func TestAdminMapLogicListsCategoriesWithTypeAndStatus(t *testing.T) {
 type fakeAdminMapStore struct {
 	sceneInput     model.MapSceneInput
 	objectInput    model.MapObjectInput
+	objectFilter   model.ListMapObjectsFilter
 	objectID       string
 	objectStatus   string
 	batchInputs    []model.MapObjectInput
@@ -195,6 +270,7 @@ func (s *fakeAdminMapStore) ListPublishedObjects(ctx context.Context, filter mod
 }
 
 func (s *fakeAdminMapStore) ListAdminObjects(ctx context.Context, filter model.ListMapObjectsFilter) ([]model.MapObject, error) {
+	s.objectFilter = filter
 	return append([]model.MapObject(nil), s.objects...), nil
 }
 

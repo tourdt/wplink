@@ -55,14 +55,41 @@
 
       <main class="map-workbench">
         <div class="map-toolbar">
-          <span>{{ selectedScene?.name || '标注画布' }}</span>
-          <el-tag type="info">第一期支持矩形和点位</el-tag>
+          <div class="map-toolbar-title">
+            <span>{{ selectedScene?.name || '标注画布' }}</span>
+            <el-tag type="info">支持矩形、点位和复杂图形</el-tag>
+          </div>
+          <div class="map-toolbar-actions">
+            <el-button-group>
+              <el-button :disabled="!sceneBackgroundPreviewUrl" @click="zoomCanvasOut">缩小</el-button>
+              <el-button :disabled="!sceneBackgroundPreviewUrl" @click="resetCanvasZoom">{{ mapZoomPercent }}</el-button>
+              <el-button :disabled="!sceneBackgroundPreviewUrl" @click="zoomCanvasIn">放大</el-button>
+              <el-button :disabled="!sceneBackgroundPreviewUrl" @click="fitCanvasToViewport">适配</el-button>
+            </el-button-group>
+          </div>
         </div>
-        <div ref="mapCanvasRef" class="map-canvas" @click="handleCanvasClick">
-          <div v-if="sceneForm.backgroundUrl" class="map-canvas-stage" :style="stageStyle">
-            <img class="map-background" :src="sceneForm.backgroundUrl" alt="地图底图" />
+        <div
+          ref="mapCanvasRef"
+          :class="['map-canvas', { 'is-panning': isCanvasPanning }]"
+          @click="handleCanvasClick"
+          @mousedown="startCanvasPan"
+          @scroll="handleCanvasViewportChange"
+          @wheel="handleCanvasWheel"
+        >
+          <div v-if="sceneBackgroundPreviewUrl" class="map-canvas-stage" :style="stageStyle">
+            <img class="map-background" :src="sceneBackgroundPreviewUrl" alt="地图底图" />
+            <svg class="map-polygon-layer" :viewBox="`0 0 ${toPositiveNumber(sceneForm.width, 1200)} ${toPositiveNumber(sceneForm.height, 720)}`" aria-hidden="true">
+              <polygon
+                v-for="object in polygonObjects"
+                :key="`${object.id || object.code}-polygon`"
+                :points="polygonOverlayPoints(object)"
+                :class="['map-object-polygon', objectStatusClass(object.status), { selected: isObjectSelected(object) }]"
+                @click.stop="selectObject(object)"
+                @mousedown.stop="startDragObject($event, object)"
+              />
+            </svg>
             <button
-              v-for="object in objects"
+              v-for="object in rectAndPointObjects"
               :key="object.id || object.code"
               type="button"
               :class="['map-object', object.layer === 'booth' ? 'booth' : 'poi', objectStatusClass(object.status), { selected: isObjectSelected(object) }]"
@@ -77,7 +104,7 @@
               </span>
             </button>
           </div>
-          <span v-else>底图上传后可在此标注档口和配套点位</span>
+          <span v-else>选择底图后可在此标注档口和配套点位</span>
         </div>
       </main>
 
@@ -103,9 +130,10 @@
               </el-form-item>
               <el-form-item label="底图">
                 <el-upload :show-file-list="false" :http-request="uploadBackground">
-                  <el-button>上传底图</el-button>
+                  <el-button>选择底图</el-button>
                 </el-upload>
-                <el-input v-model="sceneForm.backgroundUrl" class="background-url-input" placeholder="底图 URL" />
+                <el-tag v-if="pendingBackgroundFile" class="pending-background-tag" type="warning">保存场景时上传到 OSS</el-tag>
+                <el-input v-model="sceneForm.backgroundUrl" class="background-url-input" placeholder="底图 URL" @change="handleBackgroundUrlChange" />
               </el-form-item>
               <div class="scene-size-grid">
                 <el-form-item label="宽度">
@@ -118,7 +146,7 @@
               <div class="scene-default-viewport">
                 <div class="section-subtitle">
                   <span>默认视野</span>
-                  <el-button type="primary" link :disabled="!sceneForm.backgroundUrl" @click="setSceneDefaultCenterFromCanvas">设为当前画布中心</el-button>
+                  <el-button type="primary" link :disabled="!sceneBackgroundPreviewUrl" @click="setSceneDefaultCenterFromCanvas">设为当前画布中心</el-button>
                 </div>
                 <div class="scene-size-grid">
                   <el-form-item label="默认缩放">
@@ -141,7 +169,7 @@
               </div>
               <div class="drawer-actions">
                 <el-button type="primary" :loading="sceneSaving" @click="submitScene">保存场景</el-button>
-                <el-button :disabled="!sceneForm.code" :loading="scenePublishing" @click="publishScene">发布</el-button>
+                <el-button :disabled="!sceneForm.code" :loading="scenePublishing" @click="openPublishPreview">发布</el-button>
               </div>
             </el-form>
           </el-tab-pane>
@@ -193,7 +221,7 @@
               <el-table-column prop="name" label="名称" min-width="110" />
               <el-table-column label="形状" width="58">
                 <template #default="{ row }">
-                  {{ row.geometryType === 'rect' ? '矩形' : '点位' }}
+                  {{ objectShapeText(row.geometryType) }}
                 </template>
               </el-table-column>
               <el-table-column label="状态" width="58">
@@ -245,6 +273,7 @@
                   <el-select v-model="objectForm.geometryType" @change="syncGeometryType">
                     <el-option label="矩形" value="rect" />
                     <el-option label="点位" value="point" />
+                    <el-option label="复杂图形" value="polygon" />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="状态">
@@ -265,10 +294,10 @@
                 </el-form-item>
               </div>
               <div class="geometry-grid">
-                <el-form-item label="X">
+                <el-form-item v-if="objectForm.geometryType !== 'polygon'" label="X">
                   <el-input-number v-model="objectForm.geometry.x" :min="0" controls-position="right" />
                 </el-form-item>
-                <el-form-item label="Y">
+                <el-form-item v-if="objectForm.geometryType !== 'polygon'" label="Y">
                   <el-input-number v-model="objectForm.geometry.y" :min="0" controls-position="right" />
                 </el-form-item>
                 <el-form-item v-if="objectForm.geometryType === 'rect'" label="宽">
@@ -277,6 +306,18 @@
                 <el-form-item v-if="objectForm.geometryType === 'rect'" label="高">
                   <el-input-number v-model="objectForm.geometry.height" :min="1" controls-position="right" />
                 </el-form-item>
+              </div>
+              <div v-if="objectForm.geometryType === 'polygon'" class="polygon-editor">
+                <div class="section-subtitle">
+                  <span>复杂图形顶点</span>
+                  <el-button type="primary" link @click="addPolygonPoint">添加顶点</el-button>
+                </div>
+                <div v-for="(point, index) in polygonPoints" :key="index" class="polygon-point-row">
+                  <span>{{ index + 1 }}</span>
+                  <el-input-number v-model="point.x" :min="0" controls-position="right" />
+                  <el-input-number v-model="point.y" :min="0" controls-position="right" />
+                  <el-button type="danger" link :disabled="polygonPoints.length <= 3" @click="removePolygonPoint(index)">删除</el-button>
+                </div>
               </div>
               <el-form-item label="地址">
                 <el-input v-model="objectForm.address" placeholder="市场/路段/门牌" />
@@ -494,11 +535,68 @@
         </div>
       </el-form>
     </el-drawer>
+
+    <el-dialog v-model="previewDialogVisible" title="发布前预览" width="980px">
+      <div v-if="previewLoading" class="publish-preview-loading">
+        <el-skeleton :rows="8" animated />
+      </div>
+      <div v-else class="publish-preview">
+        <div class="mini-program-preview">
+          <div class="preview-summary">
+            <strong>{{ sceneForm.name || sceneForm.code }}</strong>
+            <span>{{ previewObjects.length }} 个小程序可见点位，发布后用户将看到这些内容</span>
+          </div>
+          <div class="preview-canvas">
+            <div v-if="sceneBackgroundPreviewUrl" class="preview-stage" :style="previewStageStyle">
+              <img class="map-background" :src="sceneBackgroundPreviewUrl" alt="发布预览底图" />
+              <svg class="map-polygon-layer" :viewBox="`0 0 ${toPositiveNumber(sceneForm.width, 1200)} ${toPositiveNumber(sceneForm.height, 720)}`" aria-hidden="true">
+                <polygon
+                  v-for="object in previewPolygonObjects"
+                  :key="`${object.id || object.code}-preview-polygon`"
+                  :points="polygonOverlayPoints(object)"
+                  :class="['map-object-polygon', objectStatusClass(object.status)]"
+                />
+              </svg>
+              <button
+                v-for="object in previewRectAndPointObjects"
+                :key="`${object.id || object.code}-preview`"
+                type="button"
+                :class="['map-object', object.layer === 'booth' ? 'booth' : 'poi', objectStatusClass(object.status)]"
+                :style="objectStyle(object, 1)"
+                disabled
+              >
+                <span class="object-label">{{ object.name }}</span>
+              </button>
+            </div>
+            <span v-else>请先配置底图后再发布</span>
+          </div>
+        </div>
+        <aside class="preview-checklist">
+          <div class="section-subtitle">
+            <span>发布前检查清单</span>
+            <el-tag :type="previewBlockingIssues.length ? 'danger' : 'success'">
+              {{ previewBlockingIssues.length ? `${previewBlockingIssues.length} 项待补齐` : '可发布' }}
+            </el-tag>
+          </div>
+          <div v-for="item in previewChecklist" :key="item.key" :class="['checklist-item', { passed: item.passed }]">
+            <span class="checklist-status">{{ item.passed ? '通过' : '待补' }}</span>
+            <div>
+              <strong>{{ item.label }}</strong>
+              <p>{{ item.detail }}</p>
+            </div>
+          </div>
+        </aside>
+      </div>
+      <template #footer>
+        <el-button @click="previewDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="scenePublishing" :disabled="previewBlockingIssues.length > 0" @click="confirmPublishScene">确认发布</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   batchGenerateMapObjects,
@@ -513,6 +611,7 @@ import {
 } from '../api/sourcingMap'
 import { uploadMapBackgroundImage } from '../api/upload'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
+import { buildViewportBounds, mapCenterFromSize, mapPointFromClientPoint, normalizeMapZoom, scaledMapSize } from '../common/mapViewport'
 
 const sceneTypeOptions = [
   { label: '总览', value: 'overview' },
@@ -621,8 +720,13 @@ const expressBrandOptions = [
   { label: '极兔', value: 'jtexpress' },
   { label: '顺丰', value: 'sf' },
 ]
+const MAP_ZOOM_STEP = 0.2
+const VIEWPORT_PADDING_RATIO = 0.35
+const VIEWPORT_RELOAD_DELAY_MS = 180
 const activePanel = ref('scene')
 const batchDrawerVisible = ref(false)
+const previewDialogVisible = ref(false)
+const previewLoading = ref(false)
 const sceneLoading = ref(false)
 const sceneSaving = ref(false)
 const scenePublishing = ref(false)
@@ -637,9 +741,14 @@ const objectErrorText = ref('')
 const categoryErrorText = ref('')
 const scenes = ref([])
 const objects = ref([])
+const publishPreviewObjects = ref([])
 const mapCategories = ref([])
 const categoryOptionItems = ref([])
 const mapCanvasRef = ref(null)
+const mapViewScale = ref(1)
+const isCanvasPanning = ref(false)
+const pendingBackgroundFile = ref(null)
+const pendingBackgroundPreviewUrl = ref('')
 const selectedSceneCode = ref('')
 const selectedObjectId = ref('')
 const sceneForm = reactive(defaultSceneForm())
@@ -649,12 +758,45 @@ const categoryForm = reactive(defaultCategoryForm())
 const sceneFilters = reactive(defaultSceneFilters())
 const categoryFilters = reactive(defaultCategoryFilters())
 const objectFilters = reactive(defaultObjectFilters())
+let viewportReloadTimer = null
+let backgroundSizeRequestId = 0
+let canvasPanState = null
+let suppressNextCanvasClick = false
 const selectedScene = computed(() => scenes.value.find((scene) => scene.code === selectedSceneCode.value) || null)
+const sceneBackgroundPreviewUrl = computed(() => pendingBackgroundPreviewUrl.value || sceneForm.backgroundUrl)
+const mapZoomPercent = computed(() => `${Math.round(mapViewScale.value * 100)}%`)
 const mergedCategoryOptions = computed(() => mergeCategoryOptions(categoryOptions, mapCategoryOptions('booth_category')))
 const mergedServiceTagOptions = computed(() => mergeCategoryOptions(serviceTagOptions, mapCategoryOptions('booth_service')))
 const mergedPlatformTagOptions = computed(() => mergeCategoryOptions(platformTagOptions, mapCategoryOptions('platform_tag')))
 const mergedPoiServiceTagOptions = computed(() => mergeCategoryOptions(poiServiceTagOptions, mapCategoryOptions('poi_service')))
-const stageStyle = computed(() => ({
+const polygonPoints = computed(() => {
+  if (!Array.isArray(objectForm.geometry.points)) {
+    objectForm.geometry.points = defaultGeometry('polygon').points
+  }
+  return objectForm.geometry.points
+})
+const polygonObjects = computed(() => objects.value.filter((object) => object.geometryType === 'polygon'))
+const rectAndPointObjects = computed(() => objects.value.filter((object) => object.geometryType !== 'polygon'))
+const previewObjects = computed(() => publishPreviewObjects.value)
+const previewPolygonObjects = computed(() => previewObjects.value.filter((object) => object.geometryType === 'polygon'))
+const previewRectAndPointObjects = computed(() => previewObjects.value.filter((object) => object.geometryType !== 'polygon'))
+const invalidGeometryObjects = computed(() => previewObjects.value.filter((object) => !hasCompleteObjectGeometry(object)))
+const missingPhoneObjects = computed(() => previewObjects.value.filter((object) => !String(object.phone || '').trim()))
+const missingTagObjects = computed(() => previewObjects.value.filter((object) => !hasCompleteObjectTags(object)))
+const previewChecklist = computed(() => buildPublishChecklist())
+const previewBlockingIssues = computed(() => previewChecklist.value.filter((item) => item.blocking && !item.passed))
+const stageStyle = computed(() => {
+  const scaledSize = scaledMapSize({
+    width: toPositiveNumber(sceneForm.width, 1200),
+    height: toPositiveNumber(sceneForm.height, 720),
+    scale: mapViewScale.value,
+  })
+  return {
+    width: `${scaledSize.width}px`,
+    height: `${scaledSize.height}px`,
+  }
+})
+const previewStageStyle = computed(() => ({
   width: `${toPositiveNumber(sceneForm.width, 1200)}px`,
   height: `${toPositiveNumber(sceneForm.height, 720)}px`,
 }))
@@ -663,6 +805,14 @@ onMounted(() => {
   loadScenes()
   loadCategories()
   loadCategoryOptions()
+})
+
+onBeforeUnmount(() => {
+  clearPendingBackgroundFile()
+  clearTimeout(viewportReloadTimer)
+  window.removeEventListener('mousemove', dragObject)
+  window.removeEventListener('mousemove', dragCanvasPan)
+  window.removeEventListener('mouseup', stopCanvasPan)
 })
 
 function defaultSceneForm() {
@@ -685,6 +835,16 @@ function defaultSceneForm() {
 function defaultGeometry(geometryType = 'rect') {
   if (geometryType === 'point') {
     return { x: 160, y: 160 }
+  }
+  if (geometryType === 'polygon') {
+    return {
+      points: [
+        { x: 100, y: 100 },
+        { x: 220, y: 100 },
+        { x: 240, y: 170 },
+        { x: 120, y: 190 },
+      ],
+    }
   }
   return { x: 100, y: 100, width: 80, height: 50 }
 }
@@ -772,12 +932,13 @@ function defaultObjectFilters() {
 }
 
 function resetSceneForm(data = {}) {
+  clearPendingBackgroundFile()
   Object.assign(sceneForm, defaultSceneForm(), data)
 }
 
 function resetObjectForm(data = {}) {
   const next = defaultObjectForm(data)
-  next.geometry = { ...defaultGeometry(next.geometryType), ...(data.geometry || {}) }
+  next.geometry = normalizeGeometryForm(next.geometryType, data.geometry || next.geometry)
   next.extra = normalizeExtraForm(next.extra)
   Object.assign(objectForm, next)
 }
@@ -845,15 +1006,22 @@ async function loadObjects(sceneCode) {
   objectErrorText.value = ''
   try {
     const resp = await listMapObjects(sceneCode, {
-      types: objectFilters.type,
-      status: objectFilters.status,
-      keyword: objectFilters.keyword,
+      ...buildObjectQueryParams(),
+      ...buildViewportParams(),
     })
     objects.value = resp.items || []
   } catch {
     objectErrorText.value = '地图点位加载失败，请重试'
   } finally {
     objectLoading.value = false
+  }
+}
+
+function buildObjectQueryParams() {
+  return {
+    types: objectFilters.type,
+    status: objectFilters.status,
+    keyword: objectFilters.keyword,
   }
 }
 
@@ -946,20 +1114,112 @@ function mergeCategoryOptions(defaultOptions, configuredOptions) {
   })
 }
 
-async function uploadBackground(options) {
-  try {
-    const url = await uploadMapBackgroundImage(options.file)
-    sceneForm.backgroundUrl = url
-    ElMessage.success('底图已上传')
-  } catch (err) {
-    ElMessage.error(err.message || '底图上传失败，请重试')
+function uploadBackground(options) {
+  if (!options.file) {
+    ElMessage.error('请选择底图文件')
+    return
   }
+  clearPendingBackgroundFile()
+  pendingBackgroundFile.value = options.file
+  pendingBackgroundPreviewUrl.value = createLocalObjectUrl(options.file)
+  applyBackgroundImageSize(pendingBackgroundPreviewUrl.value)
+  ElMessage.success('底图已选择，保存场景时上传')
+  options.onSuccess?.({}, options.file)
+}
+
+function handleBackgroundUrlChange() {
+  clearPendingBackgroundFile()
+  applyBackgroundImageSize(sceneForm.backgroundUrl)
+}
+
+async function applyBackgroundImageSize(imageUrl) {
+  const url = String(imageUrl || '').trim()
+  if (!url) {
+    return
+  }
+  const requestId = ++backgroundSizeRequestId
+  try {
+    const size = await loadBackgroundImageSize(url)
+    if (requestId !== backgroundSizeRequestId) {
+      return
+    }
+    sceneForm.width = size.width
+    sceneForm.height = size.height
+    applySceneDefaultCenter(size)
+    ElMessage.success('底图尺寸已自动读取')
+  } catch {
+    if (requestId === backgroundSizeRequestId) {
+      ElMessage.warning('无法读取底图尺寸，请手动填写宽高')
+    }
+  }
+}
+
+function applySceneDefaultCenter(size) {
+  const center = mapCenterFromSize(size)
+  sceneForm.defaultCenterX = String(center.x)
+  sceneForm.defaultCenterY = String(center.y)
+}
+
+function loadBackgroundImageSize(imageUrl) {
+  return new Promise((resolve, reject) => {
+    if (typeof Image === 'undefined') {
+      reject(new Error('image api unavailable'))
+      return
+    }
+    const image = new Image()
+    image.onload = () => {
+      const width = Number(image.naturalWidth || image.width)
+      const height = Number(image.naturalHeight || image.height)
+      if (width > 0 && height > 0) {
+        resolve({ width, height })
+        return
+      }
+      reject(new Error('invalid image size'))
+    }
+    image.onerror = () => reject(new Error('image load failed'))
+    image.src = imageUrl
+  })
+}
+
+async function resolveSceneBackgroundUrl() {
+  if (!pendingBackgroundFile.value) {
+    return sceneForm.backgroundUrl
+  }
+  const url = await uploadMapBackgroundImage(pendingBackgroundFile.value)
+  sceneForm.backgroundUrl = url
+  clearPendingBackgroundFile()
+  return url
+}
+
+function clearPendingBackgroundFile() {
+  backgroundSizeRequestId += 1
+  if (pendingBackgroundPreviewUrl.value) {
+    revokeLocalObjectUrl(pendingBackgroundPreviewUrl.value)
+  }
+  pendingBackgroundFile.value = null
+  pendingBackgroundPreviewUrl.value = ''
+}
+
+function createLocalObjectUrl(file) {
+  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    return ''
+  }
+  return URL.createObjectURL(file)
+}
+
+function revokeLocalObjectUrl(url) {
+  if (typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') {
+    return
+  }
+  URL.revokeObjectURL(url)
 }
 
 async function submitScene() {
   sceneSaving.value = true
+  const hadPendingBackground = Boolean(pendingBackgroundFile.value)
   try {
-    const resp = await saveMapScene({ ...sceneForm })
+    const backgroundUrl = await resolveSceneBackgroundUrl()
+    const resp = await saveMapScene({ ...sceneForm, backgroundUrl })
     ElMessage.success('场景已保存')
     await loadScenes()
     if (resp.item?.code) {
@@ -967,13 +1227,121 @@ async function submitScene() {
       resetSceneForm(resp.item)
     }
   } catch (err) {
-    ElMessage.error(err.message || '场景保存失败，请重试')
+    const uploadedBeforeSaveFailed = hadPendingBackground && !pendingBackgroundFile.value
+    ElMessage.error(uploadedBeforeSaveFailed ? '底图已上传但场景保存失败，请重试' : err.message || '场景保存失败，请重试')
   } finally {
     sceneSaving.value = false
   }
 }
 
-async function publishScene() {
+function publishScene() {
+  openPublishPreview()
+}
+
+async function openPublishPreview() {
+  if (!sceneForm.code) {
+    ElMessage.error('请先选择或保存地图场景')
+    return
+  }
+  previewDialogVisible.value = true
+  await loadPublishPreviewObjects()
+}
+
+async function loadPublishPreviewObjects() {
+  previewLoading.value = true
+  publishPreviewObjects.value = []
+  try {
+    const resp = await listMapObjects(sceneForm.code, { status: 'normal' })
+    publishPreviewObjects.value = resp.items || []
+  } catch (err) {
+    ElMessage.error(err.message || '发布预览加载失败，请重试')
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+function buildPublishChecklist() {
+  return [
+    {
+      key: 'background',
+      label: '底图可见',
+      passed: Boolean(sceneBackgroundPreviewUrl.value),
+      detail: sceneBackgroundPreviewUrl.value ? '小程序能加载当前场景底图' : '请先上传或填写地图底图',
+      blocking: true,
+    },
+    {
+      key: 'objects',
+      label: '可见点位',
+      passed: previewObjects.value.length > 0,
+      detail: previewObjects.value.length > 0 ? `共 ${previewObjects.value.length} 个正常点位会在小程序展示` : '请先标注至少一个正常状态的点位',
+      blocking: true,
+    },
+    {
+      key: 'geometry',
+      label: '坐标完整',
+      passed: invalidGeometryObjects.value.length === 0,
+      detail: invalidGeometryObjects.value.length === 0 ? '点位都已配置地图坐标' : `${previewIssueNames(invalidGeometryObjects.value)} 坐标缺失或格式不正确`,
+      blocking: true,
+    },
+    {
+      key: 'phone',
+      label: '电话完整',
+      passed: missingPhoneObjects.value.length === 0,
+      detail: missingPhoneObjects.value.length === 0 ? '点位都已配置联系电话' : `${previewIssueNames(missingPhoneObjects.value)} 缺少联系电话`,
+      blocking: true,
+    },
+    {
+      key: 'tags',
+      label: '标签完整',
+      passed: missingTagObjects.value.length === 0,
+      detail: missingTagObjects.value.length === 0 ? '档口分类/服务标签和配套服务标签已补齐' : `${previewIssueNames(missingTagObjects.value)} 标签不完整`,
+      blocking: true,
+    },
+  ]
+}
+
+function hasCompleteObjectGeometry(object) {
+  const geometry = object.geometry || {}
+  if (object.geometryType === 'polygon') {
+    const points = Array.isArray(geometry.points) ? geometry.points : []
+    return points.length >= 3 && points.every((point) => hasCoordinateValue(point.x) && hasCoordinateValue(point.y))
+  }
+  if (object.geometryType === 'point') {
+    return hasCoordinateValue(geometry.x) && hasCoordinateValue(geometry.y)
+  }
+  return hasCoordinateValue(geometry.x) && hasCoordinateValue(geometry.y) && hasPositiveNumber(geometry.width) && hasPositiveNumber(geometry.height)
+}
+
+function hasCompleteObjectTags(object) {
+  const layer = object.layer || (poiTypeValues.has(object.type) ? 'poi' : 'booth')
+  if (layer === 'poi') {
+    return hasValues(object.poiServiceTags)
+  }
+  return hasValues(object.categoryCodes) && (hasValues(object.serviceTags) || hasValues(object.platformTags))
+}
+
+function hasCoordinateValue(value) {
+  if (value === undefined || value === null || value === '') return false
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0
+}
+
+function hasPositiveNumber(value) {
+  if (value === undefined || value === null || value === '') return false
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0
+}
+
+function hasValues(values) {
+  return Array.isArray(values) && values.some((value) => String(value || '').trim())
+}
+
+function previewIssueNames(items) {
+  const names = items.slice(0, 3).map((item) => item.name || item.code || item.id || '未命名点位').join('、')
+  return items.length > 3 ? `${names} 等 ${items.length} 个点位` : names
+}
+
+async function confirmPublishScene() {
   try {
     await ElMessageBox.confirm('发布后小程序将可读取该地图场景，确认发布吗？', '确认发布', {
       type: 'warning',
@@ -987,6 +1355,7 @@ async function publishScene() {
   try {
     const resp = await publishMapScene(sceneForm.code)
     ElMessage.success(resp.message || '地图场景已发布')
+    previewDialogVisible.value = false
     await loadScenes()
   } catch (err) {
     ElMessage.error(err.message || '地图场景发布失败，请重试')
@@ -1039,15 +1408,12 @@ function scrollCanvasToObject(object) {
   if (!canvas) {
     return
   }
-  const geometry = object.geometry || {}
-  const x = toNumber(geometry.x, 0)
-  const y = toNumber(geometry.y, 0)
-  const centerX = object.geometryType === 'rect' ? x + toPositiveNumber(geometry.width, 80) / 2 : x
-  const centerY = object.geometryType === 'rect' ? y + toPositiveNumber(geometry.height, 50) / 2 : y
+  const { x: centerX, y: centerY } = calculateObjectCenter(object)
   const maxLeft = Math.max(0, canvas.scrollWidth - canvas.clientWidth)
   const maxTop = Math.max(0, canvas.scrollHeight - canvas.clientHeight)
-  canvas.scrollLeft = clampNumber(Math.round(centerX - canvas.clientWidth / 2), 0, maxLeft)
-  canvas.scrollTop = clampNumber(Math.round(centerY - canvas.clientHeight / 2), 0, maxTop)
+  canvas.scrollLeft = clampNumber(Math.round(centerX * mapViewScale.value - canvas.clientWidth / 2), 0, maxLeft)
+  canvas.scrollTop = clampNumber(Math.round(centerY * mapViewScale.value - canvas.clientHeight / 2), 0, maxTop)
+  scheduleViewportObjectReload()
 }
 
 function setSceneDefaultCenterFromCanvas() {
@@ -1057,15 +1423,15 @@ function setSceneDefaultCenterFromCanvas() {
     ElMessage.error('请先上传底图并打开画布')
     return
   }
-  const centerX = clampNumber(Math.round(canvas.scrollLeft + canvas.clientWidth / 2), 0, toPositiveNumber(sceneForm.width, stage.clientWidth))
-  const centerY = clampNumber(Math.round(canvas.scrollTop + canvas.clientHeight / 2), 0, toPositiveNumber(sceneForm.height, stage.clientHeight))
+  const centerX = clampNumber(Math.round((canvas.scrollLeft + canvas.clientWidth / 2) / mapViewScale.value), 0, toPositiveNumber(sceneForm.width, stage.clientWidth))
+  const centerY = clampNumber(Math.round((canvas.scrollTop + canvas.clientHeight / 2) / mapViewScale.value), 0, toPositiveNumber(sceneForm.height, stage.clientHeight))
   sceneForm.defaultCenterX = String(centerX)
   sceneForm.defaultCenterY = String(centerY)
   ElMessage.success('当前画布中心已写入默认视野')
 }
 
 function syncGeometryType() {
-  objectForm.geometry = { ...defaultGeometry(objectForm.geometryType), ...objectForm.geometry }
+  objectForm.geometry = normalizeGeometryForm(objectForm.geometryType, objectForm.geometry)
 }
 
 function syncObjectLayerByType() {
@@ -1073,6 +1439,10 @@ function syncObjectLayerByType() {
 }
 
 function handleCanvasClick(event) {
+  if (suppressNextCanvasClick) {
+    suppressNextCanvasClick = false
+    return
+  }
   if (!selectedScene.value || !objectForm.code) {
     return
   }
@@ -1081,10 +1451,164 @@ function handleCanvasClick(event) {
     return
   }
   const rect = stage.getBoundingClientRect()
-  const x = Math.max(0, Math.round(event.clientX - rect.left))
-  const y = Math.max(0, Math.round(event.clientY - rect.top))
+  const point = mapPointFromClientPoint({
+    clientX: event.clientX,
+    clientY: event.clientY,
+    stageRect: rect,
+    scale: mapViewScale.value,
+  })
+  const x = clampNumber(point.x, 0, toPositiveNumber(sceneForm.width, 1200))
+  const y = clampNumber(point.y, 0, toPositiveNumber(sceneForm.height, 720))
+  if (objectForm.geometryType === 'polygon') {
+    polygonPoints.value.push({ x, y })
+    activePanel.value = 'object'
+    return
+  }
   Object.assign(objectForm.geometry, { x, y })
   activePanel.value = 'object'
+}
+
+function handleCanvasViewportChange() {
+  scheduleViewportObjectReload()
+}
+
+function zoomCanvasIn() {
+  setCanvasZoom(mapViewScale.value + MAP_ZOOM_STEP)
+}
+
+function zoomCanvasOut() {
+  setCanvasZoom(mapViewScale.value - MAP_ZOOM_STEP)
+}
+
+function resetCanvasZoom() {
+  setCanvasZoom(1)
+}
+
+function fitCanvasToViewport() {
+  const canvas = mapCanvasRef.value
+  if (!canvas) {
+    return
+  }
+  const width = toPositiveNumber(sceneForm.width, 1200)
+  const height = toPositiveNumber(sceneForm.height, 720)
+  const nextScale = Math.min(canvas.clientWidth / width, canvas.clientHeight / height)
+  setCanvasZoom(nextScale)
+}
+
+function handleCanvasWheel(event) {
+  if (!sceneBackgroundPreviewUrl.value || (!event.ctrlKey && !event.metaKey)) {
+    return
+  }
+  event.preventDefault()
+  const canvas = mapCanvasRef.value
+  if (!canvas) {
+    return
+  }
+  const rect = canvas.getBoundingClientRect()
+  setCanvasZoom(mapViewScale.value + (event.deltaY < 0 ? MAP_ZOOM_STEP : -MAP_ZOOM_STEP), {
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+  })
+}
+
+function setCanvasZoom(nextScale, anchor = {}) {
+  const canvas = mapCanvasRef.value
+  const currentScale = mapViewScale.value
+  const normalizedScale = normalizeMapZoom(nextScale)
+  if (!canvas || normalizedScale === currentScale) {
+    mapViewScale.value = normalizedScale
+    return
+  }
+  const offsetX = Number.isFinite(anchor.offsetX) ? anchor.offsetX : canvas.clientWidth / 2
+  const offsetY = Number.isFinite(anchor.offsetY) ? anchor.offsetY : canvas.clientHeight / 2
+  const mapX = (canvas.scrollLeft + offsetX) / currentScale
+  const mapY = (canvas.scrollTop + offsetY) / currentScale
+  mapViewScale.value = normalizedScale
+  nextTick(() => {
+    const maxLeft = Math.max(0, canvas.scrollWidth - canvas.clientWidth)
+    const maxTop = Math.max(0, canvas.scrollHeight - canvas.clientHeight)
+    canvas.scrollLeft = clampNumber(Math.round(mapX * normalizedScale - offsetX), 0, maxLeft)
+    canvas.scrollTop = clampNumber(Math.round(mapY * normalizedScale - offsetY), 0, maxTop)
+    scheduleViewportObjectReload()
+  })
+}
+
+function startCanvasPan(event) {
+  if (event.button !== 0 || !sceneBackgroundPreviewUrl.value || event.target?.closest?.('.map-object, .map-object-polygon')) {
+    return
+  }
+  const canvas = mapCanvasRef.value
+  if (!canvas) {
+    return
+  }
+  canvasPanState = {
+    startX: event.clientX,
+    startY: event.clientY,
+    scrollLeft: canvas.scrollLeft,
+    scrollTop: canvas.scrollTop,
+    moved: false,
+  }
+  isCanvasPanning.value = true
+  window.addEventListener('mousemove', dragCanvasPan)
+  window.addEventListener('mouseup', stopCanvasPan, { once: true })
+}
+
+function dragCanvasPan(event) {
+  if (!canvasPanState) {
+    return
+  }
+  const canvas = mapCanvasRef.value
+  if (!canvas) {
+    return
+  }
+  event.preventDefault()
+  const dx = event.clientX - canvasPanState.startX
+  const dy = event.clientY - canvasPanState.startY
+  if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+    canvasPanState.moved = true
+    suppressNextCanvasClick = true
+  }
+  canvas.scrollLeft = canvasPanState.scrollLeft - dx
+  canvas.scrollTop = canvasPanState.scrollTop - dy
+  scheduleViewportObjectReload()
+}
+
+function stopCanvasPan() {
+  window.removeEventListener('mousemove', dragCanvasPan)
+  if (canvasPanState?.moved) {
+    suppressNextCanvasClick = true
+  }
+  canvasPanState = null
+  isCanvasPanning.value = false
+}
+
+function scheduleViewportObjectReload() {
+  if (!selectedScene.value?.code) {
+    return
+  }
+  clearTimeout(viewportReloadTimer)
+  viewportReloadTimer = setTimeout(() => {
+    if (selectedScene.value?.code) {
+      loadObjects(selectedScene.value.code)
+    }
+  }, VIEWPORT_RELOAD_DELAY_MS)
+}
+
+function buildViewportParams() {
+  const canvas = mapCanvasRef.value
+  if (!canvas || !sceneBackgroundPreviewUrl.value || canvas.clientWidth <= 0 || canvas.clientHeight <= 0) {
+    return {}
+  }
+  return buildViewportBounds({
+    scrollLeft: canvas.scrollLeft,
+    scrollTop: canvas.scrollTop,
+    clientWidth: canvas.clientWidth,
+    clientHeight: canvas.clientHeight,
+    mapWidth: toPositiveNumber(sceneForm.width, 1200),
+    mapHeight: toPositiveNumber(sceneForm.height, 720),
+    scale: mapViewScale.value,
+    paddingRatio: VIEWPORT_PADDING_RATIO,
+  })
 }
 
 function objectIdentity(object) {
@@ -1095,24 +1619,66 @@ function isObjectSelected(object) {
   return objectIdentity(object) === selectedObjectId.value
 }
 
-function objectStyle(object) {
+function objectStyle(object, scale = mapViewScale.value) {
   const geometry = object.geometry || {}
   const x = toNumber(geometry.x, 0)
   const y = toNumber(geometry.y, 0)
   if (object.geometryType === 'point') {
     return {
-      left: `${Math.max(0, x - 11)}px`,
-      top: `${Math.max(0, y - 11)}px`,
+      left: `${Math.max(0, x * scale - 11)}px`,
+      top: `${Math.max(0, y * scale - 11)}px`,
       width: '22px',
       height: '22px',
     }
   }
   return {
-    left: `${x}px`,
-    top: `${y}px`,
-    width: `${toPositiveNumber(geometry.width, 80)}px`,
-    height: `${toPositiveNumber(geometry.height, 50)}px`,
+    left: `${x * scale}px`,
+    top: `${y * scale}px`,
+    width: `${toPositiveNumber(geometry.width, 80) * scale}px`,
+    height: `${toPositiveNumber(geometry.height, 50) * scale}px`,
   }
+}
+
+function polygonOverlayPoints(object) {
+  const points = Array.isArray(object?.geometry?.points) ? object.geometry.points : []
+  return points.map((point) => `${toNumber(point.x, 0)},${toNumber(point.y, 0)}`).join(' ')
+}
+
+function calculateObjectCenter(object) {
+  const geometry = object.geometry || {}
+  if (object.geometryType === 'polygon') {
+    return calculatePolygonCenter(geometry)
+  }
+  const x = toNumber(geometry.x, 0)
+  const y = toNumber(geometry.y, 0)
+  if (object.geometryType === 'rect') {
+    return {
+      x: x + toPositiveNumber(geometry.width, 80) / 2,
+      y: y + toPositiveNumber(geometry.height, 50) / 2,
+    }
+  }
+  return { x, y }
+}
+
+function calculatePolygonCenter(geometry = {}) {
+  const points = Array.isArray(geometry.points) ? geometry.points : []
+  if (!points.length) {
+    return { x: 0, y: 0 }
+  }
+  const sums = points.reduce(
+    (acc, point) => ({
+      x: acc.x + toNumber(point.x, 0),
+      y: acc.y + toNumber(point.y, 0),
+    }),
+    { x: 0, y: 0 },
+  )
+  return { x: sums.x / points.length, y: sums.y / points.length }
+}
+
+function objectShapeText(geometryType) {
+  if (geometryType === 'rect') return '矩形'
+  if (geometryType === 'polygon') return '复杂图形'
+  return '点位'
 }
 
 function objectStatusClass(status) {
@@ -1135,6 +1701,7 @@ function startDragObject(event, object) {
     startY: event.clientY,
     originX: toNumber(geometry.x, 0),
     originY: toNumber(geometry.y, 0),
+    originPoints: Array.isArray(geometry.points) ? geometry.points.map((point) => ({ x: toNumber(point.x, 0), y: toNumber(point.y, 0) })) : [],
   }
   window.addEventListener('mousemove', dragObject)
   window.addEventListener('mouseup', stopDragObject, { once: true })
@@ -1144,8 +1711,19 @@ function dragObject(event) {
   if (!dragState) {
     return
   }
-  const x = Math.max(0, Math.round(dragState.originX + event.clientX - dragState.startX))
-  const y = Math.max(0, Math.round(dragState.originY + event.clientY - dragState.startY))
+  const deltaX = (event.clientX - dragState.startX) / mapViewScale.value
+  const deltaY = (event.clientY - dragState.startY) / mapViewScale.value
+  const x = Math.max(0, Math.round(dragState.originX + deltaX))
+  const y = Math.max(0, Math.round(dragState.originY + deltaY))
+  if (dragState.originPoints.length) {
+    updateObjectGeometry(dragState.id, {
+      points: dragState.originPoints.map((point) => ({
+        x: Math.max(0, Math.round(point.x + deltaX)),
+        y: Math.max(0, Math.round(point.y + deltaY)),
+      })),
+    })
+    return
+  }
   updateObjectGeometry(dragState.id, { x, y })
 }
 
@@ -1162,6 +1740,19 @@ function updateObjectGeometry(identity, patch) {
   if (identity === selectedObjectId.value) {
     Object.assign(objectForm.geometry, patch)
   }
+}
+
+function addPolygonPoint() {
+  const lastPoint = polygonPoints.value[polygonPoints.value.length - 1] || { x: 100, y: 100 }
+  polygonPoints.value.push({ x: lastPoint.x + 40, y: lastPoint.y + 40 })
+}
+
+function removePolygonPoint(index) {
+  if (polygonPoints.value.length <= 3) {
+    ElMessage.error('复杂图形至少需要 3 个顶点')
+    return
+  }
+  polygonPoints.value.splice(index, 1)
 }
 
 async function submitObject() {
@@ -1324,12 +1915,33 @@ function normalizedObjectGeometry() {
       y: toNumber(objectForm.geometry.y, 0),
     }
   }
+  if (objectForm.geometryType === 'polygon') {
+    return {
+      points: polygonPoints.value.map((point) => ({
+        x: toNumber(point.x, 0),
+        y: toNumber(point.y, 0),
+      })),
+    }
+  }
   return {
     x: toNumber(objectForm.geometry.x, 0),
     y: toNumber(objectForm.geometry.y, 0),
     width: toPositiveNumber(objectForm.geometry.width, 80),
     height: toPositiveNumber(objectForm.geometry.height, 50),
   }
+}
+
+function normalizeGeometryForm(geometryType, geometry = {}) {
+  if (geometryType === 'polygon') {
+    const points = Array.isArray(geometry.points) && geometry.points.length >= 3 ? geometry.points : defaultGeometry('polygon').points
+    return {
+      points: points.map((point) => ({
+        x: toNumber(point.x, 0),
+        y: toNumber(point.y, 0),
+      })),
+    }
+  }
+  return { ...defaultGeometry(geometryType), ...(geometry || {}) }
 }
 
 function toNumber(value, fallback) {
@@ -1404,7 +2016,24 @@ function clampNumber(value, min, max) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 12px;
+}
+
+.map-toolbar-title,
+.map-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.map-toolbar-title span {
+  overflow: hidden;
+  color: #1e293b;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .map-canvas {
@@ -1418,17 +2047,21 @@ function clampNumber(value, min, max) {
   border-radius: 8px;
   background: #f8fafc;
   color: #697586;
+  cursor: grab;
 }
 
 .map-canvas > span {
   margin: auto;
 }
 
+.map-canvas.is-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .map-canvas-stage {
   position: relative;
   flex: 0 0 auto;
-  min-width: 480px;
-  min-height: 320px;
   background: #fff;
 }
 
@@ -1442,9 +2075,40 @@ function clampNumber(value, min, max) {
   user-select: none;
 }
 
+.map-polygon-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.map-object-polygon {
+  fill: rgba(37, 99, 235, 0.2);
+  stroke: #2563eb;
+  stroke-width: 3;
+  cursor: move;
+}
+
+.map-object-polygon.selected {
+  fill: rgba(22, 163, 74, 0.22);
+  stroke: #16a34a;
+}
+
+.map-object-polygon.status-hidden {
+  opacity: 0.5;
+  stroke-dasharray: 8 6;
+}
+
+.map-object-polygon.status-closed {
+  fill: rgba(100, 116, 139, 0.22);
+  stroke: #64748b;
+}
+
 .map-object {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1513,6 +2177,10 @@ function clampNumber(value, min, max) {
 
 .background-url-input {
   margin-top: 8px;
+}
+
+.pending-background-tag {
+  margin-left: 8px;
 }
 
 .scene-default-viewport {
@@ -1586,5 +2254,122 @@ function clampNumber(value, min, max) {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.polygon-editor {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.polygon-point-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr) 48px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.polygon-point-row span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.publish-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+}
+
+.publish-preview-loading {
+  padding: 12px 0;
+}
+
+.mini-program-preview {
+  min-width: 0;
+}
+
+.preview-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #334155;
+}
+
+.preview-summary span {
+  color: #64748b;
+}
+
+.preview-canvas {
+  max-height: 560px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.preview-stage {
+  position: relative;
+  min-width: 480px;
+  min-height: 320px;
+  background: #fff;
+}
+
+.preview-checklist {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.checklist-item {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff7f7;
+}
+
+.checklist-item.passed {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.checklist-status {
+  align-self: start;
+  justify-self: start;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.checklist-item.passed .checklist-status {
+  background: #16a34a;
+}
+
+.checklist-item strong {
+  display: block;
+  color: #1e293b;
+  font-size: 13px;
+}
+
+.checklist-item p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"wplink/backend/app/internal/model"
@@ -67,6 +68,11 @@ type ListObjectsReq struct {
 	ServiceTags    string
 	PoiServiceTags string
 	Keyword        string
+	MinX           string
+	MinY           string
+	MaxX           string
+	MaxY           string
+	Zoom           int64
 }
 
 type ListObjectsResp struct {
@@ -81,6 +87,11 @@ type SearchObjectsReq struct {
 	Categories     string
 	ServiceTags    string
 	PoiServiceTags string
+	MinX           string
+	MinY           string
+	MaxX           string
+	MaxY           string
+	Zoom           int64
 	Limit          int64
 }
 
@@ -171,6 +182,10 @@ func (l *PublicLogic) ListObjects(ctx context.Context, sceneCode string, req Lis
 	if sceneCode == "" {
 		return ListObjectsResp{}, errx.New(errx.CodeValidationFailed, "请选择地图场景")
 	}
+	viewport, err := parseMapObjectViewportFilter(req.MinX, req.MinY, req.MaxX, req.MaxY)
+	if err != nil {
+		return ListObjectsResp{}, err
+	}
 	filter := model.ListMapObjectsFilter{
 		SceneCode:      sceneCode,
 		Types:          splitCSV(req.Types),
@@ -179,10 +194,12 @@ func (l *PublicLogic) ListObjects(ctx context.Context, sceneCode string, req Lis
 		PoiServiceTags: splitCSV(req.PoiServiceTags),
 		Keyword:        strings.TrimSpace(req.Keyword),
 		Status:         model.MapObjectStatusNormal,
+		Viewport:       viewport,
+		Zoom:           req.Zoom,
 	}
 	objects, err := l.store.ListPublishedObjects(ctx, filter)
 	if err != nil {
-		logx.Errorf("查询拿货地图对象失败: sceneCode=%s keyword=%s err=%+v", sceneCode, req.Keyword, err)
+		logx.Errorf("查询拿货地图对象失败: sceneCode=%s keyword=%s viewport=%+v zoom=%d err=%+v", sceneCode, req.Keyword, viewport, req.Zoom, err)
 		return ListObjectsResp{}, errx.New(errx.CodeInternalError, "地图点位加载失败，请稍后重试")
 	}
 	return ListObjectsResp{SceneCode: sceneCode, Items: mapObjectItems(objects)}, nil
@@ -193,6 +210,10 @@ func (l *PublicLogic) SearchObjects(ctx context.Context, req SearchObjectsReq) (
 	if limit <= 0 {
 		limit = 10
 	}
+	viewport, err := parseMapObjectViewportFilter(req.MinX, req.MinY, req.MaxX, req.MaxY)
+	if err != nil {
+		return SearchObjectsResp{}, err
+	}
 	filter := model.ListMapObjectsFilter{
 		SceneCode:      strings.TrimSpace(req.SceneCode),
 		Types:          splitCSV(req.Types),
@@ -201,14 +222,62 @@ func (l *PublicLogic) SearchObjects(ctx context.Context, req SearchObjectsReq) (
 		PoiServiceTags: splitCSV(req.PoiServiceTags),
 		Keyword:        strings.TrimSpace(req.Keyword),
 		Status:         model.MapObjectStatusNormal,
+		Viewport:       viewport,
+		Zoom:           req.Zoom,
 		Limit:          limit,
 	}
 	objects, err := l.store.SearchPublishedObjects(ctx, filter)
 	if err != nil {
-		logx.Errorf("搜索拿货地图对象失败: sceneCode=%s keyword=%s err=%+v", req.SceneCode, req.Keyword, err)
+		logx.Errorf("搜索拿货地图对象失败: sceneCode=%s keyword=%s viewport=%+v zoom=%d err=%+v", req.SceneCode, req.Keyword, viewport, req.Zoom, err)
 		return SearchObjectsResp{}, errx.New(errx.CodeInternalError, "地图搜索失败，请稍后重试")
 	}
 	return SearchObjectsResp{Items: mapObjectItems(objects)}, nil
+}
+
+func parseMapObjectViewportFilter(minXText, minYText, maxXText, maxYText string) (*model.MapViewportFilter, error) {
+	values := []string{minXText, minYText, maxXText, maxYText}
+	hasValue := false
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			hasValue = true
+			break
+		}
+	}
+	if !hasValue {
+		return nil, nil
+	}
+	minX, err := parseViewportNumber(minXText, "视口最小 X")
+	if err != nil {
+		return nil, err
+	}
+	minY, err := parseViewportNumber(minYText, "视口最小 Y")
+	if err != nil {
+		return nil, err
+	}
+	maxX, err := parseViewportNumber(maxXText, "视口最大 X")
+	if err != nil {
+		return nil, err
+	}
+	maxY, err := parseViewportNumber(maxYText, "视口最大 Y")
+	if err != nil {
+		return nil, err
+	}
+	if minX > maxX || minY > maxY {
+		return nil, errx.New(errx.CodeValidationFailed, "地图视口范围不正确，请刷新后重试")
+	}
+	return &model.MapViewportFilter{MinX: minX, MinY: minY, MaxX: maxX, MaxY: maxY}, nil
+}
+
+func parseViewportNumber(value string, label string) (float64, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, errx.New(errx.CodeValidationFailed, "地图视口参数不完整，请刷新后重试")
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, errx.New(errx.CodeValidationFailed, label+"格式不正确，请刷新后重试")
+	}
+	return parsed, nil
 }
 
 func (l *PublicLogic) ListCategories(ctx context.Context, req ListCategoriesReq) (ListCategoriesResp, error) {

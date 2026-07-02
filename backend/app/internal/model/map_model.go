@@ -28,8 +28,9 @@ const (
 	MapCategoryStatusHidden = "hidden"
 	MapCategoryStatusClosed = "closed"
 
-	MapGeometryTypeRect  = "rect"
-	MapGeometryTypePoint = "point"
+	MapGeometryTypeRect    = "rect"
+	MapGeometryTypePoint   = "point"
+	MapGeometryTypePolygon = "polygon"
 )
 
 type MapScene struct {
@@ -189,7 +190,16 @@ type ListMapObjectsFilter struct {
 	PoiServiceTags []string
 	Keyword        string
 	Status         string
+	Viewport       *MapViewportFilter
+	Zoom           int64
 	Limit          int64
+}
+
+type MapViewportFilter struct {
+	MinX float64
+	MinY float64
+	MaxX float64
+	MaxY float64
 }
 
 type MapModel struct {
@@ -243,6 +253,24 @@ func BuildMapObjectDerivedFields(input MapObjectInput) (MapObjectDerivedFields, 
 		}
 		centerX, centerY = x, y
 		minX, minY, maxX, maxY = x, y, x, y
+	case MapGeometryTypePolygon:
+		points, err := polygonPointsFromGeometry(input.Geometry)
+		if err != nil {
+			return MapObjectDerivedFields{}, err
+		}
+		minX, minY = points[0].X, points[0].Y
+		maxX, maxY = points[0].X, points[0].Y
+		var sumX, sumY float64
+		for _, point := range points {
+			sumX += point.X
+			sumY += point.Y
+			minX = math.Min(minX, point.X)
+			minY = math.Min(minY, point.Y)
+			maxX = math.Max(maxX, point.X)
+			maxY = math.Max(maxY, point.Y)
+		}
+		centerX = sumX / float64(len(points))
+		centerY = sumY / float64(len(points))
 	default:
 		return MapObjectDerivedFields{}, errors.New("地图标注形状不支持")
 	}
@@ -686,6 +714,20 @@ func (m *MapModel) listObjects(ctx context.Context, filter ListMapObjectsFilter)
 		args = append(args, v)
 		conditions = append(conditions, fmt.Sprintf("status = $%d", len(args)))
 	}
+	if filter.Viewport != nil {
+		args = append(args, filter.Viewport.MaxX)
+		conditions = append(conditions, fmt.Sprintf("min_x <= $%d", len(args)))
+		args = append(args, filter.Viewport.MinX)
+		conditions = append(conditions, fmt.Sprintf("max_x >= $%d", len(args)))
+		args = append(args, filter.Viewport.MaxY)
+		conditions = append(conditions, fmt.Sprintf("min_y <= $%d", len(args)))
+		args = append(args, filter.Viewport.MinY)
+		conditions = append(conditions, fmt.Sprintf("max_y >= $%d", len(args)))
+	}
+	if filter.Zoom > 0 {
+		args = append(args, filter.Zoom)
+		conditions = append(conditions, fmt.Sprintf("min_zoom <= $%d AND max_zoom >= $%d", len(args), len(args)))
+	}
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
@@ -795,6 +837,52 @@ func numberFromGeometry(geometry JSONMap, key string) (float64, error) {
 	if !ok {
 		return 0, fmt.Errorf("地图标注缺少 %s 坐标", key)
 	}
+	return numberFromGeometryValue(raw, fmt.Sprintf("地图标注 %s 坐标", key))
+}
+
+type polygonPoint struct {
+	X float64
+	Y float64
+}
+
+func polygonPointsFromGeometry(geometry JSONMap) ([]polygonPoint, error) {
+	raw, ok := geometry["points"]
+	if !ok {
+		return nil, errors.New("复杂图形至少需要 3 个顶点")
+	}
+	rawPoints, ok := raw.([]interface{})
+	if !ok {
+		return nil, errors.New("复杂图形顶点格式不正确")
+	}
+	if len(rawPoints) < 3 {
+		return nil, errors.New("复杂图形至少需要 3 个顶点")
+	}
+	points := make([]polygonPoint, 0, len(rawPoints))
+	for index, rawPoint := range rawPoints {
+		pointMap, ok := rawPoint.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("复杂图形第 %d 个顶点格式不正确", index+1)
+		}
+		x, err := numberFromGeometryValue(pointMap["x"], fmt.Sprintf("复杂图形第 %d 个顶点 X", index+1))
+		if err != nil {
+			return nil, err
+		}
+		y, err := numberFromGeometryValue(pointMap["y"], fmt.Sprintf("复杂图形第 %d 个顶点 Y", index+1))
+		if err != nil {
+			return nil, err
+		}
+		if x < 0 || y < 0 {
+			return nil, fmt.Errorf("复杂图形第 %d 个顶点坐标不能小于 0", index+1)
+		}
+		points = append(points, polygonPoint{X: x, Y: y})
+	}
+	return points, nil
+}
+
+func numberFromGeometryValue(raw interface{}, label string) (float64, error) {
+	if raw == nil {
+		return 0, fmt.Errorf("%s缺失", label)
+	}
 	switch v := raw.(type) {
 	case float64:
 		return v, nil
@@ -809,7 +897,7 @@ func numberFromGeometry(geometry JSONMap, key string) (float64, error) {
 	case string:
 		return strconv.ParseFloat(strings.TrimSpace(v), 64)
 	default:
-		return 0, fmt.Errorf("地图标注 %s 坐标格式不正确", key)
+		return 0, fmt.Errorf("%s格式不正确", label)
 	}
 }
 

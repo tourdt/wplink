@@ -89,8 +89,8 @@ test('sourcing map page supports quick category and poi filters', () => {
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
-  assert.match(source, /listMapObjects\(selectedSceneCode\.value,\s*buildObjectQueryParams\(\)\)/)
-  assert.match(source, /searchMapObjects\(\{\s*\.\.\.buildObjectQueryParams\(\),\s*sceneCode:/)
+  assert.match(source, /listMapObjects\(selectedSceneCode\.value,\s*buildObjectQueryParams\(\{ includeViewport: true \}\)\)/)
+  assert.match(source, /searchMapObjects\(\{\s*\.\.\.buildObjectQueryParams\(\{ includeViewport: false \}\),\s*sceneCode:/)
 })
 
 test('sourcing map empty results can clear search and filters', () => {
@@ -222,4 +222,46 @@ test('sourcing map page filters visible objects by configured zoom range', () =>
   assert.match(source, /const mapObjects = computed\(\(\) => visibleMapObjects\.value\)/)
   assert.match(source, /const visibleMapObjects = computed\(\(\) => rawMapObjects\.value\.filter\(\(object\) => isObjectVisibleAtZoom\(object,\s*mapZoomLevel\.value\)\)\)/)
   assert.match(source, /function isObjectVisibleAtZoom\(object,\s*zoomLevel\)[\s\S]*const minZoom = toNumber\(object\?\.minZoom,\s*1\)[\s\S]*const maxZoom = toNumber\(object\?\.maxZoom,\s*5\)[\s\S]*return zoomLevel >= minZoom && zoomLevel <= maxZoom/)
+})
+
+test('sourcing map page requests objects by current viewport', () => {
+  for (const token of [
+    '@scroll="handleMapScroll"',
+    'handleMapScroll',
+    'scheduleViewportObjectReload',
+    'buildViewportQueryParams',
+    'VIEWPORT_PADDING_RATIO',
+    'viewportReloadTimer',
+    'pxToRpx',
+    'minX',
+    'minY',
+    'maxX',
+    'maxY',
+    'zoom: mapZoomLevel.value',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(source, /listMapObjects\(selectedSceneCode\.value,\s*buildObjectQueryParams\(\{ includeViewport: true \}\)\)/)
+  assert.match(source, /function changeMapScale\(nextScale\)[\s\S]*scheduleViewportObjectReload\(\)/)
+  assert.match(source, /setTimeout\(async \(\) => \{[\s\S]*await loadSceneObjects\(\{ keepSelection: true \}\)/)
+})
+
+test('sourcing map page renders polygon map objects', () => {
+  for (const token of [
+    'polygon',
+    'polygonObjects',
+    'rectAndPointObjects',
+    'polygonObjectStyle',
+    'polygonStagePoints',
+    'map-polygon',
+    'calculatePolygonCenter',
+    'clip-path: polygon',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(source, /<view[\s\S]*v-for="object in polygonObjects"[\s\S]*:style="polygonObjectStyle\(object\)"/)
+  assert.match(source, /const polygonObjects = computed\(\(\) => mapObjects\.value\.filter/)
+  assert.match(source, /function calculateObjectCenter\(object\)[\s\S]*if \(object\.geometryType === 'polygon'\) \{[\s\S]*return calculatePolygonCenter\(geometry\)/)
 })

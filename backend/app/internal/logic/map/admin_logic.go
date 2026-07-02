@@ -72,6 +72,11 @@ type ListAdminObjectsReq struct {
 	Types   string
 	Status  string
 	Keyword string
+	MinX    string
+	MinY    string
+	MaxX    string
+	MaxY    string
+	Zoom    int64
 }
 
 type SaveObjectReq struct {
@@ -222,16 +227,26 @@ func (l *AdminLogic) PublishScene(ctx context.Context, sceneCode string) (Publis
 	if sceneCode == "" {
 		return PublishSceneResp{}, errx.New(errx.CodeValidationFailed, "请选择要发布的地图场景")
 	}
+	scene, err := l.store.GetAdminScene(ctx, sceneCode)
+	if err != nil {
+		logx.Errorf("发布前查询地图场景失败: sceneCode=%s err=%+v", sceneCode, err)
+		return PublishSceneResp{}, errx.New(errx.CodeInternalError, "地图场景发布失败，请稍后重试")
+	}
+	if err := validateScenePublishReadiness(scene); err != nil {
+		logx.Infof("地图场景发布前检查未通过: sceneCode=%s err=%v", sceneCode, err)
+		return PublishSceneResp{}, err
+	}
 	// 发布前必须至少有一个可展示对象，避免小程序拿到空地图造成运营误发布。
 	objects, err := l.store.ListAdminObjects(ctx, model.ListMapObjectsFilter{SceneCode: sceneCode, Status: model.MapObjectStatusNormal})
 	if err != nil {
 		logx.Errorf("发布前检查地图对象失败: sceneCode=%s err=%+v", sceneCode, err)
 		return PublishSceneResp{}, errx.New(errx.CodeInternalError, "地图场景发布失败，请稍后重试")
 	}
-	if len(objects) == 0 {
-		return PublishSceneResp{}, errx.New(errx.CodeValidationFailed, "请先标注至少一个地图点位后再发布")
+	if issues := mapPublishChecklistIssues(objects); len(issues) > 0 {
+		logx.Infof("地图场景发布前检查未通过: sceneCode=%s issues=%s", sceneCode, strings.Join(issues, "；"))
+		return PublishSceneResp{}, errx.New(errx.CodeValidationFailed, "发布前检查未通过："+strings.Join(issues, "；"))
 	}
-	scene, err := l.store.PublishScene(ctx, sceneCode)
+	scene, err = l.store.PublishScene(ctx, sceneCode)
 	if err != nil {
 		logx.Errorf("发布拿货地图场景失败: sceneCode=%s err=%+v", sceneCode, err)
 		return PublishSceneResp{}, errx.New(errx.CodeInternalError, "地图场景发布失败，请稍后重试")
@@ -244,14 +259,20 @@ func (l *AdminLogic) ListObjects(ctx context.Context, sceneCode string, req List
 	if sceneCode == "" {
 		return ListObjectsResp{}, errx.New(errx.CodeValidationFailed, "请选择地图场景")
 	}
+	viewport, err := parseMapObjectViewportFilter(req.MinX, req.MinY, req.MaxX, req.MaxY)
+	if err != nil {
+		return ListObjectsResp{}, err
+	}
 	objects, err := l.store.ListAdminObjects(ctx, model.ListMapObjectsFilter{
 		SceneCode: sceneCode,
 		Types:     splitCSV(req.Types),
 		Status:    strings.TrimSpace(req.Status),
 		Keyword:   strings.TrimSpace(req.Keyword),
+		Viewport:  viewport,
+		Zoom:      req.Zoom,
 	})
 	if err != nil {
-		logx.Errorf("后台查询地图点位失败: sceneCode=%s err=%+v", sceneCode, err)
+		logx.Errorf("后台查询地图点位失败: sceneCode=%s viewport=%+v zoom=%d err=%+v", sceneCode, viewport, req.Zoom, err)
 		return ListObjectsResp{}, errx.New(errx.CodeInternalError, "地图点位加载失败，请稍后重试")
 	}
 	return ListObjectsResp{SceneCode: sceneCode, Items: mapObjectItems(objects)}, nil
@@ -547,6 +568,74 @@ func cleanStringSlice(values []string) []string {
 	return cleaned
 }
 
+func validateScenePublishReadiness(scene model.MapScene) error {
+	if strings.TrimSpace(scene.BackgroundURL) == "" {
+		return errx.New(errx.CodeValidationFailed, "发布前检查未通过：请先配置地图底图")
+	}
+	if scene.Width <= 0 || scene.Height <= 0 {
+		return errx.New(errx.CodeValidationFailed, "发布前检查未通过：请先配置地图底图宽高")
+	}
+	return nil
+}
+
+func mapPublishChecklistIssues(objects []model.MapObject) []string {
+	if len(objects) == 0 {
+		return []string{"请先标注至少一个正常状态的点位"}
+	}
+
+	var invalidGeometryCount int
+	var missingPhoneCount int
+	var missingTagCount int
+	for _, object := range objects {
+		if object.Status != "" && object.Status != model.MapObjectStatusNormal {
+			continue
+		}
+		if !hasPublishReadyGeometry(object) {
+			invalidGeometryCount++
+		}
+		if strings.TrimSpace(object.Phone) == "" {
+			missingPhoneCount++
+		}
+		if !hasPublishReadyTags(object) {
+			missingTagCount++
+		}
+	}
+
+	issues := make([]string, 0, 3)
+	if invalidGeometryCount > 0 {
+		issues = append(issues, fmt.Sprintf("请补齐 %d 个点位的地图坐标", invalidGeometryCount))
+	}
+	if missingPhoneCount > 0 {
+		issues = append(issues, fmt.Sprintf("请补齐 %d 个点位的联系电话", missingPhoneCount))
+	}
+	if missingTagCount > 0 {
+		issues = append(issues, fmt.Sprintf("请补齐 %d 个点位的分类或服务标签", missingTagCount))
+	}
+	return issues
+}
+
+func hasPublishReadyGeometry(object model.MapObject) bool {
+	fields, err := model.BuildMapObjectDerivedFields(model.MapObjectInput{
+		Code:         object.Code,
+		Name:         object.Name,
+		Type:         object.Type,
+		GeometryType: object.GeometryType,
+		Geometry:     object.Geometry,
+	})
+	if err != nil {
+		return false
+	}
+	return fields.MinX >= 0 && fields.MinY >= 0 && fields.MaxX >= fields.MinX && fields.MaxY >= fields.MinY
+}
+
+func hasPublishReadyTags(object model.MapObject) bool {
+	if strings.TrimSpace(object.Layer) == "poi" {
+		return len(cleanStringSlice(object.PoiServiceTags)) > 0
+	}
+	return len(cleanStringSlice(object.CategoryCodes)) > 0 &&
+		(len(cleanStringSlice(object.ServiceTags)) > 0 || len(cleanStringSlice(object.PlatformTags)) > 0)
+}
+
 func validSceneStatus(status string) bool {
 	return status == model.MapSceneStatusDraft || status == model.MapSceneStatusPublished || status == model.MapSceneStatusArchived
 }
@@ -556,7 +645,7 @@ func validObjectStatus(status string) bool {
 }
 
 func validGeometryType(geometryType string) bool {
-	return geometryType == model.MapGeometryTypeRect || geometryType == model.MapGeometryTypePoint
+	return geometryType == model.MapGeometryTypeRect || geometryType == model.MapGeometryTypePoint || geometryType == model.MapGeometryTypePolygon
 }
 
 func mapCategoryItems(categories []model.MapCategory) []MapCategoryItem {

@@ -32,6 +32,11 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore) {
 			ServiceTags:    query.Get("serviceTags"),
 			PoiServiceTags: query.Get("poiServiceTags"),
 			Keyword:        query.Get("keyword"),
+			MinX:           query.Get("minX"),
+			MinY:           query.Get("minY"),
+			MaxX:           query.Get("maxX"),
+			MaxY:           query.Get("maxY"),
+			Zoom:           int64FromQuery(r, "zoom"),
 		})
 		response.JSON(w, resp, err)
 	})
@@ -44,6 +49,11 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore) {
 			Categories:     query.Get("categories"),
 			ServiceTags:    query.Get("serviceTags"),
 			PoiServiceTags: query.Get("poiServiceTags"),
+			MinX:           query.Get("minX"),
+			MinY:           query.Get("minY"),
+			MaxX:           query.Get("maxX"),
+			MaxY:           query.Get("maxY"),
+			Zoom:           int64FromQuery(r, "zoom"),
 			Limit:          int64FromQuery(r, "limit"),
 		})
 		response.JSON(w, resp, err)
@@ -107,6 +117,11 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore) {
 			Types:   query.Get("types"),
 			Status:  query.Get("status"),
 			Keyword: query.Get("keyword"),
+			MinX:    query.Get("minX"),
+			MinY:    query.Get("minY"),
+			MaxX:    query.Get("maxX"),
+			MaxY:    query.Get("maxY"),
+			Zoom:    int64FromQuery(r, "zoom"),
 		})
 		response.JSON(w, resp, err)
 	})

@@ -110,6 +110,46 @@ func TestMapAPIRouterListsPublicVisibleCategories(t *testing.T) {
 	}
 }
 
+func TestMapAPIRouterPassesViewportAndZoomToPublicObjects(t *testing.T) {
+	store := &fakeMapAPIStore{
+		fakeCityAPIStore: fakeCityAPIStore{},
+		objects:          []model.MapObject{{ID: "object-1", SceneCode: "scene-1", Code: "A001", Name: "A001 小鹿童装"}},
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/scenes/scene-1/objects?minX=10&minY=20&maxX=510&maxY=420&zoom=4", nil)
+	router.ServeHTTP(rec, req)
+
+	_ = decodeEnvelopeData(t, rec, http.StatusOK)
+	if store.objectFilter.Viewport == nil {
+		t.Fatalf("viewport = nil, want parsed viewport")
+	}
+	if store.objectFilter.Viewport.MinX != 10 || store.objectFilter.Viewport.MaxY != 420 || store.objectFilter.Zoom != 4 {
+		t.Fatalf("object filter = %#v, want viewport and zoom", store.objectFilter)
+	}
+}
+
+func TestMapAPIRouterPassesViewportToAdminObjects(t *testing.T) {
+	store := &fakeMapAPIStore{
+		fakeCityAPIStore: fakeCityAPIStore{},
+		objects:          []model.MapObject{{ID: "object-1", SceneCode: "scene-1", Code: "A001", Name: "A001 小鹿童装"}},
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/map/scenes/scene-1/objects?minX=30&minY=40&maxX=530&maxY=440", nil)
+	router.ServeHTTP(rec, req)
+
+	_ = decodeEnvelopeData(t, rec, http.StatusOK)
+	if store.objectFilter.Viewport == nil {
+		t.Fatalf("viewport = nil, want parsed viewport")
+	}
+	if store.objectFilter.Viewport.MinX != 30 || store.objectFilter.Viewport.MaxY != 440 {
+		t.Fatalf("object filter = %#v, want viewport", store.objectFilter)
+	}
+}
+
 func TestMapAPIRouterListsAdminCategoriesWithStatus(t *testing.T) {
 	store := &fakeMapAPIStore{
 		fakeCityAPIStore: fakeCityAPIStore{},

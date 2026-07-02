@@ -120,6 +120,74 @@ test('sourcing map admin is configurable from admin web', () => {
   assert.match(viewSource, /direction/)
 })
 
+test('sourcing map admin delays background OSS upload until scene save', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+  const uploadBackgroundMatch = viewSource.match(/function uploadBackground\(options\) \{([\s\S]*?)\n\}/)
+  const submitSceneMatch = viewSource.match(/async function submitScene\(\) \{([\s\S]*?)\n\}/)
+
+  assert.ok(uploadBackgroundMatch)
+  assert.ok(submitSceneMatch)
+  assert.match(viewSource, /const pendingBackgroundFile = ref\(null\)/)
+  assert.match(viewSource, /const sceneBackgroundPreviewUrl = computed/)
+  assert.match(uploadBackgroundMatch[1], /pendingBackgroundFile\.value = options\.file/)
+  assert.match(uploadBackgroundMatch[1], /createLocalObjectUrl\(options\.file\)/)
+  assert.doesNotMatch(uploadBackgroundMatch[1], /uploadMapBackgroundImage/)
+  assert.match(viewSource, /async function resolveSceneBackgroundUrl\(\)[\s\S]*uploadMapBackgroundImage\(pendingBackgroundFile\.value\)/)
+  assert.match(submitSceneMatch[1], /const backgroundUrl = await resolveSceneBackgroundUrl\(\)/)
+  assert.match(submitSceneMatch[1], /saveMapScene\(\{ \.\.\.sceneForm, backgroundUrl \}\)/)
+})
+
+test('sourcing map admin reads scene size from selected background image', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    'loadBackgroundImageSize',
+    'applyBackgroundImageSize',
+    'applySceneDefaultCenter',
+    'mapCenterFromSize',
+    'sceneForm.width = size.width',
+    'sceneForm.height = size.height',
+    'sceneForm.defaultCenterX = String(center.x)',
+    'sceneForm.defaultCenterY = String(center.y)',
+    '底图尺寸已自动读取',
+    '@change="handleBackgroundUrlChange"',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /function uploadBackground\(options\)[\s\S]*applyBackgroundImageSize\(pendingBackgroundPreviewUrl\.value/)
+  assert.match(viewSource, /function handleBackgroundUrlChange\(\)[\s\S]*applyBackgroundImageSize\(sceneForm\.backgroundUrl/)
+  assert.match(viewSource, /function applyBackgroundImageSize\(imageUrl\)[\s\S]*applySceneDefaultCenter\(size\)/)
+})
+
+test('sourcing map admin supports canvas pan and zoom without changing saved coordinates', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    'mapViewScale',
+    'mapZoomPercent',
+    'zoomCanvasIn',
+    'zoomCanvasOut',
+    'resetCanvasZoom',
+    'fitCanvasToViewport',
+    'handleCanvasWheel',
+    'startCanvasPan',
+    'dragCanvasPan',
+    'mapPointFromClientPoint',
+    'buildViewportBounds',
+    'scaledMapSize',
+    'MAP_ZOOM_STEP',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /@mousedown="startCanvasPan"/)
+  assert.match(viewSource, /@wheel="handleCanvasWheel"/)
+  assert.match(viewSource, /const scaledSize = scaledMapSize\(/)
+  assert.match(viewSource, /const point = mapPointFromClientPoint\(/)
+  assert.match(viewSource, /const deltaX = \(event\.clientX - dragState\.startX\) \/ mapViewScale\.value/)
+})
+
 test('sourcing map admin can maintain object tags and poi detail fields', () => {
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
 
@@ -222,10 +290,8 @@ test('sourcing map admin can filter map objects in a selected scene', () => {
     assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 
-  assert.match(
-    viewSource,
-    /listMapObjects\(sceneCode,\s*\{\s*types:\s*objectFilters\.type,\s*status:\s*objectFilters\.status,\s*keyword:\s*objectFilters\.keyword,\s*\}\)/,
-  )
+  assert.match(viewSource, /function buildObjectQueryParams\(\)[\s\S]*types:\s*objectFilters\.type[\s\S]*status:\s*objectFilters\.status[\s\S]*keyword:\s*objectFilters\.keyword/)
+  assert.match(viewSource, /listMapObjects\(sceneCode,\s*\{[\s\S]*\.\.\.buildObjectQueryParams\(\),[\s\S]*\.\.\.buildViewportParams\(\),[\s\S]*\}\)/)
 })
 
 test('sourcing map admin can configure object display order', () => {
@@ -274,6 +340,57 @@ test('sourcing map admin validates object zoom range before save', () => {
 
   assert.match(viewSource, /function submitObject\(\)[\s\S]*if \(!validateObjectZoomRange\(\)\) \{[\s\S]*return[\s\S]*\}[\s\S]*saveMapObject/)
   assert.match(viewSource, /function validateObjectZoomRange\(\)[\s\S]*const minZoom = toNumber\(objectForm\.minZoom,\s*1\)[\s\S]*const maxZoom = toNumber\(objectForm\.maxZoom,\s*5\)/)
+})
+
+test('sourcing map admin supports polygon annotation and publish preview', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    '复杂图形',
+    'polygon',
+    'polygonPoints',
+    'addPolygonPoint',
+    'removePolygonPoint',
+    'polygonOverlayPoints',
+    'map-object-polygon',
+    'previewDialogVisible',
+    '发布前预览',
+    'openPublishPreview',
+    'confirmPublishScene',
+    'previewObjects',
+    'previewStageStyle',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /<svg[^>]+class="map-polygon-layer"/)
+  assert.match(viewSource, /<polygon[\s\S]*:points="polygonOverlayPoints\(object\)"/)
+  assert.match(viewSource, /<el-dialog v-model="previewDialogVisible" title="发布前预览"/)
+  assert.match(viewSource, /@click="openPublishPreview"/)
+  assert.match(viewSource, /await publishMapScene\(sceneForm\.code\)/)
+})
+
+test('sourcing map admin blocks publish when preview checklist has missing essentials', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    '发布前检查清单',
+    'previewChecklist',
+    'previewBlockingIssues',
+    'publishPreviewObjects',
+    'loadPublishPreviewObjects',
+    'buildPublishChecklist',
+    'missingPhoneObjects',
+    'missingTagObjects',
+    'invalidGeometryObjects',
+    'mini-program-preview',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /listMapObjects\(sceneForm\.code,\s*\{\s*status:\s*'normal'\s*\}\)/)
+  assert.match(viewSource, /<el-button type="primary" :loading="scenePublishing" :disabled="previewBlockingIssues\.length > 0" @click="confirmPublishScene">确认发布<\/el-button>/)
+  assert.match(viewSource, /function buildPublishChecklist\(\)[\s\S]*坐标完整[\s\S]*电话完整[\s\S]*标签完整/)
 })
 
 test('sourcing map admin syncs object layer from selected type', () => {
@@ -421,6 +538,30 @@ test('sourcing map admin can locate a table object on the canvas', () => {
   }
 
   assert.match(viewSource, /const mapCanvasRef = ref\(null\)/)
+})
+
+test('sourcing map admin loads objects by current canvas viewport', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+  const viewportSource = fs.readFileSync(path.join(root, 'src/common/mapViewport.js'), 'utf8')
+  const combinedSource = viewSource + viewportSource
+
+  for (const token of [
+    '@scroll="handleCanvasViewportChange"',
+    'handleCanvasViewportChange',
+    'scheduleViewportObjectReload',
+    'buildViewportParams',
+    'VIEWPORT_PADDING_RATIO',
+    'viewportReloadTimer',
+    'minX',
+    'minY',
+    'maxX',
+    'maxY',
+  ]) {
+    assert.match(combinedSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /listMapObjects\(sceneCode,\s*\{[\s\S]*\.\.\.buildObjectQueryParams\(\),[\s\S]*\.\.\.buildViewportParams\(\),[\s\S]*\}\)/)
+  assert.match(viewSource, /setTimeout\(\(\) => \{[\s\S]*loadObjects\(selectedScene\.value\.code\)/)
 })
 
 test('admin city station filters use dropdown options', () => {
