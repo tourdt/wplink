@@ -257,7 +257,7 @@ const selectedScene = ref(null)
 const selectedSceneCode = ref('')
 const routeSceneCode = ref('')
 const keyword = ref('')
-const mapObjects = ref([])
+const rawMapObjects = ref([])
 const mapCategories = ref([])
 const selectedObject = ref(null)
 const selectedObjectId = ref('')
@@ -283,6 +283,8 @@ const stageScale = computed(() => {
 })
 const effectiveStageScale = computed(() => stageScale.value * mapScale.value)
 const mapZoomLevel = computed(() => getZoomLevelByScale(mapScale.value))
+const visibleMapObjects = computed(() => rawMapObjects.value.filter((object) => isObjectVisibleAtZoom(object, mapZoomLevel.value)))
+const mapObjects = computed(() => visibleMapObjects.value)
 const mapZoomPercent = computed(() => `${Math.round(mapScale.value * 100)}%`)
 const stageStyle = computed(() => {
   const width = toPositiveNumber(selectedScene.value?.width, MAP_MAX_WIDTH_RPX)
@@ -346,7 +348,7 @@ async function loadScenes(options = {}) {
     if (!scenes.value.length) {
       selectedScene.value = null
       selectedSceneCode.value = ''
-      mapObjects.value = []
+      rawMapObjects.value = []
       sceneErrorText.value = '地图暂未开放，请稍后再试。'
       return
     }
@@ -356,7 +358,7 @@ async function loadScenes(options = {}) {
   } catch {
     selectedScene.value = null
     selectedSceneCode.value = ''
-    mapObjects.value = []
+    rawMapObjects.value = []
     sceneErrorText.value = '地图加载失败，请检查网络后重试。'
   } finally {
     loading.value = false
@@ -431,7 +433,7 @@ async function selectScene(scene) {
 
 async function loadSceneObjects(options = {}) {
   if (!selectedSceneCode.value) {
-    mapObjects.value = []
+    rawMapObjects.value = []
     return
   }
   objectLoading.value = true
@@ -445,14 +447,14 @@ async function loadSceneObjects(options = {}) {
           limit: 50,
         })
       : await listMapObjects(selectedSceneCode.value, buildObjectQueryParams())
-    mapObjects.value = applyLocalFilters(resp.items || [])
+    rawMapObjects.value = applyLocalFilters(resp.items || [])
     if (options.focusFirst) {
       selectFirstObjectAfterSearch()
     } else {
       syncSelectedObjectAfterLoad()
     }
   } catch {
-    mapObjects.value = []
+    rawMapObjects.value = []
     clearSelectedObject()
     uni.showToast({ title: '地图点位加载失败，请稍后重试', icon: 'none' })
   } finally {
@@ -542,6 +544,12 @@ function applyLocalFilters(items) {
   })
 }
 
+function isObjectVisibleAtZoom(object, zoomLevel) {
+  const minZoom = toNumber(object?.minZoom, 1)
+  const maxZoom = toNumber(object?.maxZoom, 5)
+  return zoomLevel >= minZoom && zoomLevel <= maxZoom
+}
+
 function matchesSelectedValues(values, selected) {
   if (!selected.length) return true
   return selected.some((value) => values.includes(value))
@@ -589,6 +597,7 @@ function resetMapZoom() {
 
 function changeMapScale(nextScale) {
   mapScale.value = Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, Number(nextScale.toFixed(2))))
+  syncSelectedObjectAfterLoad()
   if (selectedObject.value) {
     focusMapObject(selectedObject.value)
   }

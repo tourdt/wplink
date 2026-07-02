@@ -99,6 +99,8 @@ type MapObjectItem struct {
 	Geometry       map[string]interface{} `json:"geometry"`
 	CenterX        string                 `json:"centerX,omitempty"`
 	CenterY        string                 `json:"centerY,omitempty"`
+	MinZoom        int64                  `json:"minZoom,omitempty"`
+	MaxZoom        int64                  `json:"maxZoom,omitempty"`
 	CategoryCodes  []string               `json:"categoryCodes"`
 	ServiceTags    []string               `json:"serviceTags"`
 	PlatformTags   []string               `json:"platformTags"`
@@ -336,6 +338,8 @@ func mapObjectItem(object model.MapObject) MapObjectItem {
 		Geometry:       map[string]interface{}(object.Geometry),
 		CenterX:        formatFloat(object.CenterX),
 		CenterY:        formatFloat(object.CenterY),
+		MinZoom:        object.MinZoom,
+		MaxZoom:        object.MaxZoom,
 		CategoryCodes:  append([]string(nil), object.CategoryCodes...),
 		ServiceTags:    append([]string(nil), object.ServiceTags...),
 		PlatformTags:   append([]string(nil), object.PlatformTags...),

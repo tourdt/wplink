@@ -208,3 +208,18 @@ test('sourcing map page supports zoom controls and level based labels', () => {
   assert.match(source, /if \(mapZoomLevel\.value < 4\) return object\.code \|\| ''/)
   assert.match(source, /return object\.name \|\| object\.code \|\| ''/)
 })
+
+test('sourcing map page filters visible objects by configured zoom range', () => {
+  for (const token of [
+    'rawMapObjects',
+    'visibleMapObjects',
+    'isObjectVisibleAtZoom',
+    'minZoom',
+    'maxZoom',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.match(source, /const mapObjects = computed\(\(\) => visibleMapObjects\.value\)/)
+  assert.match(source, /const visibleMapObjects = computed\(\(\) => rawMapObjects\.value\.filter\(\(object\) => isObjectVisibleAtZoom\(object,\s*mapZoomLevel\.value\)\)\)/)
+  assert.match(source, /function isObjectVisibleAtZoom\(object,\s*zoomLevel\)[\s\S]*const minZoom = toNumber\(object\?\.minZoom,\s*1\)[\s\S]*const maxZoom = toNumber\(object\?\.maxZoom,\s*5\)[\s\S]*return zoomLevel >= minZoom && zoomLevel <= maxZoom/)
+})

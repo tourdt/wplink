@@ -28,7 +28,7 @@ func TestPublicMapLogicListsPublishedScenes(t *testing.T) {
 
 func TestPublicMapLogicListsNormalObjectsWithParsedFilters(t *testing.T) {
 	store := &fakePublicMapStore{
-		objects: []model.MapObject{{ID: "object-1", SceneCode: "scene-1", Code: "A001", Name: "A001 小鹿童装", Status: model.MapObjectStatusNormal}},
+		objects: []model.MapObject{{ID: "object-1", SceneCode: "scene-1", Code: "A001", Name: "A001 小鹿童装", MinZoom: 2, MaxZoom: 4, Status: model.MapObjectStatusNormal}},
 	}
 	logic := NewPublicLogic(store)
 
@@ -52,6 +52,9 @@ func TestPublicMapLogicListsNormalObjectsWithParsedFilters(t *testing.T) {
 	}
 	if resp.SceneCode != "scene-1" || len(resp.Items) != 1 {
 		t.Fatalf("resp = %#v, want scene objects", resp)
+	}
+	if resp.Items[0].MinZoom != 2 || resp.Items[0].MaxZoom != 4 {
+		t.Fatalf("zoom range = %d-%d, want 2-4", resp.Items[0].MinZoom, resp.Items[0].MaxZoom)
 	}
 }
 

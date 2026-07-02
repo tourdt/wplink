@@ -32,6 +32,8 @@ type MapObjectItem {
 	Geometry       map[string]interface{} `json:"geometry"`
 	CenterX        string                 `json:"centerX,optional"`
 	CenterY        string                 `json:"centerY,optional"`
+	MinZoom        int64                  `json:"minZoom,optional"`
+	MaxZoom        int64                  `json:"maxZoom,optional"`
 	CategoryCodes  []string               `json:"categoryCodes"`
 	ServiceTags    []string               `json:"serviceTags"`
 	PlatformTags   []string               `json:"platformTags"`
