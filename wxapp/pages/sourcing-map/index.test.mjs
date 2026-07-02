@@ -136,3 +136,28 @@ test('sourcing map page renders readable object and poi details', () => {
   assert.match(source, /@click="selectNearbyPoi\(poi\)"/)
   assert.match(source, /const detail = await getMapObject\(poi\.id/)
 })
+
+test('sourcing map page supports zoom controls and level based labels', () => {
+  for (const token of [
+    'zoom-toolbar',
+    'zoomInMap',
+    'zoomOutMap',
+    'resetMapZoom',
+    'mapScale',
+    'mapZoomPercent',
+    'mapZoomLevel',
+    'effectiveStageScale',
+    'objectDisplayLabel',
+    '放大',
+    '缩小',
+    '复位',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.match(source, /const effectiveStageScale = computed\(\(\) => stageScale\.value \* mapScale\.value\)/)
+  assert.match(source, /const mapZoomLevel = computed\(\(\) => getZoomLevelByScale\(mapScale\.value\)\)/)
+  assert.match(source, /function getZoomLevelByScale\(scale\)/)
+  assert.match(source, /function changeMapScale\(nextScale\)/)
+  assert.match(source, /if \(mapZoomLevel\.value < 4\) return object\.code \|\| ''/)
+  assert.match(source, /return object\.name \|\| object\.code \|\| ''/)
+})

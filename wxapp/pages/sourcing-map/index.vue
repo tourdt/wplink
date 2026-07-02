@@ -66,6 +66,12 @@
           <text>{{ selectedSceneName }}</text>
           <text>{{ mapObjects.length }} 个点位</text>
         </view>
+        <view class="zoom-toolbar">
+          <button class="zoom-button" @click="zoomOutMap">缩小</button>
+          <text class="zoom-percent">{{ mapZoomPercent }}</text>
+          <button class="zoom-button" @click="zoomInMap">放大</button>
+          <button class="zoom-button" @click="resetMapZoom">复位</button>
+        </view>
         <scroll-view class="map-scroll" scroll-x scroll-y scroll-with-animation :scroll-left="mapScrollLeft" :scroll-top="mapScrollTop">
           <view class="map-stage" :style="stageStyle">
             <image class="map-background" :src="selectedSceneBackground" mode="aspectFill" />
@@ -154,6 +160,9 @@ import {
 
 const MAP_MAX_WIDTH_RPX = 690
 const MAP_VIEWPORT_HEIGHT_RPX = 720
+const MAP_MIN_SCALE = 1
+const MAP_MAX_SCALE = 3
+const MAP_SCALE_STEP = 0.35
 const DEFAULT_SCENE_NAME = '织里童装拿货地图'
 const labelDictionary = {
   girl: '女童',
@@ -233,6 +242,7 @@ const mapObjects = ref([])
 const selectedObject = ref(null)
 const selectedObjectId = ref('')
 const nearbyPois = ref([])
+const mapScale = ref(1)
 const mapScrollLeft = ref(0)
 const mapScrollTop = ref(0)
 const activeFilters = ref(defaultActiveFilters())
@@ -249,10 +259,13 @@ const stageScale = computed(() => {
   const width = toPositiveNumber(selectedScene.value?.width, MAP_MAX_WIDTH_RPX)
   return Math.min(1, MAP_MAX_WIDTH_RPX / width)
 })
+const effectiveStageScale = computed(() => stageScale.value * mapScale.value)
+const mapZoomLevel = computed(() => getZoomLevelByScale(mapScale.value))
+const mapZoomPercent = computed(() => `${Math.round(mapScale.value * 100)}%`)
 const stageStyle = computed(() => {
   const width = toPositiveNumber(selectedScene.value?.width, MAP_MAX_WIDTH_RPX)
   const height = toPositiveNumber(selectedScene.value?.height, 420)
-  return `width: ${Math.round(width * stageScale.value)}rpx; height: ${Math.round(height * stageScale.value)}rpx;`
+  return `width: ${Math.round(width * effectiveStageScale.value)}rpx; height: ${Math.round(height * effectiveStageScale.value)}rpx;`
 })
 const selectedObjectName = computed(() => selectedObject.value?.name || selectedObject.value?.code || '点位详情')
 const selectedObjectMeta = computed(() => selectedObject.value ? `${objectTypeText(selectedObject.value)} · ${selectedObject.value.code || '无编号'}` : '')
@@ -328,6 +341,7 @@ async function selectScene(scene) {
   selectedObject.value = null
   selectedObjectId.value = ''
   nearbyPois.value = []
+  mapScale.value = 1
   mapScrollLeft.value = 0
   mapScrollTop.value = 0
   try {
@@ -459,10 +473,29 @@ function matchesSelectedValues(values, selected) {
 
 function focusMapObject(object) {
   const center = calculateObjectCenter(object)
-  const scaledX = center.x * stageScale.value
-  const scaledY = center.y * stageScale.value
+  const scaledX = center.x * effectiveStageScale.value
+  const scaledY = center.y * effectiveStageScale.value
   mapScrollLeft.value = Math.max(0, Math.round(rpxToPx(scaledX - MAP_MAX_WIDTH_RPX / 2)))
   mapScrollTop.value = Math.max(0, Math.round(rpxToPx(scaledY - MAP_VIEWPORT_HEIGHT_RPX / 2)))
+}
+
+function zoomInMap() {
+  changeMapScale(mapScale.value + MAP_SCALE_STEP)
+}
+
+function zoomOutMap() {
+  changeMapScale(mapScale.value - MAP_SCALE_STEP)
+}
+
+function resetMapZoom() {
+  changeMapScale(1)
+}
+
+function changeMapScale(nextScale) {
+  mapScale.value = Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, Number(nextScale.toFixed(2))))
+  if (selectedObject.value) {
+    focusMapObject(selectedObject.value)
+  }
 }
 
 function calculateObjectCenter(object) {
@@ -563,7 +596,7 @@ function buildNavigationPayload(object) {
 
 function objectStyle(object) {
   const geometry = object.geometry || {}
-  const scale = stageScale.value
+  const scale = effectiveStageScale.value
   const x = toNumber(geometry.x, toNumber(object.centerX, 0)) * scale
   const y = toNumber(geometry.y, toNumber(object.centerY, 0)) * scale
   if (object.geometryType === 'point') {
@@ -576,7 +609,9 @@ function objectStyle(object) {
 
 function objectDisplayLabel(object) {
   if (object.geometryType === 'point') return ''
-  return object.code || object.name || ''
+  if (mapZoomLevel.value < 4) return object.code || ''
+  if (mapZoomLevel.value < 5) return object.code || object.name || ''
+  return object.name || object.code || ''
 }
 
 function objectIdentity(object) {
@@ -623,6 +658,12 @@ function formatExtraValue(value) {
       .join('；')
   }
   return value ? String(value) : ''
+}
+
+function getZoomLevelByScale(scale) {
+  if (scale < 1.25) return 3
+  if (scale < 2) return 4
+  return 5
 }
 
 function defaultActiveFilters() {
@@ -724,6 +765,7 @@ function rpxToPx(value) {
 .primary-button::after,
 .secondary-button::after,
 .close-button::after,
+.zoom-button::after,
 .scene-tab::after,
 .filter-chip::after,
 .map-object::after,
@@ -934,6 +976,34 @@ function rpxToPx(value) {
   color: $wplink-primary;
   font-size: 26rpx;
   font-weight: 800;
+}
+
+.zoom-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 100rpx 1fr 1fr;
+  gap: 12rpx;
+  align-items: center;
+  padding: 0 24rpx 18rpx;
+}
+
+.zoom-button {
+  min-width: 0;
+  margin: 0;
+  padding: 14rpx 10rpx;
+  border: 0;
+  border-radius: 14rpx;
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
+  font-size: 23rpx;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.zoom-percent {
+  color: $wplink-muted;
+  font-size: 23rpx;
+  font-weight: 900;
+  text-align: center;
 }
 
 .map-card-head text:last-child,
