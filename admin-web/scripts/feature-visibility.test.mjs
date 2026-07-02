@@ -228,6 +228,27 @@ test('sourcing map admin can filter map objects in a selected scene', () => {
   )
 })
 
+test('sourcing map admin can quickly update object status', () => {
+  const apiSource = fs.readFileSync(path.join(root, 'src/api/sourcingMap.js'), 'utf8')
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  assert.match(apiSource, /updateMapObjectStatus/)
+  for (const token of [
+    'updateMapObjectStatus',
+    'changeObjectStatus',
+    '状态操作',
+    '设为正常',
+    '设为隐藏',
+    '设为歇业',
+    '点位状态已更新',
+    '点位缺少 ID',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /await updateMapObjectStatus\(row\.id,\s*status\)/)
+})
+
 test('admin city station filters use dropdown options', () => {
   const citySource = fs.readFileSync(path.join(root, 'src/common/cityStations.js'), 'utf8')
   const filterFiles = [

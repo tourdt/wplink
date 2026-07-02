@@ -174,6 +174,20 @@
                   {{ objectStatusText[row.status] || row.status }}
                 </template>
               </el-table-column>
+              <el-table-column label="操作" width="86">
+                <template #default="{ row }">
+                  <el-dropdown trigger="click" @command="(status) => changeObjectStatus(row, status)">
+                    <el-button type="primary" link :loading="objectStatusSavingId === row.id" @click.stop>状态操作</el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="normal" :disabled="row.status === 'normal'">设为正常</el-dropdown-item>
+                        <el-dropdown-item command="hidden" :disabled="row.status === 'hidden'">设为隐藏</el-dropdown-item>
+                        <el-dropdown-item command="closed" :disabled="row.status === 'closed'">设为歇业</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </template>
+              </el-table-column>
             </el-table>
 
             <el-form class="object-form" label-position="top">
@@ -455,6 +469,7 @@ import {
   saveMapCategory,
   saveMapObject,
   saveMapScene,
+  updateMapObjectStatus,
 } from '../api/sourcingMap'
 import { uploadMapBackgroundImage } from '../api/upload'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
@@ -559,6 +574,7 @@ const sceneSaving = ref(false)
 const scenePublishing = ref(false)
 const objectLoading = ref(false)
 const objectSaving = ref(false)
+const objectStatusSavingId = ref('')
 const batchSaving = ref(false)
 const categoryLoading = ref(false)
 const categorySaving = ref(false)
@@ -1040,6 +1056,32 @@ async function submitObject() {
     ElMessage.error(err.message || '点位保存失败，请重试')
   } finally {
     objectSaving.value = false
+  }
+}
+
+async function changeObjectStatus(row, status) {
+  if (!row?.id) {
+    ElMessage.error('点位缺少 ID，无法更新状态')
+    return
+  }
+  if (row.status === status) {
+    return
+  }
+  const sceneCode = selectedScene.value?.code || row.sceneCode
+  objectStatusSavingId.value = row.id
+  try {
+    const resp = await updateMapObjectStatus(row.id, status)
+    ElMessage.success('点位状态已更新')
+    if (resp.item && selectedObjectId.value === objectIdentity(row)) {
+      resetObjectForm(resp.item)
+    }
+    if (sceneCode) {
+      await loadObjects(sceneCode)
+    }
+  } catch (err) {
+    ElMessage.error(err.message || '点位状态更新失败，请重试')
+  } finally {
+    objectStatusSavingId.value = ''
   }
 }
 
