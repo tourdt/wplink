@@ -1,8 +1,10 @@
 package adminweb
 
 import (
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -53,5 +55,35 @@ func TestHandlerReturnsNotFoundForMissingAsset(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestEmbeddedAdminDistIncludesSourcingMapPage(t *testing.T) {
+	var bundle strings.Builder
+	err := fs.WalkDir(embeddedDist, "dist", func(name string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || (!strings.HasSuffix(name, ".html") && !strings.HasSuffix(name, ".js")) {
+			return nil
+		}
+
+		data, err := embeddedDist.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		bundle.Write(data)
+		bundle.WriteByte('\n')
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk embedded admin dist: %v", err)
+	}
+
+	source := bundle.String()
+	for _, token := range []string{"sourcing-map", "拿货地图", "/api/v1/admin/map/scenes"} {
+		if !strings.Contains(source, token) {
+			t.Fatalf("embedded admin dist missing %q", token)
+		}
 	}
 }
