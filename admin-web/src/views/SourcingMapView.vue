@@ -419,7 +419,7 @@
       </aside>
     </section>
 
-    <el-drawer v-model="batchDrawerVisible" title="批量生成档口" size="420px">
+    <el-drawer v-model="batchDrawerVisible" title="批量生成点位" size="420px">
       <el-form label-position="top">
         <el-form-item label="起始编号">
           <el-input v-model="batchForm.startCode" placeholder="A001" />
@@ -444,10 +444,10 @@
           </el-form-item>
         </div>
         <div class="scene-size-grid">
-          <el-form-item label="档口宽">
+          <el-form-item label="点位宽">
             <el-input-number v-model="batchForm.width" :min="1" controls-position="right" />
           </el-form-item>
-          <el-form-item label="档口高">
+          <el-form-item label="点位高">
             <el-input-number v-model="batchForm.height" :min="1" controls-position="right" />
           </el-form-item>
         </div>
@@ -456,9 +456,8 @@
             <el-input-number v-model="batchForm.gap" :min="0" controls-position="right" />
           </el-form-item>
           <el-form-item label="类型">
-            <el-select v-model="batchForm.type">
-              <el-option label="档口" value="booth" />
-              <el-option label="打包站" value="packing_station" />
+            <el-select v-model="batchForm.type" @change="syncBatchLayerByType">
+              <el-option v-for="item in objectTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
         </div>
@@ -528,6 +527,7 @@ const objectTypeOptions = [
   { label: '停车场', value: 'parking' },
   { label: '餐饮', value: 'restaurant' },
 ]
+const batchPoiTypeValues = new Set(['packing_station', 'logistics_point', 'express_point', 'parking', 'restaurant'])
 const objectStatusOptions = [
   { label: '正常', value: 'normal' },
   { label: '隐藏', value: 'hidden' },
@@ -1262,6 +1262,10 @@ async function submitBatchGenerate() {
   } finally {
     batchSaving.value = false
   }
+}
+
+function syncBatchLayerByType() {
+  batchForm.layer = batchPoiTypeValues.has(batchForm.type) ? 'poi' : 'booth'
 }
 
 function buildBatchPayload() {

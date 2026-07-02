@@ -228,6 +228,29 @@ test('sourcing map admin can filter map objects in a selected scene', () => {
   )
 })
 
+test('sourcing map admin batch generation supports all object types', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    '批量生成点位',
+    '点位宽',
+    '点位高',
+    'objectTypeOptions',
+    'batchForm.type',
+    'syncBatchLayerByType',
+    'batchPoiTypeValues',
+    'factory_booth',
+    'logistics_point',
+    'restaurant',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /<el-option v-for="item in objectTypeOptions" :key="item\.value" :label="item\.label" :value="item\.value" \/>/)
+  assert.match(viewSource, /<el-select v-model="batchForm\.type" @change="syncBatchLayerByType">/)
+  assert.match(viewSource, /batchForm\.layer = batchPoiTypeValues\.has\(batchForm\.type\) \? 'poi' : 'booth'/)
+})
+
 test('sourcing map admin can filter map scenes', () => {
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
 
