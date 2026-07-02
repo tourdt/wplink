@@ -20,7 +20,7 @@ type PublicStore interface {
 	SearchPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) ([]model.MapObject, error)
 	GetPublishedObject(ctx context.Context, objectID string) (model.MapObject, error)
 	ListObjectsBySceneAndTypes(ctx context.Context, sceneCode string, types []string) ([]model.MapObject, error)
-	ListCategories(ctx context.Context, categoryType string) ([]model.MapCategory, error)
+	ListCategories(ctx context.Context, filter model.ListMapCategoriesFilter) ([]model.MapCategory, error)
 }
 
 type PublicLogic struct {
@@ -210,8 +210,11 @@ func (l *PublicLogic) SearchObjects(ctx context.Context, req SearchObjectsReq) (
 }
 
 func (l *PublicLogic) ListCategories(ctx context.Context, req ListCategoriesReq) (ListCategoriesResp, error) {
-	categoryType := strings.TrimSpace(req.Type)
-	categories, err := l.store.ListCategories(ctx, categoryType)
+	filter := model.ListMapCategoriesFilter{
+		Type:   strings.TrimSpace(req.Type),
+		Status: model.MapCategoryStatusNormal,
+	}
+	categories, err := l.store.ListCategories(ctx, filter)
 	if err != nil {
 		logx.Errorf("查询公开地图分类失败: type=%s err=%+v", req.Type, err)
 		return ListCategoriesResp{}, errx.New(errx.CodeInternalError, "地图筛选项加载失败，请稍后重试")

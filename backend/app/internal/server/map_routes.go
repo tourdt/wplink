@@ -148,7 +148,8 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore) {
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/admin/map/categories", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := adminLogic.ListCategories(r.Context(), maplogic.ListCategoriesReq{Type: r.URL.Query().Get("type")})
+		query := r.URL.Query()
+		resp, err := adminLogic.ListCategories(r.Context(), maplogic.ListCategoriesReq{Type: query.Get("type"), Status: query.Get("status")})
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/admin/map/categories", func(w http.ResponseWriter, r *http.Request) {

@@ -102,19 +102,38 @@ func TestAdminMapLogicBatchGenerateHorizontalBooths(t *testing.T) {
 	}
 }
 
+func TestAdminMapLogicListsCategoriesWithTypeAndStatus(t *testing.T) {
+	store := &fakeAdminMapStore{
+		categories: []model.MapCategory{{Code: "hidden", Name: "隐藏分类", Type: "booth_category", IsVisible: true, Status: model.MapCategoryStatusHidden}},
+	}
+	logic := NewAdminLogic(store)
+
+	resp, err := logic.ListCategories(context.Background(), ListCategoriesReq{Type: " booth_category ", Status: " hidden "})
+	if err != nil {
+		t.Fatalf("ListCategories() error = %v", err)
+	}
+
+	if store.categoryFilter.Type != "booth_category" || store.categoryFilter.Status != model.MapCategoryStatusHidden {
+		t.Fatalf("category filter = %#v, want type and hidden status", store.categoryFilter)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Status != model.MapCategoryStatusHidden {
+		t.Fatalf("items = %#v, want hidden category", resp.Items)
+	}
+}
+
 type fakeAdminMapStore struct {
-	sceneInput    model.MapSceneInput
-	objectInput   model.MapObjectInput
-	objectID      string
-	objectStatus  string
-	batchInputs   []model.MapObjectInput
-	categoryType  string
-	categoryInput model.MapCategoryInput
-	scene         model.MapScene
-	scenes        []model.MapScene
-	object        model.MapObject
-	objects       []model.MapObject
-	categories    []model.MapCategory
+	sceneInput     model.MapSceneInput
+	objectInput    model.MapObjectInput
+	objectID       string
+	objectStatus   string
+	batchInputs    []model.MapObjectInput
+	categoryFilter model.ListMapCategoriesFilter
+	categoryInput  model.MapCategoryInput
+	scene          model.MapScene
+	scenes         []model.MapScene
+	object         model.MapObject
+	objects        []model.MapObject
+	categories     []model.MapCategory
 }
 
 func (s *fakeAdminMapStore) ListAdminScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error) {
@@ -178,8 +197,8 @@ func (s *fakeAdminMapStore) BatchCreateObjects(ctx context.Context, inputs []mod
 	return append([]model.MapObject(nil), s.objects...), nil
 }
 
-func (s *fakeAdminMapStore) ListCategories(ctx context.Context, categoryType string) ([]model.MapCategory, error) {
-	s.categoryType = categoryType
+func (s *fakeAdminMapStore) ListCategories(ctx context.Context, filter model.ListMapCategoriesFilter) ([]model.MapCategory, error) {
+	s.categoryFilter = filter
 	return append([]model.MapCategory(nil), s.categories...), nil
 }
 

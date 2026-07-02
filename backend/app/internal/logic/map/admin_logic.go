@@ -22,7 +22,7 @@ type AdminStore interface {
 	SaveObject(ctx context.Context, input model.MapObjectInput) (model.MapObject, error)
 	UpdateObjectStatus(ctx context.Context, objectID string, status string) (model.MapObject, error)
 	BatchCreateObjects(ctx context.Context, inputs []model.MapObjectInput) ([]model.MapObject, error)
-	ListCategories(ctx context.Context, categoryType string) ([]model.MapCategory, error)
+	ListCategories(ctx context.Context, filter model.ListMapCategoriesFilter) ([]model.MapCategory, error)
 	SaveCategory(ctx context.Context, input model.MapCategoryInput) (model.MapCategory, error)
 }
 
@@ -126,7 +126,8 @@ type BatchGenerateObjectsResp struct {
 }
 
 type ListCategoriesReq struct {
-	Type string
+	Type   string
+	Status string
 }
 
 type ListCategoriesResp struct {
@@ -335,9 +336,13 @@ func (l *AdminLogic) BatchGenerateObjects(ctx context.Context, sceneCode string,
 }
 
 func (l *AdminLogic) ListCategories(ctx context.Context, req ListCategoriesReq) (ListCategoriesResp, error) {
-	categories, err := l.store.ListCategories(ctx, strings.TrimSpace(req.Type))
+	filter := model.ListMapCategoriesFilter{
+		Type:   strings.TrimSpace(req.Type),
+		Status: strings.TrimSpace(req.Status),
+	}
+	categories, err := l.store.ListCategories(ctx, filter)
 	if err != nil {
-		logx.Errorf("后台查询地图分类失败: type=%s err=%+v", req.Type, err)
+		logx.Errorf("后台查询地图分类失败: type=%s status=%s err=%+v", req.Type, req.Status, err)
 		return ListCategoriesResp{}, errx.New(errx.CodeInternalError, "地图分类加载失败，请稍后重试")
 	}
 	return ListCategoriesResp{Items: mapCategoryItems(categories)}, nil

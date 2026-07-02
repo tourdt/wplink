@@ -101,8 +101,8 @@ func TestPublicMapLogicListsVisibleNormalCategories(t *testing.T) {
 		t.Fatalf("ListCategories() error = %v", err)
 	}
 
-	if store.categoryType != "booth_category" {
-		t.Fatalf("categoryType = %q, want booth_category", store.categoryType)
+	if store.categoryFilter.Type != "booth_category" || store.categoryFilter.Status != model.MapCategoryStatusNormal {
+		t.Fatalf("category filter = %#v, want booth_category normal", store.categoryFilter)
 	}
 	if len(resp.Items) != 1 || resp.Items[0].Code != "girl" || resp.Items[0].Name != "女童" {
 		t.Fatalf("items = %#v, want only visible normal category", resp.Items)
@@ -139,7 +139,7 @@ type fakePublicMapStore struct {
 	sceneFilter     model.ListMapScenesFilter
 	objectFilter    model.ListMapObjectsFilter
 	objectID        string
-	categoryType    string
+	categoryFilter  model.ListMapCategoriesFilter
 	nearbySceneCode string
 	nearbyTypes     []string
 	scenes          []model.MapScene
@@ -180,7 +180,7 @@ func (s *fakePublicMapStore) ListObjectsBySceneAndTypes(ctx context.Context, sce
 	return append([]model.MapObject(nil), s.nearby...), nil
 }
 
-func (s *fakePublicMapStore) ListCategories(ctx context.Context, categoryType string) ([]model.MapCategory, error) {
-	s.categoryType = categoryType
+func (s *fakePublicMapStore) ListCategories(ctx context.Context, filter model.ListMapCategoriesFilter) ([]model.MapCategory, error) {
+	s.categoryFilter = filter
 	return append([]model.MapCategory(nil), s.categories...), nil
 }

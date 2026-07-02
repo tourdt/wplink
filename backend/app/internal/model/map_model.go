@@ -169,6 +169,11 @@ type MapCategoryInput struct {
 	Status    string
 }
 
+type ListMapCategoriesFilter struct {
+	Type   string
+	Status string
+}
+
 type ListMapScenesFilter struct {
 	CityCode   string
 	ParentCode string
@@ -563,15 +568,23 @@ func (m *MapModel) BatchCreateObjects(ctx context.Context, inputs []MapObjectInp
 	return objects, nil
 }
 
-func (m *MapModel) ListCategories(ctx context.Context, categoryType string) ([]MapCategory, error) {
+func (m *MapModel) ListCategories(ctx context.Context, filter ListMapCategoriesFilter) ([]MapCategory, error) {
 	query := `
 SELECT id::text, code, name, type, COALESCE(icon_url, ''), sort::bigint, is_visible, status, created_at, updated_at
 FROM map_category
 `
-	args := make([]interface{}, 0, 1)
-	if strings.TrimSpace(categoryType) != "" {
-		args = append(args, strings.TrimSpace(categoryType))
-		query += " WHERE type = $1"
+	args := make([]interface{}, 0, 2)
+	conditions := make([]string, 0, 2)
+	if v := strings.TrimSpace(filter.Type); v != "" {
+		args = append(args, v)
+		conditions = append(conditions, fmt.Sprintf("type = $%d", len(args)))
+	}
+	if v := strings.TrimSpace(filter.Status); v != "" {
+		args = append(args, v)
+		conditions = append(conditions, fmt.Sprintf("status = $%d", len(args)))
+	}
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
 	query += " ORDER BY sort ASC, created_at ASC"
 
@@ -598,7 +611,7 @@ FROM map_category
 func (m *MapModel) SaveCategory(ctx context.Context, input MapCategoryInput) (MapCategory, error) {
 	status := strings.TrimSpace(input.Status)
 	if status == "" {
-		status = MapObjectStatusNormal
+		status = MapCategoryStatusNormal
 	}
 	row := m.db.QueryRowContext(ctx, `
 INSERT INTO map_category(code, name, type, icon_url, sort, is_visible, status, updated_at)

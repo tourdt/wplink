@@ -105,8 +105,31 @@ func TestMapAPIRouterListsPublicVisibleCategories(t *testing.T) {
 	if item["code"] != "girl" || item["name"] != "女童" {
 		t.Fatalf("item = %#v, want visible girl category", item)
 	}
-	if store.categoryType != "booth_category" {
-		t.Fatalf("categoryType = %q, want booth_category", store.categoryType)
+	if store.categoryFilter.Type != "booth_category" || store.categoryFilter.Status != model.MapCategoryStatusNormal {
+		t.Fatalf("category filter = %#v, want booth_category normal", store.categoryFilter)
+	}
+}
+
+func TestMapAPIRouterListsAdminCategoriesWithStatus(t *testing.T) {
+	store := &fakeMapAPIStore{
+		fakeCityAPIStore: fakeCityAPIStore{},
+		categories: []model.MapCategory{
+			{Code: "hidden", Name: "隐藏分类", Type: "booth_category", IsVisible: true, Status: model.MapCategoryStatusHidden},
+		},
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/map/categories?type=booth_category&status=hidden", nil)
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	items := data["items"].([]interface{})
+	if len(items) != 1 {
+		t.Fatalf("items = %#v, want one admin category", items)
+	}
+	if store.categoryFilter.Type != "booth_category" || store.categoryFilter.Status != model.MapCategoryStatusHidden {
+		t.Fatalf("category filter = %#v, want booth_category hidden", store.categoryFilter)
 	}
 }
 
@@ -115,7 +138,7 @@ type fakeMapAPIStore struct {
 	sceneFilter      model.ListMapScenesFilter
 	objectFilter     model.ListMapObjectsFilter
 	adminSceneCode   string
-	categoryType     string
+	categoryFilter   model.ListMapCategoriesFilter
 	savedSceneInput  model.MapSceneInput
 	savedObjectInput model.MapObjectInput
 	scenes           []model.MapScene
@@ -189,8 +212,8 @@ func (s *fakeMapAPIStore) BatchCreateObjects(ctx context.Context, inputs []model
 	return append([]model.MapObject(nil), s.objects...), nil
 }
 
-func (s *fakeMapAPIStore) ListCategories(ctx context.Context, categoryType string) ([]model.MapCategory, error) {
-	s.categoryType = categoryType
+func (s *fakeMapAPIStore) ListCategories(ctx context.Context, filter model.ListMapCategoriesFilter) ([]model.MapCategory, error) {
+	s.categoryFilter = filter
 	return append([]model.MapCategory(nil), s.categories...), nil
 }
 
