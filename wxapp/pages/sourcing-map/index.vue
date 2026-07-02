@@ -421,8 +421,10 @@ async function selectScene(scene) {
   try {
     const resp = await getMapScene(scene.code, { suppressErrorToast: true })
     selectedScene.value = resp.item || scene
+    applySceneDefaultViewport(selectedScene.value)
   } catch {
     selectedScene.value = scene
+    applySceneDefaultViewport(selectedScene.value)
   }
   await loadSceneObjects()
 }
@@ -546,11 +548,31 @@ function matchesSelectedValues(values, selected) {
 }
 
 function focusMapObject(object) {
-  const center = calculateObjectCenter(object)
+  focusMapCenter(calculateObjectCenter(object))
+}
+
+function focusMapCenter(center) {
   const scaledX = center.x * effectiveStageScale.value
   const scaledY = center.y * effectiveStageScale.value
   mapScrollLeft.value = Math.max(0, Math.round(rpxToPx(scaledX - MAP_MAX_WIDTH_RPX / 2)))
   mapScrollTop.value = Math.max(0, Math.round(rpxToPx(scaledY - MAP_VIEWPORT_HEIGHT_RPX / 2)))
+}
+
+function applySceneDefaultViewport(scene) {
+  mapScale.value = normalizeSceneDefaultScale(scene?.defaultScale)
+  const centerX = parseOptionalNumber(scene?.defaultCenterX)
+  const centerY = parseOptionalNumber(scene?.defaultCenterY)
+  if (centerX == null || centerY == null) {
+    mapScrollLeft.value = 0
+    mapScrollTop.value = 0
+    return
+  }
+  focusMapCenter({ x: centerX, y: centerY })
+}
+
+function normalizeSceneDefaultScale(value) {
+  const scale = toNumber(value, 1)
+  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, scale))
 }
 
 function zoomInMap() {
@@ -770,6 +792,12 @@ function toPositiveNumber(value, fallback) {
 function parseCoordinate(value) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function parseOptionalNumber(value) {
+  if (value === '' || value == null) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function rpxToPx(value) {

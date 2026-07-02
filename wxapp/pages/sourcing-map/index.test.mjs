@@ -126,6 +126,25 @@ test('sourcing map page focuses and highlights selected map objects', () => {
   assert.match(source, /if \(options\.focus\) \{\s*focusMapObject\(object\)\s*\}/)
 })
 
+test('sourcing map page applies configured default scene viewport', () => {
+  for (const token of [
+    'applySceneDefaultViewport',
+    'normalizeSceneDefaultScale',
+    'focusMapCenter',
+    'defaultScale',
+    'defaultCenterX',
+    'defaultCenterY',
+    'MAP_MIN_SCALE',
+    'MAP_MAX_SCALE',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.match(source, /selectedScene\.value = resp\.item \|\| scene[\s\S]*applySceneDefaultViewport\(selectedScene\.value\)/)
+  assert.match(source, /function applySceneDefaultViewport\(scene\)[\s\S]*mapScale\.value = normalizeSceneDefaultScale\(scene\?\.defaultScale\)/)
+  assert.match(source, /focusMapCenter\(\{ x: centerX, y: centerY \}\)/)
+  assert.match(source, /function normalizeSceneDefaultScale\(value\)[\s\S]*Math\.min\(MAP_MAX_SCALE,\s*Math\.max\(MAP_MIN_SCALE/)
+})
+
 test('sourcing map page provides navigation with address fallback', () => {
   for (const token of [
     '导航',
