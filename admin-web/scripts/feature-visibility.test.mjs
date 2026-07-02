@@ -115,6 +115,9 @@ test('sourcing map admin is configurable from admin web', () => {
   assert.match(viewSource, /handleCanvasClick/)
   assert.match(viewSource, /geometryType/)
   assert.match(viewSource, /objectForm\.geometry/)
+  assert.match(viewSource, /batchGenerateMapObjects/)
+  assert.match(viewSource, /batchForm\.startCode/)
+  assert.match(viewSource, /direction/)
 })
 
 test('admin city station filters use dropdown options', () => {

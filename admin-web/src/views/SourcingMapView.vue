@@ -223,13 +223,84 @@
         </el-tabs>
       </aside>
     </section>
+
+    <el-drawer v-model="batchDrawerVisible" title="批量生成档口" size="420px">
+      <el-form label-position="top">
+        <el-form-item label="起始编号">
+          <el-input v-model="batchForm.startCode" placeholder="A001" />
+        </el-form-item>
+        <div class="scene-size-grid">
+          <el-form-item label="数量">
+            <el-input-number v-model="batchForm.count" :min="1" :max="200" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="方向">
+            <el-select v-model="batchForm.direction">
+              <el-option label="横向" value="horizontal" />
+              <el-option label="纵向" value="vertical" />
+            </el-select>
+          </el-form-item>
+        </div>
+        <div class="scene-size-grid">
+          <el-form-item label="起始 X">
+            <el-input-number v-model="batchForm.startX" :min="0" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="起始 Y">
+            <el-input-number v-model="batchForm.startY" :min="0" controls-position="right" />
+          </el-form-item>
+        </div>
+        <div class="scene-size-grid">
+          <el-form-item label="档口宽">
+            <el-input-number v-model="batchForm.width" :min="1" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="档口高">
+            <el-input-number v-model="batchForm.height" :min="1" controls-position="right" />
+          </el-form-item>
+        </div>
+        <div class="scene-size-grid">
+          <el-form-item label="间距">
+            <el-input-number v-model="batchForm.gap" :min="0" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="类型">
+            <el-select v-model="batchForm.type">
+              <el-option label="档口" value="booth" />
+              <el-option label="打包站" value="packing_station" />
+            </el-select>
+          </el-form-item>
+        </div>
+        <el-form-item label="图层">
+          <el-select v-model="batchForm.layer">
+            <el-option label="档口" value="booth" />
+            <el-option label="配套" value="poi" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="分类编码">
+          <el-select v-model="batchForm.categoryCodes" multiple filterable allow-create default-first-option placeholder="输入后回车">
+          </el-select>
+        </el-form-item>
+        <el-form-item label="服务标签">
+          <el-select v-model="batchForm.serviceTags" multiple filterable allow-create default-first-option placeholder="输入后回车">
+          </el-select>
+        </el-form-item>
+        <div class="drawer-actions">
+          <el-button @click="batchDrawerVisible = false">取消</el-button>
+          <el-button type="primary" :loading="batchSaving" :disabled="!selectedScene" @click="submitBatchGenerate">生成</el-button>
+        </div>
+      </el-form>
+    </el-drawer>
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listMapObjects, listMapScenes, publishMapScene, saveMapObject, saveMapScene } from '../api/sourcingMap'
+import {
+  batchGenerateMapObjects,
+  listMapObjects,
+  listMapScenes,
+  publishMapScene,
+  saveMapObject,
+  saveMapScene,
+} from '../api/sourcingMap'
 import { uploadMapBackgroundImage } from '../api/upload'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 
@@ -243,6 +314,7 @@ const sceneSaving = ref(false)
 const scenePublishing = ref(false)
 const objectLoading = ref(false)
 const objectSaving = ref(false)
+const batchSaving = ref(false)
 const sceneErrorText = ref('')
 const objectErrorText = ref('')
 const scenes = ref([])
@@ -251,6 +323,7 @@ const selectedSceneCode = ref('')
 const selectedObjectId = ref('')
 const sceneForm = reactive(defaultSceneForm())
 const objectForm = reactive(defaultObjectForm())
+const batchForm = reactive(defaultBatchForm())
 const selectedScene = computed(() => scenes.value.find((scene) => scene.code === selectedSceneCode.value) || null)
 const stageStyle = computed(() => ({
   width: `${toPositiveNumber(sceneForm.width, 1200)}px`,
@@ -308,6 +381,23 @@ function defaultObjectForm(data = {}) {
     sort: 0,
     status: 'normal',
     ...data,
+  }
+}
+
+function defaultBatchForm() {
+  return {
+    startCode: 'A001',
+    count: 10,
+    direction: 'horizontal',
+    startX: 100,
+    startY: 100,
+    width: 80,
+    height: 50,
+    gap: 8,
+    type: 'booth',
+    layer: 'booth',
+    categoryCodes: [],
+    serviceTags: [],
   }
 }
 
@@ -590,6 +680,42 @@ function buildObjectPayload() {
   }
 }
 
+async function submitBatchGenerate() {
+  if (!selectedScene.value) {
+    ElMessage.error('请先选择地图场景')
+    return
+  }
+  batchSaving.value = true
+  try {
+    const resp = await batchGenerateMapObjects(selectedScene.value.code, buildBatchPayload())
+    const count = resp.items?.length || 0
+    ElMessage.success(`已生成 ${count} 个点位`)
+    batchDrawerVisible.value = false
+    await loadObjects(selectedScene.value.code)
+  } catch (err) {
+    ElMessage.error(err.message || '批量生成失败，请重试')
+  } finally {
+    batchSaving.value = false
+  }
+}
+
+function buildBatchPayload() {
+  return {
+    startCode: batchForm.startCode,
+    count: toPositiveInteger(batchForm.count, 1),
+    direction: batchForm.direction,
+    startX: String(toNumber(batchForm.startX, 0)),
+    startY: String(toNumber(batchForm.startY, 0)),
+    width: String(toPositiveNumber(batchForm.width, 80)),
+    height: String(toPositiveNumber(batchForm.height, 50)),
+    gap: String(toNumber(batchForm.gap, 0)),
+    type: batchForm.type,
+    layer: batchForm.layer,
+    categoryCodes: batchForm.categoryCodes || [],
+    serviceTags: batchForm.serviceTags || [],
+  }
+}
+
 function normalizedObjectGeometry() {
   if (objectForm.geometryType === 'point') {
     return {
@@ -612,6 +738,11 @@ function toNumber(value, fallback) {
 
 function toPositiveNumber(value, fallback) {
   const parsed = toNumber(value, fallback)
+  return parsed > 0 ? parsed : fallback
+}
+
+function toPositiveInteger(value, fallback) {
+  const parsed = Math.floor(toNumber(value, fallback))
   return parsed > 0 ? parsed : fallback
 }
 </script>
