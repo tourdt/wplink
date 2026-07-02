@@ -1169,6 +1169,9 @@ async function submitObject() {
     ElMessage.error('请先选择地图场景')
     return
   }
+  if (!validateObjectZoomRange()) {
+    return
+  }
   objectSaving.value = true
   try {
     const resp = await saveMapObject(selectedScene.value.code, buildObjectPayload())
@@ -1183,6 +1186,20 @@ async function submitObject() {
   } finally {
     objectSaving.value = false
   }
+}
+
+function validateObjectZoomRange() {
+  const minZoom = toNumber(objectForm.minZoom, 1)
+  const maxZoom = toNumber(objectForm.maxZoom, 5)
+  if (minZoom < 1 || minZoom > 5 || maxZoom < 1 || maxZoom > 5) {
+    ElMessage.error('显示级别必须在 1 到 5 之间')
+    return false
+  }
+  if (minZoom > maxZoom) {
+    ElMessage.error('最小显示级别不能大于最大显示级别')
+    return false
+  }
+  return true
 }
 
 async function changeObjectStatus(row, status) {

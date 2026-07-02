@@ -261,6 +261,21 @@ test('sourcing map admin can configure object zoom visibility', () => {
   assert.match(viewSource, /<el-input-number v-model="objectForm\.maxZoom" :min="1" :max="5" controls-position="right" \/>/)
 })
 
+test('sourcing map admin validates object zoom range before save', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    'validateObjectZoomRange',
+    '最小显示级别不能大于最大显示级别',
+    '显示级别必须在 1 到 5 之间',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /function submitObject\(\)[\s\S]*if \(!validateObjectZoomRange\(\)\) \{[\s\S]*return[\s\S]*\}[\s\S]*saveMapObject/)
+  assert.match(viewSource, /function validateObjectZoomRange\(\)[\s\S]*const minZoom = toNumber\(objectForm\.minZoom,\s*1\)[\s\S]*const maxZoom = toNumber\(objectForm\.maxZoom,\s*5\)/)
+})
+
 test('sourcing map admin syncs object layer from selected type', () => {
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
 
