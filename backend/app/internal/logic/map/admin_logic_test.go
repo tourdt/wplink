@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"wplink/backend/app/internal/model"
+	"wplink/backend/common/errx"
 )
 
 func TestAdminMapLogicRejectsSceneWithoutBackground(t *testing.T) {
@@ -57,6 +58,42 @@ func TestAdminMapLogicRejectsPublishWithoutObjects(t *testing.T) {
 	_, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle")
 	if err == nil {
 		t.Fatal("PublishScene() error = nil, want validation error")
+	}
+}
+
+func TestAdminMapLogicRejectsInvalidObjectZoomRange(t *testing.T) {
+	cases := []struct {
+		name    string
+		minZoom int64
+		maxZoom int64
+	}{
+		{name: "min greater than max", minZoom: 5, maxZoom: 4},
+		{name: "min out of range", minZoom: 6, maxZoom: 6},
+		{name: "max out of range", minZoom: 1, maxZoom: 6},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeAdminMapStore{}
+			logic := NewAdminLogic(store)
+
+			_, err := logic.SaveObject(context.Background(), "scene-1", SaveObjectReq{
+				Code:         "A001",
+				Name:         "A001 小鹿童装",
+				Type:         "booth",
+				Layer:        "booth",
+				GeometryType: model.MapGeometryTypeRect,
+				Geometry:     map[string]interface{}{"x": float64(100), "y": float64(200), "width": float64(80), "height": float64(50)},
+				MinZoom:      tc.minZoom,
+				MaxZoom:      tc.maxZoom,
+			})
+			if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
+				t.Fatalf("SaveObject() error = %v, want validation error", err)
+			}
+			if store.objectInput.Code != "" {
+				t.Fatalf("SaveObject saved invalid zoom range: %#v", store.objectInput)
+			}
+		})
 	}
 }
 

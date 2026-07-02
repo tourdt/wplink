@@ -410,8 +410,27 @@ func validateObjectInput(req SaveObjectReq, status string) error {
 	if len(req.Geometry) == 0 {
 		return errx.New(errx.CodeValidationFailed, "请标注地图点位位置")
 	}
+	if err := validateObjectZoomRange(req.MinZoom, req.MaxZoom); err != nil {
+		return err
+	}
 	if !validObjectStatus(status) {
 		return errx.New(errx.CodeValidationFailed, "地图点位状态不正确")
+	}
+	return nil
+}
+
+func validateObjectZoomRange(minZoom int64, maxZoom int64) error {
+	if minZoom <= 0 {
+		minZoom = 1
+	}
+	if maxZoom <= 0 {
+		maxZoom = 5
+	}
+	if minZoom < 1 || minZoom > 5 || maxZoom < 1 || maxZoom > 5 {
+		return errx.New(errx.CodeValidationFailed, "显示级别必须在 1 到 5 之间")
+	}
+	if minZoom > maxZoom {
+		return errx.New(errx.CodeValidationFailed, "最小显示级别不能大于最大显示级别")
 	}
 	return nil
 }
