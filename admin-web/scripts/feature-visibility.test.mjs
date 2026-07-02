@@ -272,6 +272,25 @@ test('sourcing map admin can quickly update object status', () => {
   assert.match(viewSource, /await updateMapObjectStatus\(row\.id,\s*status\)/)
 })
 
+test('sourcing map admin distinguishes inactive object status on canvas', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    'objectStatusTagType',
+    'objectStatusClass',
+    'objectTitle',
+    'object-status-badge',
+    'status-hidden',
+    'status-closed',
+    ':title="objectTitle(object)"',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /objectStatusClass\(object\.status\)/)
+  assert.match(viewSource, /<el-tag size="small" :type="objectStatusTagType\[row\.status\] \|\| 'info'">/)
+})
+
 test('admin city station filters use dropdown options', () => {
   const citySource = fs.readFileSync(path.join(root, 'src/common/cityStations.js'), 'utf8')
   const filterFiles = [

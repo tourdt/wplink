@@ -65,12 +65,16 @@
               v-for="object in objects"
               :key="object.id || object.code"
               type="button"
-              :class="['map-object', object.layer === 'booth' ? 'booth' : 'poi', { selected: isObjectSelected(object) }]"
+              :class="['map-object', object.layer === 'booth' ? 'booth' : 'poi', objectStatusClass(object.status), { selected: isObjectSelected(object) }]"
               :style="objectStyle(object)"
+              :title="objectTitle(object)"
               @click.stop="selectObject(object)"
               @mousedown.stop="startDragObject($event, object)"
             >
               <span class="object-label">{{ object.name }}</span>
+              <span v-if="object.status && object.status !== 'normal'" class="object-status-badge">
+                {{ objectStatusText[object.status] || object.status }}
+              </span>
             </button>
           </div>
           <span v-else>底图上传后可在此标注档口和配套点位</span>
@@ -180,7 +184,7 @@
               </el-table-column>
               <el-table-column label="状态" width="58">
                 <template #default="{ row }">
-                  {{ objectStatusText[row.status] || row.status }}
+                  <el-tag size="small" :type="objectStatusTagType[row.status] || 'info'">{{ objectStatusText[row.status] || row.status }}</el-tag>
                 </template>
               </el-table-column>
               <el-table-column label="操作" width="86">
@@ -513,6 +517,7 @@ const objectStatusOptions = [
   { label: '歇业', value: 'closed' },
 ]
 const objectStatusText = Object.fromEntries(objectStatusOptions.map((item) => [item.value, item.label]))
+const objectStatusTagType = { normal: 'success', hidden: 'info', closed: 'warning' }
 const categoryTypeOptions = [
   { label: '主营分类', value: 'booth_category' },
   { label: '档口服务', value: 'booth_service' },
@@ -1042,6 +1047,14 @@ function objectStyle(object) {
   }
 }
 
+function objectStatusClass(status) {
+  return status && status !== 'normal' ? `status-${status}` : ''
+}
+
+function objectTitle(object) {
+  return `${object.name} · ${objectStatusText[object.status] || object.status || '正常'}`
+}
+
 let dragState = null
 
 function startDragObject(event, object) {
@@ -1364,12 +1377,43 @@ function toPositiveInteger(value, fallback) {
   box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
 }
 
+.map-object.status-hidden {
+  border-style: dashed;
+  opacity: 0.5;
+}
+
+.map-object.status-closed {
+  border-color: #64748b;
+  background: rgba(100, 116, 139, 0.22);
+  color: #334155;
+}
+
+.map-object.poi.status-closed {
+  background: #64748b;
+  color: #fff;
+}
+
 .object-label {
   max-width: 100%;
   overflow: hidden;
   font-size: 12px;
   line-height: 1.2;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.object-status-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  min-width: 28px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #475569;
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
   white-space: nowrap;
   pointer-events: none;
 }
