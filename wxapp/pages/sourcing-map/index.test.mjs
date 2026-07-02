@@ -35,3 +35,27 @@ test('sourcing map api uses public map endpoints', () => {
     assert.match(apiSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 })
+
+test('sourcing map page loads scenes, renders objects and shows contact actions', () => {
+  for (const token of [
+    'onLoad',
+    'onPullDownRefresh',
+    'loadScenes',
+    'loadSceneObjects',
+    'selectScene',
+    'selectMapObject',
+    'submitSearch',
+    'clearSearch',
+    'objectStyle',
+    'stageStyle',
+    'selectedObject',
+    'callSelectedObject',
+    'copySelectedWechat',
+    'nearbyPois',
+    'loadNearbyPois',
+    '地图暂未开放',
+    '暂无匹配点位',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+})
