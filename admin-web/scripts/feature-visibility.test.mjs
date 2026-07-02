@@ -104,6 +104,11 @@ test('sourcing map admin is configurable from admin web', () => {
   assert.match(viewSource, /添加配套/)
   assert.match(viewSource, /批量生成/)
   assert.match(viewSource, /map-canvas/)
+  assert.match(viewSource, /listMapScenes/)
+  assert.match(viewSource, /saveMapScene/)
+  assert.match(viewSource, /publishMapScene/)
+  assert.match(viewSource, /uploadMapBackgroundImage/)
+  assert.match(viewSource, /v-model="sceneForm\.backgroundUrl"/)
 })
 
 test('admin city station filters use dropdown options', () => {
