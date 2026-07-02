@@ -228,6 +228,21 @@ test('sourcing map admin can filter map objects in a selected scene', () => {
   )
 })
 
+test('sourcing map admin can configure object display order', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    '点位排序',
+    'objectForm.sort',
+    'sort: objectForm.sort',
+    'controls-position="right"',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /<el-input-number v-model="objectForm\.sort" :min="0" controls-position="right" \/>/)
+})
+
 test('sourcing map admin batch generation supports all object types', () => {
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
 

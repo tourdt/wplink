@@ -252,6 +252,9 @@
                     <el-option v-for="item in objectStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
                   </el-select>
                 </el-form-item>
+                <el-form-item label="点位排序">
+                  <el-input-number v-model="objectForm.sort" :min="0" controls-position="right" />
+                </el-form-item>
               </div>
               <div class="geometry-grid">
                 <el-form-item label="X">
