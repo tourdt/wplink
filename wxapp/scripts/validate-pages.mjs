@@ -19,6 +19,7 @@ const requiredPages = [
   'pages/home/index',
   'pages/search/index',
   'pages/search/result',
+  'pages/sourcing-map/index',
   'pages/publish/index',
   'pages/publish/edit',
   'pages/publish-success/index',

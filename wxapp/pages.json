@@ -20,6 +20,13 @@
       }
     },
     {
+      "path": "pages/sourcing-map/index",
+      "style": {
+        "navigationBarTitleText": "拿货地图",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
       "path": "pages/publish/index",
       "style": {
         "navigationBarTitleText": "发布资源"

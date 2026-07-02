@@ -22,7 +22,15 @@ export const defaultFlowChecks = [
       'ResourceCard',
       'listResources',
       'homeResources',
+      '拿货地图',
+      'openSourcingMap',
+      '/pages/sourcing-map/index',
     ],
+  },
+  {
+    file: 'pages/sourcing-map/index.vue',
+    description: '拿货地图入口页',
+    checks: ['拿货地图', 'sourcing-map-page'],
   },
   {
     file: 'pages/search/index.vue',

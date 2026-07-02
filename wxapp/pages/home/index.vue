@@ -78,6 +78,9 @@
               <text></text>
               <text></text>
             </view>
+            <view v-if="item.icon === 'map'" class="icon-sourcing-map">
+              <text></text>
+            </view>
           </view>
           <text class="quick-title">{{ item.title }}</text>
         </button>
@@ -180,6 +183,7 @@ const sceneEntries = [
   { title: '库存清仓', tone: 'red', icon: 'clearance', typeCode: 'inventory', keyword: '库存' },
   { title: '工厂产能', tone: 'teal', icon: 'factory', typeCode: 'factory', keyword: '小单快返' },
   { title: '订单大厅', tone: 'amber', icon: 'orders', typeCode: 'order', keyword: '订单' },
+  { title: '拿货地图', tone: 'green', icon: 'map', action: 'sourcing-map' },
 ]
 const displayBanners = computed(() => {
   const bannerSource = banners.value.length ? banners.value : defaultBanners
@@ -306,7 +310,15 @@ function openBanner(item) {
 }
 
 function openScene(item) {
+  if (item.action === 'sourcing-map') {
+    openSourcingMap()
+    return
+  }
   openSearch({ keyword: item.keyword, typeCode: item.typeCode })
+}
+
+function openSourcingMap() {
+  uni.navigateTo({ url: '/pages/sourcing-map/index' })
 }
 
 function openRecommendCard(item) {
@@ -627,8 +639,8 @@ function bannerTone(jumpType) {
 
 .quick-action-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 28rpx;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 22rpx;
   margin: 0 0 42rpx;
 }
 
@@ -671,9 +683,13 @@ function bannerTone(jumpType) {
   background: #f7f1ee;
 }
 
+.quick-action.green .quick-icon {
+  background: #eef7f2;
+}
+
 .quick-title {
   color: #12243a;
-  font-size: 24rpx;
+  font-size: 23rpx;
   font-weight: 800;
   line-height: 1.2;
   word-break: keep-all;
@@ -796,6 +812,37 @@ function bannerTone(jumpType) {
 
 .icon-orders-board text:nth-child(3) {
   width: 18rpx;
+}
+
+.icon-sourcing-map {
+  position: relative;
+  width: 46rpx;
+  height: 46rpx;
+  border: 5rpx solid $wplink-success;
+  border-radius: 999rpx 999rpx 999rpx 8rpx;
+  transform: rotate(-45deg);
+}
+
+.icon-sourcing-map::before {
+  position: absolute;
+  top: 11rpx;
+  left: 11rpx;
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 999rpx;
+  background: $wplink-success;
+  content: '';
+}
+
+.icon-sourcing-map text {
+  position: absolute;
+  right: -18rpx;
+  bottom: -18rpx;
+  width: 44rpx;
+  height: 5rpx;
+  border-radius: 999rpx;
+  background: rgba($wplink-success, 0.42);
+  transform: rotate(45deg);
 }
 
 .recommend-card {
