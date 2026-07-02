@@ -58,7 +58,7 @@
           <span>{{ selectedScene?.name || '标注画布' }}</span>
           <el-tag type="info">第一期支持矩形和点位</el-tag>
         </div>
-        <div class="map-canvas" @click="handleCanvasClick">
+        <div ref="mapCanvasRef" class="map-canvas" @click="handleCanvasClick">
           <div v-if="sceneForm.backgroundUrl" class="map-canvas-stage" :style="stageStyle">
             <img class="map-background" :src="sceneForm.backgroundUrl" alt="地图底图" />
             <button
@@ -187,18 +187,21 @@
                   <el-tag size="small" :type="objectStatusTagType[row.status] || 'info'">{{ objectStatusText[row.status] || row.status }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="86">
+              <el-table-column label="操作" width="126">
                 <template #default="{ row }">
-                  <el-dropdown trigger="click" @command="(status) => changeObjectStatus(row, status)">
-                    <el-button type="primary" link :loading="objectStatusSavingId === row.id" @click.stop>状态操作</el-button>
-                    <template #dropdown>
-                      <el-dropdown-menu>
-                        <el-dropdown-item command="normal" :disabled="row.status === 'normal'">设为正常</el-dropdown-item>
-                        <el-dropdown-item command="hidden" :disabled="row.status === 'hidden'">设为隐藏</el-dropdown-item>
-                        <el-dropdown-item command="closed" :disabled="row.status === 'closed'">设为歇业</el-dropdown-item>
-                      </el-dropdown-menu>
-                    </template>
-                  </el-dropdown>
+                  <div class="object-row-actions">
+                    <el-button type="primary" link @click.stop="locateObject(row)">定位</el-button>
+                    <el-dropdown trigger="click" @command="(status) => changeObjectStatus(row, status)">
+                      <el-button type="primary" link :loading="objectStatusSavingId === row.id" @click.stop>状态操作</el-button>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item command="normal" :disabled="row.status === 'normal'">设为正常</el-dropdown-item>
+                          <el-dropdown-item command="hidden" :disabled="row.status === 'hidden'">设为隐藏</el-dropdown-item>
+                          <el-dropdown-item command="closed" :disabled="row.status === 'closed'">设为歇业</el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+                  </div>
                 </template>
               </el-table-column>
             </el-table>
@@ -611,6 +614,7 @@ const scenes = ref([])
 const objects = ref([])
 const mapCategories = ref([])
 const categoryOptionItems = ref([])
+const mapCanvasRef = ref(null)
 const selectedSceneCode = ref('')
 const selectedObjectId = ref('')
 const sceneForm = reactive(defaultSceneForm())
@@ -1000,6 +1004,27 @@ function selectObject(object) {
   activePanel.value = 'object'
 }
 
+function locateObject(object) {
+  selectObject(object)
+  scrollCanvasToObject(object)
+}
+
+function scrollCanvasToObject(object) {
+  const canvas = mapCanvasRef.value
+  if (!canvas) {
+    return
+  }
+  const geometry = object.geometry || {}
+  const x = toNumber(geometry.x, 0)
+  const y = toNumber(geometry.y, 0)
+  const centerX = object.geometryType === 'rect' ? x + toPositiveNumber(geometry.width, 80) / 2 : x
+  const centerY = object.geometryType === 'rect' ? y + toPositiveNumber(geometry.height, 50) / 2 : y
+  const maxLeft = Math.max(0, canvas.scrollWidth - canvas.clientWidth)
+  const maxTop = Math.max(0, canvas.scrollHeight - canvas.clientHeight)
+  canvas.scrollLeft = clampNumber(Math.round(centerX - canvas.clientWidth / 2), 0, maxLeft)
+  canvas.scrollTop = clampNumber(Math.round(centerY - canvas.clientHeight / 2), 0, maxTop)
+}
+
 function syncGeometryType() {
   objectForm.geometry = { ...defaultGeometry(objectForm.geometryType), ...objectForm.geometry }
 }
@@ -1257,6 +1282,10 @@ function toPositiveInteger(value, fallback) {
   const parsed = Math.floor(toNumber(value, fallback))
   return parsed > 0 ? parsed : fallback
 }
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value))
+}
 </script>
 
 <style scoped>
@@ -1451,6 +1480,13 @@ function toPositiveInteger(value, fallback) {
 
 .object-filter-actions .el-button {
   flex: 1;
+}
+
+.object-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .category-filter-bar {

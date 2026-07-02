@@ -291,6 +291,25 @@ test('sourcing map admin distinguishes inactive object status on canvas', () => 
   assert.match(viewSource, /<el-tag size="small" :type="objectStatusTagType\[row\.status\] \|\| 'info'">/)
 })
 
+test('sourcing map admin can locate a table object on the canvas', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    'mapCanvasRef',
+    'locateObject',
+    'scrollCanvasToObject',
+    'object-row-actions',
+    '定位',
+    '@click.stop="locateObject(row)"',
+    'scrollLeft',
+    'scrollTop',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /const mapCanvasRef = ref\(null\)/)
+})
+
 test('admin city station filters use dropdown options', () => {
   const citySource = fs.readFileSync(path.join(root, 'src/common/cityStations.js'), 'utf8')
   const filterFiles = [
