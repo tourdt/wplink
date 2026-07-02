@@ -14,10 +14,10 @@ export function buildUploadedFileUrl(token) {
   return `${baseUrl}/${objectKey}`
 }
 
-export function buildQiniuUploadErrorMessage(status, bodyText = '') {
+export function buildQiniuUploadErrorMessage(status, bodyText = '', resourceName = '封面') {
   const detail = parseQiniuErrorDetail(bodyText)
-  if (!detail) return `封面上传失败（七牛 ${status}）`
-  return `封面上传失败（七牛 ${status}：${detail}）`
+  if (!detail) return `${resourceName}上传失败（七牛 ${status}）`
+  return `${resourceName}上传失败（七牛 ${status}：${detail}）`
 }
 
 function parseQiniuErrorDetail(bodyText) {

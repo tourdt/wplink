@@ -29,3 +29,10 @@ test('builds qiniu upload error message from response text', () => {
     '封面上传失败（七牛 631：bucket not found）',
   )
 })
+
+test('builds map background upload error message', () => {
+  assert.equal(
+    buildQiniuUploadErrorMessage(631, '{"error":"bucket not found"}', '底图'),
+    '底图上传失败（七牛 631：bucket not found）',
+  )
+})
