@@ -124,6 +124,30 @@
               <el-tag type="info">{{ objects.length }} 个</el-tag>
             </div>
 
+            <div class="object-filter-bar">
+              <el-input
+                v-model.trim="objectFilters.keyword"
+                class="object-filter-keyword"
+                placeholder="搜索编码/名称"
+                clearable
+                :disabled="!selectedScene"
+                @keyup.enter="applyObjectFilters"
+                @clear="applyObjectFilters"
+              />
+              <el-select v-model="objectFilters.type" placeholder="全部类型" clearable :disabled="!selectedScene" @change="applyObjectFilters">
+                <el-option label="全部类型" value="" />
+                <el-option v-for="item in objectTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+              <el-select v-model="objectFilters.status" placeholder="全部状态" clearable :disabled="!selectedScene" @change="applyObjectFilters">
+                <el-option label="全部状态" value="" />
+                <el-option v-for="item in objectStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+              <div class="object-filter-actions">
+                <el-button :disabled="!selectedScene" :loading="objectLoading" @click="applyObjectFilters">筛选点位</el-button>
+                <el-button :disabled="!selectedScene" @click="clearObjectFilters">清空</el-button>
+              </div>
+            </div>
+
             <div v-if="objectErrorText" class="table-state table-state-error">
               <span>{{ objectErrorText }}</span>
               <el-button type="danger" plain :disabled="!selectedScene" @click="loadObjects(selectedScene.code)">重试</el-button>
@@ -162,14 +186,7 @@
               <div class="scene-size-grid">
                 <el-form-item label="类型">
                   <el-select v-model="objectForm.type">
-                    <el-option label="档口" value="booth" />
-                    <el-option label="源头工厂" value="factory_booth" />
-                    <el-option label="仓库" value="warehouse" />
-                    <el-option label="打包站" value="packing_station" />
-                    <el-option label="物流点" value="logistics_point" />
-                    <el-option label="快递点" value="express_point" />
-                    <el-option label="停车场" value="parking" />
-                    <el-option label="餐饮" value="restaurant" />
+                    <el-option v-for="item in objectTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="图层">
@@ -188,9 +205,7 @@
                 </el-form-item>
                 <el-form-item label="状态">
                   <el-select v-model="objectForm.status">
-                    <el-option label="正常" value="normal" />
-                    <el-option label="隐藏" value="hidden" />
-                    <el-option label="歇业" value="closed" />
+                    <el-option v-for="item in objectStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
                   </el-select>
                 </el-form-item>
               </div>
@@ -446,7 +461,22 @@ import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 
 const sceneStatusText = { draft: '草稿', published: '已发布', archived: '已归档' }
 const sceneStatusTagType = { draft: 'info', published: 'success', archived: 'warning' }
-const objectStatusText = { normal: '正常', hidden: '隐藏', closed: '歇业' }
+const objectTypeOptions = [
+  { label: '档口', value: 'booth' },
+  { label: '源头工厂', value: 'factory_booth' },
+  { label: '仓库', value: 'warehouse' },
+  { label: '打包站', value: 'packing_station' },
+  { label: '物流点', value: 'logistics_point' },
+  { label: '快递点', value: 'express_point' },
+  { label: '停车场', value: 'parking' },
+  { label: '餐饮', value: 'restaurant' },
+]
+const objectStatusOptions = [
+  { label: '正常', value: 'normal' },
+  { label: '隐藏', value: 'hidden' },
+  { label: '歇业', value: 'closed' },
+]
+const objectStatusText = Object.fromEntries(objectStatusOptions.map((item) => [item.value, item.label]))
 const categoryTypeOptions = [
   { label: '主营分类', value: 'booth_category' },
   { label: '档口服务', value: 'booth_service' },
@@ -546,6 +576,7 @@ const objectForm = reactive(defaultObjectForm())
 const batchForm = reactive(defaultBatchForm())
 const categoryForm = reactive(defaultCategoryForm())
 const categoryFilters = reactive(defaultCategoryFilters())
+const objectFilters = reactive(defaultObjectFilters())
 const selectedScene = computed(() => scenes.value.find((scene) => scene.code === selectedSceneCode.value) || null)
 const mergedCategoryOptions = computed(() => mergeCategoryOptions(categoryOptions, mapCategoryOptions('booth_category')))
 const mergedServiceTagOptions = computed(() => mergeCategoryOptions(serviceTagOptions, mapCategoryOptions('booth_service')))
@@ -653,6 +684,14 @@ function defaultCategoryFilters() {
   }
 }
 
+function defaultObjectFilters() {
+  return {
+    keyword: '',
+    type: '',
+    status: '',
+  }
+}
+
 function resetSceneForm(data = {}) {
   Object.assign(sceneForm, defaultSceneForm(), data)
 }
@@ -710,13 +749,29 @@ async function loadObjects(sceneCode) {
   objectLoading.value = true
   objectErrorText.value = ''
   try {
-    const resp = await listMapObjects(sceneCode)
+    const resp = await listMapObjects(sceneCode, {
+      types: objectFilters.type,
+      status: objectFilters.status,
+      keyword: objectFilters.keyword,
+    })
     objects.value = resp.items || []
   } catch {
     objectErrorText.value = '地图点位加载失败，请重试'
   } finally {
     objectLoading.value = false
   }
+}
+
+function applyObjectFilters() {
+  if (!selectedScene.value?.code) {
+    return
+  }
+  loadObjects(selectedScene.value.code)
+}
+
+function clearObjectFilters() {
+  Object.assign(objectFilters, defaultObjectFilters())
+  applyObjectFilters()
 }
 
 async function loadCategories() {
@@ -1227,6 +1282,27 @@ function toPositiveInteger(value, fallback) {
 
 .object-heading {
   margin-top: 4px;
+}
+
+.object-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.object-filter-keyword,
+.object-filter-actions {
+  grid-column: 1 / -1;
+}
+
+.object-filter-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.object-filter-actions .el-button {
+  flex: 1;
 }
 
 .category-filter-bar {

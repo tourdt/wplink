@@ -203,6 +203,31 @@ test('sourcing map admin can maintain standard map categories', () => {
   assert.match(viewSource, /function mapCategoryOptions\(type\)[\s\S]*categoryOptionItems\.value/)
 })
 
+test('sourcing map admin can filter map objects in a selected scene', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    'objectFilters.keyword',
+    'objectFilters.type',
+    'objectFilters.status',
+    'defaultObjectFilters',
+    'clearObjectFilters',
+    'objectTypeOptions',
+    'objectStatusOptions',
+    '筛选点位',
+    '全部类型',
+    '全部状态',
+    '搜索编码/名称',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(
+    viewSource,
+    /listMapObjects\(sceneCode,\s*\{\s*types:\s*objectFilters\.type,\s*status:\s*objectFilters\.status,\s*keyword:\s*objectFilters\.keyword,\s*\}\)/,
+  )
+})
+
 test('admin city station filters use dropdown options', () => {
   const citySource = fs.readFileSync(path.join(root, 'src/common/cityStations.js'), 'utf8')
   const filterFiles = [
