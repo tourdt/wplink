@@ -18,6 +18,25 @@
         <text>当前筛选：{{ keyword }}</text>
         <button @click="clearSearch">清除</button>
       </view>
+      <view class="filter-panel">
+        <view v-for="group in filterGroups" :key="group.key" class="filter-group">
+          <text class="filter-title">{{ group.label }}</text>
+          <scroll-view class="filter-options" scroll-x>
+            <button
+              v-for="item in group.items"
+              :key="`${group.key}-${item.value}`"
+              :class="['filter-chip', { active: isFilterActive(group.key, item.value) }]"
+              @click="toggleFilter(group.key, item.value)"
+            >
+              {{ item.label }}
+            </button>
+          </scroll-view>
+        </view>
+        <view v-if="hasActiveFilters" class="filter-reset-row">
+          <text>已选 {{ activeFilterCount }} 项筛选</text>
+          <button @click="clearFilters">全部清除</button>
+        </view>
+      </view>
       <scroll-view v-if="sceneTabsVisible" class="scene-tabs" scroll-x>
         <button
           v-for="scene in scenes"
@@ -47,13 +66,13 @@
           <text>{{ selectedSceneName }}</text>
           <text>{{ mapObjects.length }} 个点位</text>
         </view>
-        <scroll-view class="map-scroll" scroll-x scroll-y>
+        <scroll-view class="map-scroll" scroll-x scroll-y scroll-with-animation :scroll-left="mapScrollLeft" :scroll-top="mapScrollTop">
           <view class="map-stage" :style="stageStyle">
             <image class="map-background" :src="selectedSceneBackground" mode="aspectFill" />
             <button
               v-for="object in mapObjects"
               :key="object.id || object.code"
-              :class="['map-object', object.layer === 'booth' ? 'booth' : 'poi', { active: selectedObjectId === object.id }]"
+              :class="['map-object', object.layer === 'booth' ? 'booth' : 'poi', { active: selectedObjectId === objectIdentity(object) }]"
               :style="objectStyle(object)"
               @click="selectMapObject(object)"
             >
@@ -75,7 +94,7 @@
         <button
           v-for="object in mapObjects"
           :key="`${object.id || object.code}-row`"
-          :class="['object-row', { active: selectedObjectId === object.id }]"
+          :class="['object-row', { active: selectedObjectId === objectIdentity(object) }]"
           @click="selectMapObject(object)"
         >
           <view>
@@ -133,7 +152,40 @@ import {
 } from '../../api/sourcingMap'
 
 const MAP_MAX_WIDTH_RPX = 690
+const MAP_VIEWPORT_HEIGHT_RPX = 720
 const DEFAULT_SCENE_NAME = '织里童装拿货地图'
+const filterGroups = [
+  {
+    key: 'categories',
+    label: '档口分类',
+    items: [
+      { label: '女童', value: 'girl' },
+      { label: '男童', value: 'boy' },
+      { label: '婴童', value: 'baby' },
+      { label: '中大童', value: 'middle_child' },
+    ],
+  },
+  {
+    key: 'serviceTags',
+    label: '档口服务',
+    items: [
+      { label: '现货', value: 'spot' },
+      { label: '源头工厂', value: 'factory' },
+      { label: '支持打样', value: 'sample' },
+      { label: '一件代发', value: 'drop_shipping' },
+    ],
+  },
+  {
+    key: 'types',
+    label: '配套服务',
+    items: [
+      { label: '打包站', value: 'packing_station' },
+      { label: '物流点', value: 'logistics_point' },
+      { label: '快递点', value: 'express_point' },
+      { label: '停车场', value: 'parking' },
+    ],
+  },
+]
 
 const loading = ref(false)
 const objectLoading = ref(false)
@@ -146,6 +198,9 @@ const mapObjects = ref([])
 const selectedObject = ref(null)
 const selectedObjectId = ref('')
 const nearbyPois = ref([])
+const mapScrollLeft = ref(0)
+const mapScrollTop = ref(0)
+const activeFilters = ref(defaultActiveFilters())
 const sceneErrorText = ref('地图数据发布后可在这里查看档口和配套点位。')
 
 const currentSceneName = computed(() => selectedScene.value ? selectedScene.value.name : DEFAULT_SCENE_NAME)
@@ -153,6 +208,8 @@ const selectedSceneName = computed(() => selectedScene.value ? selectedScene.val
 const selectedSceneBackground = computed(() => selectedScene.value ? selectedScene.value.backgroundUrl : '')
 const sceneTabsVisible = computed(() => scenes.value.length > 1)
 const sceneUnavailable = computed(() => !selectedScene.value || !selectedSceneBackground.value)
+const hasActiveFilters = computed(() => activeFilterCount.value > 0)
+const activeFilterCount = computed(() => Object.values(activeFilters.value).reduce((total, values) => total + values.length, 0))
 const stageScale = computed(() => {
   const width = toPositiveNumber(selectedScene.value?.width, MAP_MAX_WIDTH_RPX)
   return Math.min(1, MAP_MAX_WIDTH_RPX / width)
@@ -219,6 +276,8 @@ async function selectScene(scene) {
   selectedObject.value = null
   selectedObjectId.value = ''
   nearbyPois.value = []
+  mapScrollLeft.value = 0
+  mapScrollTop.value = 0
   try {
     const resp = await getMapScene(scene.code, { suppressErrorToast: true })
     selectedScene.value = resp.item || scene
@@ -228,7 +287,7 @@ async function selectScene(scene) {
   await loadSceneObjects()
 }
 
-async function loadSceneObjects() {
+async function loadSceneObjects(options = {}) {
   if (!selectedSceneCode.value) {
     mapObjects.value = []
     return
@@ -237,11 +296,22 @@ async function loadSceneObjects() {
   try {
     const term = keyword.value.trim()
     const resp = term
-      ? await searchMapObjects({ sceneCode: selectedSceneCode.value, keyword: term, limit: 50 })
-      : await listMapObjects(selectedSceneCode.value)
-    mapObjects.value = resp.items || []
+      ? await searchMapObjects({
+          ...buildObjectQueryParams(),
+          sceneCode: selectedSceneCode.value,
+          keyword: term,
+          limit: 50,
+        })
+      : await listMapObjects(selectedSceneCode.value, buildObjectQueryParams())
+    mapObjects.value = applyLocalFilters(resp.items || [])
+    if (options.focusFirst) {
+      selectFirstObjectAfterSearch()
+    } else {
+      syncSelectedObjectAfterLoad()
+    }
   } catch {
     mapObjects.value = []
+    clearSelectedObject()
     uni.showToast({ title: '地图点位加载失败，请稍后重试', icon: 'none' })
   } finally {
     objectLoading.value = false
@@ -249,17 +319,49 @@ async function loadSceneObjects() {
 }
 
 async function submitSearch() {
-  await loadSceneObjects()
+  await loadSceneObjects({ focusFirst: true })
 }
 
 async function clearSearch() {
   keyword.value = ''
-  await loadSceneObjects()
+  await loadSceneObjects({ focusFirst: hasActiveFilters.value })
 }
 
-function selectMapObject(object) {
+async function toggleFilter(key, value) {
+  const current = activeFilters.value[key] || []
+  const exists = current.includes(value)
+  activeFilters.value = {
+    ...activeFilters.value,
+    [key]: exists ? current.filter((item) => item !== value) : [...current, value],
+  }
+  await loadSceneObjects({ focusFirst: true })
+}
+
+async function clearFilters() {
+  activeFilters.value = defaultActiveFilters()
+  await loadSceneObjects({ focusFirst: Boolean(keyword.value.trim()) })
+}
+
+function isFilterActive(key, value) {
+  return (activeFilters.value[key] || []).includes(value)
+}
+
+function buildObjectQueryParams() {
+  const params = {}
+  if (activeFilters.value.types.length) params.types = activeFilters.value.types.join(',')
+  if (activeFilters.value.categories.length) params.categories = activeFilters.value.categories.join(',')
+  if (activeFilters.value.serviceTags.length) params.serviceTags = activeFilters.value.serviceTags.join(',')
+  if (activeFilters.value.poiServiceTags.length) params.poiServiceTags = activeFilters.value.poiServiceTags.join(',')
+  return params
+}
+
+function selectMapObject(object, options = { focus: true }) {
+  if (!object) return
   selectedObject.value = object
-  selectedObjectId.value = object.id || ''
+  selectedObjectId.value = objectIdentity(object)
+  if (options.focus) {
+    focusMapObject(object)
+  }
   loadNearbyPois(object)
 }
 
@@ -267,6 +369,61 @@ function clearSelectedObject() {
   selectedObject.value = null
   selectedObjectId.value = ''
   nearbyPois.value = []
+}
+
+function selectFirstObjectAfterSearch() {
+  if (!mapObjects.value.length) {
+    clearSelectedObject()
+    return
+  }
+  selectMapObject(mapObjects.value[0], { focus: true })
+}
+
+function syncSelectedObjectAfterLoad() {
+  if (!selectedObjectId.value) return
+  const latest = mapObjects.value.find((item) => objectIdentity(item) === selectedObjectId.value)
+  if (latest) {
+    selectedObject.value = latest
+    return
+  }
+  clearSelectedObject()
+}
+
+function applyLocalFilters(items) {
+  return items.filter((item) => {
+    return (
+      matchesSelectedValues(item.type ? [item.type] : [], activeFilters.value.types) &&
+      matchesSelectedValues(item.categoryCodes || [], activeFilters.value.categories) &&
+      matchesSelectedValues(item.serviceTags || [], activeFilters.value.serviceTags) &&
+      matchesSelectedValues(item.poiServiceTags || [], activeFilters.value.poiServiceTags)
+    )
+  })
+}
+
+function matchesSelectedValues(values, selected) {
+  if (!selected.length) return true
+  return selected.some((value) => values.includes(value))
+}
+
+function focusMapObject(object) {
+  const center = calculateObjectCenter(object)
+  const scaledX = center.x * stageScale.value
+  const scaledY = center.y * stageScale.value
+  mapScrollLeft.value = Math.max(0, Math.round(rpxToPx(scaledX - MAP_MAX_WIDTH_RPX / 2)))
+  mapScrollTop.value = Math.max(0, Math.round(rpxToPx(scaledY - MAP_VIEWPORT_HEIGHT_RPX / 2)))
+}
+
+function calculateObjectCenter(object) {
+  const geometry = object.geometry || {}
+  const x = toNumber(geometry.x, toNumber(object.centerX, 0))
+  const y = toNumber(geometry.y, toNumber(object.centerY, 0))
+  if (object.geometryType === 'point') {
+    return { x, y }
+  }
+  return {
+    x: x + toPositiveNumber(geometry.width, 80) / 2,
+    y: y + toPositiveNumber(geometry.height, 50) / 2,
+  }
 }
 
 async function loadNearbyPois(object) {
@@ -316,6 +473,10 @@ function objectDisplayLabel(object) {
   return object.code || object.name || ''
 }
 
+function objectIdentity(object) {
+  return object?.id || object?.code || ''
+}
+
 function objectTypeText(object) {
   const typeMap = {
     booth: '档口',
@@ -326,6 +487,15 @@ function objectTypeText(object) {
     restaurant: '餐饮',
   }
   return typeMap[object.type] || (object.layer === 'poi' ? '配套' : '点位')
+}
+
+function defaultActiveFilters() {
+  return {
+    types: [],
+    categories: [],
+    serviceTags: [],
+    poiServiceTags: [],
+  }
 }
 
 function decodeRouteValue(value) {
@@ -344,6 +514,13 @@ function toNumber(value, fallback) {
 function toPositiveNumber(value, fallback) {
   const parsed = toNumber(value, fallback)
   return parsed > 0 ? parsed : fallback
+}
+
+function rpxToPx(value) {
+  if (typeof uni !== 'undefined' && typeof uni.upx2px === 'function') {
+    return uni.upx2px(value)
+  }
+  return value
 }
 </script>
 
@@ -407,6 +584,7 @@ function toPositiveNumber(value, fallback) {
 .secondary-button::after,
 .close-button::after,
 .scene-tab::after,
+.filter-chip::after,
 .map-object::after,
 .object-row::after {
   border: 0;
@@ -493,6 +671,69 @@ function toPositiveNumber(value, fallback) {
 }
 
 .search-reset-row button::after {
+  border: 0;
+}
+
+.filter-panel {
+  display: grid;
+  gap: 16rpx;
+}
+
+.filter-group {
+  display: grid;
+  gap: 10rpx;
+}
+
+.filter-title {
+  color: $wplink-text;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.filter-options {
+  white-space: nowrap;
+}
+
+.filter-chip {
+  display: inline-flex;
+  min-height: 56rpx;
+  margin: 0 12rpx 0 0;
+  padding: 0 20rpx;
+  border: 0;
+  border-radius: 999rpx;
+  background: #f4f7fb;
+  color: $wplink-muted;
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 56rpx;
+}
+
+.filter-chip.active {
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
+}
+
+.filter-reset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  color: $wplink-muted;
+  font-size: 24rpx;
+}
+
+.filter-reset-row button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: $wplink-primary;
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.filter-reset-row button::after {
   border: 0;
 }
 

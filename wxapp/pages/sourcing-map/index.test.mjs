@@ -59,3 +59,42 @@ test('sourcing map page loads scenes, renders objects and shows contact actions'
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 })
+
+test('sourcing map page supports quick category and poi filters', () => {
+  for (const token of [
+    'filterGroups',
+    'activeFilters',
+    'toggleFilter',
+    'clearFilters',
+    'buildObjectQueryParams',
+    '档口分类',
+    '档口服务',
+    '配套服务',
+    '女童',
+    '现货',
+    '打包站',
+    '物流点',
+    '停车场',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.match(source, /listMapObjects\(selectedSceneCode\.value,\s*buildObjectQueryParams\(\)\)/)
+  assert.match(source, /searchMapObjects\(\{\s*\.\.\.buildObjectQueryParams\(\),\s*sceneCode:/)
+})
+
+test('sourcing map page focuses and highlights selected map objects', () => {
+  for (const token of [
+    ':scroll-left="mapScrollLeft"',
+    ':scroll-top="mapScrollTop"',
+    'scroll-with-animation',
+    'mapScrollLeft',
+    'mapScrollTop',
+    'focusMapObject',
+    'selectFirstObjectAfterSearch',
+    'calculateObjectCenter',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.match(source, /function selectMapObject\(object,\s*options = \{ focus: true \}\)/)
+  assert.match(source, /if \(options\.focus\) \{\s*focusMapObject\(object\)\s*\}/)
+})
