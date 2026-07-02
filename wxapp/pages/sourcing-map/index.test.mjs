@@ -93,6 +93,22 @@ test('sourcing map page supports quick category and poi filters', () => {
   assert.match(source, /searchMapObjects\(\{\s*\.\.\.buildObjectQueryParams\(\),\s*sceneCode:/)
 })
 
+test('sourcing map empty results can clear search and filters', () => {
+  for (const token of [
+    'empty-actions',
+    '清除搜索',
+    '清除筛选',
+    'keyword',
+    'hasActiveFilters',
+    '@click="clearSearch"',
+    '@click="clearFilters"',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.match(source, /v-if="keyword"/)
+  assert.match(source, /v-if="hasActiveFilters"/)
+})
+
 test('sourcing map page focuses and highlights selected map objects', () => {
   for (const token of [
     ':scroll-left="mapScrollLeft"',

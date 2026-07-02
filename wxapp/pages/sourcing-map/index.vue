@@ -96,6 +96,10 @@
         <view v-if="!mapObjects.length" class="empty-list">
           <text class="empty-title">暂无匹配点位</text>
           <text class="empty-desc">可以换个关键词，或切换其他地图场景。</text>
+          <view v-if="keyword || hasActiveFilters" class="empty-actions">
+            <button v-if="keyword" class="secondary-button" @click="clearSearch">清除搜索</button>
+            <button v-if="hasActiveFilters" class="secondary-button" @click="clearFilters">清除筛选</button>
+          </view>
         </view>
         <button
           v-for="object in mapObjects"
@@ -1159,6 +1163,17 @@ function rpxToPx(value) {
 .empty-desc {
   color: $wplink-muted;
   font-size: 24rpx;
+}
+
+.empty-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 14rpx;
+}
+
+.empty-actions .secondary-button {
+  margin: 0;
 }
 
 .object-row {
