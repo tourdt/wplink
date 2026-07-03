@@ -109,6 +109,59 @@ func TestAdminMapLogicPublishesCompleteVisibleObjects(t *testing.T) {
 	}
 }
 
+func TestAdminMapLogicPublishesBoothWithWechatFallback(t *testing.T) {
+	store := &fakeAdminMapStore{
+		scene: model.MapScene{Code: "zhili_lijilu_middle", BackgroundURL: "https://img.example.com/maps/lijilu.png", Width: 3000, Height: 1800, Status: model.MapSceneStatusDraft},
+		objects: []model.MapObject{{
+			ID:            "object-1",
+			Code:          "A001",
+			Name:          "A001 小鹿童装",
+			Layer:         "booth",
+			Status:        model.MapObjectStatusNormal,
+			GeometryType:  model.MapGeometryTypeRect,
+			Geometry:      model.JSONMap{"x": float64(100), "y": float64(120), "width": float64(80), "height": float64(50)},
+			CategoryCodes: []string{"girl"},
+			ServiceTags:   []string{"spot"},
+			Wechat:        "xiaolu001",
+		}},
+	}
+	logic := NewAdminLogic(store)
+
+	resp, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle")
+	if err != nil {
+		t.Fatalf("PublishScene() error = %v", err)
+	}
+	if resp.Item.Status != model.MapSceneStatusPublished {
+		t.Fatalf("resp = %#v, want published scene", resp)
+	}
+}
+
+func TestAdminMapLogicPublishesPoiWithoutPhone(t *testing.T) {
+	store := &fakeAdminMapStore{
+		scene: model.MapScene{Code: "zhili_lijilu_middle", BackgroundURL: "https://img.example.com/maps/lijilu.png", Width: 3000, Height: 1800, Status: model.MapSceneStatusDraft},
+		objects: []model.MapObject{{
+			ID:             "object-1",
+			Code:           "P001",
+			Name:           "P001 打包站",
+			Type:           "packing_station",
+			Layer:          "poi",
+			Status:         model.MapObjectStatusNormal,
+			GeometryType:   model.MapGeometryTypePoint,
+			Geometry:       model.JSONMap{"x": float64(100), "y": float64(120)},
+			PoiServiceTags: []string{"packing"},
+		}},
+	}
+	logic := NewAdminLogic(store)
+
+	resp, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle")
+	if err != nil {
+		t.Fatalf("PublishScene() error = %v", err)
+	}
+	if resp.Item.Status != model.MapSceneStatusPublished {
+		t.Fatalf("resp = %#v, want published scene", resp)
+	}
+}
+
 func TestAdminMapLogicRejectsInvalidObjectZoomRange(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -142,6 +195,33 @@ func TestAdminMapLogicRejectsInvalidObjectZoomRange(t *testing.T) {
 				t.Fatalf("SaveObject saved invalid zoom range: %#v", store.objectInput)
 			}
 		})
+	}
+}
+
+func TestAdminMapLogicSavesMerchantBinding(t *testing.T) {
+	store := &fakeAdminMapStore{
+		object: model.MapObject{ID: "object-1", Code: "A001", Name: "A001 小鹿童装", MerchantID: "1001"},
+	}
+	logic := NewAdminLogic(store)
+
+	resp, err := logic.SaveObject(context.Background(), " scene-1 ", SaveObjectReq{
+		Code:         " A001 ",
+		Name:         " A001 小鹿童装 ",
+		Type:         "booth",
+		Layer:        "booth",
+		GeometryType: model.MapGeometryTypeRect,
+		Geometry:     map[string]interface{}{"x": float64(100), "y": float64(200), "width": float64(80), "height": float64(50)},
+		MerchantID:   " 1001 ",
+	})
+	if err != nil {
+		t.Fatalf("SaveObject() error = %v", err)
+	}
+
+	if store.objectInput.SceneCode != "scene-1" || store.objectInput.MerchantID != "1001" {
+		t.Fatalf("object input = %#v, want trimmed merchant binding", store.objectInput)
+	}
+	if resp.Item.MerchantId != "1001" {
+		t.Fatalf("resp = %#v, want merchant id in admin object response", resp)
 	}
 }
 

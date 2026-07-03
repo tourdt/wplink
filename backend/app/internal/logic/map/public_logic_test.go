@@ -58,6 +58,70 @@ func TestPublicMapLogicListsNormalObjectsWithParsedFilters(t *testing.T) {
 	}
 }
 
+func TestPublicMapLogicHighlightsVerifiedMerchantObject(t *testing.T) {
+	store := &fakePublicMapStore{
+		objects: []model.MapObject{{
+			ID:                         "object-1",
+			SceneCode:                  "scene-1",
+			Code:                       "A001",
+			Name:                       "后台档口 A001",
+			MerchantID:                 "merchant-1",
+			MerchantName:               "织里认证童装厂",
+			MerchantType:               "factory",
+			MerchantVerificationStatus: "verified",
+			MerchantLogoURL:            "https://img.example.com/logo.png",
+			MerchantMainCategories:     []string{"女童", "现货"},
+			Status:                     model.MapObjectStatusNormal,
+		}},
+	}
+	logic := NewPublicLogic(store)
+
+	resp, err := logic.ListObjects(context.Background(), "scene-1", ListObjectsReq{})
+	if err != nil {
+		t.Fatalf("ListObjects() error = %v", err)
+	}
+
+	item := resp.Items[0]
+	if item.DisplaySource != "verified_merchant" || item.DisplayLevel != "highlight" || !item.IsVerifiedMerchant {
+		t.Fatalf("item = %#v, want verified merchant highlight", item)
+	}
+	if item.Name != "织里认证童装厂" || item.MerchantId != "merchant-1" {
+		t.Fatalf("item = %#v, want merchant identity to override admin object name", item)
+	}
+	if item.Merchant == nil || item.Merchant.Name != "织里认证童装厂" || item.Merchant.LogoUrl == "" {
+		t.Fatalf("merchant = %#v, want verified merchant summary", item.Merchant)
+	}
+}
+
+func TestPublicMapLogicKeepsUnverifiedMerchantObjectWeak(t *testing.T) {
+	store := &fakePublicMapStore{
+		objects: []model.MapObject{{
+			ID:                         "object-1",
+			SceneCode:                  "scene-1",
+			Code:                       "A001",
+			Name:                       "后台档口 A001",
+			MerchantID:                 "merchant-1",
+			MerchantName:               "未认证童装厂",
+			MerchantVerificationStatus: "unverified",
+			Status:                     model.MapObjectStatusNormal,
+		}},
+	}
+	logic := NewPublicLogic(store)
+
+	resp, err := logic.ListObjects(context.Background(), "scene-1", ListObjectsReq{})
+	if err != nil {
+		t.Fatalf("ListObjects() error = %v", err)
+	}
+
+	item := resp.Items[0]
+	if item.DisplaySource != "admin_object" || item.DisplayLevel != "weak" || item.IsVerifiedMerchant {
+		t.Fatalf("item = %#v, want weak admin object", item)
+	}
+	if item.Name != "后台档口 A001" || item.MerchantId != "" || item.Merchant != nil {
+		t.Fatalf("item = %#v, want public response to hide unverified merchant display info", item)
+	}
+}
+
 func TestPublicMapLogicListsObjectsWithViewportAndZoom(t *testing.T) {
 	store := &fakePublicMapStore{}
 	logic := NewPublicLogic(store)

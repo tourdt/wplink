@@ -109,13 +109,30 @@ test('sourcing map empty results can clear search and filters', () => {
   assert.match(source, /v-if="hasActiveFilters"/)
 })
 
+test('sourcing map page keeps search filters compact by default', () => {
+  for (const token of [
+    'search-shell',
+    'compact-filter-row',
+    'filter-toggle-button',
+    'filtersExpanded',
+    'toggleFiltersExpanded',
+    'quickFilterItems',
+    'activeFilterSummary',
+    'clearMapConditions',
+    '更多筛选',
+    '收起筛选',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.match(source, /<view v-if="filtersExpanded" class="filter-panel">/)
+})
+
 test('sourcing map page focuses and highlights selected map objects', () => {
   for (const token of [
-    ':scroll-left="mapScrollLeft"',
-    ':scroll-top="mapScrollTop"',
-    'scroll-with-animation',
-    'mapScrollLeft',
-    'mapScrollTop',
+    ':x="mapMoveX"',
+    ':y="mapMoveY"',
+    'mapMoveX',
+    'mapMoveY',
     'focusMapObject',
     'selectFirstObjectAfterSearch',
     'calculateObjectCenter',
@@ -124,6 +141,65 @@ test('sourcing map page focuses and highlights selected map objects', () => {
   }
   assert.match(source, /function selectMapObject\(object,\s*options = \{ focus: true \}\)/)
   assert.match(source, /if \(options\.focus\) \{\s*focusMapObject\(object\)\s*\}/)
+})
+
+test('sourcing map page uses movable view for map gestures', () => {
+  for (const token of [
+    'movable-area',
+    'movable-view',
+    'map-gesture-area',
+    'map-movable',
+    'direction="all"',
+    'scale',
+    'inertia',
+    ':scale-value="mapScale"',
+    ':scale-min="MAP_MIN_SCALE"',
+    ':scale-max="MAP_MAX_SCALE"',
+    ':x="mapMoveX"',
+    ':y="mapMoveY"',
+    '@change="handleMapMove"',
+    '@scale="handleMapScale"',
+    'mapMoveX',
+    'mapMoveY',
+    'renderStageScale',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.doesNotMatch(source, /<scroll-view class="map-scroll"/)
+})
+
+test('sourcing map page removes title header and zoom toolbar chrome', () => {
+  for (const token of [
+    'map-overlay-info',
+    'map-service-controls',
+    'map-service-button',
+    'refreshCurrentMapData',
+    'resetMapViewport',
+    '归位',
+    '刷新',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  for (const token of [
+    'map-header',
+    'header-kicker',
+    'header-title',
+    'header-subtitle',
+    'refresh-button',
+    'map-card-head',
+    'zoom-toolbar',
+    'zoom-button',
+    'zoom-percent',
+    'mapZoomPercent',
+    'zoomInMap',
+    'zoomOutMap',
+    'resetMapZoom',
+    'MAP_SCALE_STEP',
+    '放大',
+    '缩小',
+  ]) {
+    assert.doesNotMatch(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
 })
 
 test('sourcing map page applies configured default scene viewport', () => {
@@ -184,29 +260,46 @@ test('sourcing map page renders readable object and poi details', () => {
   assert.match(source, /const detail = await getMapObject\(poi\.id/)
 })
 
-test('sourcing map page supports zoom controls and level based labels', () => {
+test('sourcing map page highlights verified merchants and weakens admin objects', () => {
   for (const token of [
-    'zoom-toolbar',
-    'zoomInMap',
-    'zoomOutMap',
-    'resetMapZoom',
+    'displaySource',
+    'displayLevel',
+    'isVerifiedMerchant',
+    'verified_merchant',
+    'highlight',
+    'weak',
+    'objectDisplayClasses',
+    'selectedObjectMerchant',
+    '认证商户',
+    '后台点位',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(source, /objectDisplayClasses\(object,\s*'map-object'\)/)
+  assert.match(source, /objectDisplayClasses\(object,\s*'map-polygon'\)/)
+  assert.match(source, /objectDisplayName\(object\)/)
+  assert.match(source, /v-if="object\.isVerifiedMerchant"/)
+  assert.match(source, /class="verified-map-badge"/)
+})
+
+test('sourcing map page supports gesture zoom and level based labels', () => {
+  for (const token of [
     'mapScale',
-    'mapZoomPercent',
     'mapZoomLevel',
     'effectiveStageScale',
     'objectDisplayLabel',
-    '放大',
-    '缩小',
-    '复位',
+    'handleMapScale',
+    'resetMapViewport',
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
   assert.match(source, /const effectiveStageScale = computed\(\(\) => stageScale\.value \* mapScale\.value\)/)
   assert.match(source, /const mapZoomLevel = computed\(\(\) => getZoomLevelByScale\(mapScale\.value\)\)/)
   assert.match(source, /function getZoomLevelByScale\(scale\)/)
-  assert.match(source, /function changeMapScale\(nextScale\)/)
+  assert.match(source, /function handleMapScale\(event\)/)
   assert.match(source, /if \(mapZoomLevel\.value < 4\) return object\.code \|\| ''/)
-  assert.match(source, /return object\.name \|\| object\.code \|\| ''/)
+  assert.match(source, /return objectDisplayName\(object\)/)
 })
 
 test('sourcing map page filters visible objects by configured zoom range', () => {
@@ -226,8 +319,10 @@ test('sourcing map page filters visible objects by configured zoom range', () =>
 
 test('sourcing map page requests objects by current viewport', () => {
   for (const token of [
-    '@scroll="handleMapScroll"',
-    'handleMapScroll',
+    '@change="handleMapMove"',
+    '@scale="handleMapScale"',
+    'handleMapMove',
+    'handleMapScale',
     'scheduleViewportObjectReload',
     'buildViewportQueryParams',
     'VIEWPORT_PADDING_RATIO',
@@ -243,7 +338,7 @@ test('sourcing map page requests objects by current viewport', () => {
   }
 
   assert.match(source, /listMapObjects\(selectedSceneCode\.value,\s*buildObjectQueryParams\(\{ includeViewport: true \}\)\)/)
-  assert.match(source, /function changeMapScale\(nextScale\)[\s\S]*scheduleViewportObjectReload\(\)/)
+  assert.match(source, /function handleMapScale\(event\)[\s\S]*scheduleViewportObjectReload\(\)/)
   assert.match(source, /setTimeout\(async \(\) => \{[\s\S]*await loadSceneObjects\(\{ keepSelection: true \}\)/)
 })
 

@@ -24,10 +24,15 @@ type MapGeometry {
 type MapObjectItem {
 	Id             string                 `json:"id"`
 	SceneCode      string                 `json:"sceneCode"`
+	MerchantId     string                 `json:"merchantId,optional"`
 	Code           string                 `json:"code"`
 	Name           string                 `json:"name"`
 	Type           string                 `json:"type"`
 	Layer          string                 `json:"layer"`
+	DisplaySource  string                 `json:"displaySource"`
+	DisplayLevel   string                 `json:"displayLevel"`
+	IsVerifiedMerchant bool               `json:"isVerifiedMerchant"`
+	Merchant       *MapObjectMerchantItem `json:"merchant,optional"`
 	GeometryType   string                 `json:"geometryType"`
 	Geometry       map[string]interface{} `json:"geometry"`
 	CenterX        string                 `json:"centerX,optional"`
@@ -45,6 +50,15 @@ type MapObjectItem {
 	Lng            string                 `json:"lng,optional"`
 	Extra          map[string]interface{} `json:"extra"`
 	Status         string                 `json:"status"`
+}
+
+type MapObjectMerchantItem {
+	Id                 string   `json:"id"`
+	Name               string   `json:"name"`
+	MerchantType       string   `json:"merchantType"`
+	VerificationStatus string   `json:"verificationStatus"`
+	LogoUrl            string   `json:"logoUrl,optional"`
+	MainCategories     []string `json:"mainCategories"`
 }
 
 type MapCategoryItem {
@@ -170,6 +184,7 @@ type AdminListMapObjectsReq {
 
 type AdminSaveMapObjectReq {
 	Id             string                 `json:"id,optional"`
+	MerchantId     string                 `json:"merchantId,optional"`
 	Code           string                 `json:"code"`
 	Name           string                 `json:"name"`
 	Type           string                 `json:"type"`

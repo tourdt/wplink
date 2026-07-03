@@ -228,6 +228,57 @@ test('sourcing map admin can maintain object tags and poi detail fields', () => 
   assert.match(viewSource, /extra:\s*normalizedExtra\(\)/)
 })
 
+test('sourcing map object upload form hides advanced controls and adapts by type', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    'objectAdvancedVisible',
+    '高级设置',
+    'handleObjectTypeChange',
+    'applyObjectTypeDefaults',
+    'ensureObjectNameFromCode',
+    'isBoothObject',
+    'isPoiObject',
+    'showLogisticsFields',
+    'showExpressFields',
+    'showGeneralPoiServiceFields',
+    '@blur="ensureObjectNameFromCode"',
+    '@change="handleObjectTypeChange"',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(viewSource, /v-if="isBoothObject"[\s\S]*v-model="objectForm\.categoryCodes"/)
+  assert.match(viewSource, /v-if="isBoothObject"[\s\S]*v-model="objectForm\.serviceTags"/)
+  assert.match(viewSource, /v-if="isPoiObject"[\s\S]*v-model="objectForm\.poiServiceTags"/)
+  assert.match(viewSource, /v-if="showLogisticsFields"[\s\S]*v-model="objectForm\.extra\.lines"/)
+  assert.match(viewSource, /v-if="showExpressFields"[\s\S]*v-model="objectForm\.extra\.brands"/)
+  assert.match(viewSource, /v-model="objectForm\.layer"[\s\S]*v-model="objectForm\.minZoom"/)
+})
+
+test('sourcing map admin can bind map objects to merchants', () => {
+  const apiSource = fs.readFileSync(path.join(root, 'src/api/sourcingMap.js'), 'utf8')
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  for (const token of [
+    "import { listMerchants } from '../api/merchant'",
+    '绑定商户',
+    'merchantOptions',
+    'merchantSearchLoading',
+    'searchMerchantOptions',
+    'merchantOptionLabel',
+    'objectForm.merchantId',
+    'merchantId: objectForm.merchantId',
+    '已认证',
+    '未认证商户不会在小程序地图突出展示',
+  ]) {
+    assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(apiSource, /saveMapObject\(sceneCode,\s*payload\)/)
+  assert.match(viewSource, /<el-select[\s\S]*v-model="objectForm\.merchantId"[\s\S]*remote-method="searchMerchantOptions"/)
+})
+
 test('sourcing map admin can maintain standard map categories', () => {
   const apiSource = fs.readFileSync(path.join(root, 'src/api/sourcingMap.js'), 'utf8')
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
@@ -380,7 +431,7 @@ test('sourcing map admin blocks publish when preview checklist has missing essen
     'publishPreviewObjects',
     'loadPublishPreviewObjects',
     'buildPublishChecklist',
-    'missingPhoneObjects',
+    'missingContactObjects',
     'missingTagObjects',
     'invalidGeometryObjects',
     'mini-program-preview',
@@ -390,14 +441,15 @@ test('sourcing map admin blocks publish when preview checklist has missing essen
 
   assert.match(viewSource, /listMapObjects\(sceneForm\.code,\s*\{\s*status:\s*'normal'\s*\}\)/)
   assert.match(viewSource, /<el-button type="primary" :loading="scenePublishing" :disabled="previewBlockingIssues\.length > 0" @click="confirmPublishScene">确认发布<\/el-button>/)
-  assert.match(viewSource, /function buildPublishChecklist\(\)[\s\S]*坐标完整[\s\S]*电话完整[\s\S]*标签完整/)
+  assert.match(viewSource, /function buildPublishChecklist\(\)[\s\S]*坐标完整[\s\S]*联系方式完整[\s\S]*标签完整/)
 })
 
-test('sourcing map admin syncs object layer from selected type', () => {
+test('sourcing map admin syncs object layer and defaults from selected type', () => {
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
 
   for (const token of [
     'syncObjectLayerByType',
+    'applyObjectTypeDefaults',
     'poiTypeValues',
     'packing_station',
     'logistics_point',
@@ -407,8 +459,9 @@ test('sourcing map admin syncs object layer from selected type', () => {
     assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 
-  assert.match(viewSource, /<el-select v-model="objectForm\.type" @change="syncObjectLayerByType">/)
+  assert.match(viewSource, /<el-select v-model="objectForm\.type" @change="handleObjectTypeChange">/)
   assert.match(viewSource, /objectForm\.layer = poiTypeValues\.has\(objectForm\.type\) \? 'poi' : 'booth'/)
+  assert.match(viewSource, /function handleObjectTypeChange\(\)[\s\S]*syncObjectLayerByType\(\)[\s\S]*applyObjectTypeDefaults\(\)/)
 })
 
 test('sourcing map admin batch generation supports all object types', () => {

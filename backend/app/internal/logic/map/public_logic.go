@@ -100,29 +100,43 @@ type SearchObjectsResp struct {
 }
 
 type MapObjectItem struct {
-	Id             string                 `json:"id"`
-	SceneCode      string                 `json:"sceneCode"`
-	Code           string                 `json:"code"`
-	Name           string                 `json:"name"`
-	Type           string                 `json:"type"`
-	Layer          string                 `json:"layer"`
-	GeometryType   string                 `json:"geometryType"`
-	Geometry       map[string]interface{} `json:"geometry"`
-	CenterX        string                 `json:"centerX,omitempty"`
-	CenterY        string                 `json:"centerY,omitempty"`
-	MinZoom        int64                  `json:"minZoom,omitempty"`
-	MaxZoom        int64                  `json:"maxZoom,omitempty"`
-	CategoryCodes  []string               `json:"categoryCodes"`
-	ServiceTags    []string               `json:"serviceTags"`
-	PlatformTags   []string               `json:"platformTags"`
-	PoiServiceTags []string               `json:"poiServiceTags"`
-	Address        string                 `json:"address,omitempty"`
-	Phone          string                 `json:"phone,omitempty"`
-	Wechat         string                 `json:"wechat,omitempty"`
-	Lat            string                 `json:"lat,omitempty"`
-	Lng            string                 `json:"lng,omitempty"`
-	Extra          map[string]interface{} `json:"extra"`
-	Status         string                 `json:"status"`
+	Id                 string                 `json:"id"`
+	SceneCode          string                 `json:"sceneCode"`
+	MerchantId         string                 `json:"merchantId,omitempty"`
+	Code               string                 `json:"code"`
+	Name               string                 `json:"name"`
+	Type               string                 `json:"type"`
+	Layer              string                 `json:"layer"`
+	DisplaySource      string                 `json:"displaySource"`
+	DisplayLevel       string                 `json:"displayLevel"`
+	IsVerifiedMerchant bool                   `json:"isVerifiedMerchant"`
+	Merchant           *MapObjectMerchantItem `json:"merchant,omitempty"`
+	GeometryType       string                 `json:"geometryType"`
+	Geometry           map[string]interface{} `json:"geometry"`
+	CenterX            string                 `json:"centerX,omitempty"`
+	CenterY            string                 `json:"centerY,omitempty"`
+	MinZoom            int64                  `json:"minZoom,omitempty"`
+	MaxZoom            int64                  `json:"maxZoom,omitempty"`
+	CategoryCodes      []string               `json:"categoryCodes"`
+	ServiceTags        []string               `json:"serviceTags"`
+	PlatformTags       []string               `json:"platformTags"`
+	PoiServiceTags     []string               `json:"poiServiceTags"`
+	Address            string                 `json:"address,omitempty"`
+	Phone              string                 `json:"phone,omitempty"`
+	Wechat             string                 `json:"wechat,omitempty"`
+	Lat                string                 `json:"lat,omitempty"`
+	Lng                string                 `json:"lng,omitempty"`
+	Extra              map[string]interface{} `json:"extra"`
+	Status             string                 `json:"status"`
+}
+
+type MapObjectMerchantItem struct {
+	Id                 string   `json:"id"`
+	Name               string   `json:"name"`
+	MerchantType       string   `json:"merchantType"`
+	VerificationStatus string   `json:"verificationStatus"`
+	LogoUrl            string   `json:"logoUrl,omitempty"`
+	MainCategories     []string `json:"mainCategories"`
 }
 
 type ObjectDetailResp struct {
@@ -202,7 +216,7 @@ func (l *PublicLogic) ListObjects(ctx context.Context, sceneCode string, req Lis
 		logx.Errorf("查询拿货地图对象失败: sceneCode=%s keyword=%s viewport=%+v zoom=%d err=%+v", sceneCode, req.Keyword, viewport, req.Zoom, err)
 		return ListObjectsResp{}, errx.New(errx.CodeInternalError, "地图点位加载失败，请稍后重试")
 	}
-	return ListObjectsResp{SceneCode: sceneCode, Items: mapObjectItems(objects)}, nil
+	return ListObjectsResp{SceneCode: sceneCode, Items: mapPublicObjectItems(objects)}, nil
 }
 
 func (l *PublicLogic) SearchObjects(ctx context.Context, req SearchObjectsReq) (SearchObjectsResp, error) {
@@ -231,7 +245,7 @@ func (l *PublicLogic) SearchObjects(ctx context.Context, req SearchObjectsReq) (
 		logx.Errorf("搜索拿货地图对象失败: sceneCode=%s keyword=%s viewport=%+v zoom=%d err=%+v", req.SceneCode, req.Keyword, viewport, req.Zoom, err)
 		return SearchObjectsResp{}, errx.New(errx.CodeInternalError, "地图搜索失败，请稍后重试")
 	}
-	return SearchObjectsResp{Items: mapObjectItems(objects)}, nil
+	return SearchObjectsResp{Items: mapPublicObjectItems(objects)}, nil
 }
 
 func parseMapObjectViewportFilter(minXText, minYText, maxXText, maxYText string) (*model.MapViewportFilter, error) {
@@ -306,7 +320,7 @@ func (l *PublicLogic) GetObject(ctx context.Context, objectID string) (ObjectDet
 		logx.Errorf("查询拿货地图对象详情失败: objectID=%s err=%+v", objectID, err)
 		return ObjectDetailResp{}, errx.New(errx.CodeInternalError, "地图点位加载失败，请稍后重试")
 	}
-	return ObjectDetailResp{Item: mapObjectItem(object)}, nil
+	return ObjectDetailResp{Item: mapPublicObjectItem(object)}, nil
 }
 
 func (l *PublicLogic) ListNearbyPois(ctx context.Context, objectID string, req ListNearbyPoisReq) (ListNearbyPoisResp, error) {
@@ -387,39 +401,97 @@ func mapSceneItem(scene model.MapScene) MapSceneItem {
 	}
 }
 
-func mapObjectItems(objects []model.MapObject) []MapObjectItem {
+func mapPublicObjectItems(objects []model.MapObject) []MapObjectItem {
 	items := make([]MapObjectItem, 0, len(objects))
 	for _, object := range objects {
-		items = append(items, mapObjectItem(object))
+		items = append(items, mapPublicObjectItem(object))
 	}
 	return items
 }
 
-func mapObjectItem(object model.MapObject) MapObjectItem {
+func mapAdminObjectItems(objects []model.MapObject) []MapObjectItem {
+	items := make([]MapObjectItem, 0, len(objects))
+	for _, object := range objects {
+		items = append(items, mapAdminObjectItem(object))
+	}
+	return items
+}
+
+func mapPublicObjectItem(object model.MapObject) MapObjectItem {
+	return mapObjectItem(object, false)
+}
+
+func mapAdminObjectItem(object model.MapObject) MapObjectItem {
+	return mapObjectItem(object, true)
+}
+
+func mapObjectItem(object model.MapObject, includeUnverifiedMerchant bool) MapObjectItem {
+	verifiedMerchant := isVerifiedMapMerchant(object)
+	displaySource := model.MapObjectDisplaySourceAdminObject
+	displayLevel := model.MapObjectDisplayLevelWeak
+	name := object.Name
+	merchantID := ""
+	var merchant *MapObjectMerchantItem
+	if verifiedMerchant {
+		displaySource = model.MapObjectDisplaySourceVerifiedMerchant
+		displayLevel = model.MapObjectDisplayLevelHighlight
+		name = strings.TrimSpace(object.MerchantName)
+		merchantID = object.MerchantID
+		merchant = mapObjectMerchantItem(object)
+	} else if includeUnverifiedMerchant && strings.TrimSpace(object.MerchantID) != "" {
+		merchantID = strings.TrimSpace(object.MerchantID)
+		merchant = mapObjectMerchantItem(object)
+	}
+
 	return MapObjectItem{
-		Id:             object.ID,
-		SceneCode:      object.SceneCode,
-		Code:           object.Code,
-		Name:           object.Name,
-		Type:           object.Type,
-		Layer:          object.Layer,
-		GeometryType:   object.GeometryType,
-		Geometry:       map[string]interface{}(object.Geometry),
-		CenterX:        formatFloat(object.CenterX),
-		CenterY:        formatFloat(object.CenterY),
-		MinZoom:        object.MinZoom,
-		MaxZoom:        object.MaxZoom,
-		CategoryCodes:  append([]string(nil), object.CategoryCodes...),
-		ServiceTags:    append([]string(nil), object.ServiceTags...),
-		PlatformTags:   append([]string(nil), object.PlatformTags...),
-		PoiServiceTags: append([]string(nil), object.PoiServiceTags...),
-		Address:        object.Address,
-		Phone:          object.Phone,
-		Wechat:         object.Wechat,
-		Lat:            object.Lat,
-		Lng:            object.Lng,
-		Extra:          map[string]interface{}(object.Extra),
-		Status:         object.Status,
+		Id:                 object.ID,
+		SceneCode:          object.SceneCode,
+		MerchantId:         merchantID,
+		Code:               object.Code,
+		Name:               name,
+		Type:               object.Type,
+		Layer:              object.Layer,
+		DisplaySource:      displaySource,
+		DisplayLevel:       displayLevel,
+		IsVerifiedMerchant: verifiedMerchant,
+		Merchant:           merchant,
+		GeometryType:       object.GeometryType,
+		Geometry:           map[string]interface{}(object.Geometry),
+		CenterX:            formatFloat(object.CenterX),
+		CenterY:            formatFloat(object.CenterY),
+		MinZoom:            object.MinZoom,
+		MaxZoom:            object.MaxZoom,
+		CategoryCodes:      append([]string(nil), object.CategoryCodes...),
+		ServiceTags:        append([]string(nil), object.ServiceTags...),
+		PlatformTags:       append([]string(nil), object.PlatformTags...),
+		PoiServiceTags:     append([]string(nil), object.PoiServiceTags...),
+		Address:            object.Address,
+		Phone:              object.Phone,
+		Wechat:             object.Wechat,
+		Lat:                object.Lat,
+		Lng:                object.Lng,
+		Extra:              map[string]interface{}(object.Extra),
+		Status:             object.Status,
+	}
+}
+
+func isVerifiedMapMerchant(object model.MapObject) bool {
+	return strings.TrimSpace(object.MerchantID) != "" &&
+		strings.TrimSpace(object.MerchantName) != "" &&
+		strings.TrimSpace(object.MerchantVerificationStatus) == "verified"
+}
+
+func mapObjectMerchantItem(object model.MapObject) *MapObjectMerchantItem {
+	if strings.TrimSpace(object.MerchantID) == "" {
+		return nil
+	}
+	return &MapObjectMerchantItem{
+		Id:                 strings.TrimSpace(object.MerchantID),
+		Name:               strings.TrimSpace(object.MerchantName),
+		MerchantType:       strings.TrimSpace(object.MerchantType),
+		VerificationStatus: strings.TrimSpace(object.MerchantVerificationStatus),
+		LogoUrl:            strings.TrimSpace(object.MerchantLogoURL),
+		MainCategories:     append([]string(nil), object.MerchantMainCategories...),
 	}
 }
 

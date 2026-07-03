@@ -81,6 +81,7 @@ type ListAdminObjectsReq struct {
 
 type SaveObjectReq struct {
 	Id             string
+	MerchantID     string
 	Code           string
 	Name           string
 	Type           string
@@ -275,7 +276,7 @@ func (l *AdminLogic) ListObjects(ctx context.Context, sceneCode string, req List
 		logx.Errorf("后台查询地图点位失败: sceneCode=%s viewport=%+v zoom=%d err=%+v", sceneCode, viewport, req.Zoom, err)
 		return ListObjectsResp{}, errx.New(errx.CodeInternalError, "地图点位加载失败，请稍后重试")
 	}
-	return ListObjectsResp{SceneCode: sceneCode, Items: mapObjectItems(objects)}, nil
+	return ListObjectsResp{SceneCode: sceneCode, Items: mapAdminObjectItems(objects)}, nil
 }
 
 func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveObjectReq) (SaveObjectResp, error) {
@@ -294,6 +295,7 @@ func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveO
 	object, err := l.store.SaveObject(ctx, model.MapObjectInput{
 		ID:             objectID,
 		SceneCode:      sceneCode,
+		MerchantID:     strings.TrimSpace(req.MerchantID),
 		Code:           strings.TrimSpace(req.Code),
 		Name:           strings.TrimSpace(req.Name),
 		Type:           strings.TrimSpace(req.Type),
@@ -319,7 +321,7 @@ func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveO
 		logx.Errorf("后台保存地图点位失败: sceneCode=%s code=%s err=%+v", sceneCode, req.Code, err)
 		return SaveObjectResp{}, errx.New(errx.CodeInternalError, "地图点位保存失败，请稍后重试")
 	}
-	return SaveObjectResp{Item: mapObjectItem(object)}, nil
+	return SaveObjectResp{Item: mapAdminObjectItem(object)}, nil
 }
 
 func (l *AdminLogic) UpdateObjectStatus(ctx context.Context, objectID string, req UpdateObjectStatusReq) (SaveObjectResp, error) {
@@ -336,7 +338,7 @@ func (l *AdminLogic) UpdateObjectStatus(ctx context.Context, objectID string, re
 		logx.Errorf("后台更新地图点位状态失败: objectID=%s status=%s err=%+v", objectID, status, err)
 		return SaveObjectResp{}, errx.New(errx.CodeInternalError, "地图点位状态保存失败，请稍后重试")
 	}
-	return SaveObjectResp{Item: mapObjectItem(object)}, nil
+	return SaveObjectResp{Item: mapAdminObjectItem(object)}, nil
 }
 
 func (l *AdminLogic) BatchGenerateObjects(ctx context.Context, sceneCode string, req BatchGenerateObjectsReq) (BatchGenerateObjectsResp, error) {
@@ -353,7 +355,7 @@ func (l *AdminLogic) BatchGenerateObjects(ctx context.Context, sceneCode string,
 		logx.Errorf("后台批量生成地图点位失败: sceneCode=%s startCode=%s count=%d err=%+v", sceneCode, req.StartCode, req.Count, err)
 		return BatchGenerateObjectsResp{}, errx.New(errx.CodeInternalError, "批量生成地图点位失败，请稍后重试")
 	}
-	return BatchGenerateObjectsResp{Items: mapObjectItems(objects)}, nil
+	return BatchGenerateObjectsResp{Items: mapAdminObjectItems(objects)}, nil
 }
 
 func (l *AdminLogic) ListCategories(ctx context.Context, req ListCategoriesReq) (ListCategoriesResp, error) {
@@ -433,6 +435,11 @@ func validateObjectInput(req SaveObjectReq, status string) error {
 	}
 	if err := validateObjectZoomRange(req.MinZoom, req.MaxZoom); err != nil {
 		return err
+	}
+	if merchantID := strings.TrimSpace(req.MerchantID); merchantID != "" {
+		if _, err := strconv.ParseInt(merchantID, 10, 64); err != nil {
+			return errx.New(errx.CodeValidationFailed, "绑定商家不正确，请重新选择")
+		}
 	}
 	if !validObjectStatus(status) {
 		return errx.New(errx.CodeValidationFailed, "地图点位状态不正确")
@@ -584,7 +591,7 @@ func mapPublishChecklistIssues(objects []model.MapObject) []string {
 	}
 
 	var invalidGeometryCount int
-	var missingPhoneCount int
+	var missingContactCount int
 	var missingTagCount int
 	for _, object := range objects {
 		if object.Status != "" && object.Status != model.MapObjectStatusNormal {
@@ -593,8 +600,8 @@ func mapPublishChecklistIssues(objects []model.MapObject) []string {
 		if !hasPublishReadyGeometry(object) {
 			invalidGeometryCount++
 		}
-		if strings.TrimSpace(object.Phone) == "" {
-			missingPhoneCount++
+		if requiresPublishReadyContact(object) && !hasPublishReadyContact(object) {
+			missingContactCount++
 		}
 		if !hasPublishReadyTags(object) {
 			missingTagCount++
@@ -605,8 +612,8 @@ func mapPublishChecklistIssues(objects []model.MapObject) []string {
 	if invalidGeometryCount > 0 {
 		issues = append(issues, fmt.Sprintf("请补齐 %d 个点位的地图坐标", invalidGeometryCount))
 	}
-	if missingPhoneCount > 0 {
-		issues = append(issues, fmt.Sprintf("请补齐 %d 个点位的联系电话", missingPhoneCount))
+	if missingContactCount > 0 {
+		issues = append(issues, fmt.Sprintf("请补齐 %d 个档口的电话或微信", missingContactCount))
 	}
 	if missingTagCount > 0 {
 		issues = append(issues, fmt.Sprintf("请补齐 %d 个点位的分类或服务标签", missingTagCount))
@@ -634,6 +641,15 @@ func hasPublishReadyTags(object model.MapObject) bool {
 	}
 	return len(cleanStringSlice(object.CategoryCodes)) > 0 &&
 		(len(cleanStringSlice(object.ServiceTags)) > 0 || len(cleanStringSlice(object.PlatformTags)) > 0)
+}
+
+func requiresPublishReadyContact(object model.MapObject) bool {
+	// 配套 POI 主要用于地图引导，第一期不强制补联系电话；档口仍需电话或微信，保证用户能发起联系。
+	return strings.TrimSpace(object.Layer) != "poi"
+}
+
+func hasPublishReadyContact(object model.MapObject) bool {
+	return strings.TrimSpace(object.Phone) != "" || strings.TrimSpace(object.Wechat) != ""
 }
 
 func validSceneStatus(status string) bool {

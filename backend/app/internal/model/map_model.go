@@ -31,6 +31,11 @@ const (
 	MapGeometryTypeRect    = "rect"
 	MapGeometryTypePoint   = "point"
 	MapGeometryTypePolygon = "polygon"
+
+	MapObjectDisplaySourceAdminObject      = "admin_object"
+	MapObjectDisplaySourceVerifiedMerchant = "verified_merchant"
+	MapObjectDisplayLevelWeak              = "weak"
+	MapObjectDisplayLevelHighlight         = "highlight"
 )
 
 type MapScene struct {
@@ -76,39 +81,44 @@ type MapSceneInput struct {
 }
 
 type MapObject struct {
-	ID             string
-	SceneCode      string
-	MerchantID     string
-	Code           string
-	Name           string
-	Type           string
-	Layer          string
-	GeometryType   string
-	Geometry       JSONMap
-	CenterX        float64
-	CenterY        float64
-	MinX           float64
-	MinY           float64
-	MaxX           float64
-	MaxY           float64
-	MinZoom        int64
-	MaxZoom        int64
-	CategoryCodes  []string
-	ServiceTags    []string
-	PlatformTags   []string
-	PoiServiceTags []string
-	Address        string
-	Phone          string
-	Wechat         string
-	Lat            string
-	Lng            string
-	SearchText     string
-	Extra          JSONMap
-	Sort           int64
-	Status         string
-	DistanceText   string
-	CreatedAt      string
-	UpdatedAt      string
+	ID                         string
+	SceneCode                  string
+	MerchantID                 string
+	MerchantName               string
+	MerchantType               string
+	MerchantVerificationStatus string
+	MerchantLogoURL            string
+	MerchantMainCategories     []string
+	Code                       string
+	Name                       string
+	Type                       string
+	Layer                      string
+	GeometryType               string
+	Geometry                   JSONMap
+	CenterX                    float64
+	CenterY                    float64
+	MinX                       float64
+	MinY                       float64
+	MaxX                       float64
+	MaxY                       float64
+	MinZoom                    int64
+	MaxZoom                    int64
+	CategoryCodes              []string
+	ServiceTags                []string
+	PlatformTags               []string
+	PoiServiceTags             []string
+	Address                    string
+	Phone                      string
+	Wechat                     string
+	Lat                        string
+	Lng                        string
+	SearchText                 string
+	Extra                      JSONMap
+	Sort                       int64
+	Status                     string
+	DistanceText               string
+	CreatedAt                  string
+	UpdatedAt                  string
 }
 
 type MapObjectInput struct {
@@ -510,7 +520,9 @@ SET code = $2, name = $3, type = $4, layer = $5, geometry_type = $6, geometry = 
     min_zoom = $14, max_zoom = $15, category_codes = $16, service_tags = $17,
     platform_tags = $18, poi_service_tags = $19, address = NULLIF($20, ''), phone = NULLIF($21, ''),
     wechat = NULLIF($22, ''), lat = NULLIF($23, '')::numeric, lng = NULLIF($24, '')::numeric,
-    search_text = $25, extra = $26, sort = $27, status = $28, updated_at = now()
+    search_text = $25, extra = $26, sort = $27, status = $28,
+    merchant_id = CASE WHEN $29 = '' THEN NULL ELSE $29::bigint END,
+    updated_at = now()
 WHERE id::text = $1
 RETURNING `+mapObjectSelectColumns(),
 			strings.TrimSpace(input.ID), strings.TrimSpace(input.Code), strings.TrimSpace(input.Name), strings.TrimSpace(input.Type),
@@ -519,7 +531,8 @@ RETURNING `+mapObjectSelectColumns(),
 			input.MinZoom, input.MaxZoom, JSONStringSlice(cleanStringSlice(input.CategoryCodes)), JSONStringSlice(cleanStringSlice(input.ServiceTags)),
 			JSONStringSlice(cleanStringSlice(input.PlatformTags)), JSONStringSlice(cleanStringSlice(input.PoiServiceTags)),
 			strings.TrimSpace(input.Address), strings.TrimSpace(input.Phone), strings.TrimSpace(input.Wechat),
-			strings.TrimSpace(input.Lat), strings.TrimSpace(input.Lng), derived.SearchText, nonNilJSONMap(input.Extra), input.Sort, status)
+			strings.TrimSpace(input.Lat), strings.TrimSpace(input.Lng), derived.SearchText, nonNilJSONMap(input.Extra), input.Sort, status,
+			strings.TrimSpace(input.MerchantID))
 		return scanMapObject(row)
 	}
 
@@ -674,64 +687,66 @@ LIMIT 1
 
 func (m *MapModel) getObject(ctx context.Context, objectID string, status string) (MapObject, error) {
 	row := m.db.QueryRowContext(ctx, `
-SELECT `+mapObjectSelectColumns()+`
-FROM map_object
-WHERE id::text = $1 AND ($2 = '' OR status = $2)
+SELECT `+joinedMapObjectSelectColumns("o")+`
+FROM map_object o
+LEFT JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL AND m.status = 'active'
+WHERE o.id::text = $1 AND ($2 = '' OR o.status = $2)
 LIMIT 1
 `, objectID, strings.TrimSpace(status))
 	return scanMapObject(row)
 }
 
 func (m *MapModel) listObjects(ctx context.Context, filter ListMapObjectsFilter) ([]MapObject, error) {
-	query := `SELECT ` + mapObjectSelectColumns() + ` FROM map_object`
+	query := `SELECT ` + joinedMapObjectSelectColumns("o") + ` FROM map_object o
+LEFT JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL AND m.status = 'active'`
 	conditions := make([]string, 0, 8)
 	args := make([]interface{}, 0, 8)
 	if v := strings.TrimSpace(filter.SceneCode); v != "" {
 		args = append(args, v)
-		conditions = append(conditions, fmt.Sprintf("scene_code = $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("o.scene_code = $%d", len(args)))
 	}
 	if len(filter.Types) > 0 {
 		args = append(args, pq.Array(cleanStringSlice(filter.Types)))
-		conditions = append(conditions, fmt.Sprintf("type = ANY($%d)", len(args)))
+		conditions = append(conditions, fmt.Sprintf("o.type = ANY($%d)", len(args)))
 	}
 	if len(filter.Categories) > 0 {
 		args = append(args, pq.Array(cleanStringSlice(filter.Categories)))
-		conditions = append(conditions, fmt.Sprintf("category_codes ?| $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("o.category_codes ?| $%d", len(args)))
 	}
 	if len(filter.ServiceTags) > 0 {
 		args = append(args, pq.Array(cleanStringSlice(filter.ServiceTags)))
-		conditions = append(conditions, fmt.Sprintf("service_tags ?| $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("o.service_tags ?| $%d", len(args)))
 	}
 	if len(filter.PoiServiceTags) > 0 {
 		args = append(args, pq.Array(cleanStringSlice(filter.PoiServiceTags)))
-		conditions = append(conditions, fmt.Sprintf("poi_service_tags ?| $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("o.poi_service_tags ?| $%d", len(args)))
 	}
 	if v := strings.TrimSpace(filter.Keyword); v != "" {
 		args = append(args, v)
-		conditions = append(conditions, fmt.Sprintf("(code ILIKE '%%' || $%d || '%%' OR name ILIKE '%%' || $%d || '%%' OR search_text ILIKE '%%' || $%d || '%%')", len(args), len(args), len(args)))
+		conditions = append(conditions, fmt.Sprintf("(o.code ILIKE '%%' || $%d || '%%' OR o.name ILIKE '%%' || $%d || '%%' OR o.search_text ILIKE '%%' || $%d || '%%' OR (m.verification_status = 'verified' AND m.name ILIKE '%%' || $%d || '%%'))", len(args), len(args), len(args), len(args)))
 	}
 	if v := strings.TrimSpace(filter.Status); v != "" {
 		args = append(args, v)
-		conditions = append(conditions, fmt.Sprintf("status = $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("o.status = $%d", len(args)))
 	}
 	if filter.Viewport != nil {
 		args = append(args, filter.Viewport.MaxX)
-		conditions = append(conditions, fmt.Sprintf("min_x <= $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("o.min_x <= $%d", len(args)))
 		args = append(args, filter.Viewport.MinX)
-		conditions = append(conditions, fmt.Sprintf("max_x >= $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("o.max_x >= $%d", len(args)))
 		args = append(args, filter.Viewport.MaxY)
-		conditions = append(conditions, fmt.Sprintf("min_y <= $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("o.min_y <= $%d", len(args)))
 		args = append(args, filter.Viewport.MinY)
-		conditions = append(conditions, fmt.Sprintf("max_y >= $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("o.max_y >= $%d", len(args)))
 	}
 	if filter.Zoom > 0 {
 		args = append(args, filter.Zoom)
-		conditions = append(conditions, fmt.Sprintf("min_zoom <= $%d AND max_zoom >= $%d", len(args), len(args)))
+		conditions = append(conditions, fmt.Sprintf("o.min_zoom <= $%d AND o.max_zoom >= $%d", len(args), len(args)))
 	}
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-	query += " ORDER BY sort ASC, code ASC"
+	query += " ORDER BY o.sort ASC, o.code ASC"
 	if filter.Limit > 0 {
 		args = append(args, filter.Limit)
 		query += fmt.Sprintf(" LIMIT $%d", len(args))
@@ -781,6 +796,7 @@ func scanMapScene(row rowScanner) (MapScene, error) {
 
 func scanMapObject(row rowScanner) (MapObject, error) {
 	var object MapObject
+	var merchantMainCategories JSONStringSlice
 	var categoryCodes JSONStringSlice
 	var serviceTags JSONStringSlice
 	var platformTags JSONStringSlice
@@ -788,7 +804,9 @@ func scanMapObject(row rowScanner) (MapObject, error) {
 	var createdAt time.Time
 	var updatedAt time.Time
 	err := row.Scan(
-		&object.ID, &object.SceneCode, &object.MerchantID, &object.Code, &object.Name,
+		&object.ID, &object.SceneCode, &object.MerchantID,
+		&object.MerchantName, &object.MerchantType, &object.MerchantVerificationStatus, &object.MerchantLogoURL, &merchantMainCategories,
+		&object.Code, &object.Name,
 		&object.Type, &object.Layer, &object.GeometryType, &object.Geometry,
 		&object.CenterX, &object.CenterY, &object.MinX, &object.MinY, &object.MaxX, &object.MaxY,
 		&object.MinZoom, &object.MaxZoom, &categoryCodes, &serviceTags, &platformTags, &poiServiceTags,
@@ -798,6 +816,7 @@ func scanMapObject(row rowScanner) (MapObject, error) {
 	if err != nil {
 		return MapObject{}, err
 	}
+	object.MerchantMainCategories = []string(merchantMainCategories)
 	object.CategoryCodes = []string(categoryCodes)
 	object.ServiceTags = []string(serviceTags)
 	object.PlatformTags = []string(platformTags)
@@ -821,7 +840,9 @@ func scanMapCategory(row rowScanner) (MapCategory, error) {
 }
 
 func mapObjectSelectColumns() string {
-	return `id::text, scene_code, COALESCE(merchant_id::text, ''), code, name, type, layer, geometry_type, geometry,
+	return `id::text, scene_code, COALESCE(merchant_id::text, ''),
+       ''::text, ''::text, ''::text, ''::text, '[]'::jsonb,
+       code, name, type, layer, geometry_type, geometry,
        COALESCE(center_x, 0)::float8, COALESCE(center_y, 0)::float8,
        COALESCE(min_x, 0)::float8, COALESCE(min_y, 0)::float8,
        COALESCE(max_x, 0)::float8, COALESCE(max_y, 0)::float8,
@@ -830,6 +851,25 @@ func mapObjectSelectColumns() string {
        COALESCE(address, ''), COALESCE(phone, ''), COALESCE(wechat, ''),
        COALESCE(lat::text, ''), COALESCE(lng::text, ''),
        search_text, extra, sort::bigint, status, created_at, updated_at`
+}
+
+func joinedMapObjectSelectColumns(alias string) string {
+	prefix := strings.TrimSpace(alias)
+	if prefix != "" {
+		prefix += "."
+	}
+	return prefix + `id::text, ` + prefix + `scene_code, COALESCE(` + prefix + `merchant_id::text, ''),
+       COALESCE(m.name, ''), COALESCE(m.merchant_type, ''), COALESCE(m.verification_status, ''),
+       COALESCE(m.logo_url, ''), COALESCE(m.main_categories, '[]'::jsonb),
+       ` + prefix + `code, ` + prefix + `name, ` + prefix + `type, ` + prefix + `layer, ` + prefix + `geometry_type, ` + prefix + `geometry,
+       COALESCE(` + prefix + `center_x, 0)::float8, COALESCE(` + prefix + `center_y, 0)::float8,
+       COALESCE(` + prefix + `min_x, 0)::float8, COALESCE(` + prefix + `min_y, 0)::float8,
+       COALESCE(` + prefix + `max_x, 0)::float8, COALESCE(` + prefix + `max_y, 0)::float8,
+       ` + prefix + `min_zoom::bigint, ` + prefix + `max_zoom::bigint,
+       ` + prefix + `category_codes, ` + prefix + `service_tags, ` + prefix + `platform_tags, ` + prefix + `poi_service_tags,
+       COALESCE(` + prefix + `address, ''), COALESCE(` + prefix + `phone, ''), COALESCE(` + prefix + `wechat, ''),
+       COALESCE(` + prefix + `lat::text, ''), COALESCE(` + prefix + `lng::text, ''),
+       ` + prefix + `search_text, ` + prefix + `extra, ` + prefix + `sort::bigint, ` + prefix + `status, ` + prefix + `created_at, ` + prefix + `updated_at`
 }
 
 func numberFromGeometry(geometry JSONMap, key string) (float64, error) {

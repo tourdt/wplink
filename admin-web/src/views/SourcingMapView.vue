@@ -249,76 +249,19 @@
             </el-table>
 
             <el-form class="object-form" label-position="top">
-              <el-form-item label="点位编码">
-                <el-input v-model="objectForm.code" placeholder="A001" />
-              </el-form-item>
-              <el-form-item label="点位名称">
-                <el-input v-model="objectForm.name" placeholder="A001 档口" />
-              </el-form-item>
               <div class="scene-size-grid">
+                <el-form-item label="点位编码">
+                  <el-input v-model.trim="objectForm.code" placeholder="A001" @blur="ensureObjectNameFromCode" />
+                </el-form-item>
                 <el-form-item label="类型">
-                  <el-select v-model="objectForm.type" @change="syncObjectLayerByType">
+                  <el-select v-model="objectForm.type" @change="handleObjectTypeChange">
                     <el-option v-for="item in objectTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
                   </el-select>
                 </el-form-item>
-                <el-form-item label="图层">
-                  <el-select v-model="objectForm.layer">
-                    <el-option label="档口" value="booth" />
-                    <el-option label="配套" value="poi" />
-                  </el-select>
-                </el-form-item>
               </div>
-              <div class="scene-size-grid">
-                <el-form-item label="形状">
-                  <el-select v-model="objectForm.geometryType" @change="syncGeometryType">
-                    <el-option label="矩形" value="rect" />
-                    <el-option label="点位" value="point" />
-                    <el-option label="复杂图形" value="polygon" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="状态">
-                  <el-select v-model="objectForm.status">
-                    <el-option v-for="item in objectStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="点位排序">
-                  <el-input-number v-model="objectForm.sort" :min="0" controls-position="right" />
-                </el-form-item>
-              </div>
-              <div class="scene-size-grid">
-                <el-form-item label="最小显示级别">
-                  <el-input-number v-model="objectForm.minZoom" :min="1" :max="5" controls-position="right" />
-                </el-form-item>
-                <el-form-item label="最大显示级别">
-                  <el-input-number v-model="objectForm.maxZoom" :min="1" :max="5" controls-position="right" />
-                </el-form-item>
-              </div>
-              <div class="geometry-grid">
-                <el-form-item v-if="objectForm.geometryType !== 'polygon'" label="X">
-                  <el-input-number v-model="objectForm.geometry.x" :min="0" controls-position="right" />
-                </el-form-item>
-                <el-form-item v-if="objectForm.geometryType !== 'polygon'" label="Y">
-                  <el-input-number v-model="objectForm.geometry.y" :min="0" controls-position="right" />
-                </el-form-item>
-                <el-form-item v-if="objectForm.geometryType === 'rect'" label="宽">
-                  <el-input-number v-model="objectForm.geometry.width" :min="1" controls-position="right" />
-                </el-form-item>
-                <el-form-item v-if="objectForm.geometryType === 'rect'" label="高">
-                  <el-input-number v-model="objectForm.geometry.height" :min="1" controls-position="right" />
-                </el-form-item>
-              </div>
-              <div v-if="objectForm.geometryType === 'polygon'" class="polygon-editor">
-                <div class="section-subtitle">
-                  <span>复杂图形顶点</span>
-                  <el-button type="primary" link @click="addPolygonPoint">添加顶点</el-button>
-                </div>
-                <div v-for="(point, index) in polygonPoints" :key="index" class="polygon-point-row">
-                  <span>{{ index + 1 }}</span>
-                  <el-input-number v-model="point.x" :min="0" controls-position="right" />
-                  <el-input-number v-model="point.y" :min="0" controls-position="right" />
-                  <el-button type="danger" link :disabled="polygonPoints.length <= 3" @click="removePolygonPoint(index)">删除</el-button>
-                </div>
-              </div>
+              <el-form-item label="点位名称">
+                <el-input v-model.trim="objectForm.name" placeholder="默认使用点位编码" />
+              </el-form-item>
               <el-form-item label="地址">
                 <el-input v-model="objectForm.address" placeholder="市场/路段/门牌" />
               </el-form-item>
@@ -330,57 +273,159 @@
                   <el-input v-model="objectForm.wechat" />
                 </el-form-item>
               </div>
-              <el-form-item label="主营分类">
-                <el-select v-model="objectForm.categoryCodes" multiple filterable allow-create default-first-option placeholder="选择或输入分类">
-                  <el-option v-for="item in mergedCategoryOptions" :key="item.value" :label="item.label" :value="item.value" />
+              <el-form-item label="绑定商户">
+                <el-select
+                  v-model="objectForm.merchantId"
+                  filterable
+                  remote
+                  clearable
+                  reserve-keyword
+                  :remote-method="searchMerchantOptions"
+                  :loading="merchantSearchLoading"
+                  placeholder="搜索商户名称"
+                >
+                  <el-option v-for="merchant in merchantOptions" :key="merchant.id" :label="merchantOptionLabel(merchant)" :value="merchant.id">
+                    <div class="merchant-option">
+                      <span>{{ merchant.name || merchant.id }}</span>
+                      <el-tag size="small" :type="merchant.verificationStatus === 'verified' ? 'success' : 'info'">
+                        {{ merchant.verificationStatus === 'verified' ? '已认证' : '未认证' }}
+                      </el-tag>
+                    </div>
+                  </el-option>
                 </el-select>
+                <p class="form-tip">未认证商户不会在小程序地图突出展示</p>
               </el-form-item>
-              <el-form-item label="档口服务">
-                <el-select v-model="objectForm.serviceTags" multiple filterable allow-create default-first-option placeholder="选择或输入服务标签">
-                  <el-option v-for="item in mergedServiceTagOptions" :key="item.value" :label="item.label" :value="item.value" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="平台标签">
-                <el-select v-model="objectForm.platformTags" multiple filterable allow-create default-first-option placeholder="运营侧推荐/认证标签">
-                  <el-option v-for="item in mergedPlatformTagOptions" :key="item.value" :label="item.label" :value="item.value" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="配套服务">
-                <el-select v-model="objectForm.poiServiceTags" multiple filterable allow-create default-first-option placeholder="打包/物流/快递服务">
-                  <el-option v-for="item in mergedPoiServiceTagOptions" :key="item.value" :label="item.label" :value="item.value" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="营业时间">
-                <el-input v-model="objectForm.extra.openHours" placeholder="08:00-22:00" />
-              </el-form-item>
-              <el-form-item label="支持服务">
-                <el-select v-model="objectForm.extra.services" multiple filterable allow-create default-first-option placeholder="打包/贴单/纸箱/胶带">
-                  <el-option v-for="item in extraServiceOptions" :key="item.value" :label="item.label" :value="item.value" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="物流线路">
-                <el-select v-model="objectForm.extra.lines" multiple filterable allow-create default-first-option placeholder="杭州/上海/江苏/全国">
-                  <el-option v-for="item in logisticsLineOptions" :key="item.value" :label="item.label" :value="item.value" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="发货方式">
-                <el-select v-model="objectForm.extra.deliveryTypes" multiple filterable allow-create default-first-option placeholder="零担/整车/到付">
-                  <el-option v-for="item in deliveryTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
-                </el-select>
-              </el-form-item>
-              <div class="scene-size-grid">
-                <el-form-item label="发车时间">
-                  <el-input v-model="objectForm.extra.departureTime" placeholder="每天 18:00 前" />
+
+              <div v-if="isBoothObject" class="typed-field-group">
+                <el-form-item label="主营分类">
+                  <el-select v-model="objectForm.categoryCodes" multiple filterable allow-create default-first-option placeholder="选择或输入分类">
+                    <el-option v-for="item in mergedCategoryOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
                 </el-form-item>
-                <el-form-item label="收费说明">
-                  <el-input v-model="objectForm.extra.priceNote" placeholder="按件计费" />
+                <el-form-item label="档口服务">
+                  <el-select v-model="objectForm.serviceTags" multiple filterable allow-create default-first-option placeholder="选择或输入服务标签">
+                    <el-option v-for="item in mergedServiceTagOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
                 </el-form-item>
               </div>
-              <el-form-item label="快递品牌">
-                <el-select v-model="objectForm.extra.brands" multiple filterable allow-create default-first-option placeholder="中通/圆通/极兔/顺丰">
-                  <el-option v-for="item in expressBrandOptions" :key="item.value" :label="item.label" :value="item.value" />
-                </el-select>
-              </el-form-item>
+
+              <div v-if="isPoiObject" class="typed-field-group">
+                <el-form-item label="配套服务">
+                  <el-select v-model="objectForm.poiServiceTags" multiple filterable allow-create default-first-option placeholder="打包/物流/快递服务">
+                    <el-option v-for="item in mergedPoiServiceTagOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="营业时间">
+                  <el-input v-model="objectForm.extra.openHours" placeholder="08:00-22:00" />
+                </el-form-item>
+                <el-form-item v-if="showGeneralPoiServiceFields" label="支持服务">
+                  <el-select v-model="objectForm.extra.services" multiple filterable allow-create default-first-option placeholder="打包/贴单/纸箱/胶带">
+                    <el-option v-for="item in extraServiceOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
+                </el-form-item>
+                <div v-if="showLogisticsFields" class="typed-field-group">
+                  <el-form-item label="物流线路">
+                    <el-select v-model="objectForm.extra.lines" multiple filterable allow-create default-first-option placeholder="杭州/上海/江苏/全国">
+                      <el-option v-for="item in logisticsLineOptions" :key="item.value" :label="item.label" :value="item.value" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="发货方式">
+                    <el-select v-model="objectForm.extra.deliveryTypes" multiple filterable allow-create default-first-option placeholder="零担/整车/到付">
+                      <el-option v-for="item in deliveryTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+                    </el-select>
+                  </el-form-item>
+                  <div class="scene-size-grid">
+                    <el-form-item label="发车时间">
+                      <el-input v-model="objectForm.extra.departureTime" placeholder="每天 18:00 前" />
+                    </el-form-item>
+                    <el-form-item label="收费说明">
+                      <el-input v-model="objectForm.extra.priceNote" placeholder="按件计费" />
+                    </el-form-item>
+                  </div>
+                </div>
+                <el-form-item v-if="showExpressFields" label="快递品牌">
+                  <el-select v-model="objectForm.extra.brands" multiple filterable allow-create default-first-option placeholder="中通/圆通/极兔/顺丰">
+                    <el-option v-for="item in expressBrandOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
+                </el-form-item>
+              </div>
+
+              <el-collapse v-model="objectAdvancedVisible" class="object-advanced">
+                <el-collapse-item title="高级设置" name="advanced">
+                  <div class="scene-size-grid">
+                    <el-form-item label="图层">
+                      <el-select v-model="objectForm.layer">
+                        <el-option label="档口" value="booth" />
+                        <el-option label="配套" value="poi" />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item label="形状">
+                      <el-select v-model="objectForm.geometryType" @change="syncGeometryType">
+                        <el-option label="矩形" value="rect" />
+                        <el-option label="点位" value="point" />
+                        <el-option label="复杂图形" value="polygon" />
+                      </el-select>
+                    </el-form-item>
+                  </div>
+                  <div class="geometry-grid">
+                    <el-form-item v-if="objectForm.geometryType !== 'polygon'" label="X">
+                      <el-input-number v-model="objectForm.geometry.x" :min="0" controls-position="right" />
+                    </el-form-item>
+                    <el-form-item v-if="objectForm.geometryType !== 'polygon'" label="Y">
+                      <el-input-number v-model="objectForm.geometry.y" :min="0" controls-position="right" />
+                    </el-form-item>
+                    <el-form-item v-if="objectForm.geometryType === 'rect'" label="宽">
+                      <el-input-number v-model="objectForm.geometry.width" :min="1" controls-position="right" />
+                    </el-form-item>
+                    <el-form-item v-if="objectForm.geometryType === 'rect'" label="高">
+                      <el-input-number v-model="objectForm.geometry.height" :min="1" controls-position="right" />
+                    </el-form-item>
+                  </div>
+                  <div v-if="objectForm.geometryType === 'polygon'" class="polygon-editor">
+                    <div class="section-subtitle">
+                      <span>复杂图形顶点</span>
+                      <el-button type="primary" link @click="addPolygonPoint">添加顶点</el-button>
+                    </div>
+                    <div v-for="(point, index) in polygonPoints" :key="index" class="polygon-point-row">
+                      <span>{{ index + 1 }}</span>
+                      <el-input-number v-model="point.x" :min="0" controls-position="right" />
+                      <el-input-number v-model="point.y" :min="0" controls-position="right" />
+                      <el-button type="danger" link :disabled="polygonPoints.length <= 3" @click="removePolygonPoint(index)">删除</el-button>
+                    </div>
+                  </div>
+                  <el-form-item label="平台标签">
+                    <el-select v-model="objectForm.platformTags" multiple filterable allow-create default-first-option placeholder="运营侧推荐/认证标签">
+                      <el-option v-for="item in mergedPlatformTagOptions" :key="item.value" :label="item.label" :value="item.value" />
+                    </el-select>
+                  </el-form-item>
+                  <div class="scene-size-grid">
+                    <el-form-item label="最小显示级别">
+                      <el-input-number v-model="objectForm.minZoom" :min="1" :max="5" controls-position="right" />
+                    </el-form-item>
+                    <el-form-item label="最大显示级别">
+                      <el-input-number v-model="objectForm.maxZoom" :min="1" :max="5" controls-position="right" />
+                    </el-form-item>
+                  </div>
+                  <div class="scene-size-grid">
+                    <el-form-item label="点位排序">
+                      <el-input-number v-model="objectForm.sort" :min="0" controls-position="right" />
+                    </el-form-item>
+                    <el-form-item label="状态">
+                      <el-select v-model="objectForm.status">
+                        <el-option v-for="item in objectStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
+                      </el-select>
+                    </el-form-item>
+                  </div>
+                  <div class="scene-size-grid">
+                    <el-form-item label="纬度">
+                      <el-input v-model="objectForm.lat" placeholder="可选导航坐标" />
+                    </el-form-item>
+                    <el-form-item label="经度">
+                      <el-input v-model="objectForm.lng" placeholder="可选导航坐标" />
+                    </el-form-item>
+                  </div>
+                </el-collapse-item>
+              </el-collapse>
               <div class="drawer-actions">
                 <el-button type="primary" :disabled="!selectedScene" :loading="objectSaving" @click="submitObject">保存点位</el-button>
               </div>
@@ -609,6 +654,7 @@ import {
   saveMapScene,
   updateMapObjectStatus,
 } from '../api/sourcingMap'
+import { listMerchants } from '../api/merchant'
 import { uploadMapBackgroundImage } from '../api/upload'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { buildViewportBounds, mapCenterFromSize, mapPointFromClientPoint, normalizeMapZoom, scaledMapSize } from '../common/mapViewport'
@@ -726,6 +772,7 @@ const VIEWPORT_RELOAD_DELAY_MS = 180
 const activePanel = ref('scene')
 const batchDrawerVisible = ref(false)
 const previewDialogVisible = ref(false)
+const objectAdvancedVisible = ref([])
 const previewLoading = ref(false)
 const sceneLoading = ref(false)
 const sceneSaving = ref(false)
@@ -736,6 +783,7 @@ const objectStatusSavingId = ref('')
 const batchSaving = ref(false)
 const categoryLoading = ref(false)
 const categorySaving = ref(false)
+const merchantSearchLoading = ref(false)
 const sceneErrorText = ref('')
 const objectErrorText = ref('')
 const categoryErrorText = ref('')
@@ -744,6 +792,7 @@ const objects = ref([])
 const publishPreviewObjects = ref([])
 const mapCategories = ref([])
 const categoryOptionItems = ref([])
+const merchantOptions = ref([])
 const mapCanvasRef = ref(null)
 const mapViewScale = ref(1)
 const isCanvasPanning = ref(false)
@@ -769,6 +818,11 @@ const mergedCategoryOptions = computed(() => mergeCategoryOptions(categoryOption
 const mergedServiceTagOptions = computed(() => mergeCategoryOptions(serviceTagOptions, mapCategoryOptions('booth_service')))
 const mergedPlatformTagOptions = computed(() => mergeCategoryOptions(platformTagOptions, mapCategoryOptions('platform_tag')))
 const mergedPoiServiceTagOptions = computed(() => mergeCategoryOptions(poiServiceTagOptions, mapCategoryOptions('poi_service')))
+const isPoiObject = computed(() => objectForm.layer === 'poi' || poiTypeValues.has(objectForm.type))
+const isBoothObject = computed(() => !isPoiObject.value)
+const showLogisticsFields = computed(() => objectForm.type === 'logistics_point')
+const showExpressFields = computed(() => objectForm.type === 'express_point')
+const showGeneralPoiServiceFields = computed(() => ['packing_station', 'logistics_point', 'express_point'].includes(objectForm.type))
 const polygonPoints = computed(() => {
   if (!Array.isArray(objectForm.geometry.points)) {
     objectForm.geometry.points = defaultGeometry('polygon').points
@@ -781,7 +835,7 @@ const previewObjects = computed(() => publishPreviewObjects.value)
 const previewPolygonObjects = computed(() => previewObjects.value.filter((object) => object.geometryType === 'polygon'))
 const previewRectAndPointObjects = computed(() => previewObjects.value.filter((object) => object.geometryType !== 'polygon'))
 const invalidGeometryObjects = computed(() => previewObjects.value.filter((object) => !hasCompleteObjectGeometry(object)))
-const missingPhoneObjects = computed(() => previewObjects.value.filter((object) => !String(object.phone || '').trim()))
+const missingContactObjects = computed(() => previewObjects.value.filter((object) => requiresObjectContact(object) && !hasCompleteObjectContact(object)))
 const missingTagObjects = computed(() => previewObjects.value.filter((object) => !hasCompleteObjectTags(object)))
 const previewChecklist = computed(() => buildPublishChecklist())
 const previewBlockingIssues = computed(() => previewChecklist.value.filter((item) => item.blocking && !item.passed))
@@ -859,6 +913,7 @@ function defaultObjectForm(data = {}) {
     layer: 'booth',
     geometryType,
     geometry: { ...defaultGeometry(geometryType), ...(data.geometry || {}) },
+    merchantId: '',
     minZoom: 3,
     maxZoom: 5,
     categoryCodes: [],
@@ -941,6 +996,7 @@ function resetObjectForm(data = {}) {
   next.geometry = normalizeGeometryForm(next.geometryType, data.geometry || next.geometry)
   next.extra = normalizeExtraForm(next.extra)
   Object.assign(objectForm, next)
+  ensureMerchantOption(data)
 }
 
 function resetCategoryForm(data = {}) {
@@ -1114,6 +1170,45 @@ function mergeCategoryOptions(defaultOptions, configuredOptions) {
   })
 }
 
+function ensureMerchantOption(data = {}) {
+  const merchant = data.merchant || null
+  const merchantId = data.merchantId || merchant?.id || ''
+  if (!merchantId || merchantOptions.value.some((item) => item.id === merchantId)) {
+    return
+  }
+  merchantOptions.value = [
+    {
+      id: merchantId,
+      name: merchant?.name || `商户 ${merchantId}`,
+      merchantType: merchant?.merchantType || '',
+      verificationStatus: merchant?.verificationStatus || '',
+    },
+    ...merchantOptions.value,
+  ]
+}
+
+async function searchMerchantOptions(keyword = '') {
+  merchantSearchLoading.value = true
+  try {
+    const resp = await listMerchants({
+      cityCode: defaultCityCode,
+      keyword: String(keyword || '').trim(),
+      page: 1,
+      pageSize: 20,
+    })
+    merchantOptions.value = resp.items || []
+  } catch {
+    ElMessage.error('商户列表加载失败，请重试')
+  } finally {
+    merchantSearchLoading.value = false
+  }
+}
+
+function merchantOptionLabel(merchant) {
+  const statusText = merchant?.verificationStatus === 'verified' ? '已认证' : '未认证'
+  return `${merchant?.name || merchant?.id || '商户'} · ${statusText}`
+}
+
 function uploadBackground(options) {
   if (!options.file) {
     ElMessage.error('请选择底图文件')
@@ -1284,10 +1379,10 @@ function buildPublishChecklist() {
       blocking: true,
     },
     {
-      key: 'phone',
-      label: '电话完整',
-      passed: missingPhoneObjects.value.length === 0,
-      detail: missingPhoneObjects.value.length === 0 ? '点位都已配置联系电话' : `${previewIssueNames(missingPhoneObjects.value)} 缺少联系电话`,
+      key: 'contact',
+      label: '联系方式完整',
+      passed: missingContactObjects.value.length === 0,
+      detail: missingContactObjects.value.length === 0 ? '档口都已配置电话或微信' : `${previewIssueNames(missingContactObjects.value)} 缺少电话或微信`,
       blocking: true,
     },
     {
@@ -1313,11 +1408,22 @@ function hasCompleteObjectGeometry(object) {
 }
 
 function hasCompleteObjectTags(object) {
-  const layer = object.layer || (poiTypeValues.has(object.type) ? 'poi' : 'booth')
-  if (layer === 'poi') {
+  if (objectLayer(object) === 'poi') {
     return hasValues(object.poiServiceTags)
   }
   return hasValues(object.categoryCodes) && (hasValues(object.serviceTags) || hasValues(object.platformTags))
+}
+
+function objectLayer(object) {
+  return object?.layer || (poiTypeValues.has(object?.type) ? 'poi' : 'booth')
+}
+
+function requiresObjectContact(object) {
+  return objectLayer(object) === 'booth'
+}
+
+function hasCompleteObjectContact(object) {
+  return Boolean(String(object?.phone || '').trim() || String(object?.wechat || '').trim())
 }
 
 function hasCoordinateValue(value) {
@@ -1366,28 +1472,30 @@ async function confirmPublishScene() {
 
 function createBooth() {
   const index = objects.value.length + 1
+  const code = `B${String(index).padStart(3, '0')}`
+  const defaults = objectTypeDefaults('booth')
   selectedObjectId.value = ''
   resetObjectForm({
-    code: `B${String(index).padStart(3, '0')}`,
-    name: `档口 ${index}`,
+    code,
+    name: code,
     type: 'booth',
-    layer: 'booth',
-    geometryType: 'rect',
-    geometry: { x: 100, y: 100, width: 80, height: 50 },
+    ...defaults,
+    geometry: { ...defaultGeometry(defaults.geometryType) },
   })
   activePanel.value = 'object'
 }
 
 function createPoi() {
   const index = objects.value.length + 1
+  const code = `P${String(index).padStart(3, '0')}`
+  const defaults = objectTypeDefaults('packing_station')
   selectedObjectId.value = ''
   resetObjectForm({
-    code: `P${String(index).padStart(3, '0')}`,
-    name: `配套 ${index}`,
+    code,
+    name: code,
     type: 'packing_station',
-    layer: 'poi',
-    geometryType: 'point',
-    geometry: { x: 160, y: 160 },
+    ...defaults,
+    geometry: { ...defaultGeometry(defaults.geometryType) },
   })
   activePanel.value = 'object'
 }
@@ -1434,8 +1542,55 @@ function syncGeometryType() {
   objectForm.geometry = normalizeGeometryForm(objectForm.geometryType, objectForm.geometry)
 }
 
+function handleObjectTypeChange() {
+  syncObjectLayerByType()
+  applyObjectTypeDefaults()
+  ensureObjectNameFromCode()
+}
+
 function syncObjectLayerByType() {
   objectForm.layer = poiTypeValues.has(objectForm.type) ? 'poi' : 'booth'
+}
+
+function applyObjectTypeDefaults() {
+  const defaults = objectTypeDefaults(objectForm.type)
+  if (objectForm.geometryType !== defaults.geometryType) {
+    objectForm.geometryType = defaults.geometryType
+    objectForm.geometry = normalizeGeometryForm(defaults.geometryType, objectForm.geometry)
+  }
+  objectForm.minZoom = defaults.minZoom
+  objectForm.maxZoom = defaults.maxZoom
+  objectForm.layer = defaults.layer
+  if (defaults.layer === 'poi') {
+    objectForm.categoryCodes = []
+    objectForm.serviceTags = []
+    objectForm.platformTags = []
+  } else {
+    objectForm.poiServiceTags = []
+  }
+}
+
+function objectTypeDefaults(type) {
+  if (poiTypeValues.has(type)) {
+    return {
+      layer: 'poi',
+      geometryType: 'point',
+      minZoom: type === 'parking' ? 1 : 2,
+      maxZoom: 5,
+    }
+  }
+  return {
+    layer: 'booth',
+    geometryType: 'rect',
+    minZoom: 3,
+    maxZoom: 5,
+  }
+}
+
+function ensureObjectNameFromCode() {
+  if (!String(objectForm.name || '').trim() && String(objectForm.code || '').trim()) {
+    objectForm.name = String(objectForm.code || '').trim()
+  }
 }
 
 function handleCanvasClick(event) {
@@ -1760,6 +1915,7 @@ async function submitObject() {
     ElMessage.error('请先选择地图场景')
     return
   }
+  ensureObjectNameFromCode()
   if (!validateObjectZoomRange()) {
     return
   }
@@ -1822,6 +1978,7 @@ async function changeObjectStatus(row, status) {
 function buildObjectPayload() {
   return {
     id: objectForm.id,
+    merchantId: objectForm.merchantId,
     code: objectForm.code,
     name: objectForm.name,
     type: objectForm.type,
@@ -2248,6 +2405,33 @@ function clampNumber(value, min, max) {
 
 .object-form {
   margin-top: 16px;
+}
+
+.typed-field-group {
+  margin-bottom: 8px;
+}
+
+.object-advanced {
+  margin-top: 4px;
+  margin-bottom: 14px;
+}
+
+.object-advanced :deep(.el-collapse-item__content) {
+  padding-bottom: 6px;
+}
+
+.merchant-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.form-tip {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .geometry-grid {

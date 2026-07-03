@@ -1,24 +1,32 @@
 <template>
   <view class="sourcing-map-page">
-    <view class="map-header">
-      <view class="header-copy">
-        <text class="header-kicker">织里童装</text>
-        <text class="header-title">拿货地图</text>
-        <text class="header-subtitle">{{ currentSceneName }}</text>
-      </view>
-      <button class="refresh-button" :disabled="loading" @click="refreshMapData">刷新</button>
-    </view>
-
     <view class="search-panel">
-      <view class="search-bar">
+      <view class="search-shell">
         <input v-model="keyword" class="search-input" placeholder="搜索档口、配套、路段" confirm-type="search" @confirm="submitSearch" />
+        <button class="filter-toggle-button" @click="toggleFiltersExpanded">{{ filterToggleText }}</button>
         <button class="search-button" :disabled="objectLoading" @click="submitSearch">搜索</button>
       </view>
-      <view v-if="keyword" class="search-reset-row">
-        <text>当前筛选：{{ keyword }}</text>
-        <button @click="clearSearch">清除</button>
+
+      <scroll-view class="compact-filter-row" scroll-x>
+        <button
+          v-for="item in quickFilterItems"
+          :key="`${item.groupKey}-${item.value}`"
+          :class="['filter-chip', 'compact', { active: isFilterActive(item.groupKey, item.value) }]"
+          @click="toggleFilter(item.groupKey, item.value)"
+        >
+          {{ item.label }}
+        </button>
+        <button class="filter-chip compact more" @click="toggleFiltersExpanded">
+          {{ filtersExpanded ? '收起筛选' : '更多筛选' }}
+        </button>
+      </scroll-view>
+
+      <view v-if="keyword || hasActiveFilters" class="active-filter-summary">
+        <text>{{ activeFilterSummary }}</text>
+        <button @click="clearMapConditions">清除</button>
       </view>
-      <view class="filter-panel">
+
+      <view v-if="filtersExpanded" class="filter-panel">
         <view v-for="group in filterGroups" :key="group.key" class="filter-group">
           <text class="filter-title">{{ group.label }}</text>
           <scroll-view class="filter-options" scroll-x>
@@ -37,6 +45,7 @@
           <button @click="clearFilters">全部清除</button>
         </view>
       </view>
+
       <scroll-view v-if="sceneTabsVisible" class="scene-tabs" scroll-x>
         <button
           v-for="scene in scenes"
@@ -62,39 +71,54 @@
 
     <view v-else class="map-content">
       <view class="map-card">
-        <view class="map-card-head">
+        <view class="map-overlay-info">
           <text>{{ selectedSceneName }}</text>
           <text>{{ mapObjects.length }} 个点位</text>
         </view>
-        <view class="zoom-toolbar">
-          <button class="zoom-button" @click="zoomOutMap">缩小</button>
-          <text class="zoom-percent">{{ mapZoomPercent }}</text>
-          <button class="zoom-button" @click="zoomInMap">放大</button>
-          <button class="zoom-button" @click="resetMapZoom">复位</button>
+        <view class="map-service-controls">
+          <button class="map-service-button" :disabled="loading || objectLoading" @click="refreshCurrentMapData">刷新</button>
+          <button class="map-service-button" @click="resetMapViewport">归位</button>
         </view>
-        <scroll-view class="map-scroll" scroll-x scroll-y scroll-with-animation :scroll-left="mapScrollLeft" :scroll-top="mapScrollTop" @scroll="handleMapScroll">
-          <view class="map-stage" :style="stageStyle">
-            <image class="map-background" :src="selectedSceneBackground" mode="aspectFill" />
-            <view
-              v-for="object in polygonObjects"
-              :key="`${object.id || object.code}-polygon`"
-              :class="['map-polygon', object.layer === 'booth' ? 'booth' : 'poi', { active: selectedObjectId === objectIdentity(object) }]"
-              :style="polygonObjectStyle(object)"
-              @click="selectMapObject(object)"
-            >
-              <text>{{ objectDisplayLabel(object) }}</text>
+        <movable-area class="map-gesture-area">
+          <movable-view
+            class="map-movable"
+            direction="all"
+            scale
+            inertia
+            :scale-min="MAP_MIN_SCALE"
+            :scale-max="MAP_MAX_SCALE"
+            :scale-value="mapScale"
+            :x="mapMoveX"
+            :y="mapMoveY"
+            :style="movableStageStyle"
+            @change="handleMapMove"
+            @scale="handleMapScale"
+          >
+            <view class="map-stage" :style="stageStyle">
+              <image class="map-background" :src="selectedSceneBackground" mode="aspectFill" />
+              <view
+                v-for="object in polygonObjects"
+                :key="`${object.id || object.code}-polygon`"
+                :class="objectDisplayClasses(object, 'map-polygon')"
+                :style="polygonObjectStyle(object)"
+                @click="selectMapObject(object)"
+              >
+                <text>{{ objectDisplayLabel(object) }}</text>
+                <text v-if="object.isVerifiedMerchant" class="verified-map-badge">认证</text>
+              </view>
+              <button
+                v-for="object in rectAndPointObjects"
+                :key="object.id || object.code"
+                :class="objectDisplayClasses(object, 'map-object')"
+                :style="objectStyle(object)"
+                @click="selectMapObject(object)"
+              >
+                <text>{{ objectDisplayLabel(object) }}</text>
+                <text v-if="object.isVerifiedMerchant" class="verified-map-badge">认证</text>
+              </button>
             </view>
-            <button
-              v-for="object in rectAndPointObjects"
-              :key="object.id || object.code"
-              :class="['map-object', object.layer === 'booth' ? 'booth' : 'poi', { active: selectedObjectId === objectIdentity(object) }]"
-              :style="objectStyle(object)"
-              @click="selectMapObject(object)"
-            >
-              <text>{{ objectDisplayLabel(object) }}</text>
-            </button>
-          </view>
-        </scroll-view>
+          </movable-view>
+        </movable-area>
       </view>
 
       <view class="result-panel">
@@ -113,12 +137,15 @@
         <button
           v-for="object in mapObjects"
           :key="`${object.id || object.code}-row`"
-          :class="['object-row', { active: selectedObjectId === objectIdentity(object) }]"
+          :class="objectRowClasses(object)"
           @click="selectMapObject(object)"
         >
           <view>
-            <text class="object-name">{{ object.name || object.code }}</text>
-            <text class="object-meta">{{ objectTypeText(object) }} · {{ object.address || '地址待完善' }}</text>
+            <view class="object-title-line">
+              <text class="object-name">{{ objectDisplayName(object) }}</text>
+              <text v-if="object.isVerifiedMerchant" class="verified-row-badge">认证商户</text>
+            </view>
+            <text class="object-meta">{{ objectDisplaySourceText(object) }} · {{ objectTypeText(object) }} · {{ object.address || '地址待完善' }}</text>
           </view>
           <text class="object-code">{{ object.code }}</text>
         </button>
@@ -129,6 +156,7 @@
           <view>
             <text class="detail-title">{{ selectedObjectName }}</text>
             <text class="detail-meta">{{ selectedObjectMeta }}</text>
+            <text v-if="selectedObject.isVerifiedMerchant" class="verified-detail-badge">认证商户</text>
           </view>
           <button class="close-button" @click="clearSelectedObject">收起</button>
         </view>
@@ -173,10 +201,10 @@ import {
 } from '../../api/sourcingMap'
 
 const MAP_MAX_WIDTH_RPX = 690
+const MAP_VIEWPORT_WIDTH_RPX = MAP_MAX_WIDTH_RPX
 const MAP_VIEWPORT_HEIGHT_RPX = 720
 const MAP_MIN_SCALE = 1
 const MAP_MAX_SCALE = 3
-const MAP_SCALE_STEP = 0.35
 const VIEWPORT_PADDING_RATIO = 0.35
 const VIEWPORT_RELOAD_DELAY_MS = 220
 const DEFAULT_SCENE_NAME = '织里童装拿货地图'
@@ -274,14 +302,14 @@ const selectedObject = ref(null)
 const selectedObjectId = ref('')
 const nearbyPois = ref([])
 const mapScale = ref(1)
-const mapScrollLeft = ref(0)
-const mapScrollTop = ref(0)
+const mapMoveX = ref(0)
+const mapMoveY = ref(0)
 const categoryLabels = ref({ ...defaultLabelDictionary })
 const activeFilters = ref(defaultActiveFilters())
+const filtersExpanded = ref(false)
 const sceneErrorText = ref('地图数据发布后可在这里查看档口和配套点位。')
 let viewportReloadTimer = null
 
-const currentSceneName = computed(() => selectedScene.value ? selectedScene.value.name : DEFAULT_SCENE_NAME)
 const selectedSceneName = computed(() => selectedScene.value ? selectedScene.value.name : DEFAULT_SCENE_NAME)
 const selectedSceneBackground = computed(() => selectedScene.value ? selectedScene.value.backgroundUrl : '')
 const sceneTabsVisible = computed(() => scenes.value.length > 1)
@@ -289,28 +317,48 @@ const sceneUnavailable = computed(() => !selectedScene.value || !selectedSceneBa
 const hasActiveFilters = computed(() => activeFilterCount.value > 0)
 const activeFilterCount = computed(() => Object.values(activeFilters.value).reduce((total, values) => total + values.length, 0))
 const filterGroups = computed(() => buildFilterGroups(mapCategories.value))
+const quickFilterItems = computed(() =>
+  filterGroups.value.flatMap((group) =>
+    group.items.map((item) => ({
+      ...item,
+      groupKey: group.key,
+      groupLabel: group.label,
+    })),
+  ),
+)
+const filterToggleText = computed(() => (hasActiveFilters.value ? `已选 ${activeFilterCount.value}` : '筛选'))
+const activeFilterSummary = computed(() => {
+  const parts = []
+  const term = keyword.value.trim()
+  if (term) parts.push(`搜索：${term}`)
+  if (hasActiveFilters.value) parts.push(`筛选 ${activeFilterCount.value} 项`)
+  return parts.join(' · ')
+})
 const stageScale = computed(() => {
   const width = toPositiveNumber(selectedScene.value?.width, MAP_MAX_WIDTH_RPX)
   return Math.min(1, MAP_MAX_WIDTH_RPX / width)
 })
+const renderStageScale = computed(() => stageScale.value)
 const effectiveStageScale = computed(() => stageScale.value * mapScale.value)
 const mapZoomLevel = computed(() => getZoomLevelByScale(mapScale.value))
 const visibleMapObjects = computed(() => rawMapObjects.value.filter((object) => isObjectVisibleAtZoom(object, mapZoomLevel.value)))
 const mapObjects = computed(() => visibleMapObjects.value)
 const polygonObjects = computed(() => mapObjects.value.filter((object) => object.geometryType === 'polygon'))
 const rectAndPointObjects = computed(() => mapObjects.value.filter((object) => object.geometryType !== 'polygon'))
-const mapZoomPercent = computed(() => `${Math.round(mapScale.value * 100)}%`)
 const stageStyle = computed(() => {
   const width = toPositiveNumber(selectedScene.value?.width, MAP_MAX_WIDTH_RPX)
   const height = toPositiveNumber(selectedScene.value?.height, 420)
-  return `width: ${Math.round(width * effectiveStageScale.value)}rpx; height: ${Math.round(height * effectiveStageScale.value)}rpx;`
+  return `width: ${Math.round(width * renderStageScale.value)}rpx; height: ${Math.round(height * renderStageScale.value)}rpx;`
 })
-const selectedObjectName = computed(() => selectedObject.value?.name || selectedObject.value?.code || '点位详情')
-const selectedObjectMeta = computed(() => selectedObject.value ? `${objectTypeText(selectedObject.value)} · ${selectedObject.value.code || '无编号'}` : '')
+const movableStageStyle = computed(() => stageStyle.value)
+const selectedObjectMerchant = computed(() => selectedObject.value?.merchant || null)
+const selectedObjectName = computed(() => selectedObject.value ? objectDisplayName(selectedObject.value) : '点位详情')
+const selectedObjectMeta = computed(() => selectedObject.value ? `${objectDisplaySourceText(selectedObject.value)} · ${objectTypeText(selectedObject.value)} · ${selectedObject.value.code || '无编号'}` : '')
 const selectedObjectAddress = computed(() => selectedObject.value?.address || '地址待完善')
 const detailTags = computed(() => {
   if (!selectedObject.value) return []
   const tags = [
+    ...(selectedObjectMerchant.value?.mainCategories || []),
     ...(selectedObject.value.categoryCodes || []),
     ...(selectedObject.value.serviceTags || []),
     ...(selectedObject.value.platformTags || []),
@@ -351,6 +399,10 @@ onPullDownRefresh(async () => {
 async function refreshMapData(options = {}) {
   await loadMapCategories()
   await loadScenes(options)
+}
+
+async function refreshCurrentMapData() {
+  await refreshMapData({ keepSelection: true })
 }
 
 async function loadScenes(options = {}) {
@@ -432,8 +484,8 @@ async function selectScene(scene) {
   selectedObjectId.value = ''
   nearbyPois.value = []
   mapScale.value = 1
-  mapScrollLeft.value = 0
-  mapScrollTop.value = 0
+  mapMoveX.value = 0
+  mapMoveY.value = 0
   try {
     const resp = await getMapScene(scene.code, { suppressErrorToast: true })
     selectedScene.value = resp.item || scene
@@ -500,6 +552,16 @@ async function clearFilters() {
   await loadSceneObjects({ focusFirst: Boolean(keyword.value.trim()) })
 }
 
+function toggleFiltersExpanded() {
+  filtersExpanded.value = !filtersExpanded.value
+}
+
+async function clearMapConditions() {
+  keyword.value = ''
+  activeFilters.value = defaultActiveFilters()
+  await loadSceneObjects()
+}
+
 function isFilterActive(key, value) {
   return (activeFilters.value[key] || []).includes(value)
 }
@@ -516,9 +578,9 @@ function buildObjectQueryParams(options = {}) {
 function buildViewportQueryParams() {
   if (!selectedScene.value) return {}
   const scale = effectiveStageScale.value || 1
-  const leftRpx = pxToRpx(mapScrollLeft.value)
-  const topRpx = pxToRpx(mapScrollTop.value)
-  const visibleWidth = MAP_MAX_WIDTH_RPX / scale
+  const leftRpx = -pxToRpx(mapMoveX.value)
+  const topRpx = -pxToRpx(mapMoveY.value)
+  const visibleWidth = MAP_VIEWPORT_WIDTH_RPX / scale
   const visibleHeight = MAP_VIEWPORT_HEIGHT_RPX / scale
   const paddingX = visibleWidth * VIEWPORT_PADDING_RATIO
   const paddingY = visibleHeight * VIEWPORT_PADDING_RATIO
@@ -598,8 +660,8 @@ function focusMapObject(object) {
 function focusMapCenter(center) {
   const scaledX = center.x * effectiveStageScale.value
   const scaledY = center.y * effectiveStageScale.value
-  mapScrollLeft.value = Math.max(0, Math.round(rpxToPx(scaledX - MAP_MAX_WIDTH_RPX / 2)))
-  mapScrollTop.value = Math.max(0, Math.round(rpxToPx(scaledY - MAP_VIEWPORT_HEIGHT_RPX / 2)))
+  mapMoveX.value = Math.round(rpxToPx(MAP_VIEWPORT_WIDTH_RPX / 2 - scaledX))
+  mapMoveY.value = Math.round(rpxToPx(MAP_VIEWPORT_HEIGHT_RPX / 2 - scaledY))
 }
 
 function applySceneDefaultViewport(scene) {
@@ -607,42 +669,39 @@ function applySceneDefaultViewport(scene) {
   const centerX = parseOptionalNumber(scene?.defaultCenterX)
   const centerY = parseOptionalNumber(scene?.defaultCenterY)
   if (centerX == null || centerY == null) {
-    mapScrollLeft.value = 0
-    mapScrollTop.value = 0
+    mapMoveX.value = 0
+    mapMoveY.value = 0
     return
   }
   focusMapCenter({ x: centerX, y: centerY })
 }
 
 function normalizeSceneDefaultScale(value) {
+  return normalizeMapScale(value)
+}
+
+function normalizeMapScale(value) {
   const scale = toNumber(value, 1)
-  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, scale))
+  const clamped = Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, scale))
+  return Number(clamped.toFixed(2))
 }
 
-function zoomInMap() {
-  changeMapScale(mapScale.value + MAP_SCALE_STEP)
-}
-
-function zoomOutMap() {
-  changeMapScale(mapScale.value - MAP_SCALE_STEP)
-}
-
-function resetMapZoom() {
-  changeMapScale(1)
-}
-
-function changeMapScale(nextScale) {
-  mapScale.value = Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, Number(nextScale.toFixed(2))))
-  syncSelectedObjectAfterLoad()
-  if (selectedObject.value) {
-    focusMapObject(selectedObject.value)
-  }
+function resetMapViewport() {
+  if (!selectedScene.value) return
+  applySceneDefaultViewport(selectedScene.value)
   scheduleViewportObjectReload()
 }
 
-function handleMapScroll(event) {
-  mapScrollLeft.value = toNumber(event?.detail?.scrollLeft, mapScrollLeft.value)
-  mapScrollTop.value = toNumber(event?.detail?.scrollTop, mapScrollTop.value)
+function handleMapMove(event) {
+  mapMoveX.value = toNumber(event?.detail?.x, mapMoveX.value)
+  mapMoveY.value = toNumber(event?.detail?.y, mapMoveY.value)
+  scheduleViewportObjectReload()
+}
+
+function handleMapScale(event) {
+  mapScale.value = normalizeMapScale(event?.detail?.scale ?? mapScale.value)
+  mapMoveX.value = toNumber(event?.detail?.x, mapMoveX.value)
+  mapMoveY.value = toNumber(event?.detail?.y, mapMoveY.value)
   scheduleViewportObjectReload()
 }
 
@@ -772,7 +831,7 @@ function buildNavigationPayload(object) {
 
 function objectStyle(object) {
   const geometry = object.geometry || {}
-  const scale = effectiveStageScale.value
+  const scale = renderStageScale.value
   const x = toNumber(geometry.x, toNumber(object.centerX, 0)) * scale
   const y = toNumber(geometry.y, toNumber(object.centerY, 0)) * scale
   if (object.geometryType === 'point') {
@@ -786,7 +845,7 @@ function objectStyle(object) {
 function polygonObjectStyle(object) {
   const geometry = object.geometry || {}
   const bounds = calculatePolygonBounds(geometry)
-  const scale = effectiveStageScale.value
+  const scale = renderStageScale.value
   const width = Math.max(1, Math.round((bounds.maxX - bounds.minX) * scale))
   const height = Math.max(1, Math.round((bounds.maxY - bounds.minY) * scale))
   return [
@@ -844,7 +903,38 @@ function objectDisplayLabel(object) {
   if (object.geometryType === 'point') return ''
   if (mapZoomLevel.value < 4) return object.code || ''
   if (mapZoomLevel.value < 5) return object.code || object.name || ''
-  return object.name || object.code || ''
+  return objectDisplayName(object)
+}
+
+function objectDisplayName(object) {
+  return object?.merchant?.name || object?.name || object?.code || ''
+}
+
+function objectDisplaySourceText(object) {
+  return object?.displaySource === 'verified_merchant' || object?.isVerifiedMerchant ? '认证商户' : '后台点位'
+}
+
+function objectDisplayClasses(object, baseClass) {
+  return [
+    baseClass,
+    object.layer === 'booth' ? 'booth' : 'poi',
+    {
+      active: selectedObjectId.value === objectIdentity(object),
+      verified: object.displayLevel === 'highlight' || object.isVerifiedMerchant,
+      weak: object.displayLevel === 'weak',
+    },
+  ]
+}
+
+function objectRowClasses(object) {
+  return [
+    'object-row',
+    {
+      active: selectedObjectId.value === objectIdentity(object),
+      verified: object.displayLevel === 'highlight' || object.isVerifiedMerchant,
+      weak: object.displayLevel === 'weak',
+    },
+  ]
 }
 
 function objectIdentity(object) {
@@ -960,45 +1050,13 @@ function clampNumber(value, min, max) {
 <style lang="scss" scoped>
 .sourcing-map-page {
   min-height: 100vh;
-  padding: 28rpx;
+  padding: 18rpx 20rpx 28rpx;
   background: $wplink-bg;
 }
 
-.map-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
-  margin-bottom: 24rpx;
-}
-
-.header-copy {
-  display: grid;
-  gap: 8rpx;
-  min-width: 0;
-}
-
-.header-kicker {
-  color: $wplink-warning;
-  font-size: 22rpx;
-  font-weight: 800;
-}
-
-.header-title {
-  color: $wplink-primary;
-  font-size: 42rpx;
-  font-weight: 900;
-  line-height: 1.15;
-}
-
-.header-subtitle {
-  color: $wplink-muted;
-  font-size: 24rpx;
-  line-height: 1.35;
-}
-
-.refresh-button,
+.filter-toggle-button,
 .search-button,
+.map-service-button,
 .primary-button,
 .secondary-button,
 .close-button {
@@ -1011,25 +1069,18 @@ function clampNumber(value, min, max) {
   line-height: 1.25;
 }
 
-.refresh-button::after,
+.filter-toggle-button::after,
 .search-button::after,
+.map-service-button::after,
 .primary-button::after,
 .secondary-button::after,
 .close-button::after,
-.zoom-button::after,
 .scene-tab::after,
 .filter-chip::after,
 .map-object::after,
 .object-row::after,
 .nearby-row::after {
   border: 0;
-}
-
-.refresh-button {
-  flex: 0 0 auto;
-  padding: 16rpx 22rpx;
-  background: $wplink-primary-soft;
-  color: $wplink-primary;
 }
 
 .search-panel,
@@ -1044,30 +1095,36 @@ function clampNumber(value, min, max) {
 
 .search-panel {
   display: grid;
-  gap: 18rpx;
-  margin-bottom: 24rpx;
-  padding: 22rpx;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+  padding: 16rpx;
 }
 
-.search-bar {
+.search-shell {
   display: grid;
-  grid-template-columns: 1fr 112rpx;
-  gap: 14rpx;
+  grid-template-columns: minmax(0, 1fr) 92rpx 92rpx;
+  gap: 10rpx;
   align-items: center;
 }
 
 .search-input {
-  min-height: 72rpx;
-  padding: 0 24rpx;
-  border-radius: 16rpx;
+  min-height: 64rpx;
+  padding: 0 20rpx;
+  border-radius: 14rpx;
   background: #f4f7fb;
   color: $wplink-text;
-  font-size: 26rpx;
+  font-size: 25rpx;
+}
+
+.filter-toggle-button {
+  padding: 18rpx 10rpx;
+  background: $wplink-warning-soft;
+  color: #9a5b00;
 }
 
 .search-button,
 .primary-button {
-  padding: 20rpx 18rpx;
+  padding: 18rpx 14rpx;
   background: $wplink-primary;
   color: $wplink-card;
 }
@@ -1079,8 +1136,7 @@ function clampNumber(value, min, max) {
   color: $wplink-primary;
 }
 
-.search-reset-row,
-.map-card-head,
+.active-filter-summary,
 .result-head,
 .nearby-row {
   display: flex;
@@ -1089,12 +1145,12 @@ function clampNumber(value, min, max) {
   gap: 16rpx;
 }
 
-.search-reset-row {
+.active-filter-summary {
   color: $wplink-muted;
   font-size: 24rpx;
 }
 
-.search-reset-row button {
+.active-filter-summary button {
   margin: 0;
   padding: 0;
   border: 0;
@@ -1105,8 +1161,12 @@ function clampNumber(value, min, max) {
   line-height: 1.2;
 }
 
-.search-reset-row button::after {
+.active-filter-summary button::after {
   border: 0;
+}
+
+.compact-filter-row {
+  white-space: nowrap;
 }
 
 .filter-panel {
@@ -1141,6 +1201,18 @@ function clampNumber(value, min, max) {
   font-size: 24rpx;
   font-weight: 800;
   line-height: 56rpx;
+}
+
+.filter-chip.compact {
+  min-height: 48rpx;
+  padding: 0 18rpx;
+  font-size: 23rpx;
+  line-height: 48rpx;
+}
+
+.filter-chip.more {
+  background: $wplink-warning-soft;
+  color: #9a5b00;
 }
 
 .filter-chip.active {
@@ -1215,57 +1287,77 @@ function clampNumber(value, min, max) {
 
 .map-content {
   display: grid;
-  gap: 24rpx;
+  gap: 18rpx;
 }
 
 .map-card {
+  position: relative;
   overflow: hidden;
 }
 
-.map-card-head {
-  padding: 22rpx 24rpx;
-  color: $wplink-primary;
-  font-size: 26rpx;
-  font-weight: 800;
-}
-
-.zoom-toolbar {
-  display: grid;
-  grid-template-columns: 1fr 100rpx 1fr 1fr;
-  gap: 12rpx;
-  align-items: center;
-  padding: 0 24rpx 18rpx;
-}
-
-.zoom-button {
-  min-width: 0;
-  margin: 0;
-  padding: 14rpx 10rpx;
-  border: 0;
-  border-radius: 14rpx;
-  background: $wplink-primary-soft;
-  color: $wplink-primary;
-  font-size: 23rpx;
-  font-weight: 900;
-  line-height: 1.2;
-}
-
-.zoom-percent {
-  color: $wplink-muted;
-  font-size: 23rpx;
-  font-weight: 900;
-  text-align: center;
-}
-
-.map-card-head text:last-child,
 .result-head text:last-child {
   color: $wplink-muted;
   font-size: 24rpx;
 }
 
-.map-scroll {
-  max-height: 720rpx;
+.map-overlay-info {
+  position: absolute;
+  top: 20rpx;
+  left: 20rpx;
+  z-index: 8;
+  display: grid;
+  gap: 4rpx;
+  max-width: 420rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 16rpx;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.12);
+}
+
+.map-overlay-info text:first-child {
+  color: $wplink-primary;
+  font-size: 25rpx;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.map-overlay-info text:last-child {
+  color: $wplink-muted;
+  font-size: 22rpx;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.map-service-controls {
+  position: absolute;
+  top: 20rpx;
+  right: 20rpx;
+  z-index: 9;
+  display: grid;
+  gap: 12rpx;
+}
+
+.map-service-button {
+  min-width: 96rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.94);
+  color: $wplink-primary;
+  box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.14);
+}
+
+.map-gesture-area {
+  width: 100%;
+  height: 76vh;
+  min-height: 760rpx;
+  max-height: 1080rpx;
+  overflow: hidden;
   background: #eef3f8;
+}
+
+.map-movable {
+  min-width: 320rpx;
+  min-height: 240rpx;
 }
 
 .map-stage {
@@ -1287,6 +1379,7 @@ function clampNumber(value, min, max) {
   position: absolute;
   z-index: 2;
   display: flex;
+  gap: 3rpx;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
@@ -1305,6 +1398,7 @@ function clampNumber(value, min, max) {
   position: absolute;
   z-index: 2;
   display: flex;
+  gap: 4rpx;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
@@ -1329,6 +1423,30 @@ function clampNumber(value, min, max) {
   border-color: $wplink-warning;
   border-radius: 999rpx;
   background: $wplink-warning;
+}
+
+.map-object.verified,
+.map-polygon.verified {
+  z-index: 4;
+  border-color: $wplink-success;
+  background: rgba($wplink-success, 0.24);
+  color: #17653a;
+}
+
+.map-object.weak,
+.map-polygon.weak {
+  opacity: 0.72;
+}
+
+.verified-map-badge {
+  flex: 0 0 auto;
+  padding: 2rpx 4rpx;
+  border-radius: 999rpx;
+  background: $wplink-success;
+  color: #fff;
+  font-size: 14rpx;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .map-object.active,
@@ -1396,6 +1514,24 @@ function clampNumber(value, min, max) {
   color: $wplink-success;
 }
 
+.object-row.verified {
+  padding-right: 16rpx;
+  padding-left: 16rpx;
+  border-radius: 16rpx;
+  background: rgba($wplink-success, 0.08);
+}
+
+.object-row.weak {
+  opacity: 0.78;
+}
+
+.object-title-line {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  min-width: 0;
+}
+
 .object-name,
 .detail-title {
   display: block;
@@ -1422,14 +1558,39 @@ function clampNumber(value, min, max) {
 }
 
 .detail-card {
+  position: fixed;
+  right: 28rpx;
+  bottom: calc(24rpx + env(safe-area-inset-bottom));
+  left: 28rpx;
+  z-index: 30;
   display: grid;
   gap: 22rpx;
+  max-height: 56vh;
+  overflow: auto;
 }
 
 .detail-head {
   display: flex;
   justify-content: space-between;
   gap: 18rpx;
+}
+
+.verified-row-badge,
+.verified-detail-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4rpx 10rpx;
+  border-radius: 999rpx;
+  background: $wplink-success;
+  color: #fff;
+  font-size: 20rpx;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.verified-detail-badge {
+  margin-top: 8rpx;
 }
 
 .detail-tag-list {
