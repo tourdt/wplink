@@ -88,13 +88,21 @@
           @touchcancel="handleCanvasTouchCancel"
         >
           <view class="map-layer" :style="mapLayerStyle">
-            <view :class="['map-background-layer', { hidden: mapCanvasBackgroundReady }]" :style="mapLayerSurfaceStyle">
+            <view class="map-background-layer" :style="mapLayerSurfaceStyle">
               <image
                 class="map-background-image"
                 :src="selectedSceneBackground"
                 :style="mapBackgroundStyle"
                 mode="scaleToFill"
               />
+            </view>
+            <view
+              v-for="object in mapObjects"
+              :key="`${objectIdentity(object)}-marker`"
+              :class="mapDomObjectClasses(object)"
+              :style="mapDomObjectStyle(object)"
+            >
+              <text v-if="object.geometryType !== 'point'">{{ objectDisplayLabel(object) }}</text>
             </view>
           </view>
           <canvas
@@ -315,7 +323,6 @@ const mapTransform = ref({ scale: 1, offsetX: 0, offsetY: 0 })
 const mapViewportSize = ref({ width: 375, height: 500 })
 const mapViewportHeightRpx = ref(MAP_VIEWPORT_HEIGHT_RPX)
 const mapSafeAreaBottomPx = ref(0)
-const mapCanvasBackgroundReady = ref(false)
 const mapCanvasOverlayReady = ref(false)
 const canvasShellRect = ref({ left: 0, top: 0 })
 const canvasErrorText = ref('')
@@ -415,7 +422,6 @@ onUnmounted(() => {
 })
 
 watch(selectedSceneBackground, () => {
-  mapCanvasBackgroundReady.value = false
   mapCanvasOverlayReady.value = false
 })
 
@@ -575,6 +581,9 @@ async function loadSceneObjects(options = {}) {
       selectFirstObjectAfterSearch()
     } else {
       syncSelectedObjectAfterLoad()
+      if (!options.silent) {
+        focusSingleObjectAfterLoad()
+      }
     }
   } catch {
     if (requestId !== objectRequestSeq) return
@@ -739,8 +748,13 @@ function matchesSelectedValues(values, selected, groupKey = '') {
   return expandedSelected.some((value) => values.includes(value))
 }
 
-function focusMapObject(object) {
-  focusMapCenter(calculateObjectCenter(object))
+function focusMapObject(object, options = {}) {
+  focusMapCenter(calculateObjectCenter(object), options)
+}
+
+function focusSingleObjectAfterLoad() {
+  if (selectedObjectId.value || mapObjects.value.length !== 1) return
+  focusMapObject(mapObjects.value[0], { reloadViewport: false })
 }
 
 function focusMapCenter(center, options = {}) {
@@ -906,7 +920,7 @@ function renderMapCanvas(options = {}) {
   mapRenderer.setSelectedObject(selectedObject.value)
   const rendered = mapRenderer.render(mapTransform.value, {
     ...options,
-    drawBackground: 'whenReady',
+    drawBackground: false,
     width: mapCanvasPixelSize.value.width,
     height: mapCanvasPixelSize.value.height,
     baseScale: metrics.baseScale,
@@ -917,9 +931,7 @@ function renderMapCanvas(options = {}) {
     canvasErrorText.value = '地图渲染失败，请刷新后重试'
     return
   }
-  const backgroundRendered = Boolean(mapRenderer.hasRenderedBackground?.())
-  mapCanvasOverlayReady.value = backgroundRendered
-  mapCanvasBackgroundReady.value = backgroundRendered
+  mapCanvasOverlayReady.value = true
 }
 
 function buildMapLayerStyle() {
@@ -1193,6 +1205,31 @@ function calculatePolygonCenter(geometry = {}) {
   return { x: sums.x / points.length, y: sums.y / points.length }
 }
 
+function calculatePolygonBounds(geometry = {}) {
+  const points = Array.isArray(geometry.points) ? geometry.points : []
+  if (!points.length) {
+    return { minX: 0, minY: 0, maxX: 1, maxY: 1 }
+  }
+  return points.reduce(
+    (bounds, point) => {
+      const x = toNumber(point.x, 0)
+      const y = toNumber(point.y, 0)
+      return {
+        minX: Math.min(bounds.minX, x),
+        minY: Math.min(bounds.minY, y),
+        maxX: Math.max(bounds.maxX, x),
+        maxY: Math.max(bounds.maxY, y),
+      }
+    },
+    {
+      minX: toNumber(points[0].x, 0),
+      minY: toNumber(points[0].y, 0),
+      maxX: toNumber(points[0].x, 0),
+      maxY: toNumber(points[0].y, 0),
+    },
+  )
+}
+
 async function loadNearbyPois(object) {
   nearbyPois.value = []
   if (!object?.id) return
@@ -1274,6 +1311,71 @@ function buildNavigationPayload(object) {
     name: object?.name || object?.code || selectedSceneName.value,
     address: object?.address || '',
   }
+}
+
+function mapDomObjectStyle(object) {
+  const metrics = getSceneRenderMetrics()
+  const geometry = object.geometry || {}
+  if (object.geometryType === 'polygon') {
+    const bounds = calculatePolygonBounds(geometry)
+    const width = Math.max(1, (bounds.maxX - bounds.minX) * metrics.baseScale)
+    const height = Math.max(1, (bounds.maxY - bounds.minY) * metrics.baseScale)
+    return [
+      `left: ${Math.round(bounds.minX * metrics.baseScale)}px`,
+      `top: ${Math.round(bounds.minY * metrics.baseScale)}px`,
+      `width: ${Math.round(width)}px`,
+      `height: ${Math.round(height)}px`,
+      `clip-path: polygon(${polygonDomPoints(geometry, bounds)})`,
+      `-webkit-clip-path: polygon(${polygonDomPoints(geometry, bounds)})`,
+    ].join('; ')
+  }
+
+  const x = toNumber(geometry.x, toNumber(object.centerX, 0)) * metrics.baseScale
+  const y = toNumber(geometry.y, toNumber(object.centerY, 0)) * metrics.baseScale
+  if (object.geometryType === 'point') {
+    const size = 22
+    return [
+      `left: ${Math.round(x - size / 2)}px`,
+      `top: ${Math.round(y - size / 2)}px`,
+      `width: ${size}px`,
+      `height: ${size}px`,
+    ].join('; ')
+  }
+
+  const width = Math.max(12, toPositiveNumber(geometry.width, 80) * metrics.baseScale)
+  const height = Math.max(12, toPositiveNumber(geometry.height, 50) * metrics.baseScale)
+  return [
+    `left: ${Math.round(x)}px`,
+    `top: ${Math.round(y)}px`,
+    `width: ${Math.round(width)}px`,
+    `height: ${Math.round(height)}px`,
+  ].join('; ')
+}
+
+function polygonDomPoints(geometry = {}, bounds = calculatePolygonBounds(geometry)) {
+  const points = Array.isArray(geometry.points) ? geometry.points : []
+  const width = Math.max(1, bounds.maxX - bounds.minX)
+  const height = Math.max(1, bounds.maxY - bounds.minY)
+  return points
+    .map((point) => {
+      const x = ((toNumber(point.x, 0) - bounds.minX) / width) * 100
+      const y = ((toNumber(point.y, 0) - bounds.minY) / height) * 100
+      return `${x.toFixed(2)}% ${y.toFixed(2)}%`
+    })
+    .join(', ')
+}
+
+function mapDomObjectClasses(object) {
+  return [
+    'map-dom-object',
+    object.geometryType || 'rect',
+    object.layer === 'booth' ? 'booth' : 'poi',
+    {
+      active: selectedObjectId.value === objectIdentity(object),
+      verified: object.displayLevel === 'highlight' || object.isVerifiedMerchant,
+      weak: object.displayLevel === 'weak',
+    },
+  ]
 }
 
 function objectDisplayLabel(object) {
@@ -1754,11 +1856,8 @@ function clampNumber(value, min, max) {
   position: absolute;
   top: 0;
   left: 0;
+  z-index: 0;
   overflow: hidden;
-}
-
-.map-background-layer.hidden {
-  opacity: 0;
 }
 
 .map-background-image {
@@ -1767,6 +1866,57 @@ function clampNumber(value, min, max) {
   left: 0;
   width: 100%;
   height: 100%;
+}
+
+.map-dom-object {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid $wplink-primary;
+  border-radius: 6px;
+  background: rgba($wplink-primary, 0.2);
+  color: $wplink-primary;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.map-dom-object text {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 3px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-dom-object.point {
+  border: 3px solid #fff;
+  border-radius: 999px;
+  background: $wplink-warning;
+  box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.42), 0 6px 14px rgba(15, 23, 42, 0.22);
+}
+
+.map-dom-object.polygon {
+  border-radius: 0;
+}
+
+.map-dom-object.verified {
+  border-color: $wplink-success;
+  background: rgba($wplink-success, 0.24);
+  color: #17653a;
+}
+
+.map-dom-object.weak {
+  opacity: 0.84;
+}
+
+.map-dom-object.active {
+  border-color: $wplink-success;
+  box-shadow: 0 0 0 4px rgba($wplink-success, 0.2);
 }
 
 .map-canvas {

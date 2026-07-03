@@ -86,7 +86,11 @@ export function createSourcingMapRenderer(options = {}) {
       drawSelectedOutline(ctx, selectedObject, metrics)
     }
 
-    drawCanvas(ctx)
+    drawCanvas(ctx, () => {
+      if (typeof renderOptions.onDrawComplete === 'function') {
+        renderOptions.onDrawComplete({ backgroundDrawn })
+      }
+    })
     return true
   }
 
@@ -435,9 +439,13 @@ function truncateLabel(label, maxWidth, fontSize) {
   return text.length > maxChars ? `${text.slice(0, maxChars)}...` : text
 }
 
-function drawCanvas(ctx) {
+function drawCanvas(ctx, callback) {
   if (typeof ctx.draw === 'function') {
-    ctx.draw(false)
+    ctx.draw(false, callback)
+    return
+  }
+  if (typeof callback === 'function') {
+    callback()
   }
 }
 

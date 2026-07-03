@@ -166,3 +166,47 @@ test('renderer notifies asset readiness when native image info fails so overlays
     globalThis.uni = originalUni
   }
 })
+
+test('renderer reports background readiness after the canvas draw callback completes', () => {
+  const operations = []
+  const originalUni = globalThis.uni
+  let drawCallback = null
+  globalThis.uni = {
+    createCanvasContext() {
+      return {
+        ...createMockContext(operations),
+        draw(reserve, callback) {
+          operations.push({ type: 'draw', args: [reserve] })
+          drawCallback = callback
+        },
+      }
+    },
+    getImageInfo(request) {
+      request.success({ path: '/tmp/base.png' })
+      request.complete()
+    },
+  }
+
+  try {
+    const renderer = createSourcingMapRenderer()
+    assert.equal(renderer.init({ canvasId: 'sourcingMapCanvas', width: 400, height: 200 }), true)
+    renderer.setScene({ width: 1000, height: 500, backgroundUrl: 'https://cdn.test/base.png' })
+    let drawCompletePayload = null
+    renderer.render({ scale: 1, offsetX: 0, offsetY: 0 }, {
+      width: 400,
+      height: 200,
+      baseScale: 0.4,
+      drawBackground: 'whenReady',
+      onDrawComplete(payload) {
+        drawCompletePayload = payload
+      },
+    })
+
+    assert.equal(drawCompletePayload, null)
+    assert.equal(typeof drawCallback, 'function')
+    drawCallback()
+    assert.deepEqual(drawCompletePayload, { backgroundDrawn: true })
+  } finally {
+    globalThis.uni = originalUni
+  }
+})

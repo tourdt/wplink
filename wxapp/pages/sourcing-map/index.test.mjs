@@ -163,34 +163,54 @@ test('sourcing map page uses canvas for map gestures instead of movable dom poin
   assert.doesNotMatch(source, /v-for="entry in rectAndPointObjects"/)
 })
 
-test('sourcing map keeps the native base image as a fallback under the canvas layer', () => {
+test('sourcing map renders DOM object markers as a stable fallback over the base image', () => {
+  expectTokens(source, [
+    'map-dom-object',
+    'mapDomObjectStyle',
+    'mapDomObjectClasses',
+    'polygonDomPoints',
+    'v-for="object in mapObjects"',
+    ':style="mapDomObjectStyle(object)"',
+    ':class="mapDomObjectClasses(object)"',
+  ])
+  assert.match(source, /<view class="map-layer" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*v-for="object in mapObjects"[\s\S]*<\/view>\s*<canvas/)
+  assert.match(source, /function mapDomObjectStyle\(object\)[\s\S]*metrics\.baseScale/)
+  assert.match(source, /\.map-dom-object\s*\{[\s\S]*position: absolute[\s\S]*pointer-events: none/)
+  assert.match(source, /\.map-dom-object\.point/)
+  assert.match(source, /\.map-dom-object\.active/)
+})
+
+test('sourcing map keeps the native base image permanently visible under the canvas overlay', () => {
   expectTokens(source, [
     'map-background-layer',
     'map-background-image',
     ':src="selectedSceneBackground"',
     ':style="mapBackgroundStyle"',
-    'drawBackground: \'whenReady\'',
-    'hasRenderedBackground',
+    'drawBackground: false',
   ])
   assert.match(source, /:class="\['map-canvas', \{ ready: mapCanvasOverlayReady \}\]"/)
-  assert.match(source, /const backgroundRendered = Boolean\(mapRenderer\.hasRenderedBackground\?\.\(\)\)/)
+  assert.doesNotMatch(source, /hidden: mapCanvasBackgroundReady/)
+  assert.doesNotMatch(source, /mapCanvasBackgroundReady/)
+  assert.doesNotMatch(source, /drawBackground: 'whenReady'/)
   assert.match(source, /\.map-background-layer\s*\{[\s\S]*position: absolute[\s\S]*inset: 0/)
   assert.match(source, /\.map-background-image\s*\{[\s\S]*position: absolute[\s\S]*width: 100%[\s\S]*height: 100%/)
   assert.match(source, /\.map-canvas\s*\{[\s\S]*position: absolute[\s\S]*inset: 0/)
   assert.match(source, /\.map-canvas\.ready\s*\{[\s\S]*opacity: 1/)
 })
 
-test('sourcing map keeps canvas hidden until the base image is actually rendered on canvas', () => {
+test('sourcing map shows the canvas overlay as soon as render is queued', () => {
   expectTokens(source, [
     'mapCanvasOverlayReady',
     ':class="[\'map-canvas\', { ready: mapCanvasOverlayReady }]"',
-    ':class="[\'map-background-layer\', { hidden: mapCanvasBackgroundReady }]"',
-    'const backgroundRendered = Boolean(mapRenderer.hasRenderedBackground?.())',
-    'mapCanvasOverlayReady.value = backgroundRendered',
-    'mapCanvasBackgroundReady.value = backgroundRendered',
+    'drawBackground: false',
+    'mapCanvasOverlayReady.value = true',
   ])
-  assert.doesNotMatch(source, /:class="\['map-canvas', \{ ready: mapCanvasBackgroundReady \}\]"/)
-  assert.doesNotMatch(source, /mapCanvasOverlayReady\.value = true/)
+  const renderMapCanvas = extractFunction('renderMapCanvas')
+  assert.match(renderMapCanvas, /if \(!rendered\) \{[\s\S]*return\s*\}\s*mapCanvasOverlayReady\.value = true/)
+  assert.doesNotMatch(source, /onDrawComplete/)
+  assert.doesNotMatch(source, /mapCanvasRenderSeq/)
+  assert.doesNotMatch(source, /backgroundDrawn/)
+  assert.doesNotMatch(source, /mapCanvasBackgroundReady/)
 })
 
 test('sourcing map keeps fallback map and viewport canvas sizes explicit', () => {
@@ -201,7 +221,7 @@ test('sourcing map keeps fallback map and viewport canvas sizes explicit', () =>
     'buildMapCanvasPixelSize',
     ':width="mapCanvasPixelSize.width"',
     ':height="mapCanvasPixelSize.height"',
-    'drawBackground: \'whenReady\'',
+    'drawBackground: false',
   ])
   assert.match(source, /const mapLayerPixelSize = computed\(\(\) => buildMapLayerPixelSize\(\)\)/)
   assert.match(source, /const mapCanvasPixelSize = computed\(\(\) => buildMapCanvasPixelSize\(\)\)/)
@@ -215,7 +235,7 @@ test('sourcing map renders the active transform inside a viewport-sized canvas',
     'buildMapCanvasPixelSize',
     ':width="mapCanvasPixelSize.width"',
     ':height="mapCanvasPixelSize.height"',
-    'mapCanvasBackgroundReady',
+    'drawBackground: false',
     'renderMapCanvas({ force: true, interacting: true })',
   ])
   assert.match(source, /<view class="map-layer" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
@@ -488,6 +508,17 @@ test('sourcing map reloads viewport objects after programmatic focus changes', (
   const focusHandler = extractFunction('focusMapCenter')
   assert.match(focusHandler, /setMapTransform\(nextTransform\)/)
   assert.match(focusHandler, /scheduleViewportObjectReload\(\)/)
+})
+
+test('sourcing map centers the only loaded object so a single result is visible', () => {
+  expectTokens(source, [
+    'focusSingleObjectAfterLoad',
+    'mapObjects.value.length !== 1',
+    'selectedObjectId.value',
+    'focusMapObject(mapObjects.value[0], { reloadViewport: false })',
+  ])
+  assert.match(source, /function loadSceneObjects\(options = \{\}\)[\s\S]*syncSelectedObjectAfterLoad\(\)[\s\S]*focusSingleObjectAfterLoad\(\)/)
+  assert.match(source, /function focusMapObject\(object,\s*options = \{\}\)[\s\S]*focusMapCenter\(calculateObjectCenter\(object\),\s*options\)/)
 })
 
 test('sourcing map uses dropship as the canonical one-piece shipping tag with legacy alias support', () => {
