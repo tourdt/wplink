@@ -184,6 +184,11 @@ type AdminListMapObjectsReq struct {
 	Types   string `form:"types,optional"`
 	Status  string `form:"status,optional"`
 	Keyword string `form:"keyword,optional"`
+	MinX    string `form:"minX,optional"`
+	MinY    string `form:"minY,optional"`
+	MaxX    string `form:"maxX,optional"`
+	MaxY    string `form:"maxY,optional"`
+	Zoom    int64  `form:"zoom,optional"`
 }
 
 type AdminListMapScenesReq struct {
@@ -874,6 +879,11 @@ type ListMapObjectsReq struct {
 	ServiceTags    string `form:"serviceTags,optional"`
 	PoiServiceTags string `form:"poiServiceTags,optional"`
 	Keyword        string `form:"keyword,optional"`
+	MinX           string `form:"minX,optional"`
+	MinY           string `form:"minY,optional"`
+	MaxX           string `form:"maxX,optional"`
+	MaxY           string `form:"maxY,optional"`
+	Zoom           int64  `form:"zoom,optional"`
 }
 
 type ListMapObjectsResp struct {
@@ -1349,6 +1359,11 @@ type SearchMapObjectsReq struct {
 	Categories     string `form:"categories,optional"`
 	ServiceTags    string `form:"serviceTags,optional"`
 	PoiServiceTags string `form:"poiServiceTags,optional"`
+	MinX           string `form:"minX,optional"`
+	MinY           string `form:"minY,optional"`
+	MaxX           string `form:"maxX,optional"`
+	MaxY           string `form:"maxY,optional"`
+	Zoom           int64  `form:"zoom,optional"`
 	Limit          int64  `form:"limit,optional"`
 }
 

@@ -719,7 +719,7 @@ const serviceTagOptions = [
   { label: '现货', value: 'spot' },
   { label: '源头工厂', value: 'factory' },
   { label: '支持打样', value: 'sample' },
-  { label: '一件代发', value: 'drop_shipping' },
+  { label: '一件代发', value: 'dropship' },
   { label: '可小单', value: 'small_order' },
   { label: '支持混批', value: 'mixed_batch' },
 ]

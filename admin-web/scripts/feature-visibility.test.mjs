@@ -228,6 +228,13 @@ test('sourcing map admin can maintain object tags and poi detail fields', () => 
   assert.match(viewSource, /extra:\s*normalizedExtra\(\)/)
 })
 
+test('sourcing map admin uses dropship as canonical one-piece shipping tag', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+
+  assert.match(viewSource, /\{ label: '一件代发', value: 'dropship' \}/)
+  assert.doesNotMatch(viewSource, /\{ label: '一件代发', value: 'drop_shipping' \}/)
+})
+
 test('sourcing map object upload form hides advanced controls and adapts by type', () => {
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
 

@@ -79,46 +79,43 @@
           <button class="map-service-button" :disabled="loading || objectLoading" @click="refreshCurrentMapData">刷新</button>
           <button class="map-service-button" @click="resetMapViewport">归位</button>
         </view>
-        <movable-area class="map-gesture-area">
-          <movable-view
-            class="map-movable"
-            direction="all"
-            scale
-            inertia
-            :scale-min="MAP_MIN_SCALE"
-            :scale-max="MAP_MAX_SCALE"
-            :scale-value="mapScale"
-            :x="mapMoveX"
-            :y="mapMoveY"
-            :style="movableStageStyle"
-            @change="handleMapMove"
-            @scale="handleMapScale"
-          >
-            <view class="map-stage" :style="stageStyle">
-              <image class="map-background" :src="selectedSceneBackground" mode="aspectFill" />
-              <view
-                v-for="object in polygonObjects"
-                :key="`${object.id || object.code}-polygon`"
-                :class="objectDisplayClasses(object, 'map-polygon')"
-                :style="polygonObjectStyle(object)"
-                @click="selectMapObject(object)"
-              >
-                <text>{{ objectDisplayLabel(object) }}</text>
-                <text v-if="object.isVerifiedMerchant" class="verified-map-badge">认证</text>
-              </view>
-              <button
-                v-for="object in rectAndPointObjects"
-                :key="object.id || object.code"
-                :class="objectDisplayClasses(object, 'map-object')"
-                :style="objectStyle(object)"
-                @click="selectMapObject(object)"
-              >
-                <text>{{ objectDisplayLabel(object) }}</text>
-                <text v-if="object.isVerifiedMerchant" class="verified-map-badge">认证</text>
-              </button>
+        <view
+          class="map-canvas-shell"
+          :style="mapCanvasStyle"
+          @touchstart="handleCanvasTouchStart"
+          @touchmove.stop.prevent="handleCanvasTouchMove"
+          @touchend="handleCanvasTouchEnd"
+          @touchcancel="handleCanvasTouchCancel"
+        >
+          <view class="map-layer" :style="mapLayerStyle">
+            <view :class="['map-background-layer', { hidden: mapCanvasBackgroundReady }]" :style="mapLayerSurfaceStyle">
+              <image
+                class="map-background-image"
+                :src="selectedSceneBackground"
+                :style="mapBackgroundStyle"
+                mode="scaleToFill"
+              />
             </view>
-          </movable-view>
-        </movable-area>
+          </view>
+          <canvas
+            id="sourcingMapCanvas"
+            canvas-id="sourcingMapCanvas"
+            :class="['map-canvas', { ready: mapCanvasOverlayReady }]"
+            :width="mapCanvasPixelSize.width"
+            :height="mapCanvasPixelSize.height"
+            :style="mapCanvasSurfaceStyle"
+            @tap="handleCanvasTap"
+          />
+          <view v-if="boundaryHintEdges.length" class="map-boundary-hints">
+            <view v-if="boundaryHintEdges.includes('left')" class="map-edge-hint left" />
+            <view v-if="boundaryHintEdges.includes('right')" class="map-edge-hint right" />
+            <view v-if="boundaryHintEdges.includes('top')" class="map-edge-hint top" />
+            <view v-if="boundaryHintEdges.includes('bottom')" class="map-edge-hint bottom" :style="bottomEdgeHintStyle" />
+          </view>
+          <view v-if="canvasErrorText" class="map-canvas-error">
+            <text>{{ canvasErrorText }}</text>
+          </view>
+        </view>
       </view>
 
       <view class="result-panel">
@@ -187,8 +184,8 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app'
+import { computed, getCurrentInstance, nextTick, onUnmounted, ref, watch } from 'vue'
+import { onLoad, onReady } from '@dcloudio/uni-app'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import {
   getMapObject,
@@ -199,14 +196,20 @@ import {
   listNearbyPois,
   searchMapObjects,
 } from '../../api/sourcingMap'
+import { createSourcingMapRenderer } from './canvasRenderer'
+import { createInitialTransform, endGesture, moveGesture, screenToMap, startGesture } from './mapGesture'
+import { hitTestMapObjects } from './mapHitTest'
 
-const MAP_MAX_WIDTH_RPX = 690
+const MAP_MAX_WIDTH_RPX = 750
 const MAP_VIEWPORT_WIDTH_RPX = MAP_MAX_WIDTH_RPX
-const MAP_VIEWPORT_HEIGHT_RPX = 720
+const MAP_VIEWPORT_HEIGHT_RPX = 1000
+const MAP_MIN_VIEWPORT_HEIGHT_RPX = 760
+const MAP_TOP_CHROME_HEIGHT_RPX = 176
 const MAP_MIN_SCALE = 1
 const MAP_MAX_SCALE = 3
+const MAP_EDGE_FEEDBACK_PADDING_PX = 40
 const VIEWPORT_PADDING_RATIO = 0.35
-const VIEWPORT_RELOAD_DELAY_MS = 220
+const VIEWPORT_RELOAD_DELAY_MS = 520
 const DEFAULT_SCENE_NAME = '织里童装拿货地图'
 const defaultLabelDictionary = {
   girl: '女童',
@@ -221,6 +224,7 @@ const defaultLabelDictionary = {
   spot: '现货',
   factory: '源头工厂',
   sample: '支持打样',
+  dropship: '一件代发',
   drop_shipping: '一件代发',
   mixed_batch: '支持混批',
   verified: '实地认证',
@@ -242,6 +246,12 @@ const defaultLabelDictionary = {
   sf: '顺丰',
   bulk_shipping: '批量发货',
 }
+const tagAliases = {
+  serviceTags: {
+    dropship: ['dropship', 'drop_shipping'],
+    drop_shipping: ['dropship', 'drop_shipping'],
+  },
+}
 const defaultFilterGroups = [
   {
     key: 'categories',
@@ -262,7 +272,7 @@ const defaultFilterGroups = [
       { label: '现货', value: 'spot' },
       { label: '源头工厂', value: 'factory' },
       { label: '支持打样', value: 'sample' },
-      { label: '一件代发', value: 'drop_shipping' },
+      { label: '一件代发', value: 'dropship' },
     ],
   },
   {
@@ -301,14 +311,28 @@ const mapCategories = ref([])
 const selectedObject = ref(null)
 const selectedObjectId = ref('')
 const nearbyPois = ref([])
-const mapScale = ref(1)
-const mapMoveX = ref(0)
-const mapMoveY = ref(0)
+const mapTransform = ref({ scale: 1, offsetX: 0, offsetY: 0 })
+const mapViewportSize = ref({ width: 375, height: 500 })
+const mapViewportHeightRpx = ref(MAP_VIEWPORT_HEIGHT_RPX)
+const mapSafeAreaBottomPx = ref(0)
+const mapCanvasBackgroundReady = ref(false)
+const mapCanvasOverlayReady = ref(false)
+const canvasShellRect = ref({ left: 0, top: 0 })
+const canvasErrorText = ref('')
+const boundaryHintEdges = ref([])
 const categoryLabels = ref({ ...defaultLabelDictionary })
 const activeFilters = ref(defaultActiveFilters())
 const filtersExpanded = ref(false)
 const sceneErrorText = ref('地图数据发布后可在这里查看档口和配套点位。')
+const componentInstance = getCurrentInstance()
 let viewportReloadTimer = null
+let canvasGestureState = null
+let suppressNextCanvasTap = false
+let mapRenderer = null
+let viewportObjectsCache = new Map()
+// 视口懒加载和搜索/筛选可能并发，只应用最后一次点位请求，避免旧视野覆盖新视野。
+let objectRequestSeq = 0
+let visibleObjectRequestSeq = 0
 
 const selectedSceneName = computed(() => selectedScene.value ? selectedScene.value.name : DEFAULT_SCENE_NAME)
 const selectedSceneBackground = computed(() => selectedScene.value ? selectedScene.value.backgroundUrl : '')
@@ -334,23 +358,19 @@ const activeFilterSummary = computed(() => {
   if (hasActiveFilters.value) parts.push(`筛选 ${activeFilterCount.value} 项`)
   return parts.join(' · ')
 })
-const stageScale = computed(() => {
-  const width = toPositiveNumber(selectedScene.value?.width, MAP_MAX_WIDTH_RPX)
-  return Math.min(1, MAP_MAX_WIDTH_RPX / width)
-})
-const renderStageScale = computed(() => stageScale.value)
-const effectiveStageScale = computed(() => stageScale.value * mapScale.value)
-const mapZoomLevel = computed(() => getZoomLevelByScale(mapScale.value))
+const mapZoomLevel = computed(() => getZoomLevelByScale(mapTransform.value.scale))
 const visibleMapObjects = computed(() => rawMapObjects.value.filter((object) => isObjectVisibleAtZoom(object, mapZoomLevel.value)))
 const mapObjects = computed(() => visibleMapObjects.value)
-const polygonObjects = computed(() => mapObjects.value.filter((object) => object.geometryType === 'polygon'))
-const rectAndPointObjects = computed(() => mapObjects.value.filter((object) => object.geometryType !== 'polygon'))
-const stageStyle = computed(() => {
-  const width = toPositiveNumber(selectedScene.value?.width, MAP_MAX_WIDTH_RPX)
-  const height = toPositiveNumber(selectedScene.value?.height, 420)
-  return `width: ${Math.round(width * renderStageScale.value)}rpx; height: ${Math.round(height * renderStageScale.value)}rpx;`
-})
-const movableStageStyle = computed(() => stageStyle.value)
+const mapCanvasStyle = computed(() => `height: ${mapViewportHeightRpx.value}rpx;`)
+const mapMinScale = computed(() => calculateMapMinScale())
+const mapLayerPixelSize = computed(() => buildMapLayerPixelSize())
+const mapCanvasPixelSize = computed(() => buildMapCanvasPixelSize())
+const mapLayerStyle = computed(() => buildMapLayerStyle())
+const mapLayerSurfaceStyle = computed(() => buildMapLayerSurfaceStyle())
+const mapCanvasSurfaceStyle = computed(() => buildMapCanvasSurfaceStyle())
+const mapBackgroundStyle = computed(() => mapLayerSurfaceStyle.value)
+const mapEdgeFeedbackPadding = computed(() => MAP_EDGE_FEEDBACK_PADDING_PX + mapSafeAreaBottomPx.value)
+const bottomEdgeHintStyle = computed(() => buildBottomEdgeHintStyle())
 const selectedObjectMerchant = computed(() => selectedObject.value?.merchant || null)
 const selectedObjectName = computed(() => selectedObject.value ? objectDisplayName(selectedObject.value) : '点位详情')
 const selectedObjectMeta = computed(() => selectedObject.value ? `${objectDisplaySourceText(selectedObject.value)} · ${objectTypeText(selectedObject.value)} · ${selectedObject.value.code || '无编号'}` : '')
@@ -383,17 +403,32 @@ const detailFields = computed(() => {
   ].filter((field) => field.value)
 })
 
+onReady(() => {
+  initCanvasRenderer()
+})
+
+onUnmounted(() => {
+  clearTimeout(viewportReloadTimer)
+  mapRenderer?.dispose()
+  mapRenderer = null
+  canvasGestureState = null
+})
+
+watch(selectedSceneBackground, () => {
+  mapCanvasBackgroundReady.value = false
+  mapCanvasOverlayReady.value = false
+})
+
+watch([selectedScene, mapObjects, selectedObject, mapViewportSize, mapTransform], () => {
+  renderMapCanvas()
+})
+
 onLoad((options = {}) => {
+  syncMapViewportSize()
   routeSceneCode.value = decodeRouteValue(options.sceneCode || '')
   keyword.value = decodeRouteValue(options.keyword || options.q || '')
   loadMapCategories()
   loadScenes()
-})
-
-onPullDownRefresh(async () => {
-  // 下拉刷新保留当前场景和关键词，让买手核对档口时不会被重置到默认地图。
-  await refreshMapData({ keepSelection: true })
-  uni.stopPullDownRefresh()
 })
 
 async function refreshMapData(options = {}) {
@@ -450,7 +485,7 @@ function buildFilterGroups(categories) {
   return defaultFilterGroups
     .map((group) => ({
       ...group,
-      items: mergeCategoryOptions(group.items, categoryOptionsByType(categories, group.type)),
+      items: mergeCategoryOptions(group.key, group.items, categoryOptionsByType(categories, group.type)),
     }))
     .filter((group) => group.items.length)
 }
@@ -462,15 +497,22 @@ function categoryOptionsByType(categories, type) {
     .map((item) => ({ label: item.name, value: item.code }))
 }
 
-function mergeCategoryOptions(defaultOptions, configuredOptions) {
+function mergeCategoryOptions(groupKey, defaultOptions, configuredOptions) {
   const seen = new Set()
   return [...configuredOptions, ...defaultOptions].filter((item) => {
-    if (!item.value || seen.has(item.value)) {
+    const normalizedValue = normalizeFilterOptionValue(groupKey, item.value)
+    if (!normalizedValue || seen.has(normalizedValue)) {
       return false
     }
-    seen.add(item.value)
+    item.value = normalizedValue
+    seen.add(normalizedValue)
     return true
   })
+}
+
+function normalizeFilterOptionValue(groupKey, value) {
+  const aliasGroup = tagAliases[groupKey] || {}
+  return aliasGroup[value]?.[0] || value
 }
 
 function isVisibleNormalCategory(item) {
@@ -483,9 +525,8 @@ async function selectScene(scene) {
   selectedObject.value = null
   selectedObjectId.value = ''
   nearbyPois.value = []
-  mapScale.value = 1
-  mapMoveX.value = 0
-  mapMoveY.value = 0
+  resetCanvasGestureState()
+  clearTimeout(viewportReloadTimer)
   try {
     const resp = await getMapScene(scene.code, { suppressErrorToast: true })
     selectedScene.value = resp.item || scene
@@ -502,9 +543,20 @@ async function loadSceneObjects(options = {}) {
     rawMapObjects.value = []
     return
   }
-  objectLoading.value = true
+  const requestId = ++objectRequestSeq
+  const showLoading = !options.silent
+  if (showLoading) {
+    visibleObjectRequestSeq = requestId
+    objectLoading.value = true
+  }
   try {
     const term = keyword.value.trim()
+    const cacheKey = term ? '' : buildViewportObjectsCacheKey()
+    if (!term && options.silent && viewportObjectsCache.has(cacheKey)) {
+      rawMapObjects.value = applyLocalFilters(viewportObjectsCache.get(cacheKey))
+      syncSelectedObjectAfterLoad()
+      renderMapCanvas()
+    }
     const resp = term
       ? await searchMapObjects({
           ...buildObjectQueryParams({ includeViewport: false }),
@@ -513,18 +565,27 @@ async function loadSceneObjects(options = {}) {
           limit: 50,
         })
       : await listMapObjects(selectedSceneCode.value, buildObjectQueryParams({ includeViewport: true }))
-    rawMapObjects.value = applyLocalFilters(resp.items || [])
+    if (requestId !== objectRequestSeq) return
+    const items = resp.items || []
+    if (!term) {
+      viewportObjectsCache.set(cacheKey, items)
+    }
+    rawMapObjects.value = applyLocalFilters(items)
     if (options.focusFirst) {
       selectFirstObjectAfterSearch()
     } else {
       syncSelectedObjectAfterLoad()
     }
   } catch {
+    if (requestId !== objectRequestSeq) return
+    if (options.silent) return
     rawMapObjects.value = []
     clearSelectedObject()
     uni.showToast({ title: '地图点位加载失败，请稍后重试', icon: 'none' })
   } finally {
-    objectLoading.value = false
+    if (showLoading && visibleObjectRequestSeq === requestId) {
+      objectLoading.value = false
+    }
   }
 }
 
@@ -538,11 +599,12 @@ async function clearSearch() {
 }
 
 async function toggleFilter(key, value) {
+  const normalizedValue = normalizeFilterOptionValue(key, value)
   const current = activeFilters.value[key] || []
-  const exists = current.includes(value)
+  const exists = current.includes(normalizedValue)
   activeFilters.value = {
     ...activeFilters.value,
-    [key]: exists ? current.filter((item) => item !== value) : [...current, value],
+    [key]: exists ? current.filter((item) => item !== normalizedValue) : [...current, normalizedValue],
   }
   await loadSceneObjects({ focusFirst: true })
 }
@@ -563,31 +625,54 @@ async function clearMapConditions() {
 }
 
 function isFilterActive(key, value) {
-  return (activeFilters.value[key] || []).includes(value)
+  return (activeFilters.value[key] || []).includes(normalizeFilterOptionValue(key, value))
 }
 
 function buildObjectQueryParams(options = {}) {
   const params = {}
-  if (activeFilters.value.types.length) params.types = activeFilters.value.types.join(',')
-  if (activeFilters.value.categories.length) params.categories = activeFilters.value.categories.join(',')
-  if (activeFilters.value.serviceTags.length) params.serviceTags = activeFilters.value.serviceTags.join(',')
-  if (activeFilters.value.poiServiceTags.length) params.poiServiceTags = activeFilters.value.poiServiceTags.join(',')
+  if (activeFilters.value.types.length) params.types = expandFilterValues('types', activeFilters.value.types).join(',')
+  if (activeFilters.value.categories.length) params.categories = expandFilterValues('categories', activeFilters.value.categories).join(',')
+  if (activeFilters.value.serviceTags.length) params.serviceTags = expandFilterValues('serviceTags', activeFilters.value.serviceTags).join(',')
+  if (activeFilters.value.poiServiceTags.length) params.poiServiceTags = expandFilterValues('poiServiceTags', activeFilters.value.poiServiceTags).join(',')
   return options.includeViewport ? { ...params, ...buildViewportQueryParams() } : params
+}
+
+function expandFilterValues(groupKey, values) {
+  const aliasGroup = tagAliases[groupKey] || {}
+  const expanded = values.flatMap((value) => aliasGroup[value] || [value])
+  return [...new Set(expanded.filter(Boolean))]
+}
+
+function buildViewportObjectsCacheKey() {
+  const viewport = buildViewportQueryParams()
+  const filterKey = Object.entries(activeFilters.value)
+    .map(([key, values]) => `${key}:${values.join('|')}`)
+    .join(';')
+  const bucketSize = 120
+  return [
+    selectedSceneCode.value,
+    viewport.zoom,
+    Math.floor(viewport.minX / bucketSize),
+    Math.floor(viewport.minY / bucketSize),
+    Math.floor(viewport.maxX / bucketSize),
+    Math.floor(viewport.maxY / bucketSize),
+    filterKey,
+  ].join(':')
 }
 
 function buildViewportQueryParams() {
   if (!selectedScene.value) return {}
-  const scale = effectiveStageScale.value || 1
-  const leftRpx = -pxToRpx(mapMoveX.value)
-  const topRpx = -pxToRpx(mapMoveY.value)
-  const visibleWidth = MAP_VIEWPORT_WIDTH_RPX / scale
-  const visibleHeight = MAP_VIEWPORT_HEIGHT_RPX / scale
+  const bounds = getVisibleSceneBounds()
+  const visibleWidth = Math.max(1, bounds.maxX - bounds.minX)
+  const visibleHeight = Math.max(1, bounds.maxY - bounds.minY)
   const paddingX = visibleWidth * VIEWPORT_PADDING_RATIO
   const paddingY = visibleHeight * VIEWPORT_PADDING_RATIO
-  const minX = clampNumber(leftRpx / scale - paddingX, 0, toPositiveNumber(selectedScene.value.width, MAP_MAX_WIDTH_RPX))
-  const minY = clampNumber(topRpx / scale - paddingY, 0, toPositiveNumber(selectedScene.value.height, 420))
-  const maxX = clampNumber(leftRpx / scale + visibleWidth + paddingX, 0, toPositiveNumber(selectedScene.value.width, MAP_MAX_WIDTH_RPX))
-  const maxY = clampNumber(topRpx / scale + visibleHeight + paddingY, 0, toPositiveNumber(selectedScene.value.height, 420))
+  const sceneWidth = toPositiveNumber(selectedScene.value.width, MAP_MAX_WIDTH_RPX)
+  const sceneHeight = toPositiveNumber(selectedScene.value.height, 420)
+  const minX = clampNumber(bounds.minX - paddingX, 0, sceneWidth)
+  const minY = clampNumber(bounds.minY - paddingY, 0, sceneHeight)
+  const maxX = clampNumber(bounds.maxX + paddingX, 0, sceneWidth)
+  const maxY = clampNumber(bounds.maxY + paddingY, 0, sceneHeight)
   return {
     minX: Math.floor(minX),
     minY: Math.floor(minY),
@@ -636,7 +721,7 @@ function applyLocalFilters(items) {
     return (
       matchesSelectedValues(item.type ? [item.type] : [], activeFilters.value.types) &&
       matchesSelectedValues(item.categoryCodes || [], activeFilters.value.categories) &&
-      matchesSelectedValues(item.serviceTags || [], activeFilters.value.serviceTags) &&
+      matchesSelectedValues(item.serviceTags || [], activeFilters.value.serviceTags, 'serviceTags') &&
       matchesSelectedValues(item.poiServiceTags || [], activeFilters.value.poiServiceTags)
     )
   })
@@ -648,32 +733,48 @@ function isObjectVisibleAtZoom(object, zoomLevel) {
   return zoomLevel >= minZoom && zoomLevel <= maxZoom
 }
 
-function matchesSelectedValues(values, selected) {
+function matchesSelectedValues(values, selected, groupKey = '') {
   if (!selected.length) return true
-  return selected.some((value) => values.includes(value))
+  const expandedSelected = expandFilterValues(groupKey, selected)
+  return expandedSelected.some((value) => values.includes(value))
 }
 
 function focusMapObject(object) {
   focusMapCenter(calculateObjectCenter(object))
 }
 
-function focusMapCenter(center) {
-  const scaledX = center.x * effectiveStageScale.value
-  const scaledY = center.y * effectiveStageScale.value
-  mapMoveX.value = Math.round(rpxToPx(MAP_VIEWPORT_WIDTH_RPX / 2 - scaledX))
-  mapMoveY.value = Math.round(rpxToPx(MAP_VIEWPORT_HEIGHT_RPX / 2 - scaledY))
+function focusMapCenter(center, options = {}) {
+  const metrics = getSceneRenderMetrics()
+  const nextTransform = {
+    ...mapTransform.value,
+    offsetX: Math.round(mapViewportSize.value.width / 2 - center.x * metrics.baseScale * mapTransform.value.scale),
+    offsetY: Math.round(mapViewportSize.value.height / 2 - center.y * metrics.baseScale * mapTransform.value.scale),
+  }
+  setMapTransform(nextTransform)
+  if (options.reloadViewport !== false) {
+    scheduleViewportObjectReload()
+  }
 }
 
 function applySceneDefaultViewport(scene) {
-  mapScale.value = normalizeSceneDefaultScale(scene?.defaultScale)
+  const metrics = getSceneRenderMetrics(scene)
+  setMapTransform(
+    createInitialTransform({
+      viewportWidth: mapViewportSize.value.width,
+      viewportHeight: mapViewportSize.value.height,
+      mapWidth: metrics.mapWidth,
+      mapHeight: metrics.mapHeight,
+      minScale: mapMinScale.value,
+      maxScale: MAP_MAX_SCALE,
+      scale: normalizeSceneDefaultScale(scene?.defaultScale),
+    }),
+  )
   const centerX = parseOptionalNumber(scene?.defaultCenterX)
   const centerY = parseOptionalNumber(scene?.defaultCenterY)
   if (centerX == null || centerY == null) {
-    mapMoveX.value = 0
-    mapMoveY.value = 0
     return
   }
-  focusMapCenter({ x: centerX, y: centerY })
+  focusMapCenter({ x: centerX, y: centerY }, { reloadViewport: false })
 }
 
 function normalizeSceneDefaultScale(value) {
@@ -682,27 +783,372 @@ function normalizeSceneDefaultScale(value) {
 
 function normalizeMapScale(value) {
   const scale = toNumber(value, 1)
-  const clamped = Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, scale))
+  const clamped = Math.min(MAP_MAX_SCALE, Math.max(mapMinScale.value, scale))
   return Number(clamped.toFixed(2))
 }
 
 function resetMapViewport() {
   if (!selectedScene.value) return
   applySceneDefaultViewport(selectedScene.value)
+  renderMapCanvas()
   scheduleViewportObjectReload()
 }
 
-function handleMapMove(event) {
-  mapMoveX.value = toNumber(event?.detail?.x, mapMoveX.value)
-  mapMoveY.value = toNumber(event?.detail?.y, mapMoveY.value)
-  scheduleViewportObjectReload()
+function handleCanvasTouchStart(event) {
+  if (canvasErrorText.value || !selectedScene.value) return
+  clearTimeout(viewportReloadTimer)
+  syncCanvasShellRect()
+  canvasGestureState = startGesture(getCanvasTouches(event), mapTransform.value, getGestureOptions())
+  boundaryHintEdges.value = []
 }
 
-function handleMapScale(event) {
-  mapScale.value = normalizeMapScale(event?.detail?.scale ?? mapScale.value)
-  mapMoveX.value = toNumber(event?.detail?.x, mapMoveX.value)
-  mapMoveY.value = toNumber(event?.detail?.y, mapMoveY.value)
-  scheduleViewportObjectReload()
+function handleCanvasTouchMove(event) {
+  if (!canvasGestureState) return
+  const result = moveGesture(canvasGestureState, getCanvasTouches(event), getGestureOptions({ allowOverflow: true }))
+  canvasGestureState = result.state
+  suppressNextCanvasTap = result.moved
+  setMapTransform(result.transform, { allowOverflow: true })
+  boundaryHintEdges.value = buildBoundaryHintEdges(result.transform)
+  renderMapCanvas({ force: true, interacting: true })
+}
+
+function handleCanvasTouchEnd() {
+  if (!canvasGestureState) return
+  const nextTransform = endGesture(canvasGestureState, getGestureOptions())
+  const moved = canvasGestureState.moved
+  canvasGestureState = null
+  boundaryHintEdges.value = []
+  setMapTransform(nextTransform)
+  renderMapCanvas()
+  if (moved) {
+    suppressNextCanvasTap = true
+    scheduleViewportObjectReload()
+    setTimeout(() => {
+      suppressNextCanvasTap = false
+    }, 120)
+  }
+}
+
+function handleCanvasTouchCancel() {
+  handleCanvasTouchEnd()
+}
+
+function handleCanvasTap(event) {
+  if (suppressNextCanvasTap || !selectedScene.value) return
+  syncCanvasShellRect()
+  const point = getCanvasEventPoint(event)
+  const scenePoint = screenToScenePoint(point)
+  const hitObject = hitTestMapObjects(mapObjects.value, scenePoint, {
+    selectedObjectId: selectedObjectId.value,
+    pointRadius: getHitTestPointRadius(),
+  })
+  if (hitObject) {
+    selectMapObject(hitObject, { focus: false })
+  }
+}
+
+function setMapTransform(transform = {}, options = {}) {
+  const nextTransform = endGesture({ transform }, getGestureOptions(options))
+  mapTransform.value = {
+    scale: normalizeMapScale(nextTransform.scale),
+    offsetX: Math.round(toNumber(nextTransform.offsetX, 0)),
+    offsetY: Math.round(toNumber(nextTransform.offsetY, 0)),
+  }
+}
+
+function resetCanvasGestureState() {
+  canvasGestureState = null
+  suppressNextCanvasTap = false
+  boundaryHintEdges.value = []
+}
+
+function syncMapViewportSize() {
+  const info = getWindowInfo()
+  mapViewportHeightRpx.value = calculateMapViewportHeightRpx(info)
+  mapSafeAreaBottomPx.value = calculateSafeAreaBottomPx(info)
+  mapViewportSize.value = {
+    width: toPositiveNumber(info?.windowWidth, rpxToPx(MAP_VIEWPORT_WIDTH_RPX)),
+    height: rpxToPx(mapViewportHeightRpx.value),
+  }
+  syncCanvasShellRect()
+  if (selectedScene.value) {
+    setMapTransform(mapTransform.value)
+  }
+}
+
+async function initCanvasRenderer() {
+  await nextTick()
+  syncCanvasShellRect()
+  mapRenderer = createSourcingMapRenderer({
+    getObjectLabel: objectDisplayLabel,
+    onAssetReady: () => {
+      renderMapCanvas({ force: true })
+    },
+  })
+  const initialized = mapRenderer.init({
+    canvasId: 'sourcingMapCanvas',
+    component: componentInstance?.proxy,
+    width: mapCanvasPixelSize.value.width,
+    height: mapCanvasPixelSize.value.height,
+  })
+  canvasErrorText.value = initialized ? '' : '地图渲染失败，请刷新后重试'
+  if (initialized) {
+    renderMapCanvas()
+  }
+}
+
+function renderMapCanvas(options = {}) {
+  if (!mapRenderer || canvasErrorText.value || !selectedScene.value) return
+  if (canvasGestureState && !options.force) return
+  const metrics = getSceneRenderMetrics()
+  mapRenderer.setScene(selectedScene.value)
+  mapRenderer.setObjects(mapObjects.value)
+  mapRenderer.setSelectedObject(selectedObject.value)
+  const rendered = mapRenderer.render(mapTransform.value, {
+    ...options,
+    drawBackground: 'whenReady',
+    width: mapCanvasPixelSize.value.width,
+    height: mapCanvasPixelSize.value.height,
+    baseScale: metrics.baseScale,
+    zoomLevel: mapZoomLevel.value,
+  })
+  if (!rendered) {
+    mapCanvasOverlayReady.value = false
+    canvasErrorText.value = '地图渲染失败，请刷新后重试'
+    return
+  }
+  const backgroundRendered = Boolean(mapRenderer.hasRenderedBackground?.())
+  mapCanvasOverlayReady.value = backgroundRendered
+  mapCanvasBackgroundReady.value = backgroundRendered
+}
+
+function buildMapLayerStyle() {
+  const size = mapLayerPixelSize.value
+  return [
+    `width: ${size.width}px`,
+    `height: ${size.height}px`,
+    `transform: translate3d(${mapTransform.value.offsetX}px, ${mapTransform.value.offsetY}px, 0) scale(${mapTransform.value.scale})`,
+  ].join('; ')
+}
+
+function buildMapLayerSurfaceStyle() {
+  const size = mapLayerPixelSize.value
+  return [
+    `width: ${size.width}px`,
+    `height: ${size.height}px`,
+  ].join('; ')
+}
+
+function buildMapCanvasSurfaceStyle() {
+  const size = mapCanvasPixelSize.value
+  return [
+    `width: ${size.width}px`,
+    `height: ${size.height}px`,
+  ].join('; ')
+}
+
+function buildMapLayerPixelSize() {
+  const metrics = getSceneRenderMetrics()
+  return {
+    width: Math.max(1, Math.round(metrics.mapWidth)),
+    height: Math.max(1, Math.round(metrics.mapHeight)),
+  }
+}
+
+function buildMapCanvasPixelSize() {
+  return {
+    width: Math.max(1, Math.round(mapViewportSize.value.width)),
+    height: Math.max(1, Math.round(mapViewportSize.value.height)),
+  }
+}
+
+function buildBottomEdgeHintStyle() {
+  const height = Math.round(rpxToPx(104) + mapSafeAreaBottomPx.value)
+  return `height: ${height}px`
+}
+
+function buildBoundaryHintEdges(transform) {
+  const options = getGestureOptions()
+  const edges = []
+  const scaledWidth = options.mapWidth * transform.scale
+  const scaledHeight = options.mapHeight * transform.scale
+  const minX = options.viewportWidth - scaledWidth
+  const minY = options.viewportHeight - scaledHeight
+  const threshold = 1
+
+  if (scaledWidth <= options.viewportWidth) {
+    const centeredX = Math.round((options.viewportWidth - scaledWidth) / 2)
+    if (transform.offsetX > centeredX + threshold) edges.push('left')
+    if (transform.offsetX < centeredX - threshold) edges.push('right')
+  } else {
+    if (transform.offsetX > threshold) edges.push('left')
+    if (transform.offsetX < minX - threshold) edges.push('right')
+  }
+  if (scaledHeight <= options.viewportHeight) {
+    const centeredY = Math.round((options.viewportHeight - scaledHeight) / 2)
+    if (transform.offsetY > centeredY + threshold) edges.push('top')
+    if (transform.offsetY < centeredY - threshold) edges.push('bottom')
+  } else {
+    if (transform.offsetY > threshold) edges.push('top')
+    if (transform.offsetY < minY - threshold) edges.push('bottom')
+  }
+  return edges
+}
+
+function getGestureOptions(extraOptions = {}) {
+  const metrics = getSceneRenderMetrics()
+  return {
+    viewportWidth: mapViewportSize.value.width,
+    viewportHeight: mapViewportSize.value.height,
+    mapWidth: metrics.mapWidth,
+    mapHeight: metrics.mapHeight,
+    minScale: mapMinScale.value,
+    maxScale: MAP_MAX_SCALE,
+    maxOverflow: mapEdgeFeedbackPadding.value,
+    ...extraOptions,
+  }
+}
+
+function getSceneRenderMetrics(scene = selectedScene.value) {
+  const sceneWidth = toPositiveNumber(scene?.width, MAP_MAX_WIDTH_RPX)
+  const sceneHeight = toPositiveNumber(scene?.height, 420)
+  const viewportWidth = toPositiveNumber(mapViewportSize.value.width, rpxToPx(MAP_VIEWPORT_WIDTH_RPX))
+  const viewportHeight = toPositiveNumber(mapViewportSize.value.height, rpxToPx(mapViewportHeightRpx.value))
+  const baseScale = Math.max(viewportWidth / sceneWidth, viewportHeight / sceneHeight)
+  return {
+    sceneWidth,
+    sceneHeight,
+    baseScale,
+    mapWidth: sceneWidth * baseScale,
+    mapHeight: sceneHeight * baseScale,
+  }
+}
+
+function calculateMapMinScale() {
+  const metrics = getSceneRenderMetrics()
+  const viewportWidth = toPositiveNumber(mapViewportSize.value.width, rpxToPx(MAP_VIEWPORT_WIDTH_RPX))
+  const viewportHeight = toPositiveNumber(mapViewportSize.value.height, rpxToPx(mapViewportHeightRpx.value))
+  const fitScale = Math.min(viewportWidth / metrics.mapWidth, viewportHeight / metrics.mapHeight)
+  const normalizedScale = Math.min(MAP_MIN_SCALE, toPositiveNumber(fitScale, MAP_MIN_SCALE))
+  return Math.max(0.01, Math.floor(normalizedScale * 100) / 100)
+}
+
+function getVisibleSceneBounds() {
+  const metrics = getSceneRenderMetrics()
+  const topLeft = screenToMap({ x: 0, y: 0 }, mapTransform.value)
+  const bottomRight = screenToMap(
+    { x: mapViewportSize.value.width, y: mapViewportSize.value.height },
+    mapTransform.value,
+  )
+  const minBaseX = Math.min(topLeft.x, bottomRight.x)
+  const maxBaseX = Math.max(topLeft.x, bottomRight.x)
+  const minBaseY = Math.min(topLeft.y, bottomRight.y)
+  const maxBaseY = Math.max(topLeft.y, bottomRight.y)
+  return {
+    minX: clampNumber(minBaseX / metrics.baseScale, 0, metrics.sceneWidth),
+    minY: clampNumber(minBaseY / metrics.baseScale, 0, metrics.sceneHeight),
+    maxX: clampNumber(maxBaseX / metrics.baseScale, 0, metrics.sceneWidth),
+    maxY: clampNumber(maxBaseY / metrics.baseScale, 0, metrics.sceneHeight),
+  }
+}
+
+function screenToScenePoint(point) {
+  const metrics = getSceneRenderMetrics()
+  const mapPoint = screenToMap(point, mapTransform.value)
+  return {
+    x: mapPoint.x / metrics.baseScale,
+    y: mapPoint.y / metrics.baseScale,
+  }
+}
+
+function getHitTestPointRadius() {
+  const metrics = getSceneRenderMetrics()
+  return 28 / Math.max(0.1, metrics.baseScale * mapTransform.value.scale)
+}
+
+function getCanvasTouches(event) {
+  return Array.from(event?.touches || []).map((touch, index) => ({
+    identifier: touch.identifier ?? index,
+    ...normalizeCanvasPoint({
+      x: toNumber(touch.clientX ?? touch.x, 0),
+      y: toNumber(touch.clientY ?? touch.y, 0),
+    }),
+  }))
+}
+
+function getCanvasEventPoint(event) {
+  const detail = event?.detail || {}
+  const touch = event?.changedTouches?.[0] || event?.touches?.[0] || {}
+  if (detail.x != null && detail.y != null) {
+    return {
+      x: toNumber(detail.x, 0),
+      y: toNumber(detail.y, 0),
+    }
+  }
+  const touchPoint = {
+    x: toNumber(touch.clientX ?? touch.x, 0),
+    y: toNumber(touch.clientY ?? touch.y, 0),
+  }
+  return normalizeCanvasPoint(touchPoint)
+}
+
+function normalizeCanvasPoint(point = {}) {
+  return {
+    clientX: toNumber(point.x, 0) - canvasShellRect.value.left,
+    clientY: toNumber(point.y, 0) - canvasShellRect.value.top,
+    x: toNumber(point.x, 0) - canvasShellRect.value.left,
+    y: toNumber(point.y, 0) - canvasShellRect.value.top,
+  }
+}
+
+function syncCanvasShellRect() {
+  if (typeof uni === 'undefined' || typeof uni.createSelectorQuery !== 'function') return
+  const query = uni.createSelectorQuery()
+  const scopedQuery = typeof query.in === 'function' ? query.in(componentInstance?.proxy) : query
+  scopedQuery
+    .select('.map-canvas-shell')
+    .boundingClientRect((rect) => {
+      if (!rect) return
+      canvasShellRect.value = {
+        left: toNumber(rect.left, 0),
+        top: toNumber(rect.top, 0),
+      }
+    })
+    .exec()
+}
+
+function getWindowInfo() {
+  if (typeof uni === 'undefined') return null
+  if (typeof uni.getWindowInfo === 'function') {
+    return uni.getWindowInfo()
+  }
+  if (typeof uni.getSystemInfoSync === 'function') {
+    return uni.getSystemInfoSync()
+  }
+  return null
+}
+
+function calculateMapViewportHeightRpx(info) {
+  const windowHeight = toPositiveNumber(info?.windowHeight, 0)
+  const windowWidth = toPositiveNumber(info?.windowWidth, 0)
+  if (!windowHeight || !windowWidth) {
+    return MAP_VIEWPORT_HEIGHT_RPX
+  }
+  const windowHeightRpx = (windowHeight / windowWidth) * MAP_MAX_WIDTH_RPX
+  return Math.max(MAP_MIN_VIEWPORT_HEIGHT_RPX, Math.round(windowHeightRpx - MAP_TOP_CHROME_HEIGHT_RPX))
+}
+
+function calculateSafeAreaBottomPx(info) {
+  const insetFromWindow = toNumber(info?.safeAreaInsets?.bottom, null)
+  if (insetFromWindow != null) {
+    return clampNumber(Math.round(insetFromWindow), 0, 80)
+  }
+  const screenHeight = toPositiveNumber(info?.screenHeight, 0)
+  const safeAreaBottom = toPositiveNumber(info?.safeArea?.bottom, 0)
+  if (!screenHeight || !safeAreaBottom) {
+    return 0
+  }
+  return clampNumber(Math.round(screenHeight - safeAreaBottom), 0, 80)
 }
 
 function scheduleViewportObjectReload() {
@@ -710,8 +1156,9 @@ function scheduleViewportObjectReload() {
     return
   }
   clearTimeout(viewportReloadTimer)
+  // 拖动/缩放后静默补齐当前视口点位，不打断买手正在查看的列表和地图状态。
   viewportReloadTimer = setTimeout(async () => {
-    await loadSceneObjects({ keepSelection: true })
+    await loadSceneObjects({ keepSelection: true, silent: true })
   }, VIEWPORT_RELOAD_DELAY_MS)
 }
 
@@ -829,76 +1276,6 @@ function buildNavigationPayload(object) {
   }
 }
 
-function objectStyle(object) {
-  const geometry = object.geometry || {}
-  const scale = renderStageScale.value
-  const x = toNumber(geometry.x, toNumber(object.centerX, 0)) * scale
-  const y = toNumber(geometry.y, toNumber(object.centerY, 0)) * scale
-  if (object.geometryType === 'point') {
-    return `left: ${Math.max(0, Math.round(x - 14))}rpx; top: ${Math.max(0, Math.round(y - 14))}rpx; width: 28rpx; height: 28rpx;`
-  }
-  const width = toPositiveNumber(geometry.width, 80) * scale
-  const height = toPositiveNumber(geometry.height, 50) * scale
-  return `left: ${Math.round(x)}rpx; top: ${Math.round(y)}rpx; width: ${Math.round(width)}rpx; height: ${Math.round(height)}rpx;`
-}
-
-function polygonObjectStyle(object) {
-  const geometry = object.geometry || {}
-  const bounds = calculatePolygonBounds(geometry)
-  const scale = renderStageScale.value
-  const width = Math.max(1, Math.round((bounds.maxX - bounds.minX) * scale))
-  const height = Math.max(1, Math.round((bounds.maxY - bounds.minY) * scale))
-  return [
-    `left: ${Math.round(bounds.minX * scale)}rpx`,
-    `top: ${Math.round(bounds.minY * scale)}rpx`,
-    `width: ${width}rpx`,
-    `height: ${height}rpx`,
-    `clip-path: polygon(${polygonStagePoints(object)})`,
-    `-webkit-clip-path: polygon(${polygonStagePoints(object)})`,
-  ].join('; ')
-}
-
-function polygonStagePoints(object) {
-  const geometry = object.geometry || {}
-  const points = Array.isArray(geometry.points) ? geometry.points : []
-  if (!points.length) return '0% 0%, 100% 0%, 100% 100%'
-  const bounds = calculatePolygonBounds(geometry)
-  const width = Math.max(1, bounds.maxX - bounds.minX)
-  const height = Math.max(1, bounds.maxY - bounds.minY)
-  return points
-    .map((point) => {
-      const x = ((toNumber(point.x, 0) - bounds.minX) / width) * 100
-      const y = ((toNumber(point.y, 0) - bounds.minY) / height) * 100
-      return `${x.toFixed(2)}% ${y.toFixed(2)}%`
-    })
-    .join(', ')
-}
-
-function calculatePolygonBounds(geometry = {}) {
-  const points = Array.isArray(geometry.points) ? geometry.points : []
-  if (!points.length) {
-    return { minX: 0, minY: 0, maxX: 1, maxY: 1 }
-  }
-  return points.reduce(
-    (bounds, point) => {
-      const x = toNumber(point.x, 0)
-      const y = toNumber(point.y, 0)
-      return {
-        minX: Math.min(bounds.minX, x),
-        minY: Math.min(bounds.minY, y),
-        maxX: Math.max(bounds.maxX, x),
-        maxY: Math.max(bounds.maxY, y),
-      }
-    },
-    {
-      minX: toNumber(points[0].x, 0),
-      minY: toNumber(points[0].y, 0),
-      maxX: toNumber(points[0].x, 0),
-      maxY: toNumber(points[0].y, 0),
-    },
-  )
-}
-
 function objectDisplayLabel(object) {
   if (object.geometryType === 'point') return ''
   if (mapZoomLevel.value < 4) return object.code || ''
@@ -912,18 +1289,6 @@ function objectDisplayName(object) {
 
 function objectDisplaySourceText(object) {
   return object?.displaySource === 'verified_merchant' || object?.isVerifiedMerchant ? '认证商户' : '后台点位'
-}
-
-function objectDisplayClasses(object, baseClass) {
-  return [
-    baseClass,
-    object.layer === 'booth' ? 'booth' : 'poi',
-    {
-      active: selectedObjectId.value === objectIdentity(object),
-      verified: object.displayLevel === 'highlight' || object.isVerifiedMerchant,
-      weak: object.displayLevel === 'weak',
-    },
-  ]
 }
 
 function objectRowClasses(object) {
@@ -1049,8 +1414,12 @@ function clampNumber(value, min, max) {
 
 <style lang="scss" scoped>
 .sourcing-map-page {
+  box-sizing: border-box;
+  width: 100vw;
+  max-width: 100vw;
   min-height: 100vh;
-  padding: 18rpx 20rpx 28rpx;
+  overflow-x: hidden;
+  padding: 0 0 28rpx;
   background: $wplink-bg;
 }
 
@@ -1077,7 +1446,6 @@ function clampNumber(value, min, max) {
 .close-button::after,
 .scene-tab::after,
 .filter-chip::after,
-.map-object::after,
 .object-row::after,
 .nearby-row::after {
   border: 0;
@@ -1096,7 +1464,8 @@ function clampNumber(value, min, max) {
 .search-panel {
   display: grid;
   gap: 12rpx;
-  margin-bottom: 16rpx;
+  box-sizing: border-box;
+  margin: 16rpx 20rpx 12rpx;
   padding: 16rpx;
 }
 
@@ -1166,6 +1535,8 @@ function clampNumber(value, min, max) {
 }
 
 .compact-filter-row {
+  width: 100%;
+  min-width: 0;
   white-space: nowrap;
 }
 
@@ -1186,6 +1557,8 @@ function clampNumber(value, min, max) {
 }
 
 .filter-options {
+  width: 100%;
+  min-width: 0;
   white-space: nowrap;
 }
 
@@ -1245,6 +1618,8 @@ function clampNumber(value, min, max) {
 }
 
 .scene-tabs {
+  width: 100%;
+  min-width: 0;
   white-space: nowrap;
 }
 
@@ -1268,6 +1643,7 @@ function clampNumber(value, min, max) {
 }
 
 .state-card {
+  margin: 0 20rpx;
   display: grid;
   gap: 14rpx;
   padding: 40rpx 32rpx;
@@ -1288,11 +1664,20 @@ function clampNumber(value, min, max) {
 .map-content {
   display: grid;
   gap: 18rpx;
+  width: 100vw;
+  max-width: 100vw;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .map-card {
   position: relative;
+  box-sizing: border-box;
+  width: 100vw;
+  max-width: 100vw;
   overflow: hidden;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .result-head text:last-child {
@@ -1346,118 +1731,133 @@ function clampNumber(value, min, max) {
   box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.14);
 }
 
-.map-gesture-area {
-  width: 100%;
-  height: 76vh;
+.map-canvas-shell {
+  position: relative;
+  width: 100vw;
+  max-width: 100vw;
   min-height: 760rpx;
-  max-height: 1080rpx;
+  max-height: none;
   overflow: hidden;
   background: #eef3f8;
+  touch-action: none;
 }
 
-.map-movable {
-  min-width: 320rpx;
-  min-height: 240rpx;
-}
-
-.map-stage {
-  position: relative;
-  min-width: 320rpx;
-  min-height: 240rpx;
-  overflow: hidden;
-  background: #e8eef5;
-}
-
-.map-background {
+.map-layer {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.map-background-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+}
+
+.map-background-layer.hidden {
+  opacity: 0;
+}
+
+.map-background-image {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
 }
 
-.map-object {
+.map-canvas {
   position: absolute;
+  top: 0;
+  left: 0;
   z-index: 2;
-  display: flex;
-  gap: 3rpx;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0 4rpx;
-  border: 3rpx solid $wplink-primary;
-  border-radius: 6rpx;
-  background: rgba($wplink-primary, 0.18);
-  color: $wplink-primary;
-  font-size: 18rpx;
-  font-weight: 900;
-  line-height: 1.1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.map-polygon {
+.map-canvas.ready {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.map-boundary-hints {
   position: absolute;
-  z-index: 2;
-  display: flex;
-  gap: 4rpx;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  padding: 0 8rpx;
-  border: 3rpx solid $wplink-primary;
-  background: rgba($wplink-primary, 0.2);
-  color: $wplink-primary;
-  font-size: 18rpx;
-  font-weight: 900;
-  line-height: 1.1;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
 }
 
-.map-polygon text {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.map-edge-hint {
+  position: absolute;
+  opacity: 0.9;
 }
 
-.map-object.poi {
-  padding: 0;
-  border-color: $wplink-warning;
-  border-radius: 999rpx;
-  background: $wplink-warning;
+.map-edge-hint.left,
+.map-edge-hint.right {
+  top: 0;
+  bottom: 0;
+  width: 96rpx;
 }
 
-.map-object.verified,
-.map-polygon.verified {
+.map-edge-hint.top,
+.map-edge-hint.bottom {
+  right: 0;
+  left: 0;
+  height: 104rpx;
+}
+
+.map-edge-hint.left {
+  left: 0;
+  background: linear-gradient(90deg, rgba(31, 92, 154, 0.34), rgba(31, 92, 154, 0));
+}
+
+.map-edge-hint.right {
+  right: 0;
+  background: linear-gradient(270deg, rgba(31, 92, 154, 0.34), rgba(31, 92, 154, 0));
+}
+
+.map-edge-hint.top {
+  top: 0;
+  background: linear-gradient(180deg, rgba(31, 92, 154, 0.34), rgba(31, 92, 154, 0));
+}
+
+.map-edge-hint.bottom {
+  bottom: 0;
+  background: linear-gradient(0deg, rgba(31, 92, 154, 0.34), rgba(31, 92, 154, 0));
+}
+
+.map-canvas-error {
+  position: absolute;
+  inset: 0;
   z-index: 4;
-  border-color: $wplink-success;
-  background: rgba($wplink-success, 0.24);
-  color: #17653a;
-}
-
-.map-object.weak,
-.map-polygon.weak {
-  opacity: 0.72;
-}
-
-.verified-map-badge {
-  flex: 0 0 auto;
-  padding: 2rpx 4rpx;
-  border-radius: 999rpx;
-  background: $wplink-success;
-  color: #fff;
-  font-size: 14rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 40rpx;
+  background: #eef3f8;
+  color: $wplink-primary;
+  font-size: 26rpx;
   font-weight: 900;
-  line-height: 1;
-}
-
-.map-object.active,
-.map-polygon.active {
-  border-color: $wplink-success;
-  box-shadow: 0 0 0 5rpx rgba($wplink-success, 0.18);
+  line-height: 1.4;
+  text-align: center;
 }
 
 .result-panel,
 .detail-card {
+  box-sizing: border-box;
   padding: 24rpx;
+}
+
+.result-panel {
+  min-width: 0;
+  margin: 0 20rpx;
 }
 
 .result-head {

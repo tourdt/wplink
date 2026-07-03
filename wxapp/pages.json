@@ -22,8 +22,7 @@
     {
       "path": "pages/sourcing-map/index",
       "style": {
-        "navigationBarTitleText": "拿货地图",
-        "enablePullDownRefresh": true
+        "navigationBarTitleText": "拿货地图"
       }
     },
     {

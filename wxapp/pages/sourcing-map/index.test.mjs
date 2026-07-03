@@ -8,10 +8,26 @@ const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'u
 const homeSource = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
 const apiSource = readOptionalSource('api/sourcingMap.js')
 const source = readOptionalSource('pages/sourcing-map/index.vue')
+const rendererSource = readOptionalSource('pages/sourcing-map/canvasRenderer.js')
+const gestureSource = readOptionalSource('pages/sourcing-map/mapGesture.js')
+const hitTestSource = readOptionalSource('pages/sourcing-map/mapHitTest.js')
 
 function readOptionalSource(file) {
   const fullPath = path.join(root, file)
   return fs.existsSync(fullPath) ? fs.readFileSync(fullPath, 'utf8') : ''
+}
+
+function expectTokens(target, tokens) {
+  for (const token of tokens) {
+    assert.match(target, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+}
+
+function extractFunction(name) {
+  const start = source.indexOf(`function ${name}`)
+  assert.notEqual(start, -1, `${name} should exist`)
+  const next = source.indexOf('\nfunction ', start + 1)
+  return source.slice(start, next === -1 ? source.length : next)
 }
 
 test('sourcing map page is reachable from wxapp home', () => {
@@ -22,7 +38,7 @@ test('sourcing map page is reachable from wxapp home', () => {
 })
 
 test('sourcing map api uses public map endpoints', () => {
-  for (const token of [
+  expectTokens(apiSource, [
     'listMapScenes',
     'getMapScene',
     'listMapObjects',
@@ -33,23 +49,21 @@ test('sourcing map api uses public map endpoints', () => {
     '/api/v1/map/scenes',
     '/api/v1/map/objects/search',
     '/api/v1/map/categories',
-  ]) {
-    assert.match(apiSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  ])
 })
 
-test('sourcing map page loads scenes, renders objects and shows contact actions', () => {
-  for (const token of [
+test('sourcing map page loads scenes, renders canvas and shows contact actions', () => {
+  expectTokens(source, [
     'onLoad',
-    'onPullDownRefresh',
     'loadScenes',
     'loadSceneObjects',
     'selectScene',
     'selectMapObject',
     'submitSearch',
     'clearSearch',
-    'objectStyle',
-    'stageStyle',
+    'createSourcingMapRenderer',
+    'renderMapCanvas',
+    'mapCanvasStyle',
     'selectedObject',
     'callSelectedObject',
     'copySelectedWechat',
@@ -57,13 +71,19 @@ test('sourcing map page loads scenes, renders objects and shows contact actions'
     'loadNearbyPois',
     '地图暂未开放',
     '暂无匹配点位',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  ])
+})
+
+test('sourcing map page disables pull down refresh', () => {
+  const page = pagesConfig.pages.find((entry) => entry.path === 'pages/sourcing-map/index')
+  assert.ok(page)
+  assert.notEqual(page.style?.enablePullDownRefresh, true)
+  assert.doesNotMatch(source, /onPullDownRefresh/)
+  assert.doesNotMatch(source, /stopPullDownRefresh/)
 })
 
 test('sourcing map page supports quick category and poi filters', () => {
-  for (const token of [
+  expectTokens(source, [
     'filterGroups',
     'mapCategories',
     'loadMapCategories',
@@ -86,15 +106,13 @@ test('sourcing map page supports quick category and poi filters', () => {
     'booth_service',
     'poi_type',
     'poi_service',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  ])
   assert.match(source, /listMapObjects\(selectedSceneCode\.value,\s*buildObjectQueryParams\(\{ includeViewport: true \}\)\)/)
   assert.match(source, /searchMapObjects\(\{\s*\.\.\.buildObjectQueryParams\(\{ includeViewport: false \}\),\s*sceneCode:/)
 })
 
 test('sourcing map empty results can clear search and filters', () => {
-  for (const token of [
+  expectTokens(source, [
     'empty-actions',
     '清除搜索',
     '清除筛选',
@@ -102,15 +120,13 @@ test('sourcing map empty results can clear search and filters', () => {
     'hasActiveFilters',
     '@click="clearSearch"',
     '@click="clearFilters"',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  ])
   assert.match(source, /v-if="keyword"/)
   assert.match(source, /v-if="hasActiveFilters"/)
 })
 
 test('sourcing map page keeps search filters compact by default', () => {
-  for (const token of [
+  expectTokens(source, [
     'search-shell',
     'compact-filter-row',
     'filter-toggle-button',
@@ -121,55 +137,106 @@ test('sourcing map page keeps search filters compact by default', () => {
     'clearMapConditions',
     '更多筛选',
     '收起筛选',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  ])
   assert.match(source, /<view v-if="filtersExpanded" class="filter-panel">/)
 })
 
+test('sourcing map page uses canvas for map gestures instead of movable dom points', () => {
+  expectTokens(source, [
+    'map-canvas-shell',
+    'map-canvas',
+    'canvas-id="sourcingMapCanvas"',
+    '@touchstart="handleCanvasTouchStart"',
+    '@touchmove.stop.prevent="handleCanvasTouchMove"',
+    '@touchend="handleCanvasTouchEnd"',
+    '@touchcancel="handleCanvasTouchCancel"',
+    '@tap="handleCanvasTap"',
+    'createSourcingMapRenderer',
+    'startGesture',
+    'moveGesture',
+    'endGesture',
+    'hitTestMapObjects',
+  ])
+  assert.doesNotMatch(source, /<movable-area/)
+  assert.doesNotMatch(source, /<movable-view/)
+  assert.doesNotMatch(source, /v-for="entry in polygonObjects"/)
+  assert.doesNotMatch(source, /v-for="entry in rectAndPointObjects"/)
+})
+
+test('sourcing map keeps the native base image as a fallback under the canvas layer', () => {
+  expectTokens(source, [
+    'map-background-layer',
+    'map-background-image',
+    ':src="selectedSceneBackground"',
+    ':style="mapBackgroundStyle"',
+    'drawBackground: \'whenReady\'',
+    'hasRenderedBackground',
+  ])
+  assert.match(source, /:class="\['map-canvas', \{ ready: mapCanvasOverlayReady \}\]"/)
+  assert.match(source, /const backgroundRendered = Boolean\(mapRenderer\.hasRenderedBackground\?\.\(\)\)/)
+  assert.match(source, /\.map-background-layer\s*\{[\s\S]*position: absolute[\s\S]*inset: 0/)
+  assert.match(source, /\.map-background-image\s*\{[\s\S]*position: absolute[\s\S]*width: 100%[\s\S]*height: 100%/)
+  assert.match(source, /\.map-canvas\s*\{[\s\S]*position: absolute[\s\S]*inset: 0/)
+  assert.match(source, /\.map-canvas\.ready\s*\{[\s\S]*opacity: 1/)
+})
+
+test('sourcing map keeps canvas hidden until the base image is actually rendered on canvas', () => {
+  expectTokens(source, [
+    'mapCanvasOverlayReady',
+    ':class="[\'map-canvas\', { ready: mapCanvasOverlayReady }]"',
+    ':class="[\'map-background-layer\', { hidden: mapCanvasBackgroundReady }]"',
+    'const backgroundRendered = Boolean(mapRenderer.hasRenderedBackground?.())',
+    'mapCanvasOverlayReady.value = backgroundRendered',
+    'mapCanvasBackgroundReady.value = backgroundRendered',
+  ])
+  assert.doesNotMatch(source, /:class="\['map-canvas', \{ ready: mapCanvasBackgroundReady \}\]"/)
+  assert.doesNotMatch(source, /mapCanvasOverlayReady\.value = true/)
+})
+
+test('sourcing map keeps fallback map and viewport canvas sizes explicit', () => {
+  expectTokens(source, [
+    'mapLayerPixelSize',
+    'buildMapLayerPixelSize',
+    'mapCanvasPixelSize',
+    'buildMapCanvasPixelSize',
+    ':width="mapCanvasPixelSize.width"',
+    ':height="mapCanvasPixelSize.height"',
+    'drawBackground: \'whenReady\'',
+  ])
+  assert.match(source, /const mapLayerPixelSize = computed\(\(\) => buildMapLayerPixelSize\(\)\)/)
+  assert.match(source, /const mapCanvasPixelSize = computed\(\(\) => buildMapCanvasPixelSize\(\)\)/)
+  assert.match(source, /<canvas[\s\S]*:width="mapCanvasPixelSize\.width"[\s\S]*:height="mapCanvasPixelSize\.height"/)
+  assert.match(source, /function renderMapCanvas\(options = \{\}\)[\s\S]*width: mapCanvasPixelSize\.value\.width,[\s\S]*height: mapCanvasPixelSize\.value\.height/)
+})
+
+test('sourcing map renders the active transform inside a viewport-sized canvas', () => {
+  expectTokens(source, [
+    'mapCanvasPixelSize',
+    'buildMapCanvasPixelSize',
+    ':width="mapCanvasPixelSize.width"',
+    ':height="mapCanvasPixelSize.height"',
+    'mapCanvasBackgroundReady',
+    'renderMapCanvas({ force: true, interacting: true })',
+  ])
+  assert.match(source, /<view class="map-layer" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
+  assert.match(source, /mapRenderer\.render\(mapTransform\.value,[\s\S]*width: mapCanvasPixelSize\.value\.width,[\s\S]*height: mapCanvasPixelSize\.value\.height/)
+})
+
 test('sourcing map page focuses and highlights selected map objects', () => {
-  for (const token of [
-    ':x="mapMoveX"',
-    ':y="mapMoveY"',
-    'mapMoveX',
-    'mapMoveY',
+  expectTokens(source, [
+    'mapTransform',
     'focusMapObject',
+    'focusMapCenter',
     'selectFirstObjectAfterSearch',
     'calculateObjectCenter',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+    'selectedObjectId',
+  ])
   assert.match(source, /function selectMapObject\(object,\s*options = \{ focus: true \}\)/)
   assert.match(source, /if \(options\.focus\) \{\s*focusMapObject\(object\)\s*\}/)
 })
 
-test('sourcing map page uses movable view for map gestures', () => {
-  for (const token of [
-    'movable-area',
-    'movable-view',
-    'map-gesture-area',
-    'map-movable',
-    'direction="all"',
-    'scale',
-    'inertia',
-    ':scale-value="mapScale"',
-    ':scale-min="MAP_MIN_SCALE"',
-    ':scale-max="MAP_MAX_SCALE"',
-    ':x="mapMoveX"',
-    ':y="mapMoveY"',
-    '@change="handleMapMove"',
-    '@scale="handleMapScale"',
-    'mapMoveX',
-    'mapMoveY',
-    'renderStageScale',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
-  assert.doesNotMatch(source, /<scroll-view class="map-scroll"/)
-})
-
 test('sourcing map page removes title header and zoom toolbar chrome', () => {
-  for (const token of [
+  expectTokens(source, [
     'map-overlay-info',
     'map-service-controls',
     'map-service-button',
@@ -177,9 +244,7 @@ test('sourcing map page removes title header and zoom toolbar chrome', () => {
     'resetMapViewport',
     '归位',
     '刷新',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  ])
   for (const token of [
     'map-header',
     'header-kicker',
@@ -203,41 +268,38 @@ test('sourcing map page removes title header and zoom toolbar chrome', () => {
 })
 
 test('sourcing map page applies configured default scene viewport', () => {
-  for (const token of [
+  expectTokens(source, [
     'applySceneDefaultViewport',
     'normalizeSceneDefaultScale',
     'focusMapCenter',
     'defaultScale',
     'defaultCenterX',
     'defaultCenterY',
+    'mapMinScale',
     'MAP_MIN_SCALE',
     'MAP_MAX_SCALE',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  ])
   assert.match(source, /selectedScene\.value = resp\.item \|\| scene[\s\S]*applySceneDefaultViewport\(selectedScene\.value\)/)
-  assert.match(source, /function applySceneDefaultViewport\(scene\)[\s\S]*mapScale\.value = normalizeSceneDefaultScale\(scene\?\.defaultScale\)/)
-  assert.match(source, /focusMapCenter\(\{ x: centerX, y: centerY \}\)/)
-  assert.match(source, /function normalizeSceneDefaultScale\(value\)[\s\S]*Math\.min\(MAP_MAX_SCALE,\s*Math\.max\(MAP_MIN_SCALE/)
+  assert.match(source, /function applySceneDefaultViewport\(scene\)[\s\S]*setMapTransform\(/)
+  assert.match(source, /focusMapCenter\(\{ x: centerX, y: centerY \},\s*\{ reloadViewport: false \}\)/)
+  assert.match(source, /function normalizeSceneDefaultScale\(value\)[\s\S]*function normalizeMapScale\(value\)[\s\S]*Math\.min\(MAP_MAX_SCALE,\s*Math\.max\(mapMinScale\.value,\s*scale\)/)
 })
 
 test('sourcing map page provides navigation with address fallback', () => {
-  for (const token of [
+  expectTokens(source, [
     '导航',
     'openSelectedObjectLocation',
     'uni.openLocation',
     'buildNavigationPayload',
     '没有精确定位，已复制地址',
     '该点位暂未提供可导航地址',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  ])
   assert.match(source, /openLocation\(\{[\s\S]*latitude:\s*payload\.latitude,[\s\S]*longitude:\s*payload\.longitude,[\s\S]*name:\s*payload\.name,[\s\S]*address:\s*payload\.address/)
   assert.match(source, /if \(!payload\.latitude \|\| !payload\.longitude\) \{[\s\S]*uni\.setClipboardData\(\{ data: payload\.address \}\)/)
 })
 
 test('sourcing map page renders readable object and poi details', () => {
-  for (const token of [
+  expectTokens(source, [
     'detailFields',
     'detailTags',
     'defaultLabelDictionary',
@@ -251,112 +313,255 @@ test('sourcing map page renders readable object and poi details', () => {
     '收费说明',
     'selectNearbyPoi',
     'getMapObject',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  ])
   assert.match(source, /<view v-if="detailTags\.length" class="detail-tag-list">/)
   assert.match(source, /v-for="field in detailFields"/)
   assert.match(source, /@click="selectNearbyPoi\(poi\)"/)
   assert.match(source, /const detail = await getMapObject\(poi\.id/)
 })
 
-test('sourcing map page highlights verified merchants and weakens admin objects', () => {
-  for (const token of [
+test('sourcing map highlights verified merchants and weak admin objects in canvas and list', () => {
+  expectTokens(source, [
     'displaySource',
     'displayLevel',
     'isVerifiedMerchant',
     'verified_merchant',
     'highlight',
     'weak',
-    'objectDisplayClasses',
+    'objectRowClasses',
     'selectedObjectMerchant',
     '认证商户',
     '后台点位',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
-
-  assert.match(source, /objectDisplayClasses\(object,\s*'map-object'\)/)
-  assert.match(source, /objectDisplayClasses\(object,\s*'map-polygon'\)/)
+  ])
+  expectTokens(rendererSource, [
+    'drawVerifiedBadge',
+    'isVerifiedObject',
+    'drawSelectedOutline',
+    'displayLevel',
+    'isVerifiedMerchant',
+  ])
   assert.match(source, /objectDisplayName\(object\)/)
-  assert.match(source, /v-if="object\.isVerifiedMerchant"/)
-  assert.match(source, /class="verified-map-badge"/)
+  assert.match(source, /v-if="selectedObject\.isVerifiedMerchant"/)
 })
 
-test('sourcing map page supports gesture zoom and level based labels', () => {
-  for (const token of [
-    'mapScale',
+test('sourcing map page supports canvas gesture zoom and level based labels', () => {
+  expectTokens(source, [
+    'mapTransform',
     'mapZoomLevel',
-    'effectiveStageScale',
-    'objectDisplayLabel',
-    'handleMapScale',
+    'handleCanvasTouchMove',
     'resetMapViewport',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
-  assert.match(source, /const effectiveStageScale = computed\(\(\) => stageScale\.value \* mapScale\.value\)/)
-  assert.match(source, /const mapZoomLevel = computed\(\(\) => getZoomLevelByScale\(mapScale\.value\)\)/)
+    'screenToMap',
+    'moveGesture',
+    'mapLayerStyle',
+  ])
+  assert.match(source, /const mapZoomLevel = computed\(\(\) => getZoomLevelByScale\(mapTransform\.value\.scale\)\)/)
   assert.match(source, /function getZoomLevelByScale\(scale\)/)
-  assert.match(source, /function handleMapScale\(event\)/)
+  assert.match(source, /function handleCanvasTouchMove\(event\)/)
   assert.match(source, /if \(mapZoomLevel\.value < 4\) return object\.code \|\| ''/)
   assert.match(source, /return objectDisplayName\(object\)/)
 })
 
+test('sourcing map redraws a viewport canvas during gestures to avoid native canvas transform drift', () => {
+  expectTokens(source, [
+    'map-layer',
+    'mapLayerStyle',
+    'mapLayerSurfaceStyle',
+    'buildMapLayerStyle',
+    ':style="mapLayerStyle"',
+    'mapCanvasSurfaceStyle',
+    'renderMapCanvas({ force: true, interacting: true })',
+  ])
+
+  const moveHandler = extractFunction('handleCanvasTouchMove')
+  const endHandler = extractFunction('handleCanvasTouchEnd')
+  assert.match(moveHandler, /renderMapCanvas\(\{ force: true,\s*interacting: true \}\)/)
+  assert.match(endHandler, /renderMapCanvas\(\)/)
+  assert.match(source, /<view class="map-layer" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
+})
+
+test('sourcing map gives rubber band feedback when users drag past map bounds', () => {
+  expectTokens(source, [
+    'boundaryHintEdges',
+    'buildBoundaryHintEdges',
+    'map-boundary-hints',
+    'map-edge-hint',
+    'allowOverflow: true',
+    'centeredY',
+  ])
+  assert.match(source, /v-if="boundaryHintEdges\.length" class="map-boundary-hints"/)
+  assert.match(source, /setMapTransform\(result\.transform,\s*\{ allowOverflow: true \}\)/)
+  assert.match(source, /if \(scaledHeight <= options\.viewportHeight\) \{[\s\S]*centeredY[\s\S]*edges\.push\('top'\)[\s\S]*edges\.push\('bottom'\)/)
+  assert.match(source, /\.map-edge-hint\.left/)
+  assert.match(source, /\.map-edge-hint\.right/)
+  assert.match(source, /\.map-edge-hint\.top/)
+  assert.match(source, /\.map-edge-hint\.bottom/)
+})
+
+test('sourcing map exposes edge feedback padding and accounts for bottom safe area', () => {
+  expectTokens(source, [
+    'MAP_EDGE_FEEDBACK_PADDING_PX',
+    'mapSafeAreaBottomPx',
+    'mapEdgeFeedbackPadding',
+    'bottomEdgeHintStyle',
+    'calculateSafeAreaBottomPx',
+    'safeAreaInsets',
+    'safeArea',
+  ])
+  assert.match(source, /const mapSafeAreaBottomPx = ref\(0\)/)
+  assert.match(source, /const mapEdgeFeedbackPadding = computed\(\(\) => MAP_EDGE_FEEDBACK_PADDING_PX \+ mapSafeAreaBottomPx\.value\)/)
+  assert.match(source, /maxOverflow:\s*mapEdgeFeedbackPadding\.value/)
+  assert.match(source, /mapSafeAreaBottomPx\.value = calculateSafeAreaBottomPx\(info\)/)
+  assert.match(source, /class="map-edge-hint bottom" :style="bottomEdgeHintStyle"/)
+  assert.match(source, /function buildBottomEdgeHintStyle\(\)[\s\S]*mapSafeAreaBottomPx\.value/)
+})
+
+test('sourcing map scales the base map by the shortest edge to cover the viewport', () => {
+  expectTokens(source, ['getSceneRenderMetrics', 'viewportWidth / sceneWidth', 'viewportHeight / sceneHeight'])
+  assert.match(source, /const baseScale = Math\.max\(viewportWidth \/ sceneWidth,\s*viewportHeight \/ sceneHeight\)/)
+})
+
+test('sourcing map can zoom out until the whole base map is visible', () => {
+  expectTokens(source, [
+    'mapMinScale',
+    'calculateMapMinScale',
+    'viewportWidth / metrics.mapWidth',
+    'viewportHeight / metrics.mapHeight',
+  ])
+  assert.match(source, /const mapMinScale = computed\(\(\) => calculateMapMinScale\(\)\)/)
+  assert.match(source, /minScale: mapMinScale\.value/)
+  assert.doesNotMatch(source, /minScale: MAP_MIN_SCALE/)
+  assert.match(source, /function normalizeMapScale\(value\)[\s\S]*Math\.max\(mapMinScale\.value,\s*scale\)/)
+})
+
 test('sourcing map page filters visible objects by configured zoom range', () => {
-  for (const token of [
+  expectTokens(source, [
     'rawMapObjects',
     'visibleMapObjects',
     'isObjectVisibleAtZoom',
     'minZoom',
     'maxZoom',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  ])
   assert.match(source, /const mapObjects = computed\(\(\) => visibleMapObjects\.value\)/)
   assert.match(source, /const visibleMapObjects = computed\(\(\) => rawMapObjects\.value\.filter\(\(object\) => isObjectVisibleAtZoom\(object,\s*mapZoomLevel\.value\)\)\)/)
   assert.match(source, /function isObjectVisibleAtZoom\(object,\s*zoomLevel\)[\s\S]*const minZoom = toNumber\(object\?\.minZoom,\s*1\)[\s\S]*const maxZoom = toNumber\(object\?\.maxZoom,\s*5\)[\s\S]*return zoomLevel >= minZoom && zoomLevel <= maxZoom/)
 })
 
-test('sourcing map page requests objects by current viewport', () => {
-  for (const token of [
-    '@change="handleMapMove"',
-    '@scale="handleMapScale"',
-    'handleMapMove',
-    'handleMapScale',
+test('sourcing map page requests objects by current canvas viewport', () => {
+  expectTokens(source, [
+    '@touchmove.stop.prevent="handleCanvasTouchMove"',
+    'handleCanvasTouchMove',
+    'handleCanvasTouchEnd',
     'scheduleViewportObjectReload',
     'buildViewportQueryParams',
     'VIEWPORT_PADDING_RATIO',
     'viewportReloadTimer',
-    'pxToRpx',
+    'screenToMap',
     'minX',
     'minY',
     'maxX',
     'maxY',
     'zoom: mapZoomLevel.value',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  ])
 
+  const moveHandler = extractFunction('handleCanvasTouchMove')
+  const endHandler = extractFunction('handleCanvasTouchEnd')
+  assert.doesNotMatch(moveHandler, /loadSceneObjects/)
+  assert.match(endHandler, /scheduleViewportObjectReload\(\)/)
   assert.match(source, /listMapObjects\(selectedSceneCode\.value,\s*buildObjectQueryParams\(\{ includeViewport: true \}\)\)/)
-  assert.match(source, /function handleMapScale\(event\)[\s\S]*scheduleViewportObjectReload\(\)/)
-  assert.match(source, /setTimeout\(async \(\) => \{[\s\S]*await loadSceneObjects\(\{ keepSelection: true \}\)/)
+  assert.match(source, /setTimeout\(async \(\) => \{[\s\S]*await loadSceneObjects\(\{ keepSelection: true,\s*silent: true \}\)/)
 })
 
-test('sourcing map page renders polygon map objects', () => {
-  for (const token of [
-    'polygon',
-    'polygonObjects',
-    'rectAndPointObjects',
-    'polygonObjectStyle',
-    'polygonStagePoints',
-    'map-polygon',
-    'calculatePolygonCenter',
-    'clip-path: polygon',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+test('sourcing map converts touch and tap coordinates into canvas-local coordinates', () => {
+  expectTokens(source, [
+    'canvasShellRect',
+    'syncCanvasShellRect',
+    'normalizeCanvasPoint',
+    'uni.createSelectorQuery',
+    '.map-canvas-shell',
+  ])
+  assert.match(source, /function handleCanvasTouchStart\(event\)[\s\S]*syncCanvasShellRect\(\)/)
+  assert.match(source, /function getCanvasTouches\(event\)[\s\S]*normalizeCanvasPoint\(/)
+  assert.match(source, /function getCanvasEventPoint\(event\)[\s\S]*normalizeCanvasPoint\(/)
+})
 
-  assert.match(source, /<view[\s\S]*v-for="object in polygonObjects"[\s\S]*:style="polygonObjectStyle\(object\)"/)
-  assert.match(source, /const polygonObjects = computed\(\(\) => mapObjects\.value\.filter/)
+test('sourcing map reloads viewport objects after programmatic focus changes', () => {
+  const focusHandler = extractFunction('focusMapCenter')
+  assert.match(focusHandler, /setMapTransform\(nextTransform\)/)
+  assert.match(focusHandler, /scheduleViewportObjectReload\(\)/)
+})
+
+test('sourcing map uses dropship as the canonical one-piece shipping tag with legacy alias support', () => {
+  expectTokens(source, [
+    'dropship: \'一件代发\'',
+    'drop_shipping: \'一件代发\'',
+    'tagAliases',
+    'expandFilterValues',
+    'normalizeFilterOptionValue',
+  ])
+  assert.match(source, /\{ label: '一件代发', value: 'dropship' \}/)
+  assert.doesNotMatch(source, /\{ label: '一件代发', value: 'drop_shipping' \}/)
+})
+
+test('sourcing map renders and hits polygon map objects through canvas modules', () => {
+  expectTokens(source, [
+    'polygon',
+    'calculatePolygonCenter',
+    'hitTestMapObjects',
+    'canvasRenderer',
+    'mapHitTest',
+  ])
+  expectTokens(rendererSource, ['drawPolygonObject', 'normalizePolygonPoints', 'fillPolygonPath'])
+  expectTokens(hitTestSource, ['isPointInPolygon', 'getObjectBounds', 'hitTestMapObjects'])
   assert.match(source, /function calculateObjectCenter\(object\)[\s\S]*if \(object\.geometryType === 'polygon'\) \{[\s\S]*return calculatePolygonCenter\(geometry\)/)
+})
+
+test('sourcing map uses a full-screen width canvas viewport without horizontal page overflow', () => {
+  expectTokens(source, [
+    'const MAP_MAX_WIDTH_RPX = 750',
+    'mapViewportHeightRpx',
+    'mapViewportSize',
+    'mapCanvasStyle',
+    'syncMapViewportSize',
+    'calculateMapViewportHeightRpx',
+    ':style="mapCanvasStyle"',
+    'width: 100vw',
+    'max-width: 100vw',
+    'overflow-x: hidden',
+    'box-sizing: border-box',
+  ])
+
+  assert.match(source, /\.map-card\s*\{[\s\S]*width: 100vw[\s\S]*max-width: 100vw/)
+  assert.match(source, /\.map-canvas-shell\s*\{[\s\S]*width: 100vw[\s\S]*max-width: 100vw/)
+  assert.match(source, /mapViewportSize\.value\.height/)
+  assert.match(source, /rpxToPx\(mapViewportHeightRpx\.value\)/)
+})
+
+test('sourcing map viewport reload is silent and ignores stale object responses', () => {
+  expectTokens(source, [
+    'objectRequestSeq',
+    'visibleObjectRequestSeq',
+    'const requestId = ++objectRequestSeq',
+    'const showLoading = !options.silent',
+    'requestId !== objectRequestSeq',
+    'loadSceneObjects({ keepSelection: true, silent: true })',
+  ])
+
+  assert.match(source, /if \(showLoading\) \{[\s\S]*objectLoading\.value = true/)
+  assert.match(source, /if \(requestId !== objectRequestSeq\) return/)
+})
+
+test('sourcing map canvas tap reuses existing selection flow', () => {
+  expectTokens(source, [
+    'handleCanvasTap',
+    'getCanvasEventPoint',
+    'screenToScenePoint',
+    'hitTestMapObjects',
+    'selectMapObject',
+    'selectedObjectId',
+  ])
+
+  const tapHandler = extractFunction('handleCanvasTap')
+  assert.match(tapHandler, /hitTestMapObjects\(/)
+  assert.match(tapHandler, /selectMapObject\(hitObject/)
+  assert.doesNotMatch(tapHandler, /loadNearbyPois\(/)
 })

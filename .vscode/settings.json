@@ -1,0 +1,6 @@
+{
+  "go.alternateTools": {
+    "go": "/Users/ldh/.local/share/mise/installs/go/1.25.10/bin/go",
+    "dlv": "/Users/ldh/.local/share/mise/installs/go/1.25.10/bin/dlv"
+  }
+}
