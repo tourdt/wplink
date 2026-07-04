@@ -210,3 +210,66 @@ test('renderer reports background readiness after the canvas draw callback compl
     globalThis.uni = originalUni
   }
 })
+
+test('renderer keeps selected and highlighted labels visible while interacting', () => {
+  const operations = []
+  const originalUni = globalThis.uni
+  globalThis.uni = {
+    createCanvasContext() {
+      return createMockContext(operations)
+    },
+  }
+
+  try {
+    const renderer = createSourcingMapRenderer({
+      getObjectLabel(object) {
+        return object.name || object.code || ''
+      },
+    })
+    const selectedObject = {
+      id: 'selected-booth',
+      name: '选中档口',
+      geometryType: 'rect',
+      geometry: { x: 10, y: 10, width: 90, height: 40 },
+    }
+    renderer.init({ canvasId: 'sourcingMapCanvas', width: 400, height: 220 })
+    renderer.setScene({ width: 400, height: 220 })
+    renderer.setObjects([
+      {
+        id: 'normal-booth',
+        name: '普通档口',
+        geometryType: 'rect',
+        geometry: { x: 120, y: 10, width: 90, height: 40 },
+        displayLevel: 'weak',
+      },
+      {
+        id: 'highlight-booth',
+        name: '认证档口',
+        geometryType: 'rect',
+        geometry: { x: 10, y: 70, width: 90, height: 40 },
+        displayLevel: 'highlight',
+      },
+      selectedObject,
+    ])
+    renderer.setSelectedObject(selectedObject)
+
+    renderer.render({ scale: 1, offsetX: 0, offsetY: 0 }, {
+      width: 400,
+      height: 220,
+      baseScale: 1,
+      drawBackground: false,
+      interacting: true,
+      zoomLevel: 5,
+    })
+
+    const labelTexts = operations
+      .filter((entry) => entry.type === 'fillText')
+      .map((entry) => entry.args[0])
+
+    assert.equal(labelTexts.includes('选中档口'), true)
+    assert.equal(labelTexts.includes('认证档口'), true)
+    assert.equal(labelTexts.includes('普通档口'), false)
+  } finally {
+    globalThis.uni = originalUni
+  }
+})

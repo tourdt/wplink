@@ -76,8 +76,8 @@ export function createSourcingMapRenderer(options = {}) {
       drawMapObject(ctx, object, metrics, renderOptions)
     }
 
-    if (!renderOptions.interacting) {
-      for (const object of sortedObjects) {
+    for (const object of sortedObjects) {
+      if (shouldDrawObjectLabel(object, renderOptions, selectedObject)) {
         drawObjectLabel(ctx, object, metrics, renderOptions, options)
       }
     }
@@ -248,6 +248,11 @@ function drawObjectLabel(ctx, object, metrics, renderOptions, options) {
   fillText(ctx, truncateLabel(label, maxWidth, fontSize), x, y, maxWidth)
 }
 
+function shouldDrawObjectLabel(object, renderOptions = {}, selectedObject = null) {
+  if (!renderOptions.interacting) return true
+  return isSameObject(object, selectedObject) || isVerifiedObject(object)
+}
+
 function drawSelectedOutline(ctx, object, metrics) {
   if (!object) return
   setStrokeStyle(ctx, COLORS.selectedStroke)
@@ -362,6 +367,16 @@ function objectPalette(object) {
 
 function isVerifiedObject(object) {
   return object?.isVerifiedMerchant || object?.displayLevel === 'highlight'
+}
+
+function isSameObject(left, right) {
+  const leftID = objectIdentity(left)
+  const rightID = objectIdentity(right)
+  return Boolean(leftID && rightID && leftID === rightID)
+}
+
+function objectIdentity(object) {
+  return object?.id || object?.code || ''
 }
 
 function objectCenter(object = {}) {

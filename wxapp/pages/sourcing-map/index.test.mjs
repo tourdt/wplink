@@ -177,14 +177,15 @@ test('sourcing map page uses canvas for map gestures instead of movable dom poin
   assert.doesNotMatch(source, /v-for="entry in rectAndPointObjects"/)
 })
 
-test('sourcing map renders map objects only through canvas over the native base image', () => {
+test('sourcing map renders base map and objects through the same canvas with native image fallback', () => {
   expectTokens(source, [
     'map-background-layer',
     'map-background-image',
     'mapRenderer.setObjects(mapObjects.value)',
-    'drawBackground: false',
+    "drawBackground: 'whenReady'",
+    'onDrawComplete',
   ])
-  assert.match(source, /<view class="map-layer" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
+  assert.match(source, /<view :class="\['map-layer', \{ hidden: mapNativeFallbackHidden \}\]" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
   assert.doesNotMatch(source, /v-for="object in mapObjects"[\s\S]*-marker/)
   assert.doesNotMatch(source, /map-dom-object/)
   assert.doesNotMatch(source, /mapDomObjectStyle/)
@@ -192,36 +193,41 @@ test('sourcing map renders map objects only through canvas over the native base 
   assert.doesNotMatch(source, /polygonDomPoints/)
 })
 
-test('sourcing map keeps the native base image permanently visible under the canvas overlay', () => {
+test('sourcing map hides the native fallback after the canvas has drawn the base image and objects', () => {
   expectTokens(source, [
     'map-background-layer',
     'map-background-image',
     ':src="selectedSceneBackground"',
     ':style="mapBackgroundStyle"',
-    'drawBackground: false',
+    "drawBackground: 'whenReady'",
+    'backgroundDrawn',
+    'mapCanvasRenderSeq',
+    'mapNativeFallbackHidden',
   ])
+  assert.match(source, /:class="\['map-layer', \{ hidden: mapNativeFallbackHidden \}\]"/)
   assert.match(source, /:class="\['map-canvas', \{ ready: mapCanvasOverlayReady \}\]"/)
-  assert.doesNotMatch(source, /hidden: mapCanvasBackgroundReady/)
   assert.doesNotMatch(source, /mapCanvasBackgroundReady/)
-  assert.doesNotMatch(source, /drawBackground: 'whenReady'/)
   assert.match(source, /\.map-background-layer\s*\{[\s\S]*position: absolute[\s\S]*inset: 0/)
   assert.match(source, /\.map-background-image\s*\{[\s\S]*position: absolute[\s\S]*width: 100%[\s\S]*height: 100%/)
   assert.match(source, /\.map-canvas\s*\{[\s\S]*position: absolute[\s\S]*inset: 0/)
   assert.match(source, /\.map-canvas\.ready\s*\{[\s\S]*opacity: 1/)
+  assert.match(source, /\.map-layer\.hidden\s*\{[\s\S]*opacity: 0/)
 })
 
-test('sourcing map shows the canvas overlay as soon as render is queued', () => {
+test('sourcing map shows the canvas overlay after render is queued and hides native fallback only after the canvas base image draw completes', () => {
   expectTokens(source, [
     'mapCanvasOverlayReady',
+    'mapNativeFallbackHidden',
     ':class="[\'map-canvas\', { ready: mapCanvasOverlayReady }]"',
-    'drawBackground: false',
-    'mapCanvasOverlayReady.value = true',
+    "drawBackground: 'whenReady'",
+    'onDrawComplete',
+    'backgroundDrawn',
+    'mapCanvasRenderSeq',
   ])
   const renderMapCanvas = extractFunction('renderMapCanvas')
+  assert.match(renderMapCanvas, /const renderSeq = \+\+mapCanvasRenderSeq/)
   assert.match(renderMapCanvas, /if \(!rendered\) \{[\s\S]*return\s*\}\s*mapCanvasOverlayReady\.value = true/)
-  assert.doesNotMatch(source, /onDrawComplete/)
-  assert.doesNotMatch(source, /mapCanvasRenderSeq/)
-  assert.doesNotMatch(source, /backgroundDrawn/)
+  assert.match(renderMapCanvas, /onDrawComplete\(\{ backgroundDrawn \}\) \{[\s\S]*mapCanvasOverlayReady\.value = true[\s\S]*mapNativeFallbackHidden\.value = Boolean\(backgroundDrawn\)/)
   assert.doesNotMatch(source, /mapCanvasBackgroundReady/)
 })
 
@@ -233,7 +239,7 @@ test('sourcing map keeps fallback map and viewport canvas sizes explicit', () =>
     'buildMapCanvasPixelSize',
     ':width="mapCanvasPixelSize.width"',
     ':height="mapCanvasPixelSize.height"',
-    'drawBackground: false',
+    "drawBackground: 'whenReady'",
   ])
   assert.match(source, /const mapLayerPixelSize = computed\(\(\) => buildMapLayerPixelSize\(\)\)/)
   assert.match(source, /const mapCanvasPixelSize = computed\(\(\) => buildMapCanvasPixelSize\(\)\)/)
@@ -247,10 +253,10 @@ test('sourcing map renders the active transform inside a viewport-sized canvas',
     'buildMapCanvasPixelSize',
     ':width="mapCanvasPixelSize.width"',
     ':height="mapCanvasPixelSize.height"',
-    'drawBackground: false',
+    "drawBackground: 'whenReady'",
     'renderMapCanvas({ force: true, interacting: true })',
   ])
-  assert.match(source, /<view class="map-layer" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
+  assert.match(source, /<view :class="\['map-layer', \{ hidden: mapNativeFallbackHidden \}\]" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
   assert.match(source, /mapRenderer\.render\(mapTransform\.value,[\s\S]*width: mapCanvasPixelSize\.value\.width,[\s\S]*height: mapCanvasPixelSize\.value\.height/)
 })
 
@@ -408,7 +414,7 @@ test('sourcing map redraws a viewport canvas during gestures to avoid native can
   const endHandler = extractFunction('handleCanvasTouchEnd')
   assert.match(moveHandler, /renderMapCanvas\(\{ force: true,\s*interacting: true \}\)/)
   assert.match(endHandler, /renderMapCanvas\(\)/)
-  assert.match(source, /<view class="map-layer" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
+  assert.match(source, /<view :class="\['map-layer', \{ hidden: mapNativeFallbackHidden \}\]" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
 })
 
 test('sourcing map gives rubber band feedback when users drag past map bounds', () => {

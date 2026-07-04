@@ -87,7 +87,7 @@
           @touchend="handleCanvasTouchEnd"
           @touchcancel="handleCanvasTouchCancel"
         >
-          <view class="map-layer" :style="mapLayerStyle">
+          <view :class="['map-layer', { hidden: mapNativeFallbackHidden }]" :style="mapLayerStyle">
             <view class="map-background-layer" :style="mapLayerSurfaceStyle">
               <image
                 class="map-background-image"
@@ -317,6 +317,7 @@ const mapViewportSize = ref({ width: 375, height: 500 })
 const mapViewportHeightRpx = ref(MAP_VIEWPORT_HEIGHT_RPX)
 const mapSafeAreaBottomPx = ref(0)
 const mapCanvasOverlayReady = ref(false)
+const mapNativeFallbackHidden = ref(false)
 const canvasShellRect = ref({ left: 0, top: 0 })
 const canvasErrorText = ref('')
 const boundaryHintEdges = ref([])
@@ -329,6 +330,7 @@ let viewportReloadTimer = null
 let canvasGestureState = null
 let suppressNextCanvasTap = false
 let mapRenderer = null
+let mapCanvasRenderSeq = 0
 let viewportObjectsCache = new Map()
 // 视口懒加载和搜索/筛选可能并发，只应用最后一次点位请求，避免旧视野覆盖新视野。
 let objectRequestSeq = 0
@@ -421,11 +423,14 @@ onUnmounted(() => {
   clearTimeout(viewportReloadTimer)
   mapRenderer?.dispose()
   mapRenderer = null
+  mapCanvasRenderSeq += 1
   canvasGestureState = null
 })
 
 watch(selectedSceneBackground, () => {
+  mapCanvasRenderSeq += 1
   mapCanvasOverlayReady.value = false
+  mapNativeFallbackHidden.value = false
 })
 
 watch([selectedScene, mapObjects, selectedObject, mapViewportSize, mapTransform], () => {
@@ -945,16 +950,23 @@ function renderMapCanvas(options = {}) {
   mapRenderer.setScene(selectedScene.value)
   mapRenderer.setObjects(mapObjects.value)
   mapRenderer.setSelectedObject(selectedObject.value)
+  const renderSeq = ++mapCanvasRenderSeq
   const rendered = mapRenderer.render(mapTransform.value, {
     ...options,
-    drawBackground: false,
+    drawBackground: 'whenReady',
     width: mapCanvasPixelSize.value.width,
     height: mapCanvasPixelSize.value.height,
     baseScale: metrics.baseScale,
     zoomLevel: mapZoomLevel.value,
+    onDrawComplete({ backgroundDrawn }) {
+      if (renderSeq !== mapCanvasRenderSeq) return
+      mapCanvasOverlayReady.value = true
+      mapNativeFallbackHidden.value = Boolean(backgroundDrawn)
+    },
   })
   if (!rendered) {
     mapCanvasOverlayReady.value = false
+    mapNativeFallbackHidden.value = false
     canvasErrorText.value = '地图渲染失败，请刷新后重试'
     return
   }
@@ -1789,10 +1801,15 @@ function clampNumber(value, min, max) {
   will-change: transform;
 }
 
+.map-layer.hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .map-background-layer {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   z-index: 0;
   overflow: hidden;
 }
@@ -1807,8 +1824,7 @@ function clampNumber(value, min, max) {
 
 .map-canvas {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   z-index: 2;
   display: block;
   width: 100%;
