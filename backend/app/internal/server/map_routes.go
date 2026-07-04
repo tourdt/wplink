@@ -3,13 +3,15 @@ package server
 import (
 	"net/http"
 
+	authlogic "wplink/backend/app/internal/logic/auth"
 	maplogic "wplink/backend/app/internal/logic/map"
 	"wplink/backend/common/response"
 )
 
-func registerMapRoutes(mux *http.ServeMux, store MapAPIStore) {
+func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore) {
 	publicLogic := maplogic.NewPublicLogic(store)
 	adminLogic := maplogic.NewAdminLogic(store)
+	bindingLogic := maplogic.NewBindingLogic(store)
 
 	mux.HandleFunc("GET /api/v1/map/scenes", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
@@ -72,6 +74,54 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore) {
 	})
 	mux.HandleFunc("GET /api/v1/map/categories", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := publicLogic.ListCategories(r.Context(), maplogic.ListCategoriesReq{Type: r.URL.Query().Get("type")})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/map/bind-candidates", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		merchantID := query.Get("merchantId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := bindingLogic.ListCandidates(r.Context(), maplogic.ListMapBindCandidatesReq{
+			MerchantID: merchantID,
+			SceneCode:  query.Get("sceneCode"),
+			Keyword:    query.Get("keyword"),
+			Limit:      int64FromQuery(r, "limit"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/map-binding", func(w http.ResponseWriter, r *http.Request) {
+		merchantID := r.PathValue("merchantId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := bindingLogic.GetStatus(r.Context(), merchantID)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/merchants/{merchantId}/map-binding-requests", func(w http.ResponseWriter, r *http.Request) {
+		var body maplogic.SubmitMapBindRequestReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		merchantID := r.PathValue("merchantId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if tokenService != nil {
+			if _, ok := adminSubjectFromBearerToken(r, adminTokenService); !ok {
+				userID, err := userIDFromBearerToken(r, tokenService)
+				if err != nil {
+					response.JSON(w, nil, err)
+					return
+				}
+				body.ApplicantUserID = userID
+			}
+		}
+		resp, err := bindingLogic.SubmitRequest(r.Context(), merchantID, body)
 		response.JSON(w, resp, err)
 	})
 
@@ -174,6 +224,28 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore) {
 			return
 		}
 		resp, err := adminLogic.SaveCategory(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/map/bind-requests", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		resp, err := bindingLogic.ListAdminRequests(r.Context(), maplogic.ListAdminMapBindRequestsReq{
+			Status:   query.Get("status"),
+			Keyword:  query.Get("keyword"),
+			Page:     int64FromQuery(r, "page"),
+			PageSize: int64FromQuery(r, "pageSize"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/map/bind-requests/{requestId}/review", func(w http.ResponseWriter, r *http.Request) {
+		var body maplogic.ReviewMapBindRequestReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if subject, ok := adminSubjectFromBearerToken(r, adminTokenService); ok {
+			body.ReviewerID = subject.UserID
+		}
+		resp, err := bindingLogic.ReviewRequest(r.Context(), r.PathValue("requestId"), body)
 		response.JSON(w, resp, err)
 	})
 }

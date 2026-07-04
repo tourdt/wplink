@@ -146,6 +146,83 @@ type ListNearbyPoisResp {
 	Items []NearbyPoiItem `json:"items"`
 }
 
+type MapBindCandidateItem {
+	ObjectId     string `json:"objectId"`
+	SceneCode    string `json:"sceneCode"`
+	SceneName    string `json:"sceneName"`
+	Code         string `json:"code"`
+	Name         string `json:"name"`
+	Address      string `json:"address,optional"`
+	MerchantId   string `json:"merchantId,optional"`
+	MerchantName string `json:"merchantName,optional"`
+	IsBound      bool   `json:"isBound"`
+}
+
+type MapBindRequestItem {
+	Id              string   `json:"id"`
+	MerchantId      string   `json:"merchantId"`
+	MerchantName    string   `json:"merchantName,optional"`
+	ObjectId        string   `json:"objectId"`
+	SceneCode       string   `json:"sceneCode"`
+	SceneName       string   `json:"sceneName,optional"`
+	ObjectCode      string   `json:"objectCode,optional"`
+	ObjectName      string   `json:"objectName,optional"`
+	ApplicantUserId string   `json:"applicantUserId,optional"`
+	EvidenceImages  []string `json:"evidenceImages"`
+	Note            string   `json:"note,optional"`
+	Status          string   `json:"status"`
+	ReviewNote      string   `json:"reviewNote,optional"`
+	ReviewedBy      string   `json:"reviewedBy,optional"`
+	ReviewedAt      string   `json:"reviewedAt,optional"`
+	CreatedAt       string   `json:"createdAt"`
+}
+
+type MapBindingStatusResp {
+	BoundObject   *MapBindCandidateItem `json:"boundObject,optional"`
+	LatestRequest *MapBindRequestItem   `json:"latestRequest,optional"`
+}
+
+type ListMapBindCandidatesReq {
+	MerchantId string `form:"merchantId"`
+	SceneCode  string `form:"sceneCode,optional"`
+	Keyword    string `form:"keyword,optional"`
+	Limit      int64  `form:"limit,optional"`
+}
+
+type ListMapBindCandidatesResp {
+	Items []MapBindCandidateItem `json:"items"`
+}
+
+type SubmitMapBindRequestReq {
+	ObjectId       string   `json:"objectId"`
+	Note           string   `json:"note,optional"`
+	EvidenceImages []string `json:"evidenceImages,optional"`
+}
+
+type SubmitMapBindRequestResp {
+	Item MapBindRequestItem `json:"item"`
+}
+
+type AdminListMapBindRequestsReq {
+	Status   string `form:"status,optional"`
+	Keyword  string `form:"keyword,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminListMapBindRequestsResp {
+	Items []MapBindRequestItem `json:"items"`
+}
+
+type AdminReviewMapBindRequestReq {
+	Action     string `json:"action"`
+	ReviewNote string `json:"reviewNote,optional"`
+}
+
+type AdminReviewMapBindRequestResp {
+	Item MapBindRequestItem `json:"item"`
+}
+
 type ListMapCategoriesReq {
 	Type string `form:"type,optional"`
 }
@@ -303,6 +380,15 @@ service wplink-api {
 
 	@handler ListMapCategories
 	get /map/categories (ListMapCategoriesReq) returns (ListMapCategoriesResp)
+
+	@handler ListMapBindCandidates
+	get /map/bind-candidates (ListMapBindCandidatesReq) returns (ListMapBindCandidatesResp)
+
+	@handler GetMerchantMapBinding
+	get /merchants/:merchantId/map-binding returns (MapBindingStatusResp)
+
+	@handler SubmitMapBindRequest
+	post /merchants/:merchantId/map-binding-requests (SubmitMapBindRequestReq) returns (SubmitMapBindRequestResp)
 }
 
 @server(
@@ -345,4 +431,10 @@ service wplink-api {
 
 	@handler AdminSaveMapCategory
 	post /map/categories (AdminSaveMapCategoryReq) returns (AdminSaveMapCategoryResp)
+
+	@handler AdminListMapBindRequests
+	get /map/bind-requests (AdminListMapBindRequestsReq) returns (AdminListMapBindRequestsResp)
+
+	@handler AdminReviewMapBindRequest
+	post /map/bind-requests/:requestId/review (AdminReviewMapBindRequestReq) returns (AdminReviewMapBindRequestResp)
 }

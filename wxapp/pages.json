@@ -113,6 +113,12 @@
       }
     },
     {
+      "path": "pages/merchant/map-binding",
+      "style": {
+        "navigationBarTitleText": "绑定地图档口"
+      }
+    },
+    {
       "path": "pages/topic/index",
       "style": {
         "navigationBarTitleText": "专题资源"

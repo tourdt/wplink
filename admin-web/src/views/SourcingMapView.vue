@@ -512,6 +512,77 @@
               </div>
             </el-form>
           </el-tab-pane>
+          <el-tab-pane label="绑定审核" name="binding">
+            <div class="panel-heading object-heading">
+              <h3>档口绑定申请</h3>
+              <el-button type="primary" link :loading="bindRequestLoading" @click="loadBindRequests">刷新</el-button>
+            </div>
+            <div class="category-filter-bar">
+              <el-select v-model="bindRequestFilters.status" placeholder="全部状态" clearable @change="loadBindRequests">
+                <el-option label="全部状态" value="" />
+                <el-option label="待审核" value="pending" />
+                <el-option label="已通过" value="approved" />
+                <el-option label="已驳回" value="rejected" />
+              </el-select>
+              <el-input
+                v-model.trim="bindRequestFilters.keyword"
+                placeholder="商户/档口/备注"
+                clearable
+                @keyup.enter="loadBindRequests"
+                @clear="loadBindRequests"
+              />
+              <el-button :loading="bindRequestLoading" @click="loadBindRequests">筛选申请</el-button>
+            </div>
+
+            <el-table
+              v-loading="bindRequestLoading"
+              :data="bindRequests"
+              size="small"
+              height="360"
+              empty-text="暂无绑定申请"
+            >
+              <el-table-column prop="merchantName" label="商户" min-width="120" />
+              <el-table-column label="档口" min-width="130">
+                <template #default="{ row }">
+                  <div class="bind-object-cell">
+                    <strong>{{ row.objectCode || row.objectId }}</strong>
+                    <span>{{ row.objectName || row.sceneName }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="sceneName" label="场景" min-width="110" />
+              <el-table-column label="状态" width="82">
+                <template #default="{ row }">
+                  <el-tag :type="bindRequestStatusTagType[row.status] || 'info'">{{ bindRequestStatusText[row.status] || row.status }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="note" label="说明" min-width="140" show-overflow-tooltip />
+              <el-table-column label="操作" width="128">
+                <template #default="{ row }">
+                  <div class="object-row-actions">
+                    <el-button
+                      type="primary"
+                      link
+                      :disabled="row.status !== 'pending'"
+                      :loading="bindRequestReviewingId === row.id"
+                      @click="approveBindRequest(row)"
+                    >
+                      通过
+                    </el-button>
+                    <el-button
+                      type="danger"
+                      link
+                      :disabled="row.status !== 'pending'"
+                      :loading="bindRequestReviewingId === row.id"
+                      @click="rejectBindRequest(row)"
+                    >
+                      驳回
+                    </el-button>
+                  </div>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
         </el-tabs>
       </aside>
     </section>
@@ -645,10 +716,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'v
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   batchGenerateMapObjects,
+  listMapBindRequests,
   listMapCategories,
   listMapObjects,
   listMapScenes,
   publishMapScene,
+  reviewMapBindRequest,
   saveMapCategory,
   saveMapObject,
   saveMapScene,
@@ -705,6 +778,16 @@ const categoryStatusOptions = [
   { label: '隐藏', value: 'hidden' },
   { label: '停用', value: 'closed' },
 ]
+const bindRequestStatusText = {
+  pending: '待审核',
+  approved: '已通过',
+  rejected: '已驳回',
+}
+const bindRequestStatusTagType = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'info',
+}
 const categoryOptions = [
   { label: '女童', value: 'girl' },
   { label: '男童', value: 'boy' },
@@ -784,6 +867,8 @@ const batchSaving = ref(false)
 const categoryLoading = ref(false)
 const categorySaving = ref(false)
 const merchantSearchLoading = ref(false)
+const bindRequestLoading = ref(false)
+const bindRequestReviewingId = ref('')
 const sceneErrorText = ref('')
 const objectErrorText = ref('')
 const categoryErrorText = ref('')
@@ -793,6 +878,7 @@ const publishPreviewObjects = ref([])
 const mapCategories = ref([])
 const categoryOptionItems = ref([])
 const merchantOptions = ref([])
+const bindRequests = ref([])
 const mapCanvasRef = ref(null)
 const mapViewScale = ref(1)
 const isCanvasPanning = ref(false)
@@ -806,6 +892,7 @@ const batchForm = reactive(defaultBatchForm())
 const categoryForm = reactive(defaultCategoryForm())
 const sceneFilters = reactive(defaultSceneFilters())
 const categoryFilters = reactive(defaultCategoryFilters())
+const bindRequestFilters = reactive(defaultBindRequestFilters())
 const objectFilters = reactive(defaultObjectFilters())
 let viewportReloadTimer = null
 let backgroundSizeRequestId = 0
@@ -859,6 +946,7 @@ onMounted(() => {
   loadScenes()
   loadCategories()
   loadCategoryOptions()
+  loadBindRequests()
 })
 
 onBeforeUnmount(() => {
@@ -968,6 +1056,13 @@ function defaultCategoryFilters() {
   return {
     type: '',
     status: '',
+  }
+}
+
+function defaultBindRequestFilters() {
+  return {
+    status: 'pending',
+    keyword: '',
   }
 }
 
@@ -1149,6 +1244,68 @@ async function submitCategory() {
     ElMessage.error(err.message || '标准标签保存失败，请重试')
   } finally {
     categorySaving.value = false
+  }
+}
+
+async function loadBindRequests() {
+  bindRequestLoading.value = true
+  try {
+    const resp = await listMapBindRequests({
+      status: bindRequestFilters.status,
+      keyword: bindRequestFilters.keyword,
+      page: 1,
+      pageSize: 50,
+    })
+    bindRequests.value = resp.items || []
+  } catch (err) {
+    ElMessage.error(err.message || '绑定申请加载失败，请重试')
+  } finally {
+    bindRequestLoading.value = false
+  }
+}
+
+async function approveBindRequest(row) {
+  try {
+    await ElMessageBox.confirm(`确认将 ${row.objectCode || row.objectId} 绑定给 ${row.merchantName || row.merchantId}？`, '通过绑定申请', {
+      type: 'warning',
+      confirmButtonText: '确认通过',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  await submitBindRequestReview(row, { action: 'approve', reviewNote: '资料匹配，审核通过' })
+}
+
+async function rejectBindRequest(row) {
+  let value = ''
+  try {
+    const resp = await ElMessageBox.prompt('请填写驳回原因', '驳回绑定申请', {
+      confirmButtonText: '确认驳回',
+      cancelButtonText: '取消',
+      inputPlaceholder: '例如：档口照片与点位不一致',
+      inputValidator: (text) => Boolean(String(text || '').trim()) || '请填写驳回原因',
+    })
+    value = String(resp.value || '').trim()
+  } catch {
+    return
+  }
+  await submitBindRequestReview(row, { action: 'reject', reviewNote: value })
+}
+
+async function submitBindRequestReview(row, payload) {
+  bindRequestReviewingId.value = row.id
+  try {
+    await reviewMapBindRequest(row.id, payload)
+    ElMessage.success(payload.action === 'approve' ? '绑定申请已通过' : '绑定申请已驳回')
+    await loadBindRequests()
+    if (selectedScene.value?.code) {
+      await loadObjects(selectedScene.value.code)
+    }
+  } catch (err) {
+    ElMessage.error(err.message || '绑定申请审核失败，请重试')
+  } finally {
+    bindRequestReviewingId.value = ''
   }
 }
 
@@ -2393,6 +2550,24 @@ function clampNumber(value, min, max) {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+}
+
+.bind-object-cell {
+  display: grid;
+  gap: 2px;
+}
+
+.bind-object-cell strong {
+  color: #1e293b;
+  font-size: 13px;
+}
+
+.bind-object-cell span {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 12px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

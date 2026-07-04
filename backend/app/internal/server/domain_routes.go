@@ -94,6 +94,7 @@ type AdminUtilityAPIStore interface {
 type MapAPIStore interface {
 	maplogic.PublicStore
 	maplogic.AdminStore
+	maplogic.BindingStore
 }
 
 func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, smsVerifier authlogic.SMSVerifier, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool) {
@@ -129,7 +130,7 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 		registerAdminUtilityRoutes(mux, adminStore, adminTokenService)
 	}
 	if mapStore, ok := store.(MapAPIStore); ok {
-		registerMapRoutes(mux, mapStore)
+		registerMapRoutes(mux, mapStore, userTokenService, adminTokenService, permissionStore)
 	}
 }
 

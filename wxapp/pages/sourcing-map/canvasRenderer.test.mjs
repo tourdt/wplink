@@ -32,9 +32,15 @@ function createMockContext(operations, options = {}) {
     stroke() {
       record('stroke', arguments)
     },
-    setFillStyle() {},
-    setStrokeStyle() {},
-    setLineWidth() {},
+    setFillStyle() {
+      record('setFillStyle', arguments)
+    },
+    setStrokeStyle() {
+      record('setStrokeStyle', arguments)
+    },
+    setLineWidth() {
+      record('setLineWidth', arguments)
+    },
     setFontSize() {},
     setTextAlign() {},
     setTextBaseline() {},
@@ -92,6 +98,112 @@ test('renderer draws the base map and points on the same canvas after the base i
     assert.deepEqual(baseImage.args, ['/tmp/base.png', 0, 0, 400, 200])
     assert.equal(pointArc.args[0], 40)
     assert.equal(pointArc.args[1], 20)
+  } finally {
+    globalThis.uni = originalUni
+  }
+})
+
+test('renderer layers booth outlines with rentable badges and verified labels at close zoom', () => {
+  const operations = []
+  const originalUni = globalThis.uni
+  globalThis.uni = {
+    createCanvasContext() {
+      return createMockContext(operations)
+    },
+  }
+
+  try {
+    const renderer = createSourcingMapRenderer({
+      getObjectLabel(object) {
+        return object.merchant?.name || object.name || object.code || ''
+      },
+    })
+    renderer.init({ canvasId: 'sourcingMapCanvas', width: 420, height: 240 })
+    renderer.setScene({ width: 420, height: 240 })
+    renderer.setObjects([
+      {
+        id: 'plain-booth',
+        name: '普通档口',
+        geometryType: 'rect',
+        geometry: { x: 20, y: 30, width: 90, height: 46 },
+      },
+      {
+        id: 'verified-booth',
+        name: '后台名称',
+        isVerifiedMerchant: true,
+        merchant: { name: '源头童装' },
+        geometryType: 'rect',
+        geometry: { x: 140, y: 30, width: 100, height: 50 },
+      },
+      {
+        id: 'rentable-booth',
+        name: 'E117',
+        platformTags: ['rentable'],
+        geometryType: 'rect',
+        geometry: { x: 270, y: 30, width: 90, height: 46 },
+      },
+    ])
+
+    renderer.render({ scale: 1, offsetX: 0, offsetY: 0 }, {
+      width: 420,
+      height: 240,
+      baseScale: 1,
+      drawBackground: false,
+      zoomLevel: 5,
+    })
+
+    const labelTexts = operations
+      .filter((entry) => entry.type === 'fillText')
+      .map((entry) => entry.args[0])
+
+    assert.equal(labelTexts.includes('源头童装'), true)
+    assert.equal(labelTexts.includes('出租'), true)
+    assert.equal(labelTexts.includes('普通档口'), false)
+  } finally {
+    globalThis.uni = originalUni
+  }
+})
+
+test('renderer hides verified merchant names at overview zoom', () => {
+  const operations = []
+  const originalUni = globalThis.uni
+  globalThis.uni = {
+    createCanvasContext() {
+      return createMockContext(operations)
+    },
+  }
+
+  try {
+    const renderer = createSourcingMapRenderer({
+      getObjectLabel(object) {
+        return object.merchant?.name || object.name || object.code || ''
+      },
+    })
+    renderer.init({ canvasId: 'sourcingMapCanvas', width: 300, height: 180 })
+    renderer.setScene({ width: 300, height: 180 })
+    renderer.setObjects([
+      {
+        id: 'verified-booth',
+        isVerifiedMerchant: true,
+        merchant: { name: '森鹿童装' },
+        geometryType: 'rect',
+        geometry: { x: 80, y: 50, width: 110, height: 54 },
+      },
+    ])
+
+    renderer.render({ scale: 1, offsetX: 0, offsetY: 0 }, {
+      width: 300,
+      height: 180,
+      baseScale: 1,
+      drawBackground: false,
+      zoomLevel: 3,
+    })
+
+    const labelTexts = operations
+      .filter((entry) => entry.type === 'fillText')
+      .map((entry) => entry.args[0])
+
+    assert.equal(labelTexts.includes('森鹿童装'), false)
   } finally {
     globalThis.uni = originalUni
   }

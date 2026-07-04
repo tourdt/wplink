@@ -1,12 +1,22 @@
+import { isRentableMapObject, isVerifiedMapObject } from './mapObjectState.js'
+
 const COLORS = {
   background: '#eef3f8',
   mapFallback: '#e7edf5',
   boothFill: 'rgba(31, 92, 154, 0.20)',
   boothStroke: '#1f5c9a',
+  boothOutlineFill: 'rgba(255, 255, 255, 0.12)',
+  boothOutlineStroke: 'rgba(100, 116, 139, 0.42)',
   poiFill: '#f59e0b',
   poiStroke: '#b45309',
   verifiedFill: 'rgba(22, 163, 74, 0.24)',
   verifiedStroke: '#15803d',
+  verifiedMarkerFill: '#16a34a',
+  verifiedMarkerSoft: 'rgba(22, 163, 74, 0.16)',
+  verifiedMarkerBorder: 'rgba(22, 163, 74, 0.62)',
+  rentableFill: 'rgba(254, 243, 199, 0.82)',
+  rentableStroke: '#b45309',
+  rentableText: '#92400e',
   weakFill: 'rgba(100, 116, 139, 0.18)',
   weakStroke: '#64748b',
   selectedStroke: '#16a34a',
@@ -14,6 +24,9 @@ const COLORS = {
   mutedText: '#64748b',
   badgeFill: '#16a34a',
 }
+
+const VERIFIED_LABEL_ZOOM_LEVEL = 5
+const VERIFIED_PIN_ZOOM_LEVEL = 4
 
 export function createSourcingMapRenderer(options = {}) {
   let ctx = null
@@ -60,7 +73,7 @@ export function createSourcingMapRenderer(options = {}) {
     if (!ctx) return false
     width = toPositiveNumber(renderOptions.width, width || 375)
     height = toPositiveNumber(renderOptions.height, height || 500)
-    const metrics = buildRenderMetrics(scene, transform, { ...renderOptions, backgroundPathCache }, width, height)
+    const metrics = buildRenderMetrics(scene, transform, { ...renderOptions, selectedObject, backgroundPathCache }, width, height)
     let backgroundDrawn = false
 
     clearCanvas(ctx, width, height)
@@ -169,17 +182,64 @@ function drawRectObject(ctx, object, metrics) {
   const y = projectY(toNumber(geometry.y, toNumber(object.centerY, 0)), metrics)
   const width = projectSize(toPositiveNumber(geometry.width, 80), metrics)
   const height = projectSize(toPositiveNumber(geometry.height, 50), metrics)
-  const palette = objectPalette(object)
 
-  setFillStyle(ctx, palette.fill)
-  setStrokeStyle(ctx, palette.stroke)
-  setLineWidth(ctx, isVerifiedObject(object) ? 2 : 1)
-  fillRect(ctx, x, y, width, height)
-  strokeRect(ctx, x, y, width, height)
+  drawBoothOutline(ctx, x, y, width, height, object)
+
+  if (isRentableObject(object)) {
+    drawRentableBooth(ctx, object, metrics, { x, y, width, height })
+    return
+  }
 
   if (isVerifiedObject(object)) {
-    drawVerifiedBadge(ctx, x + width - 24, y + 4)
+    drawVerifiedBoothMarker(ctx, object, metrics, { x, y, width, height })
   }
+}
+
+function drawBoothOutline(ctx, x, y, width, height, object) {
+  const outlineFill = object?.displayLevel === 'weak' ? COLORS.weakFill : COLORS.boothOutlineFill
+  const outlineStroke = object?.displayLevel === 'weak' ? COLORS.weakStroke : COLORS.boothOutlineStroke
+
+  setFillStyle(ctx, outlineFill)
+  setStrokeStyle(ctx, outlineStroke)
+  setLineWidth(ctx, 1)
+  fillRect(ctx, x, y, width, height)
+  strokeRect(ctx, x, y, width, height)
+}
+
+function drawRentableBooth(ctx, object, metrics, rect) {
+  setFillStyle(ctx, COLORS.rentableFill)
+  setStrokeStyle(ctx, COLORS.rentableStroke)
+  setLineWidth(ctx, 2)
+  setLineDash(ctx, [5, 4])
+  fillRect(ctx, rect.x, rect.y, rect.width, rect.height)
+  strokeRect(ctx, rect.x, rect.y, rect.width, rect.height)
+  setLineDash(ctx, [])
+
+  if (toPositiveNumber(metrics.zoomLevel, VERIFIED_LABEL_ZOOM_LEVEL) < VERIFIED_PIN_ZOOM_LEVEL && !isSameObject(object, metrics.selectedObject)) return
+
+  const label = '出租'
+  const fontSize = Math.max(10, Math.min(12, 11 * metrics.scale))
+  setFillStyle(ctx, COLORS.rentableText)
+  setFontSize(ctx, fontSize)
+  setTextAlign(ctx, 'center')
+  setTextBaseline(ctx, 'middle')
+  fillText(ctx, label, rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width)
+}
+
+function drawVerifiedBoothMarker(ctx, object, metrics, rect) {
+  const zoomLevel = toPositiveNumber(metrics.zoomLevel, VERIFIED_LABEL_ZOOM_LEVEL)
+  const center = objectCenter(object)
+  const markerX = projectX(center.x, metrics)
+  const markerY = projectY(center.y, metrics)
+  const selected = isSameObject(object, metrics.selectedObject)
+
+  if (zoomLevel < VERIFIED_PIN_ZOOM_LEVEL && !selected) return
+  if (zoomLevel < VERIFIED_LABEL_ZOOM_LEVEL && !selected) {
+    drawVerifiedPin(ctx, markerX, markerY)
+    return
+  }
+
+  drawVerifiedLabelMarker(ctx, object, metrics, rect)
 }
 
 function drawPointObject(ctx, object, metrics) {
@@ -206,16 +266,24 @@ function drawPointObject(ctx, object, metrics) {
 function drawPolygonObject(ctx, object, metrics) {
   const points = normalizePolygonPoints(object.geometry)
   if (points.length < 3) return
-  const palette = objectPalette(object)
 
   beginPath(ctx)
   fillPolygonPath(ctx, points, metrics)
   closePath(ctx)
-  setFillStyle(ctx, palette.fill)
+  setFillStyle(ctx, object?.displayLevel === 'weak' ? COLORS.weakFill : COLORS.boothOutlineFill)
   fill(ctx)
-  setStrokeStyle(ctx, palette.stroke)
-  setLineWidth(ctx, isVerifiedObject(object) ? 2 : 1)
+  setStrokeStyle(ctx, object?.displayLevel === 'weak' ? COLORS.weakStroke : COLORS.boothOutlineStroke)
+  setLineWidth(ctx, 1)
   stroke(ctx)
+
+  if (isRentableObject(object)) {
+    drawRentablePolygonBadge(ctx, object, metrics)
+    return
+  }
+
+  if (isVerifiedObject(object)) {
+    drawVerifiedBoothMarker(ctx, object, metrics, projectedObjectBounds(object, metrics))
+  }
 }
 
 function fillPolygonPath(ctx, points, metrics) {
@@ -249,8 +317,10 @@ function drawObjectLabel(ctx, object, metrics, renderOptions, options) {
 }
 
 function shouldDrawObjectLabel(object, renderOptions = {}, selectedObject = null) {
+  if (isVerifiedObject(object) || isRentableObject(object)) return false
+  if (!isSameObject(object, selectedObject)) return false
   if (!renderOptions.interacting) return true
-  return isSameObject(object, selectedObject) || isVerifiedObject(object)
+  return isSameObject(object, selectedObject)
 }
 
 function drawSelectedOutline(ctx, object, metrics) {
@@ -283,6 +353,24 @@ function drawSelectedOutline(ctx, object, metrics) {
   strokeRect(ctx, x - 2, y - 2, width + 4, height + 4)
 }
 
+function drawRentablePolygonBadge(ctx, object, metrics) {
+  if (toPositiveNumber(metrics.zoomLevel, VERIFIED_LABEL_ZOOM_LEVEL) < VERIFIED_PIN_ZOOM_LEVEL && !isSameObject(object, metrics.selectedObject)) return
+
+  const center = objectCenter(object)
+  const x = projectX(center.x, metrics)
+  const y = projectY(center.y, metrics)
+  setFillStyle(ctx, COLORS.rentableFill)
+  setStrokeStyle(ctx, COLORS.rentableStroke)
+  setLineWidth(ctx, 2)
+  fillRect(ctx, x - 18, y - 10, 36, 20)
+  strokeRect(ctx, x - 18, y - 10, 36, 20)
+  setFillStyle(ctx, COLORS.rentableText)
+  setFontSize(ctx, 11)
+  setTextAlign(ctx, 'center')
+  setTextBaseline(ctx, 'middle')
+  fillText(ctx, '出租', x, y, 34)
+}
+
 function drawVerifiedBadge(ctx, x, y) {
   const width = 22
   const height = 12
@@ -293,6 +381,68 @@ function drawVerifiedBadge(ctx, x, y) {
   setTextAlign(ctx, 'center')
   setTextBaseline(ctx, 'middle')
   fillText(ctx, '认', x + width / 2, y + height / 2 + 0.5, width)
+}
+
+function drawVerifiedPin(ctx, x, y) {
+  const radius = 8
+  beginPath(ctx)
+  arc(ctx, x, y, radius + 4, 0, Math.PI * 2)
+  closePath(ctx)
+  setFillStyle(ctx, COLORS.verifiedMarkerSoft)
+  fill(ctx)
+
+  beginPath(ctx)
+  arc(ctx, x, y, radius, 0, Math.PI * 2)
+  closePath(ctx)
+  setFillStyle(ctx, COLORS.verifiedMarkerFill)
+  fill(ctx)
+
+  beginPath(ctx)
+  arc(ctx, x, y, 3, 0, Math.PI * 2)
+  closePath(ctx)
+  setFillStyle(ctx, '#ffffff')
+  fill(ctx)
+}
+
+function drawVerifiedLabelMarker(ctx, object, metrics, rect) {
+  const label = objectLabelText(object)
+  if (!label) {
+    drawVerifiedPin(ctx, rect.x + rect.width / 2, rect.y + rect.height / 2)
+    return
+  }
+
+  const fontSize = 11
+  const markerHeight = 28
+  const markerWidth = Math.max(84, Math.min(136, 44 + label.length * fontSize))
+  const markerX = Math.max(6, rect.x + rect.width / 2 - markerWidth / 2)
+  const markerY = Math.max(6, rect.y - markerHeight - 8)
+  const logoRadius = 10
+  const logoX = markerX + 17
+  const logoY = markerY + markerHeight / 2
+
+  setFillStyle(ctx, 'rgba(255, 255, 255, 0.96)')
+  setStrokeStyle(ctx, COLORS.verifiedMarkerBorder)
+  setLineWidth(ctx, 1)
+  fillRect(ctx, markerX, markerY, markerWidth, markerHeight)
+  strokeRect(ctx, markerX, markerY, markerWidth, markerHeight)
+
+  beginPath(ctx)
+  arc(ctx, logoX, logoY, logoRadius, 0, Math.PI * 2)
+  closePath(ctx)
+  setFillStyle(ctx, COLORS.verifiedMarkerFill)
+  fill(ctx)
+
+  setFillStyle(ctx, '#ffffff')
+  setFontSize(ctx, 10)
+  setTextAlign(ctx, 'center')
+  setTextBaseline(ctx, 'middle')
+  fillText(ctx, logoText(object), logoX, logoY + 0.5, logoRadius * 2)
+
+  setFillStyle(ctx, COLORS.text)
+  setFontSize(ctx, fontSize)
+  setTextAlign(ctx, 'left')
+  setTextBaseline(ctx, 'middle')
+  fillText(ctx, truncateLabel(label, markerWidth - 40, fontSize), markerX + 34, logoY, markerWidth - 40)
 }
 
 function drawMapBackground(ctx, scene, metrics, options = {}) {
@@ -334,6 +484,8 @@ function buildRenderMetrics(scene, transform, options, width, height) {
     scale: toPositiveNumber(transform.scale, 1),
     offsetX: toNumber(transform.offsetX, 0),
     offsetY: toNumber(transform.offsetY, 0),
+    zoomLevel: toPositiveNumber(options.zoomLevel, 5),
+    selectedObject: options.selectedObject || null,
     backgroundPathCache: options.backgroundPathCache || new Map(),
   }
 }
@@ -353,7 +505,7 @@ function objectPaintScore(object) {
 }
 
 function objectPalette(object) {
-  if (isVerifiedObject(object)) {
+  if (isVerifiedMapObject(object)) {
     return { fill: COLORS.verifiedFill, stroke: COLORS.verifiedStroke }
   }
   if (object?.displayLevel === 'weak') {
@@ -366,7 +518,11 @@ function objectPalette(object) {
 }
 
 function isVerifiedObject(object) {
-  return object?.isVerifiedMerchant || object?.displayLevel === 'highlight'
+  return isVerifiedMapObject(object)
+}
+
+function isRentableObject(object) {
+  return isRentableMapObject(object)
 }
 
 function isSameObject(left, right) {
@@ -394,6 +550,25 @@ function objectCenter(object = {}) {
     x: x + objectWidth(object) / 2,
     y: y + objectHeight(object) / 2,
   }
+}
+
+function projectedObjectBounds(object = {}, metrics) {
+  const bounds = objectBounds(object)
+  return {
+    x: projectX(bounds.minX, metrics),
+    y: projectY(bounds.minY, metrics),
+    width: projectSize(bounds.maxX - bounds.minX, metrics),
+    height: projectSize(bounds.maxY - bounds.minY, metrics),
+  }
+}
+
+function objectLabelText(object = {}) {
+  return object?.merchant?.name || object.name || object.code || ''
+}
+
+function logoText(object = {}) {
+  const text = object?.merchant?.name || object.name || object.code || '认'
+  return String(text).trim().slice(0, 1) || '认'
 }
 
 function objectBounds(object = {}) {
@@ -526,6 +701,10 @@ function setLineWidth(ctx, value) {
   } else {
     ctx.lineWidth = value
   }
+}
+
+function setLineDash(ctx, value) {
+  if (typeof ctx.setLineDash === 'function') ctx.setLineDash(value)
 }
 
 function setFontSize(ctx, value) {

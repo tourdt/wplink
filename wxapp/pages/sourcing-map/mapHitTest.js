@@ -1,9 +1,11 @@
+import { isRentableMapObject, isVerifiedMapObject } from './mapObjectState.js'
+
 const DEFAULT_POINT_RADIUS = 18
 
 export function hitTestMapObjects(objects = [], mapPoint = {}, options = {}) {
   const hits = objects
     .map((object, index) => ({ object, index, bounds: getObjectBounds(object) }))
-    .filter((entry) => isObjectHit(entry.object, mapPoint, options.pointRadius))
+    .filter((entry) => isClickableMapObject(entry.object) && isObjectHit(entry.object, mapPoint, options.pointRadius))
     .sort((left, right) => compareHitPriority(left, right, options))
   return hits[0]?.object || null
 }
@@ -79,9 +81,16 @@ function hitPriorityScore(entry, options = {}) {
   let score = 0
   const identity = objectIdentity(entry.object)
   if (identity && identity === options.selectedObjectId) score += 100
-  if (entry.object?.isVerifiedMerchant || entry.object?.displayLevel === 'highlight') score += 50
+  if (isVerifiedMapObject(entry.object)) score += 50
+  if (isRentableMapObject(entry.object)) score += 40
   if (entry.object?.geometryType === 'point') score += 8
   return score
+}
+
+function isClickableMapObject(object) {
+  if (!object) return false
+  if (object.geometryType === 'point') return true
+  return Boolean(isVerifiedMapObject(object) || isRentableMapObject(object))
 }
 
 function boundsArea(bounds) {

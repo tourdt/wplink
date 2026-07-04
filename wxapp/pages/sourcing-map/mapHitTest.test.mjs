@@ -51,6 +51,7 @@ test('hitTestMapObjects returns the top priority hit object', () => {
   const objects = [
     {
       id: 'large',
+      platformTags: ['rentable'],
       geometryType: 'rect',
       geometry: { x: 0, y: 0, width: 200, height: 200 },
     },
@@ -62,6 +63,7 @@ test('hitTestMapObjects returns the top priority hit object', () => {
     },
     {
       id: 'selected',
+      platformTags: ['rentable'],
       geometryType: 'rect',
       geometry: { x: 40, y: 40, width: 120, height: 120 },
     },
@@ -75,11 +77,13 @@ test('hitTestMapObjects falls back to smaller geometry when priorities tie', () 
   const objects = [
     {
       id: 'large',
+      platformTags: ['rentable'],
       geometryType: 'rect',
       geometry: { x: 0, y: 0, width: 200, height: 200 },
     },
     {
       id: 'small',
+      platformTags: ['rentable'],
       geometryType: 'rect',
       geometry: { x: 60, y: 60, width: 40, height: 40 },
     },
@@ -87,4 +91,38 @@ test('hitTestMapObjects falls back to smaller geometry when priorities tie', () 
 
   const hitObject = hitTestMapObjects(objects, { x: 80, y: 80 })
   assert.equal(hitObject.id, 'small')
+})
+
+test('hitTestMapObjects ignores ordinary booth outlines but keeps verified and rentable booths clickable', () => {
+  const ordinaryBooth = {
+    id: 'ordinary-booth',
+    geometryType: 'rect',
+    geometry: { x: 0, y: 0, width: 80, height: 60 },
+  }
+  const verifiedBooth = {
+    id: 'verified-booth',
+    isVerifiedMerchant: true,
+    geometryType: 'rect',
+    geometry: { x: 100, y: 0, width: 80, height: 60 },
+  }
+  const rentableBooth = {
+    id: 'rentable-booth',
+    platformTags: ['rentable'],
+    geometryType: 'rect',
+    geometry: { x: 200, y: 0, width: 80, height: 60 },
+  }
+
+  assert.equal(hitTestMapObjects([ordinaryBooth], { x: 30, y: 30 }), null)
+  assert.equal(hitTestMapObjects([verifiedBooth], { x: 130, y: 30 })?.id, 'verified-booth')
+  assert.equal(hitTestMapObjects([rentableBooth], { x: 230, y: 30 })?.id, 'rentable-booth')
+})
+
+test('hitTestMapObjects keeps point POIs clickable after booth click filtering', () => {
+  const poiObject = {
+    id: 'poi-1',
+    geometryType: 'point',
+    geometry: { x: 50, y: 50 },
+  }
+
+  assert.equal(hitTestMapObjects([poiObject], { x: 56, y: 56 })?.id, 'poi-1')
 })

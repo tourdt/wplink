@@ -376,7 +376,7 @@ test('sourcing map highlights verified merchants and weak admin objects in canva
     'isVerifiedObject',
     'drawSelectedOutline',
     'displayLevel',
-    'isVerifiedMerchant',
+    'isVerifiedMapObject',
   ])
   assert.match(source, /objectDisplayName\(object\)/)
   assert.match(source, /v-if="selectedObject\.isVerifiedMerchant"/)
@@ -395,7 +395,9 @@ test('sourcing map page supports canvas gesture zoom and level based labels', ()
   assert.match(source, /const mapZoomLevel = computed\(\(\) => getZoomLevelByScale\(mapTransform\.value\.scale\)\)/)
   assert.match(source, /function getZoomLevelByScale\(scale\)/)
   assert.match(source, /function handleCanvasTouchMove\(event\)/)
-  assert.match(source, /if \(mapZoomLevel\.value < 4\) return object\.code \|\| ''/)
+  assert.match(source, /if \(!selected && !verified && !rentable\) return ''/)
+  assert.match(source, /if \(!selected && verified && mapZoomLevel\.value < 5\) return ''/)
+  assert.match(source, /if \(!selected && rentable && mapZoomLevel\.value < 4\) return ''/)
   assert.match(source, /return objectDisplayName\(object\)/)
 })
 

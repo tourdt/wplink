@@ -32,6 +32,7 @@ const requiredPages = [
   'pages/my-resources/index',
   'pages/favorites/index',
   'pages/merchant/profile',
+  'pages/merchant/map-binding',
   'pages/resource/detail',
   'pages/merchant/detail',
   'pages/topic/index',

@@ -36,6 +36,15 @@ const (
 	MapObjectDisplaySourceVerifiedMerchant = "verified_merchant"
 	MapObjectDisplayLevelWeak              = "weak"
 	MapObjectDisplayLevelHighlight         = "highlight"
+
+	MapBindRequestStatusPending  = "pending"
+	MapBindRequestStatusApproved = "approved"
+	MapBindRequestStatusRejected = "rejected"
+)
+
+var (
+	ErrMapBindRequestPending = errors.New("map bind request pending")
+	ErrMapObjectAlreadyBound = errors.New("map object already bound")
 )
 
 type MapScene struct {
@@ -178,6 +187,72 @@ type MapCategoryInput struct {
 	Sort      int64
 	IsVisible bool
 	Status    string
+}
+
+type MapBindCandidate struct {
+	ObjectID     string
+	SceneCode    string
+	SceneName    string
+	Code         string
+	Name         string
+	Address      string
+	MerchantID   string
+	MerchantName string
+	IsBound      bool
+}
+
+type MapBindRequest struct {
+	ID              string
+	MerchantID      string
+	MerchantName    string
+	ObjectID        string
+	SceneCode       string
+	SceneName       string
+	ObjectCode      string
+	ObjectName      string
+	ApplicantUserID string
+	EvidenceImages  []string
+	Note            string
+	Status          string
+	ReviewNote      string
+	ReviewedBy      string
+	ReviewedAt      string
+	CreatedAt       string
+	UpdatedAt       string
+}
+
+type MapBindingStatus struct {
+	BoundObject   *MapBindCandidate
+	LatestRequest *MapBindRequest
+}
+
+type MapBindCandidateFilter struct {
+	MerchantID string
+	SceneCode  string
+	Keyword    string
+	Limit      int64
+}
+
+type MapBindRequestInput struct {
+	MerchantID      string
+	ObjectID        string
+	ApplicantUserID string
+	EvidenceImages  []string
+	Note            string
+}
+
+type ListMapBindRequestsFilter struct {
+	Status   string
+	Keyword  string
+	Page     int64
+	PageSize int64
+}
+
+type ReviewMapBindRequestInput struct {
+	ID         string
+	Status     string
+	ReviewNote string
+	ReviewerID string
 }
 
 type ListMapCategoriesFilter struct {
@@ -678,6 +753,245 @@ RETURNING id::text, code, name, type, COALESCE(icon_url, ''), sort::bigint, is_v
 	return scanMapCategory(row)
 }
 
+func (m *MapModel) GetMapBindingStatus(ctx context.Context, merchantID string) (MapBindingStatus, error) {
+	merchantID = strings.TrimSpace(merchantID)
+	status := MapBindingStatus{}
+
+	boundRow := m.db.QueryRowContext(ctx, `
+SELECT `+mapBindCandidateSelectColumns()+`
+FROM map_object o
+JOIN map_scene s ON s.code = o.scene_code
+LEFT JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL
+WHERE o.merchant_id::text = $1 AND o.status = 'normal'
+ORDER BY o.updated_at DESC
+LIMIT 1
+`, merchantID)
+	if candidate, err := scanMapBindCandidate(boundRow); err == nil {
+		status.BoundObject = &candidate
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return MapBindingStatus{}, err
+	}
+
+	requestRow := m.db.QueryRowContext(ctx, `
+SELECT `+mapBindRequestSelectColumns("r")+`
+FROM map_object_bind_request r
+JOIN merchants merchant ON merchant.id = r.merchant_id
+JOIN map_object o ON o.id = r.object_id
+JOIN map_scene s ON s.code = r.scene_code
+WHERE r.merchant_id::text = $1
+ORDER BY r.created_at DESC
+LIMIT 1
+`, merchantID)
+	if request, err := scanMapBindRequest(requestRow); err == nil {
+		status.LatestRequest = &request
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return MapBindingStatus{}, err
+	}
+	return status, nil
+}
+
+func (m *MapModel) ListMapBindCandidates(ctx context.Context, filter MapBindCandidateFilter) ([]MapBindCandidate, error) {
+	limit := filter.Limit
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	query := `
+SELECT ` + mapBindCandidateSelectColumns() + `
+FROM map_object o
+JOIN map_scene s ON s.code = o.scene_code
+LEFT JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL
+`
+	args := make([]interface{}, 0, 4)
+	conditions := []string{"o.status = 'normal'", "o.layer = 'booth'", "s.status = 'published'"}
+	if v := strings.TrimSpace(filter.SceneCode); v != "" {
+		args = append(args, v)
+		conditions = append(conditions, fmt.Sprintf("o.scene_code = $%d", len(args)))
+	}
+	if v := strings.TrimSpace(filter.Keyword); v != "" {
+		args = append(args, v)
+		conditions = append(conditions, fmt.Sprintf("(o.code ILIKE '%%' || $%d || '%%' OR o.name ILIKE '%%' || $%d || '%%' OR COALESCE(o.address, '') ILIKE '%%' || $%d || '%%' OR COALESCE(m.name, '') ILIKE '%%' || $%d || '%%')", len(args), len(args), len(args), len(args)))
+	}
+	query += " WHERE " + strings.Join(conditions, " AND ")
+	args = append(args, limit)
+	query += fmt.Sprintf(" ORDER BY (o.merchant_id IS NULL) DESC, o.sort ASC, o.code ASC LIMIT $%d", len(args))
+
+	rows, err := m.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]MapBindCandidate, 0)
+	for rows.Next() {
+		item, err := scanMapBindCandidate(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (m *MapModel) CreateMapBindRequest(ctx context.Context, input MapBindRequestInput) (MapBindRequest, error) {
+	var created MapBindRequest
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		var sceneCode string
+		if err := tx.QueryRowContext(ctx, `
+SELECT o.scene_code
+FROM map_object o
+JOIN map_scene s ON s.code = o.scene_code
+WHERE o.id::text = $1 AND o.status = 'normal' AND o.layer = 'booth' AND s.status = 'published'
+LIMIT 1
+`, strings.TrimSpace(input.ObjectID)).Scan(&sceneCode); err != nil {
+			return err
+		}
+
+		var hasPending bool
+		if err := tx.QueryRowContext(ctx, `
+SELECT EXISTS (
+  SELECT 1
+  FROM map_object_bind_request
+  WHERE merchant_id::text = $1 AND object_id::text = $2 AND status = 'pending'
+)
+`, strings.TrimSpace(input.MerchantID), strings.TrimSpace(input.ObjectID)).Scan(&hasPending); err != nil {
+			return err
+		}
+		if hasPending {
+			return ErrMapBindRequestPending
+		}
+
+		row := tx.QueryRowContext(ctx, `
+INSERT INTO map_object_bind_request (
+  merchant_id, object_id, scene_code, applicant_user_id, evidence_images, note, status, updated_at
+) VALUES (
+  $1::bigint, $2::bigint, $3, CASE WHEN $4 = '' THEN NULL ELSE $4::bigint END, $5, $6, 'pending', now()
+)
+RETURNING id::text
+`, strings.TrimSpace(input.MerchantID), strings.TrimSpace(input.ObjectID), sceneCode, strings.TrimSpace(input.ApplicantUserID), JSONStringSlice(cleanStringSlice(input.EvidenceImages)), strings.TrimSpace(input.Note))
+		var requestID string
+		if err := row.Scan(&requestID); err != nil {
+			if isUniqueViolation(err) {
+				return ErrMapBindRequestPending
+			}
+			return err
+		}
+		request, err := selectMapBindRequestByID(ctx, tx, requestID)
+		if err != nil {
+			return err
+		}
+		created = request
+		return nil
+	})
+	return created, err
+}
+
+func (m *MapModel) ListMapBindRequests(ctx context.Context, filter ListMapBindRequestsFilter) ([]MapBindRequest, error) {
+	page := filter.Page
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := filter.PageSize
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 20
+	}
+	query := `
+SELECT ` + mapBindRequestSelectColumns("r") + `
+FROM map_object_bind_request r
+JOIN merchants merchant ON merchant.id = r.merchant_id
+JOIN map_object o ON o.id = r.object_id
+JOIN map_scene s ON s.code = r.scene_code
+`
+	args := make([]interface{}, 0, 4)
+	conditions := make([]string, 0, 2)
+	if v := strings.TrimSpace(filter.Status); v != "" {
+		args = append(args, v)
+		conditions = append(conditions, fmt.Sprintf("r.status = $%d", len(args)))
+	}
+	if v := strings.TrimSpace(filter.Keyword); v != "" {
+		args = append(args, v)
+		conditions = append(conditions, fmt.Sprintf("(merchant.name ILIKE '%%' || $%d || '%%' OR o.code ILIKE '%%' || $%d || '%%' OR o.name ILIKE '%%' || $%d || '%%' OR r.note ILIKE '%%' || $%d || '%%')", len(args), len(args), len(args), len(args)))
+	}
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	args = append(args, pageSize, (page-1)*pageSize)
+	query += fmt.Sprintf(" ORDER BY r.created_at DESC LIMIT $%d OFFSET $%d", len(args)-1, len(args))
+
+	rows, err := m.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]MapBindRequest, 0)
+	for rows.Next() {
+		item, err := scanMapBindRequest(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (m *MapModel) ReviewMapBindRequest(ctx context.Context, input ReviewMapBindRequestInput) (MapBindRequest, error) {
+	var reviewed MapBindRequest
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		var merchantID string
+		var objectID string
+		if err := tx.QueryRowContext(ctx, `
+SELECT merchant_id::text, object_id::text
+FROM map_object_bind_request
+WHERE id::text = $1 AND status = 'pending'
+FOR UPDATE
+`, strings.TrimSpace(input.ID)).Scan(&merchantID, &objectID); err != nil {
+			return err
+		}
+
+		status := strings.TrimSpace(input.Status)
+		if status == MapBindRequestStatusApproved {
+			var currentMerchantID string
+			if err := tx.QueryRowContext(ctx, `
+SELECT COALESCE(merchant_id::text, '')
+FROM map_object
+WHERE id::text = $1
+FOR UPDATE
+`, objectID).Scan(&currentMerchantID); err != nil {
+				return err
+			}
+			if currentMerchantID != "" && currentMerchantID != merchantID {
+				return ErrMapObjectAlreadyBound
+			}
+			if _, err := tx.ExecContext(ctx, `
+UPDATE map_object
+SET merchant_id = $1::bigint, updated_at = now()
+WHERE id::text = $2
+`, merchantID, objectID); err != nil {
+				return err
+			}
+		}
+
+		if _, err := tx.ExecContext(ctx, `
+UPDATE map_object_bind_request
+SET status = $2,
+    review_note = $3,
+    reviewed_by = CASE WHEN $4 = '' THEN NULL ELSE $4::bigint END,
+    reviewed_at = now(),
+    updated_at = now()
+WHERE id::text = $1
+`, strings.TrimSpace(input.ID), status, strings.TrimSpace(input.ReviewNote), strings.TrimSpace(input.ReviewerID)); err != nil {
+			return err
+		}
+		request, err := selectMapBindRequestByID(ctx, tx, strings.TrimSpace(input.ID))
+		if err != nil {
+			return err
+		}
+		reviewed = request
+		return nil
+	})
+	return reviewed, err
+}
+
 func (m *MapModel) getScene(ctx context.Context, sceneCode string, status string) (MapScene, error) {
 	row := m.db.QueryRowContext(ctx, `
 SELECT s.id::text, COALESCE(c.code, ''), s.code, s.name, s.type, COALESCE(s.parent_code, ''),
@@ -864,6 +1178,44 @@ func scanMapCategory(row rowScanner) (MapCategory, error) {
 	return category, nil
 }
 
+func scanMapBindCandidate(row rowScanner) (MapBindCandidate, error) {
+	var item MapBindCandidate
+	err := row.Scan(
+		&item.ObjectID, &item.SceneCode, &item.SceneName,
+		&item.Code, &item.Name, &item.Address,
+		&item.MerchantID, &item.MerchantName, &item.IsBound,
+	)
+	if err != nil {
+		return MapBindCandidate{}, err
+	}
+	return item, nil
+}
+
+func scanMapBindRequest(row rowScanner) (MapBindRequest, error) {
+	var item MapBindRequest
+	var evidenceImages JSONStringSlice
+	var reviewedAt sql.NullTime
+	var createdAt time.Time
+	var updatedAt time.Time
+	err := row.Scan(
+		&item.ID, &item.MerchantID, &item.MerchantName,
+		&item.ObjectID, &item.SceneCode, &item.SceneName,
+		&item.ObjectCode, &item.ObjectName, &item.ApplicantUserID,
+		&evidenceImages, &item.Note, &item.Status, &item.ReviewNote,
+		&item.ReviewedBy, &reviewedAt, &createdAt, &updatedAt,
+	)
+	if err != nil {
+		return MapBindRequest{}, err
+	}
+	item.EvidenceImages = []string(evidenceImages)
+	if reviewedAt.Valid {
+		item.ReviewedAt = reviewedAt.Time.Format(time.RFC3339)
+	}
+	item.CreatedAt = createdAt.Format(time.RFC3339)
+	item.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return item, nil
+}
+
 func mapObjectSelectColumns() string {
 	return `id::text, scene_code, COALESCE(merchant_id::text, ''),
        ''::text, ''::text, ''::text, ''::text, '[]'::jsonb,
@@ -895,6 +1247,43 @@ func joinedMapObjectSelectColumns(alias string) string {
        COALESCE(` + prefix + `address, ''), COALESCE(` + prefix + `phone, ''), COALESCE(` + prefix + `wechat, ''),
        COALESCE(` + prefix + `lat::text, ''), COALESCE(` + prefix + `lng::text, ''),
        ` + prefix + `search_text, ` + prefix + `extra, ` + prefix + `sort::bigint, ` + prefix + `status, ` + prefix + `created_at, ` + prefix + `updated_at`
+}
+
+func mapBindCandidateSelectColumns() string {
+	return `o.id::text, o.scene_code, s.name,
+       o.code, o.name, COALESCE(o.address, ''),
+       COALESCE(o.merchant_id::text, ''), COALESCE(m.name, ''),
+       o.merchant_id IS NOT NULL`
+}
+
+func mapBindRequestSelectColumns(alias string) string {
+	prefix := strings.TrimSpace(alias)
+	if prefix != "" {
+		prefix += "."
+	}
+	return prefix + `id::text, ` + prefix + `merchant_id::text, merchant.name,
+       ` + prefix + `object_id::text, ` + prefix + `scene_code, s.name,
+       o.code, o.name, COALESCE(` + prefix + `applicant_user_id::text, ''),
+       ` + prefix + `evidence_images, ` + prefix + `note, ` + prefix + `status, ` + prefix + `review_note,
+       COALESCE(` + prefix + `reviewed_by::text, ''), ` + prefix + `reviewed_at, ` + prefix + `created_at, ` + prefix + `updated_at`
+}
+
+func selectMapBindRequestByID(ctx context.Context, tx *sql.Tx, requestID string) (MapBindRequest, error) {
+	row := tx.QueryRowContext(ctx, `
+SELECT `+mapBindRequestSelectColumns("r")+`
+FROM map_object_bind_request r
+JOIN merchants merchant ON merchant.id = r.merchant_id
+JOIN map_object o ON o.id = r.object_id
+JOIN map_scene s ON s.code = r.scene_code
+WHERE r.id::text = $1
+LIMIT 1
+`, strings.TrimSpace(requestID))
+	return scanMapBindRequest(row)
+}
+
+func isUniqueViolation(err error) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && string(pqErr.Code) == "23505"
 }
 
 func numberFromGeometry(geometry JSONMap, key string) (float64, error) {

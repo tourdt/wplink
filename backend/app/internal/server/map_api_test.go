@@ -177,20 +177,90 @@ func TestMapAPIRouterListsAdminCategoriesWithStatus(t *testing.T) {
 	}
 }
 
+func TestMapAPIRouterSubmitsMerchantMapBindRequest(t *testing.T) {
+	store := &fakeMapAPIStore{
+		fakeCityAPIStore: fakeCityAPIStore{},
+		managedMerchants: map[string]bool{"merchant-1": true},
+		createdBindRequest: model.MapBindRequest{
+			ID:         "request-1",
+			MerchantID: "merchant-1",
+			ObjectID:   "object-1",
+			SceneCode:  "scene-1",
+			Status:     model.MapBindRequestStatusPending,
+		},
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1/map-binding-requests", strings.NewReader(`{
+		"objectId":"object-1",
+		"note":"我是 A001 档口",
+		"evidenceImages":["https://img.example.com/booth.jpg"]
+	}`))
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	item := data["item"].(map[string]interface{})
+	if item["id"] != "request-1" || item["status"] != model.MapBindRequestStatusPending {
+		t.Fatalf("item = %#v, want pending request", item)
+	}
+	if store.createdBindInput.MerchantID != "merchant-1" || store.createdBindInput.ObjectID != "object-1" {
+		t.Fatalf("created input = %#v, want merchant/object", store.createdBindInput)
+	}
+}
+
+func TestMapAPIRouterReviewsAdminMapBindRequest(t *testing.T) {
+	store := &fakeMapAPIStore{
+		fakeCityAPIStore: fakeCityAPIStore{},
+		reviewedBindRequest: model.MapBindRequest{
+			ID:         "request-1",
+			MerchantID: "merchant-1",
+			ObjectID:   "object-1",
+			SceneCode:  "scene-1",
+			Status:     model.MapBindRequestStatusApproved,
+		},
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/map/bind-requests/request-1/review", strings.NewReader(`{
+		"action":"approve",
+		"reviewNote":"资料匹配"
+	}`))
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	item := data["item"].(map[string]interface{})
+	if item["status"] != model.MapBindRequestStatusApproved {
+		t.Fatalf("item = %#v, want approved request", item)
+	}
+	if store.reviewBindInput.ID != "request-1" || store.reviewBindInput.Status != model.MapBindRequestStatusApproved {
+		t.Fatalf("review input = %#v, want approved request", store.reviewBindInput)
+	}
+}
+
 type fakeMapAPIStore struct {
 	fakeCityAPIStore
-	sceneFilter      model.ListMapScenesFilter
-	objectFilter     model.ListMapObjectsFilter
-	adminSceneCode   string
-	categoryFilter   model.ListMapCategoriesFilter
-	savedSceneInput  model.MapSceneInput
-	savedObjectInput model.MapObjectInput
-	scenes           []model.MapScene
-	savedScene       model.MapScene
-	objects          []model.MapObject
-	objectTotal      int64
-	object           model.MapObject
-	categories       []model.MapCategory
+	sceneFilter         model.ListMapScenesFilter
+	objectFilter        model.ListMapObjectsFilter
+	adminSceneCode      string
+	categoryFilter      model.ListMapCategoriesFilter
+	managedMerchants    map[string]bool
+	savedSceneInput     model.MapSceneInput
+	savedObjectInput    model.MapObjectInput
+	createdBindInput    model.MapBindRequestInput
+	reviewBindInput     model.ReviewMapBindRequestInput
+	scenes              []model.MapScene
+	savedScene          model.MapScene
+	objects             []model.MapObject
+	objectTotal         int64
+	object              model.MapObject
+	categories          []model.MapCategory
+	bindingStatus       model.MapBindingStatus
+	bindCandidates      []model.MapBindCandidate
+	bindRequests        []model.MapBindRequest
+	createdBindRequest  model.MapBindRequest
+	reviewedBindRequest model.MapBindRequest
 }
 
 func (s *fakeMapAPIStore) ListPublishedScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error) {
@@ -271,4 +341,33 @@ func (s *fakeMapAPIStore) ListCategories(ctx context.Context, filter model.ListM
 
 func (s *fakeMapAPIStore) SaveCategory(ctx context.Context, input model.MapCategoryInput) (model.MapCategory, error) {
 	return model.MapCategory{Code: input.Code, Name: input.Name, Type: input.Type, Status: input.Status}, nil
+}
+
+func (s *fakeMapAPIStore) UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error) {
+	if s.managedMerchants == nil {
+		return true, nil
+	}
+	return s.managedMerchants[merchantID], nil
+}
+
+func (s *fakeMapAPIStore) GetMapBindingStatus(ctx context.Context, merchantID string) (model.MapBindingStatus, error) {
+	return s.bindingStatus, nil
+}
+
+func (s *fakeMapAPIStore) ListMapBindCandidates(ctx context.Context, filter model.MapBindCandidateFilter) ([]model.MapBindCandidate, error) {
+	return append([]model.MapBindCandidate(nil), s.bindCandidates...), nil
+}
+
+func (s *fakeMapAPIStore) CreateMapBindRequest(ctx context.Context, input model.MapBindRequestInput) (model.MapBindRequest, error) {
+	s.createdBindInput = input
+	return s.createdBindRequest, nil
+}
+
+func (s *fakeMapAPIStore) ListMapBindRequests(ctx context.Context, filter model.ListMapBindRequestsFilter) ([]model.MapBindRequest, error) {
+	return append([]model.MapBindRequest(nil), s.bindRequests...), nil
+}
+
+func (s *fakeMapAPIStore) ReviewMapBindRequest(ctx context.Context, input model.ReviewMapBindRequestInput) (model.MapBindRequest, error) {
+	s.reviewBindInput = input
+	return s.reviewedBindRequest, nil
 }

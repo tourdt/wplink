@@ -41,3 +41,11 @@ export function listMapCategories(params = {}) {
 export function saveMapCategory(payload) {
   return http.post('/api/v1/admin/map/categories', payload)
 }
+
+export function listMapBindRequests(params = {}) {
+  return http.get('/api/v1/admin/map/bind-requests', { params })
+}
+
+export function reviewMapBindRequest(requestId, payload) {
+  return http.post(`/api/v1/admin/map/bind-requests/${requestId}/review`, payload)
+}

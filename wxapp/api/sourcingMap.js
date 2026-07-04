@@ -60,3 +60,29 @@ export function listNearbyPois(objectId, params = {}) {
     suppressErrorToast: true,
   })
 }
+
+export function getMerchantMapBinding(merchantId, options = {}) {
+  return request({
+    url: `/api/v1/merchants/${merchantId}/map-binding`,
+    method: 'GET',
+    suppressErrorToast: true,
+    ...options,
+  })
+}
+
+export function listMapBindCandidates(params = {}) {
+  return request({
+    url: '/api/v1/map/bind-candidates',
+    method: 'GET',
+    data: params,
+    suppressErrorToast: true,
+  })
+}
+
+export function submitMapBindRequest(merchantId, data = {}) {
+  return request({
+    url: `/api/v1/merchants/${merchantId}/map-binding-requests`,
+    method: 'POST',
+    data,
+  })
+}

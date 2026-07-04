@@ -199,6 +199,7 @@ import {
 import { createSourcingMapRenderer } from './canvasRenderer'
 import { createInitialTransform, endGesture, moveGesture, screenToMap, startGesture } from './mapGesture'
 import { hitTestMapObjects } from './mapHitTest'
+import { isRentableMapObject, isVerifiedMapObject } from './mapObjectState'
 
 const MAP_MAX_WIDTH_RPX = 750
 const MAP_VIEWPORT_WIDTH_RPX = MAP_MAX_WIDTH_RPX
@@ -1329,8 +1330,13 @@ function buildNavigationPayload(object) {
 
 function objectDisplayLabel(object) {
   if (object.geometryType === 'point') return ''
-  if (mapZoomLevel.value < 4) return object.code || ''
-  if (mapZoomLevel.value < 5) return object.code || object.name || ''
+  const selected = selectedObjectId.value === objectIdentity(object)
+  const verified = isVerifiedMapObject(object)
+  const rentable = isRentableMapObject(object)
+  if (!selected && !verified && !rentable) return ''
+  if (!selected && verified && mapZoomLevel.value < 5) return ''
+  if (!selected && rentable && mapZoomLevel.value < 4) return ''
+  if (rentable && !selected) return object.code || object.name || ''
   return objectDisplayName(object)
 }
 
