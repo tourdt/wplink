@@ -43,6 +43,19 @@ export function isPointInPolygon(mapPoint = {}, object = {}) {
   return inside
 }
 
+export function isObjectInBounds(object = {}, bounds = {}) {
+  if (!object) return false
+  const viewportBounds = normalizeBounds(bounds)
+  if (!viewportBounds) return false
+  const objectBounds = getObjectBounds(object)
+  return (
+    objectBounds.maxX >= viewportBounds.minX &&
+    objectBounds.minX <= viewportBounds.maxX &&
+    objectBounds.maxY >= viewportBounds.minY &&
+    objectBounds.minY <= viewportBounds.maxY
+  )
+}
+
 export function getObjectBounds(object = {}) {
   const geometry = object.geometry || {}
   if (object.geometryType === 'polygon') {
@@ -125,6 +138,22 @@ function getPolygonBounds(geometry = {}) {
       maxY: points[0].y,
     },
   )
+}
+
+function normalizeBounds(bounds = {}) {
+  const minX = Number(bounds.minX)
+  const minY = Number(bounds.minY)
+  const maxX = Number(bounds.maxX)
+  const maxY = Number(bounds.maxY)
+  if (![minX, minY, maxX, maxY].every(Number.isFinite)) {
+    return null
+  }
+  return {
+    minX: Math.min(minX, maxX),
+    minY: Math.min(minY, maxY),
+    maxX: Math.max(minX, maxX),
+    maxY: Math.max(minY, maxY),
+  }
 }
 
 function objectIdentity(object) {

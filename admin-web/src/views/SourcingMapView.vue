@@ -2189,9 +2189,15 @@ async function submitBatchGenerate() {
   }
   batchSaving.value = true
   try {
+    const requestedCount = toPositiveInteger(batchForm.count, 1)
     const resp = await batchGenerateMapObjects(selectedScene.value.code, buildBatchPayload())
     const count = resp.items?.length || 0
-    ElMessage.success(`已生成 ${count} 个点位`)
+    const skippedCount = Math.max(0, requestedCount - count)
+    if (skippedCount > 0) {
+      ElMessage.warning(`已生成 ${count} 个点位，${skippedCount} 个超出地图范围未生成`)
+    } else {
+      ElMessage.success(`已生成 ${count} 个点位`)
+    }
     batchDrawerVisible.value = false
     await loadObjects(selectedScene.value.code)
   } catch (err) {

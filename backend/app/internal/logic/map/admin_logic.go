@@ -2,6 +2,8 @@ package maplogic
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -346,9 +348,31 @@ func (l *AdminLogic) BatchGenerateObjects(ctx context.Context, sceneCode string,
 	if sceneCode == "" {
 		return BatchGenerateObjectsResp{}, errx.New(errx.CodeValidationFailed, "请选择地图场景")
 	}
+	scene, err := l.store.GetAdminScene(ctx, sceneCode)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return BatchGenerateObjectsResp{}, errx.New(errx.CodeResourceNotFound, "地图场景不存在或已删除")
+		}
+		logx.Errorf("批量生成前查询地图场景失败: sceneCode=%s err=%+v", sceneCode, err)
+		return BatchGenerateObjectsResp{}, errx.New(errx.CodeInternalError, "批量生成地图点位失败，请稍后重试")
+	}
+	if scene.Width <= 0 || scene.Height <= 0 {
+		return BatchGenerateObjectsResp{}, errx.New(errx.CodeValidationFailed, "地图底图宽高必须大于 0，请先完善场景底图尺寸")
+	}
 	inputs, err := buildBatchObjectInputs(sceneCode, req)
 	if err != nil {
 		return BatchGenerateObjectsResp{}, err
+	}
+	inputs, skippedCount, err := filterBatchObjectInputsBySceneBounds(inputs, scene)
+	if err != nil {
+		return BatchGenerateObjectsResp{}, err
+	}
+	if len(inputs) == 0 {
+		logx.Infof("批量生成地图点位全部越界: sceneCode=%s count=%d sceneWidth=%d sceneHeight=%d", sceneCode, req.Count, scene.Width, scene.Height)
+		return BatchGenerateObjectsResp{}, errx.New(errx.CodeValidationFailed, "批量生成的点位均超出地图范围，请调整起点、数量、尺寸或间距")
+	}
+	if skippedCount > 0 {
+		logx.Infof("批量生成地图点位跳过越界点位: sceneCode=%s requested=%d generated=%d skipped=%d sceneWidth=%d sceneHeight=%d", sceneCode, req.Count, len(inputs), skippedCount, scene.Width, scene.Height)
 	}
 	objects, err := l.store.BatchCreateObjects(ctx, inputs)
 	if err != nil {
@@ -532,6 +556,24 @@ func buildBatchObjectInputs(sceneCode string, req BatchGenerateObjectsReq) ([]mo
 		})
 	}
 	return inputs, nil
+}
+
+func filterBatchObjectInputsBySceneBounds(inputs []model.MapObjectInput, scene model.MapScene) ([]model.MapObjectInput, int, error) {
+	validInputs := make([]model.MapObjectInput, 0, len(inputs))
+	skippedCount := 0
+	for _, input := range inputs {
+		fields, err := model.BuildMapObjectDerivedFields(input)
+		if err != nil {
+			return nil, 0, errx.New(errx.CodeValidationFailed, "批量生成的点位位置不正确，请检查起点、尺寸和间距")
+		}
+		// 地图对象坐标必须完整落在底图内，避免发布后出现看不见或无法操作的越界点位。
+		if fields.MinX < 0 || fields.MinY < 0 || fields.MaxX > float64(scene.Width) || fields.MaxY > float64(scene.Height) {
+			skippedCount++
+			continue
+		}
+		validInputs = append(validInputs, input)
+	}
+	return validInputs, skippedCount, nil
 }
 
 func parseCodeSeed(code string) (int64, int, string, error) {

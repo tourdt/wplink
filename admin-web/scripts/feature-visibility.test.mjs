@@ -160,6 +160,16 @@ test('sourcing map admin reads scene size from selected background image', () =>
   assert.match(viewSource, /function applyBackgroundImageSize\(imageUrl\)[\s\S]*applySceneDefaultCenter\(size\)/)
 })
 
+test('sourcing map admin warns when batch generation skips out-of-bounds objects', () => {
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
+  const submitBatchMatch = viewSource.match(/async function submitBatchGenerate\(\) \{([\s\S]*?)\n\}/)
+
+  assert.ok(submitBatchMatch)
+  assert.match(submitBatchMatch[1], /requestedCount/)
+  assert.match(submitBatchMatch[1], /skippedCount/)
+  assert.match(submitBatchMatch[1], /超出地图范围未生成/)
+})
+
 test('sourcing map admin supports canvas pan and zoom without changing saved coordinates', () => {
   const viewSource = fs.readFileSync(path.join(root, 'src/views/SourcingMapView.vue'), 'utf8')
 

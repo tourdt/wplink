@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import * as mapHitTest from './mapHitTest.js'
 import {
   hitTestMapObjects,
   isPointInPolygon,
@@ -125,4 +126,16 @@ test('hitTestMapObjects keeps point POIs clickable after booth click filtering',
   }
 
   assert.equal(hitTestMapObjects([poiObject], { x: 56, y: 56 })?.id, 'poi-1')
+})
+
+test('isObjectInBounds only keeps selected objects that intersect the visible viewport', () => {
+  const viewportBounds = { minX: 0, minY: 0, maxX: 100, maxY: 100 }
+  const isObjectInBounds = mapHitTest.isObjectInBounds
+
+  assert.equal(typeof isObjectInBounds, 'function')
+
+  assert.equal(isObjectInBounds({ geometryType: 'point', geometry: { x: 50, y: 50 } }, viewportBounds), true)
+  assert.equal(isObjectInBounds({ geometryType: 'point', geometry: { x: 120, y: 50 } }, viewportBounds), false)
+  assert.equal(isObjectInBounds({ geometryType: 'rect', geometry: { x: 90, y: 20, width: 20, height: 20 } }, viewportBounds), true)
+  assert.equal(isObjectInBounds({ geometryType: 'rect', geometry: { x: 101, y: 20, width: 20, height: 20 } }, viewportBounds), false)
 })

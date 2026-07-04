@@ -511,6 +511,26 @@ test('sourcing map page requests objects by current canvas viewport', () => {
   assert.match(source, /setTimeout\(async \(\) => \{[\s\S]*await loadSceneObjects\(\{ keepSelection: true,\s*silent: true \}\)/)
 })
 
+test('sourcing map clears selected merchant details when the selected object leaves the visible viewport', () => {
+  expectTokens(source, [
+    'isObjectInBounds',
+    'isSelectedObjectInViewport',
+    'clearSelectedObjectOutsideViewport',
+    'getVisibleSceneBounds',
+  ])
+
+  const moveHandler = extractFunction('handleCanvasTouchMove')
+  const endHandler = extractFunction('handleCanvasTouchEnd')
+  const syncSelection = extractFunction('syncSelectedObjectAfterLoad')
+  const visibilityChecker = extractFunction('isSelectedObjectInViewport')
+
+  assert.match(source, /import \{ hitTestMapObjects,\s*isObjectInBounds \} from '\.\/mapHitTest'/)
+  assert.match(moveHandler, /setMapTransform\(result\.transform,\s*\{ allowOverflow: true \}\)[\s\S]*clearSelectedObjectOutsideViewport\(\)/)
+  assert.match(endHandler, /setMapTransform\(nextTransform\)[\s\S]*clearSelectedObjectOutsideViewport\(\)/)
+  assert.match(syncSelection, /latest && isSelectedObjectInViewport\(latest\)/)
+  assert.match(visibilityChecker, /isObjectInBounds\(object,\s*getVisibleSceneBounds\(\)\)/)
+})
+
 test('sourcing map converts touch and tap coordinates into canvas-local coordinates', () => {
   expectTokens(source, [
     'canvasShellRect',

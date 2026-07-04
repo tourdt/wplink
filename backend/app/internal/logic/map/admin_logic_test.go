@@ -253,6 +253,7 @@ func TestAdminMapLogicListsObjectsWithViewport(t *testing.T) {
 
 func TestAdminMapLogicBatchGenerateHorizontalBooths(t *testing.T) {
 	store := &fakeAdminMapStore{
+		scene: model.MapScene{Code: "scene-1", Width: 3000, Height: 1800},
 		objects: []model.MapObject{
 			{ID: "A001", Code: "A001"},
 			{ID: "A002", Code: "A002"},
@@ -290,6 +291,69 @@ func TestAdminMapLogicBatchGenerateHorizontalBooths(t *testing.T) {
 	}
 	if len(resp.Items) != 3 {
 		t.Fatalf("items = %#v, want 3 generated objects", resp.Items)
+	}
+}
+
+func TestAdminMapLogicBatchGenerateSkipsObjectsOutsideSceneBounds(t *testing.T) {
+	store := &fakeAdminMapStore{
+		scene: model.MapScene{Code: "scene-1", Width: 300, Height: 300},
+		objects: []model.MapObject{
+			{ID: "A001", Code: "A001"},
+			{ID: "A002", Code: "A002"},
+		},
+	}
+	logic := NewAdminLogic(store)
+
+	resp, err := logic.BatchGenerateObjects(context.Background(), "scene-1", BatchGenerateObjectsReq{
+		StartCode: "A001",
+		Count:     3,
+		Direction: "horizontal",
+		StartX:    "100",
+		StartY:    "200",
+		Width:     "80",
+		Height:    "50",
+		Gap:       "5",
+		Type:      "booth",
+		Layer:     "booth",
+	})
+	if err != nil {
+		t.Fatalf("BatchGenerateObjects() error = %v", err)
+	}
+
+	if len(store.batchInputs) != 2 {
+		t.Fatalf("batch inputs = %#v, want only 2 in-range objects", store.batchInputs)
+	}
+	if store.batchInputs[0].Code != "A001" || store.batchInputs[1].Code != "A002" {
+		t.Fatalf("codes = %#v, want A001-A002", store.batchInputs)
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("items = %#v, want 2 generated objects", resp.Items)
+	}
+}
+
+func TestAdminMapLogicBatchGenerateRejectsWhenAllObjectsOutsideSceneBounds(t *testing.T) {
+	store := &fakeAdminMapStore{
+		scene: model.MapScene{Code: "scene-1", Width: 300, Height: 300},
+	}
+	logic := NewAdminLogic(store)
+
+	_, err := logic.BatchGenerateObjects(context.Background(), "scene-1", BatchGenerateObjectsReq{
+		StartCode: "A001",
+		Count:     2,
+		Direction: "horizontal",
+		StartX:    "320",
+		StartY:    "200",
+		Width:     "80",
+		Height:    "50",
+		Gap:       "5",
+		Type:      "booth",
+		Layer:     "booth",
+	})
+	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("BatchGenerateObjects() error = %v, want validation error", err)
+	}
+	if len(store.batchInputs) != 0 {
+		t.Fatalf("batch inputs = %#v, want no saved objects", store.batchInputs)
 	}
 }
 

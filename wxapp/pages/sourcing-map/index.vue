@@ -198,7 +198,7 @@ import {
 } from '../../api/sourcingMap'
 import { createSourcingMapRenderer } from './canvasRenderer'
 import { createInitialTransform, endGesture, moveGesture, screenToMap, startGesture } from './mapGesture'
-import { hitTestMapObjects } from './mapHitTest'
+import { hitTestMapObjects, isObjectInBounds } from './mapHitTest'
 import { isRentableMapObject, isVerifiedMapObject } from './mapObjectState'
 
 const MAP_MAX_WIDTH_RPX = 750
@@ -740,6 +740,15 @@ function clearSelectedObject() {
   nearbyPois.value = []
 }
 
+function isSelectedObjectInViewport(object = selectedObject.value) {
+  return Boolean(object && selectedScene.value && isObjectInBounds(object, getVisibleSceneBounds()))
+}
+
+function clearSelectedObjectOutsideViewport() {
+  if (!selectedObject.value || isSelectedObjectInViewport(selectedObject.value)) return
+  clearSelectedObject()
+}
+
 function selectFirstObjectAfterSearch() {
   if (!mapObjects.value.length) {
     clearSelectedObject()
@@ -751,7 +760,7 @@ function selectFirstObjectAfterSearch() {
 function syncSelectedObjectAfterLoad() {
   if (!selectedObjectId.value) return
   const latest = mapObjects.value.find((item) => objectIdentity(item) === selectedObjectId.value)
-  if (latest) {
+  if (latest && isSelectedObjectInViewport(latest)) {
     selectedObject.value = latest
     return
   }
@@ -855,6 +864,7 @@ function handleCanvasTouchMove(event) {
   canvasGestureState = result.state
   suppressNextCanvasTap = result.moved
   setMapTransform(result.transform, { allowOverflow: true })
+  clearSelectedObjectOutsideViewport()
   boundaryHintEdges.value = buildBoundaryHintEdges(result.transform)
   renderMapCanvas({ force: true, interacting: true })
 }
@@ -866,6 +876,7 @@ function handleCanvasTouchEnd() {
   canvasGestureState = null
   boundaryHintEdges.value = []
   setMapTransform(nextTransform)
+  clearSelectedObjectOutsideViewport()
   renderMapCanvas()
   if (moved) {
     suppressNextCanvasTap = true
