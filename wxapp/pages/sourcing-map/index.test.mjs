@@ -74,6 +74,20 @@ test('sourcing map page loads scenes, renders canvas and shows contact actions',
   ])
 })
 
+test('sourcing map overlay shows total object count text instead of loaded viewport count', () => {
+  expectTokens(source, [
+    'mapObjectTotal',
+    'mapObjectCountText',
+    'normalizeResponseTotal',
+    '全图',
+    '匹配',
+    '搜索到',
+    '{{ mapObjectCountText }}',
+    'resp.total',
+  ])
+  assert.doesNotMatch(source, /<text>\{\{\s*mapObjects\.length\s*\}\} 个点位<\/text>/)
+})
+
 test('sourcing map page disables pull down refresh', () => {
   const page = pagesConfig.pages.find((entry) => entry.path === 'pages/sourcing-map/index')
   assert.ok(page)
@@ -163,21 +177,19 @@ test('sourcing map page uses canvas for map gestures instead of movable dom poin
   assert.doesNotMatch(source, /v-for="entry in rectAndPointObjects"/)
 })
 
-test('sourcing map renders DOM object markers as a stable fallback over the base image', () => {
+test('sourcing map renders map objects only through canvas over the native base image', () => {
   expectTokens(source, [
-    'map-dom-object',
-    'mapDomObjectStyle',
-    'mapDomObjectClasses',
-    'polygonDomPoints',
-    'v-for="object in mapObjects"',
-    ':style="mapDomObjectStyle(object)"',
-    ':class="mapDomObjectClasses(object)"',
+    'map-background-layer',
+    'map-background-image',
+    'mapRenderer.setObjects(mapObjects.value)',
+    'drawBackground: false',
   ])
-  assert.match(source, /<view class="map-layer" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*v-for="object in mapObjects"[\s\S]*<\/view>\s*<canvas/)
-  assert.match(source, /function mapDomObjectStyle\(object\)[\s\S]*metrics\.baseScale/)
-  assert.match(source, /\.map-dom-object\s*\{[\s\S]*position: absolute[\s\S]*pointer-events: none/)
-  assert.match(source, /\.map-dom-object\.point/)
-  assert.match(source, /\.map-dom-object\.active/)
+  assert.match(source, /<view class="map-layer" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
+  assert.doesNotMatch(source, /v-for="object in mapObjects"[\s\S]*-marker/)
+  assert.doesNotMatch(source, /map-dom-object/)
+  assert.doesNotMatch(source, /mapDomObjectStyle/)
+  assert.doesNotMatch(source, /mapDomObjectClasses/)
+  assert.doesNotMatch(source, /polygonDomPoints/)
 })
 
 test('sourcing map keeps the native base image permanently visible under the canvas overlay', () => {

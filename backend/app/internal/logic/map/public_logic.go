@@ -19,6 +19,7 @@ type PublicStore interface {
 	GetPublishedScene(ctx context.Context, sceneCode string) (model.MapScene, error)
 	ListPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) ([]model.MapObject, error)
 	SearchPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) ([]model.MapObject, error)
+	CountPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) (int64, error)
 	GetPublishedObject(ctx context.Context, objectID string) (model.MapObject, error)
 	ListObjectsBySceneAndTypes(ctx context.Context, sceneCode string, types []string) ([]model.MapObject, error)
 	ListCategories(ctx context.Context, filter model.ListMapCategoriesFilter) ([]model.MapCategory, error)
@@ -78,6 +79,7 @@ type ListObjectsReq struct {
 type ListObjectsResp struct {
 	SceneCode string          `json:"sceneCode"`
 	Items     []MapObjectItem `json:"items"`
+	Total     int64           `json:"total"`
 }
 
 type SearchObjectsReq struct {
@@ -97,6 +99,7 @@ type SearchObjectsReq struct {
 
 type SearchObjectsResp struct {
 	Items []MapObjectItem `json:"items"`
+	Total int64           `json:"total"`
 }
 
 type MapObjectItem struct {
@@ -216,7 +219,12 @@ func (l *PublicLogic) ListObjects(ctx context.Context, sceneCode string, req Lis
 		logx.Errorf("查询拿货地图对象失败: sceneCode=%s keyword=%s viewport=%+v zoom=%d err=%+v", sceneCode, req.Keyword, viewport, req.Zoom, err)
 		return ListObjectsResp{}, errx.New(errx.CodeInternalError, "地图点位加载失败，请稍后重试")
 	}
-	return ListObjectsResp{SceneCode: sceneCode, Items: mapPublicObjectItems(objects)}, nil
+	total, err := l.countPublishedObjects(ctx, filter)
+	if err != nil {
+		logx.Errorf("统计拿货地图对象总数失败: sceneCode=%s keyword=%s err=%+v", sceneCode, req.Keyword, err)
+		return ListObjectsResp{}, errx.New(errx.CodeInternalError, "地图点位数量加载失败，请稍后重试")
+	}
+	return ListObjectsResp{SceneCode: sceneCode, Items: mapPublicObjectItems(objects), Total: total}, nil
 }
 
 func (l *PublicLogic) SearchObjects(ctx context.Context, req SearchObjectsReq) (SearchObjectsResp, error) {
@@ -245,7 +253,19 @@ func (l *PublicLogic) SearchObjects(ctx context.Context, req SearchObjectsReq) (
 		logx.Errorf("搜索拿货地图对象失败: sceneCode=%s keyword=%s viewport=%+v zoom=%d err=%+v", req.SceneCode, req.Keyword, viewport, req.Zoom, err)
 		return SearchObjectsResp{}, errx.New(errx.CodeInternalError, "地图搜索失败，请稍后重试")
 	}
-	return SearchObjectsResp{Items: mapPublicObjectItems(objects)}, nil
+	total, err := l.countPublishedObjects(ctx, filter)
+	if err != nil {
+		logx.Errorf("统计拿货地图搜索结果总数失败: sceneCode=%s keyword=%s err=%+v", req.SceneCode, req.Keyword, err)
+		return SearchObjectsResp{}, errx.New(errx.CodeInternalError, "地图搜索数量加载失败，请稍后重试")
+	}
+	return SearchObjectsResp{Items: mapPublicObjectItems(objects), Total: total}, nil
+}
+
+func (l *PublicLogic) countPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) (int64, error) {
+	filter.Viewport = nil
+	filter.Zoom = 0
+	filter.Limit = 0
+	return l.store.CountPublishedObjects(ctx, filter)
 }
 
 func parseMapObjectViewportFilter(minXText, minYText, maxXText, maxYText string) (*model.MapViewportFilter, error) {

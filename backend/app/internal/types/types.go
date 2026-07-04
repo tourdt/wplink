@@ -889,6 +889,7 @@ type ListMapObjectsReq struct {
 type ListMapObjectsResp struct {
 	SceneCode string          `json:"sceneCode"`
 	Items     []MapObjectItem `json:"items"`
+	Total     int64           `json:"total"`
 }
 
 type ListMapScenesReq struct {
@@ -1369,6 +1370,7 @@ type SearchMapObjectsReq struct {
 
 type SearchMapObjectsResp struct {
 	Items []MapObjectItem `json:"items"`
+	Total int64           `json:"total"`
 }
 
 type SearchResourcesReq struct {

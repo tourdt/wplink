@@ -366,6 +366,14 @@ func (m *MapModel) SearchPublishedObjects(ctx context.Context, filter ListMapObj
 	return m.listObjects(ctx, filter)
 }
 
+func (m *MapModel) CountPublishedObjects(ctx context.Context, filter ListMapObjectsFilter) (int64, error) {
+	filter.Status = MapObjectStatusNormal
+	filter.Viewport = nil
+	filter.Zoom = 0
+	filter.Limit = 0
+	return m.countObjects(ctx, filter)
+}
+
 func (m *MapModel) GetPublishedObject(ctx context.Context, objectID string) (MapObject, error) {
 	return m.getObject(ctx, strings.TrimSpace(objectID), MapObjectStatusNormal)
 }
@@ -699,6 +707,46 @@ LIMIT 1
 func (m *MapModel) listObjects(ctx context.Context, filter ListMapObjectsFilter) ([]MapObject, error) {
 	query := `SELECT ` + joinedMapObjectSelectColumns("o") + ` FROM map_object o
 LEFT JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL AND m.status = 'active'`
+	whereSQL, args := buildMapObjectFilterSQL(filter)
+	query += whereSQL
+	query += " ORDER BY o.sort ASC, o.code ASC"
+	if filter.Limit > 0 {
+		args = append(args, filter.Limit)
+		query += fmt.Sprintf(" LIMIT $%d", len(args))
+	}
+
+	rows, err := m.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	objects := make([]MapObject, 0)
+	for rows.Next() {
+		item, err := scanMapObject(rows)
+		if err != nil {
+			return nil, err
+		}
+		objects = append(objects, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return objects, nil
+}
+
+func (m *MapModel) countObjects(ctx context.Context, filter ListMapObjectsFilter) (int64, error) {
+	query := `SELECT COUNT(*) FROM map_object o
+LEFT JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL AND m.status = 'active'`
+	whereSQL, args := buildMapObjectFilterSQL(filter)
+	query += whereSQL
+
+	var total int64
+	err := m.db.QueryRowContext(ctx, query, args...).Scan(&total)
+	return total, err
+}
+
+func buildMapObjectFilterSQL(filter ListMapObjectsFilter) (string, []interface{}) {
 	conditions := make([]string, 0, 8)
 	args := make([]interface{}, 0, 8)
 	if v := strings.TrimSpace(filter.SceneCode); v != "" {
@@ -743,33 +791,10 @@ LEFT JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL AND m.sta
 		args = append(args, filter.Zoom)
 		conditions = append(conditions, fmt.Sprintf("o.min_zoom <= $%d AND o.max_zoom >= $%d", len(args), len(args)))
 	}
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
+	if len(conditions) == 0 {
+		return "", args
 	}
-	query += " ORDER BY o.sort ASC, o.code ASC"
-	if filter.Limit > 0 {
-		args = append(args, filter.Limit)
-		query += fmt.Sprintf(" LIMIT $%d", len(args))
-	}
-
-	rows, err := m.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	objects := make([]MapObject, 0)
-	for rows.Next() {
-		item, err := scanMapObject(rows)
-		if err != nil {
-			return nil, err
-		}
-		objects = append(objects, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return objects, nil
+	return " WHERE " + strings.Join(conditions, " AND "), args
 }
 
 type rowScanner interface {

@@ -276,7 +276,7 @@ func (l *AdminLogic) ListObjects(ctx context.Context, sceneCode string, req List
 		logx.Errorf("后台查询地图点位失败: sceneCode=%s viewport=%+v zoom=%d err=%+v", sceneCode, viewport, req.Zoom, err)
 		return ListObjectsResp{}, errx.New(errx.CodeInternalError, "地图点位加载失败，请稍后重试")
 	}
-	return ListObjectsResp{SceneCode: sceneCode, Items: mapAdminObjectItems(objects)}, nil
+	return ListObjectsResp{SceneCode: sceneCode, Items: mapAdminObjectItems(objects), Total: int64(len(objects))}, nil
 }
 
 func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveObjectReq) (SaveObjectResp, error) {

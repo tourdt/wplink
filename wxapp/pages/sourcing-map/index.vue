@@ -73,7 +73,7 @@
       <view class="map-card">
         <view class="map-overlay-info">
           <text>{{ selectedSceneName }}</text>
-          <text>{{ mapObjects.length }} 个点位</text>
+          <text>{{ mapObjectCountText }}</text>
         </view>
         <view class="map-service-controls">
           <button class="map-service-button" :disabled="loading || objectLoading" @click="refreshCurrentMapData">刷新</button>
@@ -95,14 +95,6 @@
                 :style="mapBackgroundStyle"
                 mode="scaleToFill"
               />
-            </view>
-            <view
-              v-for="object in mapObjects"
-              :key="`${objectIdentity(object)}-marker`"
-              :class="mapDomObjectClasses(object)"
-              :style="mapDomObjectStyle(object)"
-            >
-              <text v-if="object.geometryType !== 'point'">{{ objectDisplayLabel(object) }}</text>
             </view>
           </view>
           <canvas
@@ -315,6 +307,7 @@ const selectedSceneCode = ref('')
 const routeSceneCode = ref('')
 const keyword = ref('')
 const rawMapObjects = ref([])
+const mapObjectTotal = ref(0)
 const mapCategories = ref([])
 const selectedObject = ref(null)
 const selectedObjectId = ref('')
@@ -364,6 +357,16 @@ const activeFilterSummary = computed(() => {
   if (term) parts.push(`搜索：${term}`)
   if (hasActiveFilters.value) parts.push(`筛选 ${activeFilterCount.value} 项`)
   return parts.join(' · ')
+})
+const mapObjectCountText = computed(() => {
+  const total = mapObjectTotal.value
+  if (keyword.value.trim()) {
+    return `搜索到 ${total} 个点位`
+  }
+  if (hasActiveFilters.value) {
+    return `匹配 ${total} 个点位`
+  }
+  return `全图 ${total} 个点位`
 })
 const mapZoomLevel = computed(() => getZoomLevelByScale(mapTransform.value.scale))
 const visibleMapObjects = computed(() => rawMapObjects.value.filter((object) => isObjectVisibleAtZoom(object, mapZoomLevel.value)))
@@ -456,6 +459,7 @@ async function loadScenes(options = {}) {
       selectedScene.value = null
       selectedSceneCode.value = ''
       rawMapObjects.value = []
+      mapObjectTotal.value = 0
       sceneErrorText.value = '地图暂未开放，请稍后再试。'
       return
     }
@@ -466,6 +470,7 @@ async function loadScenes(options = {}) {
     selectedScene.value = null
     selectedSceneCode.value = ''
     rawMapObjects.value = []
+    mapObjectTotal.value = 0
     sceneErrorText.value = '地图加载失败，请检查网络后重试。'
   } finally {
     loading.value = false
@@ -547,6 +552,7 @@ async function selectScene(scene) {
 async function loadSceneObjects(options = {}) {
   if (!selectedSceneCode.value) {
     rawMapObjects.value = []
+    mapObjectTotal.value = 0
     return
   }
   const requestId = ++objectRequestSeq
@@ -559,7 +565,9 @@ async function loadSceneObjects(options = {}) {
     const term = keyword.value.trim()
     const cacheKey = term ? '' : buildViewportObjectsCacheKey()
     if (!term && options.silent && viewportObjectsCache.has(cacheKey)) {
-      rawMapObjects.value = applyLocalFilters(viewportObjectsCache.get(cacheKey))
+      const cached = normalizeCachedObjectPayload(viewportObjectsCache.get(cacheKey))
+      mapObjectTotal.value = cached.total
+      rawMapObjects.value = applyLocalFilters(cached.items)
       syncSelectedObjectAfterLoad()
       renderMapCanvas()
     }
@@ -573,9 +581,11 @@ async function loadSceneObjects(options = {}) {
       : await listMapObjects(selectedSceneCode.value, buildObjectQueryParams({ includeViewport: true }))
     if (requestId !== objectRequestSeq) return
     const items = resp.items || []
+    const total = normalizeResponseTotal(resp.total, items.length)
     if (!term) {
-      viewportObjectsCache.set(cacheKey, items)
+      viewportObjectsCache.set(cacheKey, { items, total })
     }
+    mapObjectTotal.value = total
     rawMapObjects.value = applyLocalFilters(items)
     if (options.focusFirst) {
       selectFirstObjectAfterSearch()
@@ -589,6 +599,7 @@ async function loadSceneObjects(options = {}) {
     if (requestId !== objectRequestSeq) return
     if (options.silent) return
     rawMapObjects.value = []
+    mapObjectTotal.value = 0
     clearSelectedObject()
     uni.showToast({ title: '地图点位加载失败，请稍后重试', icon: 'none' })
   } finally {
@@ -596,6 +607,22 @@ async function loadSceneObjects(options = {}) {
       objectLoading.value = false
     }
   }
+}
+
+function normalizeCachedObjectPayload(payload) {
+  const items = Array.isArray(payload) ? payload : (Array.isArray(payload?.items) ? payload.items : [])
+  return {
+    items,
+    total: normalizeResponseTotal(payload?.total, items.length),
+  }
+}
+
+function normalizeResponseTotal(value, fallback = 0) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return Math.max(0, Math.floor(toNumber(fallback, 0)))
+  }
+  return Math.floor(parsed)
 }
 
 async function submitSearch() {
@@ -1205,31 +1232,6 @@ function calculatePolygonCenter(geometry = {}) {
   return { x: sums.x / points.length, y: sums.y / points.length }
 }
 
-function calculatePolygonBounds(geometry = {}) {
-  const points = Array.isArray(geometry.points) ? geometry.points : []
-  if (!points.length) {
-    return { minX: 0, minY: 0, maxX: 1, maxY: 1 }
-  }
-  return points.reduce(
-    (bounds, point) => {
-      const x = toNumber(point.x, 0)
-      const y = toNumber(point.y, 0)
-      return {
-        minX: Math.min(bounds.minX, x),
-        minY: Math.min(bounds.minY, y),
-        maxX: Math.max(bounds.maxX, x),
-        maxY: Math.max(bounds.maxY, y),
-      }
-    },
-    {
-      minX: toNumber(points[0].x, 0),
-      minY: toNumber(points[0].y, 0),
-      maxX: toNumber(points[0].x, 0),
-      maxY: toNumber(points[0].y, 0),
-    },
-  )
-}
-
 async function loadNearbyPois(object) {
   nearbyPois.value = []
   if (!object?.id) return
@@ -1311,71 +1313,6 @@ function buildNavigationPayload(object) {
     name: object?.name || object?.code || selectedSceneName.value,
     address: object?.address || '',
   }
-}
-
-function mapDomObjectStyle(object) {
-  const metrics = getSceneRenderMetrics()
-  const geometry = object.geometry || {}
-  if (object.geometryType === 'polygon') {
-    const bounds = calculatePolygonBounds(geometry)
-    const width = Math.max(1, (bounds.maxX - bounds.minX) * metrics.baseScale)
-    const height = Math.max(1, (bounds.maxY - bounds.minY) * metrics.baseScale)
-    return [
-      `left: ${Math.round(bounds.minX * metrics.baseScale)}px`,
-      `top: ${Math.round(bounds.minY * metrics.baseScale)}px`,
-      `width: ${Math.round(width)}px`,
-      `height: ${Math.round(height)}px`,
-      `clip-path: polygon(${polygonDomPoints(geometry, bounds)})`,
-      `-webkit-clip-path: polygon(${polygonDomPoints(geometry, bounds)})`,
-    ].join('; ')
-  }
-
-  const x = toNumber(geometry.x, toNumber(object.centerX, 0)) * metrics.baseScale
-  const y = toNumber(geometry.y, toNumber(object.centerY, 0)) * metrics.baseScale
-  if (object.geometryType === 'point') {
-    const size = 22
-    return [
-      `left: ${Math.round(x - size / 2)}px`,
-      `top: ${Math.round(y - size / 2)}px`,
-      `width: ${size}px`,
-      `height: ${size}px`,
-    ].join('; ')
-  }
-
-  const width = Math.max(12, toPositiveNumber(geometry.width, 80) * metrics.baseScale)
-  const height = Math.max(12, toPositiveNumber(geometry.height, 50) * metrics.baseScale)
-  return [
-    `left: ${Math.round(x)}px`,
-    `top: ${Math.round(y)}px`,
-    `width: ${Math.round(width)}px`,
-    `height: ${Math.round(height)}px`,
-  ].join('; ')
-}
-
-function polygonDomPoints(geometry = {}, bounds = calculatePolygonBounds(geometry)) {
-  const points = Array.isArray(geometry.points) ? geometry.points : []
-  const width = Math.max(1, bounds.maxX - bounds.minX)
-  const height = Math.max(1, bounds.maxY - bounds.minY)
-  return points
-    .map((point) => {
-      const x = ((toNumber(point.x, 0) - bounds.minX) / width) * 100
-      const y = ((toNumber(point.y, 0) - bounds.minY) / height) * 100
-      return `${x.toFixed(2)}% ${y.toFixed(2)}%`
-    })
-    .join(', ')
-}
-
-function mapDomObjectClasses(object) {
-  return [
-    'map-dom-object',
-    object.geometryType || 'rect',
-    object.layer === 'booth' ? 'booth' : 'poi',
-    {
-      active: selectedObjectId.value === objectIdentity(object),
-      verified: object.displayLevel === 'highlight' || object.isVerifiedMerchant,
-      weak: object.displayLevel === 'weak',
-    },
-  ]
 }
 
 function objectDisplayLabel(object) {
@@ -1866,57 +1803,6 @@ function clampNumber(value, min, max) {
   left: 0;
   width: 100%;
   height: 100%;
-}
-
-.map-dom-object {
-  position: absolute;
-  z-index: 1;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid $wplink-primary;
-  border-radius: 6px;
-  background: rgba($wplink-primary, 0.2);
-  color: $wplink-primary;
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1;
-  pointer-events: none;
-}
-
-.map-dom-object text {
-  max-width: 100%;
-  overflow: hidden;
-  padding: 0 3px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.map-dom-object.point {
-  border: 3px solid #fff;
-  border-radius: 999px;
-  background: $wplink-warning;
-  box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.42), 0 6px 14px rgba(15, 23, 42, 0.22);
-}
-
-.map-dom-object.polygon {
-  border-radius: 0;
-}
-
-.map-dom-object.verified {
-  border-color: $wplink-success;
-  background: rgba($wplink-success, 0.24);
-  color: #17653a;
-}
-
-.map-dom-object.weak {
-  opacity: 0.84;
-}
-
-.map-dom-object.active {
-  border-color: $wplink-success;
-  box-shadow: 0 0 0 4px rgba($wplink-success, 0.2);
 }
 
 .map-canvas {

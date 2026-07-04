@@ -148,6 +148,39 @@ func TestPublicMapLogicListsObjectsWithViewportAndZoom(t *testing.T) {
 	}
 }
 
+func TestPublicMapLogicListsObjectsReturnsSceneTotalIgnoringViewport(t *testing.T) {
+	store := &fakePublicMapStore{
+		objectTotal: 600,
+	}
+	logic := NewPublicLogic(store)
+
+	resp, err := logic.ListObjects(context.Background(), " scene-1 ", ListObjectsReq{
+		Types:      "booth",
+		Categories: "girl",
+		MinX:       "100",
+		MinY:       "200",
+		MaxX:       "900",
+		MaxY:       "700",
+		Zoom:       4,
+	})
+	if err != nil {
+		t.Fatalf("ListObjects() error = %v", err)
+	}
+
+	if resp.Total != 600 {
+		t.Fatalf("total = %d, want 600", resp.Total)
+	}
+	if store.countFilter.SceneCode != "scene-1" || store.countFilter.Status != model.MapObjectStatusNormal {
+		t.Fatalf("count filter = %#v, want scene normal", store.countFilter)
+	}
+	if store.countFilter.Viewport != nil || store.countFilter.Zoom != 0 || store.countFilter.Limit != 0 {
+		t.Fatalf("count filter = %#v, want no viewport zoom or limit", store.countFilter)
+	}
+	if len(store.countFilter.Types) != 1 || store.countFilter.Types[0] != "booth" || len(store.countFilter.Categories) != 1 || store.countFilter.Categories[0] != "girl" {
+		t.Fatalf("count filter = %#v, want parsed filters", store.countFilter)
+	}
+}
+
 func TestPublicMapLogicSearchUsesDefaultLimit(t *testing.T) {
 	store := &fakePublicMapStore{
 		objects: []model.MapObject{{ID: "object-1", SceneCode: "scene-1", Code: "A001", Name: "A001 小鹿童装"}},
@@ -175,6 +208,37 @@ func TestPublicMapLogicSearchUsesDefaultLimit(t *testing.T) {
 	}
 	if len(store.objectFilter.PoiServiceTags) != 1 || store.objectFilter.PoiServiceTags[0] != "packing" {
 		t.Fatalf("poiServiceTags = %#v, want parsed poi service filter", store.objectFilter.PoiServiceTags)
+	}
+}
+
+func TestPublicMapLogicSearchReturnsTotalIgnoringLimitAndViewport(t *testing.T) {
+	store := &fakePublicMapStore{
+		objectTotal: 23,
+	}
+	logic := NewPublicLogic(store)
+
+	resp, err := logic.SearchObjects(context.Background(), SearchObjectsReq{
+		SceneCode: " scene-1 ",
+		Keyword:   " 女童 ",
+		MinX:      "100",
+		MinY:      "200",
+		MaxX:      "900",
+		MaxY:      "700",
+		Zoom:      4,
+		Limit:     5,
+	})
+	if err != nil {
+		t.Fatalf("SearchObjects() error = %v", err)
+	}
+
+	if resp.Total != 23 {
+		t.Fatalf("total = %d, want 23", resp.Total)
+	}
+	if store.countFilter.SceneCode != "scene-1" || store.countFilter.Keyword != "女童" || store.countFilter.Status != model.MapObjectStatusNormal {
+		t.Fatalf("count filter = %#v, want scene keyword normal", store.countFilter)
+	}
+	if store.countFilter.Viewport != nil || store.countFilter.Zoom != 0 || store.countFilter.Limit != 0 {
+		t.Fatalf("count filter = %#v, want no viewport zoom or limit", store.countFilter)
 	}
 }
 
@@ -231,6 +295,7 @@ func TestPublicMapLogicListsNearbyPois(t *testing.T) {
 type fakePublicMapStore struct {
 	sceneFilter     model.ListMapScenesFilter
 	objectFilter    model.ListMapObjectsFilter
+	countFilter     model.ListMapObjectsFilter
 	objectID        string
 	categoryFilter  model.ListMapCategoriesFilter
 	nearbySceneCode string
@@ -238,6 +303,7 @@ type fakePublicMapStore struct {
 	scenes          []model.MapScene
 	scene           model.MapScene
 	objects         []model.MapObject
+	objectTotal     int64
 	object          model.MapObject
 	nearby          []model.MapObject
 	categories      []model.MapCategory
@@ -260,6 +326,11 @@ func (s *fakePublicMapStore) ListPublishedObjects(ctx context.Context, filter mo
 func (s *fakePublicMapStore) SearchPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) ([]model.MapObject, error) {
 	s.objectFilter = filter
 	return append([]model.MapObject(nil), s.objects...), nil
+}
+
+func (s *fakePublicMapStore) CountPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) (int64, error) {
+	s.countFilter = filter
+	return s.objectTotal, nil
 }
 
 func (s *fakePublicMapStore) GetPublishedObject(ctx context.Context, objectID string) (model.MapObject, error) {

@@ -101,6 +101,7 @@ type ListMapObjectsReq {
 type ListMapObjectsResp {
 	SceneCode string          `json:"sceneCode"`
 	Items     []MapObjectItem `json:"items"`
+	Total     int64           `json:"total"`
 }
 
 type SearchMapObjectsReq {
@@ -120,6 +121,7 @@ type SearchMapObjectsReq {
 
 type SearchMapObjectsResp {
 	Items []MapObjectItem `json:"items"`
+	Total int64           `json:"total"`
 }
 
 type MapObjectDetailResp {

@@ -114,6 +114,7 @@ func TestMapAPIRouterPassesViewportAndZoomToPublicObjects(t *testing.T) {
 	store := &fakeMapAPIStore{
 		fakeCityAPIStore: fakeCityAPIStore{},
 		objects:          []model.MapObject{{ID: "object-1", SceneCode: "scene-1", Code: "A001", Name: "A001 小鹿童装"}},
+		objectTotal:      600,
 	}
 	router := NewAPIRouter(store)
 
@@ -121,7 +122,10 @@ func TestMapAPIRouterPassesViewportAndZoomToPublicObjects(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/scenes/scene-1/objects?minX=10&minY=20&maxX=510&maxY=420&zoom=4", nil)
 	router.ServeHTTP(rec, req)
 
-	_ = decodeEnvelopeData(t, rec, http.StatusOK)
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	if data["total"] != float64(600) {
+		t.Fatalf("total = %#v, want 600", data["total"])
+	}
 	if store.objectFilter.Viewport == nil {
 		t.Fatalf("viewport = nil, want parsed viewport")
 	}
@@ -184,6 +188,7 @@ type fakeMapAPIStore struct {
 	scenes           []model.MapScene
 	savedScene       model.MapScene
 	objects          []model.MapObject
+	objectTotal      int64
 	object           model.MapObject
 	categories       []model.MapCategory
 }
@@ -205,6 +210,13 @@ func (s *fakeMapAPIStore) ListPublishedObjects(ctx context.Context, filter model
 func (s *fakeMapAPIStore) SearchPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) ([]model.MapObject, error) {
 	s.objectFilter = filter
 	return append([]model.MapObject(nil), s.objects...), nil
+}
+
+func (s *fakeMapAPIStore) CountPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) (int64, error) {
+	if s.objectTotal > 0 {
+		return s.objectTotal, nil
+	}
+	return int64(len(s.objects)), nil
 }
 
 func (s *fakeMapAPIStore) GetPublishedObject(ctx context.Context, objectID string) (model.MapObject, error) {
