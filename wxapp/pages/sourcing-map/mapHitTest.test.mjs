@@ -128,6 +128,24 @@ test('hitTestMapObjects keeps point POIs clickable after booth click filtering',
   assert.equal(hitTestMapObjects([poiObject], { x: 56, y: 56 })?.id, 'poi-1')
 })
 
+test('hit testing ignores objects with invalid geometry numbers', () => {
+  const malformedVerifiedBooth = {
+    id: 'bad-booth',
+    isVerifiedMerchant: true,
+    geometryType: 'rect',
+    geometry: { x: Number.NaN, y: 20, width: 80, height: 50 },
+  }
+  const malformedPoi = {
+    id: 'bad-poi',
+    geometryType: 'point',
+    geometry: { x: Number.POSITIVE_INFINITY, y: 50 },
+  }
+
+  assert.equal(hitTestMapObjects([malformedVerifiedBooth], { x: 10, y: 30 }), null)
+  assert.equal(hitTestMapObjects([malformedPoi], { x: 0, y: 50 }), null)
+  assert.equal(mapHitTest.isObjectInBounds(malformedVerifiedBooth, { minX: 0, minY: 0, maxX: 100, maxY: 100 }), false)
+})
+
 test('isObjectInBounds only keeps selected objects that intersect the visible viewport', () => {
   const viewportBounds = { minX: 0, minY: 0, maxX: 100, maxY: 100 }
   const isObjectInBounds = mapHitTest.isObjectInBounds

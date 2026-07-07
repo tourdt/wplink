@@ -5,30 +5,35 @@ const DEFAULT_POINT_RADIUS = 18
 export function hitTestMapObjects(objects = [], mapPoint = {}, options = {}) {
   const hits = objects
     .map((object, index) => ({ object, index, bounds: getObjectBounds(object) }))
-    .filter((entry) => isClickableMapObject(entry.object) && isObjectHit(entry.object, mapPoint, options.pointRadius))
+    .filter((entry) => entry.bounds && isClickableMapObject(entry.object) && isObjectHit(entry.object, mapPoint, options.pointRadius))
     .sort((left, right) => compareHitPriority(left, right, options))
   return hits[0]?.object || null
 }
 
 export function isPointInRect(mapPoint = {}, object = {}) {
   const bounds = getObjectBounds(object)
+  if (!bounds) return false
+  const point = normalizeMapPoint(mapPoint)
+  if (!point) return false
   return (
-    mapPoint.x >= bounds.minX &&
-    mapPoint.x <= bounds.maxX &&
-    mapPoint.y >= bounds.minY &&
-    mapPoint.y <= bounds.maxY
+    point.x >= bounds.minX &&
+    point.x <= bounds.maxX &&
+    point.y >= bounds.minY &&
+    point.y <= bounds.maxY
   )
 }
 
 export function isPointNearPoint(mapPoint = {}, object = {}, radius = DEFAULT_POINT_RADIUS) {
-  const geometry = object.geometry || {}
-  const x = toNumber(geometry.x, toNumber(object.centerX, 0))
-  const y = toNumber(geometry.y, toNumber(object.centerY, 0))
-  return Math.hypot(toNumber(mapPoint.x, 0) - x, toNumber(mapPoint.y, 0) - y) <= radius
+  const point = normalizeMapPoint(mapPoint)
+  const center = objectPoint(object)
+  if (!point || !center) return false
+  return Math.hypot(point.x - center.x, point.y - center.y) <= radius
 }
 
 export function isPointInPolygon(mapPoint = {}, object = {}) {
   const points = normalizePolygonPoints(object.geometry || object)
+  const point = normalizeMapPoint(mapPoint)
+  if (!point) return false
   if (points.length < 3) return false
 
   let inside = false
@@ -36,8 +41,8 @@ export function isPointInPolygon(mapPoint = {}, object = {}) {
     const current = points[i]
     const previous = points[j]
     const intersects =
-      current.y > mapPoint.y !== previous.y > mapPoint.y &&
-      mapPoint.x < ((previous.x - current.x) * (mapPoint.y - current.y)) / (previous.y - current.y || 1) + current.x
+      current.y > point.y !== previous.y > point.y &&
+      point.x < ((previous.x - current.x) * (point.y - current.y)) / (previous.y - current.y || 1) + current.x
     if (intersects) inside = !inside
   }
   return inside
@@ -48,6 +53,7 @@ export function isObjectInBounds(object = {}, bounds = {}) {
   const viewportBounds = normalizeBounds(bounds)
   if (!viewportBounds) return false
   const objectBounds = getObjectBounds(object)
+  if (!objectBounds) return false
   return (
     objectBounds.maxX >= viewportBounds.minX &&
     objectBounds.minX <= viewportBounds.maxX &&
@@ -61,14 +67,15 @@ export function getObjectBounds(object = {}) {
   if (object.geometryType === 'polygon') {
     return getPolygonBounds(geometry)
   }
-  const x = toNumber(geometry.x, toNumber(object.centerX, 0))
-  const y = toNumber(geometry.y, toNumber(object.centerY, 0))
+  const center = objectPoint(object)
+  if (!center) return null
   if (object.geometryType === 'point') {
-    return { minX: x, minY: y, maxX: x, maxY: y }
+    return { minX: center.x, minY: center.y, maxX: center.x, maxY: center.y }
   }
-  const width = toPositiveNumber(geometry.width, 80)
-  const height = toPositiveNumber(geometry.height, 50)
-  return { minX: x, minY: y, maxX: x + width, maxY: y + height }
+  const width = geometryPositiveNumber(geometry.width, 80)
+  const height = geometryPositiveNumber(geometry.height, 50)
+  if (width == null || height == null) return null
+  return { minX: center.x, minY: center.y, maxX: center.x + width, maxY: center.y + height }
 }
 
 function isObjectHit(object, mapPoint, pointRadius = DEFAULT_POINT_RADIUS) {
@@ -111,18 +118,22 @@ function boundsArea(bounds) {
 }
 
 function normalizePolygonPoints(geometry = {}) {
-  return (Array.isArray(geometry.points) ? geometry.points : [])
-    .filter(Boolean)
-    .map((point) => ({
-      x: toNumber(point.x, 0),
-      y: toNumber(point.y, 0),
-    }))
+  const points = Array.isArray(geometry.points) ? geometry.points : []
+  const normalized = []
+  for (const point of points) {
+    if (!point) return []
+    const x = geometryNumber(point.x)
+    const y = geometryNumber(point.y)
+    if (x == null || y == null) return []
+    normalized.push({ x, y })
+  }
+  return normalized
 }
 
 function getPolygonBounds(geometry = {}) {
   const points = normalizePolygonPoints(geometry)
   if (!points.length) {
-    return { minX: 0, minY: 0, maxX: 0, maxY: 0 }
+    return null
   }
   return points.reduce(
     (bounds, point) => ({
@@ -160,12 +171,36 @@ function objectIdentity(object) {
   return object?.id || object?.code || ''
 }
 
-function toNumber(value, fallback) {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
+function objectPoint(object = {}) {
+  const geometry = object.geometry || {}
+  const x = geometryNumber(geometry.x, object.centerX)
+  const y = geometryNumber(geometry.y, object.centerY)
+  if (x == null || y == null) return null
+  return { x, y }
 }
 
-function toPositiveNumber(value, fallback) {
-  const parsed = toNumber(value, fallback)
-  return parsed > 0 ? parsed : fallback
+function normalizeMapPoint(mapPoint = {}) {
+  const x = finiteNumber(mapPoint.x)
+  const y = finiteNumber(mapPoint.y)
+  if (x == null || y == null) return null
+  return { x, y }
+}
+
+function geometryNumber(value, fallback) {
+  // 命中测试不能把异常坐标兜底到原点，否则坏数据会在地图左上角被误选中。
+  if (value !== undefined && value !== null) {
+    return finiteNumber(value)
+  }
+  return finiteNumber(fallback)
+}
+
+function geometryPositiveNumber(value, fallback) {
+  const parsed = geometryNumber(value, fallback)
+  return parsed != null && parsed > 0 ? parsed : null
+}
+
+function finiteNumber(value) {
+  if (typeof value === 'string' && value.trim() === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
