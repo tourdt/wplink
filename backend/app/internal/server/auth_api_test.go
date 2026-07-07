@@ -90,6 +90,26 @@ func TestAuthAPIRouterReturnsUnauthorizedErrorCodeForInvalidSession(t *testing.T
 	}
 }
 
+func TestAuthAPIRouterHidesRawInvalidSessionError(t *testing.T) {
+	router := NewAPIRouter(&fakeAuthAPIStore{}, WithUserTokenService(&rawErrorUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req.Header.Set("Authorization", "Bearer invalid-token")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d body = %s, want %d", rec.Code, rec.Body.String(), http.StatusUnauthorized)
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["msg"] != "登录已过期，请重新登录" {
+		t.Fatalf("msg = %#v, want safe login expired message", body["msg"])
+	}
+}
+
 type fakeAuthAPIStore struct {
 	fakeCityAPIStore
 
@@ -134,6 +154,16 @@ func (s *fakeUserTokenService) ParseUserToken(ctx context.Context, token string)
 		return session.UserTokenSubject{}, errors.New("登录状态无效，请重新登录")
 	}
 	return session.UserTokenSubject{UserID: "user-1", Roles: []string{authlogic.RoleNormalUser}}, nil
+}
+
+type rawErrorUserTokenService struct{}
+
+func (s *rawErrorUserTokenService) IssueUserToken(ctx context.Context, subject session.UserTokenSubject) (string, error) {
+	return "user-token", nil
+}
+
+func (s *rawErrorUserTokenService) ParseUserToken(ctx context.Context, token string) (session.UserTokenSubject, error) {
+	return session.UserTokenSubject{}, errors.New("jwt signature invalid: raw verifier detail")
 }
 
 type fakeAuthWechatSessionClient struct {

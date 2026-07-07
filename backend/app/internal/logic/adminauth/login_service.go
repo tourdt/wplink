@@ -25,6 +25,21 @@ var (
 	ErrTokenIssueFailed        = errors.New("登录失败，请稍后重试")
 )
 
+func PublicLoginErrorMessage(err error) string {
+	switch {
+	case errors.Is(err, ErrInvalidCredential):
+		return ErrInvalidCredential.Error()
+	case errors.Is(err, ErrCredentialDisabled):
+		return ErrCredentialDisabled.Error()
+	case errors.Is(err, ErrAdminPermissionRequired):
+		return ErrAdminPermissionRequired.Error()
+	case errors.Is(err, ErrTokenIssueFailed):
+		return ErrTokenIssueFailed.Error()
+	default:
+		return ErrTokenIssueFailed.Error()
+	}
+}
+
 type LoginRequest struct {
 	LoginName string
 	Password  string

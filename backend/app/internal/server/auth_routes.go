@@ -93,7 +93,7 @@ func userSubjectFromBearerToken(r *http.Request, tokenService authlogic.TokenSer
 	}
 	subject, err := tokenService.ParseUserToken(r.Context(), token)
 	if err != nil {
-		return session.UserTokenSubject{}, errx.New(errx.CodeUnauthorized, err.Error())
+		return session.UserTokenSubject{}, errx.New(errx.CodeUnauthorized, "登录已过期，请重新登录")
 	}
 	return subject, nil
 }

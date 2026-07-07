@@ -2,6 +2,9 @@
 .cache/
 .env
 .env.local
+*.crt
+*.key
+*.pem
 deploy/wplink.env
 backend/etc/app.yaml
 node_modules/

@@ -24,7 +24,7 @@ func AdminLoginHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			Password:  req.Password,
 		})
 		if err != nil {
-			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, err.Error()))
+			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, adminauthlogic.PublicLoginErrorMessage(err)))
 			return
 		}
 		response.JSON(w, types.AdminLoginResp{

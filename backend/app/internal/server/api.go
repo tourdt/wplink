@@ -124,10 +124,61 @@ func WithWechatPayDevMock(enabled bool) APIRouterOption {
 }
 
 func NewAPIRouter(store CityAPIStore, opts ...APIRouterOption) http.Handler {
+	return newAPIRouterWithOptions(store, buildAPIRouterOptions(opts...))
+}
+
+func NewProductionAPIRouter(store CityAPIStore, opts ...APIRouterOption) (http.Handler, error) {
+	options := buildAPIRouterOptions(opts...)
+	if err := validateProductionAPIRouterDependencies(store, options); err != nil {
+		return nil, err
+	}
+	return newAPIRouterWithOptions(store, options), nil
+}
+
+func buildAPIRouterOptions(opts ...APIRouterOption) apiRouterOptions {
 	options := apiRouterOptions{}
 	for _, opt := range opts {
 		opt(&options)
 	}
+	return options
+}
+
+func validateProductionAPIRouterDependencies(store CityAPIStore, options apiRouterOptions) error {
+	var missing []string
+	if store == nil {
+		missing = append(missing, "APIStore")
+	}
+	if options.adminLoginService == nil {
+		missing = append(missing, "AdminLoginService")
+	}
+	if options.adminTokenService == nil {
+		missing = append(missing, "AdminTokenService")
+	}
+	if options.userTokenService == nil {
+		missing = append(missing, "UserTokenService")
+	}
+	if options.uploadTokenService == nil {
+		missing = append(missing, "UploadTokenService")
+	}
+	if options.wechatSessionClient == nil {
+		missing = append(missing, "WechatSessionClient")
+	}
+	if options.smsVerifier == nil {
+		missing = append(missing, "SMSVerifier")
+	}
+	if _, ok := any(store).(authlogic.UserStore); !ok {
+		missing = append(missing, "UserStore")
+	}
+	if permissionStoreFromStore(store) == nil {
+		missing = append(missing, "MerchantPermissionStore")
+	}
+	if len(missing) > 0 {
+		return errors.New("生产 API 路由依赖缺失: " + strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.Handler {
 	mux := http.NewServeMux()
 	if options.adminLoginService != nil {
 		registerAdminAuthRoutes(mux, options.adminLoginService)
@@ -215,7 +266,7 @@ func requireAdminToken(next http.Handler, tokenService AdminTokenService) http.H
 		}
 		subject, err := tokenService.ParseAdminToken(r.Context(), token)
 		if err != nil {
-			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, err.Error()))
+			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, "登录已过期，请重新登录"))
 			return
 		}
 		if !permission.CanAccessAdmin(subject.Roles) {
@@ -284,7 +335,7 @@ func registerAdminAuthRoutes(mux *http.ServeMux, service AdminLoginService) {
 			Password:  body.Password,
 		})
 		if err != nil {
-			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, err.Error()))
+			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, adminauth.PublicLoginErrorMessage(err)))
 			return
 		}
 		response.JSON(w, resp, nil)

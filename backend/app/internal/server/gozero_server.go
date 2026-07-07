@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"wplink/backend/app/internal/config"
-	adminauthhandler "wplink/backend/app/internal/handler/adminauth"
-	cityhandler "wplink/backend/app/internal/handler/city"
 	"wplink/backend/app/internal/svc"
 
 	"github.com/zeromicro/go-zero/rest"
@@ -33,29 +31,8 @@ func NewGoZeroServer(cfg config.Config, svcCtx *svc.ServiceContext, adminHandler
 		Path:    "/readyz",
 		Handler: readyzHandler(svcCtx),
 	})
-	registerGoZeroAdminAuthRoutes(srv, svcCtx)
-	registerCityRoutes(srv, svcCtx)
 	registerCompatAPIRoutes(srv, apiHandler)
 	return srv, nil
-}
-
-func registerGoZeroAdminAuthRoutes(srv *rest.Server, svcCtx *svc.ServiceContext) {
-	if svcCtx == nil || svcCtx.AdminLoginService == nil {
-		return
-	}
-	srv.AddRoutes([]rest.Route{
-		{Method: http.MethodPost, Path: "/api/v1/admin/auth/login", Handler: adminauthhandler.AdminLoginHandler(svcCtx)},
-	})
-}
-
-func registerCityRoutes(srv *rest.Server, svcCtx *svc.ServiceContext) {
-	if svcCtx == nil || svcCtx.CityStore == nil {
-		return
-	}
-	srv.AddRoutes([]rest.Route{
-		{Method: http.MethodGet, Path: "/api/v1/city-stations", Handler: cityhandler.ListCityStationsHandler(svcCtx)},
-		{Method: http.MethodGet, Path: "/api/v1/city-stations/:cityCode/resource-types", Handler: cityhandler.ListCityResourceTypesHandler(svcCtx)},
-	})
 }
 
 func restConfFromConfig(cfg config.Config) rest.RestConf {

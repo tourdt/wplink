@@ -8,6 +8,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(scriptDir, '../..')
 const deployScriptPath = path.join(scriptDir, 'deploy-server.sh')
 const migrationsDir = path.join(repoRoot, 'backend/migrations')
+const gitignorePath = path.join(repoRoot, '.gitignore')
 
 test('deploy script covers local build, remote install, migrations, restart, and health checks', () => {
   const script = fs.readFileSync(deployScriptPath, 'utf8')
@@ -37,6 +38,19 @@ test('deploy script migrates every current up migration in sorted order', () => 
     assert(
       script.includes(migrationFile),
       `deploy script should include ${migrationFile}`,
+    )
+  }
+})
+
+test('repository ignores private tls certificate and key material', () => {
+  const gitignoreLines = fs
+    .readFileSync(gitignorePath, 'utf8')
+    .split(/\r?\n/)
+
+  for (const pattern of ['*.crt', '*.key', '*.pem']) {
+    assert(
+      gitignoreLines.includes(pattern),
+      `.gitignore should include ${pattern}`,
     )
   }
 })

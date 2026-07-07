@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,6 +24,25 @@ func TestAPIRouterLogsInAdmin(t *testing.T) {
 	data := decodeEnvelopeData(t, rec, http.StatusOK)
 	if data["token"] != "admin-token" || data["userId"] != "user-1" {
 		t.Fatalf("login data = %#v, want token and userId", data)
+	}
+}
+
+func TestAPIRouterAdminLoginHidesRawInternalError(t *testing.T) {
+	router := NewAPIRouter(&fakeCityAPIStore{}, WithAdminLoginService(rawErrorAdminLoginService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/login", strings.NewReader(`{"loginName":"operator","password":"secret123"}`))
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d body = %s, want %d", rec.Code, rec.Body.String(), http.StatusUnauthorized)
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["msg"] != "登录失败，请稍后重试" {
+		t.Fatalf("msg = %#v, want safe login failure message", body["msg"])
 	}
 }
 
@@ -563,6 +583,12 @@ type fakeAdminLoginService struct{}
 
 func (fakeAdminLoginService) Login(ctx context.Context, req adminauth.LoginRequest) (adminauth.LoginResponse, error) {
 	return adminauth.LoginResponse{Token: "admin-token", UserID: "user-1", Roles: []string{adminauth.RolePlatformOperator}}, nil
+}
+
+type rawErrorAdminLoginService struct{}
+
+func (rawErrorAdminLoginService) Login(ctx context.Context, req adminauth.LoginRequest) (adminauth.LoginResponse, error) {
+	return adminauth.LoginResponse{}, errors.New("sql: connection refused")
 }
 
 func decodeEnvelopeData(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int) map[string]interface{} {

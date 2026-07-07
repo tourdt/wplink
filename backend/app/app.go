@@ -68,7 +68,7 @@ func main() {
 		lifecycleScheduler.Start(appCtx)
 	}
 
-	apiHandler := server.NewAPIRouter(
+	apiHandler, err := server.NewProductionAPIRouter(
 		svcCtx.APIStore,
 		server.WithAdminLoginService(svcCtx.AdminLoginService),
 		server.WithAdminTokenService(svcCtx.AdminTokenService),
@@ -79,6 +79,9 @@ func main() {
 		server.WithWechatPayGateway(svcCtx.WechatPayGateway),
 		server.WithWechatPayDevMock(cfg.WechatPay.DevMockEnabled && !config.IsProductionMode(cfg.RuntimeMode)),
 	)
+	if err != nil {
+		fatalf("初始化 API 路由失败: err=%v", err)
+	}
 	goZeroServer, err := server.NewGoZeroServer(cfg, svcCtx, adminHandler, apiHandler)
 	if err != nil {
 		fatalf("初始化 go-zero HTTP 服务失败: err=%v", err)
