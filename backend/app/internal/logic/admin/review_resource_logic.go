@@ -6,6 +6,8 @@ import (
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type ReviewResourceStore interface {
@@ -52,8 +54,11 @@ func (l *ReviewResourceLogic) ReviewResource(ctx context.Context, resourceID str
 		ReviewerID: strings.TrimSpace(req.ReviewerID),
 	})
 	if err != nil {
+		logx.Errorf("管理员审核资源失败: resourceId=%s reviewerId=%s action=%s err=%+v", resourceID, strings.TrimSpace(req.ReviewerID), action, err)
 		return ReviewResourceResp{}, err
 	}
+	// 资源审核会改变前台可见性，记录状态流转方便上线后追溯误审、下架和驳回问题。
+	logx.Infof("管理员审核资源成功: resourceId=%s reviewerId=%s action=%s newStatus=%s", result.ID, strings.TrimSpace(req.ReviewerID), action, result.Status)
 	return ReviewResourceResp{ID: result.ID, Status: result.Status, Message: reviewMessage(action)}, nil
 }
 

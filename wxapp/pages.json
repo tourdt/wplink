@@ -44,24 +44,6 @@
       }
     },
     {
-      "path": "pages/demand/index",
-      "style": {
-        "navigationBarTitleText": "采购需求"
-      }
-    },
-    {
-      "path": "pages/demand-success/index",
-      "style": {
-        "navigationBarTitleText": "需求已提交"
-      }
-    },
-    {
-      "path": "pages/my-demands/index",
-      "style": {
-        "navigationBarTitleText": "我的需求"
-      }
-    },
-    {
       "path": "pages/messages/index",
       "style": {
         "navigationBarTitleText": "消息",

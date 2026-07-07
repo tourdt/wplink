@@ -54,7 +54,10 @@ func main() {
 		fatalf("连接 PostgreSQL 失败: err=%v", err)
 	}
 	defer db.Close()
-	svcCtx := svc.NewServiceContext(cfg, db)
+	svcCtx, err := svc.NewServiceContext(cfg, db)
+	if err != nil {
+		fatalf("初始化服务上下文失败: err=%v", err)
+	}
 
 	appCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -9,6 +9,8 @@ import (
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type CreateResourceStore interface {
@@ -73,6 +75,7 @@ func (l *CreateResourceLogic) create(ctx context.Context, req CreateResourceReq,
 	}
 	result, err := l.store.CreateResource(ctx, input)
 	if err != nil {
+		logx.Errorf("创建资源失败: merchantId=%s typeCode=%s targetStatus=%s err=%+v", strings.TrimSpace(req.MerchantID), typeCode, status, err)
 		return CreateResourceResp{}, err
 	}
 	if isOperatorProxy(req.CreatedByRole) && strings.TrimSpace(req.CreatedByUser) != "" {
@@ -85,9 +88,12 @@ func (l *CreateResourceLogic) create(ctx context.Context, req CreateResourceReq,
 			BeforeSnapshot: model.JSONMap{},
 			AfterSnapshot:  model.JSONMap{"status": result.Status, "typeCode": typeCode},
 		}); err != nil {
+			logx.Errorf("记录代发布资源操作日志失败: operatorId=%s resourceId=%s status=%s err=%+v", strings.TrimSpace(req.CreatedByUser), result.ID, result.Status, err)
 			return CreateResourceResp{}, err
 		}
 	}
+	// 新建资源可能直接进入审核队列，也可能只是草稿；日志记录目标状态，避免排查时只看到写入成功但不知道用户路径。
+	logx.Infof("创建资源成功: merchantId=%s resourceId=%s typeCode=%s status=%s createdByRole=%s", strings.TrimSpace(req.MerchantID), result.ID, typeCode, result.Status, strings.TrimSpace(req.CreatedByRole))
 	return CreateResourceResp{ID: result.ID, Status: result.Status, Message: message}, nil
 }
 
@@ -103,10 +109,13 @@ func (l *CreateResourceLogic) UpdateResourceDraft(ctx context.Context, resourceI
 	result, err := l.store.UpdateResourceDraft(ctx, resourceID, input)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			logx.Infof("更新资源草稿被拦截: merchantId=%s resourceId=%s reason=not_editable", strings.TrimSpace(req.MerchantID), resourceID)
 			return CreateResourceResp{}, errx.New(errx.CodeStateConflict, "资源不存在或当前状态不可编辑")
 		}
+		logx.Errorf("更新资源草稿失败: merchantId=%s resourceId=%s err=%+v", strings.TrimSpace(req.MerchantID), resourceID, err)
 		return CreateResourceResp{}, err
 	}
+	logx.Infof("更新资源草稿成功: merchantId=%s resourceId=%s status=%s", strings.TrimSpace(req.MerchantID), result.ID, result.Status)
 	return CreateResourceResp{ID: result.ID, Status: result.Status, Message: "草稿已保存，请重新提交审核"}, nil
 }
 

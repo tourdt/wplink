@@ -8,6 +8,8 @@ import (
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type SubmitResourceStore interface {
@@ -37,10 +39,14 @@ func (l *SubmitResourceLogic) SubmitResource(ctx context.Context, resourceID str
 	result, err := l.store.SubmitResourceForReview(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			logx.Infof("提交资源审核被拦截: resourceId=%s reason=draft_not_editable", resourceID)
 			return SubmitResourceResp{}, errx.New(errx.CodeStateConflict, "请先编辑并保存草稿后再提交审核")
 		}
+		logx.Errorf("提交资源审核失败: resourceId=%s err=%+v", resourceID, err)
 		return SubmitResourceResp{}, err
 	}
+	// 资源提交审核后会进入后台审核队列，记录新状态便于排查用户看到的审核进度。
+	logx.Infof("提交资源审核成功: resourceId=%s newStatus=%s", result.ID, result.Status)
 	return SubmitResourceResp{
 		ID:      result.ID,
 		Status:  result.Status,

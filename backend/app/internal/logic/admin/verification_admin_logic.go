@@ -7,6 +7,8 @@ import (
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type VerificationAdminStore interface {
@@ -105,6 +107,7 @@ func (l *VerificationAdminLogic) ReviewVerification(ctx context.Context, req Rev
 		if billingStore, ok := l.store.(VerificationBillingForReviewStore); ok {
 			billingConfig, err := billingStore.GetVerificationBillingConfigForVerification(ctx, input.VerificationID)
 			if err != nil {
+				logx.Errorf("查询认证计费配置失败: verificationId=%s reviewerId=%s err=%+v", input.VerificationID, input.ReviewerID, err)
 				return ReviewVerificationResp{}, err
 			}
 			// 开启认证收费且当前不处于限免窗口时，审核通过仅代表资料合格，认证需等线上支付成功后生效。
@@ -113,7 +116,10 @@ func (l *VerificationAdminLogic) ReviewVerification(ctx context.Context, req Rev
 	}
 	result, err := l.store.ReviewVerification(ctx, input)
 	if err != nil {
+		logx.Errorf("管理员处理认证审核失败: verificationId=%s reviewerId=%s action=%s requirePayment=%t err=%+v", input.VerificationID, input.ReviewerID, input.Action, input.RequirePayment, err)
 		return ReviewVerificationResp{}, err
 	}
+	// 认证审核会影响商家身份标识和支付状态，成功日志保留最终状态便于核对支付前后的流转。
+	logx.Infof("管理员处理认证审核成功: verificationId=%s reviewerId=%s action=%s requirePayment=%t newStatus=%s", result.ID, input.ReviewerID, input.Action, input.RequirePayment, result.Status)
 	return ReviewVerificationResp{ID: result.ID, Status: result.Status, Message: "认证审核已处理"}, nil
 }

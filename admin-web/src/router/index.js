@@ -1,19 +1,19 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import AdminLayout from '../layouts/AdminLayout.vue'
-import LoginView from '../views/LoginView.vue'
-import DashboardView from '../views/DashboardView.vue'
-import ResourceReviewView from '../views/ResourceReviewView.vue'
-import MerchantView from '../views/MerchantView.vue'
-import DemandView from '../views/DemandView.vue'
-import VerificationView from '../views/VerificationView.vue'
-import EntitlementView from '../views/EntitlementView.vue'
-import OperationLogView from '../views/OperationLogView.vue'
-import SearchLogView from '../views/SearchLogView.vue'
-import ResourceTypeConfigView from '../views/ResourceTypeConfigView.vue'
-import BannerTopicView from '../views/BannerTopicView.vue'
-import HotSearchKeywordView from '../views/HotSearchKeywordView.vue'
-import SourcingMapView from '../views/SourcingMapView.vue'
+
+const LoginView = () => import('../views/LoginView.vue')
+const DashboardView = () => import('../views/DashboardView.vue')
+const ResourceReviewView = () => import('../views/ResourceReviewView.vue')
+const MerchantView = () => import('../views/MerchantView.vue')
+const VerificationView = () => import('../views/VerificationView.vue')
+const EntitlementView = () => import('../views/EntitlementView.vue')
+const OperationLogView = () => import('../views/OperationLogView.vue')
+const SearchLogView = () => import('../views/SearchLogView.vue')
+const ResourceTypeConfigView = () => import('../views/ResourceTypeConfigView.vue')
+const BannerTopicView = () => import('../views/BannerTopicView.vue')
+const HotSearchKeywordView = () => import('../views/HotSearchKeywordView.vue')
+const SourcingMapView = () => import('../views/SourcingMapView.vue')
 
 const routes = [
   {
@@ -30,7 +30,6 @@ const routes = [
       { path: 'dashboard', name: 'dashboard', component: DashboardView },
       { path: 'resources/pending', name: 'resourceReview', component: ResourceReviewView },
       { path: 'merchants', name: 'merchants', component: MerchantView },
-      { path: 'demands', name: 'demands', component: DemandView },
       { path: 'verifications', name: 'verifications', component: VerificationView },
       { path: 'entitlements', name: 'entitlements', component: EntitlementView },
       { path: 'banner-topics', name: 'bannerTopics', component: BannerTopicView },

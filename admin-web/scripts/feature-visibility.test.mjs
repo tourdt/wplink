@@ -20,6 +20,36 @@ test('admin launch UI hides manual matching feature', () => {
   assert.equal(visibleSource.includes('待撮合'), false)
 })
 
+test('admin routes lazy-load page views to keep initial bundle maintainable', () => {
+  const routeSource = fs.readFileSync(path.join(root, 'src/router/index.js'), 'utf8')
+
+  assert.doesNotMatch(routeSource, /import\s+\w+View\s+from\s+['"]\.\.\/views\//)
+  assert.match(routeSource, /const DashboardView = \(\) => import\('\.\.\/views\/DashboardView\.vue'\)/)
+  assert.match(routeSource, /const SourcingMapView = \(\) => import\('\.\.\/views\/SourcingMapView\.vue'\)/)
+})
+
+test('admin build splits framework and ui libraries into stable vendor chunks', () => {
+  const viteSource = fs.readFileSync(path.join(root, 'vite.config.js'), 'utf8')
+
+  assert.match(viteSource, /manualChunks/)
+  assert.match(viteSource, /vue-vendor/)
+  assert.match(viteSource, /element-plus/)
+  assert.match(viteSource, /vendor/)
+})
+
+test('admin launch UI hides purchase demand entry until the feature is released', () => {
+  const routeSource = fs.readFileSync(path.join(root, 'src/router/index.js'), 'utf8')
+  const layoutSource = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.vue'), 'utf8')
+  const bannerSource = fs.readFileSync(path.join(root, 'src/views/BannerTopicView.vue'), 'utf8')
+
+  assert.equal(routeSource.includes("path: 'demands'"), false)
+  assert.equal(routeSource.includes('DemandView'), false)
+  assert.equal(layoutSource.includes('index="/demands"'), false)
+  assert.equal(layoutSource.includes('<span>采购需求</span>'), false)
+  assert.equal(bannerSource.includes("value: 'demand'"), false)
+  assert.equal(bannerSource.includes('/pages/demand/index'), false)
+})
+
 test('banner topic form uses image upload with ratio guidance', () => {
   const source = fs.readFileSync(path.join(root, 'src/views/BannerTopicView.vue'), 'utf8')
 

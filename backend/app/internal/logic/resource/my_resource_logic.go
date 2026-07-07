@@ -271,6 +271,7 @@ func (l *RefreshResourceLogic) RefreshResource(ctx context.Context, req RefreshR
 		return RefreshResourceResp{}, err
 	}
 	if status.IsExpired {
+		logx.Infof("刷新资源被拦截: merchantId=%s resourceId=%s reason=expired", merchantID, resourceID)
 		return RefreshResourceResp{}, errx.New(errx.CodeStateConflict, "资源已过期，请再发类似资源")
 	}
 	result, err := l.store.RefreshResource(ctx, merchantID, resourceID)
@@ -283,6 +284,7 @@ func (l *RefreshResourceLogic) RefreshResource(ctx context.Context, req RefreshR
 		logx.Errorf("刷新资源失败: merchantId=%s resourceId=%s err=%+v", merchantID, resourceID, err)
 		return RefreshResourceResp{}, err
 	}
+	logx.Infof("刷新资源成功: merchantId=%s resourceId=%s refreshedAt=%s remainingQuota=%d", merchantID, result.ID, result.RefreshedAt, result.RemainingRefreshQuota)
 	return RefreshResourceResp{ID: result.ID, RefreshedAt: result.RefreshedAt, RemainingRefreshQuota: result.RemainingRefreshQuota}, nil
 }
 
@@ -305,8 +307,11 @@ func (l *MarkDealtLogic) MarkDealt(ctx context.Context, req MarkDealtReq) (DealF
 		WillingToCooperateAgain: req.WillingToCooperateAgain, Note: strings.TrimSpace(req.Note),
 	})
 	if err != nil {
+		logx.Errorf("记录资源成交反馈失败: merchantId=%s resourceId=%s isDealt=%t err=%+v", merchantID, resourceID, req.IsDealt, err)
 		return DealFeedbackResp{}, err
 	}
+	// 成交反馈会影响后续再发类似和运营统计，记录最终状态方便核对用户操作。
+	logx.Infof("记录资源成交反馈成功: merchantId=%s resourceId=%s isDealt=%t newStatus=%s", merchantID, result.ID, req.IsDealt, result.Status)
 	return DealFeedbackResp{ID: result.ID, Status: result.Status, Message: "成交反馈已记录"}, nil
 }
 
@@ -329,8 +334,11 @@ func (l *TakeDownOwnResourceLogic) TakeDown(ctx context.Context, req TakeDownOwn
 	}
 	result, err := l.store.TakeDownOwnResource(ctx, model.TakeDownOwnResourceInput{MerchantID: merchantID, ResourceID: resourceID, Reason: reason})
 	if err != nil {
+		logx.Errorf("商家下架资源失败: merchantId=%s resourceId=%s err=%+v", merchantID, resourceID, err)
 		return TakeDownOwnResourceResp{}, err
 	}
+	// 商家主动下架会立刻影响前台展示，日志只记录原因长度，避免把用户填写的敏感说明写入日志。
+	logx.Infof("商家下架资源成功: merchantId=%s resourceId=%s newStatus=%s reasonLength=%d", merchantID, result.ID, result.Status, len(reason))
 	return TakeDownOwnResourceResp{ID: result.ID, Status: result.Status, Message: "资源已下架"}, nil
 }
 
@@ -353,12 +361,15 @@ func (l *DeleteTakenDownResourceLogic) Delete(ctx context.Context, req DeleteTak
 	}
 	// 删除只对已下架资源开放，避免误删正在审核或公开展示的资源。
 	if status.Status != model.ResourceStatusTakenDown {
+		logx.Infof("删除已下架资源被拦截: merchantId=%s resourceId=%s currentStatus=%s", merchantID, resourceID, status.Status)
 		return DeleteTakenDownResourceResp{}, errx.New(errx.CodeStateConflict, "仅已下架资源可以删除")
 	}
 	result, err := l.store.DeleteTakenDownResource(ctx, merchantID, resourceID)
 	if err != nil {
+		logx.Errorf("删除已下架资源失败: merchantId=%s resourceId=%s err=%+v", merchantID, resourceID, err)
 		return DeleteTakenDownResourceResp{}, err
 	}
+	logx.Infof("删除已下架资源成功: merchantId=%s resourceId=%s newStatus=%s", merchantID, result.ID, result.Status)
 	return DeleteTakenDownResourceResp{ID: result.ID, Status: result.Status, Message: "资源已删除"}, nil
 }
 
@@ -377,12 +388,15 @@ func (l *RepostSimilarLogic) RepostSimilar(ctx context.Context, req RepostSimila
 		return RepostSimilarResp{}, err
 	}
 	if !status.IsExpired && !status.IsDealt {
+		logx.Infof("再发类似资源被拦截: merchantId=%s resourceId=%s status=%s isExpired=%t isDealt=%t", merchantID, resourceID, status.Status, status.IsExpired, status.IsDealt)
 		return RepostSimilarResp{}, errx.New(errx.CodeStateConflict, "仅已过期或已成交资源可以再发类似")
 	}
 	result, err := l.store.RepostSimilar(ctx, merchantID, resourceID)
 	if err != nil {
+		logx.Errorf("再发类似资源失败: merchantId=%s sourceResourceId=%s err=%+v", merchantID, resourceID, err)
 		return RepostSimilarResp{}, err
 	}
+	logx.Infof("再发类似资源成功: merchantId=%s sourceResourceId=%s newResourceId=%s newStatus=%s", merchantID, resourceID, result.ID, result.Status)
 	return RepostSimilarResp{ID: result.ID, Status: result.Status, Message: "已复制为草稿"}, nil
 }
 

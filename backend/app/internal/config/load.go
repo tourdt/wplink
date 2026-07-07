@@ -1,183 +1,201 @@
 package config
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
+	"regexp"
 	"time"
+
+	"gopkg.in/yaml.v2"
 )
 
+var envPlaceholderPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+
 func Load(path string) (Config, error) {
-	file, err := os.Open(path)
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, err
 	}
-	defer file.Close()
 
-	cfg := Config{Log: defaultLogConfig()}
-	var section string
-	var listKey string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		raw := scanner.Text()
-		line := strings.TrimSpace(raw)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		if strings.HasPrefix(line, "- ") {
-			if section == "Storage" && listKey == "AllowedContentTypes" {
-				cfg.Storage.AllowedContentTypes = append(cfg.Storage.AllowedContentTypes, cleanValue(strings.TrimPrefix(line, "- ")))
-			}
-			continue
-		}
-
-		key, value, ok := strings.Cut(line, ":")
-		if !ok {
-			return Config{}, fmt.Errorf("配置行格式不正确: %s", raw)
-		}
-		key = strings.TrimSpace(key)
-		rawValue := strings.TrimSpace(value)
-		value = cleanValue(value)
-		if rawValue == "" {
-			if isTopLevelLine(raw) {
-				section = key
-				listKey = ""
-			} else {
-				listKey = key
-			}
-			continue
-		}
-		if err := applyConfigValue(&cfg, section, key, value); err != nil {
-			return Config{}, err
-		}
-		listKey = key
+	raw := fileConfig{Log: defaultFileLogConfig()}
+	// 配置文件按严格 YAML 解析，未知字段直接报错，避免拼错配置在启动时被静默忽略。
+	if err := yaml.UnmarshalStrict([]byte(expandEnvPlaceholders(string(content))), &raw); err != nil {
+		return Config{}, fmt.Errorf("解析配置文件失败: %w", err)
 	}
-	if err := scanner.Err(); err != nil {
-		return Config{}, err
-	}
-	return cfg, nil
+	return raw.toConfig(), nil
 }
 
-func applyConfigValue(cfg *Config, section string, key string, value string) error {
-	switch section {
-	case "":
-		switch key {
-		case "Name":
-			cfg.Name = value
-		case "RuntimeMode":
-			cfg.RuntimeMode = value
-		case "Host":
-			cfg.Host = value
-		case "Port":
-			port, err := strconv.Atoi(value)
-			if err != nil {
-				return fmt.Errorf("Port 配置必须是数字: %w", err)
-			}
-			cfg.Port = port
-		}
-	case "Postgres":
-		switch key {
-		case "DSN":
-			cfg.Postgres.DSN = value
-		case "MaxOpenConns":
-			size, err := strconv.Atoi(value)
-			if err != nil {
-				return fmt.Errorf("MaxOpenConns 配置必须是数字: %w", err)
-			}
-			cfg.Postgres.MaxOpenConns = size
-		case "MaxIdleConns":
-			size, err := strconv.Atoi(value)
-			if err != nil {
-				return fmt.Errorf("MaxIdleConns 配置必须是数字: %w", err)
-			}
-			cfg.Postgres.MaxIdleConns = size
-		case "ConnMaxLifetime":
-			lifetime, err := time.ParseDuration(value)
-			if err != nil {
-				return fmt.Errorf("ConnMaxLifetime 配置不正确: %w", err)
-			}
-			cfg.Postgres.ConnMaxLifetime = lifetime
-		case "ConnMaxIdleTime":
-			idleTime, err := time.ParseDuration(value)
-			if err != nil {
-				return fmt.Errorf("ConnMaxIdleTime 配置不正确: %w", err)
-			}
-			cfg.Postgres.ConnMaxIdleTime = idleTime
-		}
-	case "AdminAuth":
-		switch key {
-		case "TokenSecret":
-			cfg.AdminAuth.TokenSecret = value
-		case "TokenTTL":
-			ttl, err := time.ParseDuration(value)
-			if err != nil {
-				return fmt.Errorf("TokenTTL 配置不正确: %w", err)
-			}
-			cfg.AdminAuth.TokenTTL = ttl
-		}
-	case "Wechat":
-		switch key {
-		case "AppID":
-			cfg.Wechat.AppID = value
-		case "AppSecret":
-			cfg.Wechat.AppSecret = value
-		case "AllowDevCode":
-			allow, err := strconv.ParseBool(value)
-			if err != nil {
-				return fmt.Errorf("AllowDevCode 配置必须是布尔值: %w", err)
-			}
-			cfg.Wechat.AllowDevCode = allow
-		}
-	case "WechatPay":
-		return applyWechatPayValue(&cfg.WechatPay, key, value)
-	case "Log":
-		return applyLogValue(&cfg.Log, key, value)
-	case "SMS":
-		switch key {
-		case "Provider":
-			cfg.SMS.Provider = value
-		case "SendURL":
-			cfg.SMS.SendURL = value
-		case "VerifyURL":
-			cfg.SMS.VerifyURL = value
-		case "SendMinInterval":
-			interval, err := time.ParseDuration(value)
-			if err != nil {
-				return fmt.Errorf("SendMinInterval 配置不正确: %w", err)
-			}
-			cfg.SMS.SendMinInterval = interval
-		case "DailySendLimit":
-			limit, err := strconv.Atoi(value)
-			if err != nil {
-				return fmt.Errorf("DailySendLimit 配置必须是数字: %w", err)
-			}
-			cfg.SMS.DailySendLimit = limit
-		case "AccessKeyID":
-			cfg.SMS.AccessKeyID = value
-		case "AccessKeySecret":
-			cfg.SMS.AccessKeySecret = value
-		case "SignName":
-			cfg.SMS.SignName = value
-		case "TemplateCode":
-			cfg.SMS.TemplateCode = value
-		case "DevCode":
-			cfg.SMS.DevCode = value
-		}
-	case "Tasks":
-		switch key {
-		case "ResourceLifecycleInterval":
-			interval, err := time.ParseDuration(value)
-			if err != nil {
-				return fmt.Errorf("ResourceLifecycleInterval 配置不正确: %w", err)
-			}
-			cfg.Tasks.ResourceLifecycleInterval = interval
-		}
-	case "Storage":
-		return applyStorageValue(&cfg.Storage, key, value)
+type fileConfig struct {
+	Name        string              `yaml:"Name"`
+	RuntimeMode string              `yaml:"RuntimeMode"`
+	Host        string              `yaml:"Host"`
+	Port        int                 `yaml:"Port"`
+	Log         fileLogConfig       `yaml:"Log"`
+	Postgres    filePostgresConfig  `yaml:"Postgres"`
+	AdminAuth   fileAdminAuthConfig `yaml:"AdminAuth"`
+	Wechat      WechatConfig        `yaml:"Wechat"`
+	WechatPay   fileWechatPayConfig `yaml:"WechatPay"`
+	SMS         fileSMSConfig       `yaml:"SMS"`
+	Tasks       fileTasksConfig     `yaml:"Tasks"`
+	Storage     fileStorageConfig   `yaml:"Storage"`
+}
+
+type filePostgresConfig struct {
+	DSN             string         `yaml:"DSN"`
+	MaxOpenConns    int            `yaml:"MaxOpenConns"`
+	MaxIdleConns    int            `yaml:"MaxIdleConns"`
+	ConnMaxLifetime configDuration `yaml:"ConnMaxLifetime"`
+	ConnMaxIdleTime configDuration `yaml:"ConnMaxIdleTime"`
+}
+
+type fileLogConfig struct {
+	ServiceName         string `yaml:"ServiceName"`
+	Mode                string `yaml:"Mode"`
+	Encoding            string `yaml:"Encoding"`
+	TimeFormat          string `yaml:"TimeFormat"`
+	Path                string `yaml:"Path"`
+	Level               string `yaml:"Level"`
+	MaxContentLength    uint32 `yaml:"MaxContentLength"`
+	Compress            bool   `yaml:"Compress"`
+	Stat                bool   `yaml:"Stat"`
+	KeepDays            int    `yaml:"KeepDays"`
+	StackCooldownMillis int    `yaml:"StackCooldownMillis"`
+	MaxBackups          int    `yaml:"MaxBackups"`
+	MaxSize             int    `yaml:"MaxSize"`
+	Rotation            string `yaml:"Rotation"`
+	FileTimeFormat      string `yaml:"FileTimeFormat"`
+}
+
+type fileAdminAuthConfig struct {
+	TokenSecret string         `yaml:"TokenSecret"`
+	TokenTTL    configDuration `yaml:"TokenTTL"`
+}
+
+type fileWechatPayConfig struct {
+	Enabled                bool           `yaml:"Enabled"`
+	DevMockEnabled         bool           `yaml:"DevMockEnabled"`
+	MchID                  string         `yaml:"MchID"`
+	AppID                  string         `yaml:"AppID"`
+	APIv3Key               string         `yaml:"APIv3Key"`
+	MerchantSerialNo       string         `yaml:"MerchantSerialNo"`
+	MerchantPrivateKeyPath string         `yaml:"MerchantPrivateKeyPath"`
+	PlatformPublicKeyPath  string         `yaml:"PlatformPublicKeyPath"`
+	NotifyURL              string         `yaml:"NotifyURL"`
+	RequestTimeout         configDuration `yaml:"RequestTimeout"`
+}
+
+type fileSMSConfig struct {
+	Provider        string         `yaml:"Provider"`
+	SendURL         string         `yaml:"SendURL"`
+	VerifyURL       string         `yaml:"VerifyURL"`
+	SendMinInterval configDuration `yaml:"SendMinInterval"`
+	DailySendLimit  int            `yaml:"DailySendLimit"`
+	AccessKeyID     string         `yaml:"AccessKeyID"`
+	AccessKeySecret string         `yaml:"AccessKeySecret"`
+	SignName        string         `yaml:"SignName"`
+	TemplateCode    string         `yaml:"TemplateCode"`
+	DevCode         string         `yaml:"DevCode"`
+}
+
+type fileTasksConfig struct {
+	ResourceLifecycleInterval configDuration `yaml:"ResourceLifecycleInterval"`
+}
+
+type fileStorageConfig struct {
+	Provider            string         `yaml:"Provider"`
+	Endpoint            string         `yaml:"Endpoint"`
+	Bucket              string         `yaml:"Bucket"`
+	Region              string         `yaml:"Region"`
+	AccessKeyID         string         `yaml:"AccessKeyID"`
+	AccessKeySecret     string         `yaml:"AccessKeySecret"`
+	PublicBaseURL       string         `yaml:"PublicBaseURL"`
+	UploadExpire        configDuration `yaml:"UploadExpire"`
+	MaxFileSizeBytes    int64          `yaml:"MaxFileSizeBytes"`
+	AllowedContentTypes []string       `yaml:"AllowedContentTypes"`
+}
+
+type configDuration time.Duration
+
+func (d *configDuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var value string
+	if err := unmarshal(&value); err != nil {
+		return err
 	}
+	if value == "" {
+		*d = 0
+		return nil
+	}
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return fmt.Errorf("必须使用 Go duration 格式，例如 30s、15m、24h: %w", err)
+	}
+	*d = configDuration(parsed)
 	return nil
+}
+
+func (d configDuration) Duration() time.Duration {
+	return time.Duration(d)
+}
+
+func (c fileConfig) toConfig() Config {
+	return Config{
+		Name:        c.Name,
+		RuntimeMode: c.RuntimeMode,
+		Host:        c.Host,
+		Port:        c.Port,
+		Log:         c.Log.toLogConfig(),
+		Postgres: PostgresConfig{
+			DSN:             c.Postgres.DSN,
+			MaxOpenConns:    c.Postgres.MaxOpenConns,
+			MaxIdleConns:    c.Postgres.MaxIdleConns,
+			ConnMaxLifetime: c.Postgres.ConnMaxLifetime.Duration(),
+			ConnMaxIdleTime: c.Postgres.ConnMaxIdleTime.Duration(),
+		},
+		AdminAuth: AdminAuthConfig{
+			TokenSecret: c.AdminAuth.TokenSecret,
+			TokenTTL:    c.AdminAuth.TokenTTL.Duration(),
+		},
+		Wechat: c.Wechat,
+		WechatPay: WechatPayConfig{
+			Enabled:                c.WechatPay.Enabled,
+			DevMockEnabled:         c.WechatPay.DevMockEnabled,
+			MchID:                  c.WechatPay.MchID,
+			AppID:                  c.WechatPay.AppID,
+			APIv3Key:               c.WechatPay.APIv3Key,
+			MerchantSerialNo:       c.WechatPay.MerchantSerialNo,
+			MerchantPrivateKeyPath: c.WechatPay.MerchantPrivateKeyPath,
+			PlatformPublicKeyPath:  c.WechatPay.PlatformPublicKeyPath,
+			NotifyURL:              c.WechatPay.NotifyURL,
+			RequestTimeout:         c.WechatPay.RequestTimeout.Duration(),
+		},
+		SMS: SMSConfig{
+			Provider:        c.SMS.Provider,
+			SendURL:         c.SMS.SendURL,
+			VerifyURL:       c.SMS.VerifyURL,
+			SendMinInterval: c.SMS.SendMinInterval.Duration(),
+			DailySendLimit:  c.SMS.DailySendLimit,
+			AccessKeyID:     c.SMS.AccessKeyID,
+			AccessKeySecret: c.SMS.AccessKeySecret,
+			SignName:        c.SMS.SignName,
+			TemplateCode:    c.SMS.TemplateCode,
+			DevCode:         c.SMS.DevCode,
+		},
+		Tasks: TasksConfig{
+			ResourceLifecycleInterval: c.Tasks.ResourceLifecycleInterval.Duration(),
+		},
+		Storage: StorageConfig{
+			Provider:            c.Storage.Provider,
+			Endpoint:            c.Storage.Endpoint,
+			Bucket:              c.Storage.Bucket,
+			Region:              c.Storage.Region,
+			AccessKeyID:         c.Storage.AccessKeyID,
+			AccessKeySecret:     c.Storage.AccessKeySecret,
+			PublicBaseURL:       c.Storage.PublicBaseURL,
+			UploadExpire:        c.Storage.UploadExpire.Duration(),
+			MaxFileSizeBytes:    c.Storage.MaxFileSizeBytes,
+			AllowedContentTypes: c.Storage.AllowedContentTypes,
+		},
+	}
 }
 
 func defaultLogConfig() LogConfig {
@@ -192,148 +210,50 @@ func defaultLogConfig() LogConfig {
 	}
 }
 
-func applyLogValue(cfg *LogConfig, key string, value string) error {
-	switch key {
-	case "ServiceName":
-		cfg.ServiceName = value
-	case "Mode":
-		cfg.Mode = value
-	case "Encoding":
-		cfg.Encoding = value
-	case "TimeFormat":
-		cfg.TimeFormat = value
-	case "Path":
-		cfg.Path = value
-	case "Level":
-		cfg.Level = value
-	case "MaxContentLength":
-		length, err := strconv.ParseUint(value, 10, 32)
-		if err != nil {
-			return fmt.Errorf("Log.MaxContentLength 配置必须是数字: %w", err)
-		}
-		cfg.MaxContentLength = uint32(length)
-	case "Compress":
-		compress, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("Log.Compress 配置必须是布尔值: %w", err)
-		}
-		cfg.Compress = compress
-	case "Stat":
-		stat, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("Log.Stat 配置必须是布尔值: %w", err)
-		}
-		cfg.Stat = stat
-	case "KeepDays":
-		days, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("Log.KeepDays 配置必须是数字: %w", err)
-		}
-		cfg.KeepDays = days
-	case "StackCooldownMillis":
-		millis, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("Log.StackCooldownMillis 配置必须是数字: %w", err)
-		}
-		cfg.StackCooldownMillis = millis
-	case "MaxBackups":
-		count, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("Log.MaxBackups 配置必须是数字: %w", err)
-		}
-		cfg.MaxBackups = count
-	case "MaxSize":
-		size, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("Log.MaxSize 配置必须是数字: %w", err)
-		}
-		cfg.MaxSize = size
-	case "Rotation":
-		cfg.Rotation = value
-	case "FileTimeFormat":
-		cfg.FileTimeFormat = value
+func defaultFileLogConfig() fileLogConfig {
+	cfg := defaultLogConfig()
+	return fileLogConfig{
+		ServiceName:         cfg.ServiceName,
+		Mode:                cfg.Mode,
+		Encoding:            cfg.Encoding,
+		TimeFormat:          cfg.TimeFormat,
+		Path:                cfg.Path,
+		Level:               cfg.Level,
+		MaxContentLength:    cfg.MaxContentLength,
+		Compress:            cfg.Compress,
+		Stat:                cfg.Stat,
+		KeepDays:            cfg.KeepDays,
+		StackCooldownMillis: cfg.StackCooldownMillis,
+		MaxBackups:          cfg.MaxBackups,
+		MaxSize:             cfg.MaxSize,
+		Rotation:            cfg.Rotation,
+		FileTimeFormat:      cfg.FileTimeFormat,
 	}
-	return nil
 }
 
-func applyWechatPayValue(cfg *WechatPayConfig, key string, value string) error {
-	switch key {
-	case "Enabled":
-		enabled, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("WechatPay.Enabled 配置必须是布尔值: %w", err)
-		}
-		cfg.Enabled = enabled
-	case "DevMockEnabled":
-		enabled, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("WechatPay.DevMockEnabled 配置必须是布尔值: %w", err)
-		}
-		cfg.DevMockEnabled = enabled
-	case "MchID":
-		cfg.MchID = value
-	case "AppID":
-		cfg.AppID = value
-	case "APIv3Key":
-		cfg.APIv3Key = value
-	case "MerchantSerialNo":
-		cfg.MerchantSerialNo = value
-	case "MerchantPrivateKeyPath":
-		cfg.MerchantPrivateKeyPath = value
-	case "PlatformPublicKeyPath":
-		cfg.PlatformPublicKeyPath = value
-	case "NotifyURL":
-		cfg.NotifyURL = value
-	case "RequestTimeout":
-		timeout, err := time.ParseDuration(value)
-		if err != nil {
-			return fmt.Errorf("WechatPay.RequestTimeout 配置不正确: %w", err)
-		}
-		cfg.RequestTimeout = timeout
+func (c fileLogConfig) toLogConfig() LogConfig {
+	return LogConfig{
+		ServiceName:         c.ServiceName,
+		Mode:                c.Mode,
+		Encoding:            c.Encoding,
+		TimeFormat:          c.TimeFormat,
+		Path:                c.Path,
+		Level:               c.Level,
+		MaxContentLength:    c.MaxContentLength,
+		Compress:            c.Compress,
+		Stat:                c.Stat,
+		KeepDays:            c.KeepDays,
+		StackCooldownMillis: c.StackCooldownMillis,
+		MaxBackups:          c.MaxBackups,
+		MaxSize:             c.MaxSize,
+		Rotation:            c.Rotation,
+		FileTimeFormat:      c.FileTimeFormat,
 	}
-	return nil
 }
 
-func applyStorageValue(cfg *StorageConfig, key string, value string) error {
-	switch key {
-	case "Provider":
-		cfg.Provider = value
-	case "Endpoint":
-		cfg.Endpoint = value
-	case "Bucket":
-		cfg.Bucket = value
-	case "Region":
-		cfg.Region = value
-	case "AccessKeyID":
-		cfg.AccessKeyID = value
-	case "AccessKeySecret":
-		cfg.AccessKeySecret = value
-	case "PublicBaseURL":
-		cfg.PublicBaseURL = value
-	case "UploadExpire":
-		expire, err := time.ParseDuration(value)
-		if err != nil {
-			return fmt.Errorf("UploadExpire 配置不正确: %w", err)
-		}
-		cfg.UploadExpire = expire
-	case "MaxFileSizeBytes":
-		size, err := strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			return fmt.Errorf("MaxFileSizeBytes 配置必须是数字: %w", err)
-		}
-		cfg.MaxFileSizeBytes = size
-	case "AllowedContentTypes":
-		cfg.AllowedContentTypes = nil
-	}
-	return nil
-}
-
-func isTopLevelLine(line string) bool {
-	return len(line) == len(strings.TrimLeft(line, " \t"))
-}
-
-func cleanValue(value string) string {
-	value = strings.TrimSpace(value)
-	value = strings.Trim(value, `"`)
-	return os.ExpandEnv(value)
+func expandEnvPlaceholders(content string) string {
+	return envPlaceholderPattern.ReplaceAllStringFunc(content, func(match string) string {
+		name := match[2 : len(match)-1]
+		return os.Getenv(name)
+	})
 }

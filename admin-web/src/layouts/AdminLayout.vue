@@ -18,10 +18,6 @@
           <el-icon><Shop /></el-icon>
           <span>商家管理</span>
         </el-menu-item>
-        <el-menu-item index="/demands">
-          <el-icon><Search /></el-icon>
-          <span>采购需求</span>
-        </el-menu-item>
         <el-menu-item index="/verifications">
           <el-icon><CircleCheck /></el-icon>
           <span>认证审核</span>

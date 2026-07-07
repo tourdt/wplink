@@ -150,13 +150,6 @@
           >
             <el-option v-for="item in merchantOptions" :key="item.id" :label="merchantOptionLabel(item)" :value="item.id" />
           </el-select>
-          <el-select
-            v-else-if="form.jumpType === 'demand'"
-            v-model="form.jumpTarget"
-            disabled
-          >
-            <el-option label="采购需求页" value="/pages/demand/index" />
-          </el-select>
           <el-alert
             v-else
             title="专题会使用当前 Banner 作为落地页，无需选择跳转目标。"
@@ -208,7 +201,7 @@ import { uploadBannerImage } from '../api/upload'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { merchantTypeLabel } from '../common/merchantIdentity'
 
-const jumpTypeText = { topic: '专题落地页', resource: '资源', merchant: '商家', demand: '需求', internal: '内部页', webview: '网页' }
+const jumpTypeText = { topic: '专题落地页', resource: '资源', merchant: '商家', internal: '内部页', webview: '网页' }
 const kindText = { banner: '首页 Banner', home_recommend_card: '首页推荐卡' }
 const statusText = { draft: '草稿', active: '启用', disabled: '停用' }
 const statusTagType = { draft: 'info', active: 'success', disabled: 'warning' }
@@ -220,7 +213,6 @@ const jumpTypeOptions = [
   { label: '专题落地页', value: 'topic' },
   { label: '资源详情', value: 'resource' },
   { label: '商家主页', value: 'merchant' },
-  { label: '需求入口', value: 'demand' },
   { label: '内部页面', value: 'internal' },
   { label: '活动网页', value: 'webview' },
 ]
@@ -230,7 +222,6 @@ const internalPageOptions = [
   { label: '发布页', value: '/pages/publish/index' },
   { label: '消息页', value: '/pages/messages/index' },
   { label: '我的', value: '/pages/my/index' },
-  { label: '采购需求页', value: '/pages/demand/index' },
   { label: '我的发布', value: '/pages/my-resources/index' },
   { label: '收藏页', value: '/pages/favorites/index' },
   { label: '认证页', value: '/pages/verification/index' },
@@ -344,9 +335,6 @@ function applyJumpTargetDefault() {
   if (form.jumpType === 'topic') {
     form.jumpTarget = ''
   }
-  if (form.jumpType === 'demand') {
-    form.jumpTarget = '/pages/demand/index'
-  }
 }
 
 function applyKindDefaults() {
@@ -370,9 +358,6 @@ function handleFormKindChange() {
 
 function handleJumpTypeChange(value) {
   form.jumpTarget = ''
-  if (value === 'demand') {
-    form.jumpTarget = '/pages/demand/index'
-  }
 }
 
 function targetDisplay(row) {
@@ -400,9 +385,6 @@ function buildSubmitPayload() {
   const payload = { ...form }
   if (payload.jumpType === 'topic') {
     payload.jumpTarget = ''
-  }
-  if (payload.jumpType === 'demand') {
-    payload.jumpTarget = '/pages/demand/index'
   }
   if (payload.kind === 'home_recommend_card') {
     payload.coverUrl = ''

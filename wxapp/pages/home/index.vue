@@ -21,10 +21,10 @@
           circular
           :interval="4200"
           :duration="450"
-          :current="activeBannerIndex"
+          easing-function="easeInOutCubic"
           @change="handleBannerChange"
         >
-          <swiper-item v-for="(item, index) in displayBanners" :key="item.id">
+          <swiper-item class="banner-slide" v-for="(item, index) in displayBanners" :key="item.id">
             <view
               :class="['banner-card', 'factory-hero', item.tone]"
               @click="openBanner(item)"
@@ -290,10 +290,6 @@ function openBanner(item) {
     uni.navigateTo({ url: `/pages/merchant/detail?id=${item.jumpTarget}` })
     return
   }
-  if (item.jumpType === 'demand') {
-    openInternal(item.jumpTarget || '/pages/demand/index')
-    return
-  }
   if (item.jumpType === 'webview') {
     uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(item.jumpTarget)}` })
     return
@@ -516,13 +512,19 @@ function bannerTone(jumpType) {
 }
 
 .banner-swiper {
-  width: 100%;
+  width: calc(100% + 18rpx);
   height: 326rpx;
+}
+
+.banner-slide {
+  box-sizing: border-box;
+  padding-right: 18rpx;
 }
 
 .banner-card {
   position: relative;
   display: block;
+  box-sizing: border-box;
   width: 100%;
   height: 326rpx;
   overflow: hidden;

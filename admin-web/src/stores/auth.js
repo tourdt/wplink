@@ -1,13 +1,11 @@
 import { defineStore } from 'pinia'
 import { loginAdmin } from '../api/auth'
-
-const TOKEN_KEY = 'wplink_admin_token'
-const USER_KEY = 'wplink_admin_user'
+import { clearAdminSession, readAdminToken, readAdminUser, writeAdminSession } from './adminSession'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    token: localStorage.getItem(TOKEN_KEY) || '',
-    user: readStoredUser(),
+    token: readAdminToken(),
+    user: readAdminUser(),
   }),
   getters: {
     isLoggedIn: (state) => Boolean(state.token),
@@ -22,22 +20,12 @@ export const useAuthStore = defineStore('auth', {
         roles: data.roles || [],
         loginName: form.loginName,
       }
-      localStorage.setItem(TOKEN_KEY, this.token)
-      localStorage.setItem(USER_KEY, JSON.stringify(this.user))
+      writeAdminSession(this.token, this.user)
     },
     logout() {
       this.token = ''
       this.user = null
-      localStorage.removeItem(TOKEN_KEY)
-      localStorage.removeItem(USER_KEY)
+      clearAdminSession()
     },
   },
 })
-
-function readStoredUser() {
-  try {
-    return JSON.parse(localStorage.getItem(USER_KEY) || 'null')
-  } catch {
-    return null
-  }
-}

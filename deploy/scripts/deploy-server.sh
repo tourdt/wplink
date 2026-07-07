@@ -30,6 +30,7 @@ MIGRATION_FILES=(
   "000009_verification_expiration.up.sql"
   "000010_sourcing_map.up.sql"
   "000011_map_object_bind_requests.up.sql"
+  "000012_search_trigram_indexes.up.sql"
 )
 
 usage() {
@@ -337,6 +338,7 @@ if [[ "$RUN_MIGRATIONS" == "1" || "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
     "000009_verification_expiration.up.sql"
     "000010_sourcing_map.up.sql"
     "000011_map_object_bind_requests.up.sql"
+    "000012_search_trigram_indexes.up.sql"
   )
 
   for migration_file in "${migration_files[@]}"; do

@@ -38,6 +38,19 @@ test('my demand list entry stays hidden from normal wxapp navigation', () => {
   assert.match(messagesSource, /stripQuery\(url\) === '\/pages\/my-demands\/index'/)
 })
 
+test('launch pages do not register unreleased purchase demand routes', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const pagePaths = pagesConfig.pages.map((item) => item.path)
+  const homeSource = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+
+  for (const page of ['pages/demand/index', 'pages/demand-success/index', 'pages/my-demands/index']) {
+    assert.equal(pagePaths.includes(page), false)
+  }
+  assert.equal(homeSource.includes("item.jumpType === 'demand'"), false)
+  assert.equal(homeSource.includes('/pages/demand/index'), false)
+})
+
 test('home banner only overlays labels and title on image', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
@@ -58,6 +71,18 @@ test('home banner auto scrolls and shows bottom-right dots', () => {
   assert.match(source, /banner-dots/)
   assert.match(source, /activeBannerIndex === index/)
   assert.match(source, /\.banner-dots \{[\s\S]*right: 28rpx;[\s\S]*bottom: 24rpx;/)
+})
+
+test('home banner keeps slide spacing and native autoplay smooth', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+
+  assert.match(source, /<swiper[\s\S]*easing-function="easeInOutCubic"[\s\S]*@change="handleBannerChange"/)
+  assert.doesNotMatch(source, /:current="activeBannerIndex"/)
+  assert.match(source, /<swiper-item[^>]*class="banner-slide"[^>]*v-for="\(\s*item,\s*index\s*\) in displayBanners"/)
+  assert.match(source, /\.banner-swiper \{[\s\S]*width: calc\(100% \+ 18rpx\);/)
+  assert.match(source, /\.banner-slide \{[\s\S]*padding-right: 18rpx;/)
+  assert.match(source, /\.banner-card \{[\s\S]*box-sizing: border-box;/)
 })
 
 test('home recommend card is loaded from operation config instead of hardcoded copy', () => {

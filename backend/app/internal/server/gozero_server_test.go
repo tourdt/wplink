@@ -35,8 +35,8 @@ func TestNewGoZeroServerMountsHealthAPIAndAdmin(t *testing.T) {
 	if hasRoute(srv.Routes(), http.MethodGet, "/api/v1/city-stations") {
 		t.Fatalf("routes = %#v, city stations should use single api fallback instead of dedicated go-zero route", srv.Routes())
 	}
-	if !hasRoute(srv.Routes(), http.MethodGet, "/api/v1/me/resources/:resourceId/detail") {
-		t.Fatalf("routes = %#v, want own resource detail compat route", srv.Routes())
+	if hasRoute(srv.Routes(), http.MethodGet, "/api/v1/me/resources/:resourceId/detail") {
+		t.Fatalf("routes = %#v, API routes should use single api fallback instead of compat go-zero routes", srv.Routes())
 	}
 
 	healthRec := httptest.NewRecorder()

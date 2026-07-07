@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -130,5 +131,47 @@ Name: wplink-api
 
 	if cfg.Log.Mode != "file" || cfg.Log.Path != "logs" || cfg.Log.Rotation != "daily" || cfg.Log.KeepDays != 7 {
 		t.Fatalf("log = %#v, want default daily file logs kept 7 days", cfg.Log)
+	}
+}
+
+func TestLoadRejectsUnknownFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yaml")
+	if err := os.WriteFile(path, []byte(`
+Name: wplink-api
+Postgres:
+  DSN: "postgres://user:pass@127.0.0.1:5432/wplink?sslmode=disable"
+  DSNLOCAL: "postgres://user:pass@127.0.0.1:5432/wplink_local?sslmode=disable"
+`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	err := func() error {
+		_, err := Load(path)
+		return err
+	}()
+	if err == nil {
+		t.Fatal("Load() error = nil, want unknown field error")
+	}
+	if !strings.Contains(err.Error(), "DSNLOCAL") {
+		t.Fatalf("Load() error = %v, want mention unknown field DSNLOCAL", err)
+	}
+}
+
+func TestLoadRejectsInvalidDuration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yaml")
+	if err := os.WriteFile(path, []byte(`
+Name: wplink-api
+AdminAuth:
+  TokenTTL: "one day"
+`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("Load() error = nil, want duration parse error")
+	}
+	if !strings.Contains(err.Error(), "duration") {
+		t.Fatalf("Load() error = %v, want duration parse message", err)
 	}
 }

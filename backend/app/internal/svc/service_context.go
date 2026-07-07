@@ -60,13 +60,13 @@ type ServiceContext struct {
 	WechatPayGateway    paymentlogic.WechatPayGateway
 }
 
-func NewServiceContext(c config.Config, db *sql.DB) *ServiceContext {
+func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 	adminTokenService := session.NewHMACAdminTokenIssuer(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL)
 	adminTokenIssuer := adminauth.NewSessionTokenIssuer(adminTokenService)
 	apiStore := newAPIStore(db)
 	wechatPayGateway, err := paymentlogic.NewHTTPWechatPayGateway(c.WechatPay)
 	if err != nil {
-		panic(fmt.Sprintf("初始化微信支付失败: %v", err))
+		return nil, fmt.Errorf("初始化微信支付网关失败: %w", err)
 	}
 	return &ServiceContext{
 		Config:              c,
@@ -80,7 +80,7 @@ func NewServiceContext(c config.Config, db *sql.DB) *ServiceContext {
 		WechatSessionClient: authlogic.NewWechatSessionClient(c.Wechat, "", nil),
 		SMSVerifier:         authlogic.NewConfiguredSMSVerifier(c.SMS),
 		WechatPayGateway:    wechatPayGateway,
-	}
+	}, nil
 }
 
 func newAPIStore(db *sql.DB) *APIStore {
