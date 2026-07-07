@@ -17,7 +17,8 @@
           indicator-dots
           indicator-color="rgba(255, 255, 255, 0.55)"
           indicator-active-color="#ffffff"
-          :current="selectedGalleryIndex"
+          duration="450"
+          easing-function="easeInOutCubic"
           @change="handleGalleryChange"
         >
           <swiper-item v-for="(url, index) in galleryImages" :key="`${url}-${index}`">

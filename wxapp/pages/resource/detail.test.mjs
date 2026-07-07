@@ -8,7 +8,8 @@ const source = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'ut
 
 test('resource detail gallery uses banner swiper and full screen preview', () => {
   assert.match(source, /const selectedGalleryIndex = ref\(0\)/)
-  assert.match(source, /<swiper[\s\S]*v-if="galleryImages\.length > 1"[\s\S]*:current="selectedGalleryIndex"[\s\S]*@change="handleGalleryChange"/)
+  assert.match(source, /<swiper[\s\S]*v-if="galleryImages\.length > 1"[\s\S]*duration="450"[\s\S]*easing-function="easeInOutCubic"[\s\S]*@change="handleGalleryChange"/)
+  assert.doesNotMatch(source, /:current="selectedGalleryIndex"/)
   assert.match(source, /<swiper-item[\s\S]*v-for="\(\s*url,\s*index\s*\) in galleryImages"/)
   assert.match(source, /@click="previewGalleryImage\(index\)"/)
   assert.match(source, /v-else-if="mainImage"[\s\S]*@click="previewGalleryImage\(0\)"/)
