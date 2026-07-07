@@ -2,6 +2,11 @@ export function isVerifiedMapObject(object) {
   return Boolean(object?.isVerifiedMerchant || object?.displayLevel === 'highlight')
 }
 
+// 选中态、命中优先级和列表高亮必须使用同一身份规则：后端 id 最稳定，历史静态点位才回退到 code。
+export function mapObjectIdentity(object) {
+  return object?.id || object?.code || ''
+}
+
 export function isRentableMapObject(object) {
   if (!object) return false
   if (isRentableMapValue(object.displayLevel) || isRentableMapValue(object.status) || isRentableMapValue(object.type)) return true

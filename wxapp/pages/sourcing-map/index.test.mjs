@@ -11,6 +11,7 @@ const source = readOptionalSource('pages/sourcing-map/index.vue')
 const rendererSource = readOptionalSource('pages/sourcing-map/canvasRenderer.js')
 const gestureSource = readOptionalSource('pages/sourcing-map/mapGesture.js')
 const hitTestSource = readOptionalSource('pages/sourcing-map/mapHitTest.js')
+const geometrySource = readOptionalSource('pages/sourcing-map/mapGeometry.js')
 
 function readOptionalSource(file) {
   const fullPath = path.join(root, file)
@@ -650,15 +651,19 @@ test('sourcing map uses dropship as the canonical one-piece shipping tag with le
 
 test('sourcing map renders and hits polygon map objects through canvas modules', () => {
   expectTokens(source, [
-    'polygon',
-    'calculatePolygonCenter',
+    'mapObjectCenter',
     'hitTestMapObjects',
     'canvasRenderer',
     'mapHitTest',
+    'mapGeometry',
   ])
   expectTokens(rendererSource, ['drawPolygonObject', 'normalizePolygonPoints', 'fillPolygonPath'])
   expectTokens(hitTestSource, ['isPointInPolygon', 'getObjectBounds', 'hitTestMapObjects'])
-  assert.match(source, /function calculateObjectCenter\(object\)[\s\S]*if \(object\.geometryType === 'polygon'\) \{[\s\S]*return calculatePolygonCenter\(geometry\)/)
+  expectTokens(geometrySource, ['mapObjectCenter', 'normalizePolygonPoints', 'polygon'])
+  assert.match(source, /import \{ mapObjectCenter \} from '\.\/mapGeometry'/)
+  assert.match(source, /function calculateObjectCenter\(object\)[\s\S]*const center = mapObjectCenter\(object\)/)
+  assert.match(source, /function calculateObjectCenter\(object\)[\s\S]*const metrics = getSceneRenderMetrics\(\)[\s\S]*metrics\.mapWidth \/ 2[\s\S]*metrics\.mapHeight \/ 2/)
+  assert.doesNotMatch(source, /function calculatePolygonCenter\(/)
 })
 
 test('sourcing map uses a full-screen width canvas viewport without horizontal page overflow', () => {

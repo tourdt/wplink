@@ -1,4 +1,9 @@
-import { isRentableMapObject, isVerifiedMapObject } from './mapObjectState.js'
+import { isRentableMapObject, isVerifiedMapObject, mapObjectIdentity } from './mapObjectState.js'
+import {
+  mapObjectBounds,
+  mapObjectCenter,
+  normalizePolygonPoints,
+} from './mapGeometry.js'
 
 const COLORS = {
   background: '#eef3f8',
@@ -574,34 +579,13 @@ function isRentableObject(object) {
 }
 
 function isSameObject(left, right) {
-  const leftID = objectIdentity(left)
-  const rightID = objectIdentity(right)
+  const leftID = mapObjectIdentity(left)
+  const rightID = mapObjectIdentity(right)
   return Boolean(leftID && rightID && leftID === rightID)
 }
 
-function objectIdentity(object) {
-  return object?.id || object?.code || ''
-}
-
 function objectCenter(object = {}) {
-  const geometry = object.geometry || {}
-  if (object.geometryType === 'polygon') {
-    const points = normalizePolygonPoints(geometry)
-    if (!points.length) return null
-    const sums = points.reduce((acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }), { x: 0, y: 0 })
-    return { x: sums.x / points.length, y: sums.y / points.length }
-  }
-  const point = objectPoint(object)
-  if (!point) return null
-  const { x, y } = point
-  if (object.geometryType === 'point') return { x, y }
-  const width = objectWidth(object)
-  const height = objectHeight(object)
-  if (width == null || height == null) return null
-  return {
-    x: x + width / 2,
-    y: y + height / 2,
-  }
+  return mapObjectCenter(object)
 }
 
 function projectedObjectBounds(object = {}, metrics) {
@@ -625,78 +609,17 @@ function logoText(object = {}) {
 }
 
 function objectBounds(object = {}) {
-  const geometry = object.geometry || {}
-  if (object.geometryType === 'polygon') {
-    const points = normalizePolygonPoints(geometry)
-    if (!points.length) return null
-    return points.reduce(
-      (bounds, point) => ({
-        minX: Math.min(bounds.minX, point.x),
-        minY: Math.min(bounds.minY, point.y),
-        maxX: Math.max(bounds.maxX, point.x),
-        maxY: Math.max(bounds.maxY, point.y),
-      }),
-      { minX: points[0].x, minY: points[0].y, maxX: points[0].x, maxY: points[0].y },
-    )
-  }
-  const point = objectPoint(object)
-  if (!point) return null
-  const { x, y } = point
-  if (object.geometryType === 'point') {
-    return { minX: x, minY: y, maxX: x, maxY: y }
-  }
-  const width = objectWidth(object)
-  const height = objectHeight(object)
-  if (width == null || height == null) return null
-  return { minX: x, minY: y, maxX: x + width, maxY: y + height }
+  return mapObjectBounds(object)
 }
 
 function objectWidth(object = {}) {
-  return geometryPositiveNumber(object.geometry?.width, 80)
+  const bounds = objectBounds(object)
+  return bounds ? Math.max(0, bounds.maxX - bounds.minX) : 0
 }
 
 function objectHeight(object = {}) {
-  return geometryPositiveNumber(object.geometry?.height, 50)
-}
-
-function normalizePolygonPoints(geometry = {}) {
-  const points = Array.isArray(geometry.points) ? geometry.points : []
-  const normalized = []
-  for (const point of points) {
-    if (!point) return []
-    const x = geometryNumber(point.x)
-    const y = geometryNumber(point.y)
-    if (x == null || y == null) return []
-    normalized.push({ x, y })
-  }
-  return normalized
-}
-
-function objectPoint(object = {}) {
-  const geometry = object.geometry || {}
-  const x = geometryNumber(geometry.x, object.centerX)
-  const y = geometryNumber(geometry.y, object.centerY)
-  if (x == null || y == null) return null
-  return { x, y }
-}
-
-function geometryNumber(value, fallback) {
-  // 渲染层不能把异常坐标兜底到原点，否则坏数据会在地图左上角显示成可见点位。
-  if (value !== undefined && value !== null) {
-    return finiteNumber(value)
-  }
-  return finiteNumber(fallback)
-}
-
-function geometryPositiveNumber(value, fallback) {
-  const parsed = geometryNumber(value, fallback)
-  return parsed != null && parsed > 0 ? parsed : null
-}
-
-function finiteNumber(value) {
-  if (typeof value === 'string' && value.trim() === '') return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
+  const bounds = objectBounds(object)
+  return bounds ? Math.max(0, bounds.maxY - bounds.minY) : 0
 }
 
 function projectX(value, metrics) {

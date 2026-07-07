@@ -133,7 +133,7 @@
         </view>
         <button
           v-for="object in mapObjects"
-          :key="`${object.id || object.code}-row`"
+          :key="`${mapObjectIdentity(object)}-row`"
           :class="objectRowClasses(object)"
           @click="selectMapObject(object)"
         >
@@ -197,8 +197,9 @@ import {
 } from '../../api/sourcingMap'
 import { createSourcingMapRenderer } from './canvasRenderer'
 import { createInitialTransform, endGesture, moveGesture, screenToMap, startGesture } from './mapGesture'
+import { mapObjectCenter } from './mapGeometry'
 import { hitTestMapObjects, isObjectInBounds } from './mapHitTest'
-import { isRentableMapObject, isVerifiedMapObject } from './mapObjectState'
+import { isRentableMapObject, isVerifiedMapObject, mapObjectIdentity } from './mapObjectState'
 
 const MAP_MAX_WIDTH_RPX = 750
 const MAP_VIEWPORT_WIDTH_RPX = MAP_MAX_WIDTH_RPX
@@ -708,7 +709,7 @@ function expandFilterValues(groupKey, values) {
 function selectMapObject(object, options = { focus: true }) {
   if (!object) return
   selectedObject.value = object
-  selectedObjectId.value = objectIdentity(object)
+  selectedObjectId.value = mapObjectIdentity(object)
   if (options.focus) {
     focusMapObject(object)
   }
@@ -740,7 +741,7 @@ function selectFirstObjectAfterSearch() {
 
 function syncSelectedObjectAfterLoad() {
   if (!selectedObjectId.value) return
-  const latest = mapObjects.value.find((item) => objectIdentity(item) === selectedObjectId.value)
+  const latest = mapObjects.value.find((item) => mapObjectIdentity(item) === selectedObjectId.value)
   if (latest && isSelectedObjectInViewport(latest)) {
     selectedObject.value = latest
     return
@@ -1218,34 +1219,11 @@ function calculateSafeAreaBottomPx(info) {
 }
 
 function calculateObjectCenter(object) {
-  const geometry = object.geometry || {}
-  if (object.geometryType === 'polygon') {
-    return calculatePolygonCenter(geometry)
-  }
-  const x = toNumber(geometry.x, toNumber(object.centerX, 0))
-  const y = toNumber(geometry.y, toNumber(object.centerY, 0))
-  if (object.geometryType === 'point') {
-    return { x, y }
-  }
-  return {
-    x: x + toPositiveNumber(geometry.width, 80) / 2,
-    y: y + toPositiveNumber(geometry.height, 50) / 2,
-  }
-}
-
-function calculatePolygonCenter(geometry = {}) {
-  const points = Array.isArray(geometry.points) ? geometry.points : []
-  if (!points.length) {
-    return { x: 0, y: 0 }
-  }
-  const sums = points.reduce(
-    (acc, point) => ({
-      x: acc.x + toNumber(point.x, 0),
-      y: acc.y + toNumber(point.y, 0),
-    }),
-    { x: 0, y: 0 },
-  )
-  return { x: sums.x / points.length, y: sums.y / points.length }
+  const center = mapObjectCenter(object)
+  if (center) return center
+  const metrics = getSceneRenderMetrics()
+  // 几何数据异常时不要聚焦到左上角，回到当前场景中心，避免用户被误导到不存在的点位。
+  return { x: metrics.mapWidth / 2, y: metrics.mapHeight / 2 }
 }
 
 async function loadNearbyPois(object) {
@@ -1261,7 +1239,7 @@ async function loadNearbyPois(object) {
 
 async function selectNearbyPoi(poi) {
   if (!poi?.id) return
-  const localObject = mapObjects.value.find((item) => objectIdentity(item) === poi.id)
+  const localObject = mapObjects.value.find((item) => mapObjectIdentity(item) === poi.id)
   if (localObject) {
     selectMapObject(localObject, { focus: true })
     return
@@ -1333,7 +1311,7 @@ function buildNavigationPayload(object) {
 
 function objectDisplayLabel(object) {
   if (object.geometryType === 'point') return ''
-  const selected = selectedObjectId.value === objectIdentity(object)
+  const selected = selectedObjectId.value === mapObjectIdentity(object)
   const verified = isVerifiedMapObject(object)
   const rentable = isRentableMapObject(object)
   if (!selected && !verified && !rentable) return ''
@@ -1355,15 +1333,11 @@ function objectRowClasses(object) {
   return [
     'object-row',
     {
-      active: selectedObjectId.value === objectIdentity(object),
+      active: selectedObjectId.value === mapObjectIdentity(object),
       verified: object.displayLevel === 'highlight' || object.isVerifiedMerchant,
       weak: object.displayLevel === 'weak',
     },
   ]
-}
-
-function objectIdentity(object) {
-  return object?.id || object?.code || ''
 }
 
 function objectTypeText(object) {

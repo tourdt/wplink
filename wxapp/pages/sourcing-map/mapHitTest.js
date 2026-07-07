@@ -1,4 +1,11 @@
-import { isRentableMapObject, isVerifiedMapObject } from './mapObjectState.js'
+import { isRentableMapObject, isVerifiedMapObject, mapObjectIdentity } from './mapObjectState.js'
+import {
+  mapObjectBounds,
+  mapObjectCenter,
+  normalizeBounds,
+  normalizeMapPoint,
+  normalizePolygonPoints,
+} from './mapGeometry.js'
 
 const DEFAULT_POINT_RADIUS = 18
 
@@ -25,7 +32,7 @@ export function isPointInRect(mapPoint = {}, object = {}) {
 
 export function isPointNearPoint(mapPoint = {}, object = {}, radius = DEFAULT_POINT_RADIUS) {
   const point = normalizeMapPoint(mapPoint)
-  const center = objectPoint(object)
+  const center = mapObjectCenter(object)
   if (!point || !center) return false
   return Math.hypot(point.x - center.x, point.y - center.y) <= radius
 }
@@ -63,19 +70,7 @@ export function isObjectInBounds(object = {}, bounds = {}) {
 }
 
 export function getObjectBounds(object = {}) {
-  const geometry = object.geometry || {}
-  if (object.geometryType === 'polygon') {
-    return getPolygonBounds(geometry)
-  }
-  const center = objectPoint(object)
-  if (!center) return null
-  if (object.geometryType === 'point') {
-    return { minX: center.x, minY: center.y, maxX: center.x, maxY: center.y }
-  }
-  const width = geometryPositiveNumber(geometry.width, 80)
-  const height = geometryPositiveNumber(geometry.height, 50)
-  if (width == null || height == null) return null
-  return { minX: center.x, minY: center.y, maxX: center.x + width, maxY: center.y + height }
+  return mapObjectBounds(object)
 }
 
 function isObjectHit(object, mapPoint, pointRadius = DEFAULT_POINT_RADIUS) {
@@ -99,7 +94,7 @@ function compareHitPriority(left, right, options = {}) {
 
 function hitPriorityScore(entry, options = {}) {
   let score = 0
-  const identity = objectIdentity(entry.object)
+  const identity = mapObjectIdentity(entry.object)
   if (identity && identity === options.selectedObjectId) score += 100
   if (isVerifiedMapObject(entry.object)) score += 50
   if (isRentableMapObject(entry.object)) score += 40
@@ -115,92 +110,4 @@ function isClickableMapObject(object) {
 
 function boundsArea(bounds) {
   return Math.max(0, bounds.maxX - bounds.minX) * Math.max(0, bounds.maxY - bounds.minY)
-}
-
-function normalizePolygonPoints(geometry = {}) {
-  const points = Array.isArray(geometry.points) ? geometry.points : []
-  const normalized = []
-  for (const point of points) {
-    if (!point) return []
-    const x = geometryNumber(point.x)
-    const y = geometryNumber(point.y)
-    if (x == null || y == null) return []
-    normalized.push({ x, y })
-  }
-  return normalized
-}
-
-function getPolygonBounds(geometry = {}) {
-  const points = normalizePolygonPoints(geometry)
-  if (!points.length) {
-    return null
-  }
-  return points.reduce(
-    (bounds, point) => ({
-      minX: Math.min(bounds.minX, point.x),
-      minY: Math.min(bounds.minY, point.y),
-      maxX: Math.max(bounds.maxX, point.x),
-      maxY: Math.max(bounds.maxY, point.y),
-    }),
-    {
-      minX: points[0].x,
-      minY: points[0].y,
-      maxX: points[0].x,
-      maxY: points[0].y,
-    },
-  )
-}
-
-function normalizeBounds(bounds = {}) {
-  const minX = Number(bounds.minX)
-  const minY = Number(bounds.minY)
-  const maxX = Number(bounds.maxX)
-  const maxY = Number(bounds.maxY)
-  if (![minX, minY, maxX, maxY].every(Number.isFinite)) {
-    return null
-  }
-  return {
-    minX: Math.min(minX, maxX),
-    minY: Math.min(minY, maxY),
-    maxX: Math.max(minX, maxX),
-    maxY: Math.max(minY, maxY),
-  }
-}
-
-function objectIdentity(object) {
-  return object?.id || object?.code || ''
-}
-
-function objectPoint(object = {}) {
-  const geometry = object.geometry || {}
-  const x = geometryNumber(geometry.x, object.centerX)
-  const y = geometryNumber(geometry.y, object.centerY)
-  if (x == null || y == null) return null
-  return { x, y }
-}
-
-function normalizeMapPoint(mapPoint = {}) {
-  const x = finiteNumber(mapPoint.x)
-  const y = finiteNumber(mapPoint.y)
-  if (x == null || y == null) return null
-  return { x, y }
-}
-
-function geometryNumber(value, fallback) {
-  // 命中测试不能把异常坐标兜底到原点，否则坏数据会在地图左上角被误选中。
-  if (value !== undefined && value !== null) {
-    return finiteNumber(value)
-  }
-  return finiteNumber(fallback)
-}
-
-function geometryPositiveNumber(value, fallback) {
-  const parsed = geometryNumber(value, fallback)
-  return parsed != null && parsed > 0 ? parsed : null
-}
-
-function finiteNumber(value) {
-  if (typeof value === 'string' && value.trim() === '') return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
 }
