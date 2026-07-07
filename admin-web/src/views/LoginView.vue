@@ -34,7 +34,7 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '../plugins/elementPlus'
 import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()

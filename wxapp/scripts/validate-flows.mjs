@@ -122,21 +122,6 @@ export const defaultFlowChecks = [
     checks: ['openMessages', 'openMyResources', '/pages/messages/index', '/pages/my-resources/index'],
   },
   {
-    file: 'pages/demand/index.vue',
-    description: '采购需求提交',
-    checks: ['createDemand', 'getUserId', 'quantityRequirement', '/pages/demand-success/index'],
-  },
-  {
-    file: 'pages/demand-success/index.vue',
-    description: '需求成功跳转消息和首页',
-    checks: ['openMessages', 'backHome', '/pages/messages/index', '/pages/home/index'],
-  },
-  {
-    file: 'pages/my-demands/index.vue',
-    description: '我的采购需求列表',
-    checks: ['listMyDemands', 'options.userId', 'getUserId', 'statusLabel', 'openDemand', 'openMessages'],
-  },
-  {
     file: 'pages/my-resources/index.vue',
     description: '我的发布管理动作和指标',
     checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'listTopVouchers', 'redeemTopVoucher', 'takeDownResource', 'deleteTakenDownResource', 'canDeleteTakenDown', 'openDraftEditor', 'openRejectedEditor', 'openPublishEditor', '/pages/publish/edit?merchantId=', 'uni.navigateTo', 'rejectReason', '驳回原因', 'getOwnResource', 'buildRepostInitialForm', 'repostInitialForm', 'wechatCopyCount', 'formatDateToDay', 'publish-fab', 'position: fixed', 'canTopResource', '再发类似', 'from=my-resources'],

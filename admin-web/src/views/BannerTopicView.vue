@@ -193,7 +193,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '../plugins/elementPlus'
 import { createBannerTopic, listBannerTopics, updateBannerTopic } from '../api/bannerTopic'
 import { listMerchants } from '../api/merchant'
 import { listResources } from '../api/resource'

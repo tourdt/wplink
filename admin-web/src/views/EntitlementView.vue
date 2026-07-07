@@ -56,7 +56,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '../plugins/elementPlus'
 import { grantMerchantEntitlement } from '../api/entitlement'
 import { listMerchants } from '../api/merchant'
 import { defaultCityCode } from '../common/cityStations'

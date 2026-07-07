@@ -119,7 +119,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '../plugins/elementPlus'
 import { getVerificationBillingConfig, listPendingVerifications, reviewVerification, updateVerificationBillingConfig } from '../api/verification'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { verificationTypeText as typeText } from '../common/merchantIdentity'

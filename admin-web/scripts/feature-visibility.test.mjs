@@ -10,7 +10,6 @@ test('admin launch UI hides manual matching feature', () => {
     'src/router/index.js',
     'src/layouts/AdminLayout.vue',
     'src/views/DashboardView.vue',
-    'src/views/DemandView.vue',
   ]
 
   const visibleSource = visibleFiles.map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n')
@@ -37,6 +36,31 @@ test('admin build splits framework and ui libraries into stable vendor chunks', 
   assert.match(viteSource, /vendor/)
 })
 
+test('admin app registers only used Element Plus components', () => {
+  const mainSource = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8')
+  const registrySource = fs.existsSync(path.join(root, 'src/plugins/elementPlus.js'))
+    ? fs.readFileSync(path.join(root, 'src/plugins/elementPlus.js'), 'utf8')
+    : ''
+  const sourceFiles = collectSourceFiles(path.join(root, 'src'))
+  const sourceText = sourceFiles.map((file) => fs.readFileSync(file, 'utf8')).join('\n')
+
+  assert.doesNotMatch(mainSource, /import\s+ElementPlus\s+from\s+['"]element-plus['"]/)
+  assert.doesNotMatch(mainSource, /app\.use\(ElementPlus\)/)
+  assert.doesNotMatch(sourceText, /from\s+['"]element-plus['"]/)
+  assert.match(mainSource, /registerElementPlusComponents\(app\)/)
+  assert.match(registrySource, /ElTable/)
+  assert.match(registrySource, /ElForm/)
+  assert.match(registrySource, /ElMessage/)
+})
+
+function collectSourceFiles(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) return collectSourceFiles(fullPath)
+    return /\.(js|vue)$/.test(entry.name) ? [fullPath] : []
+  })
+}
+
 test('admin launch UI hides purchase demand entry until the feature is released', () => {
   const routeSource = fs.readFileSync(path.join(root, 'src/router/index.js'), 'utf8')
   const layoutSource = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.vue'), 'utf8')
@@ -44,6 +68,8 @@ test('admin launch UI hides purchase demand entry until the feature is released'
 
   assert.equal(routeSource.includes("path: 'demands'"), false)
   assert.equal(routeSource.includes('DemandView'), false)
+  assert.equal(fs.existsSync(path.join(root, 'src/views/DemandView.vue')), false)
+  assert.equal(fs.existsSync(path.join(root, 'src/api/demand.js')), false)
   assert.equal(layoutSource.includes('index="/demands"'), false)
   assert.equal(layoutSource.includes('<span>采购需求</span>'), false)
   assert.equal(bannerSource.includes("value: 'demand'"), false)
@@ -668,7 +694,6 @@ test('admin city station filters use dropdown options', () => {
   const citySource = fs.readFileSync(path.join(root, 'src/common/cityStations.js'), 'utf8')
   const filterFiles = [
     'src/views/SearchLogView.vue',
-    'src/views/DemandView.vue',
     'src/views/HotSearchKeywordView.vue',
     'src/views/ResourceReviewView.vue',
     'src/views/BannerTopicView.vue',

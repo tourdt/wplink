@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '../plugins/elementPlus'
 import { clearAdminSession, readAdminToken } from '../stores/adminSession'
 
 const http = axios.create({

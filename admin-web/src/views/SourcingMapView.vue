@@ -713,7 +713,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '../plugins/elementPlus'
 import {
   batchGenerateMapObjects,
   listMapBindRequests,

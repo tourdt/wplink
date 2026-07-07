@@ -14,10 +14,8 @@ test('launch UI hides matching feature copy', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const files = [
     'pages/messages/index.vue',
-    'pages/demand-success/index.vue',
     'pages/my/index.vue',
     'pages/search/index.vue',
-    'pages/my-demands/index.vue',
   ]
 
   const visibleSource = files.map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n')
@@ -25,16 +23,16 @@ test('launch UI hides matching feature copy', () => {
   assert.equal(visibleSource.includes('撮合'), false)
 })
 
-test('my demand list entry stays hidden from normal wxapp navigation', () => {
+test('unreleased purchase demand pages are removed from wxapp source', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const mySource = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-  const demandSuccessSource = fs.readFileSync(path.join(root, 'pages/demand-success/index.vue'), 'utf8')
   const messagesSource = fs.readFileSync(path.join(root, 'pages/messages/index.vue'), 'utf8')
 
+  for (const file of ['pages/demand/index.vue', 'pages/demand-success/index.vue', 'pages/my-demands/index.vue', 'api/demand.js']) {
+    assert.equal(fs.existsSync(path.join(root, file)), false)
+  }
   assert.equal(mySource.includes('我的需求'), false)
   assert.equal(mySource.includes('openMyDemands'), false)
-  assert.equal(demandSuccessSource.includes('我的需求'), false)
-  assert.equal(demandSuccessSource.includes('/pages/my-demands/index'), false)
   assert.match(messagesSource, /stripQuery\(url\) === '\/pages\/my-demands\/index'/)
 })
 
@@ -765,28 +763,21 @@ test('publish page stages images and uploads them only when saving or submitting
 test('success pages explain the result and next step consistently', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const publishSource = fs.readFileSync(path.join(root, 'pages/publish-success/index.vue'), 'utf8')
-  const demandSource = fs.readFileSync(path.join(root, 'pages/demand-success/index.vue'), 'utf8')
 
-  for (const source of [publishSource, demandSource]) {
-    for (const token of [
-      'success-icon',
-      'success-result-list',
-      'success-result-item',
-      'result-label',
-      'result-value',
-      'wplink-primary-button',
-      'wplink-secondary-button',
-    ]) {
-      assert.match(source, new RegExp(token))
-    }
+  for (const token of [
+    'success-icon',
+    'success-result-list',
+    'success-result-item',
+    'result-label',
+    'result-value',
+    'wplink-primary-button',
+    'wplink-secondary-button',
+  ]) {
+    assert.match(publishSource, new RegExp(token))
   }
 
   for (const token of ['审核结果', '消息中心通知', '通过后曝光', '搜索、推荐和商家主页']) {
     assert.match(publishSource, new RegExp(token))
-  }
-
-  for (const token of ['跟进通知', '消息中心查看', '后续处理', '运营继续对接合适资源']) {
-    assert.match(demandSource, new RegExp(token))
   }
 })
 

@@ -88,7 +88,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '../plugins/elementPlus'
 import { createHotSearchKeyword, listHotSearchKeywords, updateHotSearchKeyword } from '../api/hotSearchKeyword'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 

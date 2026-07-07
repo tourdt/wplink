@@ -119,7 +119,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '../plugins/elementPlus'
 import { listResourceTypeConfigs, updateResourceTypeConfig } from '../api/city'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 
