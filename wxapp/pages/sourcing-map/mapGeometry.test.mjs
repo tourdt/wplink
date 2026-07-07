@@ -65,6 +65,32 @@ test('rejects non-finite geometry numbers instead of falling back to the origin'
   assert.deepEqual(normalizePolygonPoints({ points: [{ x: 0, y: 0 }, { x: Number.NaN, y: 1 }, { x: 2, y: 2 }] }), [])
 })
 
+test('rejects incomplete canonical geometry instead of historical fallbacks', () => {
+  assert.equal(
+    mapObjectCenter({
+      geometryType: 'point',
+      centerX: 30,
+      centerY: 40,
+      geometry: {},
+    }),
+    null,
+  )
+  assert.equal(
+    mapObjectBounds({
+      geometryType: 'rect',
+      geometry: { x: 10, y: 20 },
+    }),
+    null,
+  )
+  assert.equal(
+    mapObjectCenter({
+      geometryType: 'rect',
+      geometry: { x: 10, y: 20, width: 80 },
+    }),
+    null,
+  )
+})
+
 test('normalizes viewport points and bounds with finite numbers only', () => {
   assert.deepEqual(normalizeMapPoint({ x: '12', y: '34' }), { x: 12, y: 34 })
   assert.equal(normalizeMapPoint({ x: '', y: 34 }), null)

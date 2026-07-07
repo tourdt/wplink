@@ -1,6 +1,3 @@
-const DEFAULT_RECT_WIDTH = 80
-const DEFAULT_RECT_HEIGHT = 50
-
 /**
  * 统一计算地图对象的边界盒。
  *
@@ -17,8 +14,8 @@ export function mapObjectBounds(object = {}) {
   if (object.geometryType === 'point') {
     return { minX: origin.x, minY: origin.y, maxX: origin.x, maxY: origin.y }
   }
-  const width = geometryPositiveNumber(geometry.width, DEFAULT_RECT_WIDTH)
-  const height = geometryPositiveNumber(geometry.height, DEFAULT_RECT_HEIGHT)
+  const width = geometryPositiveNumber(geometry.width)
+  const height = geometryPositiveNumber(geometry.height)
   if (width == null || height == null) return null
   return { minX: origin.x, minY: origin.y, maxX: origin.x + width, maxY: origin.y + height }
 }
@@ -40,8 +37,8 @@ export function mapObjectCenter(object = {}) {
   const origin = mapObjectOrigin(object)
   if (!origin) return null
   if (object.geometryType === 'point') return origin
-  const width = geometryPositiveNumber(geometry.width, DEFAULT_RECT_WIDTH)
-  const height = geometryPositiveNumber(geometry.height, DEFAULT_RECT_HEIGHT)
+  const width = geometryPositiveNumber(geometry.width)
+  const height = geometryPositiveNumber(geometry.height)
   if (width == null || height == null) return null
   return {
     x: origin.x + width / 2,
@@ -121,22 +118,20 @@ function polygonBounds(geometry = {}) {
 
 function mapObjectOrigin(object = {}) {
   const geometry = object.geometry || {}
-  const x = geometryNumber(geometry.x, object.centerX)
-  const y = geometryNumber(geometry.y, object.centerY)
+  const x = geometryNumber(geometry.x)
+  const y = geometryNumber(geometry.y)
   if (x == null || y == null) return null
   return { x, y }
 }
 
-function geometryNumber(value, fallback) {
-  // 地图几何字段存在但不是有效数字时必须拒绝，避免坏数据被兜底到原点后误选或误绘制。
-  if (value !== undefined && value !== null) {
-    return finiteNumber(value)
-  }
-  return finiteNumber(fallback)
+function geometryNumber(value) {
+  // 系统未上线，地图对象必须写入完整 canonical geometry；缺字段直接拒绝，避免后续再背历史兜底。
+  if (value === undefined || value === null) return null
+  return finiteNumber(value)
 }
 
-function geometryPositiveNumber(value, fallback) {
-  const parsed = geometryNumber(value, fallback)
+function geometryPositiveNumber(value) {
+  const parsed = geometryNumber(value)
   return parsed != null && parsed > 0 ? parsed : null
 }
 

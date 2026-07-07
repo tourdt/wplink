@@ -226,7 +226,6 @@ const defaultLabelDictionary = {
   factory: '源头工厂',
   sample: '支持打样',
   dropship: '一件代发',
-  drop_shipping: '一件代发',
   mixed_batch: '支持混批',
   verified: '实地认证',
   recommended: '平台推荐',
@@ -246,12 +245,6 @@ const defaultLabelDictionary = {
   jtexpress: '极兔',
   sf: '顺丰',
   bulk_shipping: '批量发货',
-}
-const tagAliases = {
-  serviceTags: {
-    dropship: ['dropship', 'drop_shipping'],
-    drop_shipping: ['dropship', 'drop_shipping'],
-  },
 }
 const defaultFilterGroups = [
   {
@@ -539,8 +532,7 @@ function mergeCategoryOptions(groupKey, defaultOptions, configuredOptions) {
 }
 
 function normalizeFilterOptionValue(groupKey, value) {
-  const aliasGroup = tagAliases[groupKey] || {}
-  return aliasGroup[value]?.[0] || value
+  return value
 }
 
 function isVisibleNormalCategory(item) {
@@ -693,17 +685,11 @@ function isFilterActive(key, value) {
 
 function buildObjectQueryParams() {
   const params = {}
-  if (activeFilters.value.types.length) params.types = expandFilterValues('types', activeFilters.value.types).join(',')
-  if (activeFilters.value.categories.length) params.categories = expandFilterValues('categories', activeFilters.value.categories).join(',')
-  if (activeFilters.value.serviceTags.length) params.serviceTags = expandFilterValues('serviceTags', activeFilters.value.serviceTags).join(',')
-  if (activeFilters.value.poiServiceTags.length) params.poiServiceTags = expandFilterValues('poiServiceTags', activeFilters.value.poiServiceTags).join(',')
+  if (activeFilters.value.types.length) params.types = activeFilters.value.types.join(',')
+  if (activeFilters.value.categories.length) params.categories = activeFilters.value.categories.join(',')
+  if (activeFilters.value.serviceTags.length) params.serviceTags = activeFilters.value.serviceTags.join(',')
+  if (activeFilters.value.poiServiceTags.length) params.poiServiceTags = activeFilters.value.poiServiceTags.join(',')
   return params
-}
-
-function expandFilterValues(groupKey, values) {
-  const aliasGroup = tagAliases[groupKey] || {}
-  const expanded = values.flatMap((value) => aliasGroup[value] || [value])
-  return [...new Set(expanded.filter(Boolean))]
 }
 
 function selectMapObject(object, options = { focus: true }) {
@@ -768,8 +754,7 @@ function isObjectVisibleAtZoom(object, zoomLevel) {
 
 function matchesSelectedValues(values, selected, groupKey = '') {
   if (!selected.length) return true
-  const expandedSelected = expandFilterValues(groupKey, selected)
-  return expandedSelected.some((value) => values.includes(value))
+  return selected.some((value) => values.includes(value))
 }
 
 function focusMapObject(object) {

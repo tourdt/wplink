@@ -637,16 +637,15 @@ test('sourcing map centers the only loaded object so a single result is visible'
   assert.match(source, /function focusMapObject\(object\)[\s\S]*focusMapCenter\(calculateObjectCenter\(object\)\)/)
 })
 
-test('sourcing map uses dropship as the canonical one-piece shipping tag with legacy alias support', () => {
+test('sourcing map uses only canonical dropship tag without legacy aliases', () => {
   expectTokens(source, [
     'dropship: \'一件代发\'',
-    'drop_shipping: \'一件代发\'',
-    'tagAliases',
-    'expandFilterValues',
     'normalizeFilterOptionValue',
   ])
   assert.match(source, /\{ label: '一件代发', value: 'dropship' \}/)
-  assert.doesNotMatch(source, /\{ label: '一件代发', value: 'drop_shipping' \}/)
+  assert.doesNotMatch(source, /drop_shipping/)
+  assert.doesNotMatch(source, /tagAliases/)
+  assert.doesNotMatch(source, /expandFilterValues/)
 })
 
 test('sourcing map renders and hits polygon map objects through canvas modules', () => {
