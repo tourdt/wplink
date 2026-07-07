@@ -62,6 +62,8 @@ const retiredSnippets = [
   'INSERT INTO match_case_resources',
   'INSERT INTO match_case_participants',
   'match_progress',
+  "'match_create'",
+  "'match_case'",
   '采购需求已进入撮合',
   '演示撮合单',
 ]

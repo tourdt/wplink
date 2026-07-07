@@ -870,8 +870,15 @@ ON CONFLICT (id) DO UPDATE SET subtitle = EXCLUDED.subtitle, jump_target = EXCLU
 
 INSERT INTO operation_logs (id, operator_id, operator_role, action, object_type, object_id, after_snapshot)
 VALUES
-  (8054000000000000001, 8010000000000000001, 'platform_operator', 'match_create', 'match_case', 8051000000000000001, '{"demo":true}'::jsonb),
+  (8054000000000000001, 8010000000000000001, 'platform_operator', 'merchant_verify', 'merchant', 8020000000000000001, '{"demo":true}'::jsonb),
   (8054000000000000002, 8010000000000000001, 'platform_operator', 'resource_approve', 'resource', 8030000000000000001, '{"demo":true}'::jsonb)
-ON CONFLICT (id) DO UPDATE SET after_snapshot = EXCLUDED.after_snapshot, created_at = now();
+ON CONFLICT (id) DO UPDATE SET
+  operator_id = EXCLUDED.operator_id,
+  operator_role = EXCLUDED.operator_role,
+  action = EXCLUDED.action,
+  object_type = EXCLUDED.object_type,
+  object_id = EXCLUDED.object_id,
+  after_snapshot = EXCLUDED.after_snapshot,
+  created_at = now();
 
 COMMIT;

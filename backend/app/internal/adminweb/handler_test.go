@@ -111,7 +111,7 @@ func TestEmbeddedAdminDistDoesNotExposeRetiredDemandOrMatchingUI(t *testing.T) {
 	}
 
 	source := bundle.String()
-	for _, token := range []string{"采购需求", "人工撮合", "match-cases", "pendingDemandCount"} {
+	for _, token := range []string{"采购需求", "人工撮合", "match-cases", "match_case", "pendingDemandCount"} {
 		if strings.Contains(source, token) {
 			t.Fatalf("embedded admin dist contains retired token %q", token)
 		}

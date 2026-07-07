@@ -6,7 +6,7 @@
     <section class="panel">
       <el-form :inline="true" class="filter-bar">
         <el-form-item label="对象类型">
-          <el-input v-model="filters.objectType" placeholder="resource / match_case" style="width: 180px" />
+          <el-input v-model="filters.objectType" placeholder="resource / merchant" style="width: 180px" />
         </el-form-item>
         <el-form-item label="对象 ID">
           <el-input v-model="filters.objectId" style="width: 220px" />

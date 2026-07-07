@@ -10,11 +10,13 @@ test('admin launch UI hides manual matching feature', () => {
     'src/router/index.js',
     'src/layouts/AdminLayout.vue',
     'src/views/DashboardView.vue',
+    'src/views/OperationLogView.vue',
   ]
 
   const visibleSource = visibleFiles.map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n')
 
   assert.equal(visibleSource.includes('match-cases'), false)
+  assert.equal(visibleSource.includes('match_case'), false)
   assert.equal(visibleSource.includes('人工撮合'), false)
   assert.equal(visibleSource.includes('待撮合'), false)
   assert.equal(visibleSource.includes('采购需求'), false)
