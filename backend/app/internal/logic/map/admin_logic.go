@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"unicode"
@@ -599,9 +600,16 @@ func parseCodeSeed(code string) (int64, int, string, error) {
 }
 
 func parseRequiredFloat(value string, fieldName string) (float64, error) {
-	parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, errx.New(errx.CodeValidationFailed, "请填写"+fieldName)
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		return 0, errx.New(errx.CodeValidationFailed, fieldName+"格式不正确")
+	}
+	if math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+		return 0, errx.New(errx.CodeValidationFailed, fieldName+"必须是有效数字")
 	}
 	return parsed, nil
 }

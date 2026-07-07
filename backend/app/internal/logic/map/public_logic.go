@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -310,6 +311,9 @@ func parseViewportNumber(value string, label string) (float64, error) {
 	parsed, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		return 0, errx.New(errx.CodeValidationFailed, label+"格式不正确，请刷新后重试")
+	}
+	if math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+		return 0, errx.New(errx.CodeValidationFailed, label+"必须是有效数字，请刷新后重试")
 	}
 	return parsed, nil
 }

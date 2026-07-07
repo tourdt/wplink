@@ -1339,20 +1339,36 @@ func numberFromGeometryValue(raw interface{}, label string) (float64, error) {
 	}
 	switch v := raw.(type) {
 	case float64:
-		return v, nil
+		return finiteGeometryNumber(v, label)
 	case float32:
-		return float64(v), nil
+		return finiteGeometryNumber(float64(v), label)
 	case int:
 		return float64(v), nil
 	case int64:
 		return float64(v), nil
 	case jsonNumber:
-		return strconv.ParseFloat(string(v), 64)
+		parsed, err := strconv.ParseFloat(string(v), 64)
+		if err != nil {
+			return 0, err
+		}
+		return finiteGeometryNumber(parsed, label)
 	case string:
-		return strconv.ParseFloat(strings.TrimSpace(v), 64)
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		if err != nil {
+			return 0, err
+		}
+		return finiteGeometryNumber(parsed, label)
 	default:
 		return 0, fmt.Errorf("%s格式不正确", label)
 	}
+}
+
+func finiteGeometryNumber(value float64, label string) (float64, error) {
+	// 地图坐标会参与边界、中心点和距离计算，必须拒绝 NaN/Inf，避免异常值污染后续排序和数据库写入。
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, fmt.Errorf("%s必须是有效数字", label)
+	}
+	return value, nil
 }
 
 type jsonNumber string

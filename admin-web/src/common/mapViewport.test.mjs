@@ -40,6 +40,26 @@ test('builds viewport bounds in original map pixels under zoom', () => {
   })
 })
 
+test('builds finite viewport bounds when optional map numbers are invalid', () => {
+  const bounds = buildViewportBounds({
+    scrollLeft: Number.NaN,
+    scrollTop: Number.POSITIVE_INFINITY,
+    clientWidth: 800,
+    clientHeight: 500,
+    mapWidth: Number.POSITIVE_INFINITY,
+    mapHeight: Number.NaN,
+    scale: Number.NaN,
+    paddingRatio: Number.NaN,
+  })
+
+  assert.deepEqual(bounds, {
+    minX: 0,
+    minY: 0,
+    maxX: 800,
+    maxY: 500,
+  })
+})
+
 test('calculates scaled map stage size from original dimensions', () => {
   assert.deepEqual(scaledMapSize({ width: 3000, height: 1800, scale: 0.5 }), {
     width: 1500,

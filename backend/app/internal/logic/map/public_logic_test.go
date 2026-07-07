@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"wplink/backend/app/internal/model"
+	"wplink/backend/common/errx"
 )
 
 func TestPublicMapLogicListsPublishedScenes(t *testing.T) {
@@ -145,6 +146,24 @@ func TestPublicMapLogicListsObjectsWithViewportAndZoom(t *testing.T) {
 	}
 	if store.objectFilter.Zoom != 4 {
 		t.Fatalf("zoom = %d, want 4", store.objectFilter.Zoom)
+	}
+}
+
+func TestPublicMapLogicRejectsNonFiniteViewportNumber(t *testing.T) {
+	store := &fakePublicMapStore{}
+	logic := NewPublicLogic(store)
+
+	_, err := logic.ListObjects(context.Background(), "scene-1", ListObjectsReq{
+		MinX: "NaN",
+		MinY: "200",
+		MaxX: "900",
+		MaxY: "700",
+	})
+	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed || err.Error() != "视口最小 X必须是有效数字，请刷新后重试" {
+		t.Fatalf("ListObjects() error = %v, code=%s, want non-finite viewport validation", err, errx.CodeOf(err))
+	}
+	if store.objectFilter.SceneCode != "" || store.countFilter.SceneCode != "" {
+		t.Fatalf("filters = %#v %#v, want no query after viewport validation error", store.objectFilter, store.countFilter)
 	}
 }
 

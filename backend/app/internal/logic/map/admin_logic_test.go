@@ -357,6 +357,46 @@ func TestAdminMapLogicBatchGenerateRejectsWhenAllObjectsOutsideSceneBounds(t *te
 	}
 }
 
+func TestAdminMapLogicBatchGenerateReturnsActionableNumberValidationMessage(t *testing.T) {
+	cases := []struct {
+		name    string
+		startX  string
+		wantMsg string
+	}{
+		{name: "missing start x", startX: " ", wantMsg: "请填写起始 X 坐标"},
+		{name: "non finite start x", startX: "NaN", wantMsg: "起始 X 坐标必须是有效数字"},
+		{name: "invalid start x", startX: "abc", wantMsg: "起始 X 坐标格式不正确"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeAdminMapStore{
+				scene: model.MapScene{Code: "scene-1", Width: 300, Height: 300},
+			}
+			logic := NewAdminLogic(store)
+
+			_, err := logic.BatchGenerateObjects(context.Background(), "scene-1", BatchGenerateObjectsReq{
+				StartCode: "A001",
+				Count:     1,
+				Direction: "horizontal",
+				StartX:    tc.startX,
+				StartY:    "200",
+				Width:     "80",
+				Height:    "50",
+				Gap:       "5",
+				Type:      "booth",
+				Layer:     "booth",
+			})
+			if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed || err.Error() != tc.wantMsg {
+				t.Fatalf("BatchGenerateObjects() error = %v, code=%s, want validation %q", err, errx.CodeOf(err), tc.wantMsg)
+			}
+			if len(store.batchInputs) != 0 {
+				t.Fatalf("batch inputs = %#v, want no saved objects after validation error", store.batchInputs)
+			}
+		})
+	}
+}
+
 func TestAdminMapLogicListsCategoriesWithTypeAndStatus(t *testing.T) {
 	store := &fakeAdminMapStore{
 		categories: []model.MapCategory{{Code: "hidden", Name: "隐藏分类", Type: "booth_category", IsVisible: true, Status: model.MapCategoryStatusHidden}},

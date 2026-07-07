@@ -1,6 +1,7 @@
 package model
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
@@ -99,6 +100,49 @@ func TestBuildMapObjectDerivedFieldsRejectsInvalidPolygon(t *testing.T) {
 		if err == nil {
 			t.Fatalf("BuildMapObjectDerivedFields() error = nil, geometry=%#v", geometry)
 		}
+	}
+}
+
+func TestBuildMapObjectDerivedFieldsRejectsNonFiniteGeometryNumbers(t *testing.T) {
+	cases := []struct {
+		name         string
+		geometryType string
+		geometry     JSONMap
+	}{
+		{
+			name:         "rect NaN x",
+			geometryType: "rect",
+			geometry:     JSONMap{"x": math.NaN(), "y": float64(120), "width": float64(80), "height": float64(50)},
+		},
+		{
+			name:         "rect infinity width",
+			geometryType: "rect",
+			geometry:     JSONMap{"x": float64(100), "y": float64(120), "width": math.Inf(1), "height": float64(50)},
+		},
+		{
+			name:         "polygon infinity vertex",
+			geometryType: "polygon",
+			geometry: JSONMap{"points": []interface{}{
+				map[string]interface{}{"x": float64(100), "y": float64(120)},
+				map[string]interface{}{"x": math.Inf(1), "y": float64(140)},
+				map[string]interface{}{"x": float64(220), "y": float64(180)},
+			}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := BuildMapObjectDerivedFields(MapObjectInput{
+				Code:         "A001",
+				Name:         "异常坐标档口",
+				Type:         "booth",
+				GeometryType: tc.geometryType,
+				Geometry:     tc.geometry,
+			})
+			if err == nil {
+				t.Fatal("BuildMapObjectDerivedFields() error = nil, want non-finite geometry validation error")
+			}
+		})
 	}
 }
 
