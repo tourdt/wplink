@@ -187,8 +187,8 @@ inserted_topic AS (
     '快速发现可拿样、可直播的优质库存',
     '',
     '["inventory"]'::jsonb,
-    'demand',
-    '/pages/demand/index',
+    'internal',
+    '/pages/search/index',
     '["童装","库存"]'::jsonb,
     90,
     'active'

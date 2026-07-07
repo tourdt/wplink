@@ -34,15 +34,6 @@ func TestAPIRouterUsesTokenSubjectForPrivateUserRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
 
-	demandRec := httptest.NewRecorder()
-	demandReq := httptest.NewRequest(http.MethodGet, "/api/v1/me/purchase-demands?userId=attacker&page=1&pageSize=20", nil)
-	demandReq.Header.Set("Authorization", "Bearer user-token")
-	router.ServeHTTP(demandRec, demandReq)
-	decodeEnvelopeData(t, demandRec, http.StatusOK)
-	if store.myDemandUserID != "user-1" {
-		t.Fatalf("myDemandUserID = %q, want token user", store.myDemandUserID)
-	}
-
 	messageRec := httptest.NewRecorder()
 	messageReq := httptest.NewRequest(http.MethodGet, "/api/v1/messages?userId=attacker&page=1&pageSize=20", nil)
 	messageReq.Header.Set("Authorization", "Bearer user-token")
@@ -85,24 +76,33 @@ func TestAPIRouterRequiresMerchantPermissionForMerchantMessages(t *testing.T) {
 	}
 }
 
-func TestAPIRouterUsesTokenSubjectWhenCreatingDemand(t *testing.T) {
+func TestAPIRouterDoesNotExposePurchaseDemandRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/purchase-demands", strings.NewReader(`{
-		"userId":"attacker",
-		"cityCode":"zhili",
-		"demandType":"inventory",
-		"title":"找童装库存",
-		"category":"童装",
-		"contact":{"name":"王采购","phone":"18800000005"}
-	}`))
-	req.Header.Set("Authorization", "Bearer user-token")
-	router.ServeHTTP(rec, req)
-	decodeEnvelopeData(t, rec, http.StatusOK)
-	if store.createDemandInput.UserID != "user-1" {
-		t.Fatalf("create demand userID = %q, want token user", store.createDemandInput.UserID)
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "create user demand", method: http.MethodPost, path: "/api/v1/purchase-demands", body: `{"title":"找童装库存"}`},
+		{name: "list my demands", method: http.MethodGet, path: "/api/v1/me/purchase-demands?userId=attacker"},
+		{name: "list admin demands", method: http.MethodGet, path: "/api/v1/admin/purchase-demands"},
+		{name: "get admin demand", method: http.MethodGet, path: "/api/v1/admin/purchase-demands/demand-1"},
+		{name: "update admin demand", method: http.MethodPost, path: "/api/v1/admin/purchase-demands/demand-1/status", body: `{"status":"matching"}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			req.Header.Set("Authorization", "Bearer user-token")
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNotFound {
+				t.Fatalf("status = %d body = %s, want not found", rec.Code, rec.Body.String())
+			}
+		})
 	}
 }
 
@@ -360,8 +360,6 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "create merchant", method: http.MethodPost, path: "/api/v1/merchants", body: `{"cityCode":"zhili","name":"织里云仓","merchantType":"stockist","mainCategories":["童装"],"contactName":"周经理","contactPhone":"18800000002"}`},
 		{name: "get merchant", method: http.MethodGet, path: "/api/v1/merchants/merchant-1"},
 		{name: "update merchant", method: http.MethodPost, path: "/api/v1/merchants/merchant-1", body: `{"mainCategories":["童装"],"merchantType":"service_provider","description":"更新简介","logoUrl":"https://example.com/logo.png","images":["https://example.com/a.jpg"],"addressText":"织里镇利济路88号","location":{"latitude":30.1,"longitude":120.2,"name":"织里童装城","address":"织里镇利济路88号"}}`},
-		{name: "create demand", method: http.MethodPost, path: "/api/v1/purchase-demands", body: `{"userId":"user-1","cityCode":"zhili","demandType":"inventory","title":"找童装库存","category":"童装","contact":{"name":"王采购","phone":"18800000005"}}`},
-		{name: "list my demands", method: http.MethodGet, path: "/api/v1/me/purchase-demands?userId=user-1"},
 		{name: "home banners", method: http.MethodGet, path: "/api/v1/home/banners?cityCode=zhili"},
 		{name: "home recommend cards", method: http.MethodGet, path: "/api/v1/home/recommend-cards?cityCode=zhili"},
 		{name: "hot search keywords", method: http.MethodGet, path: "/api/v1/search/hot-keywords?cityCode=zhili"},
@@ -378,12 +376,9 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "read message", method: http.MethodPost, path: "/api/v1/messages/message-1/read", body: `{"userId":"user-1"}`},
 		{name: "dashboard", method: http.MethodGet, path: "/api/v1/admin/dashboard/overview?cityCode=zhili"},
 		{name: "list admin merchants", method: http.MethodGet, path: "/api/v1/admin/merchants?cityCode=zhili"},
-		{name: "list admin demands", method: http.MethodGet, path: "/api/v1/admin/purchase-demands"},
-		{name: "get admin demand", method: http.MethodGet, path: "/api/v1/admin/purchase-demands/demand-1"},
-		{name: "update admin demand", method: http.MethodPost, path: "/api/v1/admin/purchase-demands/demand-1/status", body: `{"status":"matching"}`},
 		{name: "list admin banners", method: http.MethodGet, path: "/api/v1/admin/banner-topics?cityCode=zhili"},
-		{name: "create admin banner", method: http.MethodPost, path: "/api/v1/admin/banner-topics", body: `{"cityCode":"zhili","kind":"banner","title":"现货活动","jumpType":"demand","jumpTarget":"/pages/demand/index","status":"active"}`},
-		{name: "update admin banner", method: http.MethodPost, path: "/api/v1/admin/banner-topics/banner-1", body: `{"cityCode":"zhili","kind":"banner","title":"现货活动","jumpType":"demand","jumpTarget":"/pages/demand/index","status":"active"}`},
+		{name: "create admin banner", method: http.MethodPost, path: "/api/v1/admin/banner-topics", body: `{"cityCode":"zhili","kind":"banner","title":"现货活动","jumpType":"internal","jumpTarget":"/pages/search/index","status":"active"}`},
+		{name: "update admin banner", method: http.MethodPost, path: "/api/v1/admin/banner-topics/banner-1", body: `{"cityCode":"zhili","kind":"banner","title":"现货活动","jumpType":"internal","jumpTarget":"/pages/search/index","status":"active"}`},
 		{name: "list admin hot keywords", method: http.MethodGet, path: "/api/v1/admin/hot-search-keywords?cityCode=zhili"},
 		{name: "create admin hot keyword", method: http.MethodPost, path: "/api/v1/admin/hot-search-keywords", body: `{"cityCode":"zhili","keyword":"夏款现货","status":"active","sortOrder":20}`},
 		{name: "update admin hot keyword", method: http.MethodPost, path: "/api/v1/admin/hot-search-keywords/keyword-1", body: `{"cityCode":"zhili","keyword":"夏款现货","status":"active","sortOrder":20}`},
@@ -438,8 +433,6 @@ type fakeFullAPIStore struct {
 	fakeResourceAPIStore
 	createMerchantInput          model.CreateMerchantInput
 	updateMerchantPatch          model.UpdateMerchantPatch
-	createDemandInput            model.CreateDemandInput
-	myDemandUserID               string
 	submitVerificationInput      model.SubmitVerificationInput
 	latestVerificationMerchantID string
 	latestVerificationErr        error
@@ -482,30 +475,8 @@ func (s *fakeFullAPIStore) ListMerchants(ctx context.Context, filter model.ListM
 	return model.ListMerchantsResult{Items: []model.MerchantListItem{{ID: "merchant-1", Name: "织里云仓", MerchantType: "stockist", VerificationStatus: "verified", Status: model.MerchantStatusActive}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
 }
 
-func (s *fakeFullAPIStore) CreateDemand(ctx context.Context, input model.CreateDemandInput) (model.CreateDemandResult, error) {
-	s.createDemandInput = input
-	return model.CreateDemandResult{ID: "demand-1", Status: "pending"}, nil
-}
-
-func (s *fakeFullAPIStore) ListMyDemands(ctx context.Context, userID string, filter model.ListDemandsFilter) (model.ListDemandsResult, error) {
-	s.myDemandUserID = userID
-	return s.ListDemands(ctx, filter)
-}
-
-func (s *fakeFullAPIStore) ListDemands(ctx context.Context, filter model.ListDemandsFilter) (model.ListDemandsResult, error) {
-	return model.ListDemandsResult{Items: []model.DemandListItem{{ID: "demand-1", Title: "找童装库存", DemandType: "inventory", Category: "童装", ContactName: "王采购", Status: "pending", CreatedAt: "2026-06-28T10:00:00Z"}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
-}
-
-func (s *fakeFullAPIStore) GetDemand(ctx context.Context, demandID string) (model.DemandDetail, error) {
-	return model.DemandDetail{ID: demandID, Title: "找童装库存", DemandType: "inventory", Category: "童装", ContactName: "王采购", ContactPhone: "18800000005", Status: "pending", CreatedAt: "2026-06-28T10:00:00Z"}, nil
-}
-
-func (s *fakeFullAPIStore) UpdateDemandStatus(ctx context.Context, demandID string, status string) (model.UpdateDemandStatusResult, error) {
-	return model.UpdateDemandStatusResult{ID: demandID, Status: status}, nil
-}
-
 func (s *fakeFullAPIStore) ListBannerTopics(ctx context.Context, filter model.BannerTopicFilter) ([]model.BannerTopicConfig, error) {
-	return []model.BannerTopicConfig{{ID: "banner-1", CityCode: "zhili", Kind: "banner", Title: "现货活动", JumpType: "demand", JumpTarget: "/pages/demand/index", Status: "active", UpdatedAt: "2026-06-28T10:00:00Z"}}, nil
+	return []model.BannerTopicConfig{{ID: "banner-1", CityCode: "zhili", Kind: "banner", Title: "现货活动", JumpType: "internal", JumpTarget: "/pages/search/index", Status: "active", UpdatedAt: "2026-06-28T10:00:00Z"}}, nil
 }
 
 func (s *fakeFullAPIStore) ListActiveBannerTopics(ctx context.Context, filter model.BannerTopicFilter) ([]model.BannerTopicConfig, error) {
@@ -513,7 +484,7 @@ func (s *fakeFullAPIStore) ListActiveBannerTopics(ctx context.Context, filter mo
 }
 
 func (s *fakeFullAPIStore) GetActiveTopic(ctx context.Context, topicID string, cityCode string) (model.BannerTopicConfig, error) {
-	return model.BannerTopicConfig{ID: topicID, CityCode: cityCode, Kind: "topic", Title: "专题", TypeScope: []string{"inventory"}, JumpType: "demand", JumpTarget: "/pages/demand/index", Tags: []string{"现货"}, Status: "active"}, nil
+	return model.BannerTopicConfig{ID: topicID, CityCode: cityCode, Kind: "topic", Title: "专题", TypeScope: []string{"inventory"}, JumpType: "internal", JumpTarget: "/pages/search/index", Tags: []string{"现货"}, Status: "active"}, nil
 }
 
 func (s *fakeFullAPIStore) CreateBannerTopic(ctx context.Context, input model.SaveBannerTopicInput) (model.SaveBannerTopicResult, error) {

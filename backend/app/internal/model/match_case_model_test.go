@@ -11,7 +11,7 @@ func TestMatchDemandOwnerMessageSQLTargetsDemandUser(t *testing.T) {
 		"recipient_user_id",
 		"purchase_demands pd",
 		"pd.user_id",
-		"userId=' || pd.user_id::text",
+		"'/pages/messages/index'",
 		"mc.purchase_demand_id",
 		"match_status_update",
 	}
@@ -30,12 +30,27 @@ func TestMatchCreateDemandOwnerMessageSQLTargetsDemandUser(t *testing.T) {
 		"pd.user_id",
 		"match_create",
 		"采购需求已进入撮合",
-		"userId=' || pd.user_id::text",
+		"'/pages/messages/index'",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(sql, snippet) {
 			t.Fatalf("matchCreateDemandOwnerMessageSQL missing %q:\n%s", snippet, sql)
 		}
+	}
+}
+
+func TestMatchDemandOwnerMessageSQLDoesNotTargetRetiredDemandPages(t *testing.T) {
+	for name, sql := range map[string]string{
+		"progress": matchDemandOwnerProgressMessageSQL,
+		"create":   matchCreateDemandOwnerMessageSQL,
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, retiredPath := range []string{"/pages/my-demands/index", "/pages/demand/index", "/pages/demand-success/index"} {
+				if strings.Contains(sql, retiredPath) {
+					t.Fatalf("%s SQL contains retired path %q:\n%s", name, retiredPath, sql)
+				}
+			}
+		})
 	}
 }
 

@@ -39,7 +39,7 @@ SELECT
   $1::bigint,
   '撮合进度更新',
   $2,
-  '/pages/my-demands/index?userId=' || pd.user_id::text,
+  '/pages/messages/index',
   'unread'
 FROM match_cases mc
 JOIN purchase_demands pd ON pd.id = mc.purchase_demand_id
@@ -56,7 +56,7 @@ SELECT
   $1::bigint,
   '采购需求已进入撮合',
   '运营已受理您的采购需求，正在为您匹配合适资源。',
-  '/pages/my-demands/index?userId=' || pd.user_id::text,
+  '/pages/messages/index',
   'unread'
 FROM match_cases mc
 JOIN purchase_demands pd ON pd.id = mc.purchase_demand_id

@@ -43,6 +43,22 @@ func TestCreateBannerTopicRejectsInvalidJumpURL(t *testing.T) {
 	}
 }
 
+func TestCreateBannerTopicRejectsDemandJumpType(t *testing.T) {
+	logic := NewBannerTopicAdminLogic(&fakeBannerTopicAdminStore{})
+
+	_, err := logic.CreateBannerTopic(context.Background(), SaveBannerTopicReq{
+		CityCode:   "zhili",
+		Kind:       "banner",
+		Title:      "现货活动",
+		JumpType:   "demand",
+		JumpTarget: "/pages/demand/index",
+		Status:     "active",
+	})
+	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("CreateBannerTopic() error = %v, want validation error", err)
+	}
+}
+
 func TestCreateBannerTopicPassesInputToStore(t *testing.T) {
 	store := &fakeBannerTopicAdminStore{saved: model.SaveBannerTopicResult{ID: "banner-1", UpdatedAt: "2026-06-27T10:00:00Z"}}
 	logic := NewBannerTopicAdminLogic(store)

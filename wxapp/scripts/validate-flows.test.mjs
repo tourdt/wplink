@@ -33,7 +33,7 @@ test('unreleased purchase demand pages are removed from wxapp source', () => {
   }
   assert.equal(mySource.includes('我的需求'), false)
   assert.equal(mySource.includes('openMyDemands'), false)
-  assert.match(messagesSource, /stripQuery\(url\) === '\/pages\/my-demands\/index'/)
+  assert.equal(messagesSource.includes('/pages/my-demands/index'), false)
 })
 
 test('launch pages do not register unreleased purchase demand routes', () => {

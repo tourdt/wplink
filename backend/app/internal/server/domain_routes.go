@@ -11,7 +11,6 @@ import (
 
 	adminlogic "wplink/backend/app/internal/logic/admin"
 	authlogic "wplink/backend/app/internal/logic/auth"
-	demandlogic "wplink/backend/app/internal/logic/demand"
 	discoverylogic "wplink/backend/app/internal/logic/discovery"
 	entitlementlogic "wplink/backend/app/internal/logic/entitlement"
 	favoritelogic "wplink/backend/app/internal/logic/favorite"
@@ -32,12 +31,6 @@ type MerchantAPIStore interface {
 	merchantlogic.GetMerchantStore
 	merchantlogic.UpdateMerchantStore
 	adminlogic.MerchantAdminStore
-}
-
-type DemandAPIStore interface {
-	demandlogic.CreateDemandStore
-	demandlogic.MyDemandStore
-	adminlogic.DemandAdminStore
 }
 
 type DiscoveryAPIStore interface {
@@ -101,9 +94,7 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	if merchantStore, ok := store.(MerchantAPIStore); ok {
 		registerMerchantRoutes(mux, merchantStore, userTokenService, adminTokenService, permissionStore, smsVerifier)
 	}
-	if demandStore, ok := store.(DemandAPIStore); ok {
-		registerDemandRoutes(mux, demandStore, userTokenService)
-	}
+	// 采购需求入口已从小程序和后台下线，这里不再注册旧 API，避免新客户端继续依赖已废弃流程。
 	if discoveryStore, ok := store.(DiscoveryAPIStore); ok {
 		registerDiscoveryRoutes(mux, discoveryStore)
 	}
@@ -177,64 +168,6 @@ func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore, tokenSer
 			Keyword: query.Get("keyword"),
 			Page:    int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
 		})
-		response.JSON(w, resp, err)
-	})
-}
-
-func registerDemandRoutes(mux *http.ServeMux, store DemandAPIStore, tokenService authlogic.TokenService) {
-	mux.HandleFunc("POST /api/v1/purchase-demands", func(w http.ResponseWriter, r *http.Request) {
-		var body demandlogic.CreateDemandReq
-		if err := decodeJSONBody(r, &body); err != nil {
-			response.JSON(w, nil, err)
-			return
-		}
-		if tokenService != nil {
-			var err error
-			body.UserID, err = userIDFromBearerToken(r, tokenService)
-			if err != nil {
-				response.JSON(w, nil, err)
-				return
-			}
-		}
-		resp, err := demandlogic.NewCreateDemandLogic(store).CreateDemand(r.Context(), body)
-		response.JSON(w, resp, err)
-	})
-	mux.HandleFunc("GET /api/v1/me/purchase-demands", func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-		userID := query.Get("userId")
-		if tokenService != nil {
-			var err error
-			userID, err = userIDFromBearerToken(r, tokenService)
-			if err != nil {
-				response.JSON(w, nil, err)
-				return
-			}
-		}
-		resp, err := demandlogic.NewListMyDemandsLogic(store).ListMyDemands(r.Context(), userID, demandlogic.ListMyDemandsReq{
-			Status: query.Get("status"), Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
-		})
-		response.JSON(w, resp, err)
-	})
-	mux.HandleFunc("GET /api/v1/admin/purchase-demands", func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-		resp, err := adminlogic.NewDemandAdminLogic(store).ListDemands(r.Context(), adminlogic.ListDemandsReq{
-			CityCode: query.Get("cityCode"), DemandType: query.Get("demandType"), Status: query.Get("status"),
-			Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
-		})
-		response.JSON(w, resp, err)
-	})
-	mux.HandleFunc("GET /api/v1/admin/purchase-demands/{demandId}", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := adminlogic.NewDemandAdminLogic(store).GetDemand(r.Context(), adminlogic.GetDemandReq{DemandID: r.PathValue("demandId")})
-		response.JSON(w, resp, err)
-	})
-	mux.HandleFunc("POST /api/v1/admin/purchase-demands/{demandId}/status", func(w http.ResponseWriter, r *http.Request) {
-		var body adminlogic.UpdateDemandStatusReq
-		if err := decodeJSONBody(r, &body); err != nil {
-			response.JSON(w, nil, err)
-			return
-		}
-		body.DemandID = r.PathValue("demandId")
-		resp, err := adminlogic.NewDemandAdminLogic(store).UpdateDemandStatus(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
 }

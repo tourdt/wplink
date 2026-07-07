@@ -84,35 +84,6 @@ type AdminDashboardTask struct {
 	CreatedAt string `json:"createdAt"`
 }
 
-type AdminDemandContact struct {
-	Name   string `json:"name"`
-	Phone  string `json:"phone"`
-	Wechat string `json:"wechat,optional"`
-}
-
-type AdminDemandDetailResp struct {
-	Id                  string                 `json:"id"`
-	Title               string                 `json:"title"`
-	DemandType          string                 `json:"demandType"`
-	Category            string                 `json:"category"`
-	PriceRange          map[string]interface{} `json:"priceRange"`
-	QuantityRequirement map[string]interface{} `json:"quantityRequirement"`
-	Attributes          map[string]interface{} `json:"attributes"`
-	Contact             AdminDemandContact     `json:"contact"`
-	Status              string                 `json:"status"`
-	CreatedAt           string                 `json:"createdAt"`
-}
-
-type AdminDemandListItem struct {
-	Id          string `json:"id"`
-	Title       string `json:"title"`
-	DemandType  string `json:"demandType"`
-	Category    string `json:"category"`
-	ContactName string `json:"contactName"`
-	Status      string `json:"status"`
-	CreatedAt   string `json:"createdAt"`
-}
-
 type AdminGrantEntitlementReq struct {
 	EntitlementType string `json:"entitlementType"`
 	SourceType      string `json:"sourceType"`
@@ -147,21 +118,6 @@ type AdminListBannerTopicsResp struct {
 	Items []AdminBannerTopicItem `json:"items"`
 }
 
-type AdminListDemandsReq struct {
-	CityCode   string `form:"cityCode,optional"`
-	DemandType string `form:"demandType,optional"`
-	Status     string `form:"status,optional"`
-	Page       int64  `form:"page,optional"`
-	PageSize   int64  `form:"pageSize,optional"`
-}
-
-type AdminListDemandsResp struct {
-	Items    []AdminDemandListItem `json:"items"`
-	Page     int64                 `json:"page"`
-	PageSize int64                 `json:"pageSize"`
-	Total    int64                 `json:"total"`
-}
-
 type AdminListHotSearchKeywordsReq struct {
 	CityCode string `form:"cityCode,optional"`
 	Status   string `form:"status,optional"`
@@ -169,6 +125,17 @@ type AdminListHotSearchKeywordsReq struct {
 
 type AdminListHotSearchKeywordsResp struct {
 	Items []AdminHotSearchKeywordItem `json:"items"`
+}
+
+type AdminListMapBindRequestsReq struct {
+	Status   string `form:"status,optional"`
+	Keyword  string `form:"keyword,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminListMapBindRequestsResp struct {
+	Items []MapBindRequestItem `json:"items"`
 }
 
 type AdminListMapCategoriesReq struct {
@@ -367,6 +334,15 @@ type AdminResourceTypeConfigItem struct {
 	Status           string                 `json:"status"`
 }
 
+type AdminReviewMapBindRequestReq struct {
+	Action     string `json:"action"`
+	ReviewNote string `json:"reviewNote,optional"`
+}
+
+type AdminReviewMapBindRequestResp struct {
+	Item MapBindRequestItem `json:"item"`
+}
+
 type AdminReviewResourceReq struct {
 	Action string `json:"action"`
 	Reason string `json:"reason,optional"`
@@ -520,15 +496,6 @@ type AdminSearchLogsResp struct {
 	Total    int64                `json:"total"`
 }
 
-type AdminUpdateDemandStatusReq struct {
-	Status string `json:"status"`
-}
-
-type AdminUpdateDemandStatusResp struct {
-	Id     string `json:"id"`
-	Status string `json:"status"`
-}
-
 type AdminUpdateMapObjectStatusReq struct {
 	Status string `json:"status"`
 }
@@ -638,23 +605,6 @@ type CreateMerchantResp struct {
 	Status             string `json:"status"`
 }
 
-type CreatePurchaseDemandReq struct {
-	CityCode            string                 `json:"cityCode,optional"`
-	DemandType          string                 `json:"demandType"`
-	Title               string                 `json:"title"`
-	Category            string                 `json:"category"`
-	PriceRange          PriceRangeReq          `json:"priceRange,optional"`
-	QuantityRequirement QuantityRequirementReq `json:"quantityRequirement,optional"`
-	Attributes          map[string]interface{} `json:"attributes,optional"`
-	Contact             DemandContactReq       `json:"contact"`
-}
-
-type CreatePurchaseDemandResp struct {
-	Id      string `json:"id"`
-	Status  string `json:"status"`
-	Message string `json:"message"`
-}
-
 type CreateResourceReq struct {
 	MerchantId   string                 `json:"merchantId"`
 	CityCode     string                 `json:"cityCode"`
@@ -742,12 +692,6 @@ type DeleteTakenDownResourceResp struct {
 	Id      string `json:"id"`
 	Status  string `json:"status"`
 	Message string `json:"message"`
-}
-
-type DemandContactReq struct {
-	Name   string `json:"name"`
-	Phone  string `json:"phone"`
-	Wechat string `json:"wechat,optional"`
 }
 
 type DetailViewResp struct {
@@ -865,6 +809,17 @@ type ListInteractionReq struct {
 	PageSize int64 `form:"pageSize,optional"`
 }
 
+type ListMapBindCandidatesReq struct {
+	MerchantId string `form:"merchantId"`
+	SceneCode  string `form:"sceneCode,optional"`
+	Keyword    string `form:"keyword,optional"`
+	Limit      int64  `form:"limit,optional"`
+}
+
+type ListMapBindCandidatesResp struct {
+	Items []MapBindCandidateItem `json:"items"`
+}
+
 type ListMapCategoriesReq struct {
 	Type string `form:"type,optional"`
 }
@@ -920,19 +875,6 @@ type ListMessagesResp struct {
 	Page     int64             `json:"page"`
 	PageSize int64             `json:"pageSize"`
 	Total    int64             `json:"total"`
-}
-
-type ListMyPurchaseDemandsReq struct {
-	Status   string `form:"status,optional"`
-	Page     int64  `form:"page,optional"`
-	PageSize int64  `form:"pageSize,optional"`
-}
-
-type ListMyPurchaseDemandsResp struct {
-	Items    []PurchaseDemandListItem `json:"items"`
-	Page     int64                    `json:"page"`
-	PageSize int64                    `json:"pageSize"`
-	Total    int64                    `json:"total"`
 }
 
 type ListMyResourcesReq struct {
@@ -995,6 +937,42 @@ type ManagedMerchantInfo struct {
 	Id   string `json:"id"`
 	Name string `json:"name"`
 	Role string `json:"role"`
+}
+
+type MapBindCandidateItem struct {
+	ObjectId     string `json:"objectId"`
+	SceneCode    string `json:"sceneCode"`
+	SceneName    string `json:"sceneName"`
+	Code         string `json:"code"`
+	Name         string `json:"name"`
+	Address      string `json:"address,optional"`
+	MerchantId   string `json:"merchantId,optional"`
+	MerchantName string `json:"merchantName,optional"`
+	IsBound      bool   `json:"isBound"`
+}
+
+type MapBindRequestItem struct {
+	Id              string   `json:"id"`
+	MerchantId      string   `json:"merchantId"`
+	MerchantName    string   `json:"merchantName,optional"`
+	ObjectId        string   `json:"objectId"`
+	SceneCode       string   `json:"sceneCode"`
+	SceneName       string   `json:"sceneName,optional"`
+	ObjectCode      string   `json:"objectCode,optional"`
+	ObjectName      string   `json:"objectName,optional"`
+	ApplicantUserId string   `json:"applicantUserId,optional"`
+	EvidenceImages  []string `json:"evidenceImages"`
+	Note            string   `json:"note,optional"`
+	Status          string   `json:"status"`
+	ReviewNote      string   `json:"reviewNote,optional"`
+	ReviewedBy      string   `json:"reviewedBy,optional"`
+	ReviewedAt      string   `json:"reviewedAt,optional"`
+	CreatedAt       string   `json:"createdAt"`
+}
+
+type MapBindingStatusResp struct {
+	BoundObject   *MapBindCandidateItem `json:"boundObject,optional"`
+	LatestRequest *MapBindRequestItem   `json:"latestRequest,optional"`
 }
 
 type MapCategoryItem struct {
@@ -1193,26 +1171,6 @@ type NearbyPoiItem struct {
 	CenterY      string `json:"centerY,optional"`
 }
 
-type PriceRangeReq struct {
-	Min float64 `json:"min,optional"`
-	Max float64 `json:"max,optional"`
-}
-
-type PurchaseDemandListItem struct {
-	Id          string `json:"id"`
-	Title       string `json:"title"`
-	DemandType  string `json:"demandType"`
-	Category    string `json:"category"`
-	ContactName string `json:"contactName"`
-	Status      string `json:"status"`
-	CreatedAt   string `json:"createdAt"`
-}
-
-type QuantityRequirementReq struct {
-	Quantity int64  `json:"quantity,optional"`
-	Unit     string `json:"unit,optional"`
-}
-
 type ReadMessageReq struct {
 	UserId   string `json:"userId,optional"`
 	RoleCode string `json:"roleCode,optional"`
@@ -1397,6 +1355,16 @@ type SetMerchantFollowReq struct {
 
 type SetResourceFavoriteReq struct {
 	Favorited bool `json:"favorited"`
+}
+
+type SubmitMapBindRequestReq struct {
+	ObjectId       string   `json:"objectId"`
+	Note           string   `json:"note,optional"`
+	EvidenceImages []string `json:"evidenceImages,optional"`
+}
+
+type SubmitMapBindRequestResp struct {
+	Item MapBindRequestItem `json:"item"`
 }
 
 type SubmitResourceReq struct {

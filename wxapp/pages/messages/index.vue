@@ -175,7 +175,6 @@ function getQueryParam(targetUrl, key) {
 function normalizeTargetUrl(targetUrl) {
   const url = String(targetUrl || '').trim()
   if (!url || !url.startsWith('/pages/')) return ''
-  if (stripQuery(url) === '/pages/my-demands/index') return ''
   return url
 }
 

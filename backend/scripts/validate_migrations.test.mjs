@@ -16,6 +16,26 @@ test('current migrations pass static validation', () => {
   assert.deepEqual(issues, [])
 })
 
+test('migrations and demo seed do not point to retired demand pages', () => {
+  const retiredSnippets = ['/pages/demand/index', '/pages/my-demands/index', '/pages/demand-success/index']
+  const sqlFiles = [
+    ...loadMigrationFiles(migrationsDir).map((file) => ({ name: file.fileName, sql: file.sql })),
+    {
+      name: 'seed_demo_data.sql',
+      sql: fs.readFileSync(path.resolve(scriptDir, 'seed_demo_data.sql'), 'utf8'),
+    },
+  ]
+
+  for (const file of sqlFiles) {
+    for (const snippet of retiredSnippets) {
+      assert(
+        !file.sql.includes(snippet),
+        `${file.name} should not contain retired miniapp path ${snippet}`,
+      )
+    }
+  }
+})
+
 test('reports a migration without matching down file', () => {
   const issues = validateMigrationFiles([
     {
