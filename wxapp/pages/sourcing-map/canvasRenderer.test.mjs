@@ -260,6 +260,49 @@ test('renderer hides verified point badge at overview zoom', () => {
   }
 })
 
+test('renderer skips objects with invalid geometry numbers', () => {
+  const operations = []
+  const originalUni = globalThis.uni
+  globalThis.uni = {
+    createCanvasContext() {
+      return createMockContext(operations)
+    },
+  }
+
+  try {
+    const renderer = createSourcingMapRenderer()
+    renderer.init({ canvasId: 'sourcingMapCanvas', width: 300, height: 180 })
+    renderer.setScene({ width: 300, height: 180 })
+    renderer.setObjects([
+      {
+        id: 'bad-booth',
+        isVerifiedMerchant: true,
+        geometryType: 'rect',
+        geometry: { x: Number.NaN, y: 20, width: 80, height: 50 },
+      },
+      {
+        id: 'bad-poi',
+        geometryType: 'point',
+        geometry: { x: Number.POSITIVE_INFINITY, y: 50 },
+      },
+    ])
+
+    renderer.render({ scale: 1, offsetX: 0, offsetY: 0 }, {
+      width: 300,
+      height: 180,
+      baseScale: 1,
+      drawBackground: false,
+      zoomLevel: 5,
+    })
+
+    assert.equal(operations.some((entry) => entry.type === 'fillRect'), false)
+    assert.equal(operations.some((entry) => entry.type === 'arc'), false)
+    assert.equal(operations.some((entry) => entry.type === 'fillText'), false)
+  } finally {
+    globalThis.uni = originalUni
+  }
+})
+
 test('renderer keeps the background unready when canvas image drawing fails', () => {
   const operations = []
   const originalUni = globalThis.uni

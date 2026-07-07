@@ -170,6 +170,7 @@ export function createSourcingMapRenderer(options = {}) {
 }
 
 function drawMapObject(ctx, object, metrics, options) {
+  if (!objectBounds(object)) return
   if (object?.geometryType === 'polygon') {
     drawPolygonObject(ctx, object, metrics)
     return
@@ -182,11 +183,12 @@ function drawMapObject(ctx, object, metrics, options) {
 }
 
 function drawRectObject(ctx, object, metrics) {
-  const geometry = object.geometry || {}
-  const x = projectX(toNumber(geometry.x, toNumber(object.centerX, 0)), metrics)
-  const y = projectY(toNumber(geometry.y, toNumber(object.centerY, 0)), metrics)
-  const width = projectSize(toPositiveNumber(geometry.width, 80), metrics)
-  const height = projectSize(toPositiveNumber(geometry.height, 50), metrics)
+  const bounds = objectBounds(object)
+  if (!bounds) return
+  const x = projectX(bounds.minX, metrics)
+  const y = projectY(bounds.minY, metrics)
+  const width = projectSize(bounds.maxX - bounds.minX, metrics)
+  const height = projectSize(bounds.maxY - bounds.minY, metrics)
 
   if (shouldDrawVerifiedOverviewPoint(object, metrics)) {
     drawVerifiedOverviewPoint(ctx, object, metrics)
@@ -239,6 +241,7 @@ function drawRentableBooth(ctx, object, metrics, rect) {
 function drawVerifiedBoothMarker(ctx, object, metrics, rect) {
   const zoomLevel = toPositiveNumber(metrics.zoomLevel, VERIFIED_LABEL_ZOOM_LEVEL)
   const center = objectCenter(object)
+  if (!center) return
   const markerX = projectX(center.x, metrics)
   const markerY = projectY(center.y, metrics)
   const selected = isSameObject(object, metrics.selectedObject)
@@ -258,9 +261,10 @@ function drawPointObject(ctx, object, metrics) {
     return
   }
 
-  const geometry = object.geometry || {}
-  const x = projectX(toNumber(geometry.x, toNumber(object.centerX, 0)), metrics)
-  const y = projectY(toNumber(geometry.y, toNumber(object.centerY, 0)), metrics)
+  const center = objectCenter(object)
+  if (!center) return
+  const x = projectX(center.x, metrics)
+  const y = projectY(center.y, metrics)
   const radius = Math.max(5, Math.min(12, 7 * metrics.scale))
   const palette = objectPalette(object)
 
@@ -324,6 +328,7 @@ function drawObjectLabel(ctx, object, metrics, renderOptions, options) {
   if (!label) return
 
   const center = objectCenter(object)
+  if (!center) return
   const x = projectX(center.x, metrics)
   const y = projectY(center.y, metrics)
   const maxWidth = Math.max(36, objectWidth(object) * metrics.baseScale * metrics.scale - 8)
@@ -359,6 +364,7 @@ function drawSelectedOutline(ctx, object, metrics) {
   }
 
   const bounds = objectBounds(object)
+  if (!bounds) return
   const x = projectX(bounds.minX, metrics)
   const y = projectY(bounds.minY, metrics)
   const width = projectSize(bounds.maxX - bounds.minX, metrics)
@@ -377,6 +383,7 @@ function drawRentablePolygonBadge(ctx, object, metrics) {
   if (toPositiveNumber(metrics.zoomLevel, VERIFIED_LABEL_ZOOM_LEVEL) < VERIFIED_PIN_ZOOM_LEVEL && !isSameObject(object, metrics.selectedObject)) return
 
   const center = objectCenter(object)
+  if (!center) return
   const x = projectX(center.x, metrics)
   const y = projectY(center.y, metrics)
   setFillStyle(ctx, COLORS.rentableFill)
@@ -426,6 +433,7 @@ function drawVerifiedPin(ctx, x, y) {
 
 function drawVerifiedOverviewPoint(ctx, object, metrics) {
   const center = objectCenter(object)
+  if (!center) return
   const x = projectX(center.x, metrics)
   const y = projectY(center.y, metrics)
   const radius = Math.max(4, Math.min(7, 5 * metrics.scale))
@@ -579,21 +587,26 @@ function objectCenter(object = {}) {
   const geometry = object.geometry || {}
   if (object.geometryType === 'polygon') {
     const points = normalizePolygonPoints(geometry)
-    if (!points.length) return { x: 0, y: 0 }
+    if (!points.length) return null
     const sums = points.reduce((acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }), { x: 0, y: 0 })
     return { x: sums.x / points.length, y: sums.y / points.length }
   }
-  const x = toNumber(geometry.x, toNumber(object.centerX, 0))
-  const y = toNumber(geometry.y, toNumber(object.centerY, 0))
+  const point = objectPoint(object)
+  if (!point) return null
+  const { x, y } = point
   if (object.geometryType === 'point') return { x, y }
+  const width = objectWidth(object)
+  const height = objectHeight(object)
+  if (width == null || height == null) return null
   return {
-    x: x + objectWidth(object) / 2,
-    y: y + objectHeight(object) / 2,
+    x: x + width / 2,
+    y: y + height / 2,
   }
 }
 
 function projectedObjectBounds(object = {}, metrics) {
   const bounds = objectBounds(object)
+  if (!bounds) return null
   return {
     x: projectX(bounds.minX, metrics),
     y: projectY(bounds.minY, metrics),
@@ -615,7 +628,7 @@ function objectBounds(object = {}) {
   const geometry = object.geometry || {}
   if (object.geometryType === 'polygon') {
     const points = normalizePolygonPoints(geometry)
-    if (!points.length) return { minX: 0, minY: 0, maxX: 0, maxY: 0 }
+    if (!points.length) return null
     return points.reduce(
       (bounds, point) => ({
         minX: Math.min(bounds.minX, point.x),
@@ -626,29 +639,64 @@ function objectBounds(object = {}) {
       { minX: points[0].x, minY: points[0].y, maxX: points[0].x, maxY: points[0].y },
     )
   }
-  const x = toNumber(geometry.x, toNumber(object.centerX, 0))
-  const y = toNumber(geometry.y, toNumber(object.centerY, 0))
+  const point = objectPoint(object)
+  if (!point) return null
+  const { x, y } = point
   if (object.geometryType === 'point') {
     return { minX: x, minY: y, maxX: x, maxY: y }
   }
-  return { minX: x, minY: y, maxX: x + objectWidth(object), maxY: y + objectHeight(object) }
+  const width = objectWidth(object)
+  const height = objectHeight(object)
+  if (width == null || height == null) return null
+  return { minX: x, minY: y, maxX: x + width, maxY: y + height }
 }
 
 function objectWidth(object = {}) {
-  return toPositiveNumber(object.geometry?.width, 80)
+  return geometryPositiveNumber(object.geometry?.width, 80)
 }
 
 function objectHeight(object = {}) {
-  return toPositiveNumber(object.geometry?.height, 50)
+  return geometryPositiveNumber(object.geometry?.height, 50)
 }
 
 function normalizePolygonPoints(geometry = {}) {
-  return (Array.isArray(geometry.points) ? geometry.points : [])
-    .filter(Boolean)
-    .map((point) => ({
-      x: toNumber(point.x, 0),
-      y: toNumber(point.y, 0),
-    }))
+  const points = Array.isArray(geometry.points) ? geometry.points : []
+  const normalized = []
+  for (const point of points) {
+    if (!point) return []
+    const x = geometryNumber(point.x)
+    const y = geometryNumber(point.y)
+    if (x == null || y == null) return []
+    normalized.push({ x, y })
+  }
+  return normalized
+}
+
+function objectPoint(object = {}) {
+  const geometry = object.geometry || {}
+  const x = geometryNumber(geometry.x, object.centerX)
+  const y = geometryNumber(geometry.y, object.centerY)
+  if (x == null || y == null) return null
+  return { x, y }
+}
+
+function geometryNumber(value, fallback) {
+  // 渲染层不能把异常坐标兜底到原点，否则坏数据会在地图左上角显示成可见点位。
+  if (value !== undefined && value !== null) {
+    return finiteNumber(value)
+  }
+  return finiteNumber(fallback)
+}
+
+function geometryPositiveNumber(value, fallback) {
+  const parsed = geometryNumber(value, fallback)
+  return parsed != null && parsed > 0 ? parsed : null
+}
+
+function finiteNumber(value) {
+  if (typeof value === 'string' && value.trim() === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function projectX(value, metrics) {
