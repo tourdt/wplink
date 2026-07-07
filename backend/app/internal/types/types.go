@@ -3,14 +3,6 @@
 
 package types
 
-type AdminAddMatchParticipantsReq struct {
-	ParticipantMerchantIds []string `json:"participantMerchantIds"`
-}
-
-type AdminAddMatchResourcesReq struct {
-	ResourceIds []string `json:"resourceIds"`
-}
-
 type AdminBannerTopicItem struct {
 	Id         string   `json:"id"`
 	CityCode   string   `json:"cityCode,optional"`
@@ -48,23 +40,9 @@ type AdminBatchGenerateMapObjectsResp struct {
 	Items []MapObjectItem `json:"items"`
 }
 
-type AdminCreateMatchCaseReq struct {
-	PurchaseDemandId       string   `json:"purchaseDemandId"`
-	ResourceIds            []string `json:"resourceIds,optional"`
-	ParticipantMerchantIds []string `json:"participantMerchantIds,optional"`
-	ResultNote             string   `json:"resultNote,optional"`
-}
-
-type AdminCreateMatchCaseResp struct {
-	Id      string `json:"id"`
-	Status  string `json:"status"`
-	Message string `json:"message"`
-}
-
 type AdminDashboardMetrics struct {
 	PendingResourceCount     int64 `json:"pendingResourceCount"`
 	PendingVerificationCount int64 `json:"pendingVerificationCount"`
-	PendingDemandCount       int64 `json:"pendingDemandCount"`
 	TodayContactCount        int64 `json:"todayContactCount"`
 }
 
@@ -164,19 +142,6 @@ type AdminListMapScenesReq struct {
 	Type     string `form:"type,optional"`
 }
 
-type AdminListMatchCasesReq struct {
-	Status   string `form:"status,optional"`
-	Page     int64  `form:"page,optional"`
-	PageSize int64  `form:"pageSize,optional"`
-}
-
-type AdminListMatchCasesResp struct {
-	Items    []AdminMatchCaseItem `json:"items"`
-	Page     int64                `json:"page"`
-	PageSize int64                `json:"pageSize"`
-	Total    int64                `json:"total"`
-}
-
 type AdminListMerchantsReq struct {
 	CityCode     string `form:"cityCode,optional"`
 	MerchantType string `form:"merchantType,optional"`
@@ -211,24 +176,6 @@ type AdminLoginResp struct {
 	Token  string   `json:"token"`
 	UserId string   `json:"userId"`
 	Roles  []string `json:"roles"`
-}
-
-type AdminMatchCaseActionResp struct {
-	Id      string `json:"id"`
-	Status  string `json:"status,optional"`
-	Message string `json:"message"`
-}
-
-type AdminMatchCaseItem struct {
-	Id               string `json:"id"`
-	PurchaseDemandId string `json:"purchaseDemandId"`
-	DemandTitle      string `json:"demandTitle"`
-	Status           string `json:"status"`
-	Source           string `json:"source"`
-	ResultNote       string `json:"resultNote,optional"`
-	ResourceCount    int64  `json:"resourceCount"`
-	ParticipantCount int64  `json:"participantCount"`
-	CreatedAt        string `json:"createdAt"`
 }
 
 type AdminMerchantListItem struct {
@@ -502,11 +449,6 @@ type AdminUpdateMapObjectStatusReq struct {
 
 type AdminUpdateMapObjectStatusResp struct {
 	Item MapObjectItem `json:"item"`
-}
-
-type AdminUpdateMatchCaseStatusReq struct {
-	Status     string `json:"status"`
-	ResultNote string `json:"resultNote,optional"`
 }
 
 type AdminUpdateResourceTypeConfigReq struct {
@@ -1409,11 +1351,6 @@ type TopVoucherInfo struct {
 	ExpiresAt        string   `json:"expiresAt,optional"`
 }
 
-type TopicDemandEntry struct {
-	Title      string `json:"title"`
-	ButtonText string `json:"buttonText"`
-}
-
 type TopicInfoResp struct {
 	Id       string   `json:"id"`
 	Title    string   `json:"title"`
@@ -1440,12 +1377,11 @@ type TopicResourcesReq struct {
 }
 
 type TopicResourcesResp struct {
-	Topic       TopicInfoResp       `json:"topic"`
-	Items       []TopicResourceItem `json:"items"`
-	Page        int64               `json:"page"`
-	PageSize    int64               `json:"pageSize"`
-	Total       int64               `json:"total"`
-	DemandEntry TopicDemandEntry    `json:"demandEntry,optional"`
+	Topic    TopicInfoResp       `json:"topic"`
+	Items    []TopicResourceItem `json:"items"`
+	Page     int64               `json:"page"`
+	PageSize int64               `json:"pageSize"`
+	Total    int64               `json:"total"`
 }
 
 type UpdateMerchantReq struct {

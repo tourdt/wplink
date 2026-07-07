@@ -44,7 +44,6 @@ type (
 		Filters           string         `db:"filters"`
 		ResultCount       int64          `db:"result_count"`
 		ClickedResourceId sql.NullString `db:"clicked_resource_id"`
-		GeneratedDemandId sql.NullString `db:"generated_demand_id"`
 		CreatedAt         time.Time      `db:"created_at"`
 	}
 )
@@ -77,14 +76,14 @@ func (m *defaultSearchLogsModel) FindOne(ctx context.Context, id string) (*Searc
 }
 
 func (m *defaultSearchLogsModel) Insert(ctx context.Context, data *SearchLogs) (sql.Result, error) {
-	query := fmt.Sprintf("insert into %s (%s) values ($1, $2, $3, $4, $5, $6, $7, $8)", m.table, searchLogsRowsExpectAutoSet)
-	ret, err := m.conn.ExecCtx(ctx, query, data.Id, data.UserId, data.CityStationId, data.Keyword, data.Filters, data.ResultCount, data.ClickedResourceId, data.GeneratedDemandId)
+	query := fmt.Sprintf("insert into %s (%s) values ($1, $2, $3, $4, $5, $6, $7)", m.table, searchLogsRowsExpectAutoSet)
+	ret, err := m.conn.ExecCtx(ctx, query, data.Id, data.UserId, data.CityStationId, data.Keyword, data.Filters, data.ResultCount, data.ClickedResourceId)
 	return ret, err
 }
 
 func (m *defaultSearchLogsModel) Update(ctx context.Context, data *SearchLogs) error {
 	query := fmt.Sprintf("update %s set %s where id = $1", m.table, searchLogsRowsWithPlaceHolder)
-	_, err := m.conn.ExecCtx(ctx, query, data.Id, data.UserId, data.CityStationId, data.Keyword, data.Filters, data.ResultCount, data.ClickedResourceId, data.GeneratedDemandId)
+	_, err := m.conn.ExecCtx(ctx, query, data.Id, data.UserId, data.CityStationId, data.Keyword, data.Filters, data.ResultCount, data.ClickedResourceId)
 	return err
 }
 

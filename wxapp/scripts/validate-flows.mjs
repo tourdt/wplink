@@ -337,7 +337,7 @@ export const defaultFlowChecks = [
       'switchTab',
       'redirectTo',
       'localDevLoginCode',
-      '登录后同步收藏、需求、消息和发布记录',
+      '登录后同步收藏、消息和发布记录',
     ],
   },
 ]

@@ -2,6 +2,8 @@ package discovery
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -70,7 +72,7 @@ func TestListHomeRecommendCardsUsesActiveRecommendCardFilter(t *testing.T) {
 	}
 }
 
-func TestGetTopicResourcesReturnsDemandEntryWhenEmpty(t *testing.T) {
+func TestGetTopicResourcesDoesNotReturnDemandEntryWhenEmpty(t *testing.T) {
 	store := &fakeDiscoveryStore{
 		topic: model.BannerTopicConfig{ID: "topic-1", Kind: "topic", Title: "夏季童装", TypeScope: []string{"inventory"}},
 		resources: model.ListResourcesResult{
@@ -88,8 +90,15 @@ func TestGetTopicResourcesReturnsDemandEntryWhenEmpty(t *testing.T) {
 	if store.resourceFilter.TypeCode != "inventory" {
 		t.Fatalf("resource filter = %#v, want inventory scope", store.resourceFilter)
 	}
-	if resp.DemandEntry == nil || resp.DemandEntry.Title == "" {
-		t.Fatalf("demandEntry = %#v, want fallback entry", resp.DemandEntry)
+	if resp.Total != 0 || len(resp.Items) != 0 {
+		t.Fatalf("resources = total %d items %#v, want empty result", resp.Total, resp.Items)
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	if strings.Contains(string(data), "demandEntry") {
+		t.Fatalf("response json contains retired demandEntry: %s", string(data))
 	}
 }
 

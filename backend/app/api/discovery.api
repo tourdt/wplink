@@ -72,18 +72,12 @@ type TopicResourceItem {
 	MerchantName string `json:"merchantName"`
 }
 
-type TopicDemandEntry {
-	Title      string `json:"title"`
-	ButtonText string `json:"buttonText"`
-}
-
 type TopicResourcesResp {
-	Topic       TopicInfoResp      `json:"topic"`
-	Items       []TopicResourceItem `json:"items"`
-	Page        int64               `json:"page"`
-	PageSize    int64               `json:"pageSize"`
-	Total       int64               `json:"total"`
-	DemandEntry TopicDemandEntry    `json:"demandEntry,optional"`
+	Topic    TopicInfoResp      `json:"topic"`
+	Items    []TopicResourceItem `json:"items"`
+	Page     int64               `json:"page"`
+	PageSize int64               `json:"pageSize"`
+	Total    int64               `json:"total"`
 }
 
 type ValidateWebviewReq {

@@ -13,6 +13,8 @@ test('current wxapp pages satisfy MVP flow checks', () => {
 test('launch UI hides matching feature copy', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const files = [
+    'pages/home/index.vue',
+    'pages/login/index.vue',
     'pages/messages/index.vue',
     'pages/my/index.vue',
     'pages/search/index.vue',
@@ -21,6 +23,7 @@ test('launch UI hides matching feature copy', () => {
   const visibleSource = files.map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n')
 
   assert.equal(visibleSource.includes('撮合'), false)
+  assert.equal(visibleSource.includes('登录后同步收藏、需求'), false)
 })
 
 test('unreleased purchase demand pages are removed from wxapp source', () => {
@@ -123,10 +126,10 @@ test('home page keeps custom brand first screen structure', () => {
     'mode="aspectFit"',
     'getMenuButtonBoundingClientRect',
     'homeContentStyle',
-    '搜索现货、厂家或求购需求',
+    '搜索现货、厂家或订单资源',
     'factory-hero',
     '织里站 · 精选工厂',
-    '童装产业带数字化撮合中心',
+    '童装产业带资源服务平台',
     'quick-action-grid',
     '货源市场',
     '库存清仓',

@@ -3,7 +3,7 @@
     <view class="login-card">
       <view class="brand-mark">衣</view>
       <text class="login-title">衣货通</text>
-      <text class="login-desc">登录后同步收藏、需求、消息和发布记录</text>
+      <text class="login-desc">登录后同步收藏、消息和发布记录</text>
       <button class="login-button" :disabled="loggingIn" @click="loginWithWechatAccount">
         {{ loggingIn ? '登录中' : '微信登录' }}
       </button>

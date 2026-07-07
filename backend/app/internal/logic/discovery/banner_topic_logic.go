@@ -82,18 +82,12 @@ type DiscoveryResourceItem struct {
 	MerchantName string `json:"merchantName"`
 }
 
-type DemandEntry struct {
-	Title      string `json:"title"`
-	ButtonText string `json:"buttonText"`
-}
-
 type TopicResourcesResp struct {
-	Topic       TopicInfo               `json:"topic"`
-	Items       []DiscoveryResourceItem `json:"items"`
-	Page        int64                   `json:"page"`
-	PageSize    int64                   `json:"pageSize"`
-	Total       int64                   `json:"total"`
-	DemandEntry *DemandEntry            `json:"demandEntry,omitempty"`
+	Topic    TopicInfo               `json:"topic"`
+	Items    []DiscoveryResourceItem `json:"items"`
+	Page     int64                   `json:"page"`
+	PageSize int64                   `json:"pageSize"`
+	Total    int64                   `json:"total"`
 }
 
 type ValidateWebviewURLResp struct {
@@ -217,9 +211,6 @@ func (l *BannerTopicDiscoveryLogic) GetTopicResources(ctx context.Context, req T
 		Page:     result.Page,
 		PageSize: result.PageSize,
 		Total:    result.Total,
-	}
-	if result.Total == 0 {
-		resp.DemandEntry = &DemandEntry{Title: "没有找到合适资源", ButtonText: "提交采购需求"}
 	}
 	return resp, nil
 }

@@ -24,7 +24,6 @@ const requiredSnippets = [
   'pending',
   'rejected',
   'expired',
-  'match_cases',
   'messages',
   'resource_metrics_daily',
   'map_scene',
@@ -55,6 +54,22 @@ if (demoSceneRefs.length < 13) {
 
 if (sql.includes('8020000000000002,')) {
   throw new Error('演示种子包含疑似截断的商家 ID: 8020000000000002')
+}
+
+const retiredSnippets = [
+  'INSERT INTO purchase_demands',
+  'INSERT INTO match_cases',
+  'INSERT INTO match_case_resources',
+  'INSERT INTO match_case_participants',
+  'match_progress',
+  '采购需求已进入撮合',
+  '演示撮合单',
+]
+
+for (const snippet of retiredSnippets) {
+  if (sql.includes(snippet)) {
+    throw new Error(`演示种子不应包含已下线采购需求/撮合内容: ${snippet}`)
+  }
 }
 
 console.log('demo seed static check ok')

@@ -191,29 +191,6 @@ CREATE TABLE IF NOT EXISTS credit_records (
 CREATE INDEX IF NOT EXISTS idx_credit_records_merchant_visibility ON credit_records(merchant_id, visibility);
 CREATE INDEX IF NOT EXISTS idx_credit_records_tag_code ON credit_records(tag_code);
 
-CREATE TABLE IF NOT EXISTS purchase_demands (
-  id bigint PRIMARY KEY DEFAULT next_tsid(),
-  user_id bigint NOT NULL REFERENCES users(id),
-  city_station_id bigint REFERENCES city_stations(id),
-  demand_type varchar(64) NOT NULL,
-  status varchar(32) NOT NULL DEFAULT 'pending',
-  title varchar(128) NOT NULL,
-  category varchar(64) NOT NULL,
-  price_range jsonb NOT NULL DEFAULT '{}'::jsonb,
-  quantity_requirement jsonb NOT NULL DEFAULT '{}'::jsonb,
-  attributes jsonb NOT NULL DEFAULT '{}'::jsonb,
-  contact_name varchar(64) NOT NULL,
-  contact_phone varchar(32) NOT NULL,
-  contact_wechat varchar(64),
-  expires_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_purchase_demands_city_type_status ON purchase_demands(city_station_id, demand_type, status);
-CREATE INDEX IF NOT EXISTS idx_purchase_demands_user_status ON purchase_demands(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_purchase_demands_attributes_gin ON purchase_demands USING gin(attributes);
-
 CREATE TABLE IF NOT EXISTS search_logs (
   id bigint PRIMARY KEY DEFAULT next_tsid(),
   user_id bigint REFERENCES users(id),
@@ -222,52 +199,12 @@ CREATE TABLE IF NOT EXISTS search_logs (
   filters jsonb NOT NULL DEFAULT '{}'::jsonb,
   result_count integer NOT NULL DEFAULT 0,
   clicked_resource_id bigint REFERENCES resources(id),
-  generated_demand_id bigint REFERENCES purchase_demands(id),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_search_logs_keyword ON search_logs(keyword);
 CREATE INDEX IF NOT EXISTS idx_search_logs_city_created ON search_logs(city_station_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_search_logs_result_count ON search_logs(result_count);
-
-CREATE TABLE IF NOT EXISTS match_cases (
-  id bigint PRIMARY KEY DEFAULT next_tsid(),
-  purchase_demand_id bigint REFERENCES purchase_demands(id),
-  city_station_id bigint REFERENCES city_stations(id),
-  status varchar(32) NOT NULL DEFAULT 'open',
-  source varchar(32) NOT NULL DEFAULT 'manual',
-  operator_id bigint REFERENCES users(id),
-  result_note text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  closed_at timestamptz
-);
-
-CREATE INDEX IF NOT EXISTS idx_match_cases_demand ON match_cases(purchase_demand_id);
-CREATE INDEX IF NOT EXISTS idx_match_cases_operator_status ON match_cases(operator_id, status);
-
-CREATE TABLE IF NOT EXISTS match_case_resources (
-  id bigint PRIMARY KEY DEFAULT next_tsid(),
-  match_case_id bigint NOT NULL REFERENCES match_cases(id),
-  resource_id bigint NOT NULL REFERENCES resources(id),
-  role varchar(32) NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT uniq_match_case_resource UNIQUE (match_case_id, resource_id)
-);
-
-CREATE TABLE IF NOT EXISTS match_case_participants (
-  id bigint PRIMARY KEY DEFAULT next_tsid(),
-  match_case_id bigint NOT NULL REFERENCES match_cases(id),
-  user_id bigint REFERENCES users(id),
-  merchant_id bigint REFERENCES merchants(id),
-  participant_role varchar(32) NOT NULL,
-  contact_status varchar(32) NOT NULL DEFAULT 'pending',
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT chk_match_case_participant_identity CHECK (user_id IS NOT NULL OR merchant_id IS NOT NULL)
-);
-
-CREATE INDEX IF NOT EXISTS idx_match_case_participants_case ON match_case_participants(match_case_id);
 
 CREATE TABLE IF NOT EXISTS merchant_entitlements (
   id bigint PRIMARY KEY DEFAULT next_tsid(),

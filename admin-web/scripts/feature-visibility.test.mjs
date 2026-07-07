@@ -17,6 +17,10 @@ test('admin launch UI hides manual matching feature', () => {
   assert.equal(visibleSource.includes('match-cases'), false)
   assert.equal(visibleSource.includes('人工撮合'), false)
   assert.equal(visibleSource.includes('待撮合'), false)
+  assert.equal(visibleSource.includes('采购需求'), false)
+  assert.equal(visibleSource.includes('pendingDemandCount'), false)
+  assert.equal(fs.existsSync(path.join(root, 'src/views/MatchCaseView.vue')), false)
+  assert.equal(fs.existsSync(path.join(root, 'src/api/match.js')), false)
 })
 
 test('admin routes lazy-load page views to keep initial bundle maintainable', () => {

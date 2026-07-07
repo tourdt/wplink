@@ -87,3 +87,33 @@ func TestEmbeddedAdminDistIncludesSourcingMapPage(t *testing.T) {
 		}
 	}
 }
+
+func TestEmbeddedAdminDistDoesNotExposeRetiredDemandOrMatchingUI(t *testing.T) {
+	var bundle strings.Builder
+	err := fs.WalkDir(embeddedDist, "dist", func(name string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || (!strings.HasSuffix(name, ".html") && !strings.HasSuffix(name, ".js")) {
+			return nil
+		}
+
+		data, err := embeddedDist.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		bundle.Write(data)
+		bundle.WriteByte('\n')
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk embedded admin dist: %v", err)
+	}
+
+	source := bundle.String()
+	for _, token := range []string{"采购需求", "人工撮合", "match-cases", "pendingDemandCount"} {
+		if strings.Contains(source, token) {
+			t.Fatalf("embedded admin dist contains retired token %q", token)
+		}
+	}
+}

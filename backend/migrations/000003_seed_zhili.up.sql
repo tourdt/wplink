@@ -229,7 +229,7 @@ SELECT
   topic.city_station_id,
   'banner',
   '织里童装现货对接',
-  '库存、货源、工厂资源一站式撮合',
+  '库存、货源、工厂资源一站式服务',
   '',
   '["inventory","goods","factory"]'::jsonb,
   'topic',

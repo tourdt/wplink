@@ -79,7 +79,6 @@ type AdminUtilityAPIStore interface {
 	adminlogic.DashboardStore
 	adminlogic.OperationLogStore
 	adminlogic.ResourceTypeConfigStore
-	adminlogic.MatchCaseStore
 	adminlogic.SearchLogStore
 	task.ResourceLifecycleStore
 }
@@ -710,77 +709,6 @@ func registerAdminUtilityRoutes(mux *http.ServeMux, store AdminUtilityAPIStore, 
 			return
 		}
 		resp, err := adminlogic.NewResourceTypeConfigLogic(store).UpdateResourceTypeConfig(r.Context(), r.PathValue("configId"), body)
-		response.JSON(w, resp, err)
-	})
-	mux.HandleFunc("POST /api/v1/admin/match-cases", func(w http.ResponseWriter, r *http.Request) {
-		var body adminlogic.CreateMatchCaseReq
-		if err := decodeJSONBody(r, &body); err != nil {
-			response.JSON(w, nil, err)
-			return
-		}
-		if operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, body.OperatorID); err != nil {
-			response.JSON(w, nil, err)
-			return
-		} else {
-			body.OperatorID = operatorID
-		}
-		resp, err := adminlogic.NewMatchCaseLogic(store).CreateMatchCase(r.Context(), body)
-		response.JSON(w, resp, err)
-	})
-	mux.HandleFunc("GET /api/v1/admin/match-cases", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := adminlogic.NewMatchCaseLogic(store).ListMatchCases(r.Context(), adminlogic.ListMatchCasesReq{Status: r.URL.Query().Get("status"), Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize")})
-		response.JSON(w, resp, err)
-	})
-	mux.HandleFunc("POST /api/v1/admin/match-cases/{matchCaseId}/status", func(w http.ResponseWriter, r *http.Request) {
-		var body adminlogic.UpdateMatchCaseStatusReq
-		if err := decodeJSONBody(r, &body); err != nil {
-			response.JSON(w, nil, err)
-			return
-		}
-		body.MatchCaseID = r.PathValue("matchCaseId")
-		if operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, body.OperatorID); err != nil {
-			response.JSON(w, nil, err)
-			return
-		} else {
-			body.OperatorID = operatorID
-		}
-		resp, err := adminlogic.NewMatchCaseLogic(store).UpdateMatchCaseStatus(r.Context(), body)
-		response.JSON(w, resp, err)
-	})
-	mux.HandleFunc("POST /api/v1/admin/match-cases/{matchCaseId}/resources", func(w http.ResponseWriter, r *http.Request) {
-		var body struct {
-			OperatorID  string   `json:"operatorId"`
-			ResourceIDs []string `json:"resourceIds"`
-		}
-		if err := decodeJSONBody(r, &body); err != nil {
-			response.JSON(w, nil, err)
-			return
-		}
-		if operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, body.OperatorID); err != nil {
-			response.JSON(w, nil, err)
-			return
-		} else {
-			body.OperatorID = operatorID
-		}
-		resp, err := adminlogic.NewMatchCaseLogic(store).AddMatchCaseResources(r.Context(), adminlogic.AddMatchCaseResourcesReq{MatchCaseID: r.PathValue("matchCaseId"), OperatorID: body.OperatorID, ResourceIDs: body.ResourceIDs})
-		response.JSON(w, resp, err)
-	})
-	mux.HandleFunc("POST /api/v1/admin/match-cases/{matchCaseId}/participants", func(w http.ResponseWriter, r *http.Request) {
-		var body struct {
-			OperatorID             string   `json:"operatorId"`
-			ParticipantMerchantIDs []string `json:"participantMerchantIds"`
-		}
-		if err := decodeJSONBody(r, &body); err != nil {
-			response.JSON(w, nil, err)
-			return
-		}
-		if operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, body.OperatorID); err != nil {
-			response.JSON(w, nil, err)
-			return
-		} else {
-			body.OperatorID = operatorID
-		}
-		resp, err := adminlogic.NewMatchCaseLogic(store).AddMatchCaseParticipants(r.Context(), adminlogic.AddMatchCaseParticipantsReq{MatchCaseID: r.PathValue("matchCaseId"), OperatorID: body.OperatorID, MerchantIDs: body.ParticipantMerchantIDs})
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/admin/operation-logs", func(w http.ResponseWriter, r *http.Request) {

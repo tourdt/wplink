@@ -36,7 +36,6 @@ type APIStore struct {
 	*model.VerificationModel
 	*model.MerchantEntitlementModel
 	*model.MessageModel
-	*model.MatchCaseModel
 	*model.SearchLogModel
 	*model.ResourceContactEventModel
 	*model.ResourceMetricDailyModel
@@ -95,7 +94,6 @@ func newAPIStore(db *sql.DB) *APIStore {
 		VerificationModel:         model.NewVerificationModel(db),
 		MerchantEntitlementModel:  model.NewMerchantEntitlementModel(db),
 		MessageModel:              model.NewMessageModel(db),
-		MatchCaseModel:            model.NewMatchCaseModel(db),
 		SearchLogModel:            model.NewSearchLogModel(db),
 		ResourceContactEventModel: model.NewResourceContactEventModel(db),
 		ResourceMetricDailyModel:  model.NewResourceMetricDailyModel(db),

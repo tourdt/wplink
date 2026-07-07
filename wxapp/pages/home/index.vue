@@ -9,7 +9,7 @@
 
       <view class="search-entry" @click="openSearch()">
         <view class="search-icon" aria-hidden="true"></view>
-        <text class="search-placeholder">搜索现货、厂家或求购需求...</text>
+        <text class="search-placeholder">搜索现货、厂家或订单资源...</text>
       </view>
     </view>
 
@@ -137,7 +137,7 @@ const defaultBanners = [
   {
     id: 'default-topic',
     kindText: '织里站 · 精选工厂',
-    title: '童装产业带数字化撮合中心',
+    title: '童装产业带资源服务平台',
     subTitle: '本周新增 128 家金牌工厂',
     coverUrl: '/static/home/factory-hero.jpg',
     jumpType: 'topic',

@@ -1,0 +1,1 @@
+const l=[{label:"源头工厂",value:"factory"},{label:"现货档口",value:"stall"},{label:"库存货源",value:"stockist"},{label:"配套服务",value:"service_provider"},{label:"采购商",value:"buyer"}],t=l.reduce((e,a)=>(e[a.value]=a.label,e),{}),r={factory:"源头工厂认证",stall:"现货档口认证",stockist:"库存货源认证",service_provider:"配套服务认证"};function c(e){return t[e]||e}export{t as a,c as b,l as m,r as v};

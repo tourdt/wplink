@@ -106,6 +106,36 @@ func TestAPIRouterDoesNotExposePurchaseDemandRoutes(t *testing.T) {
 	}
 }
 
+func TestAPIRouterDoesNotExposeManualMatchingRoutes(t *testing.T) {
+	store := newFakeFullAPIStore()
+	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}))
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "create match case", method: http.MethodPost, path: "/api/v1/admin/match-cases", body: `{"purchaseDemandId":"demand-1"}`},
+		{name: "list match cases", method: http.MethodGet, path: "/api/v1/admin/match-cases"},
+		{name: "update match case", method: http.MethodPost, path: "/api/v1/admin/match-cases/match-1/status", body: `{"status":"contacted"}`},
+		{name: "add match resources", method: http.MethodPost, path: "/api/v1/admin/match-cases/match-1/resources", body: `{"resourceIds":["resource-1"]}`},
+		{name: "add match participants", method: http.MethodPost, path: "/api/v1/admin/match-cases/match-1/participants", body: `{"participantMerchantIds":["merchant-1"]}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			req.Header.Set("Authorization", "Bearer admin-token")
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNotFound {
+				t.Fatalf("status = %d body = %s, want not found", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestAPIRouterUsesTokenSubjectAndMerchantPermissionForVerification(t *testing.T) {
 	store := newFakeFullAPIStore()
 	store.managedMerchants = map[string]bool{"merchant-1": true}
@@ -332,19 +362,6 @@ func TestAPIRouterUsesAdminTokenOperatorForAdminActions(t *testing.T) {
 		t.Fatalf("grant operatorID = %q, want admin token user", store.grantEntitlementInput.OperatorID)
 	}
 
-	matchRec := httptest.NewRecorder()
-	matchReq := httptest.NewRequest(http.MethodPost, "/api/v1/admin/match-cases", strings.NewReader(`{
-		"operatorId":"attacker",
-		"purchaseDemandId":"demand-1",
-		"resourceIds":["resource-1"],
-		"participantMerchantIds":["merchant-1"]
-	}`))
-	matchReq.Header.Set("Authorization", "Bearer admin-token")
-	router.ServeHTTP(matchRec, matchReq)
-	decodeEnvelopeData(t, matchRec, http.StatusOK)
-	if store.createMatchInput.OperatorID != "admin-1" {
-		t.Fatalf("match operatorID = %q, want admin token user", store.createMatchInput.OperatorID)
-	}
 }
 
 func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
@@ -387,11 +404,6 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "list pending verifications", method: http.MethodGet, path: "/api/v1/admin/verifications/pending"},
 		{name: "review verification", method: http.MethodPost, path: "/api/v1/admin/verifications/verification-1/review", body: `{"reviewerId":"user-1","action":"approve"}`},
 		{name: "grant entitlement", method: http.MethodPost, path: "/api/v1/admin/merchants/merchant-1/entitlements", body: `{"operatorId":"user-1","entitlementType":"publish_quota","sourceType":"manual","totalAmount":3,"reason":"测试发放"}`},
-		{name: "create match case", method: http.MethodPost, path: "/api/v1/admin/match-cases", body: `{"operatorId":"user-1","purchaseDemandId":"demand-1","resourceIds":["resource-1"],"participantMerchantIds":["merchant-1"]}`},
-		{name: "list match cases", method: http.MethodGet, path: "/api/v1/admin/match-cases"},
-		{name: "update match case", method: http.MethodPost, path: "/api/v1/admin/match-cases/match-1/status", body: `{"operatorId":"user-1","status":"contacted"}`},
-		{name: "add match resources", method: http.MethodPost, path: "/api/v1/admin/match-cases/match-1/resources", body: `{"operatorId":"user-1","resourceIds":["resource-1"]}`},
-		{name: "add match participants", method: http.MethodPost, path: "/api/v1/admin/match-cases/match-1/participants", body: `{"operatorId":"user-1","participantMerchantIds":["merchant-1"]}`},
 		{name: "operation logs", method: http.MethodGet, path: "/api/v1/admin/operation-logs?objectType=resource"},
 		{name: "search logs", method: http.MethodGet, path: "/api/v1/admin/search-logs?cityCode=zhili&keyword=童装"},
 		{name: "run lifecycle task", method: http.MethodPost, path: "/api/v1/admin/tasks/resource-lifecycle/run"},
@@ -443,7 +455,6 @@ type fakeFullAPIStore struct {
 	redeemResourceID             string
 	topVoucherMerchantIDs        map[string]string
 	grantEntitlementInput        model.GrantEntitlementInput
-	createMatchInput             model.CreateMatchCaseInput
 }
 
 type fakeAdminTokenService struct {
@@ -595,27 +606,6 @@ func (s *fakeFullAPIStore) ListResourceTypeConfigs(ctx context.Context, cityCode
 
 func (s *fakeFullAPIStore) UpdateResourceTypeConfig(ctx context.Context, configID string, patch model.ResourceTypeConfigPatch) (string, error) {
 	return "2026-06-28T10:00:00Z", nil
-}
-
-func (s *fakeFullAPIStore) CreateMatchCase(ctx context.Context, input model.CreateMatchCaseInput) (model.MatchCaseResult, error) {
-	s.createMatchInput = input
-	return model.MatchCaseResult{ID: "match-1", Status: model.MatchCaseStatusOpen}, nil
-}
-
-func (s *fakeFullAPIStore) ListMatchCases(ctx context.Context, filter model.ListMatchCasesFilter) (model.ListMatchCasesResult, error) {
-	return model.ListMatchCasesResult{Items: []model.MatchCaseListItem{{ID: "match-1", PurchaseDemandID: "demand-1", DemandTitle: "找童装库存", Status: model.MatchCaseStatusOpen, CreatedAt: "2026-06-28T10:00:00Z"}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
-}
-
-func (s *fakeFullAPIStore) UpdateMatchCaseStatus(ctx context.Context, input model.UpdateMatchCaseStatusInput) (model.MatchCaseResult, error) {
-	return model.MatchCaseResult{ID: input.MatchCaseID, Status: input.Status}, nil
-}
-
-func (s *fakeFullAPIStore) AddMatchCaseResources(ctx context.Context, input model.AddMatchCaseResourcesInput) error {
-	return nil
-}
-
-func (s *fakeFullAPIStore) AddMatchCaseParticipants(ctx context.Context, input model.AddMatchCaseParticipantsInput) error {
-	return nil
 }
 
 func (s *fakeFullAPIStore) ListOperationLogs(ctx context.Context, filter model.OperationLogFilter) (model.ListOperationLogsResult, error) {

@@ -102,6 +102,6 @@ INSERT INTO roles (code, name, description, permissions)
 VALUES
   ('normal_user', '普通用户', '可浏览、搜索、联系和提交需求', '[]'::jsonb),
   ('merchant_admin', '商家管理员', '可管理商家主页和资源发布', '[]'::jsonb),
-  ('platform_operator', '平台运营', '可审核、代发、撮合和发放基础权益', '[]'::jsonb),
+  ('platform_operator', '平台运营', '可审核、代发、发放基础权益和维护运营配置', '[]'::jsonb),
   ('super_admin', '超级管理员', '可管理运营账号、平台配置和全部后台能力', '[]'::jsonb)
 ON CONFLICT (code) DO NOTHING;

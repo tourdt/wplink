@@ -12,7 +12,6 @@ func TestDashboardOverviewReturnsCountsAndTasks(t *testing.T) {
 		overview: model.AdminDashboardOverview{
 			PendingResourceCount:     2,
 			PendingVerificationCount: 1,
-			PendingDemandCount:       3,
 			TodayContactCount:        8,
 			Tasks:                    []model.AdminDashboardTask{{Type: "resource", Title: "待审核资源", CityName: "织里"}},
 		},

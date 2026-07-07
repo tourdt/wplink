@@ -36,6 +36,27 @@ test('migrations and demo seed do not point to retired demand pages', () => {
   }
 })
 
+test('migrations do not create retired purchase demand or manual matching schema', () => {
+  const retiredSchemaSnippets = [
+    'CREATE TABLE IF NOT EXISTS purchase_demands',
+    'CREATE TABLE IF NOT EXISTS match_cases',
+    'CREATE TABLE IF NOT EXISTS match_case_resources',
+    'CREATE TABLE IF NOT EXISTS match_case_participants',
+    'generated_demand_id',
+    'REFERENCES purchase_demands',
+    'REFERENCES match_cases',
+    'idx_purchase_demands',
+    'idx_match_cases',
+    'idx_match_case_participants',
+  ]
+
+  for (const file of loadMigrationFiles(migrationsDir)) {
+    for (const snippet of retiredSchemaSnippets) {
+      assert(!file.sql.includes(snippet), `${file.fileName} should not contain retired schema ${snippet}`)
+    }
+  }
+})
+
 test('reports a migration without matching down file', () => {
   const issues = validateMigrationFiles([
     {

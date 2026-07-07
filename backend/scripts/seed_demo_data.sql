@@ -842,65 +842,10 @@ ON CONFLICT (scene_code, code) DO UPDATE SET
   status = EXCLUDED.status,
   updated_at = now();
 
-INSERT INTO purchase_demands (id, user_id, city_station_id, demand_type, status, title, category, price_range, quantity_requirement, attributes, contact_name, contact_phone, contact_wechat, expires_at)
-SELECT
-  8050000000000000001,
-  8010000000000000005,
-  cs.id,
-  'inventory',
-  'matching',
-  '找 3000 件女童春款卫衣现货',
-  '童装卫衣',
-  '{"min":15,"max":28,"unit":"元/件"}'::jsonb,
-  '{"quantity":3000,"unit":"件"}'::jsonb,
-  '{"sizeRange":"90-140","deadline":"3天内看样"}'::jsonb,
-  '王采购',
-  '18800000004',
-  'buyer-demo',
-  now() + interval '15 days'
-FROM city_stations cs
-WHERE cs.code = 'zhili'
-ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, updated_at = now();
-
-INSERT INTO match_cases (id, purchase_demand_id, city_station_id, status, source, operator_id, result_note)
-SELECT
-  8051000000000000001,
-  8050000000000000001,
-  cs.id,
-  'open',
-  'manual',
-  8010000000000000001,
-  '演示撮合单：待联系库存商和工厂'
-FROM city_stations cs
-WHERE cs.code = 'zhili'
-ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, result_note = EXCLUDED.result_note, updated_at = now();
-
-INSERT INTO match_case_resources (match_case_id, resource_id, role)
-VALUES
-  (8051000000000000001, 8030000000000000001, 'candidate'),
-  (8051000000000000001, 8030000000000000003, 'candidate')
-ON CONFLICT (match_case_id, resource_id) DO NOTHING;
-
-INSERT INTO match_case_participants (match_case_id, merchant_id, participant_role, contact_status)
-SELECT
-  8051000000000000001,
-  m.id,
-  'merchant',
-  'pending'
-FROM merchants m
-WHERE m.id IN (8020000000000000001, 8020000000000000002)
-  AND NOT EXISTS (
-    SELECT 1 FROM match_case_participants p
-    WHERE p.match_case_id = 8051000000000000001
-      AND p.merchant_id = m.id
-  );
-
 INSERT INTO messages (id, recipient_user_id, recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status, sent_at)
 VALUES
   (8052000000000000001, NULL, 'merchant:8020000000000000002', 'resource_review', 'resource_approve', 8030000000000000001, '资源审核通过', '女童春款卫衣库存整包清 已公开展示', '/pages/my-resources/index', 'unread', now()),
-  (8052000000000000002, NULL, 'merchant:8020000000000000002', 'resource_expiring', 'resource_expiring', 8030000000000000010, '资源即将过期', '即将过期的直播童裙库存 将在 1 天后过期', '/pages/my-resources/index', 'unread', now()),
-  (8052000000000000003, NULL, 'merchant:8020000000000000001', 'match_progress', 'match_status_update', 8051000000000000001, '撮合进度更新', '运营已创建撮合单，等待联系确认。', '/pages/messages/index', 'unread', now()),
-  (8052000000000000004, 8010000000000000005, NULL, 'match_progress', 'match_create', 8051000000000000001, '采购需求已进入撮合', '运营已受理您的采购需求。', '/pages/messages/index', 'unread', now())
+  (8052000000000000002, NULL, 'merchant:8020000000000000002', 'resource_expiring', 'resource_expiring', 8030000000000000010, '资源即将过期', '即将过期的直播童裙库存 将在 1 天后过期', '/pages/my-resources/index', 'unread', now())
 ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, content = EXCLUDED.content, sent_at = EXCLUDED.sent_at;
 
 INSERT INTO banner_topics (id, city_station_id, kind, title, subtitle, cover_url, type_scope, jump_type, jump_target, tags, sort_order, status, start_at, end_at)
@@ -908,7 +853,7 @@ SELECT
   8053000000000000001,
   cs.id,
   'banner',
-  '演示活动：童装现货撮合周',
+  '演示活动：童装现货上新周',
   '点击进入活动 web-view 验证页',
   '',
   '["inventory","goods","factory"]'::jsonb,
