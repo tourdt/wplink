@@ -2,7 +2,17 @@
 
 ## 1. 构建产物
 
-在仓库根目录执行：
+推荐在本地仓库根目录直接执行自动化部署脚本：
+
+```bash
+WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh
+```
+
+脚本会先构建发布产物，再通过 SSH/SCP 上传到服务器，完成二进制安装、systemd 服务安装、数据库 migration、服务重启和健康检查。
+
+首次部署时，如果服务器还没有 `/etc/wplink/app.yaml` 或 `/etc/wplink/wplink.env`，脚本会先创建模板文件并停止。填写生产数据库、JWT、微信、短信和七牛配置后，再次执行同一命令。
+
+如只需要本地构建发布包，不自动上传服务器，可执行：
 
 ```bash
 bash deploy/scripts/build-release.sh
@@ -52,6 +62,13 @@ psql "$DATABASE_URL" -f backend/migrations/000007_verification_payments.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000008_hot_search_keywords.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000009_verification_expiration.up.sql
 psql "$DATABASE_URL" -f backend/migrations/000010_sourcing_map.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000011_map_object_bind_requests.up.sql
+```
+
+自动化脚本会在服务器数据库中维护 `schema_migrations` 表，重复发布时只执行未记录的 migration。若生产库已经手动执行过这些 migration，但还没有 `schema_migrations` 记录，可在确认数据库结构一致后执行：
+
+```bash
+WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --mark-migrations-applied
 ```
 
 演示数据 `backend/scripts/seed_demo_data.sql` 只用于评审或演示环境，生产正式库按运营需要决定是否导入。

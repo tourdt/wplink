@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
 import test from 'node:test'
 import { createSourcingMapRenderer } from './canvasRenderer.js'
+
+const rendererSource = fs.readFileSync(path.resolve(new URL('./canvasRenderer.js', import.meta.url).pathname), 'utf8')
 
 function createMockContext(operations, options = {}) {
   const record = (type, args) => operations.push({ type, args: Array.from(args) })
@@ -202,8 +206,55 @@ test('renderer hides verified merchant names at overview zoom', () => {
     const labelTexts = operations
       .filter((entry) => entry.type === 'fillText')
       .map((entry) => entry.args[0])
+    const pointArcs = operations.filter((entry) => entry.type === 'arc')
 
     assert.equal(labelTexts.includes('森鹿童装'), false)
+    assert.equal(labelTexts.length, 0)
+    assert.ok(pointArcs.length > 0)
+  } finally {
+    globalThis.uni = originalUni
+  }
+})
+
+test('renderer hides verified point badge at overview zoom', () => {
+  const operations = []
+  const originalUni = globalThis.uni
+  globalThis.uni = {
+    createCanvasContext() {
+      return createMockContext(operations)
+    },
+  }
+
+  try {
+    const renderer = createSourcingMapRenderer()
+    renderer.init({ canvasId: 'sourcingMapCanvas', width: 300, height: 180 })
+    renderer.setScene({ width: 300, height: 180 })
+    renderer.setObjects([
+      {
+        id: 'verified-poi',
+        isVerifiedMerchant: true,
+        name: '认证配套点',
+        geometryType: 'point',
+        geometry: { x: 120, y: 80 },
+      },
+    ])
+
+    renderer.render({ scale: 1, offsetX: 0, offsetY: 0 }, {
+      width: 300,
+      height: 180,
+      baseScale: 1,
+      drawBackground: false,
+      zoomLevel: 3,
+    })
+
+    const labelTexts = operations
+      .filter((entry) => entry.type === 'fillText')
+      .map((entry) => entry.args[0])
+    const pointArcs = operations.filter((entry) => entry.type === 'arc')
+
+    assert.equal(labelTexts.includes('认'), false)
+    assert.equal(labelTexts.length, 0)
+    assert.ok(pointArcs.length > 0)
   } finally {
     globalThis.uni = originalUni
   }
@@ -384,4 +435,10 @@ test('renderer keeps selected and highlighted labels visible while interacting',
   } finally {
     globalThis.uni = originalUni
   }
+})
+
+test('renderer caches object paint order until object input changes', () => {
+  assert.match(rendererSource, /let sortedObjects = \[\]/)
+  assert.match(rendererSource, /function setObjects\(nextObjects = \[\]\)[\s\S]*sortedObjects = \[\.\.\.objects\]\.sort\(compareObjectPaintOrder\)/)
+  assert.doesNotMatch(rendererSource, /function render\(transform = \{\}, renderOptions = \{\}\)[\s\S]*\[\.\.\.objects\]\.sort\(compareObjectPaintOrder\)/)
 })

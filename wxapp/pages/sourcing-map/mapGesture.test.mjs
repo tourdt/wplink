@@ -104,6 +104,13 @@ test('screenToMap reverses the active transform', () => {
   assert.deepEqual(screenToMap({ x: 150, y: 130 }, transform), { x: 100, y: 80 })
 })
 
+test('screenToMap preserves zoomed-out scales below one', () => {
+  const transform = { scale: 0.5, offsetX: 25, offsetY: -10 }
+
+  assert.deepEqual(screenToMap({ x: 125, y: 90 }, transform), { x: 200, y: 200 })
+  assert.deepEqual(mapToScreen({ x: 200, y: 200 }, transform), { x: 125, y: 90 })
+})
+
 test('endGesture clamps the final transform to map bounds', () => {
   const state = startGesture([touch(100, 100)], { scale: 1, offsetX: -100, offsetY: -80 }, options)
   const moved = moveGesture(state, [touch(10, 10)], options)

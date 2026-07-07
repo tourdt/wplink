@@ -189,7 +189,6 @@ import { onLoad, onReady } from '@dcloudio/uni-app'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import {
   getMapObject,
-  getMapScene,
   listMapCategories,
   listMapObjects,
   listMapScenes,
@@ -209,8 +208,8 @@ const MAP_TOP_CHROME_HEIGHT_RPX = 176
 const MAP_MIN_SCALE = 1
 const MAP_MAX_SCALE = 3
 const MAP_EDGE_FEEDBACK_PADDING_PX = 40
-const VIEWPORT_PADDING_RATIO = 0.35
-const VIEWPORT_RELOAD_DELAY_MS = 520
+const MAP_OBJECT_SEARCH_LIMIT = 1000
+const CANVAS_RENDER_FRAME_DELAY_MS = 16
 const DEFAULT_SCENE_NAME = '织里童装拿货地图'
 const defaultLabelDictionary = {
   girl: '女童',
@@ -308,7 +307,8 @@ const selectedSceneCode = ref('')
 const routeSceneCode = ref('')
 const keyword = ref('')
 const rawMapObjects = ref([])
-const mapObjectTotal = ref(0)
+const loadedMapObjectTotal = ref(0)
+const loadedObjectKeyword = ref('')
 const mapCategories = ref([])
 const selectedObject = ref(null)
 const selectedObjectId = ref('')
@@ -327,13 +327,13 @@ const activeFilters = ref(defaultActiveFilters())
 const filtersExpanded = ref(false)
 const sceneErrorText = ref('地图数据发布后可在这里查看档口和配套点位。')
 const componentInstance = getCurrentInstance()
-let viewportReloadTimer = null
 let canvasGestureState = null
 let suppressNextCanvasTap = false
 let mapRenderer = null
 let mapCanvasRenderSeq = 0
-let viewportObjectsCache = new Map()
-// 视口懒加载和搜索/筛选可能并发，只应用最后一次点位请求，避免旧视野覆盖新视野。
+let canvasRenderTimer = null
+let pendingCanvasRenderOptions = null
+// 点位加载和搜索/筛选可能并发，只应用最后一次请求，避免旧响应覆盖新结果。
 let objectRequestSeq = 0
 let visibleObjectRequestSeq = 0
 
@@ -361,6 +361,13 @@ const activeFilterSummary = computed(() => {
   if (hasActiveFilters.value) parts.push(`筛选 ${activeFilterCount.value} 项`)
   return parts.join(' · ')
 })
+const filteredMapObjects = computed(() => applyLocalFilters(rawMapObjects.value))
+const mapObjectTotal = computed(() => {
+  if (!keyword.value.trim() && hasActiveFilters.value) {
+    return filteredMapObjects.value.length
+  }
+  return loadedMapObjectTotal.value
+})
 const mapObjectCountText = computed(() => {
   const total = mapObjectTotal.value
   if (keyword.value.trim()) {
@@ -372,8 +379,9 @@ const mapObjectCountText = computed(() => {
   return `全图 ${total} 个点位`
 })
 const mapZoomLevel = computed(() => getZoomLevelByScale(mapTransform.value.scale))
-const visibleMapObjects = computed(() => rawMapObjects.value.filter((object) => isObjectVisibleAtZoom(object, mapZoomLevel.value)))
+const visibleMapObjects = computed(() => filteredMapObjects.value.filter((object) => isObjectVisibleAtZoom(object, mapZoomLevel.value)))
 const mapObjects = computed(() => visibleMapObjects.value)
+const renderMapObjects = computed(() => mapObjects.value.filter((object) => isObjectInBounds(object, getVisibleSceneBounds())))
 const mapCanvasStyle = computed(() => `height: ${mapViewportHeightRpx.value}rpx;`)
 const mapMinScale = computed(() => calculateMapMinScale())
 const mapLayerPixelSize = computed(() => buildMapLayerPixelSize())
@@ -421,7 +429,7 @@ onReady(() => {
 })
 
 onUnmounted(() => {
-  clearTimeout(viewportReloadTimer)
+  clearScheduledMapCanvasRender()
   mapRenderer?.dispose()
   mapRenderer = null
   mapCanvasRenderSeq += 1
@@ -465,7 +473,8 @@ async function loadScenes(options = {}) {
       selectedScene.value = null
       selectedSceneCode.value = ''
       rawMapObjects.value = []
-      mapObjectTotal.value = 0
+      loadedMapObjectTotal.value = 0
+      loadedObjectKeyword.value = ''
       sceneErrorText.value = '地图暂未开放，请稍后再试。'
       return
     }
@@ -476,7 +485,8 @@ async function loadScenes(options = {}) {
     selectedScene.value = null
     selectedSceneCode.value = ''
     rawMapObjects.value = []
-    mapObjectTotal.value = 0
+    loadedMapObjectTotal.value = 0
+    loadedObjectKeyword.value = ''
     sceneErrorText.value = '地图加载失败，请检查网络后重试。'
   } finally {
     loading.value = false
@@ -543,22 +553,16 @@ async function selectScene(scene) {
   selectedObjectId.value = ''
   nearbyPois.value = []
   resetCanvasGestureState()
-  clearTimeout(viewportReloadTimer)
-  try {
-    const resp = await getMapScene(scene.code, { suppressErrorToast: true })
-    selectedScene.value = resp.item || scene
-    applySceneDefaultViewport(selectedScene.value)
-  } catch {
-    selectedScene.value = scene
-    applySceneDefaultViewport(selectedScene.value)
-  }
+  selectedScene.value = scene
+  applySceneDefaultViewport(selectedScene.value)
   await loadSceneObjects()
 }
 
 async function loadSceneObjects(options = {}) {
   if (!selectedSceneCode.value) {
     rawMapObjects.value = []
-    mapObjectTotal.value = 0
+    loadedMapObjectTotal.value = 0
+    loadedObjectKeyword.value = ''
     return
   }
   const requestId = ++objectRequestSeq
@@ -569,30 +573,20 @@ async function loadSceneObjects(options = {}) {
   }
   try {
     const term = keyword.value.trim()
-    const cacheKey = term ? '' : buildViewportObjectsCacheKey()
-    if (!term && options.silent && viewportObjectsCache.has(cacheKey)) {
-      const cached = normalizeCachedObjectPayload(viewportObjectsCache.get(cacheKey))
-      mapObjectTotal.value = cached.total
-      rawMapObjects.value = applyLocalFilters(cached.items)
-      syncSelectedObjectAfterLoad()
-      renderMapCanvas()
-    }
     const resp = term
       ? await searchMapObjects({
-          ...buildObjectQueryParams({ includeViewport: false }),
+          ...buildObjectQueryParams(),
           sceneCode: selectedSceneCode.value,
           keyword: term,
-          limit: 50,
+          limit: MAP_OBJECT_SEARCH_LIMIT,
         })
-      : await listMapObjects(selectedSceneCode.value, buildObjectQueryParams({ includeViewport: true }))
+      : await listMapObjects(selectedSceneCode.value)
     if (requestId !== objectRequestSeq) return
     const items = resp.items || []
     const total = normalizeResponseTotal(resp.total, items.length)
-    if (!term) {
-      viewportObjectsCache.set(cacheKey, { items, total })
-    }
-    mapObjectTotal.value = total
-    rawMapObjects.value = applyLocalFilters(items)
+    loadedMapObjectTotal.value = total
+    loadedObjectKeyword.value = term
+    rawMapObjects.value = items
     if (options.focusFirst) {
       selectFirstObjectAfterSearch()
     } else {
@@ -605,21 +599,14 @@ async function loadSceneObjects(options = {}) {
     if (requestId !== objectRequestSeq) return
     if (options.silent) return
     rawMapObjects.value = []
-    mapObjectTotal.value = 0
+    loadedMapObjectTotal.value = 0
+    loadedObjectKeyword.value = ''
     clearSelectedObject()
     uni.showToast({ title: '地图点位加载失败，请稍后重试', icon: 'none' })
   } finally {
     if (showLoading && visibleObjectRequestSeq === requestId) {
       objectLoading.value = false
     }
-  }
-}
-
-function normalizeCachedObjectPayload(payload) {
-  const items = Array.isArray(payload) ? payload : (Array.isArray(payload?.items) ? payload.items : [])
-  return {
-    items,
-    total: normalizeResponseTotal(payload?.total, items.length),
   }
 }
 
@@ -637,7 +624,11 @@ async function submitSearch() {
 
 async function clearSearch() {
   keyword.value = ''
-  await loadSceneObjects({ focusFirst: hasActiveFilters.value })
+  if (loadedObjectKeyword.value) {
+    await loadSceneObjects({ focusFirst: hasActiveFilters.value })
+    return
+  }
+  applyLocalConditionResults({ focusFirst: hasActiveFilters.value })
 }
 
 async function toggleFilter(key, value) {
@@ -648,12 +639,20 @@ async function toggleFilter(key, value) {
     ...activeFilters.value,
     [key]: exists ? current.filter((item) => item !== normalizedValue) : [...current, normalizedValue],
   }
-  await loadSceneObjects({ focusFirst: true })
+  if (shouldReloadObjectsForConditionChange()) {
+    await loadSceneObjects({ focusFirst: true })
+    return
+  }
+  applyLocalConditionResults({ focusFirst: true })
 }
 
 async function clearFilters() {
   activeFilters.value = defaultActiveFilters()
-  await loadSceneObjects({ focusFirst: Boolean(keyword.value.trim()) })
+  if (shouldReloadObjectsForConditionChange()) {
+    await loadSceneObjects({ focusFirst: Boolean(keyword.value.trim()) })
+    return
+  }
+  applyLocalConditionResults()
 }
 
 function toggleFiltersExpanded() {
@@ -661,67 +660,49 @@ function toggleFiltersExpanded() {
 }
 
 async function clearMapConditions() {
+  const wasSearchLoaded = Boolean(loadedObjectKeyword.value)
   keyword.value = ''
   activeFilters.value = defaultActiveFilters()
-  await loadSceneObjects()
+  if (wasSearchLoaded) {
+    await loadSceneObjects()
+    return
+  }
+  applyLocalConditionResults()
+}
+
+function shouldReloadObjectsForConditionChange() {
+  return Boolean(keyword.value.trim())
+}
+
+function applyLocalConditionResults(options = {}) {
+  if (options.focusFirst) {
+    selectFirstObjectAfterSearch()
+    return
+  }
+  syncSelectedObjectAfterLoad()
+  if (!options.silent) {
+    focusSingleObjectAfterLoad()
+  }
+  renderMapCanvas()
 }
 
 function isFilterActive(key, value) {
   return (activeFilters.value[key] || []).includes(normalizeFilterOptionValue(key, value))
 }
 
-function buildObjectQueryParams(options = {}) {
+function buildObjectQueryParams() {
   const params = {}
   if (activeFilters.value.types.length) params.types = expandFilterValues('types', activeFilters.value.types).join(',')
   if (activeFilters.value.categories.length) params.categories = expandFilterValues('categories', activeFilters.value.categories).join(',')
   if (activeFilters.value.serviceTags.length) params.serviceTags = expandFilterValues('serviceTags', activeFilters.value.serviceTags).join(',')
   if (activeFilters.value.poiServiceTags.length) params.poiServiceTags = expandFilterValues('poiServiceTags', activeFilters.value.poiServiceTags).join(',')
-  return options.includeViewport ? { ...params, ...buildViewportQueryParams() } : params
+  return params
 }
 
 function expandFilterValues(groupKey, values) {
   const aliasGroup = tagAliases[groupKey] || {}
   const expanded = values.flatMap((value) => aliasGroup[value] || [value])
   return [...new Set(expanded.filter(Boolean))]
-}
-
-function buildViewportObjectsCacheKey() {
-  const viewport = buildViewportQueryParams()
-  const filterKey = Object.entries(activeFilters.value)
-    .map(([key, values]) => `${key}:${values.join('|')}`)
-    .join(';')
-  const bucketSize = 120
-  return [
-    selectedSceneCode.value,
-    viewport.zoom,
-    Math.floor(viewport.minX / bucketSize),
-    Math.floor(viewport.minY / bucketSize),
-    Math.floor(viewport.maxX / bucketSize),
-    Math.floor(viewport.maxY / bucketSize),
-    filterKey,
-  ].join(':')
-}
-
-function buildViewportQueryParams() {
-  if (!selectedScene.value) return {}
-  const bounds = getVisibleSceneBounds()
-  const visibleWidth = Math.max(1, bounds.maxX - bounds.minX)
-  const visibleHeight = Math.max(1, bounds.maxY - bounds.minY)
-  const paddingX = visibleWidth * VIEWPORT_PADDING_RATIO
-  const paddingY = visibleHeight * VIEWPORT_PADDING_RATIO
-  const sceneWidth = toPositiveNumber(selectedScene.value.width, MAP_MAX_WIDTH_RPX)
-  const sceneHeight = toPositiveNumber(selectedScene.value.height, 420)
-  const minX = clampNumber(bounds.minX - paddingX, 0, sceneWidth)
-  const minY = clampNumber(bounds.minY - paddingY, 0, sceneHeight)
-  const maxX = clampNumber(bounds.maxX + paddingX, 0, sceneWidth)
-  const maxY = clampNumber(bounds.maxY + paddingY, 0, sceneHeight)
-  return {
-    minX: Math.floor(minX),
-    minY: Math.floor(minY),
-    maxX: Math.ceil(maxX),
-    maxY: Math.ceil(maxY),
-    zoom: mapZoomLevel.value,
-  }
 }
 
 function selectMapObject(object, options = { focus: true }) {
@@ -790,16 +771,16 @@ function matchesSelectedValues(values, selected, groupKey = '') {
   return expandedSelected.some((value) => values.includes(value))
 }
 
-function focusMapObject(object, options = {}) {
-  focusMapCenter(calculateObjectCenter(object), options)
+function focusMapObject(object) {
+  focusMapCenter(calculateObjectCenter(object))
 }
 
 function focusSingleObjectAfterLoad() {
   if (selectedObjectId.value || mapObjects.value.length !== 1) return
-  focusMapObject(mapObjects.value[0], { reloadViewport: false })
+  focusMapObject(mapObjects.value[0])
 }
 
-function focusMapCenter(center, options = {}) {
+function focusMapCenter(center) {
   const metrics = getSceneRenderMetrics()
   const nextTransform = {
     ...mapTransform.value,
@@ -807,9 +788,6 @@ function focusMapCenter(center, options = {}) {
     offsetY: Math.round(mapViewportSize.value.height / 2 - center.y * metrics.baseScale * mapTransform.value.scale),
   }
   setMapTransform(nextTransform)
-  if (options.reloadViewport !== false) {
-    scheduleViewportObjectReload()
-  }
 }
 
 function applySceneDefaultViewport(scene) {
@@ -830,7 +808,7 @@ function applySceneDefaultViewport(scene) {
   if (centerX == null || centerY == null) {
     return
   }
-  focusMapCenter({ x: centerX, y: centerY }, { reloadViewport: false })
+  focusMapCenter({ x: centerX, y: centerY })
 }
 
 function normalizeSceneDefaultScale(value) {
@@ -847,12 +825,10 @@ function resetMapViewport() {
   if (!selectedScene.value) return
   applySceneDefaultViewport(selectedScene.value)
   renderMapCanvas()
-  scheduleViewportObjectReload()
 }
 
 function handleCanvasTouchStart(event) {
   if (canvasErrorText.value || !selectedScene.value) return
-  clearTimeout(viewportReloadTimer)
   syncCanvasShellRect()
   canvasGestureState = startGesture(getCanvasTouches(event), mapTransform.value, getGestureOptions())
   boundaryHintEdges.value = []
@@ -866,7 +842,7 @@ function handleCanvasTouchMove(event) {
   setMapTransform(result.transform, { allowOverflow: true })
   clearSelectedObjectOutsideViewport()
   boundaryHintEdges.value = buildBoundaryHintEdges(result.transform)
-  renderMapCanvas({ force: true, interacting: true })
+  scheduleMapCanvasRender({ force: true, interacting: true })
 }
 
 function handleCanvasTouchEnd() {
@@ -875,12 +851,12 @@ function handleCanvasTouchEnd() {
   const moved = canvasGestureState.moved
   canvasGestureState = null
   boundaryHintEdges.value = []
+  clearScheduledMapCanvasRender()
   setMapTransform(nextTransform)
   clearSelectedObjectOutsideViewport()
   renderMapCanvas()
   if (moved) {
     suppressNextCanvasTap = true
-    scheduleViewportObjectReload()
     setTimeout(() => {
       suppressNextCanvasTap = false
     }, 120)
@@ -960,7 +936,7 @@ function renderMapCanvas(options = {}) {
   if (canvasGestureState && !options.force) return
   const metrics = getSceneRenderMetrics()
   mapRenderer.setScene(selectedScene.value)
-  mapRenderer.setObjects(mapObjects.value)
+  mapRenderer.setObjects(renderMapObjects.value)
   mapRenderer.setSelectedObject(selectedObject.value)
   const renderSeq = ++mapCanvasRenderSeq
   const rendered = mapRenderer.render(mapTransform.value, {
@@ -983,6 +959,33 @@ function renderMapCanvas(options = {}) {
     return
   }
   mapCanvasOverlayReady.value = true
+}
+
+function scheduleMapCanvasRender(options = {}) {
+  pendingCanvasRenderOptions = mergeCanvasRenderOptions(pendingCanvasRenderOptions, options)
+  if (canvasRenderTimer) return
+  canvasRenderTimer = setTimeout(() => {
+    const renderOptions = pendingCanvasRenderOptions || {}
+    pendingCanvasRenderOptions = null
+    canvasRenderTimer = null
+    renderMapCanvas(renderOptions)
+  }, CANVAS_RENDER_FRAME_DELAY_MS)
+}
+
+function clearScheduledMapCanvasRender() {
+  clearTimeout(canvasRenderTimer)
+  canvasRenderTimer = null
+  pendingCanvasRenderOptions = null
+}
+
+function mergeCanvasRenderOptions(current, next) {
+  if (!current) return { ...next }
+  return {
+    ...current,
+    ...next,
+    force: Boolean(current.force || next.force),
+    interacting: Boolean(current.interacting || next.interacting),
+  }
 }
 
 function buildMapLayerStyle() {
@@ -1212,17 +1215,6 @@ function calculateSafeAreaBottomPx(info) {
     return 0
   }
   return clampNumber(Math.round(screenHeight - safeAreaBottom), 0, 80)
-}
-
-function scheduleViewportObjectReload() {
-  if (!selectedSceneCode.value || keyword.value.trim()) {
-    return
-  }
-  clearTimeout(viewportReloadTimer)
-  // 拖动/缩放后静默补齐当前视口点位，不打断买手正在查看的列表和地图状态。
-  viewportReloadTimer = setTimeout(async () => {
-    await loadSceneObjects({ keepSelection: true, silent: true })
-  }, VIEWPORT_RELOAD_DELAY_MS)
 }
 
 function calculateObjectCenter(object) {

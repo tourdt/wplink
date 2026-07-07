@@ -27,11 +27,13 @@ const COLORS = {
 
 const VERIFIED_LABEL_ZOOM_LEVEL = 5
 const VERIFIED_PIN_ZOOM_LEVEL = 4
+const VERIFIED_OVERVIEW_ZOOM_LEVEL = 3
 
 export function createSourcingMapRenderer(options = {}) {
   let ctx = null
   let scene = null
   let objects = []
+  let sortedObjects = []
   let selectedObject = null
   let width = 0
   let height = 0
@@ -62,7 +64,10 @@ export function createSourcingMapRenderer(options = {}) {
   }
 
   function setObjects(nextObjects = []) {
-    objects = Array.isArray(nextObjects) ? nextObjects : []
+    const normalizedObjects = Array.isArray(nextObjects) ? nextObjects : []
+    if (normalizedObjects === objects) return
+    objects = normalizedObjects
+    sortedObjects = [...objects].sort(compareObjectPaintOrder)
   }
 
   function setSelectedObject(nextObject) {
@@ -84,7 +89,6 @@ export function createSourcingMapRenderer(options = {}) {
     }
     lastBackgroundDrawn = backgroundDrawn
 
-    const sortedObjects = [...objects].sort(compareObjectPaintOrder)
     for (const object of sortedObjects) {
       drawMapObject(ctx, object, metrics, renderOptions)
     }
@@ -119,6 +123,7 @@ export function createSourcingMapRenderer(options = {}) {
     ctx = null
     scene = null
     objects = []
+    sortedObjects = []
     selectedObject = null
     lastBackgroundDrawn = false
     pendingBackgroundUrls.clear()
@@ -183,6 +188,11 @@ function drawRectObject(ctx, object, metrics) {
   const width = projectSize(toPositiveNumber(geometry.width, 80), metrics)
   const height = projectSize(toPositiveNumber(geometry.height, 50), metrics)
 
+  if (shouldDrawVerifiedOverviewPoint(object, metrics)) {
+    drawVerifiedOverviewPoint(ctx, object, metrics)
+    return
+  }
+
   drawBoothOutline(ctx, x, y, width, height, object)
 
   if (isRentableObject(object)) {
@@ -243,6 +253,11 @@ function drawVerifiedBoothMarker(ctx, object, metrics, rect) {
 }
 
 function drawPointObject(ctx, object, metrics) {
+  if (shouldDrawVerifiedOverviewPoint(object, metrics)) {
+    drawVerifiedOverviewPoint(ctx, object, metrics)
+    return
+  }
+
   const geometry = object.geometry || {}
   const x = projectX(toNumber(geometry.x, toNumber(object.centerX, 0)), metrics)
   const y = projectY(toNumber(geometry.y, toNumber(object.centerY, 0)), metrics)
@@ -266,6 +281,11 @@ function drawPointObject(ctx, object, metrics) {
 function drawPolygonObject(ctx, object, metrics) {
   const points = normalizePolygonPoints(object.geometry)
   if (points.length < 3) return
+
+  if (shouldDrawVerifiedOverviewPoint(object, metrics)) {
+    drawVerifiedOverviewPoint(ctx, object, metrics)
+    return
+  }
 
   beginPath(ctx)
   fillPolygonPath(ctx, points, metrics)
@@ -404,6 +424,22 @@ function drawVerifiedPin(ctx, x, y) {
   fill(ctx)
 }
 
+function drawVerifiedOverviewPoint(ctx, object, metrics) {
+  const center = objectCenter(object)
+  const x = projectX(center.x, metrics)
+  const y = projectY(center.y, metrics)
+  const radius = Math.max(4, Math.min(7, 5 * metrics.scale))
+
+  beginPath(ctx)
+  arc(ctx, x, y, radius, 0, Math.PI * 2)
+  closePath(ctx)
+  setFillStyle(ctx, COLORS.verifiedMarkerFill)
+  fill(ctx)
+  setStrokeStyle(ctx, COLORS.verifiedStroke)
+  setLineWidth(ctx, 1.5)
+  stroke(ctx)
+}
+
 function drawVerifiedLabelMarker(ctx, object, metrics, rect) {
   const label = objectLabelText(object)
   if (!label) {
@@ -519,6 +555,10 @@ function objectPalette(object) {
 
 function isVerifiedObject(object) {
   return isVerifiedMapObject(object)
+}
+
+function shouldDrawVerifiedOverviewPoint(object, metrics) {
+  return isVerifiedObject(object) && toPositiveNumber(metrics.zoomLevel, VERIFIED_LABEL_ZOOM_LEVEL) <= VERIFIED_OVERVIEW_ZOOM_LEVEL
 }
 
 function isRentableObject(object) {

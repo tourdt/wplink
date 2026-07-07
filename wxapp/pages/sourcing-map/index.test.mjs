@@ -121,8 +121,8 @@ test('sourcing map page supports quick category and poi filters', () => {
     'poi_type',
     'poi_service',
   ])
-  assert.match(source, /listMapObjects\(selectedSceneCode\.value,\s*buildObjectQueryParams\(\{ includeViewport: true \}\)\)/)
-  assert.match(source, /searchMapObjects\(\{\s*\.\.\.buildObjectQueryParams\(\{ includeViewport: false \}\),\s*sceneCode:/)
+  assert.match(source, /listMapObjects\(selectedSceneCode\.value\)/)
+  assert.match(source, /searchMapObjects\(\{\s*\.\.\.buildObjectQueryParams\(\),\s*sceneCode:/)
 })
 
 test('sourcing map empty results can clear search and filters', () => {
@@ -181,7 +181,7 @@ test('sourcing map renders base map and objects through the same canvas with nat
   expectTokens(source, [
     'map-background-layer',
     'map-background-image',
-    'mapRenderer.setObjects(mapObjects.value)',
+    'mapRenderer.setObjects(renderMapObjects.value)',
     "drawBackground: 'whenReady'",
     'onDrawComplete',
   ])
@@ -254,7 +254,7 @@ test('sourcing map renders the active transform inside a viewport-sized canvas',
     ':width="mapCanvasPixelSize.width"',
     ':height="mapCanvasPixelSize.height"',
     "drawBackground: 'whenReady'",
-    'renderMapCanvas({ force: true, interacting: true })',
+    'scheduleMapCanvasRender({ force: true, interacting: true })',
   ])
   assert.match(source, /<view :class="\['map-layer', \{ hidden: mapNativeFallbackHidden \}\]" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
   assert.match(source, /mapRenderer\.render\(mapTransform\.value,[\s\S]*width: mapCanvasPixelSize\.value\.width,[\s\S]*height: mapCanvasPixelSize\.value\.height/)
@@ -317,10 +317,18 @@ test('sourcing map page applies configured default scene viewport', () => {
     'MAP_MIN_SCALE',
     'MAP_MAX_SCALE',
   ])
-  assert.match(source, /selectedScene\.value = resp\.item \|\| scene[\s\S]*applySceneDefaultViewport\(selectedScene\.value\)/)
+  assert.match(source, /selectedScene\.value = scene[\s\S]*applySceneDefaultViewport\(selectedScene\.value\)/)
   assert.match(source, /function applySceneDefaultViewport\(scene\)[\s\S]*setMapTransform\(/)
-  assert.match(source, /focusMapCenter\(\{ x: centerX, y: centerY \},\s*\{ reloadViewport: false \}\)/)
+  assert.match(source, /focusMapCenter\(\{ x: centerX, y: centerY \}\)/)
   assert.match(source, /function normalizeSceneDefaultScale\(value\)[\s\S]*function normalizeMapScale\(value\)[\s\S]*Math\.min\(MAP_MAX_SCALE,\s*Math\.max\(mapMinScale\.value,\s*scale\)/)
+})
+
+test('sourcing map uses scene list payload without a duplicate scene detail request', () => {
+  const selectScene = extractFunction('selectScene')
+
+  assert.match(selectScene, /selectedScene\.value = scene/)
+  assert.doesNotMatch(source, /import[\s\S]*getMapScene/)
+  assert.doesNotMatch(selectScene, /getMapScene/)
 })
 
 test('sourcing map page provides navigation with address fallback', () => {
@@ -409,14 +417,34 @@ test('sourcing map redraws a viewport canvas during gestures to avoid native can
     'buildMapLayerStyle',
     ':style="mapLayerStyle"',
     'mapCanvasSurfaceStyle',
-    'renderMapCanvas({ force: true, interacting: true })',
+    'scheduleMapCanvasRender({ force: true, interacting: true })',
   ])
 
   const moveHandler = extractFunction('handleCanvasTouchMove')
   const endHandler = extractFunction('handleCanvasTouchEnd')
-  assert.match(moveHandler, /renderMapCanvas\(\{ force: true,\s*interacting: true \}\)/)
+  assert.match(moveHandler, /scheduleMapCanvasRender\(\{ force: true,\s*interacting: true \}\)/)
   assert.match(endHandler, /renderMapCanvas\(\)/)
   assert.match(source, /<view :class="\['map-layer', \{ hidden: mapNativeFallbackHidden \}\]" :style="mapLayerStyle">[\s\S]*class="map-background-image"[\s\S]*<\/view>\s*<canvas/)
+})
+
+test('sourcing map throttles gesture redraws through a single queued canvas render', () => {
+  expectTokens(source, [
+    'scheduleMapCanvasRender',
+    'clearScheduledMapCanvasRender',
+    'pendingCanvasRenderOptions',
+    'canvasRenderTimer',
+    'CANVAS_RENDER_FRAME_DELAY_MS',
+  ])
+
+  const moveHandler = extractFunction('handleCanvasTouchMove')
+  const endHandler = extractFunction('handleCanvasTouchEnd')
+  const scheduler = extractFunction('scheduleMapCanvasRender')
+
+  assert.match(moveHandler, /scheduleMapCanvasRender\(\{ force: true,\s*interacting: true \}\)/)
+  assert.doesNotMatch(moveHandler, /renderMapCanvas\(\{ force: true,\s*interacting: true \}\)/)
+  assert.match(endHandler, /clearScheduledMapCanvasRender\(\)/)
+  assert.match(scheduler, /if \(canvasRenderTimer\) return/)
+  assert.match(scheduler, /setTimeout\(/)
 })
 
 test('sourcing map gives rubber band feedback when users drag past map bounds', () => {
@@ -476,39 +504,85 @@ test('sourcing map can zoom out until the whole base map is visible', () => {
 test('sourcing map page filters visible objects by configured zoom range', () => {
   expectTokens(source, [
     'rawMapObjects',
+    'filteredMapObjects',
     'visibleMapObjects',
     'isObjectVisibleAtZoom',
     'minZoom',
     'maxZoom',
   ])
   assert.match(source, /const mapObjects = computed\(\(\) => visibleMapObjects\.value\)/)
-  assert.match(source, /const visibleMapObjects = computed\(\(\) => rawMapObjects\.value\.filter\(\(object\) => isObjectVisibleAtZoom\(object,\s*mapZoomLevel\.value\)\)\)/)
+  assert.match(source, /const filteredMapObjects = computed\(\(\) => applyLocalFilters\(rawMapObjects\.value\)\)/)
+  assert.match(source, /const visibleMapObjects = computed\(\(\) => filteredMapObjects\.value\.filter\(\(object\) => isObjectVisibleAtZoom\(object,\s*mapZoomLevel\.value\)\)\)/)
   assert.match(source, /function isObjectVisibleAtZoom\(object,\s*zoomLevel\)[\s\S]*const minZoom = toNumber\(object\?\.minZoom,\s*1\)[\s\S]*const maxZoom = toNumber\(object\?\.maxZoom,\s*5\)[\s\S]*return zoomLevel >= minZoom && zoomLevel <= maxZoom/)
 })
 
-test('sourcing map page requests objects by current canvas viewport', () => {
+test('sourcing map only sends current viewport objects to canvas renderer', () => {
+  expectTokens(source, [
+    'renderMapObjects',
+    'getVisibleSceneBounds',
+    'isObjectInBounds',
+    'mapRenderer.setObjects(renderMapObjects.value)',
+  ])
+
+  assert.match(source, /const mapObjects = computed\(\(\) => visibleMapObjects\.value\)/)
+  assert.match(source, /const renderMapObjects = computed\(\(\) => mapObjects\.value\.filter\(\(object\) => isObjectInBounds\(object,\s*getVisibleSceneBounds\(\)\)\)/)
+  assert.match(source, /mapRenderer\.setObjects\(renderMapObjects\.value\)/)
+  assert.doesNotMatch(source, /mapRenderer\.setObjects\(mapObjects\.value\)/)
+})
+
+test('sourcing map applies category filters locally after full-scene objects are loaded', () => {
+  expectTokens(source, [
+    'filteredMapObjects',
+    'loadedObjectKeyword',
+    'applyLocalConditionResults',
+    'shouldReloadObjectsForConditionChange',
+    'applyLocalFilters(rawMapObjects.value)',
+  ])
+
+  const loadSceneObjects = extractFunction('loadSceneObjects')
+  const toggleFilter = extractFunction('toggleFilter')
+  const clearFilters = extractFunction('clearFilters')
+  const buildObjectQueryParams = extractFunction('buildObjectQueryParams')
+
+  assert.match(source, /const filteredMapObjects = computed\(\(\) => applyLocalFilters\(rawMapObjects\.value\)\)/)
+  assert.match(source, /const visibleMapObjects = computed\(\(\) => filteredMapObjects\.value\.filter/)
+  assert.match(loadSceneObjects, /listMapObjects\(selectedSceneCode\.value\)/)
+  assert.doesNotMatch(loadSceneObjects, /listMapObjects\(selectedSceneCode\.value,\s*buildObjectQueryParams\(\)\)/)
+  assert.match(toggleFilter, /if \(shouldReloadObjectsForConditionChange\(\)\)[\s\S]*loadSceneObjects\(\{ focusFirst: true \}\)[\s\S]*applyLocalConditionResults\(\{ focusFirst: true \}\)/)
+  assert.match(clearFilters, /if \(shouldReloadObjectsForConditionChange\(\)\)[\s\S]*loadSceneObjects\(\{ focusFirst: Boolean\(keyword\.value\.trim\(\)\) \}\)[\s\S]*applyLocalConditionResults\(/)
+  assert.match(buildObjectQueryParams, /activeFilters\.value/)
+})
+
+test('sourcing map page loads full scene objects without viewport query slicing', () => {
   expectTokens(source, [
     '@touchmove.stop.prevent="handleCanvasTouchMove"',
     'handleCanvasTouchMove',
     'handleCanvasTouchEnd',
-    'scheduleViewportObjectReload',
-    'buildViewportQueryParams',
-    'VIEWPORT_PADDING_RATIO',
-    'viewportReloadTimer',
+    'MAP_OBJECT_SEARCH_LIMIT',
     'screenToMap',
-    'minX',
-    'minY',
-    'maxX',
-    'maxY',
-    'zoom: mapZoomLevel.value',
+    'listMapObjects',
+    'buildObjectQueryParams',
+    'rawMapObjects',
   ])
 
   const moveHandler = extractFunction('handleCanvasTouchMove')
   const endHandler = extractFunction('handleCanvasTouchEnd')
   assert.doesNotMatch(moveHandler, /loadSceneObjects/)
-  assert.match(endHandler, /scheduleViewportObjectReload\(\)/)
-  assert.match(source, /listMapObjects\(selectedSceneCode\.value,\s*buildObjectQueryParams\(\{ includeViewport: true \}\)\)/)
-  assert.match(source, /setTimeout\(async \(\) => \{[\s\S]*await loadSceneObjects\(\{ keepSelection: true,\s*silent: true \}\)/)
+  assert.doesNotMatch(endHandler, /loadSceneObjects/)
+  assert.match(source, /listMapObjects\(selectedSceneCode\.value\)/)
+  assert.match(source, /limit:\s*MAP_OBJECT_SEARCH_LIMIT/)
+  assert.doesNotMatch(source, /limit:\s*50/)
+  for (const token of [
+    'scheduleViewportObjectReload',
+    'buildViewportQueryParams',
+    'buildViewportObjectsCacheKey',
+    'VIEWPORT_PADDING_RATIO',
+    'VIEWPORT_RELOAD_DELAY_MS',
+    'viewportReloadTimer',
+    'viewportObjectsCache',
+  ]) {
+    assert.doesNotMatch(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
 })
 
 test('sourcing map clears selected merchant details when the selected object leaves the visible viewport', () => {
@@ -544,10 +618,11 @@ test('sourcing map converts touch and tap coordinates into canvas-local coordina
   assert.match(source, /function getCanvasEventPoint\(event\)[\s\S]*normalizeCanvasPoint\(/)
 })
 
-test('sourcing map reloads viewport objects after programmatic focus changes', () => {
+test('sourcing map programmatic focus only updates local transform', () => {
   const focusHandler = extractFunction('focusMapCenter')
   assert.match(focusHandler, /setMapTransform\(nextTransform\)/)
-  assert.match(focusHandler, /scheduleViewportObjectReload\(\)/)
+  assert.doesNotMatch(focusHandler, /loadSceneObjects/)
+  assert.doesNotMatch(focusHandler, /scheduleViewportObjectReload/)
 })
 
 test('sourcing map centers the only loaded object so a single result is visible', () => {
@@ -555,10 +630,10 @@ test('sourcing map centers the only loaded object so a single result is visible'
     'focusSingleObjectAfterLoad',
     'mapObjects.value.length !== 1',
     'selectedObjectId.value',
-    'focusMapObject(mapObjects.value[0], { reloadViewport: false })',
+    'focusMapObject(mapObjects.value[0])',
   ])
   assert.match(source, /function loadSceneObjects\(options = \{\}\)[\s\S]*syncSelectedObjectAfterLoad\(\)[\s\S]*focusSingleObjectAfterLoad\(\)/)
-  assert.match(source, /function focusMapObject\(object,\s*options = \{\}\)[\s\S]*focusMapCenter\(calculateObjectCenter\(object\),\s*options\)/)
+  assert.match(source, /function focusMapObject\(object\)[\s\S]*focusMapCenter\(calculateObjectCenter\(object\)\)/)
 })
 
 test('sourcing map uses dropship as the canonical one-piece shipping tag with legacy alias support', () => {
@@ -607,14 +682,13 @@ test('sourcing map uses a full-screen width canvas viewport without horizontal p
   assert.match(source, /rpxToPx\(mapViewportHeightRpx\.value\)/)
 })
 
-test('sourcing map viewport reload is silent and ignores stale object responses', () => {
+test('sourcing map ignores stale full-scene object responses', () => {
   expectTokens(source, [
     'objectRequestSeq',
     'visibleObjectRequestSeq',
     'const requestId = ++objectRequestSeq',
     'const showLoading = !options.silent',
     'requestId !== objectRequestSeq',
-    'loadSceneObjects({ keepSelection: true, silent: true })',
   ])
 
   assert.match(source, /if \(showLoading\) \{[\s\S]*objectLoading\.value = true/)

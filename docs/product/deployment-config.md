@@ -11,6 +11,7 @@
 - `deploy/nginx/wplink.conf`：Nginx 反向代理示例；后台静态文件由 Go 服务在 `/admin/` 下提供。
 - `deploy/systemd/wplink-api.service`：后端 API 进程托管示例。
 - `deploy/scripts/build-release.sh`：发布构建脚本，会先嵌入后台构建产物，再输出 Go 二进制和部署模板。
+- `deploy/scripts/deploy-server.sh`：本地执行的自动化部署脚本，通过 SSH/SCP 上传发布包，并在服务器上完成安装、migration、systemd 重启和健康检查。
 - `docs/product/production-release-checklist.md`：生产发布检查清单。
 - `docs/product/wxapp-manual-acceptance.md`：微信小程序真机/开发者工具手工验收清单。
 
@@ -38,6 +39,41 @@ bash deploy/scripts/build-release.sh
 ```
 
 该脚本会自动完成后台嵌入构建和后端二进制构建，避免上线后 `/admin/` 仍显示占位页面。
+
+`build-release.sh` 默认构建 Linux x86-64 后端二进制，即 `WPLINK_RELEASE_GOOS=linux`、`WPLINK_RELEASE_GOARCH=amd64`。如果服务器是 ARM64 Linux，可执行：
+
+```bash
+WPLINK_RELEASE_GOARCH=arm64 bash deploy/scripts/build-release.sh
+```
+
+如需要从本地电脑自动发布到服务器，可执行：
+
+```bash
+WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh
+```
+
+脚本会先调用 `deploy/scripts/build-release.sh` 生成发布包，再通过 SSH/SCP 上传到服务器，安装 `/opt/wplink/wplink-api`，写入 systemd 服务，执行未记录的 migration，重启 `wplink-api`，并检查 `/healthz` 和 `/readyz`。如果服务器上还没有 `/etc/wplink/app.yaml` 或 `/etc/wplink/wplink.env`，脚本会先按模板创建这两个文件并停止；填写生产数据库、JWT、微信、短信和七牛配置后再次执行即可。
+
+如果服务器使用 SSH 私钥登录，可通过项目专属变量指定私钥：
+
+```bash
+WPLINK_DEPLOY_TARGET=root@YOUR_SERVER WPLINK_SSH_KEY=~/.ssh/wplink_prod_ed25519 bash deploy/scripts/deploy-server.sh
+```
+
+也可以先在 `~/.ssh/config` 配置 Host 别名，再把 `WPLINK_DEPLOY_TARGET` 设置为该别名。
+
+常用参数：
+
+```bash
+# 跳过数据库 migration
+WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --skip-migrations
+
+# 服务器已经手动执行过当前 migration 时，只补写 schema_migrations 记录
+WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --mark-migrations-applied
+
+# 同时安装 Nginx 模板并 reload Nginx，证书和域名前必须先确认
+WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --install-nginx
+```
 
 ## 生产必填配置
 

@@ -66,7 +66,7 @@ export function endGesture(state, options = {}) {
 }
 
 export function screenToMap(point = {}, transform = {}) {
-  const normalizedTransform = normalizeTransform(transform)
+  const normalizedTransform = normalizeCoordinateTransform(transform)
   return {
     x: (toNumber(point.x, 0) - normalizedTransform.offsetX) / normalizedTransform.scale,
     y: (toNumber(point.y, 0) - normalizedTransform.offsetY) / normalizedTransform.scale,
@@ -74,7 +74,7 @@ export function screenToMap(point = {}, transform = {}) {
 }
 
 export function mapToScreen(point = {}, transform = {}) {
-  const normalizedTransform = normalizeTransform(transform)
+  const normalizedTransform = normalizeCoordinateTransform(transform)
   return {
     x: toNumber(point.x, 0) * normalizedTransform.scale + normalizedTransform.offsetX,
     y: toNumber(point.y, 0) * normalizedTransform.scale + normalizedTransform.offsetY,
@@ -144,6 +144,14 @@ function touchCenter(left, right) {
 function normalizeTransform(transform = {}, options = {}) {
   return {
     scale: normalizeScale(transform.scale, options),
+    offsetX: toNumber(transform.offsetX, 0),
+    offsetY: toNumber(transform.offsetY, 0),
+  }
+}
+
+function normalizeCoordinateTransform(transform = {}) {
+  return {
+    scale: toPositiveNumber(transform.scale, 1),
     offsetX: toNumber(transform.offsetX, 0),
     offsetY: toNumber(transform.offsetY, 0),
   }

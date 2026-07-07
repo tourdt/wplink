@@ -2,6 +2,7 @@
 .cache/
 .env
 .env.local
+deploy/wplink.env
 backend/etc/app.yaml
 node_modules/
 dist/

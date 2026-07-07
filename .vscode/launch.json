@@ -23,6 +23,20 @@
       "request": "launch",
       "cwd": "${workspaceFolder}/wxapp",
       "command": "VITE_API_BASE_URL=http://192.168.31.94:4000 npm run dev:mp-weixin"
+    },
+    {
+      "name": "线上 dev:mp-weixin",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/wxapp",
+      "command": "VITE_API_BASE_URL=https://app.iweipi.cn npm run dev:mp-weixin"
+    },
+    {
+      "name": "线上 build:mp-weixin",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/wxapp",
+      "command": "VITE_API_BASE_URL=https://app.iweipi.cn npm run build:mp-weixin"
     }
   ],
   "compounds": [
