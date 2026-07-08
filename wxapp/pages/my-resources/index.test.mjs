@@ -34,11 +34,31 @@ test('my resources page pins status filters and uses a compact publish action', 
   assert.doesNotMatch(source, /manager-desc/)
   assert.match(source, /<button class="publish-fab" @click="openPublish">发布<\/button>/)
   assert.match(source, /\.my-resources-page \{[\s\S]*overflow-x: hidden;/)
-  assert.match(source, /\.my-resources-page \{[\s\S]*padding-top: 132rpx;/)
-  assert.match(source, /\.filter-row \{[\s\S]*position: fixed;[\s\S]*top: 0;[\s\S]*right: 0;[\s\S]*left: 0;[\s\S]*z-index: 10;[\s\S]*padding: 24rpx 24rpx 16rpx;[\s\S]*overflow: hidden;[\s\S]*background: \$wplink-card;[\s\S]*box-shadow: 0 8rpx 20rpx rgba\(15, 23, 42, 0\.06\);/)
+  assert.match(source, /\.my-resources-page \{[\s\S]*padding-top: 220rpx;/)
+  assert.match(source, /<view class="filter-panel">[\s\S]*<view class="direction-row">[\s\S]*<view class="filter-row">/)
+  assert.match(source, /\.filter-panel \{[\s\S]*position: fixed;[\s\S]*top: 0;[\s\S]*right: 0;[\s\S]*left: 0;[\s\S]*z-index: 10;[\s\S]*padding: 24rpx 24rpx 16rpx;[\s\S]*overflow: hidden;[\s\S]*background: \$wplink-card;[\s\S]*box-shadow: 0 8rpx 20rpx rgba\(15, 23, 42, 0\.06\);/)
   assert.match(source, /\.filter-button \{[\s\S]*background: #f4f7fd;/)
   assert.doesNotMatch(source, /position: sticky;/)
   assert.match(source, /\.publish-fab \{[\s\S]*position: fixed;[\s\S]*right: 24rpx;[\s\S]*bottom: calc\(32rpx \+ env\(safe-area-inset-bottom\)\);/)
+})
+
+test('my resources supports supply and demand direction filters', () => {
+  for (const token of [
+    'directionOptions',
+    '资源发布',
+    '需求发布',
+    'selectDirection',
+    'RESOURCE_DIRECTION_SUPPLY',
+    'RESOURCE_DIRECTION_DEMAND',
+    'direction: filters.direction',
+    'isSupplyResource',
+  ]) {
+    assert.match(source, new RegExp(token))
+  }
+
+  assert.match(source, /const filters = reactive\(\{ status: '', direction: RESOURCE_DIRECTION_SUPPLY \}\)/)
+  assert.match(source, /listMyResources\(\{ merchantId: merchantId\.value, status: filters\.status, direction: filters\.direction, page: nextPage, pageSize \}\)/)
+  assert.match(source, /function canTopResource\(item\) \{[\s\S]*return isSupplyResource\(item\) && isActivePublished\(item\)[\s\S]*\}/)
 })
 
 test('my resources card actions avoid a visible toolbar frame', () => {

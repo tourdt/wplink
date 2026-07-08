@@ -201,7 +201,10 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 			http.NotFound(w, r)
 			return
 		}
-		resp, err := citylogic.NewListResourceTypesLogic(store).ListResourceTypes(r.Context(), cityCode)
+		resp, err := citylogic.NewListResourceTypesLogic(store).ListResourceTypes(r.Context(), citylogic.ListResourceTypesReq{
+			CityCode:  cityCode,
+			Direction: r.URL.Query().Get("direction"),
+		})
 		response.JSON(w, resp, err)
 	})
 	if resourceStore, ok := any(store).(ResourceAPIStore); ok {
@@ -723,6 +726,7 @@ func decodeCreateResourceRequest(r *http.Request) (resourcelogic.CreateResourceR
 		MerchantID   string                           `json:"merchantId"`
 		CityCode     string                           `json:"cityCode"`
 		TypeCode     string                           `json:"typeCode"`
+		Direction    string                           `json:"direction"`
 		Title        string                           `json:"title"`
 		Category     string                           `json:"category"`
 		District     string                           `json:"district"`
@@ -739,7 +743,7 @@ func decodeCreateResourceRequest(r *http.Request) (resourcelogic.CreateResourceR
 	}
 	return resourcelogic.CreateResourceReq{
 		MerchantID: body.MerchantID, CityCode: body.CityCode, TypeCode: body.TypeCode,
-		Title: body.Title, Category: body.Category, District: body.District, PriceText: body.PriceText,
+		Direction: body.Direction, Title: body.Title, Category: body.Category, District: body.District, PriceText: body.PriceText,
 		QuantityText: body.QuantityText, Description: body.Description, Attributes: body.Attributes,
 		Tags: body.Tags, Images: body.Images, Contact: body.Contact,
 	}, nil
@@ -756,6 +760,7 @@ func listResourcesReqFromQuery(r *http.Request) resourcelogic.ListResourcesReq {
 		CityCode:     query.Get("cityCode"),
 		MerchantID:   query.Get("merchantId"),
 		TypeCode:     query.Get("typeCode"),
+		Direction:    query.Get("direction"),
 		Keyword:      query.Get("keyword"),
 		Category:     query.Get("category"),
 		VerifiedOnly: boolFromQuery(r, "verifiedOnly"),
@@ -770,6 +775,7 @@ func searchResourcesReqFromQuery(r *http.Request) resourcelogic.SearchResourcesR
 		UserID:       r.URL.Query().Get("userId"),
 		CityCode:     req.CityCode,
 		TypeCode:     req.TypeCode,
+		Direction:    req.Direction,
 		Keyword:      req.Keyword,
 		Category:     req.Category,
 		VerifiedOnly: req.VerifiedOnly,

@@ -2,10 +2,13 @@ export const resourceTypeText = {
   inventory: '库存清仓',
   goods: '现货货源',
   factory: '工厂接单',
-  order: '订单找厂',
   job: '招工招聘',
   rental: '出租转让',
   service: '配套服务',
+  buy_goods: '找现货',
+  find_inventory: '找库存',
+  find_factory: '找工厂',
+  find_service: '找服务',
 }
 
 export const resourceStatusText = {

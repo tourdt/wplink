@@ -14,6 +14,7 @@ func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
 				ID:               "type-1",
 				TypeCode:         "inventory",
 				TypeName:         "库存清仓",
+				Direction:        model.ResourceDirectionSupply,
 				DefaultValidDays: 7,
 				FieldSchema: model.JSONMap{
 					"fields": []interface{}{
@@ -28,7 +29,7 @@ func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
 	}
 	logic := NewListResourceTypesLogic(store)
 
-	resp, err := logic.ListResourceTypes(context.Background(), " zhili ")
+	resp, err := logic.ListResourceTypes(context.Background(), ListResourceTypesReq{CityCode: " zhili "})
 	if err != nil {
 		t.Fatalf("ListResourceTypes() error = %v", err)
 	}
@@ -42,6 +43,9 @@ func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
 	if resp.Items[0].TypeCode != "inventory" {
 		t.Fatalf("typeCode = %q, want inventory", resp.Items[0].TypeCode)
 	}
+	if resp.Items[0].Direction != model.ResourceDirectionSupply {
+		t.Fatalf("direction = %q, want supply", resp.Items[0].Direction)
+	}
 	if resp.Items[0].RequiredFields[0] != "title" {
 		t.Fatalf("required fields = %#v, want title first", resp.Items[0].RequiredFields)
 	}
@@ -51,21 +55,50 @@ func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
 	}
 }
 
+func TestListResourceTypesPassesDirectionFilter(t *testing.T) {
+	store := &fakeResourceTypeStore{
+		configs: []model.ResourceTypeConfig{
+			{
+				ID:               "type-demand-1",
+				TypeCode:         "buy_goods",
+				TypeName:         "找现货",
+				Direction:        model.ResourceDirectionDemand,
+				DefaultValidDays: 7,
+			},
+		},
+	}
+	logic := NewListResourceTypesLogic(store)
+
+	resp, err := logic.ListResourceTypes(context.Background(), ListResourceTypesReq{CityCode: " zhili ", Direction: " demand "})
+	if err != nil {
+		t.Fatalf("ListResourceTypes() error = %v", err)
+	}
+
+	if store.cityCode != "zhili" || store.direction != model.ResourceDirectionDemand {
+		t.Fatalf("cityCode = %q direction = %q, want zhili/demand", store.cityCode, store.direction)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Direction != model.ResourceDirectionDemand {
+		t.Fatalf("items = %#v, want demand type", resp.Items)
+	}
+}
+
 func TestListResourceTypesRejectsEmptyCityCode(t *testing.T) {
 	logic := NewListResourceTypesLogic(&fakeResourceTypeStore{})
 
-	_, err := logic.ListResourceTypes(context.Background(), " ")
+	_, err := logic.ListResourceTypes(context.Background(), ListResourceTypesReq{CityCode: " "})
 	if err == nil {
 		t.Fatal("ListResourceTypes() error = nil, want validation error")
 	}
 }
 
 type fakeResourceTypeStore struct {
-	cityCode string
-	configs  []model.ResourceTypeConfig
+	cityCode  string
+	direction string
+	configs   []model.ResourceTypeConfig
 }
 
-func (s *fakeResourceTypeStore) ListActiveResourceTypesByCityCode(_ context.Context, cityCode string) ([]model.ResourceTypeConfig, error) {
+func (s *fakeResourceTypeStore) ListActiveResourceTypesByCityCode(_ context.Context, cityCode string, direction string) ([]model.ResourceTypeConfig, error) {
 	s.cityCode = cityCode
+	s.direction = direction
 	return append([]model.ResourceTypeConfig(nil), s.configs...), nil
 }

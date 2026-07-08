@@ -10,6 +10,7 @@ type CreateResourceReq {
 	MerchantId   string                 `json:"merchantId"`
 	CityCode     string                 `json:"cityCode"`
 	TypeCode     string                 `json:"typeCode"`
+	Direction    string                 `json:"direction,optional"`
 	Title        string                 `json:"title"`
 	Category     string                 `json:"category"`
 	District     string                 `json:"district,optional"`
@@ -42,6 +43,7 @@ type ListResourcesReq {
 	CityCode     string `form:"cityCode,optional"`
 	MerchantId   string `form:"merchantId,optional"`
 	TypeCode     string `form:"typeCode,optional"`
+	Direction    string `form:"direction,optional"`
 	Keyword      string `form:"keyword,optional"`
 	Category     string `form:"category,optional"`
 	VerifiedOnly bool   `form:"verifiedOnly,optional"`
@@ -57,6 +59,7 @@ type ResourceMerchantBrief {
 
 type ResourceListItem {
 	Id           string                `json:"id"`
+	Direction    string                `json:"direction"`
 	TypeCode     string                `json:"typeCode"`
 	Title        string                `json:"title"`
 	Category     string                `json:"category"`
@@ -78,6 +81,7 @@ type ListResourcesResp {
 type SearchResourcesReq {
 	CityCode     string `form:"cityCode,optional"`
 	TypeCode     string `form:"typeCode,optional"`
+	Direction    string `form:"direction,optional"`
 	Keyword      string `form:"keyword,optional"`
 	Category     string `form:"category,optional"`
 	VerifiedOnly bool   `form:"verifiedOnly,optional"`
@@ -101,6 +105,7 @@ type MyResourceMetrics {
 
 type MyResourceItem {
 	Id           string            `json:"id"`
+	Direction    string            `json:"direction"`
 	TypeCode     string            `json:"typeCode"`
 	Title        string            `json:"title"`
 	Category     string            `json:"category"`
@@ -143,6 +148,7 @@ type EditableResourceResp {
 	MerchantId   string                  `json:"merchantId"`
 	CityCode     string                  `json:"cityCode"`
 	TypeCode     string                  `json:"typeCode"`
+	Direction    string                  `json:"direction"`
 	Status       string                  `json:"status"`
 	Title        string                  `json:"title"`
 	Category     string                  `json:"category"`
@@ -161,6 +167,7 @@ type ResourceDetailResp {
 	Id             string                  `json:"id"`
 	Status         string                  `json:"status"`
 	TypeCode       string                  `json:"typeCode"`
+	Direction      string                  `json:"direction"`
 	TypeName       string                  `json:"typeName,optional"`
 	Title          string                  `json:"title"`
 	Category       string                  `json:"category"`

@@ -12,6 +12,7 @@ type ResourceTypeConfig struct {
 	ID               string
 	TypeCode         string
 	TypeName         string
+	Direction        string
 	DefaultValidDays int64
 	FieldSchema      JSONMap
 	RequiredFields   []string
@@ -24,6 +25,7 @@ type AdminResourceTypeConfig struct {
 	CityCode         string
 	TypeCode         string
 	TypeName         string
+	Direction        string
 	FieldSchema      JSONMap
 	RequiredFields   []string
 	FilterFields     []string
@@ -51,6 +53,7 @@ type resourceTypeConfigRow struct {
 	ID               string          `db:"id"`
 	TypeCode         string          `db:"type_code"`
 	TypeName         string          `db:"type_name"`
+	Direction        string          `db:"direction"`
 	DefaultValidDays int64           `db:"default_valid_days"`
 	FieldSchema      JSONMap         `db:"field_schema"`
 	RequiredFields   JSONStringSlice `db:"required_fields"`
@@ -63,6 +66,7 @@ type adminResourceTypeConfigRow struct {
 	CityCode         string          `db:"city_code"`
 	TypeCode         string          `db:"type_code"`
 	TypeName         string          `db:"type_name"`
+	Direction        string          `db:"direction"`
 	FieldSchema      JSONMap         `db:"field_schema"`
 	RequiredFields   JSONStringSlice `db:"required_fields"`
 	FilterFields     JSONStringSlice `db:"filter_fields"`
@@ -87,13 +91,14 @@ func NewResourceTypeConfigModel(db *sql.DB) *ResourceTypeConfigModel {
 	}
 }
 
-func (m *ResourceTypeConfigModel) ListActiveResourceTypesByCityCode(ctx context.Context, cityCode string) ([]ResourceTypeConfig, error) {
+func (m *ResourceTypeConfigModel) ListActiveResourceTypesByCityCode(ctx context.Context, cityCode string, direction string) ([]ResourceTypeConfig, error) {
 	var rows []resourceTypeConfigRow
 	err := m.conn.QueryRowsCtx(ctx, &rows, `
 SELECT
   rtc.id::text,
   rtc.type_code,
   rtc.type_name,
+  rtc.direction,
   rtc.default_valid_days,
   rtc.field_schema,
   rtc.required_fields,
@@ -104,8 +109,9 @@ JOIN city_stations cs ON cs.id = rtc.city_station_id
 WHERE cs.code = $1
   AND cs.status = 'active'
   AND rtc.status = 'active'
+  AND ($2 = '' OR rtc.direction = $2)
 ORDER BY rtc.created_at ASC
-`, cityCode)
+`, cityCode, direction)
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +121,7 @@ ORDER BY rtc.created_at ASC
 			ID:               row.ID,
 			TypeCode:         row.TypeCode,
 			TypeName:         row.TypeName,
+			Direction:        row.Direction,
 			DefaultValidDays: row.DefaultValidDays,
 			FieldSchema:      row.FieldSchema,
 			RequiredFields:   []string(row.RequiredFields),
@@ -133,6 +140,7 @@ SELECT
   COALESCE(cs.code, '') AS city_code,
   rtc.type_code,
   rtc.type_name,
+  rtc.direction,
   rtc.field_schema,
   rtc.required_fields,
   rtc.filter_fields,
@@ -158,6 +166,7 @@ ORDER BY rtc.created_at ASC
 			CityCode:         row.CityCode,
 			TypeCode:         row.TypeCode,
 			TypeName:         row.TypeName,
+			Direction:        row.Direction,
 			FieldSchema:      row.FieldSchema,
 			RequiredFields:   []string(row.RequiredFields),
 			FilterFields:     []string(row.FilterFields),

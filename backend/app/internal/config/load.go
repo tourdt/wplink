@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
 )
 
 var envPlaceholderPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+const defaultDevelopmentTokenSecret = "wplink-local-development-token-secret"
 
 func Load(path string) (Config, error) {
 	content, err := os.ReadFile(path)
@@ -138,6 +141,15 @@ func (d configDuration) Duration() time.Duration {
 }
 
 func (c fileConfig) toConfig() Config {
+	adminAuth := AdminAuthConfig{
+		TokenSecret: strings.TrimSpace(c.AdminAuth.TokenSecret),
+		TokenTTL:    c.AdminAuth.TokenTTL.Duration(),
+	}
+	if adminAuth.TokenSecret == "" && isDevelopmentMode(c.RuntimeMode) {
+		// 本地开发配置经常依赖未导出的环境变量；只在开发模式补固定开发密钥，避免登录链路因空密钥中断。
+		adminAuth.TokenSecret = defaultDevelopmentTokenSecret
+	}
+
 	return Config{
 		Name:        c.Name,
 		RuntimeMode: c.RuntimeMode,
@@ -151,11 +163,8 @@ func (c fileConfig) toConfig() Config {
 			ConnMaxLifetime: c.Postgres.ConnMaxLifetime.Duration(),
 			ConnMaxIdleTime: c.Postgres.ConnMaxIdleTime.Duration(),
 		},
-		AdminAuth: AdminAuthConfig{
-			TokenSecret: c.AdminAuth.TokenSecret,
-			TokenTTL:    c.AdminAuth.TokenTTL.Duration(),
-		},
-		Wechat: c.Wechat,
+		AdminAuth: adminAuth,
+		Wechat:    c.Wechat,
 		WechatPay: WechatPayConfig{
 			Enabled:                c.WechatPay.Enabled,
 			DevMockEnabled:         c.WechatPay.DevMockEnabled,
@@ -256,4 +265,13 @@ func expandEnvPlaceholders(content string) string {
 		name := match[2 : len(match)-1]
 		return os.Getenv(name)
 	})
+}
+
+func isDevelopmentMode(mode string) bool {
+	switch strings.TrimSpace(strings.ToLower(mode)) {
+	case "", "dev", "development", "local":
+		return true
+	default:
+		return false
+	}
 }

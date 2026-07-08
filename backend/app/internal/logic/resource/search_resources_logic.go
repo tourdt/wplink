@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"strings"
 
 	"wplink/backend/app/internal/model"
 )
@@ -15,6 +16,7 @@ type SearchResourcesReq struct {
 	UserID       string
 	CityCode     string
 	TypeCode     string
+	Direction    string
 	Keyword      string
 	Category     string
 	VerifiedOnly bool
@@ -34,14 +36,14 @@ func NewSearchResourcesLogic(store SearchResourceStore) *SearchResourcesLogic {
 func (l *SearchResourcesLogic) SearchResources(ctx context.Context, req SearchResourcesReq) (ListResourcesResp, error) {
 	resp, err := l.listLogic.ListResources(ctx, ListResourcesReq{
 		CityCode: req.CityCode, TypeCode: req.TypeCode, Keyword: req.Keyword, Category: req.Category,
-		VerifiedOnly: req.VerifiedOnly, Page: req.Page, PageSize: req.PageSize,
+		Direction: req.Direction, VerifiedOnly: req.VerifiedOnly, Page: req.Page, PageSize: req.PageSize,
 	})
 	if err != nil {
 		return ListResourcesResp{}, err
 	}
 	err = l.store.RecordSearchLog(ctx, model.SearchLogInput{
 		UserID: req.UserID, CityCode: req.CityCode, Keyword: req.Keyword,
-		Filters:     model.JSONMap{"typeCode": req.TypeCode, "category": req.Category, "verifiedOnly": req.VerifiedOnly},
+		Filters:     model.JSONMap{"typeCode": req.TypeCode, "direction": strings.TrimSpace(req.Direction), "category": req.Category, "verifiedOnly": req.VerifiedOnly},
 		ResultCount: resp.Total,
 	})
 	if err != nil {

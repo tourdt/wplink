@@ -37,9 +37,9 @@ type AdminAuthConfig struct {
 }
 
 type WechatConfig struct {
-	AppID        string
-	AppSecret    string
-	AllowDevCode bool
+	AppID        string `yaml:"AppID"`
+	AppSecret    string `yaml:"AppSecret"`
+	AllowDevCode bool   `yaml:"AllowDevCode"`
 }
 
 type WechatPayConfig struct {

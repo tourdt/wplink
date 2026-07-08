@@ -9,6 +9,8 @@ func TestListResourcesSQLAllowsEmptyMerchantID(t *testing.T) {
 	requiredSnippets := []string{
 		"NULLIF($3, '')::bigint",
 		"r.merchant_id = NULLIF($3, '')::bigint",
+		"r.direction",
+		"($5 = '' OR r.direction = $5)",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(listResourcesSQL, snippet) {

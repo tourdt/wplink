@@ -11,6 +11,8 @@ import (
 func TestLoadReadsAppYAMLAndExpandsEnv(t *testing.T) {
 	t.Setenv("POSTGRES_PASSWORD", "secret-pass")
 	t.Setenv("JWT_SECRET", "secret-token")
+	t.Setenv("WECHAT_APP_ID", "wx-local")
+	t.Setenv("WECHAT_APP_SECRET", "wechat-secret")
 
 	path := filepath.Join(t.TempDir(), "app.yaml")
 	if err := os.WriteFile(path, []byte(`
@@ -28,6 +30,11 @@ Postgres:
 AdminAuth:
   TokenSecret: "${JWT_SECRET}"
   TokenTTL: 24h
+
+Wechat:
+  AppID: "${WECHAT_APP_ID}"
+  AppSecret: "${WECHAT_APP_SECRET}"
+  AllowDevCode: true
 
 SMS:
   Provider: "http"
@@ -96,6 +103,9 @@ Storage:
 	if cfg.AdminAuth.TokenSecret != "secret-token" || cfg.AdminAuth.TokenTTL != 24*time.Hour {
 		t.Fatalf("admin auth = %#v, want env token and ttl", cfg.AdminAuth)
 	}
+	if cfg.Wechat.AppID != "wx-local" || cfg.Wechat.AppSecret != "wechat-secret" || !cfg.Wechat.AllowDevCode {
+		t.Fatalf("wechat = %#v, want env app config", cfg.Wechat)
+	}
 	if cfg.SMS.Provider != "http" || cfg.SMS.SendMinInterval != 45*time.Second || cfg.SMS.DailySendLimit != 8 {
 		t.Fatalf("sms = %#v, want http rate limit config", cfg.SMS)
 	}
@@ -131,6 +141,106 @@ Name: wplink-api
 
 	if cfg.Log.Mode != "file" || cfg.Log.Path != "logs" || cfg.Log.Rotation != "daily" || cfg.Log.KeepDays != 7 {
 		t.Fatalf("log = %#v, want default daily file logs kept 7 days", cfg.Log)
+	}
+}
+
+func TestLoadDefaultsDevelopmentTokenSecretWhenMissing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yaml")
+	if err := os.WriteFile(path, []byte(`
+Name: wplink-api
+RuntimeMode: development
+AdminAuth:
+  TokenSecret: "${ADMIN_TOKEN_SECRET}"
+  TokenTTL: 24h
+`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.AdminAuth.TokenSecret == "" {
+		t.Fatal("AdminAuth.TokenSecret = empty, want local development fallback")
+	}
+	if cfg.AdminAuth.TokenTTL != 24*time.Hour {
+		t.Fatalf("AdminAuth.TokenTTL = %s, want configured TTL", cfg.AdminAuth.TokenTTL)
+	}
+}
+
+func TestLoadDoesNotDefaultProductionTokenSecret(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yaml")
+	if err := os.WriteFile(path, []byte(`
+Name: wplink-api
+RuntimeMode: production
+AdminAuth:
+  TokenSecret: "${ADMIN_TOKEN_SECRET}"
+  TokenTTL: 24h
+`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.AdminAuth.TokenSecret != "" {
+		t.Fatalf("AdminAuth.TokenSecret = %q, want empty production config before validation", cfg.AdminAuth.TokenSecret)
+	}
+}
+
+func TestLoadDoesNotDefaultStagingTokenSecret(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yaml")
+	if err := os.WriteFile(path, []byte(`
+Name: wplink-api
+RuntimeMode: staging
+AdminAuth:
+  TokenSecret: "${ADMIN_TOKEN_SECRET}"
+  TokenTTL: 24h
+`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.AdminAuth.TokenSecret != "" {
+		t.Fatalf("AdminAuth.TokenSecret = %q, want empty staging config", cfg.AdminAuth.TokenSecret)
+	}
+}
+
+func TestDevelopmentAppConfigPlaceholdersExistInDeployEnvExample(t *testing.T) {
+	configBytes, err := os.ReadFile(filepath.Join("..", "..", "..", "etc", "app.yaml"))
+	if err != nil {
+		t.Fatalf("read app.yaml: %v", err)
+	}
+	envBytes, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "deploy", "wplink.env.example"))
+	if err != nil {
+		t.Fatalf("read deploy env example: %v", err)
+	}
+
+	envKeys := map[string]struct{}{}
+	for _, line := range strings.Split(string(envBytes), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, _, ok := strings.Cut(line, "=")
+		if ok {
+			envKeys[strings.TrimSpace(key)] = struct{}{}
+		}
+	}
+
+	matches := envPlaceholderPattern.FindAllStringSubmatch(string(configBytes), -1)
+	for _, match := range matches {
+		name := match[1]
+		if _, ok := envKeys[name]; !ok {
+			t.Fatalf("backend/etc/app.yaml references %s but deploy/wplink.env.example does not define it", name)
+		}
 	}
 }
 

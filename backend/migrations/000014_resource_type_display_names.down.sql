@@ -8,10 +8,13 @@ type_names AS (
       ('inventory', '库存'),
       ('goods', '货源'),
       ('factory', '工厂产能'),
-      ('order', '订单需求'),
       ('job', '招聘'),
       ('rental', '出租/转让'),
-      ('service', '服务')
+      ('service', '服务'),
+      ('buy_goods', '采购需求'),
+      ('find_inventory', '采购需求'),
+      ('find_factory', '订单需求'),
+      ('find_service', '采购需求')
   ) AS cfg(type_code, type_name)
 )
 UPDATE resource_type_configs rtc

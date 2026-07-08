@@ -49,13 +49,13 @@ export const defaultFlowChecks = [
   },
   {
     file: 'pages/search/index.vue',
-    description: '资源 tab 推荐和类型筛选',
-    checks: ['资源推荐', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'openSearchPage', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
+    description: '供需 tab 推荐和类型筛选',
+    checks: ['供需市场', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'DemandCard', '找资源', '看需求', 'activeDirection', 'openSearchPage', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
   },
   {
     file: 'pages/search/result.vue',
     description: '独立搜索和无结果换条件',
-    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', '暂无匹配资源', 'hotKeywords', '换个条件'],
+    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', 'DemandCard', 'activeDirection', '暂无匹配资源', 'hotKeywords', '换个条件'],
   },
   {
     file: 'pages/resource/detail.vue',

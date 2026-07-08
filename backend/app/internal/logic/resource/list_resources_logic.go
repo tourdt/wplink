@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"wplink/backend/app/internal/model"
+	"wplink/backend/common/errx"
 )
 
 type ListResourcesStore interface {
@@ -15,6 +16,7 @@ type ListResourcesReq struct {
 	CityCode     string
 	MerchantID   string
 	TypeCode     string
+	Direction    string
 	Keyword      string
 	Category     string
 	VerifiedOnly bool
@@ -30,6 +32,7 @@ type ResourceMerchantBrief struct {
 
 type ResourceListItem struct {
 	ID           string                `json:"id"`
+	Direction    string                `json:"direction"`
 	TypeCode     string                `json:"typeCode"`
 	Title        string                `json:"title"`
 	Category     string                `json:"category"`
@@ -57,10 +60,15 @@ func NewListResourcesLogic(store ListResourcesStore) *ListResourcesLogic {
 }
 
 func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResourcesReq) (ListResourcesResp, error) {
+	direction, err := normalizeListDirection(req.Direction)
+	if err != nil {
+		return ListResourcesResp{}, err
+	}
 	result, err := l.store.ListResources(ctx, model.ListResourcesFilter{
 		CityCode:     strings.TrimSpace(req.CityCode),
 		MerchantID:   strings.TrimSpace(req.MerchantID),
 		TypeCode:     strings.TrimSpace(req.TypeCode),
+		Direction:    direction,
 		Keyword:      strings.TrimSpace(req.Keyword),
 		Category:     strings.TrimSpace(req.Category),
 		VerifiedOnly: req.VerifiedOnly,
@@ -76,6 +84,7 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 	for _, item := range result.Items {
 		items = append(items, ResourceListItem{
 			ID:           item.ID,
+			Direction:    item.Direction,
 			TypeCode:     item.TypeCode,
 			Title:        item.Title,
 			Category:     item.Category,
@@ -92,4 +101,15 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 		})
 	}
 	return ListResourcesResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil
+}
+
+func normalizeListDirection(direction string) (string, error) {
+	direction = strings.TrimSpace(direction)
+	if direction == "" {
+		return model.ResourceDirectionSupply, nil
+	}
+	if direction == model.ResourceDirectionSupply || direction == model.ResourceDirectionDemand {
+		return direction, nil
+	}
+	return "", errx.New(errx.CodeValidationFailed, "请选择正确的供需方向")
 }

@@ -7,9 +7,10 @@ export function listCityStations() {
   })
 }
 
-export function listCityResourceTypes(cityCode) {
+export function listCityResourceTypes(cityCode, params = {}) {
   return request({
     url: `/api/v1/city-stations/${cityCode}/resource-types`,
     method: 'GET',
+    data: params,
   })
 }

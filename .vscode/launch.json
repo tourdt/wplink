@@ -8,7 +8,8 @@
       "mode": "auto",
       "program": "${workspaceFolder}/backend/app",
       "cwd": "${workspaceFolder}/backend",
-      "args": ["-f", "etc/app.yaml"]
+      "args": ["-f", "etc/app.yaml"],
+      "envFile": "${workspaceFolder}/deploy/wplink.env"
     },
     {
       "name": "小程序 dev:mp-weixin",

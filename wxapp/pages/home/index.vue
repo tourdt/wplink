@@ -9,7 +9,7 @@
 
       <view class="search-entry" @click="openSearch()">
         <view class="search-icon" aria-hidden="true"></view>
-        <text class="search-placeholder">搜索现货、厂家或订单资源...</text>
+        <text class="search-placeholder">搜索资源、需求、工厂或服务...</text>
       </view>
     </view>
 
@@ -78,6 +78,10 @@
               <text></text>
               <text></text>
             </view>
+            <view v-if="item.icon === 'demand'" class="icon-demand-sheet">
+              <text></text>
+              <text></text>
+            </view>
             <view v-if="item.icon === 'map'" class="icon-sourcing-map">
               <text></text>
             </view>
@@ -132,6 +136,8 @@ const headerMetrics = ref({
 })
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const PUBLISH_TYPE_KEY = 'wplink_pending_publish_type_code'
+const RESOURCE_DIRECTION_SUPPLY = 'supply'
+const RESOURCE_DIRECTION_DEMAND = 'demand'
 const SEARCH_BLOCK_RPX = 116
 const defaultBanners = [
   {
@@ -161,12 +167,13 @@ const defaultBanners = [
     tone: 'factory',
   },
   {
-    id: 'default-order',
-    kindText: '订单找厂 · 工厂接单',
-    title: '有空档产能？查看订单',
+    id: 'default-demand',
+    kindText: '看需求 · 找供应',
+    title: '附近采购需求正在更新',
     jumpType: 'search',
-    jumpTarget: '订单',
-    typeCode: 'order',
+    jumpTarget: '找现货',
+    typeCode: 'buy_goods',
+    direction: RESOURCE_DIRECTION_DEMAND,
     tone: 'order',
   },
   {
@@ -175,14 +182,16 @@ const defaultBanners = [
     title: '库存和产能可直接上架',
     jumpType: 'publish',
     jumpTarget: '/pages/publish/index',
+    direction: RESOURCE_DIRECTION_SUPPLY,
     tone: 'publish',
   },
 ]
 const sceneEntries = [
-  { title: '现货货源', tone: 'navy', icon: 'market', typeCode: 'goods', keyword: '现货' },
-  { title: '库存清仓', tone: 'red', icon: 'clearance', typeCode: 'inventory', keyword: '库存' },
-  { title: '工厂接单', tone: 'teal', icon: 'factory', typeCode: 'factory', keyword: '小单快返' },
-  { title: '订单找厂', tone: 'amber', icon: 'orders', typeCode: 'order', keyword: '订单' },
+  { title: '现货货源', tone: 'navy', icon: 'market', direction: RESOURCE_DIRECTION_SUPPLY, typeCode: 'goods', keyword: '现货' },
+  { title: '库存清仓', tone: 'red', icon: 'clearance', direction: RESOURCE_DIRECTION_SUPPLY, typeCode: 'inventory', keyword: '库存' },
+  { title: '工厂接单', tone: 'teal', icon: 'factory', direction: RESOURCE_DIRECTION_SUPPLY, typeCode: 'factory', keyword: '小单快返' },
+  { title: '看需求', tone: 'amber', icon: 'orders', direction: RESOURCE_DIRECTION_DEMAND, typeCode: 'buy_goods', keyword: '找现货' },
+  { title: '发需求', tone: 'coral', icon: 'demand', action: 'publish-demand', direction: RESOURCE_DIRECTION_DEMAND },
   { title: '拿货地图', tone: 'green', icon: 'map', action: 'sourcing-map' },
 ]
 const displayBanners = computed(() => {
@@ -271,11 +280,11 @@ function handleBannerChange(event) {
 
 function openBanner(item) {
   if (item.keyword) {
-    openSearch({ keyword: item.keyword, typeCode: item.typeCode })
+    openSearch({ keyword: item.keyword, typeCode: item.typeCode, direction: item.direction })
     return
   }
   if (item.jumpType === 'search') {
-    openSearch({ keyword: item.jumpTarget, typeCode: item.typeCode })
+    openSearch({ keyword: item.jumpTarget, typeCode: item.typeCode, direction: item.direction })
     return
   }
   if (item.jumpType === 'topic') {
@@ -295,7 +304,7 @@ function openBanner(item) {
     return
   }
   if (item.jumpType === 'publish') {
-    openPublish(item.typeCode)
+    openPublish({ typeCode: item.typeCode || '', direction: item.direction || RESOURCE_DIRECTION_SUPPLY })
     return
   }
   if (item.jumpType === 'internal' && item.jumpTarget) {
@@ -310,7 +319,11 @@ function openScene(item) {
     openSourcingMap()
     return
   }
-  openSearch({ keyword: item.keyword, typeCode: item.typeCode })
+  if (item.action === 'publish-demand') {
+    openPublish({ direction: item.direction || RESOURCE_DIRECTION_DEMAND, typeCode: item.typeCode || '' })
+    return
+  }
+  openSearch({ keyword: item.keyword, typeCode: item.typeCode, direction: item.direction })
 }
 
 function openSourcingMap() {
@@ -323,7 +336,8 @@ function openRecommendCard(item) {
 
 function openSearch(options = {}) {
   const searchOptions = typeof options === 'string' ? { keyword: options } : { ...options }
-  if (searchOptions.keyword || searchOptions.typeCode || searchOptions.cityCode) {
+  searchOptions.direction = normalizeResourceDirection(searchOptions.direction) || RESOURCE_DIRECTION_SUPPLY
+  if (searchOptions.keyword || searchOptions.typeCode || searchOptions.cityCode || searchOptions.direction) {
     uni.setStorageSync(SEARCH_KEY, searchOptions)
   } else {
     uni.removeStorageSync(SEARCH_KEY)
@@ -331,9 +345,11 @@ function openSearch(options = {}) {
   uni.navigateTo({ url: '/pages/search/result' })
 }
 
-function openPublish(typeCode = '') {
-  if (typeCode) {
-    uni.setStorageSync(PUBLISH_TYPE_KEY, typeCode)
+function openPublish(options = {}) {
+  const publishOptions = typeof options === 'string' ? { typeCode: options } : { ...options }
+  publishOptions.direction = normalizeResourceDirection(publishOptions.direction) || RESOURCE_DIRECTION_SUPPLY
+  if (publishOptions.typeCode || publishOptions.direction) {
+    uni.setStorageSync(PUBLISH_TYPE_KEY, publishOptions)
   } else {
     uni.removeStorageSync(PUBLISH_TYPE_KEY)
   }
@@ -351,9 +367,11 @@ function openInternal(url) {
     const query = url.split('?')[1] || ''
     const keywordPair = query.split('&').find((item) => item.startsWith('keyword=') || item.startsWith('q='))
     const typePair = query.split('&').find((item) => item.startsWith('typeCode='))
+    const directionPair = query.split('&').find((item) => item.startsWith('direction='))
     const keyword = keywordPair ? decodeURIComponent(keywordPair.split('=')[1] || '') : ''
     const typeCode = typePair ? decodeURIComponent(typePair.split('=')[1] || '') : ''
-    openSearch({ keyword, typeCode })
+    const direction = directionPair ? decodeURIComponent(directionPair.split('=')[1] || '') : ''
+    openSearch({ keyword, typeCode, direction })
     return
   }
   if (tabPages.includes(path)) {
@@ -361,6 +379,10 @@ function openInternal(url) {
     return
   }
   uni.navigateTo({ url })
+}
+
+function normalizeResourceDirection(value) {
+  return [RESOURCE_DIRECTION_SUPPLY, RESOURCE_DIRECTION_DEMAND].includes(value) ? value : ''
 }
 
 function normalizeBanner(item) {
@@ -641,7 +663,7 @@ function bannerTone(jumpType) {
 
 .quick-action-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 22rpx;
   margin: 0 0 42rpx;
 }
@@ -683,6 +705,10 @@ function bannerTone(jumpType) {
 
 .quick-action.amber .quick-icon {
   background: #f7f1ee;
+}
+
+.quick-action.coral .quick-icon {
+  background: #fff0ed;
 }
 
 .quick-action.green .quick-icon {
@@ -814,6 +840,33 @@ function bannerTone(jumpType) {
 
 .icon-orders-board text:nth-child(3) {
   width: 18rpx;
+}
+
+.icon-demand-sheet {
+  position: relative;
+  width: 42rpx;
+  height: 48rpx;
+  border: 5rpx solid $wplink-coral;
+  border-radius: 8rpx;
+}
+
+.icon-demand-sheet::before {
+  position: absolute;
+  top: -10rpx;
+  left: 9rpx;
+  width: 20rpx;
+  height: 10rpx;
+  border-radius: 8rpx 8rpx 0 0;
+  background: $wplink-coral;
+  content: '';
+}
+
+.icon-demand-sheet text {
+  display: block;
+  height: 5rpx;
+  margin: 10rpx 8rpx 0;
+  border-radius: 999rpx;
+  background: rgba($wplink-coral, 0.72);
 }
 
 .icon-sourcing-map {

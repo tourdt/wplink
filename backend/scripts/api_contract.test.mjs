@@ -79,6 +79,20 @@ test('generated types do not keep retired purchase demand DTOs', () => {
   }
 })
 
+test('api contract exposes demand direction through unified resource APIs', () => {
+  const resourceApiSource = fs.readFileSync(path.join(apiDir, 'resource.api'), 'utf8')
+  const cityApiSource = fs.readFileSync(path.join(apiDir, 'city.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
+
+  for (const source of [resourceApiSource, cityApiSource, typesSource]) {
+    assert(source.includes('Direction'), 'unified resource APIs should expose Direction')
+    assert(source.includes('direction'), 'unified resource APIs should expose direction json/form tags')
+  }
+  assert(resourceApiSource.includes('CreateResourceReq'), 'resource creation stays on resources API')
+  assert(resourceApiSource.includes('ListResourcesReq'), 'resource list stays on resources API')
+  assert(cityApiSource.includes('ListResourceTypesReq'), 'resource type lookup accepts direction')
+})
+
 test('generated types do not keep retired manual matching DTOs', () => {
   const source = fs.readFileSync(typesFile, 'utf8')
 

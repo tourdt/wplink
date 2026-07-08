@@ -18,3 +18,13 @@ test('login restores merchant id from managed merchants after token is saved', (
   assert.match(source, /const managedMerchant = managedMerchants\[0\]/)
   assert.match(source, /if \(managedMerchant\?\.id\) \{[\s\S]*saveMerchantId\(managedMerchant\.id\)/)
 })
+
+test('login uses stable local dev code when connected to local api', () => {
+  const source = fs.readFileSync(path.join(root, 'pages/login/index.vue'), 'utf8')
+
+  assert.match(source, /import \{ API_BASE_URL, DEFAULT_CITY_CODE \} from '\.\.\/\.\.\/common\/constants'/)
+  assert.match(source, /if \(shouldUseLocalDevLoginCode\(\)\) \{[\s\S]*resolve\(localDevLoginCode\(\)\)/)
+  assert.match(source, /function shouldUseLocalDevLoginCode\(\)/)
+  assert.match(source, /127\\\.0\\\.0\\\.1/)
+  assert.match(source, /localhost/)
+})

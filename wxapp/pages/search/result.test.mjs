@@ -15,9 +15,15 @@ function cssBlock(selector) {
 test('search result page keeps the main tools and removes explanatory copy', () => {
   for (const token of [
     'class="search-bar"',
+    'directionTabs',
+    'activeDirection',
+    'selectDirection',
+    '资源',
+    '需求',
     'class="filter-row"',
     'class="hot-row"',
     'ResourceCard',
+    'DemandCard',
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
@@ -27,7 +33,6 @@ test('search result page keeps the main tools and removes explanatory copy', () 
     'openDemand',
     '/pages/demand/index',
     'empty-visual-label',
-    '找货',
     '输入关键词或先选热门条件',
     '刷新保存',
     '推广资源均需审核通过',
@@ -67,6 +72,8 @@ test('search result page matches recommendation category browsing controls', () 
   }
 
   assert.match(source, /visibleResourceTypes = computed\(\(\) => resourceTypes\.value\)/)
+  assert.match(source, /listCityResourceTypes\(filters\.cityCode,\s*\{ direction: activeDirection\.value \}\)/)
+  assert.match(source, /direction: activeDirection\.value/)
   assert.match(source, /v-for="item in visibleResourceTypes"[\s\S]*:id="getTypeButtonId\(item\.value\)"/)
   assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypeDrawer\.value = false[\s\S]*scrollToSelectedType\(typeCode\)[\s\S]*await search\(\)[\s\S]*\}/)
 })
@@ -92,7 +99,7 @@ test('search result hot keywords come from server config', () => {
 test('search result page runs default search when opened without search conditions', () => {
   assert.match(source, /const routeSearched = await applyRouteSearch\(options\)/)
   assert.match(source, /if \(!routeSearched && !hasPendingSearch\(\)\) \{[\s\S]*await search\(\)[\s\S]*\}/)
-  assert.match(source, /async function applyRouteSearch\(options = \{\}\) \{[\s\S]*if \(!routeKeyword && !routeTypeCode\) return false[\s\S]*await search\(\)[\s\S]*return true[\s\S]*\}/)
+  assert.match(source, /async function applyRouteSearch\(options = \{\}\) \{[\s\S]*routeDirection[\s\S]*if \(!routeKeyword && !routeTypeCode && !routeDirection\) return false[\s\S]*await search\(\)[\s\S]*return true[\s\S]*\}/)
   assert.match(source, /function hasPendingSearch\(\) \{[\s\S]*return Boolean\(uni\.getStorageSync\(SEARCH_KEY\)\)[\s\S]*\}/)
 })
 

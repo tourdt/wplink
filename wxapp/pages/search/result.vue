@@ -2,8 +2,19 @@
   <view class="search-page">
     <view class="search-toolbar">
       <view class="search-bar">
-        <input v-model="keyword" class="search-input" placeholder="搜索库存清仓、现货货源、工厂接单、配套服务" @confirm="search" />
+        <input v-model="keyword" class="search-input" :placeholder="searchPlaceholder" @confirm="search" />
         <button class="search-button" @click="search">搜索</button>
+      </view>
+
+      <view class="direction-tabs">
+        <button
+          v-for="item in directionTabs"
+          :key="item.value"
+          :class="['direction-tab', activeDirection === item.value ? 'active' : '']"
+          @click="selectDirection(item.value)"
+        >
+          {{ item.label }}
+        </button>
       </view>
 
       <view class="filter-shell">
@@ -41,7 +52,12 @@
     </view>
 
     <view v-if="rows.length" class="result-list">
-      <ResourceCard v-for="item in rows" :key="item.id" :resource="item" @open="openResource" />
+      <template v-if="activeDirection === RESOURCE_DIRECTION_DEMAND">
+        <DemandCard v-for="item in rows" :key="item.id" :resource="item" @open="openResource" />
+      </template>
+      <template v-else>
+        <ResourceCard v-for="item in rows" :key="item.id" :resource="item" @open="openResource" />
+      </template>
       <text class="load-more-text">{{ loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了' }}</text>
     </view>
 
@@ -96,6 +112,7 @@
 <script setup>
 import { computed, nextTick, reactive, ref } from 'vue'
 import { onLoad, onReachBottom, onShow } from '@dcloudio/uni-app'
+import DemandCard from '../../components/DemandCard.vue'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { loadHotSearchKeywords } from '../../common/hotSearchKeywords'
@@ -105,6 +122,13 @@ import { searchResources } from '../../api/resource'
 const resourceTypes = ref([{ label: '全部', value: '' }])
 const hotKeywords = ref([])
 const SEARCH_KEY = 'wplink_pending_search_keyword'
+const RESOURCE_DIRECTION_SUPPLY = 'supply'
+const RESOURCE_DIRECTION_DEMAND = 'demand'
+const directionTabs = [
+  { label: '资源', value: RESOURCE_DIRECTION_SUPPLY },
+  { label: '需求', value: RESOURCE_DIRECTION_DEMAND },
+]
+const activeDirection = ref(RESOURCE_DIRECTION_SUPPLY)
 const keyword = ref('')
 const rows = ref([])
 const searched = ref(false)
@@ -121,6 +145,11 @@ const showTypeDrawer = ref(false)
 const scrollIntoTypeId = ref('')
 const visibleResourceTypes = computed(() => resourceTypes.value)
 const trimmedKeyword = computed(() => keyword.value.trim())
+const searchPlaceholder = computed(() => (
+  activeDirection.value === RESOURCE_DIRECTION_DEMAND
+    ? '搜索找现货、找库存、找工厂、找服务'
+    : '搜索库存清仓、现货货源、工厂接单、配套服务'
+))
 const emptyTitle = '暂无匹配资源'
 const emptyDesc = '换个关键词或分类试试。'
 const emptySuggestions = computed(() => hotKeywords.value
@@ -143,7 +172,7 @@ onReachBottom(() => {
 })
 
 async function loadResourceTypes() {
-  const resp = await listCityResourceTypes(filters.cityCode)
+  const resp = await listCityResourceTypes(filters.cityCode, { direction: activeDirection.value })
   const items = (resp.items || []).map((item) => ({
     label: item.typeName,
     value: item.typeCode,
@@ -161,10 +190,15 @@ async function loadHotKeywordOptions() {
 async function applyRouteSearch(options = {}) {
   const routeKeyword = decodeSearchValue(options.keyword || options.q || '')
   const routeTypeCode = decodeSearchValue(options.typeCode || '')
-  if (!routeKeyword && !routeTypeCode) return false
+  const routeDirection = normalizeDirection(decodeSearchValue(options.direction || ''))
+  if (!routeKeyword && !routeTypeCode && !routeDirection) return false
   keyword.value = routeKeyword
   filters.typeCode = routeTypeCode
   filters.cityCode = decodeSearchValue(options.cityCode || '') || DEFAULT_CITY_CODE
+  if (routeDirection) {
+    activeDirection.value = routeDirection
+  }
+  await loadResourceTypes()
   await scrollToSelectedType(routeTypeCode)
   await search()
   return true
@@ -180,7 +214,9 @@ async function applyPendingKeyword() {
     keyword.value = pendingSearch.keyword || ''
     filters.typeCode = pendingSearch.typeCode || ''
     filters.cityCode = pendingSearch.cityCode || DEFAULT_CITY_CODE
+    activeDirection.value = normalizeDirection(pendingSearch.direction || '') || RESOURCE_DIRECTION_SUPPLY
   }
+  await loadResourceTypes()
   await scrollToSelectedType(filters.typeCode)
   await search()
 }
@@ -197,6 +233,7 @@ async function search({ reset = true } = {}) {
     const nextPage = reset ? 1 : page.value + 1
     const resp = await searchResources({
       ...filters,
+      direction: activeDirection.value,
       keyword: keyword.value.trim(),
       page: nextPage,
       pageSize,
@@ -221,6 +258,16 @@ async function resetSearchConditions() {
   keyword.value = ''
   filters.typeCode = ''
   await scrollToSelectedType('')
+  await search()
+}
+
+async function selectDirection(direction) {
+  if (activeDirection.value === direction) return
+  activeDirection.value = direction
+  filters.typeCode = ''
+  showTypeDrawer.value = false
+  await scrollToSelectedType('')
+  await loadResourceTypes()
   await search()
 }
 
@@ -260,6 +307,10 @@ function decodeSearchValue(value) {
   } catch (err) {
     return value
   }
+}
+
+function normalizeDirection(value) {
+  return [RESOURCE_DIRECTION_SUPPLY, RESOURCE_DIRECTION_DEMAND].includes(value) ? value : ''
 }
 
 function openResource(item) {
@@ -318,6 +369,31 @@ function openResource(item) {
   font-size: 26rpx;
   font-weight: 700;
   line-height: 1;
+}
+
+.direction-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-bottom: 18rpx;
+  padding: 6rpx;
+  border-radius: 12rpx;
+  background: #e8edf5;
+}
+
+.direction-tab {
+  height: 64rpx;
+  border-radius: 10rpx;
+  background: transparent;
+  color: #566174;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.direction-tab.active {
+  background: $wplink-card;
+  color: $wplink-primary;
+  box-shadow: 0 6rpx 16rpx rgba(15, 23, 42, 0.08);
 }
 
 .filter-shell {

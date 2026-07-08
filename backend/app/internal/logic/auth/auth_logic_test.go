@@ -2,10 +2,12 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
+	"wplink/backend/common/errx"
 )
 
 func TestWechatLoginCreatesUserAndIssuesToken(t *testing.T) {
@@ -32,6 +34,36 @@ func TestWechatLoginCreatesUserAndIssuesToken(t *testing.T) {
 	}
 	if len(resp.ManagedMerchants) != 1 || resp.ManagedMerchants[0].ID != "merchant-1" {
 		t.Fatalf("managed merchants = %#v, want merchant-1", resp.ManagedMerchants)
+	}
+}
+
+func TestWechatLoginHidesStoreFailure(t *testing.T) {
+	store := &fakeAuthStore{upsertErr: errors.New(`pq: relation "users" does not exist`)}
+	tokenService := &fakeTokenService{}
+	sessionClient := &fakeWechatSessionClient{session: WechatSession{OpenID: "openid-1"}}
+	logic := NewWechatLoginLogic(store, tokenService, sessionClient)
+
+	_, err := logic.WechatLogin(context.Background(), WechatLoginReq{Code: "wx-code"})
+	if err == nil {
+		t.Fatal("err = nil, want friendly internal error")
+	}
+	if errx.CodeOf(err) != errx.CodeInternalError || errx.PublicMessage(err) != "登录失败，请稍后重试" {
+		t.Fatalf("err = %#v code=%s msg=%q, want safe login failure", err, errx.CodeOf(err), errx.PublicMessage(err))
+	}
+}
+
+func TestWechatLoginHidesTokenIssueFailure(t *testing.T) {
+	store := &fakeAuthStore{}
+	tokenService := &fakeTokenService{issueErr: errors.New("用户 token 密钥未配置")}
+	sessionClient := &fakeWechatSessionClient{session: WechatSession{OpenID: "openid-1"}}
+	logic := NewWechatLoginLogic(store, tokenService, sessionClient)
+
+	_, err := logic.WechatLogin(context.Background(), WechatLoginReq{Code: "wx-code"})
+	if err == nil {
+		t.Fatal("err = nil, want friendly internal error")
+	}
+	if errx.CodeOf(err) != errx.CodeInternalError || errx.PublicMessage(err) != "登录状态生成失败，请稍后重试" {
+		t.Fatalf("err = %#v code=%s msg=%q, want safe token failure", err, errx.CodeOf(err), errx.PublicMessage(err))
 	}
 }
 
@@ -90,10 +122,14 @@ type fakeAuthStore struct {
 	upsertInput model.UpsertWechatUserInput
 	boundUserID string
 	boundPhone  string
+	upsertErr   error
 }
 
 func (s *fakeAuthStore) UpsertWechatUser(ctx context.Context, input model.UpsertWechatUserInput) (model.UserProfile, error) {
 	s.upsertInput = input
+	if s.upsertErr != nil {
+		return model.UserProfile{}, s.upsertErr
+	}
 	return s.profile(""), nil
 }
 
@@ -123,11 +159,15 @@ func (s *fakeAuthStore) profile(phone string) model.UserProfile {
 }
 
 type fakeTokenService struct {
-	subject session.UserTokenSubject
+	subject  session.UserTokenSubject
+	issueErr error
 }
 
 func (s *fakeTokenService) IssueUserToken(ctx context.Context, subject session.UserTokenSubject) (string, error) {
 	s.subject = subject
+	if s.issueErr != nil {
+		return "", s.issueErr
+	}
 	return "user-token", nil
 }
 

@@ -16,6 +16,7 @@ type ResourceTypeConfigInfo {
 	Id               string                 `json:"id"`
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
+	Direction        string                 `json:"direction"`
 	DefaultValidDays int64                  `json:"defaultValidDays"`
 	FieldSchema      map[string]interface{} `json:"fieldSchema"`
 	RequiredFields   []string               `json:"requiredFields"`
@@ -27,6 +28,10 @@ type ListResourceTypesResp {
 	Items []ResourceTypeConfigInfo `json:"items"`
 }
 
+type ListResourceTypesReq {
+	Direction string `form:"direction,optional"`
+}
+
 @server(
 	prefix: /api/v1
 	group: city
@@ -36,5 +41,5 @@ service wplink-api {
 	get /city-stations returns (ListCityStationsResp)
 
 	@handler ListCityResourceTypes
-	get /city-stations/:cityCode/resource-types returns (ListResourceTypesResp)
+	get /city-stations/:cityCode/resource-types (ListResourceTypesReq) returns (ListResourceTypesResp)
 }

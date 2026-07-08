@@ -9,6 +9,8 @@ import (
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 const RoleNormalUser = "normal_user"
@@ -104,19 +106,22 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 
 	wechatSession, err := l.sessionClient.Code2Session(ctx, code)
 	if err != nil {
-		return WechatLoginResp{}, err
+		logx.Errorf("微信登录换取 session 失败: defaultCityCode=%s err=%+v", strings.TrimSpace(req.DefaultCityCode), err)
+		return WechatLoginResp{}, loginDependencyError(err, "登录失败，请稍后重试")
 	}
 	profile, err := l.store.UpsertWechatUser(ctx, model.UpsertWechatUserInput{
 		WechatOpenID:    wechatSession.OpenID,
 		DefaultCityCode: strings.TrimSpace(req.DefaultCityCode),
 	})
 	if err != nil {
-		return WechatLoginResp{}, err
+		logx.Errorf("微信登录写入用户失败: defaultCityCode=%s openidPresent=%t err=%+v", strings.TrimSpace(req.DefaultCityCode), strings.TrimSpace(wechatSession.OpenID) != "", err)
+		return WechatLoginResp{}, loginDependencyError(err, "登录失败，请稍后重试")
 	}
 	roles := normalizedRoles(profile.Roles)
 	token, err := l.tokenService.IssueUserToken(ctx, session.UserTokenSubject{UserID: profile.ID, Roles: roles})
 	if err != nil {
-		return WechatLoginResp{}, err
+		logx.Errorf("微信登录签发用户 token 失败: userId=%s roles=%v err=%+v", profile.ID, roles, err)
+		return WechatLoginResp{}, loginDependencyError(err, "登录状态生成失败，请稍后重试")
 	}
 	profile.Roles = roles
 	return WechatLoginResp{
@@ -124,6 +129,14 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 		User:             authUserInfoFromProfile(profile),
 		ManagedMerchants: managedMerchantInfosFromProfile(profile),
 	}, nil
+}
+
+func loginDependencyError(err error, fallbackMessage string) error {
+	var appErr *errx.Error
+	if errors.As(err, &appErr) {
+		return err
+	}
+	return errx.New(errx.CodeInternalError, fallbackMessage)
 }
 
 type MeLogic struct {

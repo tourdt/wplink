@@ -8,7 +8,7 @@ WITH zhili AS (
     '童装',
     'active',
     '{
-      "enabledTypeCodes": ["inventory", "goods", "factory", "order", "job", "rental", "service"],
+      "enabledTypeCodes": ["inventory", "goods", "factory", "job", "rental", "service", "buy_goods", "find_inventory", "find_factory", "find_service"],
       "primaryCategories": ["童装", "加工厂", "库存尾货", "辅料服务"]
     }'::jsonb
   )
@@ -27,6 +27,7 @@ INSERT INTO resource_type_configs (
   city_station_id,
   type_code,
   type_name,
+  direction,
   field_schema,
   required_fields,
   filter_fields,
@@ -41,6 +42,7 @@ SELECT
   zhili.id,
   cfg.type_code,
   cfg.type_name,
+  cfg.direction,
   cfg.field_schema::jsonb,
   cfg.required_fields::jsonb,
   cfg.filter_fields::jsonb,
@@ -56,6 +58,7 @@ CROSS JOIN (
     (
       'inventory',
       '库存清仓',
+      'supply',
       '{"fields":[{"key":"season","label":"季节","type":"select","required":false,"filterable":true,"displayIn":["detail"],"options":["春季","夏季","秋季","冬季"],"allowCustom":false},{"key":"sizeRange","label":"尺码段","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：90-140"},{"key":"allowSample","label":"支持拿样","type":"boolean","required":false,"filterable":false,"displayIn":["detail"]},{"key":"allowLiveSale","label":"支持直播","type":"boolean","required":false,"filterable":true,"displayIn":["detail"]}]}',
       '["title","category","quantityText","contactPhone"]',
       '["season","sizeRange","allowLiveSale"]',
@@ -68,6 +71,7 @@ CROSS JOIN (
     (
       'goods',
       '现货货源',
+      'supply',
       '{"fields":[{"key":"style","label":"风格","type":"select","required":false,"filterable":true,"displayIn":["detail"],"options":["韩版","学院风","运动风","国潮","基础款"],"allowCustom":true},{"key":"minOrderQuantity","label":"起批量","type":"text","required":false,"filterable":false,"displayIn":["detail"],"placeholder":"例如：20 套"},{"key":"spotAvailable","label":"是否现货","type":"boolean","required":false,"filterable":true,"displayIn":["detail"]},{"key":"dropshipping","label":"一件代发","type":"boolean","required":false,"filterable":true,"displayIn":["detail"]}]}',
       '["title","category","priceText","contactPhone"]',
       '["style","spotAvailable","dropshipping"]',
@@ -80,6 +84,7 @@ CROSS JOIN (
     (
       'factory',
       '工厂接单',
+      'supply',
       '{"fields":[{"key":"dailyCapacity","label":"日产能","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：1200 件/天"},{"key":"minOrderQuantity","label":"起订量","type":"text","required":false,"filterable":false,"displayIn":["detail"],"placeholder":"例如：300 件"},{"key":"acceptSmallOrders","label":"接小单","type":"boolean","required":false,"filterable":true,"displayIn":["detail"]},{"key":"availableSchedule","label":"空档期","type":"select","required":false,"filterable":true,"displayIn":["detail"],"options":["本周可排单","下周可排单","本月可排单","需沟通排期"],"allowCustom":true}]}',
       '["title","category","quantityText","contactPhone"]',
       '["dailyCapacity","acceptSmallOrders","availableSchedule"]',
@@ -90,20 +95,9 @@ CROSS JOIN (
       15
     ),
     (
-      'order',
-      '订单找厂',
-      '{"fields":[{"key":"orderQuantity","label":"订单数量","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：5000 件"},{"key":"deliveryDeadline","label":"交期","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：20 天"},{"key":"sampleRequired","label":"需要打样","type":"boolean","required":false,"filterable":true,"displayIn":["detail"]},{"key":"longTermCooperation","label":"长期合作","type":"boolean","required":false,"filterable":false,"displayIn":["detail"]}]}',
-      '["title","category","quantityText","contactPhone"]',
-      '["orderQuantity","deliveryDeadline","sampleRequired"]',
-      '{"list":["quantityText","district"],"detail":["orderQuantity","deliveryDeadline","sampleRequired","longTermCooperation"]}',
-      '{"resubmitOnChange":["title","quantityText","contactPhone"]}',
-      '{"verified":15,"refreshedAt":10,"contactCount":5}',
-      '{"expiringSoonDays":3}',
-      10
-    ),
-    (
       'job',
       '招工招聘',
+      'supply',
       '{"fields":[{"key":"position","label":"岗位","type":"select","required":false,"filterable":true,"displayIn":["detail"],"options":["平车工","拷边工","裁剪工","后道","包装工"],"allowCustom":true},{"key":"payText","label":"工价","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：计件 0.8-1.2 元"},{"key":"headcount","label":"人数","type":"number","required":false,"filterable":false,"displayIn":["detail"],"placeholder":"例如：8"},{"key":"includeMealsHousing","label":"包吃住","type":"boolean","required":false,"filterable":true,"displayIn":["detail"]}]}',
       '["title","category","priceText","contactPhone"]',
       '["position","payText","includeMealsHousing"]',
@@ -116,6 +110,7 @@ CROSS JOIN (
     (
       'rental',
       '出租转让',
+      'supply',
       '{"fields":[{"key":"rentalType","label":"房源类型","type":"select","required":false,"filterable":true,"displayIn":["detail"],"options":["厂房","档口","仓库","商铺","商品房","宿舍","设备","其他"],"allowCustom":true},{"key":"areaText","label":"面积","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：120 平"},{"key":"rentText","label":"租金","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：6800 元/月"},{"key":"floor","label":"楼层","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：1 楼"},{"key":"transferFee","label":"转让费","type":"text","required":false,"filterable":false,"displayIn":["detail"],"placeholder":"例如：无"}]}',
       '["title","category","priceText","contactPhone"]',
       '["rentalType","areaText","rentText","floor"]',
@@ -128,6 +123,7 @@ CROSS JOIN (
     (
       'service',
       '配套服务',
+      'supply',
       '{"fields":[{"key":"serviceType","label":"服务类型","type":"select","required":false,"filterable":true,"displayIn":["detail"],"options":["物流","辅料","印花","绣花","摄影","直播","包装"],"allowCustom":true},{"key":"serviceArea","label":"服务范围","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：织里及周边"},{"key":"leadTime","label":"交付时效","type":"text","required":false,"filterable":false,"displayIn":["detail"],"placeholder":"例如：当天出样"},{"key":"caseAvailable","label":"有案例","type":"boolean","required":false,"filterable":true,"displayIn":["detail"]}]}',
       '["title","category","contactPhone"]',
       '["serviceType","serviceArea","caseAvailable"]',
@@ -136,10 +132,63 @@ CROSS JOIN (
       '{"verified":20,"refreshedAt":10,"contactCount":5}',
       '{"expiringSoonDays":5}',
       30
+    ),
+    (
+      'buy_goods',
+      '找现货',
+      'demand',
+      '{"fields":[{"key":"targetStyle","label":"目标风格","type":"select","required":false,"filterable":true,"displayIn":["detail"],"options":["韩版","学院风","运动风","国潮","基础款"],"allowCustom":true},{"key":"budgetRange","label":"预算范围","type":"text","required":false,"filterable":false,"displayIn":["detail"],"placeholder":"例如：20-30 元/件"},{"key":"deliveryDeadline","label":"交付时效","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：7 天内发货"},{"key":"acceptRemoteShipping","label":"接受外地发货","type":"boolean","required":false,"filterable":true,"displayIn":["detail"]}]}',
+      '["title","category","quantityText","contactPhone"]',
+      '["targetStyle","deliveryDeadline","acceptRemoteShipping"]',
+      '{"list":["quantityText","priceText","district"],"detail":["targetStyle","budgetRange","deliveryDeadline","acceptRemoteShipping"]}',
+      '{"resubmitOnChange":["title","quantityText","priceText","contactPhone"]}',
+      '{"freshDemand":20,"refreshedAt":10}',
+      '{"expiringSoonDays":2}',
+      7
+    ),
+    (
+      'find_inventory',
+      '找库存',
+      'demand',
+      '{"fields":[{"key":"season","label":"季节","type":"select","required":false,"filterable":true,"displayIn":["detail"],"options":["春季","夏季","秋季","冬季"],"allowCustom":false},{"key":"sizeRange","label":"尺码段","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：90-140"},{"key":"budgetRange","label":"预算范围","type":"text","required":false,"filterable":false,"displayIn":["detail"],"placeholder":"例如：按包议价"},{"key":"acceptMixedLot","label":"接受混批","type":"boolean","required":false,"filterable":true,"displayIn":["detail"]}]}',
+      '["title","category","quantityText","contactPhone"]',
+      '["season","sizeRange","acceptMixedLot"]',
+      '{"list":["quantityText","priceText","district"],"detail":["season","sizeRange","budgetRange","acceptMixedLot"]}',
+      '{"resubmitOnChange":["title","quantityText","priceText","contactPhone"]}',
+      '{"freshDemand":20,"refreshedAt":10}',
+      '{"expiringSoonDays":2}',
+      7
+    ),
+    (
+      'find_factory',
+      '找工厂',
+      'demand',
+      '{"fields":[{"key":"orderQuantity","label":"订单数量","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：5000 件"},{"key":"deliveryDeadline","label":"交期","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：20 天"},{"key":"sampleRequired","label":"需要打样","type":"boolean","required":false,"filterable":true,"displayIn":["detail"]},{"key":"longTermCooperation","label":"长期合作","type":"boolean","required":false,"filterable":false,"displayIn":["detail"]}]}',
+      '["title","category","quantityText","contactPhone"]',
+      '["orderQuantity","deliveryDeadline","sampleRequired"]',
+      '{"list":["quantityText","district"],"detail":["orderQuantity","deliveryDeadline","sampleRequired","longTermCooperation"]}',
+      '{"resubmitOnChange":["title","quantityText","contactPhone"]}',
+      '{"verified":15,"refreshedAt":10,"contactCount":5}',
+      '{"expiringSoonDays":3}',
+      10
+    ),
+    (
+      'find_service',
+      '找服务',
+      'demand',
+      '{"fields":[{"key":"serviceType","label":"服务类型","type":"select","required":false,"filterable":true,"displayIn":["detail"],"options":["物流","辅料","印花","绣花","摄影","直播","包装"],"allowCustom":true},{"key":"serviceArea","label":"服务区域","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：织里及周边"},{"key":"deliveryDeadline","label":"交付时效","type":"text","required":false,"filterable":false,"displayIn":["detail"],"placeholder":"例如：3 天内"},{"key":"longTermCooperation","label":"长期合作","type":"boolean","required":false,"filterable":false,"displayIn":["detail"]}]}',
+      '["title","category","contactPhone"]',
+      '["serviceType","serviceArea"]',
+      '{"list":["district"],"detail":["serviceType","serviceArea","deliveryDeadline","longTermCooperation"]}',
+      '{"resubmitOnChange":["title","contactPhone"]}',
+      '{"freshDemand":20,"refreshedAt":10}',
+      '{"expiringSoonDays":3}',
+      15
     )
 ) AS cfg(
   type_code,
   type_name,
+  direction,
   field_schema,
   required_fields,
   filter_fields,
@@ -161,6 +210,7 @@ DO UPDATE SET
   message_rules = EXCLUDED.message_rules,
   default_valid_days = EXCLUDED.default_valid_days,
   status = EXCLUDED.status,
+  direction = EXCLUDED.direction,
   updated_at = now();
 
 WITH zhili AS (

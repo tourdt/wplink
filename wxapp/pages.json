@@ -135,7 +135,7 @@
       },
       {
         "pagePath": "pages/search/index",
-        "text": "资源",
+        "text": "供需",
         "iconPath": "static/tabbar/search.png",
         "selectedIconPath": "static/tabbar/search-active.png"
       },

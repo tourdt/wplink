@@ -14,7 +14,7 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { DEFAULT_CITY_CODE } from '../../common/constants'
+import { API_BASE_URL, DEFAULT_CITY_CODE } from '../../common/constants'
 import { getMe, wechatLogin } from '../../api/auth'
 import { saveMerchantId, saveToken, saveUserId } from '../../store/session'
 
@@ -93,6 +93,11 @@ function safeDecode(value) {
 
 function getWechatLoginCode() {
   return new Promise((resolve) => {
+    if (shouldUseLocalDevLoginCode()) {
+      // 连接本地 API 时后端通常未配置真实微信密钥，固定使用开发 code，避免微信开发者工具返回的一次性 code 触发后端 jscode2session 失败。
+      resolve(localDevLoginCode())
+      return
+    }
     uni.login({
       provider: 'weixin',
       success: (res) => {
@@ -104,6 +109,10 @@ function getWechatLoginCode() {
       },
     })
   })
+}
+
+function shouldUseLocalDevLoginCode() {
+  return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(String(API_BASE_URL || ''))
 }
 
 function localDevLoginCode() {

@@ -2,8 +2,19 @@
   <view class="resource-page">
     <view class="resource-toolbar">
       <view class="search-entry" @click="openSearchPage()">
-        <text class="search-placeholder">搜索库存清仓、现货货源、工厂接单、配套服务</text>
+        <text class="search-placeholder">{{ searchPlaceholder }}</text>
         <text class="search-action">搜索</text>
+      </view>
+
+      <view class="direction-tabs">
+        <button
+          v-for="item in directionTabs"
+          :key="item.value"
+          :class="['direction-tab', activeDirection === item.value ? 'active' : '']"
+          @click="selectDirection(item.value)"
+        >
+          {{ item.label }}
+        </button>
       </view>
 
       <view class="filter-shell">
@@ -34,7 +45,12 @@
     </view>
 
     <view v-if="rows.length" class="result-list">
-      <ResourceCard v-for="item in rows" :key="item.id" :resource="item" @open="openResource" />
+      <template v-if="activeDirection === RESOURCE_DIRECTION_DEMAND">
+        <DemandCard v-for="item in rows" :key="item.id" :resource="item" @open="openResource" />
+      </template>
+      <template v-else>
+        <ResourceCard v-for="item in rows" :key="item.id" :resource="item" @open="openResource" />
+      </template>
       <text class="load-more-text">{{ loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了' }}</text>
     </view>
 
@@ -70,6 +86,7 @@
 <script setup>
 import { computed, nextTick, reactive, ref } from 'vue'
 import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
+import DemandCard from '../../components/DemandCard.vue'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { listCityResourceTypes } from '../../api/city'
@@ -77,7 +94,14 @@ import { listResources } from '../../api/resource'
 
 const resourceTypes = ref([{ label: '全部', value: '' }])
 const SEARCH_KEY = 'wplink_pending_search_keyword'
-const PAGE_TITLE = '资源推荐'
+const PAGE_TITLE = '供需市场'
+const RESOURCE_DIRECTION_SUPPLY = 'supply'
+const RESOURCE_DIRECTION_DEMAND = 'demand'
+const directionTabs = [
+  { label: '找资源', value: RESOURCE_DIRECTION_SUPPLY },
+  { label: '看需求', value: RESOURCE_DIRECTION_DEMAND },
+]
+const activeDirection = ref(RESOURCE_DIRECTION_SUPPLY)
 const rows = ref([])
 const page = ref(1)
 const pageSize = 20
@@ -91,6 +115,11 @@ const filters = reactive({
 const showTypeDrawer = ref(false)
 const scrollIntoTypeId = ref('')
 const visibleResourceTypes = computed(() => resourceTypes.value)
+const searchPlaceholder = computed(() => (
+  activeDirection.value === RESOURCE_DIRECTION_DEMAND
+    ? '搜索找现货、找库存、找工厂、找服务'
+    : '搜索库存清仓、现货货源、工厂接单、配套服务'
+))
 
 onLoad(initResourcePage)
 
@@ -113,7 +142,7 @@ onReachBottom(() => {
 })
 
 async function loadResourceTypes() {
-  const resp = await listCityResourceTypes(filters.cityCode)
+  const resp = await listCityResourceTypes(filters.cityCode, { direction: activeDirection.value })
   const items = (resp.items || []).map((item) => ({
     label: item.typeName,
     value: item.typeCode,
@@ -130,6 +159,7 @@ async function loadRecommendedResources({ reset = true } = {}) {
     const resp = await listResources({
       cityCode: filters.cityCode,
       typeCode: filters.typeCode,
+      direction: activeDirection.value,
       page: nextPage,
       pageSize,
     })
@@ -141,6 +171,16 @@ async function loadRecommendedResources({ reset = true } = {}) {
   } finally {
     loading.value = false
   }
+}
+
+async function selectDirection(direction) {
+  if (activeDirection.value === direction) return
+  activeDirection.value = direction
+  filters.typeCode = ''
+  showTypeDrawer.value = false
+  await scrollToSelectedType('')
+  await loadResourceTypes()
+  await loadRecommendedResources({ reset: true })
 }
 
 async function selectType(typeCode) {
@@ -173,8 +213,12 @@ function closeTypeDrawer() {
 }
 
 function openSearchPage(keyword = '') {
-  if (keyword) {
-    uni.setStorageSync(SEARCH_KEY, keyword)
+  const searchOptions = {
+    keyword,
+    direction: activeDirection.value,
+  }
+  if (keyword || activeDirection.value !== RESOURCE_DIRECTION_SUPPLY) {
+    uni.setStorageSync(SEARCH_KEY, searchOptions)
   } else {
     uni.removeStorageSync(SEARCH_KEY)
   }
@@ -232,6 +276,31 @@ function openResource(item) {
   color: $wplink-card;
   font-size: 26rpx;
   font-weight: 700;
+}
+
+.direction-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-bottom: 18rpx;
+  padding: 6rpx;
+  border-radius: 12rpx;
+  background: #e8edf5;
+}
+
+.direction-tab {
+  height: 64rpx;
+  border-radius: 10rpx;
+  background: transparent;
+  color: #566174;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.direction-tab.active {
+  background: $wplink-card;
+  color: $wplink-primary;
+  box-shadow: 0 6rpx 16rpx rgba(15, 23, 42, 0.08);
 }
 
 .filter-shell {

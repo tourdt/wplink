@@ -238,6 +238,42 @@ func TestCreateResourceCreatesPendingResource(t *testing.T) {
 	}
 }
 
+func TestCreateResourceCreatesDemandDirectionResource(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-demand-1",
+			TypeCode:       "buy_goods",
+			Direction:      model.ResourceDirectionDemand,
+			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
+		},
+		result: model.CreateResourceResult{ID: "demand-resource-1", Status: model.ResourceStatusPending},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	resp, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:   "buyer-merchant-1",
+		CityCode:     "zhili",
+		TypeCode:     "buy_goods",
+		Title:        "找童装防晒衣现货",
+		Category:     "童装",
+		QuantityText: "5000 件",
+		PriceText:    "预算 30 元以内",
+		Description:  "需要一周内可发货，接受外地发货。",
+		Attributes:   model.JSONMap{"deliveryDeadline": "7天", "acceptRemoteShipping": true},
+		Contact:      ResourceContactReq{Name: "王采购", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+
+	if store.input.Direction != model.ResourceDirectionDemand {
+		t.Fatalf("direction = %q, want demand", store.input.Direction)
+	}
+	if resp.ID != "demand-resource-1" || resp.Status != model.ResourceStatusPending {
+		t.Fatalf("resp = %#v, want demand pending resource", resp)
+	}
+}
+
 func TestCreateResourceUsesMerchantContactPhoneWhenRequestPhoneIsMasked(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{

@@ -33,6 +33,7 @@ type CreateResourceReq struct {
 	MerchantID    string
 	CityCode      string
 	TypeCode      string
+	Direction     string
 	Title         string
 	Category      string
 	District      string
@@ -169,6 +170,7 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		CityCode:             cityCode,
 		ResourceTypeConfigID: config.ID,
 		TypeCode:             typeCode,
+		Direction:            normalizeConfigDirection(config.Direction),
 		Status:               status,
 		Title:                values["title"],
 		Category:             values["category"],
@@ -185,6 +187,14 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		ContactWechat:        strings.TrimSpace(req.Contact.Wechat),
 		CreatedByUser:        strings.TrimSpace(req.CreatedByUser),
 	}, typeCode, nil
+}
+
+func normalizeConfigDirection(direction string) string {
+	direction = strings.TrimSpace(direction)
+	if direction == model.ResourceDirectionDemand {
+		return model.ResourceDirectionDemand
+	}
+	return model.ResourceDirectionSupply
 }
 
 func isOperatorProxy(role string) bool {

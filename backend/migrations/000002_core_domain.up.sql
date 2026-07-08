@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS resource_type_configs (
   city_station_id bigint REFERENCES city_stations(id),
   type_code varchar(64) NOT NULL,
   type_name varchar(64) NOT NULL,
+  direction varchar(32) NOT NULL DEFAULT 'supply',
   field_schema jsonb NOT NULL DEFAULT '{}'::jsonb,
   required_fields jsonb NOT NULL DEFAULT '[]'::jsonb,
   filter_fields jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -85,7 +86,8 @@ CREATE TABLE IF NOT EXISTS resource_type_configs (
   default_valid_days integer NOT NULL,
   status varchar(32) NOT NULL DEFAULT 'active',
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_resource_type_configs_direction CHECK (direction IN ('supply', 'demand'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_resource_type_city_scope
@@ -95,6 +97,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_resource_type_global_scope
   ON resource_type_configs(type_code)
   WHERE city_station_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_resource_type_configs_type_code ON resource_type_configs(type_code);
+CREATE INDEX IF NOT EXISTS idx_resource_type_configs_direction ON resource_type_configs(direction, status);
 CREATE INDEX IF NOT EXISTS idx_resource_type_configs_status ON resource_type_configs(status);
 
 CREATE TABLE IF NOT EXISTS resources (
@@ -103,6 +106,7 @@ CREATE TABLE IF NOT EXISTS resources (
   city_station_id bigint NOT NULL REFERENCES city_stations(id),
   resource_type_config_id bigint NOT NULL REFERENCES resource_type_configs(id),
   type_code varchar(64) NOT NULL,
+  direction varchar(32) NOT NULL DEFAULT 'supply',
   status varchar(32) NOT NULL DEFAULT 'pending',
   title varchar(128) NOT NULL,
   category varchar(64) NOT NULL,
@@ -129,10 +133,12 @@ CREATE TABLE IF NOT EXISTS resources (
   created_by bigint REFERENCES users(id),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  deleted_at timestamptz
+  deleted_at timestamptz,
+  CONSTRAINT chk_resources_direction CHECK (direction IN ('supply', 'demand'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_resources_city_type_status ON resources(city_station_id, type_code, status);
+CREATE INDEX IF NOT EXISTS idx_resources_city_direction_type_status ON resources(city_station_id, direction, type_code, status);
 CREATE INDEX IF NOT EXISTS idx_resources_merchant_status ON resources(merchant_id, status);
 CREATE INDEX IF NOT EXISTS idx_resources_category_status ON resources(category, status);
 CREATE INDEX IF NOT EXISTS idx_resources_refreshed_at ON resources(refreshed_at DESC);

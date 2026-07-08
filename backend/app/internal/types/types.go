@@ -551,6 +551,7 @@ type CreateResourceReq struct {
 	MerchantId   string                 `json:"merchantId"`
 	CityCode     string                 `json:"cityCode"`
 	TypeCode     string                 `json:"typeCode"`
+	Direction    string                 `json:"direction,optional"`
 	Title        string                 `json:"title"`
 	Category     string                 `json:"category"`
 	District     string                 `json:"district,optional"`
@@ -651,6 +652,7 @@ type EditableResourceResp struct {
 	MerchantId   string                  `json:"merchantId"`
 	CityCode     string                  `json:"cityCode"`
 	TypeCode     string                  `json:"typeCode"`
+	Direction    string                  `json:"direction"`
 	Status       string                  `json:"status"`
 	Title        string                  `json:"title"`
 	Category     string                  `json:"category"`
@@ -842,6 +844,10 @@ type ListNearbyPoisResp struct {
 	Items []NearbyPoiItem `json:"items"`
 }
 
+type ListResourceTypesReq struct {
+	Direction string `form:"direction,optional"`
+}
+
 type ListResourceTypesResp struct {
 	Items []ResourceTypeConfigInfo `json:"items"`
 }
@@ -850,6 +856,7 @@ type ListResourcesReq struct {
 	CityCode     string `form:"cityCode,optional"`
 	MerchantId   string `form:"merchantId,optional"`
 	TypeCode     string `form:"typeCode,optional"`
+	Direction    string `form:"direction,optional"`
 	Keyword      string `form:"keyword,optional"`
 	Category     string `form:"category,optional"`
 	VerifiedOnly bool   `form:"verifiedOnly,optional"`
@@ -1085,6 +1092,7 @@ type MessageListItem struct {
 
 type MyResourceItem struct {
 	Id           string            `json:"id"`
+	Direction    string            `json:"direction"`
 	TypeCode     string            `json:"typeCode"`
 	Title        string            `json:"title"`
 	Category     string            `json:"category"`
@@ -1147,6 +1155,12 @@ type RepostSimilarResp struct {
 	Message string `json:"message"`
 }
 
+type ResourceAttributeItem struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
 type ResourceContactMasked struct {
 	Name         string `json:"name"`
 	PhoneMasked  string `json:"phoneMasked"`
@@ -1159,16 +1173,11 @@ type ResourceContactReq struct {
 	Wechat string `json:"wechat,optional"`
 }
 
-type ResourceAttributeItem struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
-	Value string `json:"value"`
-}
-
 type ResourceDetailResp struct {
 	Id             string                  `json:"id"`
 	Status         string                  `json:"status"`
 	TypeCode       string                  `json:"typeCode"`
+	Direction      string                  `json:"direction"`
 	TypeName       string                  `json:"typeName,optional"`
 	Title          string                  `json:"title"`
 	Category       string                  `json:"category"`
@@ -1192,6 +1201,7 @@ type ResourceFavoriteStateResp struct {
 
 type ResourceListItem struct {
 	Id           string                `json:"id"`
+	Direction    string                `json:"direction"`
 	TypeCode     string                `json:"typeCode"`
 	Title        string                `json:"title"`
 	Category     string                `json:"category"`
@@ -1240,6 +1250,7 @@ type ResourceTypeConfigInfo struct {
 	Id               string                 `json:"id"`
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
+	Direction        string                 `json:"direction"`
 	DefaultValidDays int64                  `json:"defaultValidDays"`
 	FieldSchema      map[string]interface{} `json:"fieldSchema"`
 	RequiredFields   []string               `json:"requiredFields"`
@@ -1285,6 +1296,7 @@ type SearchMapObjectsResp struct {
 type SearchResourcesReq struct {
 	CityCode     string `form:"cityCode,optional"`
 	TypeCode     string `form:"typeCode,optional"`
+	Direction    string `form:"direction,optional"`
 	Keyword      string `form:"keyword,optional"`
 	Category     string `form:"category,optional"`
 	VerifiedOnly bool   `form:"verifiedOnly,optional"`

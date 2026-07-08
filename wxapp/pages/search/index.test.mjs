@@ -12,7 +12,7 @@ function cssBlock(selector) {
   return match?.[1] || ''
 }
 
-test('resource recommendation page supports pull refresh and load more pagination', () => {
+test('supply demand page supports pull refresh and load more pagination', () => {
   for (const token of [
     'onPullDownRefresh',
     'onReachBottom',
@@ -34,7 +34,25 @@ test('resource recommendation page supports pull refresh and load more paginatio
   assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
 })
 
-test('resource recommendation page shows all categories and scrolls selected category into view', () => {
+test('supply demand page shows direction tabs and category controls', () => {
+  for (const token of [
+    'directionTabs',
+    'activeDirection',
+    'selectDirection',
+    '找资源',
+    '看需求',
+    "direction: activeDirection.value",
+    'DemandCard',
+    'v-if="activeDirection === RESOURCE_DIRECTION_DEMAND"',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(source, /listCityResourceTypes\(filters\.cityCode,\s*\{ direction: activeDirection\.value \}\)/)
+  assert.match(source, /const PAGE_TITLE = '供需市场'/)
+})
+
+test('supply demand page shows all categories and scrolls selected category into view', () => {
   for (const token of [
     'visibleResourceTypes',
     'scrollIntoTypeId',
@@ -61,7 +79,7 @@ test('resource recommendation page shows all categories and scrolls selected cat
   assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypeDrawer\.value = false[\s\S]*scrollToSelectedType\(typeCode\)[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
 })
 
-test('resource recommendation page does not expose demand submission in MVP', () => {
+test('supply demand page does not restore retired standalone demand pages', () => {
   for (const removedText of ['提交采购需求', 'openDemand', '/pages/demand/index']) {
     assert.doesNotMatch(source, new RegExp(removedText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }

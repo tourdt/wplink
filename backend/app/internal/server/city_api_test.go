@@ -46,6 +46,7 @@ func TestAPIRouterListsResourceTypesByCity(t *testing.T) {
 			ID:               "type-1",
 			TypeCode:         "inventory",
 			TypeName:         "库存清仓",
+			Direction:        model.ResourceDirectionSupply,
 			DefaultValidDays: 30,
 			RequiredFields:   []string{"title", "category"},
 			FilterFields:     []string{"category"},
@@ -70,6 +71,25 @@ func TestAPIRouterListsResourceTypesByCity(t *testing.T) {
 	if first["typeCode"] != "inventory" || first["typeName"] != "库存清仓" {
 		t.Fatalf("first type = %#v, want inventory with friendly display name", first)
 	}
+	if first["direction"] != model.ResourceDirectionSupply {
+		t.Fatalf("direction = %#v, want supply", first["direction"])
+	}
+}
+
+func TestAPIRouterPassesResourceTypeDirectionQuery(t *testing.T) {
+	store := &fakeCityAPIStore{}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/city-stations/zhili/resource-types?direction=demand", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if store.cityCode != "zhili" || store.direction != model.ResourceDirectionDemand {
+		t.Fatalf("cityCode = %q direction = %q, want zhili/demand", store.cityCode, store.direction)
+	}
 }
 
 func TestAPIRouterReturnsNotFoundForUnsupportedCitySubPath(t *testing.T) {
@@ -88,13 +108,15 @@ type fakeCityAPIStore struct {
 	stations      []model.CityStation
 	resourceTypes []model.ResourceTypeConfig
 	cityCode      string
+	direction     string
 }
 
 func (s *fakeCityAPIStore) ListActiveCityStations(ctx context.Context) ([]model.CityStation, error) {
 	return append([]model.CityStation(nil), s.stations...), nil
 }
 
-func (s *fakeCityAPIStore) ListActiveResourceTypesByCityCode(ctx context.Context, cityCode string) ([]model.ResourceTypeConfig, error) {
+func (s *fakeCityAPIStore) ListActiveResourceTypesByCityCode(ctx context.Context, cityCode string, direction string) ([]model.ResourceTypeConfig, error) {
 	s.cityCode = cityCode
+	s.direction = direction
 	return append([]model.ResourceTypeConfig(nil), s.resourceTypes...), nil
 }

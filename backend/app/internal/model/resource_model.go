@@ -13,11 +13,15 @@ const (
 	ResourceStatusRejected  = "rejected"
 	ResourceStatusTakenDown = "taken_down"
 	ResourceStatusExpired   = "expired"
+
+	ResourceDirectionSupply = "supply"
+	ResourceDirectionDemand = "demand"
 )
 
 type ResourcePublishConfig struct {
 	ID               string
 	TypeCode         string
+	Direction        string
 	FieldSchema      JSONMap
 	RequiredFields   []string
 	DefaultValidDays int64
@@ -28,6 +32,7 @@ type CreateResourceInput struct {
 	CityCode             string
 	ResourceTypeConfigID string
 	TypeCode             string
+	Direction            string
 	Status               string
 	Title                string
 	Category             string
@@ -63,6 +68,7 @@ type ResourceMerchantBrief struct {
 
 type ResourceListItem struct {
 	ID           string
+	Direction    string
 	TypeCode     string
 	Title        string
 	Category     string
@@ -78,6 +84,7 @@ type ListResourcesFilter struct {
 	CityCode     string
 	MerchantID   string
 	TypeCode     string
+	Direction    string
 	Keyword      string
 	Category     string
 	VerifiedOnly bool
@@ -97,6 +104,7 @@ type ResourceDetail struct {
 	ID                         string
 	Status                     string
 	TypeCode                   string
+	Direction                  string
 	TypeName                   string
 	Title                      string
 	Category                   string
@@ -132,6 +140,7 @@ type ReviewResourceResult struct {
 const listResourcesSQL = `
 SELECT
   r.id::text,
+  r.direction,
   r.type_code,
   r.title,
   r.category,
@@ -152,19 +161,20 @@ WHERE r.deleted_at IS NULL
   AND ($2 = '' OR cs.code = $2)
   AND (NULLIF($3, '')::bigint IS NULL OR r.merchant_id = NULLIF($3, '')::bigint)
   AND ($4 = '' OR r.type_code = $4)
-  AND ($5 = '' OR r.category = $5)
+  AND ($5 = '' OR r.direction = $5)
+  AND ($6 = '' OR r.category = $6)
   AND (
-    $6 = ''
-    OR r.title ILIKE '%' || $6 || '%'
-    OR r.description ILIKE '%' || $6 || '%'
-    OR r.category ILIKE '%' || $6 || '%'
-    OR m.name ILIKE '%' || $6 || '%'
-    OR r.attributes::text ILIKE '%' || $6 || '%'
+    $7 = ''
+    OR r.title ILIKE '%' || $7 || '%'
+    OR r.description ILIKE '%' || $7 || '%'
+    OR r.category ILIKE '%' || $7 || '%'
+    OR m.name ILIKE '%' || $7 || '%'
+    OR r.attributes::text ILIKE '%' || $7 || '%'
   )
-  AND ($7 = false OR r.is_verified = true OR m.verification_status = 'verified')
+  AND ($8 = false OR r.is_verified = true OR m.verification_status = 'verified')
   AND (r.expires_at IS NULL OR r.expires_at > now())
 ORDER BY COALESCE(r.refreshed_at, r.published_at, r.created_at) DESC
-LIMIT $8 OFFSET $9
+LIMIT $9 OFFSET $10
 `
 
 const reviewResourceSQL = `
@@ -189,6 +199,7 @@ SELECT
   r.id::text,
   r.status,
   r.type_code,
+  r.direction,
   rtc.type_name,
   r.title,
   r.category,
@@ -223,6 +234,7 @@ SELECT
   r.id::text,
   r.status,
   r.type_code,
+  r.direction,
   rtc.type_name,
   r.title,
   r.category,
@@ -427,14 +439,14 @@ func (m *ResourceModel) GetResourcePublishConfig(ctx context.Context, cityCode s
 	var config ResourcePublishConfig
 	var requiredFields JSONStringSlice
 	err := m.db.QueryRowContext(ctx, `
-SELECT rtc.id::text, rtc.type_code, rtc.field_schema, rtc.required_fields, rtc.default_valid_days
+SELECT rtc.id::text, rtc.type_code, rtc.direction, rtc.field_schema, rtc.required_fields, rtc.default_valid_days
 FROM resource_type_configs rtc
 JOIN city_stations cs ON cs.id = rtc.city_station_id
 WHERE cs.code = $1
   AND cs.status = 'active'
   AND rtc.type_code = $2
   AND rtc.status = 'active'
-`, cityCode, typeCode).Scan(&config.ID, &config.TypeCode, &config.FieldSchema, &requiredFields, &config.DefaultValidDays)
+`, cityCode, typeCode).Scan(&config.ID, &config.TypeCode, &config.Direction, &config.FieldSchema, &requiredFields, &config.DefaultValidDays)
 	config.RequiredFields = []string(requiredFields)
 	return config, err
 }
@@ -457,6 +469,7 @@ INSERT INTO resources (
   city_station_id,
   resource_type_config_id,
   type_code,
+  direction,
   status,
   title,
   category,
@@ -492,7 +505,8 @@ SELECT
   $16,
   $17,
   $18,
-  NULLIF($19, '')::bigint
+  $19,
+  NULLIF($20, '')::bigint
 FROM city_stations cs
 WHERE cs.code = $2 AND cs.status = 'active'
 RETURNING id::text, status
@@ -501,6 +515,7 @@ RETURNING id::text, status
 		input.CityCode,
 		input.ResourceTypeConfigID,
 		input.TypeCode,
+		input.Direction,
 		input.Status,
 		input.Title,
 		input.Category,
@@ -541,20 +556,21 @@ SET
   city_station_id = cs.id,
   resource_type_config_id = NULLIF($4, '')::bigint,
   type_code = $5,
+  direction = $6,
   status = 'draft',
-  title = $6,
-  category = $7,
-  district = $8,
-  price_text = $9,
-  quantity_text = $10,
-  cover_url = NULLIF($11, ''),
-  description = $12,
-  attributes = $13,
-  tags = $14,
-  images = $15,
-  contact_name = $16,
-  contact_phone = $17,
-  contact_wechat = $18,
+  title = $7,
+  category = $8,
+  district = $9,
+  price_text = $10,
+  quantity_text = $11,
+  cover_url = NULLIF($12, ''),
+  description = $13,
+  attributes = $14,
+  tags = $15,
+  images = $16,
+  contact_name = $17,
+  contact_phone = $18,
+  contact_wechat = $19,
   reject_reason = NULL,
   updated_at = now()
 FROM city_stations cs
@@ -571,6 +587,7 @@ RETURNING resources.id::text, resources.status
 		input.CityCode,
 		input.ResourceTypeConfigID,
 		input.TypeCode,
+		input.Direction,
 		input.Title,
 		input.Category,
 		input.District,
@@ -663,7 +680,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize
 
-	rows, err := m.db.QueryContext(ctx, listResourcesSQL, filter.Status, filter.CityCode, filter.MerchantID, filter.TypeCode, filter.Category, filter.Keyword, filter.VerifiedOnly, pageSize, offset)
+	rows, err := m.db.QueryContext(ctx, listResourcesSQL, filter.Status, filter.CityCode, filter.MerchantID, filter.TypeCode, filter.Direction, filter.Category, filter.Keyword, filter.VerifiedOnly, pageSize, offset)
 	if err != nil {
 		return ListResourcesResult{}, err
 	}
@@ -676,6 +693,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 		var refreshedAt time.Time
 		if err := rows.Scan(
 			&item.ID,
+			&item.Direction,
 			&item.TypeCode,
 			&item.Title,
 			&item.Category,
@@ -709,6 +727,7 @@ func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resource
 		&detail.ID,
 		&detail.Status,
 		&detail.TypeCode,
+		&detail.Direction,
 		&detail.TypeName,
 		&detail.Title,
 		&detail.Category,
@@ -755,6 +774,7 @@ func (m *ResourceModel) GetOwnResourceDetail(ctx context.Context, merchantID str
 		&detail.ID,
 		&detail.Status,
 		&detail.TypeCode,
+		&detail.Direction,
 		&detail.TypeName,
 		&detail.Title,
 		&detail.Category,

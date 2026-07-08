@@ -20,7 +20,10 @@ func ListCityStationsHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 func ListCityResourceTypesHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cityCode := pathvar.Vars(r)["cityCode"]
-		resp, err := citylogic.NewListResourceTypesLogic(svcCtx.CityStore).ListResourceTypes(r.Context(), cityCode)
+		resp, err := citylogic.NewListResourceTypesLogic(svcCtx.CityStore).ListResourceTypes(r.Context(), citylogic.ListResourceTypesReq{
+			CityCode:  cityCode,
+			Direction: r.URL.Query().Get("direction"),
+		})
 		response.JSON(w, resp, err)
 	}
 }

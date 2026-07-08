@@ -28,6 +28,27 @@ func TestSearchResourcesRecordsSearchLog(t *testing.T) {
 	}
 }
 
+func TestSearchResourcesPassesDirectionToListAndSearchLog(t *testing.T) {
+	store := &fakeSearchResourceStore{
+		result: model.ListResourcesResult{Items: []model.ResourceListItem{{ID: "demand-1"}}, Total: 1, Page: 1, PageSize: 20},
+	}
+	logic := NewSearchResourcesLogic(store)
+
+	_, err := logic.SearchResources(context.Background(), SearchResourcesReq{
+		UserID: "user-1", CityCode: "zhili", Direction: model.ResourceDirectionDemand, Keyword: "防晒衣", Page: 1, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("SearchResources() error = %v", err)
+	}
+
+	if store.filter.Direction != model.ResourceDirectionDemand {
+		t.Fatalf("direction = %q, want demand", store.filter.Direction)
+	}
+	if got := store.searchLog.Filters["direction"]; got != model.ResourceDirectionDemand {
+		t.Fatalf("search log direction = %#v, want demand", got)
+	}
+}
+
 type fakeSearchResourceStore struct {
 	filter    model.ListResourcesFilter
 	searchLog model.SearchLogInput

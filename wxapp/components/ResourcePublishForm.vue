@@ -2,13 +2,13 @@
   <view class="publish-page">
     <view class="form-section basic-section">
       <view class="section-head">
-        <text class="section-title">基础信息</text>
+        <text class="section-title">{{ directionLabels.basicTitle }}</text>
         <text class="section-note">必填</text>
       </view>
       <view class="basic-progress">
         <view class="progress-copy">
           <text class="progress-title">{{ publishReadyText }}</text>
-          <text class="progress-desc">标题、品类、联系人和联系电话为必填项</text>
+          <text class="progress-desc">{{ directionLabels.progressDesc }}</text>
         </view>
         <text class="completion-percent">{{ completionPercent }}%</text>
       </view>
@@ -16,48 +16,48 @@
         <view class="completion-bar-fill" :style="completionBarStyle"></view>
       </view>
       <view class="field-group">
-        <text class="field-label">资源类型</text>
+        <text class="field-label">{{ directionLabels.typeLabel }}</text>
         <picker :range="resourceTypeNames" :value="selectedTypeIndex" @change="selectType">
           <view class="field picker-field">
             <text>{{ selectedTypeLabel }}</text>
             <text class="picker-arrow">›</text>
           </view>
         </picker>
-        <text class="field-helper">资源类型会用于搜索筛选和分类展示。</text>
+        <text class="field-helper">{{ directionLabels.typeHelper }}</text>
       </view>
       <view class="field-group">
         <text class="field-label">标题</text>
-        <input v-model="form.title" class="field" placeholder="例如：童装春款现货 3000 件" />
+        <input v-model="form.title" class="field" :placeholder="directionLabels.titlePlaceholder" />
       </view>
       <view class="field-group">
         <text class="field-label">品类</text>
-        <input v-model="form.category" class="field" placeholder="例如：童装、女装、面料、加工" />
+        <input v-model="form.category" class="field" :placeholder="directionLabels.categoryPlaceholder" />
       </view>
     </view>
 
     <view class="form-section supply-section">
       <view class="section-head">
-        <text class="section-title">供应信息</text>
+        <text class="section-title">{{ directionLabels.detailTitle }}</text>
         <text class="section-note">建议填写</text>
       </view>
       <view class="field-group">
-        <text class="field-label">数量/产能</text>
-        <input v-model="form.quantityText" class="field" placeholder="例如：3000 件、日产 800 件" />
+        <text class="field-label">{{ directionLabels.quantityLabel }}</text>
+        <input v-model="form.quantityText" class="field" :placeholder="directionLabels.quantityPlaceholder" />
       </view>
       <view class="field-group">
-        <text class="field-label">价格描述</text>
-        <input v-model="form.priceText" class="field" placeholder="例如：18-25 元/件，量大可议" />
+        <text class="field-label">{{ directionLabels.priceLabel }}</text>
+        <input v-model="form.priceText" class="field" :placeholder="directionLabels.pricePlaceholder" />
       </view>
       <view class="field-group">
-        <text class="field-label">资源描述</text>
-        <textarea v-model="form.description" class="textarea" placeholder="说明货品状态、尺码颜色、交期、看样方式等关键信息" />
+        <text class="field-label">{{ directionLabels.descriptionLabel }}</text>
+        <textarea v-model="form.description" class="textarea" :placeholder="directionLabels.descriptionPlaceholder" />
       </view>
     </view>
 
     <view v-if="dynamicFieldItems.length" class="form-section attribute-section">
       <view class="section-head">
-        <text class="section-title">类型信息</text>
-        <text class="section-note">按资源类型</text>
+        <text class="section-title">{{ directionLabels.attributeTitle }}</text>
+        <text class="section-note">{{ directionLabels.attributeNote }}</text>
       </view>
       <view v-for="field in dynamicFieldItems" :key="field.key" class="field-group">
         <text class="field-label">{{ field.label }}</text>
@@ -132,7 +132,7 @@
 
     <view class="form-section image-section">
       <view class="section-head">
-        <text class="section-title">资源图片</text>
+        <text class="section-title">{{ directionLabels.imageTitle }}</text>
         <text class="image-count">{{ resourceImageEntries.length }}/{{ resourceImageMaxCount }}</text>
       </view>
       <view class="image-grid-wrap">
@@ -161,11 +161,11 @@
       </view>
       <view class="field-group">
         <text class="field-label">联系人</text>
-        <input v-model="form.contact.name" class="field" placeholder="买家看到的联系人" />
+        <input v-model="form.contact.name" class="field" :placeholder="directionLabels.contactNamePlaceholder" />
       </view>
       <view class="field-group">
         <text class="field-label">联系电话</text>
-        <input v-model="form.contact.phone" class="field" placeholder="用于买家发起联系" />
+        <input v-model="form.contact.phone" class="field" :placeholder="directionLabels.contactPhonePlaceholder" />
       </view>
     </view>
 
@@ -205,6 +205,9 @@ const props = defineProps({
   },
 })
 
+const RESOURCE_DIRECTION_SUPPLY = 'supply'
+const RESOURCE_DIRECTION_DEMAND = 'demand'
+
 const reserveBottomSafeArea = computed(() => props.reserveBottomSafeArea)
 const resourceTypes = ref([])
 const selectedTypeIndex = ref(0)
@@ -219,6 +222,7 @@ let localDraftSaveTimer = null
 const form = reactive({
   merchantId: '',
   cityCode: DEFAULT_CITY_CODE,
+  direction: RESOURCE_DIRECTION_SUPPLY,
   typeCode: '',
   title: '',
   category: '',
@@ -237,8 +241,53 @@ const form = reactive({
 
 const resourceTypeNames = computed(() => resourceTypes.value.map((item) => item.typeName))
 const currentResourceType = computed(() => resourceTypes.value[selectedTypeIndex.value] || {})
+const isDemandDirection = computed(() => form.direction === RESOURCE_DIRECTION_DEMAND)
 const selectedTypeLabel = computed(() => {
-  return currentResourceType.value.typeName || '请选择资源类型'
+  return currentResourceType.value.typeName || `请选择${directionLabels.value.typeLabel}`
+})
+const directionLabels = computed(() => {
+  if (isDemandDirection.value) {
+    return {
+      basicTitle: '需求信息',
+      progressDesc: '标题、品类、联系人和联系电话为必填项',
+      typeLabel: '需求类型',
+      typeHelper: '需求类型会用于搜索筛选和分类展示。',
+      titlePlaceholder: '例如：急找童装春款现货 3000 件',
+      categoryPlaceholder: '例如：童装、女装、面料、加工需求',
+      detailTitle: '采购要求',
+      quantityLabel: '需求数量',
+      quantityPlaceholder: '例如：3000 件、长期每周 500 件',
+      priceLabel: '预算描述',
+      pricePlaceholder: '例如：18-25 元/件，可按品质议价',
+      descriptionLabel: '需求描述',
+      descriptionPlaceholder: '说明款式、尺码颜色、交期、验货和交付要求',
+      attributeTitle: '需求属性',
+      attributeNote: '按需求类型',
+      imageTitle: '参考图片',
+      contactNamePlaceholder: '供应商看到的联系人',
+      contactPhonePlaceholder: '用于供应商发起联系',
+    }
+  }
+  return {
+    basicTitle: '基础信息',
+    progressDesc: '标题、品类、联系人和联系电话为必填项',
+    typeLabel: '资源类型',
+    typeHelper: '资源类型会用于搜索筛选和分类展示。',
+    titlePlaceholder: '例如：童装春款现货 3000 件',
+    categoryPlaceholder: '例如：童装、女装、面料、加工',
+    detailTitle: '供应信息',
+    quantityLabel: '数量/产能',
+    quantityPlaceholder: '例如：3000 件、日产 800 件',
+    priceLabel: '价格描述',
+    pricePlaceholder: '例如：18-25 元/件，量大可议',
+    descriptionLabel: '资源描述',
+    descriptionPlaceholder: '说明货品状态、尺码颜色、交期、看样方式等关键信息',
+    attributeTitle: '类型信息',
+    attributeNote: '按资源类型',
+    imageTitle: '资源图片',
+    contactNamePlaceholder: '买家看到的联系人',
+    contactPhonePlaceholder: '用于买家发起联系',
+  }
 })
 const dynamicFieldItems = computed(() => normalizeDynamicFieldItems(currentResourceType.value.fieldSchema))
 const requiredFields = computed(() => {
@@ -317,15 +366,19 @@ async function initializePublishForm(options = {}) {
   resourceImageEntries.value = []
   selectedTypeIndex.value = 0
   form.merchantId = options.merchantId || getMerchantId()
+  form.direction = normalizePublishDirection(options.direction || '') || RESOURCE_DIRECTION_SUPPLY
   form.typeCode = options.typeCode || ''
   publishLocalDraftStorageKey.value = buildPublishLocalDraftStorageKey(form.merchantId, editingResourceId.value)
-  await loadResourceTypes()
+  if (editingResourceId.value) {
+    await loadEditableResource()
+  } else {
+    await loadResourceTypes()
+  }
   if (options.repost) {
     restoreRepostInitialForm()
     publishLocalDraftStorageKey.value = buildPublishLocalDraftStorageKey(form.merchantId, editingResourceId.value)
-  } else if (editingResourceId.value) {
-    await loadEditableResource()
-  } else {
+    await loadResourceTypes()
+  } else if (!editingResourceId.value) {
     await loadMerchantContact()
     restorePublishLocalDraft()
   }
@@ -333,7 +386,7 @@ async function initializePublishForm(options = {}) {
 }
 
 async function loadResourceTypes() {
-  const resp = await listCityResourceTypes(form.cityCode)
+  const resp = await listCityResourceTypes(form.cityCode, { direction: form.direction })
   resourceTypes.value = resp.items || []
   if (!resourceTypes.value.length) {
     form.typeCode = ''
@@ -369,6 +422,7 @@ async function loadEditableResource() {
   Object.assign(form, createEmptyPublishForm(), {
     merchantId: detail.merchantId || form.merchantId,
     cityCode: detail.cityCode || DEFAULT_CITY_CODE,
+    direction: normalizePublishDirection(detail.direction || '') || RESOURCE_DIRECTION_SUPPLY,
     typeCode: detail.typeCode || '',
     title: detail.title || '',
     category: detail.category || '',
@@ -384,6 +438,7 @@ async function loadEditableResource() {
       wechat: detail.contact?.wechat || '',
     },
   })
+  await loadResourceTypes()
   resourceImageEntries.value = (detail.images || []).map(createStoredResourceImageEntry)
   syncSelectedTypeIndex()
 }
@@ -406,6 +461,7 @@ function applyInitialPublishForm(initialForm) {
   Object.assign(form, createEmptyPublishForm(), {
     merchantId: initialForm.merchantId || form.merchantId,
     cityCode: initialForm.cityCode || DEFAULT_CITY_CODE,
+    direction: normalizePublishDirection(initialForm.direction || '') || form.direction,
     typeCode: initialForm.typeCode || '',
     title: initialForm.title || '',
     category: initialForm.category || '',
@@ -422,7 +478,6 @@ function applyInitialPublishForm(initialForm) {
     },
   })
   resourceImageEntries.value = (initialForm.images || []).map(createStoredResourceImageEntry)
-  syncSelectedTypeIndex()
 }
 
 function applyMerchantContactDefaults(contact) {
@@ -485,7 +540,8 @@ async function saveResourceDraftPayload(images) {
 }
 
 function buildPublishLocalDraftStorageKey(merchantId, resourceId = '') {
-  return `publish:local-draft:${merchantId || 'default'}:${resourceId || 'new'}`
+  const draftScope = resourceId || `new-${form.direction || RESOURCE_DIRECTION_SUPPLY}`
+  return `publish:local-draft:${merchantId || 'default'}:${draftScope}`
 }
 
 function restorePublishLocalDraft() {
@@ -556,6 +612,7 @@ function createEmptyPublishForm() {
   return {
     merchantId: '',
     cityCode: DEFAULT_CITY_CODE,
+    direction: RESOURCE_DIRECTION_SUPPLY,
     typeCode: '',
     title: '',
     category: '',
@@ -571,6 +628,10 @@ function createEmptyPublishForm() {
       wechat: '',
     },
   }
+}
+
+function normalizePublishDirection(value) {
+  return [RESOURCE_DIRECTION_SUPPLY, RESOURCE_DIRECTION_DEMAND].includes(value) ? value : ''
 }
 
 function clonePublishForm() {
@@ -781,7 +842,7 @@ function validatePublishForm() {
     return false
   }
   if (!form.typeCode) {
-    uni.showToast({ title: '请选择资源类型', icon: 'none' })
+    uni.showToast({ title: `请选择${directionLabels.value.typeLabel}`, icon: 'none' })
     return false
   }
   if (!form.title.trim()) {
@@ -812,17 +873,17 @@ function getPublishFieldLabel(field) {
   const dynamicField = dynamicFieldItems.value.find((item) => item.key === field)
   if (dynamicField?.label) return dynamicField.label
   const labels = {
-    typeCode: '资源类型',
+    typeCode: directionLabels.value.typeLabel,
     title: '标题',
     category: '品类',
-    quantityText: '数量/产能',
-    priceText: '价格描述',
-    description: '资源描述',
+    quantityText: directionLabels.value.quantityLabel,
+    priceText: directionLabels.value.priceLabel,
+    description: directionLabels.value.descriptionLabel,
     contactName: '联系人',
     contactPhone: '联系电话',
     contactWechat: '联系微信',
-    images: '资源图片',
-    tags: '资源标签',
+    images: directionLabels.value.imageTitle,
+    tags: isDemandDirection.value ? '需求标签' : '资源标签',
   }
   return labels[field] || '配置字段'
 }
