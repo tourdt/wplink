@@ -6,7 +6,6 @@
 *.key
 *.pem
 deploy/wplink.env
-backend/etc/app.yaml
 node_modules/
 dist/
 !backend/app/internal/adminweb/dist/

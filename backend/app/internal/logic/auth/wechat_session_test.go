@@ -56,3 +56,27 @@ func TestWechatSessionClientAllowsDevCodeOnlyWhenConfigured(t *testing.T) {
 		t.Fatalf("openid = %q, want dev openid", session.OpenID)
 	}
 }
+
+func TestWechatSessionClientCallsWechatForDevCodeWhenNotAllowed(t *testing.T) {
+	called := false
+	httpClient := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		called = true
+		if r.URL.Query().Get("js_code") != "local-dev-123" {
+			t.Fatalf("js_code = %q, want local-dev code forwarded when disabled", r.URL.Query().Get("js_code"))
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       ioNopCloser{Buffer: bytes.NewBufferString(`{"errcode":40029,"errmsg":"invalid code"}`)},
+			Header:     make(http.Header),
+		}, nil
+	})}
+
+	client := NewWechatSessionClient(config.WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"}, "https://wechat.example.test/session", httpClient)
+	_, err := client.Code2Session(context.Background(), "local-dev-123")
+	if err == nil {
+		t.Fatal("Code2Session() error = nil, want unauthorized error")
+	}
+	if !called {
+		t.Fatal("wechat client was not called, want dev code forwarded when AllowDevCode is false")
+	}
+}

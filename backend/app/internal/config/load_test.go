@@ -244,6 +244,20 @@ func TestDevelopmentAppConfigPlaceholdersExistInDeployEnvExample(t *testing.T) {
 	}
 }
 
+func TestDevelopmentAppConfigAllowsLocalWechatDevCode(t *testing.T) {
+	cfg, err := Load(filepath.Join("..", "..", "..", "etc", "app.yaml"))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.RuntimeMode != "development" {
+		t.Fatalf("RuntimeMode = %q, want development", cfg.RuntimeMode)
+	}
+	if !cfg.Wechat.AllowDevCode {
+		t.Fatal("Wechat.AllowDevCode = false, want true for local wxapp login")
+	}
+}
+
 func TestLoadRejectsUnknownFields(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "app.yaml")
 	if err := os.WriteFile(path, []byte(`

@@ -11,6 +11,8 @@ import (
 
 	"wplink/backend/app/internal/config"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 const defaultWechatCode2SessionURL = "https://api.weixin.qq.com/sns/jscode2session"
@@ -87,9 +89,11 @@ func (c *HTTPWechatSessionClient) Code2Session(ctx context.Context, code string)
 		return WechatSession{}, errx.New(errx.CodeInternalError, "微信登录响应异常，请稍后重试")
 	}
 	if data.ErrCode != 0 {
+		logx.Errorf("微信登录接口返回错误: errCode=%d errMsg=%s isDevCode=%t allowDevCode=%t", data.ErrCode, data.ErrMsg, strings.HasPrefix(code, "local-dev-"), c.cfg.AllowDevCode)
 		return WechatSession{}, errx.New(errx.CodeUnauthorized, "微信登录凭证无效，请重新登录")
 	}
 	if strings.TrimSpace(data.OpenID) == "" {
+		logx.Errorf("微信登录接口未返回 openid: isDevCode=%t allowDevCode=%t", strings.HasPrefix(code, "local-dev-"), c.cfg.AllowDevCode)
 		return WechatSession{}, errx.New(errx.CodeUnauthorized, "微信登录凭证无效，请重新登录")
 	}
 	return WechatSession{OpenID: data.OpenID, UnionID: data.UnionID}, nil
