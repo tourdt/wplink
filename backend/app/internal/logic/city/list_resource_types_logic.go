@@ -17,6 +17,7 @@ type ResourceTypeConfigInfo struct {
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
 	DefaultValidDays int64                  `json:"defaultValidDays"`
+	FieldSchema      map[string]interface{} `json:"fieldSchema"`
 	RequiredFields   []string               `json:"requiredFields"`
 	FilterFields     []string               `json:"filterFields"`
 	DisplayTemplate  map[string]interface{} `json:"displayTemplate"`
@@ -52,6 +53,7 @@ func (l *ListResourceTypesLogic) ListResourceTypes(ctx context.Context, cityCode
 			TypeCode:         config.TypeCode,
 			TypeName:         config.TypeName,
 			DefaultValidDays: config.DefaultValidDays,
+			FieldSchema:      map[string]interface{}(config.FieldSchema),
 			RequiredFields:   append([]string(nil), config.RequiredFields...),
 			FilterFields:     append([]string(nil), config.FilterFields...),
 			DisplayTemplate:  map[string]interface{}(config.DisplayTemplate),

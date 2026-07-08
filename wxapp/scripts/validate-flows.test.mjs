@@ -678,6 +678,30 @@ test('publish page presents grouped fast publishing workflow', () => {
   assert.match(source, /\.fixed-save-bar\.no-safe-area \{[\s\S]*padding-bottom: 4rpx;[\s\S]*\}/)
 })
 
+test('publish page renders resource type field schema into attributes', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
+
+  for (const token of [
+    'dynamicFieldItems',
+    'fieldSchema',
+    'form.attributes[field.key]',
+    'getDynamicFieldValue',
+    'setDynamicFieldValue',
+    'setDynamicFieldBoolean',
+    "field.type === 'boolean'",
+    'syncAttributesWithSelectedType',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(source, /v-for="field in dynamicFieldItems"/)
+  assert.match(source, /:placeholder="field\.placeholder \|\| `请填写\$\{field\.label\}`"/)
+  assert.match(source, /:class="\['toggle-option', getDynamicFieldValue\(field\.key\) === true \? 'active' : ''\]"/)
+  assert.match(source, /:class="\['toggle-option', getDynamicFieldValue\(field\.key\) === false \? 'active' : ''\]"/)
+  assert.match(source, /function syncAttributesWithSelectedType\(\) \{[\s\S]*delete form\.attributes\[key\][\s\S]*\}/)
+})
+
 test('publish tab page does not reserve bottom safe area for fixed save bar', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const publishSource = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')

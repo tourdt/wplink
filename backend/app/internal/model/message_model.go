@@ -163,14 +163,18 @@ RETURNING id::text, merchant_id::text, title
 	return scanLifecycleResources(rows)
 }
 
-func (m *MessageModel) ListResourcesExpiringSoon(ctx context.Context) ([]LifecycleResource, error) {
-	rows, err := m.db.QueryContext(ctx, `
+const listResourcesExpiringSoonSQL = `
 SELECT r.id::text, r.merchant_id::text, r.title
 FROM resources r
+JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 WHERE r.status = 'published'
   AND r.expires_at IS NOT NULL
   AND r.expires_at > now()
-  AND r.expires_at <= now() + interval '2 days'
+  AND r.expires_at <= now() + make_interval(days => CASE
+    WHEN NULLIF(rtc.message_rules ->> 'expiringSoonDays', '') ~ '^[0-9]+$'
+      THEN GREATEST((rtc.message_rules ->> 'expiringSoonDays')::int, 1)
+    ELSE 2
+  END)
   AND r.deleted_at IS NULL
   AND NOT EXISTS (
     SELECT 1
@@ -178,7 +182,10 @@ WHERE r.status = 'published'
     WHERE msg.trigger_type = 'resource_expiring'
       AND msg.trigger_id = r.id
   )
-`)
+`
+
+func (m *MessageModel) ListResourcesExpiringSoon(ctx context.Context) ([]LifecycleResource, error) {
+	rows, err := m.db.QueryContext(ctx, listResourcesExpiringSoonSQL)
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"wplink/backend/app/internal/model"
@@ -128,16 +129,18 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 	}
 
 	values := map[string]string{
-		"merchantId":   strings.TrimSpace(req.MerchantID),
-		"cityCode":     cityCode,
-		"typeCode":     typeCode,
-		"title":        strings.TrimSpace(req.Title),
-		"category":     strings.TrimSpace(req.Category),
-		"quantityText": strings.TrimSpace(req.QuantityText),
-		"priceText":    strings.TrimSpace(req.PriceText),
-		"contactName":  strings.TrimSpace(req.Contact.Name),
-		"contactPhone": strings.TrimSpace(req.Contact.Phone),
-		"description":  strings.TrimSpace(req.Description),
+		"merchantId":    strings.TrimSpace(req.MerchantID),
+		"cityCode":      cityCode,
+		"typeCode":      typeCode,
+		"title":         strings.TrimSpace(req.Title),
+		"category":      strings.TrimSpace(req.Category),
+		"quantityText":  strings.TrimSpace(req.QuantityText),
+		"priceText":     strings.TrimSpace(req.PriceText),
+		"district":      strings.TrimSpace(req.District),
+		"contactName":   strings.TrimSpace(req.Contact.Name),
+		"contactPhone":  strings.TrimSpace(req.Contact.Phone),
+		"contactWechat": strings.TrimSpace(req.Contact.Wechat),
+		"description":   strings.TrimSpace(req.Description),
 	}
 	if shouldUseMerchantContactPhone(values["contactPhone"]) {
 		// 发布页只能从公开商家资料拿到脱敏手机号，保存资源前用商家资料真实电话兜底。
@@ -147,10 +150,8 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		}
 		values["contactPhone"] = strings.TrimSpace(merchantPhone)
 	}
-	for _, field := range config.RequiredFields {
-		if strings.TrimSpace(values[field]) == "" {
-			return model.CreateResourceInput{}, "", errx.New(errx.CodeValidationFailed, fmt.Sprintf("请补充%s", field))
-		}
+	if err := validateResourceRequiredFields(config, values, req.Attributes, req.Tags, req.Images); err != nil {
+		return model.CreateResourceInput{}, "", err
 	}
 	merchantStatus, err := l.store.GetMerchantPublishStatus(ctx, values["merchantId"])
 	if err != nil {
@@ -200,4 +201,95 @@ func firstResourceImage(images []string) string {
 func shouldUseMerchantContactPhone(phone string) bool {
 	phone = strings.TrimSpace(phone)
 	return phone == "" || strings.Contains(phone, "*")
+}
+
+var resourceBaseFieldLabels = map[string]string{
+	"merchantId":    "商家",
+	"cityCode":      "城市站",
+	"typeCode":      "资源类型",
+	"title":         "标题",
+	"category":      "品类",
+	"district":      "区域",
+	"quantityText":  "数量/产能",
+	"priceText":     "价格描述",
+	"description":   "资源描述",
+	"contactName":   "联系人",
+	"contactPhone":  "联系电话",
+	"contactWechat": "联系微信",
+	"tags":          "资源标签",
+	"images":        "资源图片",
+}
+
+func validateResourceRequiredFields(config model.ResourcePublishConfig, values map[string]string, attributes model.JSONMap, tags []string, images []string) error {
+	fieldLabels := resourceFieldLabels(config.FieldSchema)
+	for key, label := range resourceBaseFieldLabels {
+		if _, ok := fieldLabels[key]; !ok {
+			fieldLabels[key] = label
+		}
+	}
+
+	for _, field := range config.RequiredFields {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		missing := false
+		if value, ok := values[field]; ok {
+			missing = strings.TrimSpace(value) == ""
+		} else if field == "tags" {
+			missing = len(tags) == 0
+		} else if field == "images" {
+			missing = len(images) == 0
+		} else {
+			missing = resourceAttributeMissing(attributes[field])
+		}
+		if missing {
+			label := fieldLabels[field]
+			if label == "" {
+				label = "配置字段"
+			}
+			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("请补充%s", label))
+		}
+	}
+	return nil
+}
+
+func resourceFieldLabels(fieldSchema model.JSONMap) map[string]string {
+	labels := make(map[string]string)
+	fields, ok := fieldSchema["fields"].([]interface{})
+	if !ok {
+		return labels
+	}
+	for _, entry := range fields {
+		field, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		key, _ := field["key"].(string)
+		label, _ := field["label"].(string)
+		key = strings.TrimSpace(key)
+		label = strings.TrimSpace(label)
+		if key != "" && label != "" {
+			labels[key] = label
+		}
+	}
+	return labels
+}
+
+func resourceAttributeMissing(value interface{}) bool {
+	if value == nil {
+		return true
+	}
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed) == ""
+	case bool:
+		return false
+	}
+	rv := reflect.ValueOf(value)
+	switch rv.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice:
+		return rv.Len() == 0
+	}
+	return false
 }

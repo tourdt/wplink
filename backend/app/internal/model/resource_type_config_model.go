@@ -13,6 +13,7 @@ type ResourceTypeConfig struct {
 	TypeCode         string
 	TypeName         string
 	DefaultValidDays int64
+	FieldSchema      JSONMap
 	RequiredFields   []string
 	FilterFields     []string
 	DisplayTemplate  JSONMap
@@ -51,6 +52,7 @@ type resourceTypeConfigRow struct {
 	TypeCode         string          `db:"type_code"`
 	TypeName         string          `db:"type_name"`
 	DefaultValidDays int64           `db:"default_valid_days"`
+	FieldSchema      JSONMap         `db:"field_schema"`
 	RequiredFields   JSONStringSlice `db:"required_fields"`
 	FilterFields     JSONStringSlice `db:"filter_fields"`
 	DisplayTemplate  JSONMap         `db:"display_template"`
@@ -93,6 +95,7 @@ SELECT
   rtc.type_code,
   rtc.type_name,
   rtc.default_valid_days,
+  rtc.field_schema,
   rtc.required_fields,
   rtc.filter_fields,
   rtc.display_template
@@ -113,6 +116,7 @@ ORDER BY rtc.created_at ASC
 			TypeCode:         row.TypeCode,
 			TypeName:         row.TypeName,
 			DefaultValidDays: row.DefaultValidDays,
+			FieldSchema:      row.FieldSchema,
 			RequiredFields:   []string(row.RequiredFields),
 			FilterFields:     []string(row.FilterFields),
 			DisplayTemplate:  row.DisplayTemplate,

@@ -15,9 +15,14 @@ func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
 				TypeCode:         "inventory",
 				TypeName:         "库存",
 				DefaultValidDays: 7,
-				RequiredFields:   []string{"title", "category"},
-				FilterFields:     []string{"season"},
-				DisplayTemplate:  model.JSONMap{"list": []interface{}{"priceText"}},
+				FieldSchema: model.JSONMap{
+					"fields": []interface{}{
+						map[string]interface{}{"key": "season", "label": "季节", "type": "select"},
+					},
+				},
+				RequiredFields:  []string{"title", "category"},
+				FilterFields:    []string{"season"},
+				DisplayTemplate: model.JSONMap{"list": []interface{}{"priceText"}},
 			},
 		},
 	}
@@ -39,6 +44,10 @@ func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
 	}
 	if resp.Items[0].RequiredFields[0] != "title" {
 		t.Fatalf("required fields = %#v, want title first", resp.Items[0].RequiredFields)
+	}
+	fields, ok := resp.Items[0].FieldSchema["fields"].([]interface{})
+	if !ok || len(fields) != 1 {
+		t.Fatalf("fieldSchema = %#v, want fields returned for dynamic publish form", resp.Items[0].FieldSchema)
 	}
 }
 

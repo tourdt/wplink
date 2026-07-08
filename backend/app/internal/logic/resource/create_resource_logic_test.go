@@ -36,6 +36,77 @@ func TestCreateResourceRejectsMissingConfiguredRequiredField(t *testing.T) {
 	}
 }
 
+func TestCreateResourceRejectsMissingRequiredAttributeWithFieldLabel(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "season", "contactPhone"},
+			FieldSchema: model.JSONMap{
+				"fields": []interface{}{
+					map[string]interface{}{"key": "season", "label": "季节", "type": "select"},
+				},
+			},
+		},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "inventory",
+		Title:       "女童春款卫衣库存整包清",
+		Category:    "童装",
+		Description: "整包优先，可现场看货。",
+		Contact:     ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+	})
+
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "请补充季节" {
+		t.Fatalf("message = %q, want friendly dynamic field label", errx.PublicMessage(err))
+	}
+	if store.input.MerchantID != "" {
+		t.Fatalf("CreateResource was called despite missing required attribute: %#v", store.input)
+	}
+}
+
+func TestCreateResourceAcceptsRequiredAttributeBooleanFalse(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "allowLiveSale", "contactPhone"},
+			FieldSchema: model.JSONMap{
+				"fields": []interface{}{
+					map[string]interface{}{"key": "allowLiveSale", "label": "支持直播", "type": "boolean"},
+				},
+			},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: "pending"},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "inventory",
+		Title:       "女童春款卫衣库存整包清",
+		Category:    "童装",
+		Attributes:  model.JSONMap{"allowLiveSale": false},
+		Description: "整包优先，可现场看货。",
+		Contact:     ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+
+	if store.input.Attributes["allowLiveSale"] != false {
+		t.Fatalf("attributes = %#v, want boolean false preserved", store.input.Attributes)
+	}
+}
+
 func TestCreateResourceCreatesPendingResource(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{

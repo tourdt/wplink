@@ -68,3 +68,12 @@ test('resource detail unlocks contact through backend before copy or call', () =
   assert.equal(source.includes('已记录联系，完整微信由平台保护'), false)
   assert.equal(source.includes('已记录联系，完整电话由平台保护'), false)
 })
+
+test('resource detail renders configured attribute items as specs', () => {
+  assert.match(source, /const attributeSpecItems = computed\(\(\) =>/)
+  assert.match(source, /resource\.value\.attributeItems \|\| \[\]/)
+  assert.match(source, /label: item\.label/)
+  assert.match(source, /value: item\.value/)
+  assert.match(source, /const specItems = computed\(\(\) => \[/)
+  assert.match(source, /\.\.\.attributeSpecItems\.value/)
+})

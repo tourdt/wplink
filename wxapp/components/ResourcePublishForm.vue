@@ -54,6 +54,56 @@
       </view>
     </view>
 
+    <view v-if="dynamicFieldItems.length" class="form-section attribute-section">
+      <view class="section-head">
+        <text class="section-title">类型信息</text>
+        <text class="section-note">按资源类型</text>
+      </view>
+      <view v-for="field in dynamicFieldItems" :key="field.key" class="field-group">
+        <text class="field-label">{{ field.label }}</text>
+        <view v-if="field.type === 'boolean'" class="toggle-group">
+          <button
+            :class="['toggle-option', getDynamicFieldValue(field.key) === true ? 'active' : '']"
+            @click="setDynamicFieldBoolean(field.key, true)"
+          >
+            是
+          </button>
+          <button
+            :class="['toggle-option', getDynamicFieldValue(field.key) === false ? 'active' : '']"
+            @click="setDynamicFieldBoolean(field.key, false)"
+          >
+            否
+          </button>
+        </view>
+        <picker
+          v-else-if="field.type === 'select'"
+          :range="field.options"
+          :value="getDynamicFieldOptionIndex(field)"
+          @change="setDynamicFieldSelect(field, $event)"
+        >
+          <view class="field picker-field">
+            <text>{{ getDynamicFieldValue(field.key) || `请选择${field.label}` }}</text>
+            <text class="picker-arrow">›</text>
+          </view>
+        </picker>
+        <textarea
+          v-else-if="field.type === 'textarea'"
+          class="textarea"
+          :value="form.attributes[field.key]"
+          :placeholder="field.placeholder || `请填写${field.label}`"
+          @input="setDynamicFieldValue(field.key, $event.detail.value)"
+        />
+        <input
+          v-else
+          class="field"
+          :type="field.type === 'number' ? 'number' : 'text'"
+          :value="form.attributes[field.key]"
+          :placeholder="field.placeholder || `请填写${field.label}`"
+          @input="setDynamicFieldValue(field.key, $event.detail.value)"
+        />
+      </view>
+    </view>
+
     <view class="form-section image-section">
       <view class="section-head">
         <text class="section-title">资源图片</text>
@@ -160,13 +210,18 @@ const form = reactive({
 })
 
 const resourceTypeNames = computed(() => resourceTypes.value.map((item) => item.typeName))
+const currentResourceType = computed(() => resourceTypes.value[selectedTypeIndex.value] || {})
 const selectedTypeLabel = computed(() => {
-  const current = resourceTypes.value[selectedTypeIndex.value] || {}
-  return current.typeName || '请选择资源类型'
+  return currentResourceType.value.typeName || '请选择资源类型'
 })
-const canSubmit = computed(() => Boolean(form.typeCode && form.title.trim() && form.category.trim() && form.contact.name.trim() && form.contact.phone.trim()))
-const requiredFields = computed(() => [form.typeCode, form.title.trim(), form.category.trim(), form.contact.name.trim(), form.contact.phone.trim()])
-const completedRequiredCount = computed(() => requiredFields.value.filter(Boolean).length)
+const dynamicFieldItems = computed(() => normalizeDynamicFieldItems(currentResourceType.value.fieldSchema))
+const requiredFields = computed(() => {
+  const configuredFields = Array.isArray(currentResourceType.value.requiredFields) ? currentResourceType.value.requiredFields : []
+  return Array.from(new Set(['typeCode', 'title', 'category', 'contactName', 'contactPhone', ...configuredFields]))
+})
+const requiredFieldStates = computed(() => requiredFields.value.map(isPublishFieldCompleted))
+const canSubmit = computed(() => requiredFieldStates.value.every(Boolean))
+const completedRequiredCount = computed(() => requiredFieldStates.value.filter(Boolean).length)
 const completionPercent = computed(() => Math.round((completedRequiredCount.value / requiredFields.value.length) * 100))
 const completionBarStyle = computed(() => `width: ${completionPercent.value}%;`)
 const resourceImageGridItems = computed(() => {
@@ -261,12 +316,14 @@ async function loadResourceTypes() {
   const matchIndex = resourceTypes.value.findIndex((item) => item.typeCode === form.typeCode)
   selectedTypeIndex.value = matchIndex >= 0 ? matchIndex : 0
   form.typeCode = resourceTypes.value[selectedTypeIndex.value].typeCode
+  syncAttributesWithSelectedType()
 }
 
 function selectType(event) {
   selectedTypeIndex.value = Number(event.detail.value)
   const current = resourceTypes.value[selectedTypeIndex.value] || {}
   form.typeCode = current.typeCode || ''
+  syncAttributesWithSelectedType()
 }
 
 async function loadMerchantContact() {
@@ -508,6 +565,82 @@ function syncSelectedTypeIndex() {
   const matchIndex = resourceTypes.value.findIndex((item) => item.typeCode === form.typeCode)
   selectedTypeIndex.value = matchIndex >= 0 ? matchIndex : 0
   form.typeCode = resourceTypes.value[selectedTypeIndex.value]?.typeCode || ''
+  syncAttributesWithSelectedType()
+}
+
+function normalizeDynamicFieldItems(fieldSchema = {}) {
+  const fields = Array.isArray(fieldSchema.fields) ? fieldSchema.fields : []
+  return fields
+    .map((field) => ({
+      key: String(field?.key || '').trim(),
+      label: String(field?.label || field?.key || '').trim(),
+      type: normalizeDynamicFieldType(field?.type),
+      options: Array.isArray(field?.options) ? field.options.filter(Boolean) : [],
+      placeholder: field?.placeholder || '',
+    }))
+    .filter((field) => field.key && field.label)
+}
+
+function normalizeDynamicFieldType(type) {
+  if (['select', 'boolean', 'number', 'textarea'].includes(type)) {
+    return type
+  }
+  return 'text'
+}
+
+function syncAttributesWithSelectedType() {
+  const allowedKeys = new Set(dynamicFieldItems.value.map((field) => field.key))
+  Object.keys(form.attributes || {}).forEach((key) => {
+    if (!allowedKeys.has(key)) {
+      delete form.attributes[key]
+    }
+  })
+}
+
+function getDynamicFieldValue(key) {
+  return form.attributes[key]
+}
+
+function setDynamicFieldValue(key, value) {
+  if (!key) return
+  form.attributes[key] = value
+}
+
+function setDynamicFieldBoolean(key, value) {
+  setDynamicFieldValue(key, value)
+}
+
+function setDynamicFieldSelect(field, event) {
+  const index = Number(event.detail.value)
+  setDynamicFieldValue(field.key, field.options[index] || '')
+}
+
+function getDynamicFieldOptionIndex(field) {
+  const value = getDynamicFieldValue(field.key)
+  const index = field.options.findIndex((item) => item === value)
+  return index >= 0 ? index : 0
+}
+
+function isPublishFieldCompleted(field) {
+  if (field === 'typeCode') return Boolean(form.typeCode)
+  if (field === 'title') return Boolean(form.title.trim())
+  if (field === 'category') return Boolean(form.category.trim())
+  if (field === 'quantityText') return Boolean(form.quantityText.trim())
+  if (field === 'priceText') return Boolean(form.priceText.trim())
+  if (field === 'description') return Boolean(form.description.trim())
+  if (field === 'contactName') return Boolean(form.contact.name.trim())
+  if (field === 'contactPhone') return Boolean(form.contact.phone.trim())
+  if (field === 'contactWechat') return Boolean(form.contact.wechat.trim())
+  if (field === 'images') return resourceImageEntries.value.length > 0
+  if (field === 'tags') return form.tags.length > 0
+  return !isDynamicAttributeEmpty(form.attributes[field])
+}
+
+function isDynamicAttributeEmpty(value) {
+  if (value === false || value === 0) return false
+  if (Array.isArray(value)) return value.length === 0
+  if (typeof value === 'string') return !value.trim()
+  return value === undefined || value === null
 }
 
 async function uploadResourceImage() {
@@ -626,7 +759,31 @@ function validatePublishForm() {
     uni.showToast({ title: '请填写联系电话', icon: 'none' })
     return false
   }
+  const missingConfiguredField = requiredFields.value.find((field) => !isPublishFieldCompleted(field))
+  if (missingConfiguredField) {
+    uni.showToast({ title: `请填写${getPublishFieldLabel(missingConfiguredField)}`, icon: 'none' })
+    return false
+  }
   return true
+}
+
+function getPublishFieldLabel(field) {
+  const dynamicField = dynamicFieldItems.value.find((item) => item.key === field)
+  if (dynamicField?.label) return dynamicField.label
+  const labels = {
+    typeCode: '资源类型',
+    title: '标题',
+    category: '品类',
+    quantityText: '数量/产能',
+    priceText: '价格描述',
+    description: '资源描述',
+    contactName: '联系人',
+    contactPhone: '联系电话',
+    contactWechat: '联系微信',
+    images: '资源图片',
+    tags: '资源标签',
+  }
+  return labels[field] || '配置字段'
 }
 </script>
 
@@ -662,6 +819,29 @@ function validatePublishForm() {
   padding: 18rpx;
   border-radius: 10rpx;
   background: #f8fafc;
+}
+
+.toggle-group {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+}
+
+.toggle-option {
+  height: 76rpx;
+  border: 1rpx solid $wplink-line;
+  border-radius: 10rpx;
+  background: #fff;
+  color: $wplink-muted;
+  font-size: 28rpx;
+  line-height: 76rpx;
+}
+
+.toggle-option.active {
+  border-color: $wplink-warning;
+  background: rgba(194, 58, 0, 0.08);
+  color: $wplink-warning;
+  font-weight: 700;
 }
 
 .progress-copy {

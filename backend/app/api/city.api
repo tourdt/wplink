@@ -17,6 +17,7 @@ type ResourceTypeConfigInfo {
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
 	DefaultValidDays int64                  `json:"defaultValidDays"`
+	FieldSchema      map[string]interface{} `json:"fieldSchema"`
 	RequiredFields   []string               `json:"requiredFields"`
 	FilterFields     []string               `json:"filterFields"`
 	DisplayTemplate  map[string]interface{} `json:"displayTemplate"`

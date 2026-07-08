@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	"wplink/backend/app/internal/model"
@@ -20,22 +21,30 @@ type ResourceContactMasked struct {
 	WechatMasked string `json:"wechatMasked,omitempty"`
 }
 
+type ResourceAttributeItem struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
 type ResourceDetailResp struct {
-	ID           string                `json:"id"`
-	Status       string                `json:"status"`
-	TypeCode     string                `json:"typeCode"`
-	Title        string                `json:"title"`
-	Category     string                `json:"category"`
-	Description  string                `json:"description"`
-	PriceText    string                `json:"priceText,omitempty"`
-	QuantityText string                `json:"quantityText,omitempty"`
-	Attributes   model.JSONMap         `json:"attributes"`
-	Tags         []string              `json:"tags"`
-	Images       []string              `json:"images"`
-	Merchant     ResourceMerchantBrief `json:"merchant"`
-	Contact      ResourceContactMasked `json:"contact"`
-	PublishedAt  string                `json:"publishedAt,omitempty"`
-	ExpiresAt    string                `json:"expiresAt,omitempty"`
+	ID             string                  `json:"id"`
+	Status         string                  `json:"status"`
+	TypeCode       string                  `json:"typeCode"`
+	TypeName       string                  `json:"typeName,omitempty"`
+	Title          string                  `json:"title"`
+	Category       string                  `json:"category"`
+	Description    string                  `json:"description"`
+	PriceText      string                  `json:"priceText,omitempty"`
+	QuantityText   string                  `json:"quantityText,omitempty"`
+	Attributes     model.JSONMap           `json:"attributes"`
+	AttributeItems []ResourceAttributeItem `json:"attributeItems"`
+	Tags           []string                `json:"tags"`
+	Images         []string                `json:"images"`
+	Merchant       ResourceMerchantBrief   `json:"merchant"`
+	Contact        ResourceContactMasked   `json:"contact"`
+	PublishedAt    string                  `json:"publishedAt,omitempty"`
+	ExpiresAt      string                  `json:"expiresAt,omitempty"`
 }
 
 type GetResourceLogic struct {
@@ -65,17 +74,19 @@ func (l *GetResourceLogic) GetResource(ctx context.Context, resourceID string) (
 
 func resourceDetailRespFromModel(detail model.ResourceDetail) ResourceDetailResp {
 	return ResourceDetailResp{
-		ID:           detail.ID,
-		Status:       detail.Status,
-		TypeCode:     detail.TypeCode,
-		Title:        detail.Title,
-		Category:     detail.Category,
-		Description:  detail.Description,
-		PriceText:    detail.PriceText,
-		QuantityText: detail.QuantityText,
-		Attributes:   detail.Attributes,
-		Tags:         append([]string(nil), detail.Tags...),
-		Images:       append([]string(nil), detail.Images...),
+		ID:             detail.ID,
+		Status:         detail.Status,
+		TypeCode:       detail.TypeCode,
+		TypeName:       detail.TypeName,
+		Title:          detail.Title,
+		Category:       detail.Category,
+		Description:    detail.Description,
+		PriceText:      detail.PriceText,
+		QuantityText:   detail.QuantityText,
+		Attributes:     detail.Attributes,
+		AttributeItems: buildResourceAttributeItems(detail),
+		Tags:           append([]string(nil), detail.Tags...),
+		Images:         append([]string(nil), detail.Images...),
 		Merchant: ResourceMerchantBrief{
 			ID:                 detail.MerchantID,
 			Name:               detail.MerchantName,
@@ -88,5 +99,90 @@ func resourceDetailRespFromModel(detail model.ResourceDetail) ResourceDetailResp
 		},
 		PublishedAt: detail.PublishedAt,
 		ExpiresAt:   detail.ExpiresAt,
+	}
+}
+
+func buildResourceAttributeItems(detail model.ResourceDetail) []ResourceAttributeItem {
+	labels := resourceFieldLabels(detail.FieldSchema)
+	keys := resourceDisplayKeys(detail.DisplayTemplate, detail.FieldSchema)
+	items := make([]ResourceAttributeItem, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		value := detail.Attributes[key]
+		if resourceAttributeMissing(value) {
+			continue
+		}
+		label := labels[key]
+		if label == "" {
+			label = key
+		}
+		items = append(items, ResourceAttributeItem{
+			Key:   key,
+			Label: label,
+			Value: resourceAttributeDisplayValue(value),
+		})
+	}
+	return items
+}
+
+func resourceDisplayKeys(displayTemplate model.JSONMap, fieldSchema model.JSONMap) []string {
+	if keys := stringSliceFromInterface(displayTemplate["detail"]); len(keys) > 0 {
+		return keys
+	}
+	fields, ok := fieldSchema["fields"].([]interface{})
+	if !ok {
+		return nil
+	}
+	keys := make([]string, 0, len(fields))
+	for _, entry := range fields {
+		field, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		key, _ := field["key"].(string)
+		if strings.TrimSpace(key) != "" {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+func stringSliceFromInterface(value interface{}) []string {
+	switch typed := value.(type) {
+	case []string:
+		return append([]string(nil), typed...)
+	case []interface{}:
+		items := make([]string, 0, len(typed))
+		for _, item := range typed {
+			text, ok := item.(string)
+			if ok && strings.TrimSpace(text) != "" {
+				items = append(items, text)
+			}
+		}
+		return items
+	default:
+		return nil
+	}
+}
+
+func resourceAttributeDisplayValue(value interface{}) string {
+	switch typed := value.(type) {
+	case bool:
+		if typed {
+			return "是"
+		}
+		return "否"
+	case string:
+		return strings.TrimSpace(typed)
+	default:
+		return fmt.Sprint(typed)
 	}
 }

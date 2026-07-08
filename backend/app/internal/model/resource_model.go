@@ -18,6 +18,7 @@ const (
 type ResourcePublishConfig struct {
 	ID               string
 	TypeCode         string
+	FieldSchema      JSONMap
 	RequiredFields   []string
 	DefaultValidDays int64
 }
@@ -96,12 +97,15 @@ type ResourceDetail struct {
 	ID                         string
 	Status                     string
 	TypeCode                   string
+	TypeName                   string
 	Title                      string
 	Category                   string
 	Description                string
 	PriceText                  string
 	QuantityText               string
 	Attributes                 JSONMap
+	FieldSchema                JSONMap
+	DisplayTemplate            JSONMap
 	Tags                       []string
 	Images                     []string
 	MerchantID                 string
@@ -143,6 +147,7 @@ FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
 JOIN city_stations cs ON cs.id = r.city_station_id
 WHERE r.deleted_at IS NULL
+  AND m.status = 'active'
   AND r.status = $1
   AND ($2 = '' OR cs.code = $2)
   AND (NULLIF($3, '')::bigint IS NULL OR r.merchant_id = NULLIF($3, '')::bigint)
@@ -160,6 +165,89 @@ WHERE r.deleted_at IS NULL
   AND (r.expires_at IS NULL OR r.expires_at > now())
 ORDER BY COALESCE(r.refreshed_at, r.published_at, r.created_at) DESC
 LIMIT $8 OFFSET $9
+`
+
+const reviewResourceSQL = `
+UPDATE resources
+SET
+  status = $2,
+  published_at = CASE WHEN $3 = 'approve' THEN $4 ELSE published_at END,
+  refreshed_at = CASE WHEN $3 = 'approve' THEN $4 ELSE refreshed_at END,
+  expires_at = CASE WHEN $3 = 'approve' THEN $4 + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int) ELSE expires_at END,
+  reject_reason = CASE WHEN $3 = 'reject' THEN $5 ELSE reject_reason END,
+  take_down_reason = CASE WHEN $3 = 'take_down' THEN $5 ELSE take_down_reason END,
+  taken_down_at = CASE WHEN $3 = 'take_down' THEN $4 ELSE taken_down_at END,
+  updated_at = $4
+FROM resource_type_configs rtc
+WHERE resources.id = $1
+  AND rtc.id = resources.resource_type_config_id
+RETURNING resources.id::text, resources.merchant_id::text, resources.title, resources.status
+`
+
+const publishedResourceDetailSQL = `
+SELECT
+  r.id::text,
+  r.status,
+  r.type_code,
+  rtc.type_name,
+  r.title,
+  r.category,
+  r.description,
+  COALESCE(r.price_text, ''),
+  COALESCE(r.quantity_text, ''),
+  r.attributes,
+  rtc.field_schema,
+  rtc.display_template,
+  r.tags,
+  r.images,
+  m.id::text,
+  m.name,
+  m.verification_status,
+  r.contact_name,
+  r.contact_phone,
+  COALESCE(r.contact_wechat, ''),
+  r.published_at,
+  r.expires_at
+FROM resources r
+JOIN merchants m ON m.id = r.merchant_id
+JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
+WHERE r.id = $1
+  AND r.status = 'published'
+  AND m.status = 'active'
+  AND r.deleted_at IS NULL
+  AND (r.expires_at IS NULL OR r.expires_at > now())
+`
+
+const ownResourceDetailSQL = `
+SELECT
+  r.id::text,
+  r.status,
+  r.type_code,
+  rtc.type_name,
+  r.title,
+  r.category,
+  r.description,
+  COALESCE(r.price_text, ''),
+  COALESCE(r.quantity_text, ''),
+  r.attributes,
+  rtc.field_schema,
+  rtc.display_template,
+  r.tags,
+  r.images,
+  m.id::text,
+  m.name,
+  m.verification_status,
+  r.contact_name,
+  r.contact_phone,
+  COALESCE(r.contact_wechat, ''),
+  r.published_at,
+  r.expires_at
+FROM resources r
+JOIN merchants m ON m.id = r.merchant_id
+JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
+WHERE r.id = $1
+  AND r.merchant_id = $2
+  AND r.deleted_at IS NULL
 `
 
 type ListPendingResourcesFilter struct {
@@ -339,14 +427,14 @@ func (m *ResourceModel) GetResourcePublishConfig(ctx context.Context, cityCode s
 	var config ResourcePublishConfig
 	var requiredFields JSONStringSlice
 	err := m.db.QueryRowContext(ctx, `
-SELECT rtc.id::text, rtc.type_code, rtc.required_fields, rtc.default_valid_days
+SELECT rtc.id::text, rtc.type_code, rtc.field_schema, rtc.required_fields, rtc.default_valid_days
 FROM resource_type_configs rtc
 JOIN city_stations cs ON cs.id = rtc.city_station_id
 WHERE cs.code = $1
   AND cs.status = 'active'
   AND rtc.type_code = $2
   AND rtc.status = 'active'
-`, cityCode, typeCode).Scan(&config.ID, &config.TypeCode, &requiredFields, &config.DefaultValidDays)
+`, cityCode, typeCode).Scan(&config.ID, &config.TypeCode, &config.FieldSchema, &requiredFields, &config.DefaultValidDays)
 	config.RequiredFields = []string(requiredFields)
 	return config, err
 }
@@ -617,43 +705,19 @@ func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resource
 	var images JSONStringSlice
 	var publishedAt sql.NullTime
 	var expiresAt sql.NullTime
-	err := m.db.QueryRowContext(ctx, `
-SELECT
-  r.id::text,
-  r.status,
-  r.type_code,
-  r.title,
-  r.category,
-  r.description,
-  COALESCE(r.price_text, ''),
-  COALESCE(r.quantity_text, ''),
-  r.attributes,
-  r.tags,
-  r.images,
-  m.id::text,
-  m.name,
-  m.verification_status,
-  r.contact_name,
-  r.contact_phone,
-  COALESCE(r.contact_wechat, ''),
-  r.published_at,
-  r.expires_at
-FROM resources r
-JOIN merchants m ON m.id = r.merchant_id
-WHERE r.id = $1
-  AND r.status = 'published'
-  AND r.deleted_at IS NULL
-  AND (r.expires_at IS NULL OR r.expires_at > now())
-`, resourceID).Scan(
+	err := m.db.QueryRowContext(ctx, publishedResourceDetailSQL, resourceID).Scan(
 		&detail.ID,
 		&detail.Status,
 		&detail.TypeCode,
+		&detail.TypeName,
 		&detail.Title,
 		&detail.Category,
 		&detail.Description,
 		&detail.PriceText,
 		&detail.QuantityText,
 		&detail.Attributes,
+		&detail.FieldSchema,
+		&detail.DisplayTemplate,
 		&tags,
 		&images,
 		&detail.MerchantID,
@@ -687,42 +751,19 @@ func (m *ResourceModel) GetOwnResourceDetail(ctx context.Context, merchantID str
 	var images JSONStringSlice
 	var publishedAt sql.NullTime
 	var expiresAt sql.NullTime
-	err := m.db.QueryRowContext(ctx, `
-SELECT
-  r.id::text,
-  r.status,
-  r.type_code,
-  r.title,
-  r.category,
-  r.description,
-  COALESCE(r.price_text, ''),
-  COALESCE(r.quantity_text, ''),
-  r.attributes,
-  r.tags,
-  r.images,
-  m.id::text,
-  m.name,
-  m.verification_status,
-  r.contact_name,
-  r.contact_phone,
-  COALESCE(r.contact_wechat, ''),
-  r.published_at,
-  r.expires_at
-FROM resources r
-JOIN merchants m ON m.id = r.merchant_id
-WHERE r.id = $1
-  AND r.merchant_id = $2
-  AND r.deleted_at IS NULL
-`, resourceID, merchantID).Scan(
+	err := m.db.QueryRowContext(ctx, ownResourceDetailSQL, resourceID, merchantID).Scan(
 		&detail.ID,
 		&detail.Status,
 		&detail.TypeCode,
+		&detail.TypeName,
 		&detail.Title,
 		&detail.Category,
 		&detail.Description,
 		&detail.PriceText,
 		&detail.QuantityText,
 		&detail.Attributes,
+		&detail.FieldSchema,
+		&detail.DisplayTemplate,
 		&tags,
 		&images,
 		&detail.MerchantID,
@@ -762,20 +803,7 @@ func (m *ResourceModel) ReviewResource(ctx context.Context, resourceID string, i
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
 		var merchantID string
 		var title string
-		row := tx.QueryRowContext(ctx, `
-UPDATE resources
-SET
-  status = $2,
-  published_at = CASE WHEN $3 = 'approve' THEN $4 ELSE published_at END,
-  refreshed_at = CASE WHEN $3 = 'approve' THEN $4 ELSE refreshed_at END,
-  expires_at = CASE WHEN $3 = 'approve' THEN $4 + interval '7 days' ELSE expires_at END,
-  reject_reason = CASE WHEN $3 = 'reject' THEN $5 ELSE reject_reason END,
-  take_down_reason = CASE WHEN $3 = 'take_down' THEN $5 ELSE take_down_reason END,
-  taken_down_at = CASE WHEN $3 = 'take_down' THEN $4 ELSE taken_down_at END,
-  updated_at = $4
-WHERE id = $1
-RETURNING id::text, merchant_id::text, title, status
-`, resourceID, status, input.Action, now, input.Reason)
+		row := tx.QueryRowContext(ctx, reviewResourceSQL, resourceID, status, input.Action, now, input.Reason)
 		if err := row.Scan(&result.ID, &merchantID, &title, &result.Status); err != nil {
 			return err
 		}

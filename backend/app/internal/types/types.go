@@ -1159,22 +1159,30 @@ type ResourceContactReq struct {
 	Wechat string `json:"wechat,optional"`
 }
 
+type ResourceAttributeItem struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
 type ResourceDetailResp struct {
-	Id           string                 `json:"id"`
-	Status       string                 `json:"status"`
-	TypeCode     string                 `json:"typeCode"`
-	Title        string                 `json:"title"`
-	Category     string                 `json:"category"`
-	Description  string                 `json:"description"`
-	PriceText    string                 `json:"priceText,optional"`
-	QuantityText string                 `json:"quantityText,optional"`
-	Attributes   map[string]interface{} `json:"attributes"`
-	Tags         []string               `json:"tags"`
-	Images       []string               `json:"images"`
-	Merchant     ResourceMerchantBrief  `json:"merchant"`
-	Contact      ResourceContactMasked  `json:"contact"`
-	PublishedAt  string                 `json:"publishedAt,optional"`
-	ExpiresAt    string                 `json:"expiresAt,optional"`
+	Id             string                  `json:"id"`
+	Status         string                  `json:"status"`
+	TypeCode       string                  `json:"typeCode"`
+	TypeName       string                  `json:"typeName,optional"`
+	Title          string                  `json:"title"`
+	Category       string                  `json:"category"`
+	Description    string                  `json:"description"`
+	PriceText      string                  `json:"priceText,optional"`
+	QuantityText   string                  `json:"quantityText,optional"`
+	Attributes     map[string]interface{}  `json:"attributes"`
+	AttributeItems []ResourceAttributeItem `json:"attributeItems"`
+	Tags           []string                `json:"tags"`
+	Images         []string                `json:"images"`
+	Merchant       ResourceMerchantBrief   `json:"merchant"`
+	Contact        ResourceContactMasked   `json:"contact"`
+	PublishedAt    string                  `json:"publishedAt,optional"`
+	ExpiresAt      string                  `json:"expiresAt,optional"`
 }
 
 type ResourceFavoriteStateResp struct {
@@ -1233,6 +1241,7 @@ type ResourceTypeConfigInfo struct {
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
 	DefaultValidDays int64                  `json:"defaultValidDays"`
+	FieldSchema      map[string]interface{} `json:"fieldSchema"`
 	RequiredFields   []string               `json:"requiredFields"`
 	FilterFields     []string               `json:"filterFields"`
 	DisplayTemplate  map[string]interface{} `json:"displayTemplate"`

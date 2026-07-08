@@ -194,10 +194,17 @@ const galleryImages = computed(() => {
   return [...cover, ...images].filter(Boolean)
 })
 const mainImage = computed(() => galleryImages.value[selectedGalleryIndex.value] || galleryImages.value[0] || '')
+const attributeSpecItems = computed(() => (resource.value.attributeItems || [])
+  .filter((item) => item?.label && item?.value !== undefined && item?.value !== '')
+  .map((item) => ({
+    label: item.label,
+    value: item.value,
+  })))
 const specItems = computed(() => [
   { label: '品类', value: resource.value.category || '待沟通' },
   { label: '数量', value: resource.value.quantityText || '待沟通' },
   { label: '价格', value: resource.value.priceText || '面议' },
+  ...attributeSpecItems.value,
   { label: '刷新', value: resource.value.refreshedAt || '近期更新' },
 ])
 const isExpiredResource = computed(() => {
