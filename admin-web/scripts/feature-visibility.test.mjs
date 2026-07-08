@@ -126,6 +126,24 @@ test('resource type config explains required field meanings', () => {
   assert.match(source, /required-field-note/)
 })
 
+test('resource type config provides visual field schema editor', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/ResourceTypeConfigView.vue'), 'utf8')
+
+  assert.match(source, /字段配置/)
+  assert.match(source, /基础必填字段/)
+  assert.match(source, /fieldRows/)
+  assert.match(source, /fieldTypeOptions/)
+  assert.match(source, /baseRequiredFieldOptions/)
+  assert.match(source, /addField/)
+  assert.match(source, /removeField/)
+  assert.match(source, /buildConfigPayloadFromVisualEditor/)
+  assert.match(source, /allowCustom/)
+  assert.match(source, /optionsText/)
+  assert.match(source, /displayInList/)
+  assert.match(source, /displayInDetail/)
+  assert.match(source, /高级 JSON/)
+})
+
 test('banner target selectors support searchable remote options', () => {
   const source = fs.readFileSync(path.join(root, 'src/views/BannerTopicView.vue'), 'utf8')
 

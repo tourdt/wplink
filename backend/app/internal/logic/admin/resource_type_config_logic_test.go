@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -71,6 +72,67 @@ func TestUpdateResourceTypeConfigPassesPatchToStore(t *testing.T) {
 	}
 	if resp.UpdatedAt != "2026-06-27T10:00:00+08:00" {
 		t.Fatalf("updatedAt = %q, want fixed time", resp.UpdatedAt)
+	}
+}
+
+func TestUpdateResourceTypeConfigRejectsDuplicateDynamicFieldKeys(t *testing.T) {
+	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
+
+	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		DefaultValidDays: 10,
+		Status:           "active",
+		FieldSchema: map[string]interface{}{
+			"fields": []interface{}{
+				map[string]interface{}{"key": "season", "label": "季节", "type": "select", "options": []interface{}{"春季"}},
+				map[string]interface{}{"key": "season", "label": "季节说明", "type": "text"},
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("UpdateResourceTypeConfig() error = nil, want duplicate field validation error")
+	}
+	if !strings.Contains(err.Error(), "字段编码重复") {
+		t.Fatalf("error = %v, want duplicate field key message", err)
+	}
+}
+
+func TestUpdateResourceTypeConfigRejectsUnsupportedDynamicFieldType(t *testing.T) {
+	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
+
+	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		DefaultValidDays: 10,
+		Status:           "active",
+		FieldSchema: map[string]interface{}{
+			"fields": []interface{}{
+				map[string]interface{}{"key": "season", "label": "季节", "type": "dropdown"},
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("UpdateResourceTypeConfig() error = nil, want unsupported field type validation error")
+	}
+	if !strings.Contains(err.Error(), "字段类型不支持") {
+		t.Fatalf("error = %v, want unsupported field type message", err)
+	}
+}
+
+func TestUpdateResourceTypeConfigRejectsSelectWithoutOptionsWhenCustomDisabled(t *testing.T) {
+	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
+
+	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		DefaultValidDays: 10,
+		Status:           "active",
+		FieldSchema: map[string]interface{}{
+			"fields": []interface{}{
+				map[string]interface{}{"key": "season", "label": "季节", "type": "select"},
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("UpdateResourceTypeConfig() error = nil, want select options validation error")
+	}
+	if !strings.Contains(err.Error(), "请为下拉字段配置选项") {
+		t.Fatalf("error = %v, want select options message", err)
 	}
 }
 
