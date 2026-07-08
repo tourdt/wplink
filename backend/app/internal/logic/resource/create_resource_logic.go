@@ -153,6 +153,9 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 	if err := validateResourceRequiredFields(config, values, req.Attributes, req.Tags, req.Images); err != nil {
 		return model.CreateResourceInput{}, "", err
 	}
+	if err := validateResourceDynamicFieldValues(config.FieldSchema, req.Attributes); err != nil {
+		return model.CreateResourceInput{}, "", err
+	}
 	merchantStatus, err := l.store.GetMerchantPublishStatus(ctx, values["merchantId"])
 	if err != nil {
 		return model.CreateResourceInput{}, "", err
@@ -220,6 +223,16 @@ var resourceBaseFieldLabels = map[string]string{
 	"images":        "资源图片",
 }
 
+const maxCustomSelectAttributeLength = 32
+
+type resourceFieldSpec struct {
+	Key         string
+	Label       string
+	Type        string
+	Options     []string
+	AllowCustom bool
+}
+
 func validateResourceRequiredFields(config model.ResourcePublishConfig, values map[string]string, attributes model.JSONMap, tags []string, images []string) error {
 	fieldLabels := resourceFieldLabels(config.FieldSchema)
 	for key, label := range resourceBaseFieldLabels {
@@ -254,12 +267,53 @@ func validateResourceRequiredFields(config model.ResourcePublishConfig, values m
 	return nil
 }
 
+func validateResourceDynamicFieldValues(fieldSchema model.JSONMap, attributes model.JSONMap) error {
+	for _, field := range resourceFieldSpecs(fieldSchema) {
+		if field.Type != "select" || len(field.Options) == 0 {
+			continue
+		}
+		value, ok := attributes[field.Key]
+		if !ok || resourceAttributeMissing(value) {
+			continue
+		}
+		text, ok := value.(string)
+		if !ok {
+			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("请选择正确的%s", fieldLabelOrKey(field)))
+		}
+		text = strings.TrimSpace(text)
+		if text == "" {
+			continue
+		}
+		attributes[field.Key] = text
+		if stringSliceContains(field.Options, text) {
+			continue
+		}
+		if !field.AllowCustom {
+			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("请选择正确的%s", fieldLabelOrKey(field)))
+		}
+		if !validCustomSelectAttribute(text) {
+			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("请正确填写%s", fieldLabelOrKey(field)))
+		}
+	}
+	return nil
+}
+
 func resourceFieldLabels(fieldSchema model.JSONMap) map[string]string {
 	labels := make(map[string]string)
+	for _, field := range resourceFieldSpecs(fieldSchema) {
+		if field.Key != "" && field.Label != "" {
+			labels[field.Key] = field.Label
+		}
+	}
+	return labels
+}
+
+func resourceFieldSpecs(fieldSchema model.JSONMap) []resourceFieldSpec {
 	fields, ok := fieldSchema["fields"].([]interface{})
 	if !ok {
-		return labels
+		return nil
 	}
+	specs := make([]resourceFieldSpec, 0, len(fields))
 	for _, entry := range fields {
 		field, ok := entry.(map[string]interface{})
 		if !ok {
@@ -269,11 +323,72 @@ func resourceFieldLabels(fieldSchema model.JSONMap) map[string]string {
 		label, _ := field["label"].(string)
 		key = strings.TrimSpace(key)
 		label = strings.TrimSpace(label)
-		if key != "" && label != "" {
-			labels[key] = label
+		if key == "" {
+			continue
+		}
+		fieldType, _ := field["type"].(string)
+		allowCustom, _ := field["allowCustom"].(bool)
+		specs = append(specs, resourceFieldSpec{
+			Key:         key,
+			Label:       label,
+			Type:        strings.TrimSpace(fieldType),
+			Options:     stringOptionsFromInterface(field["options"]),
+			AllowCustom: allowCustom,
+		})
+	}
+	return specs
+}
+
+func stringOptionsFromInterface(value interface{}) []string {
+	switch typed := value.(type) {
+	case []string:
+		options := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if option := strings.TrimSpace(item); option != "" {
+				options = append(options, option)
+			}
+		}
+		return options
+	case []interface{}:
+		options := make([]string, 0, len(typed))
+		for _, item := range typed {
+			text, ok := item.(string)
+			if ok {
+				if option := strings.TrimSpace(text); option != "" {
+					options = append(options, option)
+				}
+			}
+		}
+		return options
+	default:
+		return nil
+	}
+}
+
+func stringSliceContains(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
 		}
 	}
-	return labels
+	return false
+}
+
+func validCustomSelectAttribute(value string) bool {
+	if len([]rune(value)) > maxCustomSelectAttributeLength {
+		return false
+	}
+	// 自定义选项会进入公开展示和后续运营归并，先拦截控制字符，避免出现不可见内容影响审核和筛选。
+	return !strings.ContainsFunc(value, func(r rune) bool {
+		return r < 32 || r == 127
+	})
+}
+
+func fieldLabelOrKey(field resourceFieldSpec) string {
+	if field.Label != "" {
+		return field.Label
+	}
+	return field.Key
 }
 
 func resourceAttributeMissing(value interface{}) bool {

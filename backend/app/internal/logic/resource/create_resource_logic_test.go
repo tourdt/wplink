@@ -107,6 +107,90 @@ func TestCreateResourceAcceptsRequiredAttributeBooleanFalse(t *testing.T) {
 	}
 }
 
+func TestCreateResourceRejectsSelectAttributeOutsideConfiguredOptions(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "season", "contactPhone"},
+			FieldSchema: model.JSONMap{
+				"fields": []interface{}{
+					map[string]interface{}{
+						"key":         "season",
+						"label":       "季节",
+						"type":        "select",
+						"options":     []interface{}{"春季", "夏季", "秋季", "冬季"},
+						"allowCustom": false,
+					},
+				},
+			},
+		},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "inventory",
+		Title:       "女童春款卫衣库存整包清",
+		Category:    "童装",
+		Description: "整包优先，可现场看货。",
+		Attributes:  model.JSONMap{"season": "春夏"},
+		Contact:     ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+	})
+
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "请选择正确的季节" {
+		t.Fatalf("message = %q, want strict select option message", errx.PublicMessage(err))
+	}
+	if store.input.MerchantID != "" {
+		t.Fatalf("CreateResource was called despite invalid select attribute: %#v", store.input)
+	}
+}
+
+func TestCreateResourceAllowsCustomSelectAttributeWhenConfigured(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "goods",
+			RequiredFields: []string{"title", "category", "style", "contactPhone"},
+			FieldSchema: model.JSONMap{
+				"fields": []interface{}{
+					map[string]interface{}{
+						"key":         "style",
+						"label":       "风格",
+						"type":        "select",
+						"options":     []interface{}{"韩版", "学院风", "运动风"},
+						"allowCustom": true,
+					},
+				},
+			},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: "pending"},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "goods",
+		Title:       "童装套装一件代发货源",
+		Category:    "童装套装",
+		Description: "工厂直供套装货源，可一件代发。",
+		Attributes:  model.JSONMap{"style": "原创设计款"},
+		Contact:     ResourceContactReq{Name: "陈厂长", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+
+	if store.input.Attributes["style"] != "原创设计款" {
+		t.Fatalf("attributes = %#v, want custom select value preserved", store.input.Attributes)
+	}
+}
+
 func TestCreateResourceCreatesPendingResource(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{

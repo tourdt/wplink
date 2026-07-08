@@ -75,8 +75,27 @@
             否
           </button>
         </view>
+        <view v-else-if="field.type === 'select' && field.allowCustom" class="select-with-custom">
+          <picker
+            v-if="field.options.length"
+            :range="field.options"
+            :value="getDynamicFieldOptionIndex(field)"
+            @change="setDynamicFieldSelect(field, $event)"
+          >
+            <view class="field picker-field">
+              <text>{{ getDynamicFieldValue(field.key) || `请选择${field.label}` }}</text>
+              <text class="picker-arrow">›</text>
+            </view>
+          </picker>
+          <input
+            class="field"
+            :value="form.attributes[field.key]"
+            :placeholder="field.placeholder || `可选择或填写${field.label}`"
+            @input="setDynamicFieldCustomSelect(field, $event.detail.value)"
+          />
+        </view>
         <picker
-          v-else-if="field.type === 'select'"
+          v-else-if="field.type === 'select' && field.options.length"
           :range="field.options"
           :value="getDynamicFieldOptionIndex(field)"
           @change="setDynamicFieldSelect(field, $event)"
@@ -86,6 +105,13 @@
             <text class="picker-arrow">›</text>
           </view>
         </picker>
+        <input
+          v-else-if="field.type === 'select'"
+          class="field"
+          :value="form.attributes[field.key]"
+          :placeholder="field.placeholder || `请填写${field.label}`"
+          @input="setDynamicFieldValue(field.key, $event.detail.value)"
+        />
         <textarea
           v-else-if="field.type === 'textarea'"
           class="textarea"
@@ -575,10 +601,21 @@ function normalizeDynamicFieldItems(fieldSchema = {}) {
       key: String(field?.key || '').trim(),
       label: String(field?.label || field?.key || '').trim(),
       type: normalizeDynamicFieldType(field?.type),
-      options: Array.isArray(field?.options) ? field.options.filter(Boolean) : [],
+      options: normalizeDynamicFieldOptions(field?.options),
+      allowCustom: field?.allowCustom === true,
+      required: field?.required === true,
+      filterable: field?.filterable === true,
+      displayIn: Array.isArray(field?.displayIn) ? field.displayIn.filter(Boolean) : [],
       placeholder: field?.placeholder || '',
     }))
     .filter((field) => field.key && field.label)
+}
+
+function normalizeDynamicFieldOptions(options) {
+  if (!Array.isArray(options)) return []
+  return options
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
 }
 
 function normalizeDynamicFieldType(type) {
@@ -613,6 +650,10 @@ function setDynamicFieldBoolean(key, value) {
 function setDynamicFieldSelect(field, event) {
   const index = Number(event.detail.value)
   setDynamicFieldValue(field.key, field.options[index] || '')
+}
+
+function setDynamicFieldCustomSelect(field, value) {
+  setDynamicFieldValue(field.key, value)
 }
 
 function getDynamicFieldOptionIndex(field) {
@@ -842,6 +883,11 @@ function getPublishFieldLabel(field) {
   background: rgba(194, 58, 0, 0.08);
   color: $wplink-warning;
   font-weight: 700;
+}
+
+.select-with-custom {
+  display: grid;
+  gap: 12rpx;
 }
 
 .progress-copy {

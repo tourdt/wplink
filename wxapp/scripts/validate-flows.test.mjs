@@ -187,6 +187,16 @@ test('resource tab separates recommendation discovery from keyword search page',
   }
 })
 
+test('publish page supports custom select fields from resource type schema', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
+
+  assert.match(source, /allowCustom:\s*field\?\.allowCustom === true/)
+  assert.match(source, /field\.type === 'select' && field\.allowCustom/)
+  assert.match(source, /setDynamicFieldCustomSelect/)
+  assert.match(source, /field\.options\.length/)
+})
+
 test('home quick actions map to resource type flows without demand submission', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
