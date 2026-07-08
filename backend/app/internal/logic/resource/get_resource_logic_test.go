@@ -23,7 +23,7 @@ func TestGetResourceReturnsPublishedDetail(t *testing.T) {
 	store := &fakeGetResourceStore{
 		detail: model.ResourceDetail{
 			ID: "resource-1", Status: "published", TypeCode: "inventory", Title: "库存资源",
-			TypeName:   "库存",
+			TypeName:   "库存清仓",
 			Attributes: model.JSONMap{"season": "春款", "allowLiveSale": true, "internalNote": "不展示"},
 			FieldSchema: model.JSONMap{
 				"fields": []interface{}{
@@ -49,7 +49,7 @@ func TestGetResourceReturnsPublishedDetail(t *testing.T) {
 	if resp.Contact.PhoneMasked != "138****0000" {
 		t.Fatalf("phone = %q, want masked phone", resp.Contact.PhoneMasked)
 	}
-	if resp.TypeName != "库存" {
+	if resp.TypeName != "库存清仓" {
 		t.Fatalf("typeName = %q, want resource type display name", resp.TypeName)
 	}
 	if len(resp.AttributeItems) != 2 {

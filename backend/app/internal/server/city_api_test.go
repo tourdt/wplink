@@ -45,7 +45,7 @@ func TestAPIRouterListsResourceTypesByCity(t *testing.T) {
 		resourceTypes: []model.ResourceTypeConfig{{
 			ID:               "type-1",
 			TypeCode:         "inventory",
-			TypeName:         "库存",
+			TypeName:         "库存清仓",
 			DefaultValidDays: 30,
 			RequiredFields:   []string{"title", "category"},
 			FilterFields:     []string{"category"},
@@ -67,8 +67,8 @@ func TestAPIRouterListsResourceTypesByCity(t *testing.T) {
 	data := body["data"].(map[string]interface{})
 	items := data["items"].([]interface{})
 	first := items[0].(map[string]interface{})
-	if first["typeCode"] != "inventory" || first["typeName"] != "库存" {
-		t.Fatalf("first type = %#v, want inventory", first)
+	if first["typeCode"] != "inventory" || first["typeName"] != "库存清仓" {
+		t.Fatalf("first type = %#v, want inventory with friendly display name", first)
 	}
 }
 

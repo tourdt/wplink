@@ -131,10 +131,10 @@ test('home page keeps custom brand first screen structure', () => {
     '织里站 · 精选工厂',
     '童装产业带资源服务平台',
     'quick-action-grid',
-    '货源市场',
+    '现货货源',
     '库存清仓',
-    '工厂产能',
-    '订单大厅',
+    '工厂接单',
+    '订单找厂',
   ]) {
     assert.match(source, new RegExp(token))
   }
@@ -201,10 +201,10 @@ test('home quick actions map to resource type flows without demand submission', 
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
 
-  assert.match(source, /\{ title: '货源市场'[\s\S]*icon: 'market'[\s\S]*typeCode: 'goods'[\s\S]*keyword: '现货'/)
+  assert.match(source, /\{ title: '现货货源'[\s\S]*icon: 'market'[\s\S]*typeCode: 'goods'[\s\S]*keyword: '现货'/)
   assert.match(source, /\{ title: '库存清仓'[\s\S]*icon: 'clearance'[\s\S]*typeCode: 'inventory'[\s\S]*keyword: '库存'/)
-  assert.match(source, /\{ title: '工厂产能'[\s\S]*icon: 'factory'[\s\S]*typeCode: 'factory'[\s\S]*keyword: '小单快返'/)
-  assert.match(source, /\{ title: '订单大厅'[\s\S]*icon: 'orders'[\s\S]*typeCode: 'order'[\s\S]*keyword: '订单'/)
+  assert.match(source, /\{ title: '工厂接单'[\s\S]*icon: 'factory'[\s\S]*typeCode: 'factory'[\s\S]*keyword: '小单快返'/)
+  assert.match(source, /\{ title: '订单找厂'[\s\S]*icon: 'orders'[\s\S]*typeCode: 'order'[\s\S]*keyword: '订单'/)
   assert.match(source, /item\.icon === 'market'/)
   assert.match(source, /item\.icon === 'clearance'/)
   assert.match(source, /item\.icon === 'orders'/)
@@ -217,6 +217,26 @@ test('home quick actions map to resource type flows without demand submission', 
   }
   for (const removedText of ['quick-desc', "desc: '现货货源'", "desc: '发布库存'", "desc: '工厂产能'", "desc: '订单需求'", '我要找货', '我要清货', '我要找厂', '我要接单']) {
     assert.equal(source.includes(removedText), false)
+  }
+})
+
+test('resource type display names use buyer-friendly wording', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const enumSource = fs.readFileSync(path.join(root, 'common/enums.js'), 'utf8')
+
+  for (const token of [
+    "inventory: '库存清仓'",
+    "goods: '现货货源'",
+    "factory: '工厂接单'",
+    "order: '订单找厂'",
+    "job: '招工招聘'",
+    "rental: '出租转让'",
+    "service: '配套服务'",
+  ]) {
+    assert.match(enumSource, new RegExp(token))
+  }
+  for (const oldText of ["goods: '货源'", "factory: '工厂产能'", "order: '订单需求'", "job: '招聘'", "rental: '出租'", "service: '服务'"]) {
+    assert.equal(enumSource.includes(oldText), false)
   }
 })
 

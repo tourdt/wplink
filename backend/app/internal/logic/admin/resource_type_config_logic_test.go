@@ -14,7 +14,7 @@ func TestListResourceTypeConfigsReturnsStoreItems(t *testing.T) {
 				ID:               "config-1",
 				CityCode:         "zhili",
 				TypeCode:         "inventory",
-				TypeName:         "库存",
+				TypeName:         "库存清仓",
 				DefaultValidDays: 7,
 				Status:           "active",
 			},

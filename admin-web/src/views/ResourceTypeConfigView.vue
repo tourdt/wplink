@@ -146,7 +146,7 @@ const fieldDescriptionMap = {
   },
   typeCode: {
     label: '资源类型',
-    description: '决定资源属于库存、货源、工厂、服务等哪一类，影响发布表单、搜索筛选和专题展示。',
+    description: '决定资源属于库存清仓、现货货源、工厂接单、配套服务等哪一类，影响发布表单、搜索筛选和专题展示。',
   },
   title: {
     label: '标题',
@@ -158,7 +158,7 @@ const fieldDescriptionMap = {
   },
   quantityText: {
     label: '数量/产能',
-    description: '说明库存数量、可供货数量或工厂产能，帮助买家判断是否匹配需求。',
+    description: '说明库存数量、可供货数量或工厂可接单规模，帮助买家判断是否匹配需求。',
   },
   priceText: {
     label: '价格描述',

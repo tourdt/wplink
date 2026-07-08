@@ -57,6 +57,23 @@ test('migrations do not create retired purchase demand or manual matching schema
   }
 })
 
+test('resource type migrations use user-facing display names and rental object type', () => {
+  const seedSql = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')
+  const displayNameSql = fs.readFileSync(path.resolve(migrationsDir, '000014_resource_type_display_names.up.sql'), 'utf8')
+
+  for (const displayName of ['库存清仓', '现货货源', '工厂接单', '订单找厂', '招工招聘', '出租转让', '配套服务']) {
+    assert(seedSql.includes(`'${displayName}'`), `seed should contain resource type display name ${displayName}`)
+    assert(displayNameSql.includes(`'${displayName}'`), `display name migration should contain ${displayName}`)
+  }
+  for (const oldDisplayName of ["'工厂产能'", "'订单需求'", "'出租/转让'"]) {
+    assert(!seedSql.includes(oldDisplayName), `seed should not keep old display name ${oldDisplayName}`)
+  }
+
+  assert(seedSql.includes('"key":"rentalType"'), 'seed should include rentalType field')
+  assert(displayNameSql.includes('"key":"rentalType"'), 'display name migration should include rentalType field')
+  assert(displayNameSql.includes('"商品房"'), 'rentalType options should cover normal commodity housing')
+})
+
 test('reports a migration without matching down file', () => {
   const issues = validateMigrationFiles([
     {

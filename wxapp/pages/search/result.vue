@@ -2,7 +2,7 @@
   <view class="search-page">
     <view class="search-toolbar">
       <view class="search-bar">
-        <input v-model="keyword" class="search-input" placeholder="搜索库存、货源、工厂、服务" @confirm="search" />
+        <input v-model="keyword" class="search-input" placeholder="搜索库存清仓、现货货源、工厂接单、配套服务" @confirm="search" />
         <button class="search-button" @click="search">搜索</button>
       </view>
 

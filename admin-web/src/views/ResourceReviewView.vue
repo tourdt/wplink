@@ -15,13 +15,13 @@
         <el-form-item label="资源类型">
           <el-select v-model="filters.typeCode" placeholder="全部" style="width: 160px">
             <el-option label="全部" value="" />
-            <el-option label="库存" value="inventory" />
-            <el-option label="货源" value="goods" />
-            <el-option label="工厂产能" value="factory" />
-            <el-option label="订单需求" value="order" />
-            <el-option label="招聘" value="job" />
-            <el-option label="出租" value="rental" />
-            <el-option label="服务" value="service" />
+            <el-option label="库存清仓" value="inventory" />
+            <el-option label="现货货源" value="goods" />
+            <el-option label="工厂接单" value="factory" />
+            <el-option label="订单找厂" value="order" />
+            <el-option label="招工招聘" value="job" />
+            <el-option label="出租转让" value="rental" />
+            <el-option label="配套服务" value="service" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -118,13 +118,13 @@ import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { useAuthStore } from '../stores/auth'
 
 const typeText = {
-  inventory: '库存',
-  goods: '货源',
-  factory: '工厂产能',
-  order: '订单需求',
-  job: '招聘',
-  rental: '出租',
-  service: '服务',
+  inventory: '库存清仓',
+  goods: '现货货源',
+  factory: '工厂接单',
+  order: '订单找厂',
+  job: '招工招聘',
+  rental: '出租转让',
+  service: '配套服务',
 }
 
 const filters = reactive({

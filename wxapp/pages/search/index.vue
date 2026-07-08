@@ -2,7 +2,7 @@
   <view class="resource-page">
     <view class="resource-toolbar">
       <view class="search-entry" @click="openSearchPage()">
-        <text class="search-placeholder">搜索库存、货源、工厂、服务</text>
+        <text class="search-placeholder">搜索库存清仓、现货货源、工厂接单、配套服务</text>
         <text class="search-action">搜索</text>
       </view>
 

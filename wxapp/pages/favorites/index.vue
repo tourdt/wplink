@@ -71,7 +71,7 @@ const merchantTypeText = {
 const currentRows = computed(() => (activeTab.value === 'resources' ? favoriteResources.value : followedMerchants.value))
 const emptyTitle = computed(() => (activeTab.value === 'resources' ? '暂无收藏资源' : '暂无关注商家'))
 const emptyDesc = computed(() => {
-  if (activeTab.value === 'resources') return '看到合适的库存、货源或产能后点收藏，后续可在这里快速回看。'
+  if (activeTab.value === 'resources') return '看到合适的库存清仓、现货货源或工厂接单后点收藏，后续可在这里快速回看。'
   return '关注常合作或感兴趣的商家，后续可从这里快速进入商家主页。'
 })
 const emptyActionText = computed(() => (activeTab.value === 'resources' ? '去找资源' : '去找商家'))

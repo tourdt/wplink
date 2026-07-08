@@ -162,7 +162,7 @@ const defaultBanners = [
   },
   {
     id: 'default-order',
-    kindText: '订单需求 · 工厂接单',
+    kindText: '订单找厂 · 工厂接单',
     title: '有空档产能？查看订单',
     jumpType: 'search',
     jumpTarget: '订单',
@@ -179,10 +179,10 @@ const defaultBanners = [
   },
 ]
 const sceneEntries = [
-  { title: '货源市场', tone: 'navy', icon: 'market', typeCode: 'goods', keyword: '现货' },
+  { title: '现货货源', tone: 'navy', icon: 'market', typeCode: 'goods', keyword: '现货' },
   { title: '库存清仓', tone: 'red', icon: 'clearance', typeCode: 'inventory', keyword: '库存' },
-  { title: '工厂产能', tone: 'teal', icon: 'factory', typeCode: 'factory', keyword: '小单快返' },
-  { title: '订单大厅', tone: 'amber', icon: 'orders', typeCode: 'order', keyword: '订单' },
+  { title: '工厂接单', tone: 'teal', icon: 'factory', typeCode: 'factory', keyword: '小单快返' },
+  { title: '订单找厂', tone: 'amber', icon: 'orders', typeCode: 'order', keyword: '订单' },
   { title: '拿货地图', tone: 'green', icon: 'map', action: 'sourcing-map' },
 ]
 const displayBanners = computed(() => {

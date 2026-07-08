@@ -13,7 +13,7 @@ func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
 			{
 				ID:               "type-1",
 				TypeCode:         "inventory",
-				TypeName:         "库存",
+				TypeName:         "库存清仓",
 				DefaultValidDays: 7,
 				FieldSchema: model.JSONMap{
 					"fields": []interface{}{

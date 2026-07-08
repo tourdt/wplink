@@ -101,10 +101,10 @@
         </el-form-item>
         <el-form-item v-if="isBannerKind" label="资源类型范围">
           <el-select v-model="form.typeScope" multiple>
-            <el-option label="库存" value="inventory" />
-            <el-option label="货源" value="goods" />
-            <el-option label="工厂" value="factory" />
-            <el-option label="服务" value="service" />
+            <el-option label="库存清仓" value="inventory" />
+            <el-option label="现货货源" value="goods" />
+            <el-option label="工厂接单" value="factory" />
+            <el-option label="配套服务" value="service" />
           </el-select>
         </el-form-item>
         <el-form-item label="跳转类型">
@@ -163,7 +163,7 @@
             <el-option label="平台推荐" value="平台推荐" />
             <el-option label="首页推荐" value="首页推荐" />
             <el-option label="童装" value="童装" />
-            <el-option label="库存" value="库存" />
+            <el-option label="库存清仓" value="库存清仓" />
           </el-select>
         </el-form-item>
         <el-form-item label="上线时间">
