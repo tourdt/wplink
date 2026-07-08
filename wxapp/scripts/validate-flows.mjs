@@ -48,12 +48,12 @@ export const defaultFlowChecks = [
     ],
   },
   {
-    file: 'pages/search/index.vue',
+    file: 'pages/market/index.vue',
     description: '供需 tab 推荐和类型筛选',
     checks: ['供需市场', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'DemandCard', "label: '资源'", "label: '需求'", 'activeDirection', 'openSearchPage', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
   },
   {
-    file: 'pages/search/result.vue',
+    file: 'pages/search/index.vue',
     description: '独立搜索和无结果换条件',
     checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', 'DemandCard', 'activeDirection', '暂无匹配资源', 'hotKeywords', '换个条件'],
   },

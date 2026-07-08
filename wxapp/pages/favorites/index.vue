@@ -141,7 +141,7 @@ function openMerchant(item) {
 }
 
 function openEmptyAction() {
-  uni.switchTab({ url: '/pages/search/index' })
+  uni.switchTab({ url: '/pages/market/index' })
 }
 
 function merchantAvatarUrl(item) {

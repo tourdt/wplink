@@ -18,7 +18,7 @@ import { API_BASE_URL, DEFAULT_CITY_CODE } from '../../common/constants'
 import { getMe, wechatLogin } from '../../api/auth'
 import { saveMerchantId, saveToken, saveUserId } from '../../store/session'
 
-const TAB_PAGE_PATHS = ['/pages/home/index', '/pages/search/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
+const TAB_PAGE_PATHS = ['/pages/home/index', '/pages/market/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
 
 const redirectUrl = ref('/pages/my/index')
 const loggingIn = ref(false)

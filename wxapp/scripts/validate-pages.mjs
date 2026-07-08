@@ -17,8 +17,8 @@ const manifestConfig = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
 const pagePaths = (pagesConfig.pages || []).map((item) => item.path)
 const requiredPages = [
   'pages/home/index',
+  'pages/market/index',
   'pages/search/index',
-  'pages/search/result',
   'pages/sourcing-map/index',
   'pages/publish/index',
   'pages/publish/edit',
@@ -47,7 +47,7 @@ for (const page of requiredPages) {
 }
 
 const tabBarPages = new Set((pagesConfig.tabBar?.list || []).map((item) => item.pagePath))
-for (const page of ['pages/home/index', 'pages/search/index', 'pages/publish/index', 'pages/messages/index', 'pages/my/index']) {
+for (const page of ['pages/home/index', 'pages/market/index', 'pages/publish/index', 'pages/messages/index', 'pages/my/index']) {
   if (!tabBarPages.has(page)) {
     throw new Error(`tabBar 缺少页面: ${page}`)
   }
@@ -69,7 +69,7 @@ for (const item of pagesConfig.tabBar?.list || []) {
   }
 }
 
-for (const page of ['pages/search/index', 'pages/search/result']) {
+for (const page of ['pages/market/index', 'pages/search/index']) {
   const vuePath = path.join(root, `${page}.vue`)
   const source = fs.readFileSync(vuePath, 'utf8')
   if (!source.includes('listCityResourceTypes')) {

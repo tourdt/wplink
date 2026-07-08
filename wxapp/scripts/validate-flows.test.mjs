@@ -17,6 +17,7 @@ test('launch UI hides matching feature copy', () => {
     'pages/login/index.vue',
     'pages/messages/index.vue',
     'pages/my/index.vue',
+    'pages/market/index.vue',
     'pages/search/index.vue',
   ]
 
@@ -154,14 +155,14 @@ test('home search entry keeps a crisp icon and clear input surface', () => {
 test('resource tab separates recommendation discovery from keyword search page', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
-  const resourceTab = pagesConfig.tabBar.list.find((item) => item.pagePath === 'pages/search/index')
-  const resourceSource = fs.readFileSync(path.join(root, 'pages/search/index.vue'), 'utf8')
-  const searchSource = fs.readFileSync(path.join(root, 'pages/search/result.vue'), 'utf8')
+  const resourceTab = pagesConfig.tabBar.list.find((item) => item.pagePath === 'pages/market/index')
+  const resourceSource = fs.readFileSync(path.join(root, 'pages/market/index.vue'), 'utf8')
+  const searchSource = fs.readFileSync(path.join(root, 'pages/search/index.vue'), 'utf8')
   const homeSource = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
   const detailSource = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
   const favoritesSource = fs.readFileSync(path.join(root, 'pages/favorites/index.vue'), 'utf8')
 
-  assert.ok(pagesConfig.pages.some((item) => item.path === 'pages/search/result'))
+  assert.ok(pagesConfig.pages.some((item) => item.path === 'pages/search/index'))
   assert.equal(resourceTab?.text, '供需')
 
   for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectType', "label: '资源'", "label: '需求'", 'DemandCard']) {
@@ -181,8 +182,8 @@ test('resource tab separates recommendation discovery from keyword search page',
     assert.equal(searchSource.includes(removedToken), false)
   }
 
-  assert.match(homeSource, /uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
-  assert.match(detailSource, /uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
+  assert.match(homeSource, /uni\.navigateTo\(\{ url: '\/pages\/search\/index' \}\)/)
+  assert.match(detailSource, /uni\.navigateTo\(\{ url: '\/pages\/search\/index' \}\)/)
   for (const removedToken of ['searches', 'savedSearches', 'applySavedSearch', 'deleteSavedSearch', '暂无保存搜索']) {
     assert.equal(favoritesSource.includes(removedToken), false)
   }
@@ -244,7 +245,7 @@ test('home quick actions map to supply and demand resource flows', () => {
   assert.match(source, /item\.icon === 'orders'/)
   assert.match(source, /item\.icon === 'demand'/)
   assert.match(source, /function openScene\(item\) \{[\s\S]*item\.action === 'publish-demand'[\s\S]*openPublish\(\{ direction: item\.direction \|\| RESOURCE_DIRECTION_DEMAND, typeCode: item\.typeCode \|\| '' \}\)[\s\S]*openSearch\(\{ keyword: item\.keyword, typeCode: item\.typeCode, direction: item\.direction \}\)[\s\S]*\}/)
-  assert.match(source, /function openSearch\(options = \{\}\) \{[\s\S]*typeof options === 'string'[\s\S]*searchOptions\.direction[\s\S]*uni\.setStorageSync\(SEARCH_KEY, searchOptions\)[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/search\/result' \}\)/)
+  assert.match(source, /function openSearch\(options = \{\}\) \{[\s\S]*typeof options === 'string'[\s\S]*searchOptions\.direction[\s\S]*uni\.setStorageSync\(SEARCH_KEY, searchOptions\)[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/search\/index' \}\)/)
   assert.match(source, /function openPublish\(options = \{\}\) \{[\s\S]*typeof options === 'string'[\s\S]*uni\.setStorageSync\(PUBLISH_TYPE_KEY, publishOptions\)[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)/)
 
   for (const removedToken of ["action: 'demand'", 'openDemand', "action: 'publish'"]) {

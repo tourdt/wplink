@@ -342,7 +342,7 @@ function openSearch(options = {}) {
   } else {
     uni.removeStorageSync(SEARCH_KEY)
   }
-  uni.navigateTo({ url: '/pages/search/result' })
+  uni.navigateTo({ url: '/pages/search/index' })
 }
 
 function openPublish(options = {}) {
@@ -361,9 +361,9 @@ function openResource(item) {
 }
 
 function openInternal(url) {
-  const tabPages = ['/pages/home/index', '/pages/search/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
+  const tabPages = ['/pages/home/index', '/pages/market/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
   const path = url.split('?')[0]
-  if (path === '/pages/search/index' && url.includes('?')) {
+  if (path === '/pages/market/index' && url.includes('?')) {
     const query = url.split('?')[1] || ''
     const keywordPair = query.split('&').find((item) => item.startsWith('keyword=') || item.startsWith('q='))
     const typePair = query.split('&').find((item) => item.startsWith('typeCode='))

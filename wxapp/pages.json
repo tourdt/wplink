@@ -8,14 +8,14 @@
       }
     },
     {
-      "path": "pages/search/index",
+      "path": "pages/market/index",
       "style": {
-        "navigationBarTitleText": "资源推荐",
+        "navigationBarTitleText": "供需市场",
         "navigationStyle": "custom"
       }
     },
     {
-      "path": "pages/search/result",
+      "path": "pages/search/index",
       "style": {
         "navigationBarTitleText": "搜索资源",
         "navigationStyle": "custom"
@@ -136,7 +136,7 @@
         "selectedIconPath": "static/tabbar/home-active.png"
       },
       {
-        "pagePath": "pages/search/index",
+        "pagePath": "pages/market/index",
         "text": "供需",
         "iconPath": "static/tabbar/search.png",
         "selectedIconPath": "static/tabbar/search-active.png"

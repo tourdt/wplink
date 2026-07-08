@@ -64,7 +64,7 @@ function openResource(item) {
 }
 
 function openSearch() {
-  uni.switchTab({ url: '/pages/search/index' })
+  uni.switchTab({ url: '/pages/market/index' })
 }
 </script>
 

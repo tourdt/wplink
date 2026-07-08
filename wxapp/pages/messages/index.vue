@@ -58,7 +58,7 @@ const resourceMessageTypes = new Set([
   'resource_expiring',
   'effect_feedback',
 ])
-const tabPagePaths = ['/pages/home/index', '/pages/search/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
+const tabPagePaths = ['/pages/home/index', '/pages/market/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
 const emptyTitle = computed(() => {
   if (filters.status === 'unread') return '暂无未读消息'
   if (filters.status === 'read') return '暂无已读消息'
