@@ -1,5 +1,5 @@
 <template>
-  <view v-if="!selectedDirection" class="publish-entry-page">
+  <view class="publish-entry-page">
     <view class="entry-head">
       <text class="entry-title">发布</text>
       <text class="entry-desc">选择本次要发布的内容类型，后续字段会按资源或需求自动切换。</text>
@@ -16,19 +16,10 @@
       </button>
     </view>
   </view>
-
-  <ResourcePublishForm
-    v-if="selectedDirection"
-    :initial-options="initialOptions"
-    mode="create"
-    :reserve-bottom-safe-area="false"
-  />
 </template>
 
 <script setup>
-import { ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import ResourcePublishForm from '../../components/ResourcePublishForm.vue'
 
 const PUBLISH_TYPE_KEY = 'wplink_pending_publish_type_code'
 const RESOURCE_DIRECTION_SUPPLY = 'supply'
@@ -45,13 +36,12 @@ const publishDirectionOptions = [
     value: RESOURCE_DIRECTION_DEMAND,
   },
 ]
-const selectedDirection = ref('')
-const initialOptions = ref({})
 
 onLoad(applyPendingPublishType)
 onShow(applyPendingPublishType)
 
 function applyPendingPublishType() {
+  // 首页快捷入口会先写入待发布类型，tab onShow 消费后立即进入独立表单页。
   const pendingPublish = uni.getStorageSync(PUBLISH_TYPE_KEY)
   if (!pendingPublish) return
   uni.removeStorageSync(PUBLISH_TYPE_KEY)
@@ -61,13 +51,23 @@ function applyPendingPublishType() {
   const pendingDirection = normalizePublishDirection(
     typeof pendingPublish === 'object' ? pendingPublish.direction : '',
   ) || RESOURCE_DIRECTION_SUPPLY
-  selectedDirection.value = pendingDirection
-  initialOptions.value = { typeCode: pendingTypeCode, direction: pendingDirection }
+  navigateToPublishForm({ typeCode: pendingTypeCode, direction: pendingDirection })
 }
 
 function startPublish(direction) {
-  selectedDirection.value = normalizePublishDirection(direction) || RESOURCE_DIRECTION_SUPPLY
-  initialOptions.value = { typeCode: '', direction: selectedDirection.value }
+  const publishDirection = normalizePublishDirection(direction) || RESOURCE_DIRECTION_SUPPLY
+  navigateToPublishForm({ typeCode: '', direction: publishDirection })
+}
+
+function navigateToPublishForm(options = {}) {
+  const initialPublishOptions = {
+    typeCode: options.typeCode || '',
+    direction: normalizePublishDirection(options.direction || '') || RESOURCE_DIRECTION_SUPPLY,
+  }
+  const query = []
+  initialPublishOptions.direction && query.push(`direction=${encodeURIComponent(initialPublishOptions.direction)}`)
+  initialPublishOptions.typeCode && query.push(`typeCode=${encodeURIComponent(initialPublishOptions.typeCode)}`)
+  uni.navigateTo({ url: `/pages/publish/edit?${query.join('&')}` })
 }
 
 function normalizePublishDirection(value) {

@@ -164,7 +164,7 @@ test('resource tab separates recommendation discovery from keyword search page',
   assert.ok(pagesConfig.pages.some((item) => item.path === 'pages/search/result'))
   assert.equal(resourceTab?.text, '供需')
 
-  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectType', '找资源', '看需求', 'DemandCard']) {
+  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectType', "label: '资源'", "label: '需求'", 'DemandCard']) {
     assert.match(resourceSource, new RegExp(token))
   }
   for (const removedToken of ['createSavedSearch', 'applySavedSearch', 'saveCurrentSearch']) {
@@ -210,13 +210,17 @@ test('publish tab supports supply and demand entry selection', () => {
     'startPublish',
     'RESOURCE_DIRECTION_SUPPLY',
     'RESOURCE_DIRECTION_DEMAND',
-    'selectedDirection',
+    'navigateToPublishForm',
   ]) {
     assert.match(tabSource, new RegExp(token))
   }
 
-  assert.match(tabSource, /<ResourcePublishForm[\s\S]*v-if="selectedDirection"[\s\S]*:initial-options="initialOptions"[\s\S]*mode="create"/)
-  assert.match(tabSource, /initialOptions\.value = \{ typeCode: pendingTypeCode, direction: pendingDirection \}/)
+  assert.equal(tabSource.includes('<ResourcePublishForm'), false)
+  assert.equal(tabSource.includes('selectedDirection'), false)
+  assert.match(tabSource, /function startPublish\(direction\) \{[\s\S]*navigateToPublishForm\(\{ typeCode: '', direction: publishDirection \}\)[\s\S]*\}/)
+  assert.match(tabSource, /function navigateToPublishForm\(options = \{\}\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?\$\{query\.join\('&'\)\}` \}\)/)
+  assert.match(tabSource, /initialPublishOptions\.direction && query\.push\(`direction=\$\{encodeURIComponent\(initialPublishOptions\.direction\)\}`\)/)
+  assert.match(tabSource, /initialPublishOptions\.typeCode && query\.push\(`typeCode=\$\{encodeURIComponent\(initialPublishOptions\.typeCode\)\}`\)/)
   assert.match(formSource, /direction:\s*RESOURCE_DIRECTION_SUPPLY/)
   assert.match(formSource, /listCityResourceTypes\(form\.cityCode,\s*\{ direction: form\.direction \}\)/)
   assert.match(formSource, /需求信息/)
@@ -565,12 +569,15 @@ test('publish pages split tab creation and independent editing', () => {
   const tabSource = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
   const editSource = fs.readFileSync(path.join(root, 'pages/publish/edit.vue'), 'utf8')
 
-  assert.match(tabSource, /<ResourcePublishForm[\s\S]*mode="create"/)
+  assert.equal(tabSource.includes('<ResourcePublishForm'), false)
   assert.match(tabSource, /PUBLISH_TYPE_KEY/)
   assert.match(tabSource, /onShow\(applyPendingPublishType\)/)
-  assert.match(tabSource, /function applyPendingPublishType\(\) \{[\s\S]*uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*initialOptions\.value = \{ typeCode: pendingTypeCode, direction: pendingDirection \}/)
+  assert.match(tabSource, /function applyPendingPublishType\(\) \{[\s\S]*uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode, direction: pendingDirection \}\)/)
   assert.match(editSource, /onLoad\(\(options\)/)
-  assert.match(editSource, /<ResourcePublishForm[\s\S]*mode="edit"[\s\S]*:initial-options="routeOptions"/)
+  assert.match(editSource, /direction: ''/)
+  assert.match(editSource, /routeOptions\.direction = options\.direction \|\| ''/)
+  assert.match(editSource, /const publishFormMode = computed\(\(\) => routeOptions\.resourceId \? 'edit' : 'create'\)/)
+  assert.match(editSource, /<ResourcePublishForm[\s\S]*:mode="publishFormMode"[\s\S]*:initial-options="routeOptions"/)
   assert.equal(tabSource.includes('publish:pending-edit-context'), false)
 })
 
@@ -775,7 +782,7 @@ test('publish tab page does not reserve bottom safe area for fixed save bar', ()
   const publishSource = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
   const editSource = fs.readFileSync(path.join(root, 'pages/publish/edit.vue'), 'utf8')
 
-  assert.match(publishSource, /:reserve-bottom-safe-area="false"/)
+  assert.equal(publishSource.includes('reserve-bottom-safe-area'), false)
   assert.equal(editSource.includes('reserve-bottom-safe-area'), false)
 })
 

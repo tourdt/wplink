@@ -50,7 +50,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/search/index.vue',
     description: '供需 tab 推荐和类型筛选',
-    checks: ['供需市场', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'DemandCard', '找资源', '看需求', 'activeDirection', 'openSearchPage', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
+    checks: ['供需市场', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'DemandCard', "label: '资源'", "label: '需求'", 'activeDirection', 'openSearchPage', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
   },
   {
     file: 'pages/search/result.vue',
@@ -88,12 +88,12 @@ export const defaultFlowChecks = [
   {
     file: 'pages/publish/index.vue',
     description: 'tab 发布页入口',
-    checks: ['ResourcePublishForm', ':initial-options', 'mode="create"', 'PUBLISH_TYPE_KEY', 'applyPendingPublishType'],
+    checks: ['publishDirectionOptions', 'navigateToPublishForm', '/pages/publish/edit?', 'PUBLISH_TYPE_KEY', 'applyPendingPublishType'],
   },
   {
     file: 'pages/publish/edit.vue',
     description: '独立资源编辑页入口',
-    checks: ['ResourcePublishForm', 'onLoad', 'routeOptions', 'mode="edit"'],
+    checks: ['ResourcePublishForm', 'onLoad', 'routeOptions', 'publishFormMode', ':mode="publishFormMode"', 'direction'],
   },
   {
     file: 'components/ResourcePublishForm.vue',

@@ -10,13 +10,15 @@
     {
       "path": "pages/search/index",
       "style": {
-        "navigationBarTitleText": "资源推荐"
+        "navigationBarTitleText": "资源推荐",
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/search/result",
       "style": {
-        "navigationBarTitleText": "搜索资源"
+        "navigationBarTitleText": "搜索资源",
+        "navigationStyle": "custom"
       }
     },
     {

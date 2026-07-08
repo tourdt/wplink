@@ -1,20 +1,27 @@
 <template>
-  <view class="search-page">
-    <view class="search-toolbar">
+  <view class="search-page" :style="searchPageStyle">
+    <view class="search-nav" :style="searchNavStyle">
+      <view class="search-title-bar" :style="searchTitleBarStyle">
+        <button class="nav-back-button" @click="goBack">
+          <view class="nav-back-icon"></view>
+        </button>
+        <view class="title-direction-tabs">
+          <button
+            v-for="item in directionTabs"
+            :key="item.value"
+            :class="['title-direction-tab', activeDirection === item.value ? 'active' : '']"
+            @click="selectDirection(item.value)"
+          >
+            {{ item.label }}
+          </button>
+        </view>
+      </view>
+    </view>
+
+    <view class="search-toolbar" :style="searchToolbarStyle">
       <view class="search-bar">
         <input v-model="keyword" class="search-input" :placeholder="searchPlaceholder" @confirm="search" />
         <button class="search-button" @click="search">搜索</button>
-      </view>
-
-      <view class="direction-tabs">
-        <button
-          v-for="item in directionTabs"
-          :key="item.value"
-          :class="['direction-tab', activeDirection === item.value ? 'active' : '']"
-          @click="selectDirection(item.value)"
-        >
-          {{ item.label }}
-        </button>
       </view>
 
       <view class="filter-shell">
@@ -23,6 +30,8 @@
           scroll-x
           scroll-with-animation
           :scroll-into-view="scrollIntoTypeId"
+          :scroll-left="typeScrollLeft"
+          @scroll="handleTypeScroll"
         >
           <button
             v-for="item in visibleResourceTypes"
@@ -111,7 +120,7 @@
 
 <script setup>
 import { computed, nextTick, reactive, ref } from 'vue'
-import { onLoad, onReachBottom, onShow } from '@dcloudio/uni-app'
+import { onLoad, onPageScroll, onReachBottom, onShow } from '@dcloudio/uni-app'
 import DemandCard from '../../components/DemandCard.vue'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
@@ -124,10 +133,20 @@ const hotKeywords = ref([])
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
+const NAV_BOTTOM_RPX = 12
 const directionTabs = [
   { label: '资源', value: RESOURCE_DIRECTION_SUPPLY },
   { label: '需求', value: RESOURCE_DIRECTION_DEMAND },
 ]
+const directionStateCache = reactive({
+  [RESOURCE_DIRECTION_SUPPLY]: createDirectionResultState(),
+  [RESOURCE_DIRECTION_DEMAND]: createDirectionResultState(),
+})
+const headerMetrics = ref({
+  statusBarHeight: 44,
+  navBarHeight: 44,
+  headerHeight: 94,
+})
 const activeDirection = ref(RESOURCE_DIRECTION_SUPPLY)
 const keyword = ref('')
 const rows = ref([])
@@ -137,18 +156,25 @@ const pageSize = 20
 const total = ref(0)
 const hasMore = ref(true)
 const loading = ref(false)
+const searchRequestSeq = ref(0)
 const filters = reactive({
   cityCode: DEFAULT_CITY_CODE,
   typeCode: '',
 })
 const showTypeDrawer = ref(false)
 const scrollIntoTypeId = ref('')
+const typeScrollLeft = ref(0)
+const pageScrollTop = ref(0)
 const visibleResourceTypes = computed(() => resourceTypes.value)
 const trimmedKeyword = computed(() => keyword.value.trim())
+const searchNavStyle = computed(() => `padding-top: ${headerMetrics.value.statusBarHeight}px;`)
+const searchTitleBarStyle = computed(() => `height: ${headerMetrics.value.navBarHeight}px;`)
+const searchPageStyle = computed(() => `padding-top: calc(${headerMetrics.value.headerHeight}px + 24rpx);`)
+const searchToolbarStyle = computed(() => `top: ${headerMetrics.value.headerHeight}px;`)
 const searchPlaceholder = computed(() => (
   activeDirection.value === RESOURCE_DIRECTION_DEMAND
-    ? '搜索找现货、找库存、找工厂、找服务'
-    : '搜索库存清仓、现货货源、工厂接单、配套服务'
+    ? '搜采购/找厂/服务'
+    : '搜现货/库存/工厂'
 ))
 const emptyTitle = '暂无匹配资源'
 const emptyDesc = '换个关键词或分类试试。'
@@ -157,6 +183,7 @@ const emptySuggestions = computed(() => hotKeywords.value
   .slice(0, 3))
 
 onLoad(async (options = {}) => {
+  updateHeaderMetrics()
   loadHotKeywordOptions()
   await loadResourceTypes()
   const routeSearched = await applyRouteSearch(options)
@@ -165,11 +192,41 @@ onLoad(async (options = {}) => {
   }
 })
 onShow(applyPendingKeyword)
+onPageScroll(handlePageScroll)
 
 // 搜索结果使用接口分页；上拉只追加下一页，切换关键词或分类时重置到第一页。
 onReachBottom(() => {
   search({ reset: false })
 })
+
+function updateHeaderMetrics() {
+  try {
+    const systemInfo = uni.getSystemInfoSync()
+    const statusBarHeight = Number(systemInfo.statusBarHeight) || 44
+    let menuTop = statusBarHeight + 6
+    let menuHeight = 32
+
+    if (typeof uni.getMenuButtonBoundingClientRect === 'function') {
+      const menuButton = uni.getMenuButtonBoundingClientRect()
+      menuTop = Number(menuButton.top) || menuTop
+      menuHeight = Number(menuButton.height) || menuHeight
+    }
+
+    const navBarHeight = Math.max(44, (menuTop - statusBarHeight) * 2 + menuHeight)
+    const bottomPadding = typeof uni.upx2px === 'function' ? uni.upx2px(NAV_BOTTOM_RPX) : 6
+    headerMetrics.value = {
+      statusBarHeight,
+      navBarHeight,
+      headerHeight: statusBarHeight + navBarHeight + bottomPadding,
+    }
+  } catch {
+    headerMetrics.value = {
+      statusBarHeight: 44,
+      navBarHeight: 44,
+      headerHeight: 94,
+    }
+  }
+}
 
 async function loadResourceTypes() {
   const resp = await listCityResourceTypes(filters.cityCode, { direction: activeDirection.value })
@@ -225,9 +282,11 @@ function hasPendingSearch() {
   return Boolean(uni.getStorageSync(SEARCH_KEY))
 }
 
-async function search({ reset = true } = {}) {
-  if (loading.value) return
+async function search({ reset = true, force = false } = {}) {
+  if (loading.value && !force) return
   if (!reset && !hasMore.value) return
+  const requestSeq = searchRequestSeq.value + 1
+  searchRequestSeq.value = requestSeq
   loading.value = true
   try {
     const nextPage = reset ? 1 : page.value + 1
@@ -238,14 +297,18 @@ async function search({ reset = true } = {}) {
       page: nextPage,
       pageSize,
     })
+    if (requestSeq !== searchRequestSeq.value) return
     const items = resp.items || []
     rows.value = reset ? items : [...rows.value, ...items]
     page.value = nextPage
     total.value = resp.total || rows.value.length
     hasMore.value = rows.value.length < total.value
     searched.value = true
+    saveCurrentDirectionState()
   } finally {
-    loading.value = false
+    if (requestSeq === searchRequestSeq.value) {
+      loading.value = false
+    }
   }
 }
 
@@ -263,12 +326,23 @@ async function resetSearchConditions() {
 
 async function selectDirection(direction) {
   if (activeDirection.value === direction) return
+  const inheritedPageScrollTop = pageScrollTop.value
+  saveCurrentDirectionState(activeDirection.value)
+  cancelPendingSearchRequests()
   activeDirection.value = direction
-  filters.typeCode = ''
   showTypeDrawer.value = false
-  await scrollToSelectedType('')
+
+  if (applyDirectionState(direction)) {
+    await restorePageScroll()
+    return
+  }
+
+  prepareFreshDirectionSearchState()
   await loadResourceTypes()
-  await search()
+  await scrollToSelectedType(filters.typeCode)
+  await search({ force: true })
+  await restorePageScroll(inheritedPageScrollTop)
+  saveCurrentDirectionState(direction)
 }
 
 async function selectType(typeCode) {
@@ -300,6 +374,99 @@ function closeTypeDrawer() {
   showTypeDrawer.value = false
 }
 
+function createDirectionResultState() {
+  return {
+    resourceTypes: [{ label: '全部', value: '' }],
+    keyword: '',
+    rows: [],
+    searched: false,
+    page: 1,
+    total: 0,
+    hasMore: true,
+    cityCode: DEFAULT_CITY_CODE,
+    typeCode: '',
+    scrollIntoTypeId: '',
+    typeScrollLeft: 0,
+    pageScrollTop: 0,
+    loaded: false,
+  }
+}
+
+function saveCurrentDirectionState(direction = activeDirection.value) {
+  const cachedState = directionStateCache[direction]
+  if (!cachedState) return
+  cachedState.resourceTypes = [...resourceTypes.value]
+  cachedState.keyword = keyword.value
+  cachedState.rows = [...rows.value]
+  cachedState.searched = searched.value
+  cachedState.page = page.value
+  cachedState.total = total.value
+  cachedState.hasMore = hasMore.value
+  cachedState.cityCode = filters.cityCode
+  cachedState.typeCode = filters.typeCode
+  cachedState.scrollIntoTypeId = scrollIntoTypeId.value
+  cachedState.typeScrollLeft = typeScrollLeft.value
+  cachedState.pageScrollTop = pageScrollTop.value
+  cachedState.loaded = searched.value || rows.value.length > 0 || resourceTypes.value.length > 1
+}
+
+function applyDirectionState(direction) {
+  const cachedState = directionStateCache[direction]
+  if (!cachedState?.loaded) return false
+  resourceTypes.value = [...cachedState.resourceTypes]
+  keyword.value = cachedState.keyword
+  rows.value = [...cachedState.rows]
+  searched.value = cachedState.searched
+  page.value = cachedState.page
+  total.value = cachedState.total
+  hasMore.value = cachedState.hasMore
+  filters.cityCode = cachedState.cityCode || DEFAULT_CITY_CODE
+  filters.typeCode = cachedState.typeCode
+  scrollIntoTypeId.value = cachedState.scrollIntoTypeId
+  typeScrollLeft.value = cachedState.typeScrollLeft
+  pageScrollTop.value = cachedState.pageScrollTop
+  return true
+}
+
+function prepareFreshDirectionSearchState() {
+  showTypeDrawer.value = false
+  resourceTypes.value = [{ label: '全部', value: '' }]
+  rows.value = []
+  searched.value = false
+  page.value = 1
+  total.value = 0
+  hasMore.value = true
+}
+
+function cancelPendingSearchRequests() {
+  searchRequestSeq.value += 1
+  loading.value = false
+}
+
+function handlePageScroll(event = {}) {
+  const scrollTop = Number(event.scrollTop) || 0
+  pageScrollTop.value = scrollTop
+  directionStateCache[activeDirection.value].pageScrollTop = scrollTop
+}
+
+function handleTypeScroll(event = {}) {
+  const scrollLeft = Number(event.detail?.scrollLeft) || 0
+  typeScrollLeft.value = scrollLeft
+  directionStateCache[activeDirection.value].typeScrollLeft = scrollLeft
+}
+
+async function restorePageScroll(scrollTop = pageScrollTop.value) {
+  pageScrollTop.value = Number(scrollTop) || 0
+  await nextTick()
+  if (typeof uni.pageScrollTo === 'function') {
+    uni.pageScrollTo({ scrollTop, duration: 0 })
+  }
+}
+
+function goBack() {
+  uni.navigateBack()
+}
+
 function decodeSearchValue(value) {
   if (!value) return ''
   try {
@@ -325,10 +492,92 @@ function openResource(item) {
   background: $wplink-bg;
 }
 
+.search-nav {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  padding-right: 24rpx;
+  padding-bottom: 12rpx;
+  padding-left: 24rpx;
+  background: $wplink-bg;
+  box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.04);
+}
+
+.search-title-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.nav-back-button {
+  position: absolute;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64rpx;
+  min-width: 64rpx;
+  height: 64rpx;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: #111827;
+}
+
+.nav-back-button::after {
+  border: 0;
+}
+
+.nav-back-icon {
+  box-sizing: border-box;
+  width: 18rpx;
+  height: 18rpx;
+  border-bottom: 4rpx solid currentColor;
+  border-left: 4rpx solid currentColor;
+  transform: rotate(45deg);
+}
+
+.title-direction-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6rpx;
+  width: 320rpx;
+  max-width: calc(100vw - 220rpx);
+  min-width: 0;
+  padding: 6rpx;
+  border-radius: 12rpx;
+  background: #e8edf5;
+}
+
+.title-direction-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 56rpx;
+  padding: 0 8rpx;
+  border-radius: 10rpx;
+  background: transparent;
+  color: #566174;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.title-direction-tab.active {
+  background: $wplink-card;
+  color: $wplink-primary;
+  box-shadow: 0 6rpx 16rpx rgba(15, 23, 42, 0.08);
+}
+
 .search-toolbar {
   position: sticky;
   position: -webkit-sticky;
-  top: 0;
   z-index: 20;
   margin: -24rpx -24rpx 16rpx;
   padding: 24rpx 24rpx 16rpx;
@@ -369,31 +618,6 @@ function openResource(item) {
   font-size: 26rpx;
   font-weight: 700;
   line-height: 1;
-}
-
-.direction-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10rpx;
-  margin-bottom: 18rpx;
-  padding: 6rpx;
-  border-radius: 12rpx;
-  background: #e8edf5;
-}
-
-.direction-tab {
-  height: 64rpx;
-  border-radius: 10rpx;
-  background: transparent;
-  color: #566174;
-  font-size: 26rpx;
-  font-weight: 700;
-}
-
-.direction-tab.active {
-  background: $wplink-card;
-  color: $wplink-primary;
-  box-shadow: 0 6rpx 16rpx rgba(15, 23, 42, 0.08);
 }
 
 .filter-shell {
