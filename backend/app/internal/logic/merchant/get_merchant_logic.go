@@ -44,6 +44,7 @@ type MerchantDetailResp struct {
 	MerchantType       string                    `json:"merchantType"`
 	CityCode           string                    `json:"cityCode"`
 	MainCategories     []string                  `json:"mainCategories"`
+	ProfileStatus      string                    `json:"profileStatus"`
 	VerificationStatus string                    `json:"verificationStatus"`
 	VerificationInfo   *MerchantVerificationInfo `json:"verificationInfo,omitempty"`
 	CreditTags         []CreditTagInfo           `json:"creditTags"`
@@ -90,6 +91,7 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 		MerchantType:       detail.MerchantType,
 		CityCode:           detail.CityCode,
 		MainCategories:     append([]string(nil), detail.MainCategories...),
+		ProfileStatus:      normalizeMerchantProfileStatus(detail.ProfileStatus),
 		VerificationStatus: detail.VerificationStatus,
 		VerificationInfo:   buildMerchantVerificationInfo(detail),
 		CreditTags:         tags,
@@ -110,6 +112,15 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 		Images:       append([]string(nil), detail.Images...),
 		LastActiveAt: detail.LastActiveAt,
 	}, nil
+}
+
+func normalizeMerchantProfileStatus(status string) string {
+	switch strings.TrimSpace(status) {
+	case model.MerchantProfileStatusIncomplete:
+		return model.MerchantProfileStatusIncomplete
+	default:
+		return model.MerchantProfileStatusCompleted
+	}
 }
 
 func buildMerchantVerificationInfo(detail model.MerchantDetail) *MerchantVerificationInfo {

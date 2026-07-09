@@ -21,6 +21,10 @@ type UserStore interface {
 	BindUserPhone(ctx context.Context, userID string, phone string) (model.UserProfile, error)
 }
 
+type DefaultMerchantStore interface {
+	EnsureDefaultMerchantForUser(ctx context.Context, userID string, cityCode string) (model.ManagedMerchantInfo, error)
+}
+
 type TokenService interface {
 	IssueUserToken(ctx context.Context, subject session.UserTokenSubject) (string, error)
 	ParseUserToken(ctx context.Context, token string) (session.UserTokenSubject, error)
@@ -46,9 +50,10 @@ type WechatLoginResp struct {
 }
 
 type ManagedMerchantInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Role string `json:"role"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Role          string `json:"role"`
+	ProfileStatus string `json:"profileStatus"`
 }
 
 type MeResp struct {
@@ -117,6 +122,10 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 		logx.Errorf("微信登录写入用户失败: defaultCityCode=%s openidPresent=%t err=%+v", strings.TrimSpace(req.DefaultCityCode), strings.TrimSpace(wechatSession.OpenID) != "", err)
 		return WechatLoginResp{}, loginDependencyError(err, "登录失败，请稍后重试")
 	}
+	profile, err = l.ensureDefaultMerchantProfile(ctx, profile, req.DefaultCityCode)
+	if err != nil {
+		return WechatLoginResp{}, err
+	}
 	roles := normalizedRoles(profile.Roles)
 	token, err := l.tokenService.IssueUserToken(ctx, session.UserTokenSubject{UserID: profile.ID, Roles: roles})
 	if err != nil {
@@ -129,6 +138,27 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 		User:             authUserInfoFromProfile(profile),
 		ManagedMerchants: managedMerchantInfosFromProfile(profile),
 	}, nil
+}
+
+func (l *WechatLoginLogic) ensureDefaultMerchantProfile(ctx context.Context, profile model.UserProfile, cityCode string) (model.UserProfile, error) {
+	if len(profile.ManagedMerchants) > 0 {
+		return profile, nil
+	}
+	defaultStore, ok := l.store.(DefaultMerchantStore)
+	if !ok {
+		return profile, nil
+	}
+	merchant, err := defaultStore.EnsureDefaultMerchantForUser(ctx, profile.ID, strings.TrimSpace(cityCode))
+	if err != nil {
+		logx.Errorf("登录初始化默认商家失败: userId=%s cityCode=%s err=%+v", profile.ID, strings.TrimSpace(cityCode), err)
+		return model.UserProfile{}, loginDependencyError(err, "登录初始化失败，请稍后重试")
+	}
+	if strings.TrimSpace(merchant.ProfileStatus) == "" {
+		merchant.ProfileStatus = model.MerchantProfileStatusIncomplete
+	}
+	profile.ManagedMerchants = []model.ManagedMerchantInfo{merchant}
+	logx.Infof("登录初始化默认商家成功: userId=%s merchantId=%s profileStatus=%s", profile.ID, merchant.ID, merchant.ProfileStatus)
+	return profile, nil
 }
 
 func loginDependencyError(err error, fallbackMessage string) error {
@@ -242,10 +272,19 @@ func managedMerchantInfosFromProfile(profile model.UserProfile) []ManagedMerchan
 	managedMerchants := make([]ManagedMerchantInfo, 0, len(profile.ManagedMerchants))
 	for _, merchant := range profile.ManagedMerchants {
 		managedMerchants = append(managedMerchants, ManagedMerchantInfo{
-			ID: merchant.ID, Name: merchant.Name, Role: merchant.Role,
+			ID: merchant.ID, Name: merchant.Name, Role: merchant.Role, ProfileStatus: normalizeManagedMerchantProfileStatus(merchant.ProfileStatus),
 		})
 	}
 	return managedMerchants
+}
+
+func normalizeManagedMerchantProfileStatus(status string) string {
+	switch strings.TrimSpace(status) {
+	case model.MerchantProfileStatusIncomplete:
+		return model.MerchantProfileStatusIncomplete
+	default:
+		return model.MerchantProfileStatusCompleted
+	}
 }
 
 func meRespFromProfile(profile model.UserProfile) MeResp {

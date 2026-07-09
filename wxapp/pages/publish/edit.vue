@@ -5,7 +5,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
+import { requireLogin } from '../../common/auth'
 import { getMerchantId } from '../../store/session'
 import ResourcePublishForm from '../../components/ResourcePublishForm.vue'
 
@@ -19,13 +19,13 @@ const routeOptions = reactive({
 })
 const publishFormMode = computed(() => routeOptions.resourceId ? 'edit' : 'create')
 
-onLoad(async (options) => {
+onLoad((options) => {
+  if (!requireLogin()) return
   routeOptions.merchantId = options.merchantId || getMerchantId()
   routeOptions.resourceId = options.resourceId || ''
   routeOptions.typeCode = options.typeCode || ''
   routeOptions.direction = options.direction || ''
   routeOptions.repost = options.repost || ''
-  if (!(await ensureMerchantProfileReady(routeOptions.merchantId))) return
   if (!routeOptions.resourceId) {
     uni.setNavigationBarTitle({
       title: routeOptions.direction === 'demand' ? '发布需求' : '发布供给',

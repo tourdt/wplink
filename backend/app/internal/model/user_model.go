@@ -23,9 +23,10 @@ type UserProfile struct {
 }
 
 type ManagedMerchantInfo struct {
-	ID   string
-	Name string
-	Role string
+	ID            string
+	Name          string
+	Role          string
+	ProfileStatus string
 }
 
 type UserModel struct {
@@ -107,6 +108,72 @@ RETURNING id::text
 	return m.GetUserProfile(ctx, updatedID)
 }
 
+func (m *UserModel) EnsureDefaultMerchantForUser(ctx context.Context, userID string, cityCode string) (ManagedMerchantInfo, error) {
+	userID = strings.TrimSpace(userID)
+	cityCode = strings.TrimSpace(cityCode)
+	if cityCode == "" {
+		cityCode = "zhili"
+	}
+
+	var merchant ManagedMerchantInfo
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		// 登录兜底商家只允许每个用户自动创建一个；事务级锁避免并发登录重复生成空资料商家。
+		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "default_merchant:"+userID); err != nil {
+			return err
+		}
+
+		existing, err := getFirstManagedMerchant(ctx, tx, userID)
+		if err != nil && err != sql.ErrNoRows {
+			return err
+		}
+		if err == nil {
+			merchant = existing
+			return nil
+		}
+
+		if err := tx.QueryRowContext(ctx, `
+WITH city_candidates AS (
+  SELECT id, 1 AS priority FROM city_stations WHERE code = $1 AND status = 'active'
+  UNION ALL
+  SELECT id, 2 AS priority FROM city_stations WHERE code = 'zhili' AND status = 'active'
+  UNION ALL
+  SELECT id, 3 AS priority FROM city_stations WHERE status = 'active'
+),
+created AS (
+  INSERT INTO merchants (
+    city_station_id,
+    name,
+    merchant_type,
+    main_categories,
+    contact_name,
+    contact_phone,
+    profile_status
+  )
+  SELECT id, '微信用户', 'factory', '[]'::jsonb, '', '', $2
+  FROM city_candidates
+  ORDER BY priority
+  LIMIT 1
+  RETURNING id::text, name, profile_status
+)
+SELECT id, name, profile_status FROM created
+`, cityCode, MerchantProfileStatusIncomplete).Scan(&merchant.ID, &merchant.Name, &merchant.ProfileStatus); err != nil {
+			return err
+		}
+		merchant.Role = "owner"
+		_, err = tx.ExecContext(ctx, `
+INSERT INTO merchant_admin_bindings (merchant_id, user_id, role, status, created_by)
+VALUES ($1, $2, 'owner', 'active', $2)
+ON CONFLICT (merchant_id, user_id) WHERE status = 'active' DO NOTHING
+`, merchant.ID, userID)
+		return err
+	})
+	if err != nil {
+		return ManagedMerchantInfo{}, err
+	}
+	merchant.ProfileStatus = normalizeMerchantProfileStatus(merchant.ProfileStatus)
+	return merchant, nil
+}
+
 func (m *UserModel) UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error) {
 	var exists bool
 	if err := m.db.QueryRowContext(ctx, `
@@ -170,7 +237,7 @@ ORDER BY r.code ASC
 
 func (m *UserModel) listManagedMerchants(ctx context.Context, userID string) ([]ManagedMerchantInfo, error) {
 	rows, err := m.db.QueryContext(ctx, `
-SELECT m.id::text, m.name, mab.role
+SELECT m.id::text, m.name, mab.role, COALESCE(NULLIF(m.profile_status, ''), 'completed')
 FROM merchant_admin_bindings mab
 JOIN merchants m ON m.id = mab.merchant_id
 WHERE mab.user_id = $1
@@ -186,10 +253,36 @@ ORDER BY m.created_at DESC
 	var merchants []ManagedMerchantInfo
 	for rows.Next() {
 		var merchant ManagedMerchantInfo
-		if err := rows.Scan(&merchant.ID, &merchant.Name, &merchant.Role); err != nil {
+		if err := rows.Scan(&merchant.ID, &merchant.Name, &merchant.Role, &merchant.ProfileStatus); err != nil {
 			return nil, err
 		}
+		merchant.ProfileStatus = normalizeMerchantProfileStatus(merchant.ProfileStatus)
 		merchants = append(merchants, merchant)
 	}
 	return merchants, rows.Err()
+}
+
+func getFirstManagedMerchant(ctx context.Context, tx *sql.Tx, userID string) (ManagedMerchantInfo, error) {
+	var merchant ManagedMerchantInfo
+	err := tx.QueryRowContext(ctx, `
+SELECT m.id::text, m.name, mab.role, COALESCE(NULLIF(m.profile_status, ''), 'completed')
+FROM merchant_admin_bindings mab
+JOIN merchants m ON m.id = mab.merchant_id
+WHERE mab.user_id = $1
+  AND mab.status = 'active'
+  AND m.deleted_at IS NULL
+ORDER BY m.created_at DESC
+LIMIT 1
+`, userID).Scan(&merchant.ID, &merchant.Name, &merchant.Role, &merchant.ProfileStatus)
+	merchant.ProfileStatus = normalizeMerchantProfileStatus(merchant.ProfileStatus)
+	return merchant, err
+}
+
+func normalizeMerchantProfileStatus(status string) string {
+	switch strings.TrimSpace(status) {
+	case MerchantProfileStatusIncomplete:
+		return MerchantProfileStatusIncomplete
+	default:
+		return MerchantProfileStatusCompleted
+	}
 }

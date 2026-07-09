@@ -20,7 +20,7 @@
 
 <script setup>
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
+import { requireLogin } from '../../common/auth'
 
 const PUBLISH_TYPE_KEY = 'wplink_pending_publish_type_code'
 const RESOURCE_DIRECTION_SUPPLY = 'supply'
@@ -45,7 +45,7 @@ async function applyPendingPublishType() {
   // 首页快捷入口会先写入待发布类型，tab onShow 消费后立即进入独立表单页。
   const pendingPublish = uni.getStorageSync(PUBLISH_TYPE_KEY)
   if (!pendingPublish) return
-  if (!(await ensureMerchantProfileReady())) return
+  if (!requireLogin()) return
   uni.removeStorageSync(PUBLISH_TYPE_KEY)
   const pendingTypeCode = typeof pendingPublish === 'object'
     ? pendingPublish.typeCode || ''
@@ -56,8 +56,8 @@ async function applyPendingPublishType() {
   navigateToPublishForm({ typeCode: pendingTypeCode, direction: pendingDirection })
 }
 
-async function startPublish(direction) {
-  if (!(await ensureMerchantProfileReady())) return
+function startPublish(direction) {
+  if (!requireLogin()) return
   const publishDirection = normalizePublishDirection(direction) || RESOURCE_DIRECTION_SUPPLY
   navigateToPublishForm({ typeCode: '', direction: publishDirection })
 }

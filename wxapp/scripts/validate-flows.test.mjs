@@ -226,15 +226,15 @@ test('publish tab supports supply and demand entry selection', () => {
     'RESOURCE_DIRECTION_SUPPLY',
     'RESOURCE_DIRECTION_DEMAND',
     'navigateToPublishForm',
-    'ensureMerchantProfileReady',
+    'requireLogin',
   ]) {
     assert.match(tabSource, new RegExp(token))
   }
 
   assert.equal(tabSource.includes('<ResourcePublishForm'), false)
   assert.equal(tabSource.includes('selectedDirection'), false)
-  assert.match(tabSource, /async function startPublish\(direction\) \{[\s\S]*if \(!\(await ensureMerchantProfileReady\(\)\)\) return[\s\S]*navigateToPublishForm\(\{ typeCode: '', direction: publishDirection \}\)[\s\S]*\}/)
-  assert.match(tabSource, /async function applyPendingPublishType\(\) \{[\s\S]*const pendingPublish = uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*if \(!\(await ensureMerchantProfileReady\(\)\)\) return[\s\S]*uni\.removeStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode, direction: pendingDirection \}\)/)
+  assert.match(tabSource, /function startPublish\(direction\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*navigateToPublishForm\(\{ typeCode: '', direction: publishDirection \}\)[\s\S]*\}/)
+  assert.match(tabSource, /async function applyPendingPublishType\(\) \{[\s\S]*const pendingPublish = uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*uni\.removeStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode, direction: pendingDirection \}\)/)
   assert.match(tabSource, /function navigateToPublishForm\(options = \{\}\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?\$\{query\.join\('&'\)\}` \}\)/)
   assert.match(tabSource, /initialPublishOptions\.direction && query\.push\(`direction=\$\{encodeURIComponent\(initialPublishOptions\.direction\)\}`\)/)
   assert.match(tabSource, /initialPublishOptions\.typeCode && query\.push\(`typeCode=\$\{encodeURIComponent\(initialPublishOptions\.typeCode\)\}`\)/)
@@ -630,14 +630,15 @@ test('publish pages split tab creation and independent editing', () => {
   assert.equal(tabSource.includes('<ResourcePublishForm'), false)
   assert.match(tabSource, /PUBLISH_TYPE_KEY/)
   assert.match(tabSource, /onShow\(applyPendingPublishType\)/)
-  assert.match(tabSource, /async function applyPendingPublishType\(\) \{[\s\S]*uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*if \(!\(await ensureMerchantProfileReady\(\)\)\) return[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode, direction: pendingDirection \}\)/)
-  assert.match(editSource, /import \{ ensureMerchantProfileReady \} from '\.\.\/\.\.\/common\/merchantProfileGuard'/)
+  assert.match(tabSource, /async function applyPendingPublishType\(\) \{[\s\S]*uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode, direction: pendingDirection \}\)/)
+  assert.match(editSource, /import \{ requireLogin \} from '\.\.\/\.\.\/common\/auth'/)
   assert.match(editSource, /import \{ getMerchantId \} from '\.\.\/\.\.\/store\/session'/)
-  assert.match(editSource, /onLoad\(async \(options\)/)
+  assert.match(editSource, /onLoad\(\(options\)/)
   assert.match(editSource, /direction: ''/)
+  assert.match(editSource, /if \(!requireLogin\(\)\) return/)
   assert.match(editSource, /routeOptions\.merchantId = options\.merchantId \|\| getMerchantId\(\)/)
   assert.match(editSource, /routeOptions\.direction = options\.direction \|\| ''/)
-  assert.match(editSource, /if \(!\(await ensureMerchantProfileReady\(routeOptions\.merchantId\)\)\) return/)
+  assert.doesNotMatch(editSource, /ensureMerchantProfileReady/)
   assert.match(editSource, /const publishFormMode = computed\(\(\) => routeOptions\.resourceId \? 'edit' : 'create'\)/)
   assert.match(editSource, /<ResourcePublishForm[\s\S]*:mode="publishFormMode"[\s\S]*:initial-options="routeOptions"/)
   assert.equal(tabSource.includes('publish:pending-edit-context'), false)

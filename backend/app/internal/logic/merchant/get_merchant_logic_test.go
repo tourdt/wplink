@@ -3,6 +3,7 @@ package merchant
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -68,6 +69,17 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	}
 	if len(resp.VerificationInfo.CheckedItems) != 2 || resp.VerificationInfo.CheckedItems[0] != "主体资质" || resp.VerificationInfo.CheckedItems[1] != "经营场地" {
 		t.Fatalf("checkedItems = %#v, want public safe verification items", resp.VerificationInfo.CheckedItems)
+	}
+	payload, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal merchant resp: %v", err)
+	}
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("decode merchant resp: %v", err)
+	}
+	if decoded["profileStatus"] != "completed" {
+		t.Fatalf("profileStatus = %#v, want completed", decoded["profileStatus"])
 	}
 }
 

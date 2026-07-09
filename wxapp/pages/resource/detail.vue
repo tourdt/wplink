@@ -63,7 +63,7 @@
         <text class="section-content contact-tip-content">联系商家前，建议先确认实物、价格、数量和交付方式。</text>
       </view>
 
-      <view class="merchant-card" @click="openMerchant">
+      <view v-if="showMerchantHomeEntry" class="merchant-card" @click="openMerchant">
         <image v-if="merchantAvatarUrl" class="merchant-avatar" :src="merchantAvatarUrl" mode="aspectFill" />
         <view v-else class="merchant-avatar merchant-avatar-placeholder">
           <text>{{ merchantAvatarText }}</text>
@@ -178,6 +178,10 @@ const merchantInfo = computed(() => ({
   ...(resource.value.merchant || {}),
   ...(merchantProfile.value || {}),
 }))
+const showMerchantHomeEntry = computed(() => {
+  const merchantId = (merchantInfo.value || {}).id
+  return Boolean(merchantId) && merchantInfo.value.profileStatus === 'completed'
+})
 const merchantAvatarUrl = computed(() => merchantProfile.value.logoUrl || merchantInfo.value.logoUrl || merchantInfo.value.avatarUrl || '')
 const merchantAvatarText = computed(() => {
   const name = merchantInfo.value.name || '商家'
@@ -370,6 +374,7 @@ function isContactUnlockAction(action) {
 }
 
 async function openMerchant() {
+  if (!showMerchantHomeEntry.value) return
   const merchantId = (resource.value.merchant || {}).id
   if (!merchantId) return
   await recordContact('merchant_home')

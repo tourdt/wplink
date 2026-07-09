@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import test from 'node:test'
+
+const root = path.resolve(new URL('../..', import.meta.url).pathname)
+const source = fs.readFileSync(path.join(root, 'pages/publish/edit.vue'), 'utf8')
+
+test('publish edit opens for logged-in users without merchant profile completion prompt', () => {
+  assert.match(source, /import \{ requireLogin \} from '\.\.\/\.\.\/common\/auth'/)
+  assert.doesNotMatch(source, /ensureMerchantProfileReady/)
+  assert.match(source, /onLoad\(\(options\) => \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*routeReady\.value = true[\s\S]*\}\)/)
+})

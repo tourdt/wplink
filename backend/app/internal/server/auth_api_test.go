@@ -70,6 +70,30 @@ func TestAuthAPIRouterRunsLoginMeAndBindPhoneFlow(t *testing.T) {
 	}
 }
 
+func TestAuthAPIRouterInitializesDefaultMerchantForNewLogin(t *testing.T) {
+	store := &fakeAuthAPIStore{noManagedMerchants: true}
+	tokenService := &fakeUserTokenService{}
+	wechatClient := &fakeAuthWechatSessionClient{session: authlogic.WechatSession{OpenID: "openid-new"}}
+	router := NewAPIRouter(store, WithUserTokenService(tokenService), WithWechatSessionClient(wechatClient))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/wechat-login", strings.NewReader(`{"code":"wx-code","defaultCityCode":"zhili"}`))
+	router.ServeHTTP(rec, req)
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+
+	merchants, ok := data["managedMerchants"].([]interface{})
+	if !ok || len(merchants) != 1 {
+		t.Fatalf("managed merchants = %#v, want initialized default merchant", data["managedMerchants"])
+	}
+	merchant := merchants[0].(map[string]interface{})
+	if merchant["id"] != "merchant-default" || merchant["profileStatus"] != "incomplete" {
+		t.Fatalf("merchant = %#v, want default incomplete merchant", merchant)
+	}
+	if store.defaultMerchantUserID != "user-1" || store.defaultMerchantCityCode != "zhili" {
+		t.Fatalf("default merchant input user=%q city=%q, want user-1 zhili", store.defaultMerchantUserID, store.defaultMerchantCityCode)
+	}
+}
+
 func TestAuthAPIRouterReturnsUnauthorizedErrorCodeForInvalidSession(t *testing.T) {
 	router := NewAPIRouter(&fakeAuthAPIStore{}, WithUserTokenService(&fakeUserTokenService{}))
 
@@ -113,8 +137,11 @@ func TestAuthAPIRouterHidesRawInvalidSessionError(t *testing.T) {
 type fakeAuthAPIStore struct {
 	fakeCityAPIStore
 
-	upsertInput model.UpsertWechatUserInput
-	boundPhone  string
+	upsertInput             model.UpsertWechatUserInput
+	boundPhone              string
+	noManagedMerchants      bool
+	defaultMerchantUserID   string
+	defaultMerchantCityCode string
 }
 
 func (s *fakeAuthAPIStore) UpsertWechatUser(ctx context.Context, input model.UpsertWechatUserInput) (model.UserProfile, error) {
@@ -131,8 +158,14 @@ func (s *fakeAuthAPIStore) BindUserPhone(ctx context.Context, userID string, pho
 	return s.profile(phone), nil
 }
 
+func (s *fakeAuthAPIStore) EnsureDefaultMerchantForUser(ctx context.Context, userID string, cityCode string) (model.ManagedMerchantInfo, error) {
+	s.defaultMerchantUserID = userID
+	s.defaultMerchantCityCode = cityCode
+	return model.ManagedMerchantInfo{ID: "merchant-default", Name: "微信用户", Role: "owner"}, nil
+}
+
 func (s *fakeAuthAPIStore) profile(phone string) model.UserProfile {
-	return model.UserProfile{
+	profile := model.UserProfile{
 		ID:              "user-1",
 		Phone:           phone,
 		DefaultCityCode: "zhili",
@@ -141,6 +174,10 @@ func (s *fakeAuthAPIStore) profile(phone string) model.UserProfile {
 			ID: "merchant-1", Name: "织里云仓", Role: "owner",
 		}},
 	}
+	if s.noManagedMerchants {
+		profile.ManagedMerchants = nil
+	}
+	return profile
 }
 
 type fakeUserTokenService struct{}

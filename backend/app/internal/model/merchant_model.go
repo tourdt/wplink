@@ -8,7 +8,9 @@ import (
 )
 
 const (
-	MerchantStatusActive = "active"
+	MerchantStatusActive            = "active"
+	MerchantProfileStatusIncomplete = "incomplete"
+	MerchantProfileStatusCompleted  = "completed"
 )
 
 type CreateMerchantInput struct {
@@ -42,6 +44,7 @@ type MerchantDetail struct {
 	MerchantType           string
 	CityCode               string
 	MainCategories         []string
+	ProfileStatus          string
 	VerificationStatus     string
 	VerificationReviewedAt string
 	VerificationExpiresAt  string
@@ -176,6 +179,7 @@ SELECT
   m.merchant_type,
   cs.code,
   m.main_categories,
+  COALESCE(NULLIF(m.profile_status, ''), 'completed'),
   m.verification_status,
   m.contact_name,
   m.contact_phone,
@@ -218,6 +222,7 @@ GROUP BY m.id, cs.code
 		&detail.MerchantType,
 		&detail.CityCode,
 		&categories,
+		&detail.ProfileStatus,
 		&detail.VerificationStatus,
 		&detail.ContactName,
 		&detail.PhoneMasked,
@@ -239,6 +244,7 @@ GROUP BY m.id, cs.code
 	}
 
 	detail.MainCategories = []string(categories)
+	detail.ProfileStatus = normalizeMerchantProfileStatus(detail.ProfileStatus)
 	detail.Images = []string(images)
 	detail.PhoneMasked = maskContact(detail.PhoneMasked)
 	detail.WechatMasked = maskWechat(detail.WechatMasked)
@@ -317,7 +323,8 @@ SET
   contact_phone = COALESCE(NULLIF($10, ''), contact_phone),
   contact_wechat = COALESCE(NULLIF($11, ''), contact_wechat),
   address_text = COALESCE(NULLIF($12, ''), address_text),
-  location = CASE WHEN $13 THEN $14 ELSE location END
+  location = CASE WHEN $13 THEN $14 ELSE location END,
+  profile_status = 'completed'
 WHERE id = $1 AND deleted_at IS NULL
 `, merchantID, JSONStringSlice(patch.MainCategories), nextMerchantType, nextVerificationStatus, patch.Description, patch.LogoURL, JSONStringSlice(patch.Images), updatedAt, patch.ContactName, patch.ContactPhone, patch.ContactWechat, patch.AddressText, patch.LocationSet, patch.Location)
 		if err != nil {

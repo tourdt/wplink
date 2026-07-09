@@ -20,9 +20,10 @@ type WechatLoginResp {
 }
 
 type ManagedMerchantInfo {
-	Id   string `json:"id"`
-	Name string `json:"name"`
-	Role string `json:"role"`
+	Id            string `json:"id"`
+	Name          string `json:"name"`
+	Role          string `json:"role"`
+	ProfileStatus string `json:"profileStatus"`
 }
 
 type MeResp {

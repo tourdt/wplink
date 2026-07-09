@@ -884,9 +884,10 @@ type ListTopVouchersResp struct {
 }
 
 type ManagedMerchantInfo struct {
-	Id   string `json:"id"`
-	Name string `json:"name"`
-	Role string `json:"role"`
+	Id            string `json:"id"`
+	Name          string `json:"name"`
+	Role          string `json:"role"`
+	ProfileStatus string `json:"profileStatus"`
 }
 
 type MapBindCandidateItem struct {
@@ -1025,6 +1026,7 @@ type MerchantDetailResp struct {
 	MerchantType       string                   `json:"merchantType"`
 	CityCode           string                   `json:"cityCode"`
 	MainCategories     []string                 `json:"mainCategories"`
+	ProfileStatus      string                   `json:"profileStatus"`
 	VerificationStatus string                   `json:"verificationStatus"`
 	VerificationInfo   MerchantVerificationInfo `json:"verificationInfo,optional"`
 	CreditTags         []CreditTagInfo          `json:"creditTags"`

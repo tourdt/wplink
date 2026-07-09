@@ -49,6 +49,7 @@ type MerchantDetailResp {
 	MerchantType       string                   `json:"merchantType"`
 	CityCode           string                   `json:"cityCode"`
 	MainCategories     []string                 `json:"mainCategories"`
+	ProfileStatus      string                   `json:"profileStatus"`
 	VerificationStatus string                   `json:"verificationStatus"`
 	VerificationInfo   MerchantVerificationInfo `json:"verificationInfo,optional"`
 	CreditTags         []CreditTagInfo          `json:"creditTags"`

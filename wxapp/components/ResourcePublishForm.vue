@@ -915,7 +915,7 @@ function removeResourceImage(item) {
 
 function validatePublishForm() {
   if (!form.merchantId) {
-    uni.showToast({ title: '请先完善商家资料', icon: 'none' })
+    uni.showToast({ title: '请重新登录后发布', icon: 'none' })
     return false
   }
   if (!form.typeCode) {
