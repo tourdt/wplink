@@ -100,10 +100,13 @@ test('api contract exposes vip membership endpoints', () => {
 
   assert.match(appApiSource, /import "vip\.api"/)
   assert.match(vipApiSource, /get \/vip\/plans returns \(ListVIPPlansResp\)/)
+  assert.match(vipApiSource, /get \/vip\/quota-packs returns \(ListQuotaPacksResp\)/)
   assert.match(vipApiSource, /get \/merchants\/:merchantId\/vip returns \(MerchantVIPResp\)/)
   assert.match(vipApiSource, /post \/merchants\/:merchantId\/vip\/orders \(CreateVIPOrderReq\) returns \(CreateVIPOrderResp\)/)
   assert.match(vipApiSource, /post \/merchants\/:merchantId\/vip\/orders\/:orderId\/payment \(CreateVIPPaymentReq\) returns \(CreateVIPPaymentResp\)/)
   assert.match(typesSource, /type VIPPlanInfo struct/)
+  assert.match(typesSource, /type QuotaPackInfo struct/)
+  assert.match(typesSource, /ProductType string `json:"productType,optional"`/)
   assert.match(typesSource, /type MerchantVIPResp struct/)
 })
 

@@ -1,55 +1,58 @@
 <template>
   <view class="vip-page">
-    <view class="status-band">
-      <view class="status-copy">
-        <text class="status-title">{{ statusTitle }}</text>
-        <text class="status-subtitle">{{ statusSubtitle }}</text>
-      </view>
-      <view class="status-pill" :class="{ active: isVIPActive }">{{ isVIPActive ? 'VIP' : '限时优惠' }}</view>
+    <view class="vip-tabs">
+      <button :class="['vip-tab', activeTab === 'vip' ? 'active' : '']" @click="switchTab('vip')">VIP权益包</button>
+      <button :class="['vip-tab', activeTab === 'addons' ? 'active' : '']" @click="switchTab('addons')">购买次数</button>
     </view>
 
-    <view class="benefit-strip">
-      <view class="benefit-item">
-        <text class="benefit-value">80</text>
-        <text class="benefit-label">条发布额度</text>
-      </view>
-      <view class="benefit-item">
-        <text class="benefit-value">30</text>
-        <text class="benefit-label">次刷新</text>
-      </view>
-      <view class="benefit-item">
-        <text class="benefit-value">3</text>
-        <text class="benefit-label">张置顶券</text>
-      </view>
-    </view>
-
-    <view class="launch-offer">
-      <text class="offer-title">年卡限时 ¥299</text>
-      <text class="offer-meta">80 条发布额度 · 30 次刷新 · 3 张置顶券</text>
-    </view>
-
-    <view class="plan-list">
-      <view
-        v-for="plan in displayPlans"
-        :key="plan.code"
-        :class="['plan-card', selectedPlanCode === plan.code ? 'selected' : '']"
-        @click="selectPlan(plan.code)"
-      >
-        <view class="plan-main">
-          <text class="plan-name">{{ plan.name }}</text>
-          <text class="plan-benefits">{{ planBenefitText(plan) }}</text>
-        </view>
-        <view class="plan-price">
-          <text v-if="plan.saleLabel" class="sale-label">{{ plan.saleLabel }}</text>
-          <text class="sale-price">{{ formatPrice(plan.salePriceCent || plan.standardPriceCent) }}</text>
-          <text v-if="plan.salePriceCent" class="standard-price">{{ formatPrice(plan.standardPriceCent) }}</text>
+    <view v-if="activeTab === 'vip'" class="tab-panel">
+      <view class="plan-list">
+        <view
+          v-for="plan in displayPlans"
+          :key="plan.code"
+          :class="['plan-card', selectedPlanCode === plan.code ? 'selected' : '']"
+          @click="selectPlan(plan.code)"
+        >
+          <view class="plan-main">
+            <text class="plan-name">{{ planDisplayName(plan) }}</text>
+            <text class="plan-benefits">{{ planBenefitText(plan) }}</text>
+          </view>
+          <view class="plan-price">
+            <text v-if="planSaleLabel(plan)" class="sale-label">{{ planSaleLabel(plan) }}</text>
+            <text class="sale-price">{{ formatPrice(plan.salePriceCent || plan.standardPriceCent) }}</text>
+            <text v-if="plan.salePriceCent" class="standard-price">{{ formatPrice(plan.standardPriceCent) }}</text>
+          </view>
         </view>
       </view>
+
+      <button class="primary-button" :disabled="paying || !selectedPlanCode" @click="openSelectedPlan">
+        {{ paying ? '正在开通' : '立即开通 VIP' }}
+      </button>
     </view>
 
-    <button class="primary-button" :disabled="paying || !selectedPlanCode" @click="openSelectedPlan">
-      {{ paying ? '正在开通' : '立即开通 VIP' }}
-    </button>
+    <view v-else class="tab-panel">
+      <view class="quota-pack-list">
+        <view v-for="item in displayAddOnPacks" :key="item.code" class="quota-pack-card">
+          <view class="pack-main">
+            <text class="pack-title">{{ item.name }}</text>
+            <text class="pack-meta">{{ packMetaText(item) }}</text>
+          </view>
+          <view class="pack-action">
+            <text class="pack-price">{{ packPriceText(item) }}</text>
+            <button class="pack-button" :disabled="payingPackCode === item.code" @click="openQuotaPack(item)">
+              {{ payingPackCode === item.code ? '购买中' : packActionText(item) }}
+            </button>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="rules-panel">
+      <text class="rules-title">权益有效期说明</text>
+      <text class="rules-text">每张置顶券可让 1 条已发布资源置顶 24 小时，从使用成功时开始计算。</text>
+      <text class="rules-text">VIP 赠送的发布额度、刷新次数和置顶券均在发放后 30 天内有效，未使用完不结转。</text>
+      <text class="rules-text">单独购买的次数包有效期 180 天，到期未使用自动失效。</text>
+    </view>
   </view>
 </template>
 
@@ -57,31 +60,35 @@
 import { computed, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 
-import { createVIPOrder, createVIPPayment, getMerchantVIP, listVIPPlans } from '../../api/vip'
+import { createQuotaPackOrder, createVIPOrder, createVIPPayment, listQuotaPacks, listVIPPlans } from '../../api/vip'
 import { requireLogin } from '../../common/auth'
 import { getSession } from '../../store/session'
 
 const merchantId = ref('')
 const plans = ref([])
-const vipStatus = ref({ status: 'none' })
+const quotaPacks = ref([])
 const selectedPlanCode = ref('yearly')
+const activeTab = ref('vip')
 const paying = ref(false)
+const payingPackCode = ref('')
+const addOnPacks = [
+  { code: 'publish_5', name: '发布次数包', standardPriceCent: 2500, salePriceCent: 2500, actionText: '¥25 购买', description: '临时多发供需', benefits: { publishQuota: 5 } },
+  { code: 'refresh_10', name: '刷新次数包', standardPriceCent: 1900, salePriceCent: 1900, actionText: '¥19 购买', description: '让信息回到前面', benefits: { refreshQuota: 10 } },
+  { code: 'top_3', name: '置顶券包', standardPriceCent: 2900, salePriceCent: 2900, actionText: '¥29 购买', description: '单张可置顶 24 小时', benefits: { topVoucherCount: 3, topDurationHours: 24 } },
+]
 
-const isVIPActive = computed(() => vipStatus.value.status === 'active')
-const statusTitle = computed(() => (isVIPActive.value ? 'VIP 权益已生效' : '开通 VIP 权益'))
-const statusSubtitle = computed(() => {
-  if (isVIPActive.value) {
-    return `剩余发布 ${vipStatus.value.publishQuotaRemaining || 0} 条，刷新 ${vipStatus.value.refreshQuotaRemaining || 0} 次`
-  }
-  return '冷启动限时优惠，赠送发布次数，不做平台认证背书'
-})
 const displayPlans = computed(() => {
   if (plans.value.length > 0) return plans.value
   return [
-    fallbackPlan('monthly', 'VIP 月卡', 1, 4900, 1990, '首月优惠'),
-    fallbackPlan('half_year', 'VIP 半年卡', 6, 29900, 19900, '限时优惠'),
-    fallbackPlan('yearly', 'VIP 年卡', 12, 49900, 29900, '限时优惠'),
+    fallbackPlan('monthly', 'VIP 月卡', 1, 4900, 1990, '限时特价'),
+    fallbackPlan('half_year', 'VIP 半年卡', 6, 29900, 19900, '限时特价'),
+    fallbackPlan('yearly', 'VIP 年卡', 12, 49900, 29900, '限时特价'),
   ]
+})
+
+const displayAddOnPacks = computed(() => {
+  if (quotaPacks.value.length > 0) return quotaPacks.value
+  return addOnPacks
 })
 
 onLoad((options = {}) => {
@@ -92,11 +99,10 @@ onLoad((options = {}) => {
 onShow(() => {
   const sessionMerchantId = getSession().merchantId
   if (!merchantId.value && sessionMerchantId) merchantId.value = sessionMerchantId
-  loadVIPStatus()
 })
 
 async function loadVIPData() {
-  await Promise.all([loadPlans(), loadVIPStatus()])
+  await Promise.all([loadPlans(), loadQuotaPacks()])
 }
 
 async function loadPlans() {
@@ -111,17 +117,21 @@ async function loadPlans() {
   }
 }
 
-async function loadVIPStatus() {
-  if (!merchantId.value) return
+async function loadQuotaPacks() {
   try {
-    vipStatus.value = await getMerchantVIP(merchantId.value, { suppressErrorToast: true })
+    const resp = await listQuotaPacks()
+    quotaPacks.value = resp.items || []
   } catch (err) {
-    vipStatus.value = { status: 'none' }
+    quotaPacks.value = []
   }
 }
 
 function selectPlan(code) {
   selectedPlanCode.value = code
+}
+
+function switchTab(tab) {
+  activeTab.value = tab
 }
 
 async function openSelectedPlan() {
@@ -133,24 +143,43 @@ async function openSelectedPlan() {
   paying.value = true
   try {
     const order = await createVIPOrder(merchantId.value, { planCode: selectedPlanCode.value })
-    const resp = await createVIPPayment(merchantId.value, order.orderId)
-    if (resp.status === 'paid') {
-      uni.showToast({ title: 'VIP 已开通', icon: 'none' })
-      await loadVIPStatus()
-      return
-    }
-    const payment = resp.payment || {}
-    if (!payment.timeStamp || !payment.nonceStr || !payment.package || !payment.paySign) {
-      throw new Error('支付参数无效，请稍后重试')
-    }
-    await requestWechatPayment(payment)
-    uni.showToast({ title: '支付成功，权益更新中', icon: 'none' })
-    await loadVIPStatus()
+    await payOrder(order, 'VIP 已开通')
   } catch (err) {
     uni.showToast({ title: err.message || '支付未完成，请稍后重试', icon: 'none' })
   } finally {
     paying.value = false
   }
+}
+
+async function openQuotaPack(item) {
+  if (!requireLogin()) return
+  if (!merchantId.value) {
+    uni.showToast({ title: '请先登录后再购买次数包', icon: 'none' })
+    return
+  }
+  payingPackCode.value = item.code
+  try {
+    const order = await createQuotaPackOrder(merchantId.value, item.code)
+    await payOrder(order, '次数包已到账')
+  } catch (err) {
+    uni.showToast({ title: err.message || '支付未完成，请稍后重试', icon: 'none' })
+  } finally {
+    payingPackCode.value = ''
+  }
+}
+
+async function payOrder(order, paidTitle) {
+  const resp = await createVIPPayment(merchantId.value, order.orderId)
+  if (resp.status === 'paid') {
+    uni.showToast({ title: paidTitle, icon: 'none' })
+    return
+  }
+  const payment = resp.payment || {}
+  if (!payment.timeStamp || !payment.nonceStr || !payment.package || !payment.paySign) {
+    throw new Error('支付参数无效，请稍后重试')
+  }
+  await requestWechatPayment(payment)
+  uni.showToast({ title: '支付成功，权益更新中', icon: 'none' })
 }
 
 function requestWechatPayment(payment) {
@@ -167,9 +196,50 @@ function requestWechatPayment(payment) {
   })
 }
 
+function packMetaText(item) {
+  const value = packValueText(item)
+  const description = item.description || item.meta || ''
+  return description ? `${value} · ${description}` : value
+}
+
+function packValueText(item) {
+  const benefits = item.benefits || {}
+  if (benefits.publishQuota) return `${benefits.publishQuota} 条发布额度`
+  if (benefits.refreshQuota) return `${benefits.refreshQuota} 次刷新`
+  if (benefits.topVoucherCount) return `${benefits.topVoucherCount} 张置顶券`
+  return item.value || '权益次数包'
+}
+
+function packPriceText(item) {
+  return formatPrice(item.salePriceCent || item.standardPriceCent)
+}
+
+function packActionText(item) {
+  return item.actionText || `${packPriceText(item)} 购买`
+}
+
 function planBenefitText(plan) {
   const benefits = plan.benefits || {}
-  return `${benefits.publishQuota || 80} 条发布额度 · ${benefits.refreshQuota || 30} 次刷新 · ${benefits.topVoucherCount || 3} 张置顶券`
+  const periodText = Number(plan.durationMonths || 1) > 1 ? '每 30 天到账' : '开通后到账'
+  return `${periodText}：${benefits.publishQuota || 80} 条发布额度 · ${benefits.refreshQuota || 30} 次刷新 · ${benefits.topVoucherCount || 3} 张置顶券`
+}
+
+function planDisplayName(plan) {
+  const names = {
+    monthly: 'VIP 月卡',
+    half_year: 'VIP 半年卡',
+    yearly: 'VIP 年卡',
+  }
+  return names[plan.code] || plan.name
+}
+
+function planSaleLabel(plan) {
+  const labels = {
+    monthly: '限时特价',
+    half_year: '限时特价',
+    yearly: '限时特价',
+  }
+  return labels[plan.code] || plan.saleLabel || ''
 }
 
 function formatPrice(value) {
@@ -197,46 +267,22 @@ function fallbackPlan(code, name, durationMonths, standardPriceCent, salePriceCe
   background: $wplink-bg;
 }
 
-.status-band,
-.benefit-strip,
-.launch-offer,
-.plan-card {
+.plan-card,
+.vip-tabs,
+.quota-pack-card,
+.rules-panel {
   margin-bottom: 20rpx;
   border-radius: 12rpx;
   background: $wplink-card;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
 
-.status-band {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
-  padding: 28rpx;
-}
-
-.status-copy {
-  display: grid;
-  gap: 10rpx;
-  min-width: 0;
-}
-
-.status-title {
-  color: $wplink-primary;
-  font-size: 38rpx;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-.status-subtitle,
-.offer-meta,
 .plan-benefits {
   color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.45;
 }
 
-.status-pill,
 .sale-label {
   flex: 0 0 auto;
   padding: 6rpx 14rpx;
@@ -247,50 +293,53 @@ function fallbackPlan(code, name, durationMonths, standardPriceCent, salePriceCe
   font-weight: 700;
 }
 
-.status-pill.active {
-  background: $wplink-primary-soft;
-  color: $wplink-primary;
-}
-
-.benefit-strip {
+.vip-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12rpx;
-  padding: 24rpx;
-}
-
-.benefit-item {
-  display: grid;
-  gap: 6rpx;
-  text-align: center;
-}
-
-.benefit-value {
-  color: $wplink-primary;
-  font-size: 40rpx;
-  font-weight: 700;
-}
-
-.benefit-label {
-  color: $wplink-muted;
-  font-size: 24rpx;
-}
-
-.launch-offer {
-  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8rpx;
-  padding: 24rpx;
+  padding: 8rpx;
 }
 
-.offer-title {
-  color: $wplink-warning;
-  font-size: 34rpx;
+.vip-tab {
+  height: 68rpx;
+  margin: 0;
+  border-radius: 8rpx;
+  background: transparent;
+  color: $wplink-muted;
+  font-size: 28rpx;
   font-weight: 700;
+  line-height: 68rpx;
+}
+
+.vip-tab::after,
+.pack-button::after {
+  border: 0;
+}
+
+.vip-tab.active {
+  background: $wplink-primary;
+  color: $wplink-card;
+}
+
+.tab-panel {
+  min-width: 0;
 }
 
 .plan-list {
   display: grid;
   gap: 16rpx;
+}
+
+.quota-pack-list {
+  display: grid;
+  gap: 16rpx;
+}
+
+.rules-panel {
+  display: grid;
+  gap: 10rpx;
+  margin-top: 24rpx;
+  padding: 24rpx;
 }
 
 .plan-card {
@@ -301,21 +350,39 @@ function fallbackPlan(code, name, durationMonths, standardPriceCent, salePriceCe
   padding: 24rpx;
 }
 
+.quota-pack-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20rpx;
+  align-items: center;
+  padding: 24rpx;
+}
+
 .plan-card.selected {
   box-shadow: inset 0 0 0 2rpx $wplink-warning, 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
 
 .plan-main,
-.plan-price {
+.plan-price,
+.pack-main,
+.pack-action {
   display: grid;
   gap: 8rpx;
   min-width: 0;
 }
 
-.plan-name {
+.plan-name,
+.pack-title,
+.rules-title {
   color: $wplink-primary;
   font-size: 30rpx;
   font-weight: 700;
+}
+
+.rules-text {
+  color: $wplink-muted;
+  font-size: 25rpx;
+  line-height: 1.5;
 }
 
 .plan-price {
@@ -327,6 +394,31 @@ function fallbackPlan(code, name, durationMonths, standardPriceCent, salePriceCe
   color: $wplink-primary;
   font-size: 34rpx;
   font-weight: 700;
+}
+
+.pack-price {
+  color: $wplink-primary;
+  font-size: 32rpx;
+  font-weight: 700;
+  text-align: right;
+}
+
+.pack-meta {
+  color: $wplink-muted;
+  font-size: 26rpx;
+  line-height: 1.45;
+}
+
+.pack-button {
+  width: 160rpx;
+  height: 56rpx;
+  margin: 0;
+  border-radius: 8rpx;
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 56rpx;
 }
 
 .standard-price {
@@ -345,4 +437,5 @@ function fallbackPlan(code, name, durationMonths, standardPriceCent, salePriceCe
   font-size: 30rpx;
   font-weight: 700;
 }
+
 </style>

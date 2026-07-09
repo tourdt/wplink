@@ -606,14 +606,19 @@ type CreateVerificationPaymentResp struct {
 }
 
 type CreateVIPOrderReq struct {
-	PlanCode string `json:"planCode"`
+	ProductType string `json:"productType,optional"`
+	ProductCode string `json:"productCode,optional"`
+	PlanCode    string `json:"planCode,optional"`
 }
 
 type CreateVIPOrderResp struct {
 	OrderId           string         `json:"orderId"`
 	Status            string         `json:"status"`
-	PlanCode          string         `json:"planCode"`
-	PlanName          string         `json:"planName"`
+	ProductType       string         `json:"productType,optional"`
+	ProductCode       string         `json:"productCode,optional"`
+	ProductName       string         `json:"productName,optional"`
+	PlanCode          string         `json:"planCode,optional"`
+	PlanName          string         `json:"planName,optional"`
 	StandardPriceCent int64          `json:"standardPriceCent"`
 	ActualPriceCent   int64          `json:"actualPriceCent"`
 	PromotionCode     string         `json:"promotionCode,optional"`
@@ -910,6 +915,10 @@ type ListTopVouchersResp struct {
 
 type ListVIPPlansResp struct {
 	Items []VIPPlanInfo `json:"items"`
+}
+
+type ListQuotaPacksResp struct {
+	Items []QuotaPackInfo `json:"items"`
 }
 
 type ManagedMerchantInfo struct {
@@ -1504,6 +1513,16 @@ type VIPPlanInfo struct {
 	Code              string         `json:"code"`
 	Name              string         `json:"name"`
 	DurationMonths    int64          `json:"durationMonths"`
+	StandardPriceCent int64          `json:"standardPriceCent"`
+	SalePriceCent     int64          `json:"salePriceCent,optional"`
+	SaleLabel         string         `json:"saleLabel,optional"`
+	Benefits          VIPBenefitInfo `json:"benefits"`
+}
+
+type QuotaPackInfo struct {
+	Code              string         `json:"code"`
+	Name              string         `json:"name"`
+	Description       string         `json:"description"`
 	StandardPriceCent int64          `json:"standardPriceCent"`
 	SalePriceCent     int64          `json:"salePriceCent,optional"`
 	SaleLabel         string         `json:"saleLabel,optional"`

@@ -47,18 +47,42 @@ CREATE TABLE IF NOT EXISTS vip_promotions (
   CONSTRAINT chk_vip_promotions_period CHECK (ends_at IS NULL OR ends_at > starts_at)
 );
 
+CREATE TABLE IF NOT EXISTS vip_quota_packs (
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  code varchar(64) UNIQUE NOT NULL,
+  name varchar(128) NOT NULL,
+  description varchar(255) NOT NULL DEFAULT '',
+  standard_price_cent integer NOT NULL,
+  sale_price_cent integer,
+  sale_label varchar(64),
+  benefits jsonb NOT NULL DEFAULT '{}'::jsonb,
+  status varchar(32) NOT NULL DEFAULT 'active',
+  display_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_vip_quota_packs_price CHECK (
+    standard_price_cent >= 0
+    AND (sale_price_cent IS NULL OR sale_price_cent >= 0)
+  ),
+  CONSTRAINT chk_vip_quota_packs_status CHECK (status IN ('active', 'inactive'))
+);
+
 CREATE TABLE IF NOT EXISTS vip_orders (
   id bigint PRIMARY KEY DEFAULT next_tsid(),
   merchant_id bigint NOT NULL REFERENCES merchants(id),
   user_id bigint NOT NULL REFERENCES users(id),
-  plan_id bigint NOT NULL REFERENCES vip_plans(id),
-  plan_version_id bigint NOT NULL REFERENCES vip_plan_versions(id),
+  product_type varchar(32) NOT NULL DEFAULT 'vip_plan',
+  product_code varchar(64) NOT NULL DEFAULT '',
+  product_name varchar(128) NOT NULL DEFAULT '',
+  plan_id bigint REFERENCES vip_plans(id),
+  plan_version_id bigint REFERENCES vip_plan_versions(id),
   promotion_id bigint REFERENCES vip_promotions(id),
   out_trade_no varchar(64) UNIQUE NOT NULL,
   standard_price_cent integer NOT NULL,
   actual_price_cent integer NOT NULL,
   currency varchar(16) NOT NULL DEFAULT 'CNY',
   benefits_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+  product_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
   status varchar(32) NOT NULL DEFAULT 'pending',
   transaction_id varchar(128),
   notify_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -67,6 +91,11 @@ CREATE TABLE IF NOT EXISTS vip_orders (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT chk_vip_orders_price CHECK (standard_price_cent >= 0 AND actual_price_cent >= 0),
+  CONSTRAINT chk_vip_orders_product_type CHECK (product_type IN ('vip_plan', 'quota_pack')),
+  CONSTRAINT chk_vip_orders_product_ref CHECK (
+    (product_type = 'vip_plan' AND plan_id IS NOT NULL AND plan_version_id IS NOT NULL)
+    OR (product_type = 'quota_pack' AND product_code <> '')
+  ),
   CONSTRAINT chk_vip_orders_status CHECK (status IN ('pending', 'paid', 'closed', 'refunded'))
 );
 
@@ -90,10 +119,14 @@ CREATE INDEX IF NOT EXISTS idx_vip_plan_versions_plan_status
   ON vip_plan_versions(plan_id, status);
 CREATE INDEX IF NOT EXISTS idx_vip_promotions_plan_status
   ON vip_promotions(plan_id, status);
+CREATE INDEX IF NOT EXISTS idx_vip_quota_packs_status
+  ON vip_quota_packs(status, display_order);
 CREATE INDEX IF NOT EXISTS idx_vip_orders_merchant_status
   ON vip_orders(merchant_id, status);
 CREATE INDEX IF NOT EXISTS idx_vip_orders_out_trade_no
   ON vip_orders(out_trade_no);
+CREATE INDEX IF NOT EXISTS idx_vip_orders_product_type
+  ON vip_orders(product_type, product_code, status);
 CREATE INDEX IF NOT EXISTS idx_merchant_vip_subscriptions_merchant_status
   ON merchant_vip_subscriptions(merchant_id, status);
 CREATE INDEX IF NOT EXISTS idx_merchant_vip_subscriptions_expires_at
@@ -164,4 +197,30 @@ ON CONFLICT (code) DO UPDATE SET
   starts_at = EXCLUDED.starts_at,
   ends_at = EXCLUDED.ends_at,
   status = EXCLUDED.status,
+  updated_at = now();
+
+INSERT INTO vip_quota_packs (
+  code,
+  name,
+  description,
+  standard_price_cent,
+  sale_price_cent,
+  sale_label,
+  benefits,
+  status,
+  display_order
+)
+VALUES
+  ('publish_5', '发布次数包', '临时多发供需', 2500, 2500, '限时特价', '{"publishQuota":5}'::jsonb, 'active', 10),
+  ('refresh_10', '刷新次数包', '让信息回到前面', 1900, 1900, '限时特价', '{"refreshQuota":10}'::jsonb, 'active', 20),
+  ('top_3', '置顶券包', '单张可置顶 24 小时', 2900, 2900, '限时特价', '{"topVoucherCount":3,"topDurationHours":24}'::jsonb, 'active', 30)
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  standard_price_cent = EXCLUDED.standard_price_cent,
+  sale_price_cent = EXCLUDED.sale_price_cent,
+  sale_label = EXCLUDED.sale_label,
+  benefits = EXCLUDED.benefits,
+  status = EXCLUDED.status,
+  display_order = EXCLUDED.display_order,
   updated_at = now();

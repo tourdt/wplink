@@ -61,7 +61,7 @@ func (l *CreateVIPPaymentLogic) CreateVIPPayment(ctx context.Context, req Create
 		return CreateVIPPaymentResp{}, err
 	}
 	if contextInfo.Status != model.PaymentOrderStatusPending {
-		return CreateVIPPaymentResp{}, errx.New(errx.CodeStateConflict, "VIP 订单已失效，请重新选择套餐")
+		return CreateVIPPaymentResp{}, errx.New(errx.CodeStateConflict, "订单已失效，请重新选择商品")
 	}
 	if strings.TrimSpace(contextInfo.OpenID) == "" {
 		return CreateVIPPaymentResp{}, errx.New(errx.CodeValidationFailed, "请先使用微信登录后再支付")
@@ -80,7 +80,7 @@ func (l *CreateVIPPaymentLogic) CreateVIPPayment(ctx context.Context, req Create
 	}
 	params, err := l.gateway.CreatePrepay(ctx, WechatPrepayInput{
 		OutTradeNo:  order.OutTradeNo,
-		Description: "VIP 会员 - " + order.PlanName,
+		Description: vipPaymentDescription(order),
 		OpenID:      contextInfo.OpenID,
 		AmountTotal: order.AmountTotal,
 		Currency:    order.Currency,
@@ -91,6 +91,20 @@ func (l *CreateVIPPaymentLogic) CreateVIPPayment(ctx context.Context, req Create
 		return CreateVIPPaymentResp{}, err
 	}
 	return CreateVIPPaymentResp{OrderID: order.ID, Status: order.Status, Payment: params}, nil
+}
+
+func vipPaymentDescription(order model.VIPPaymentOrder) string {
+	name := strings.TrimSpace(order.ProductName)
+	if name == "" {
+		name = strings.TrimSpace(order.PlanName)
+	}
+	if name == "" {
+		name = "权益商品"
+	}
+	if strings.TrimSpace(order.ProductType) == model.VIPProductTypeQuotaPack {
+		return "权益次数包 - " + name
+	}
+	return "VIP 会员 - " + name
 }
 
 func (l *CreateVIPPaymentLogic) completeDevMockVIPPayment(ctx context.Context, order model.VIPPaymentOrder) (CreateVIPPaymentResp, error) {

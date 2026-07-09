@@ -58,6 +58,55 @@ func TestCreateVIPPaymentCreatesWechatPrepay(t *testing.T) {
 	}
 }
 
+func TestCreateVIPPaymentCreatesQuotaPackPrepay(t *testing.T) {
+	store := &fakeVIPPaymentStore{
+		context: model.VIPPaymentContext{
+			OrderID:     "order-2",
+			MerchantID:  "merchant-1",
+			UserID:      "user-1",
+			OpenID:      "openid-1",
+			Status:      model.PaymentOrderStatusPending,
+			OutTradeNo:  "VIP202607090002",
+			AmountTotal: 2500,
+			Currency:    "CNY",
+			ProductType: model.VIPProductTypeQuotaPack,
+			ProductName: "发布次数包",
+		},
+		order: model.VIPPaymentOrder{
+			ID:          "order-2",
+			OutTradeNo:  "VIP202607090002",
+			AmountTotal: 2500,
+			Currency:    "CNY",
+			Status:      model.PaymentOrderStatusPending,
+			ProductType: model.VIPProductTypeQuotaPack,
+			ProductName: "发布次数包",
+		},
+	}
+	gateway := &fakeWechatPayGateway{
+		prepay: WechatPayParams{
+			TimeStamp: "1893456000",
+			NonceStr:  "nonce",
+			Package:   "prepay_id=quota-prepay",
+			SignType:  "RSA",
+			PaySign:   "pay-sign",
+		},
+	}
+	logic := NewCreateVIPPaymentLogic(store, gateway)
+
+	resp, err := logic.CreateVIPPayment(context.Background(), CreateVIPPaymentReq{
+		MerchantID: "merchant-1", OrderID: "order-2", UserID: "user-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateVIPPayment() error = %v", err)
+	}
+	if gateway.prepayInput.Description != "权益次数包 - 发布次数包" || gateway.prepayInput.AmountTotal != 2500 {
+		t.Fatalf("prepayInput = %#v, want quota pack payment description", gateway.prepayInput)
+	}
+	if resp.OrderID != "order-2" || resp.Payment.Package != "prepay_id=quota-prepay" {
+		t.Fatalf("resp = %#v, want quota prepay params", resp)
+	}
+}
+
 func TestCreateVIPPaymentUsesDevMockWhenGatewayMissing(t *testing.T) {
 	store := &fakeVIPPaymentStore{
 		context: model.VIPPaymentContext{
@@ -123,7 +172,7 @@ func TestCreateVIPPaymentReturnsFriendlyStateErrors(t *testing.T) {
 	_, err = NewCreateVIPPaymentLogic(store, &fakeWechatPayGateway{}).CreateVIPPayment(context.Background(), CreateVIPPaymentReq{
 		MerchantID: "merchant-1", OrderID: "order-1", UserID: "user-1",
 	})
-	if err == nil || errx.PublicMessage(err) != "VIP 订单已失效，请重新选择套餐" {
+	if err == nil || errx.PublicMessage(err) != "订单已失效，请重新选择商品" {
 		t.Fatalf("error = %v, want invalid order message", err)
 	}
 }

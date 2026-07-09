@@ -1,9 +1,10 @@
 import request from './request'
 
-export function getMerchantEntitlements(merchantId) {
+export function getMerchantEntitlements(merchantId, options = {}) {
   return request({
     url: `/api/v1/merchants/${merchantId}/entitlements`,
     method: 'GET',
+    ...options,
   })
 }
 

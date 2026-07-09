@@ -14,8 +14,10 @@ import (
 
 type Store interface {
 	ListVIPPlans(ctx context.Context) ([]model.VIPPlan, error)
+	ListQuotaPacks(ctx context.Context) ([]model.QuotaPack, error)
 	GetMerchantVIPSummary(ctx context.Context, merchantID string) (model.MerchantVIPSummary, error)
 	CreateVIPOrder(ctx context.Context, input model.CreateVIPOrderInput) (model.VIPOrder, error)
+	CreateQuotaPackOrder(ctx context.Context, input model.CreateQuotaPackOrderInput) (model.VIPOrder, error)
 }
 
 type VIPBenefitInfo struct {
@@ -41,6 +43,20 @@ type ListVIPPlansResp struct {
 	Items []VIPPlanInfo `json:"items"`
 }
 
+type QuotaPackInfo struct {
+	Code              string         `json:"code"`
+	Name              string         `json:"name"`
+	Description       string         `json:"description"`
+	StandardPriceCent int64          `json:"standardPriceCent"`
+	SalePriceCent     int64          `json:"salePriceCent,omitempty"`
+	SaleLabel         string         `json:"saleLabel,omitempty"`
+	Benefits          VIPBenefitInfo `json:"benefits"`
+}
+
+type ListQuotaPacksResp struct {
+	Items []QuotaPackInfo `json:"items"`
+}
+
 type MerchantVIPResp struct {
 	MerchantID            string `json:"merchantId"`
 	Status                string `json:"status"`
@@ -54,16 +70,21 @@ type MerchantVIPResp struct {
 }
 
 type CreateVIPOrderReq struct {
-	MerchantID string
-	UserID     string
-	PlanCode   string
+	MerchantID  string
+	UserID      string
+	ProductType string `json:"productType,omitempty"`
+	ProductCode string `json:"productCode,omitempty"`
+	PlanCode    string `json:"planCode,omitempty"`
 }
 
 type CreateVIPOrderResp struct {
 	OrderID           string         `json:"orderId"`
 	Status            string         `json:"status"`
-	PlanCode          string         `json:"planCode"`
-	PlanName          string         `json:"planName"`
+	ProductType       string         `json:"productType,omitempty"`
+	ProductCode       string         `json:"productCode,omitempty"`
+	ProductName       string         `json:"productName,omitempty"`
+	PlanCode          string         `json:"planCode,omitempty"`
+	PlanName          string         `json:"planName,omitempty"`
 	StandardPriceCent int64          `json:"standardPriceCent"`
 	ActualPriceCent   int64          `json:"actualPriceCent"`
 	PromotionCode     string         `json:"promotionCode,omitempty"`
@@ -97,6 +118,35 @@ func (l *ListVIPPlansLogic) ListVIPPlans(ctx context.Context) (ListVIPPlansResp,
 		})
 	}
 	return ListVIPPlansResp{Items: items}, nil
+}
+
+type ListQuotaPacksLogic struct {
+	store Store
+}
+
+func NewListQuotaPacksLogic(store Store) *ListQuotaPacksLogic {
+	return &ListQuotaPacksLogic{store: store}
+}
+
+func (l *ListQuotaPacksLogic) ListQuotaPacks(ctx context.Context) (ListQuotaPacksResp, error) {
+	packs, err := l.store.ListQuotaPacks(ctx)
+	if err != nil {
+		logx.Errorf("查询次数包商品失败: err=%+v", err)
+		return ListQuotaPacksResp{}, err
+	}
+	items := make([]QuotaPackInfo, 0, len(packs))
+	for _, pack := range packs {
+		items = append(items, QuotaPackInfo{
+			Code:              pack.Code,
+			Name:              pack.Name,
+			Description:       pack.Description,
+			StandardPriceCent: pack.StandardPriceCent,
+			SalePriceCent:     pack.SalePriceCent,
+			SaleLabel:         pack.SaleLabel,
+			Benefits:          mapVIPBenefit(pack.Benefits),
+		})
+	}
+	return ListQuotaPacksResp{Items: items}, nil
 }
 
 type GetMerchantVIPLogic struct {
@@ -142,16 +192,32 @@ func NewCreateVIPOrderLogic(store Store) *CreateVIPOrderLogic {
 }
 
 func (l *CreateVIPOrderLogic) CreateVIPOrder(ctx context.Context, req CreateVIPOrderReq) (CreateVIPOrderResp, error) {
-	input := model.CreateVIPOrderInput{
-		MerchantID: strings.TrimSpace(req.MerchantID),
-		UserID:     strings.TrimSpace(req.UserID),
-		PlanCode:   strings.TrimSpace(req.PlanCode),
+	merchantID := strings.TrimSpace(req.MerchantID)
+	userID := strings.TrimSpace(req.UserID)
+	productType := strings.TrimSpace(req.ProductType)
+	if productType == "" {
+		productType = model.VIPProductTypeVIPPlan
 	}
-	if input.MerchantID == "" {
+	if merchantID == "" {
 		return CreateVIPOrderResp{}, errx.New(errx.CodeMerchantNotFound, "商家不存在")
 	}
-	if input.UserID == "" {
-		return CreateVIPOrderResp{}, errx.New(errx.CodeUnauthorized, "请先登录后再开通 VIP")
+	if userID == "" {
+		return CreateVIPOrderResp{}, errx.New(errx.CodeUnauthorized, "请先登录后再购买权益")
+	}
+	if productType == model.VIPProductTypeQuotaPack {
+		return l.createQuotaPackOrder(ctx, merchantID, userID, req)
+	}
+	if productType != model.VIPProductTypeVIPPlan {
+		return CreateVIPOrderResp{}, errx.New(errx.CodeValidationFailed, "请选择有效的权益商品")
+	}
+	return l.createVIPPlanOrder(ctx, merchantID, userID, req)
+}
+
+func (l *CreateVIPOrderLogic) createVIPPlanOrder(ctx context.Context, merchantID string, userID string, req CreateVIPOrderReq) (CreateVIPOrderResp, error) {
+	input := model.CreateVIPOrderInput{
+		MerchantID: merchantID,
+		UserID:     userID,
+		PlanCode:   strings.TrimSpace(req.PlanCode),
 	}
 	if input.PlanCode == "" {
 		return CreateVIPOrderResp{}, errx.New(errx.CodeValidationFailed, "请选择有效的 VIP 套餐")
@@ -166,16 +232,49 @@ func (l *CreateVIPOrderLogic) CreateVIPOrder(ctx context.Context, req CreateVIPO
 		return CreateVIPOrderResp{}, err
 	}
 	logx.Infof("创建 VIP 订单成功: merchantId=%s userId=%s planCode=%s orderId=%s actualPriceCent=%d", input.MerchantID, input.UserID, input.PlanCode, order.ID, order.ActualPriceCent)
+	return mapOrderResp(order), nil
+}
+
+func (l *CreateVIPOrderLogic) createQuotaPackOrder(ctx context.Context, merchantID string, userID string, req CreateVIPOrderReq) (CreateVIPOrderResp, error) {
+	packCode := strings.TrimSpace(req.ProductCode)
+	if packCode == "" {
+		packCode = strings.TrimSpace(req.PlanCode)
+	}
+	input := model.CreateQuotaPackOrderInput{
+		MerchantID: merchantID,
+		UserID:     userID,
+		PackCode:   packCode,
+	}
+	if input.PackCode == "" {
+		return CreateVIPOrderResp{}, errx.New(errx.CodeValidationFailed, "请选择有效的次数包")
+	}
+	order, err := l.store.CreateQuotaPackOrder(ctx, input)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			logx.Infof("创建次数包订单被拦截: merchantId=%s userId=%s packCode=%s reason=invalid_pack", input.MerchantID, input.UserID, input.PackCode)
+			return CreateVIPOrderResp{}, errx.New(errx.CodeValidationFailed, "请选择有效的次数包")
+		}
+		logx.Errorf("创建次数包订单失败: merchantId=%s userId=%s packCode=%s err=%+v", input.MerchantID, input.UserID, input.PackCode, err)
+		return CreateVIPOrderResp{}, err
+	}
+	logx.Infof("创建次数包订单成功: merchantId=%s userId=%s packCode=%s orderId=%s actualPriceCent=%d", input.MerchantID, input.UserID, input.PackCode, order.ID, order.ActualPriceCent)
+	return mapOrderResp(order), nil
+}
+
+func mapOrderResp(order model.VIPOrder) CreateVIPOrderResp {
 	return CreateVIPOrderResp{
 		OrderID:           order.ID,
 		Status:            order.Status,
+		ProductType:       order.ProductType,
+		ProductCode:       order.ProductCode,
+		ProductName:       order.ProductName,
 		PlanCode:          order.PlanCode,
 		PlanName:          order.PlanName,
 		StandardPriceCent: order.StandardPriceCent,
 		ActualPriceCent:   order.ActualPriceCent,
 		PromotionCode:     order.PromotionCode,
 		Benefits:          mapVIPBenefit(order.Benefits),
-	}, nil
+	}
 }
 
 func mapVIPBenefit(snapshot model.VIPBenefitSnapshot) VIPBenefitInfo {

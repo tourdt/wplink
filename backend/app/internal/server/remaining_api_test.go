@@ -249,6 +249,15 @@ func TestAPIRouterRegistersVIPMembershipRoutes(t *testing.T) {
 		t.Fatalf("plans data = %#v, want one vip plan", plansData)
 	}
 
+	packsRec := httptest.NewRecorder()
+	packsReq := httptest.NewRequest(http.MethodGet, "/api/v1/vip/quota-packs", nil)
+	router.ServeHTTP(packsRec, packsReq)
+	packsData := decodeEnvelopeData(t, packsRec, http.StatusOK)
+	packs, ok := packsData["items"].([]interface{})
+	if !ok || len(packs) != 1 {
+		t.Fatalf("quota packs data = %#v, want one quota pack", packsData)
+	}
+
 	forbiddenRec := httptest.NewRecorder()
 	forbiddenReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-2/vip", nil)
 	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
@@ -273,6 +282,15 @@ func TestAPIRouterRegistersVIPMembershipRoutes(t *testing.T) {
 	decodeEnvelopeData(t, orderRec, http.StatusOK)
 	if store.createVIPOrderInput.UserID != "user-1" || store.createVIPOrderInput.PlanCode != "monthly" {
 		t.Fatalf("createVIPOrderInput = %#v, want token user and plan", store.createVIPOrderInput)
+	}
+
+	quotaOrderRec := httptest.NewRecorder()
+	quotaOrderReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1/vip/orders", strings.NewReader(`{"productType":"quota_pack","productCode":"publish_5"}`))
+	quotaOrderReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(quotaOrderRec, quotaOrderReq)
+	decodeEnvelopeData(t, quotaOrderRec, http.StatusOK)
+	if store.createQuotaPackOrderInput.UserID != "user-1" || store.createQuotaPackOrderInput.PackCode != "publish_5" {
+		t.Fatalf("createQuotaPackOrderInput = %#v, want token user and pack code", store.createQuotaPackOrderInput)
 	}
 
 	paymentRec := httptest.NewRecorder()
@@ -506,6 +524,7 @@ type fakeFullAPIStore struct {
 	topVoucherMerchantIDs        map[string]string
 	grantEntitlementInput        model.GrantEntitlementInput
 	createVIPOrderInput          model.CreateVIPOrderInput
+	createQuotaPackOrderInput    model.CreateQuotaPackOrderInput
 	createVIPPaymentInput        model.CreateVIPPaymentOrderInput
 	markVIPOrderPaidInput        model.MarkVIPOrderPaidInput
 }
@@ -642,6 +661,18 @@ func (s *fakeFullAPIStore) ListVIPPlans(ctx context.Context) ([]model.VIPPlan, e
 	}}, nil
 }
 
+func (s *fakeFullAPIStore) ListQuotaPacks(ctx context.Context) ([]model.QuotaPack, error) {
+	return []model.QuotaPack{{
+		Code:              "publish_5",
+		Name:              "发布次数包",
+		Description:       "临时多发供需",
+		StandardPriceCent: 2500,
+		SalePriceCent:     2500,
+		SaleLabel:         "限时特价",
+		Benefits:          model.VIPBenefitSnapshot{PublishQuota: 5},
+	}}, nil
+}
+
 func (s *fakeFullAPIStore) GetMerchantVIPSummary(ctx context.Context, merchantID string) (model.MerchantVIPSummary, error) {
 	return model.MerchantVIPSummary{
 		MerchantID:            merchantID,
@@ -669,6 +700,24 @@ func (s *fakeFullAPIStore) CreateVIPOrder(ctx context.Context, input model.Creat
 		ActualPriceCent:   1990,
 		PromotionCode:     "launch_monthly_first",
 		Benefits:          model.VIPBenefitSnapshot{PublishPolicy: model.VIPPublishPolicyQuota, PublishQuota: 80, RefreshQuota: 30, TopVoucherCount: 3, TopDurationHours: 24},
+	}, nil
+}
+
+func (s *fakeFullAPIStore) CreateQuotaPackOrder(ctx context.Context, input model.CreateQuotaPackOrderInput) (model.VIPOrder, error) {
+	s.createQuotaPackOrderInput = input
+	return model.VIPOrder{
+		ID:                "order-2",
+		MerchantID:        input.MerchantID,
+		UserID:            input.UserID,
+		ProductType:       model.VIPProductTypeQuotaPack,
+		ProductCode:       input.PackCode,
+		ProductName:       "发布次数包",
+		OutTradeNo:        "VIP202607090002",
+		Status:            model.PaymentOrderStatusPending,
+		Currency:          "CNY",
+		StandardPriceCent: 2500,
+		ActualPriceCent:   2500,
+		Benefits:          model.VIPBenefitSnapshot{PublishQuota: 5},
 	}, nil
 }
 

@@ -100,6 +100,44 @@ test('core resource schema supports unified demand direction without retired dem
   assert(seedSql.includes("'supply'"), 'seed should mark supply resource types with supply direction')
 })
 
+test('vip membership migration supports online quota pack purchase products', () => {
+  const vipSql = fs.readFileSync(path.resolve(migrationsDir, '000017_vip_membership.up.sql'), 'utf8')
+
+  for (const snippet of [
+    'CREATE TABLE IF NOT EXISTS vip_quota_packs',
+    "product_type varchar(32) NOT NULL DEFAULT 'vip_plan'",
+    'product_snapshot jsonb NOT NULL DEFAULT',
+    "chk_vip_orders_product_type CHECK (product_type IN ('vip_plan', 'quota_pack'))",
+    "('publish_5', '发布次数包'",
+    "('refresh_10', '刷新次数包'",
+    "('top_3', '置顶券包'",
+    '"publishQuota":5',
+    '"refreshQuota":10',
+    '"topVoucherCount":3',
+  ]) {
+    assert(vipSql.includes(snippet), `vip migration should include quota pack snippet ${snippet}`)
+  }
+})
+
+test('vip migration backfills product columns for databases that already applied old 000017', () => {
+  const repairSql = fs.readFileSync(path.resolve(migrationsDir, '000018_vip_order_product_backfill.up.sql'), 'utf8')
+
+  for (const snippet of [
+    'ALTER TABLE IF EXISTS vip_orders',
+    'ADD COLUMN IF NOT EXISTS product_type',
+    'ADD COLUMN IF NOT EXISTS product_code',
+    'ADD COLUMN IF NOT EXISTS product_name',
+    'ADD COLUMN IF NOT EXISTS product_snapshot',
+    'ALTER COLUMN plan_id DROP NOT NULL',
+    'ALTER COLUMN plan_version_id DROP NOT NULL',
+    'UPDATE vip_orders o',
+    "product_type = 'vip_plan'",
+    "CREATE TABLE IF NOT EXISTS vip_quota_packs",
+  ]) {
+    assert(repairSql.includes(snippet), `repair migration should include snippet ${snippet}`)
+  }
+})
+
 test('resource type seed uses type-specific publish fields and summary mappings', () => {
   const seedSql = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')
   const rentalDisplaySql = fs.readFileSync(path.resolve(migrationsDir, '000014_resource_type_display_names.up.sql'), 'utf8')

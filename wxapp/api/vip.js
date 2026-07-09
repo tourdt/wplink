@@ -7,6 +7,13 @@ export function listVIPPlans() {
   })
 }
 
+export function listQuotaPacks() {
+  return request({
+    url: '/api/v1/vip/quota-packs',
+    method: 'GET',
+  })
+}
+
 export function getMerchantVIP(merchantId, options = {}) {
   return request({
     url: `/api/v1/merchants/${merchantId}/vip`,
@@ -20,6 +27,13 @@ export function createVIPOrder(merchantId, data) {
     url: `/api/v1/merchants/${merchantId}/vip/orders`,
     method: 'POST',
     data,
+  })
+}
+
+export function createQuotaPackOrder(merchantId, packCode) {
+  return createVIPOrder(merchantId, {
+    productType: 'quota_pack',
+    productCode: packCode,
   })
 }
 

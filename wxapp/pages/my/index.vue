@@ -17,6 +17,10 @@
           <text class="account-desc">{{ accountDesc }}</text>
         </view>
       </view>
+      <view v-if="quotaSummaryVisible" class="quota-summary">
+        <text class="quota-title">{{ quotaSummaryTitle }}</text>
+        <text class="quota-desc">{{ quotaSummaryDesc }}</text>
+      </view>
       <button v-if="!isLoggedIn" class="login-button" @click.stop="openLogin">微信登录</button>
     </view>
 
@@ -52,7 +56,7 @@
         <view class="action-item" @click="openVIP">
           <view class="action-main">
             <text class="action-title">VIP 权益</text>
-            <text class="action-meta">80 条发布额度、刷新和置顶券</text>
+            <text class="action-meta">查看额度、置顶券和限时特价</text>
           </view>
           <text class="entry-arrow"></text>
         </view>
@@ -88,6 +92,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { buildLoginUrl, requireLogin } from '../../common/auth'
 import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { getSession } from '../../store/session'
+import { getMerchantEntitlements } from '../../api/entitlement'
 import { getMerchant } from '../../api/merchant'
 import { getMerchantMetricsSummary } from '../../api/metrics'
 
@@ -95,6 +100,7 @@ const token = ref('')
 const merchantId = ref('')
 const merchantProfile = ref({})
 const merchantMetricsSummary = ref(null)
+const merchantEntitlements = ref([])
 
 const isLoggedIn = computed(() => Boolean(token.value))
 const merchantLogo = computed(() => merchantProfile.value.logoUrl || '')
@@ -117,6 +123,27 @@ const accountStatusText = computed(() => {
   return statusText[accountStatus.value] || '普通用户'
 })
 const accountStatusClass = computed(() => `status-${accountStatus.value}`)
+const quotaSummaryVisible = computed(() => Boolean(isLoggedIn.value && merchantId.value))
+const publishQuotaRemaining = computed(() => entitlementRemaining('publish_quota'))
+const refreshQuotaRemaining = computed(() => entitlementRemaining('refresh_quota'))
+const quotaSummaryTitle = computed(() => {
+  if (merchantProfile.value.vipStatus === 'active') {
+    return `VIP 权益：发布 ${publishQuotaRemaining.value} 条 · 刷新 ${refreshQuotaRemaining.value} 次`
+  }
+  if (merchantProfile.value.profileStatus === 'completed') {
+    return `本月剩余：发布 ${publishQuotaRemaining.value} 条 · 刷新 ${refreshQuotaRemaining.value} 次`
+  }
+  return `免费额度：本月可发布 ${publishQuotaRemaining.value} 条`
+})
+const quotaSummaryDesc = computed(() => {
+  if (merchantProfile.value.vipStatus === 'active') {
+    return '置顶券可在发布管理中使用'
+  }
+  if (merchantProfile.value.profileStatus === 'completed') {
+    return '需要更多发布和曝光，可查看 VIP 权益'
+  }
+  return '完善资料后每月可发布 10 条，并获得 3 次刷新'
+})
 const merchantEffectVisible = computed(() => Boolean(token.value && merchantId.value && merchantMetricsSummary.value))
 const merchantEffectItems = computed(() => {
   const last7Days = merchantMetricsSummary.value?.last7Days || {}
@@ -139,7 +166,7 @@ async function syncSession() {
   const session = getSession()
   token.value = session.token
   merchantId.value = session.merchantId
-  await Promise.all([loadMerchantProfile(), loadMerchantMetricsSummary()])
+  await Promise.all([loadMerchantProfile(), loadMerchantMetricsSummary(), loadMerchantEntitlements()])
 }
 
 function openLogin() {
@@ -169,6 +196,34 @@ async function loadMerchantMetricsSummary() {
   } catch (err) {
     merchantMetricsSummary.value = null
   }
+}
+
+async function loadMerchantEntitlements() {
+  if (!token.value || !merchantId.value) {
+    merchantEntitlements.value = []
+    return
+  }
+  try {
+    const resp = await getMerchantEntitlements(merchantId.value, { suppressErrorToast: true })
+    merchantEntitlements.value = resp.items || []
+  } catch (err) {
+    merchantEntitlements.value = []
+  }
+}
+
+function entitlementRemaining(type) {
+  const items = merchantEntitlements.value.filter((item) => item.type === type)
+  if (items.length > 0) {
+    return items.reduce((sum, item) => sum + Number(item.remainingAmount || 0), 0)
+  }
+  if (merchantProfile.value.vipStatus === 'active') return 0
+  if (type === 'publish_quota') {
+    return merchantProfile.value.profileStatus === 'completed' ? 10 : 3
+  }
+  if (type === 'refresh_quota') {
+    return merchantProfile.value.profileStatus === 'completed' ? 3 : 0
+  }
+  return 0
 }
 
 function openAccountCard() {
@@ -300,10 +355,26 @@ async function openVIP() {
 }
 
 .account-desc,
-.action-meta {
+.action-meta,
+.quota-desc {
   color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
+}
+
+.quota-summary {
+  display: grid;
+  gap: 6rpx;
+  min-width: 0;
+  padding-top: 18rpx;
+  border-top: 1rpx solid $wplink-line;
+}
+
+.quota-title {
+  color: $wplink-primary;
+  font-size: 28rpx;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .login-button {

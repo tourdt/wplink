@@ -391,6 +391,10 @@ func registerVIPRoutes(mux *http.ServeMux, store VIPAPIStore, tokenService authl
 		resp, err := viplogic.NewListVIPPlansLogic(store).ListVIPPlans(r.Context())
 		response.JSON(w, resp, err)
 	})
+	mux.HandleFunc("GET /api/v1/vip/quota-packs", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := viplogic.NewListQuotaPacksLogic(store).ListQuotaPacks(r.Context())
+		response.JSON(w, resp, err)
+	})
 	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/vip", func(w http.ResponseWriter, r *http.Request) {
 		merchantID := r.PathValue("merchantId")
 		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
