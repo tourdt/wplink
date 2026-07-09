@@ -20,6 +20,7 @@ import (
 	metricslogic "wplink/backend/app/internal/logic/metrics"
 	paymentlogic "wplink/backend/app/internal/logic/payment"
 	verificationlogic "wplink/backend/app/internal/logic/verification"
+	viplogic "wplink/backend/app/internal/logic/vip"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/task"
 	"wplink/backend/common/errx"
@@ -56,6 +57,11 @@ type VerificationPaymentAPIStore interface {
 type EntitlementAPIStore interface {
 	entitlementlogic.EntitlementStore
 	adminlogic.EntitlementAdminStore
+}
+
+type VIPAPIStore interface {
+	viplogic.Store
+	paymentlogic.VIPPaymentStore
 }
 
 type TopVoucherMerchantStore interface {
@@ -106,6 +112,9 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	}
 	if entitlementStore, ok := store.(EntitlementAPIStore); ok {
 		registerEntitlementRoutes(mux, entitlementStore, userTokenService, adminTokenService, permissionStore)
+	}
+	if vipStore, ok := store.(VIPAPIStore); ok {
+		registerVIPRoutes(mux, vipStore, userTokenService, adminTokenService, permissionStore, wechatPayGateway, wechatPayDevMock)
 	}
 	if messageStore, ok := store.(MessageAPIStore); ok {
 		registerMessageRoutes(mux, messageStore, userTokenService, adminTokenService, permissionStore)
@@ -374,6 +383,86 @@ func registerVerificationBillingRoutes(mux *http.ServeMux, store VerificationBil
 		}
 		resp, err := adminlogic.NewVerificationBillingConfigLogic(store).UpdateVerificationBillingConfig(r.Context(), body)
 		response.JSON(w, resp, err)
+	})
+}
+
+func registerVIPRoutes(mux *http.ServeMux, store VIPAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool) {
+	mux.HandleFunc("GET /api/v1/vip/plans", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := viplogic.NewListVIPPlansLogic(store).ListVIPPlans(r.Context())
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/vip", func(w http.ResponseWriter, r *http.Request) {
+		merchantID := r.PathValue("merchantId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := viplogic.NewGetMerchantVIPLogic(store).GetMerchantVIP(r.Context(), merchantID)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/merchants/{merchantId}/vip/orders", func(w http.ResponseWriter, r *http.Request) {
+		var body viplogic.CreateVIPOrderReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		body.MerchantID = r.PathValue("merchantId")
+		if tokenService != nil {
+			var err error
+			body.UserID, err = userIDFromBearerToken(r, tokenService)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+			if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, body.MerchantID); err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+		}
+		resp, err := viplogic.NewCreateVIPOrderLogic(store).CreateVIPOrder(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/merchants/{merchantId}/vip/orders/{orderId}/payment", func(w http.ResponseWriter, r *http.Request) {
+		var body paymentlogic.CreateVIPPaymentReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		body.MerchantID = r.PathValue("merchantId")
+		body.OrderID = r.PathValue("orderId")
+		if tokenService != nil {
+			var err error
+			body.UserID, err = userIDFromBearerToken(r, tokenService)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+			if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, body.MerchantID); err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+		}
+		resp, err := paymentlogic.NewCreateVIPPaymentLogic(store, wechatPayGateway, wechatPayDevMock).CreateVIPPayment(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/wechat-pay/vip/notify", func(w http.ResponseWriter, r *http.Request) {
+		body, err := readLimitedBody(r, 1<<20)
+		if err != nil {
+			writeWechatPayNotifyError(w)
+			return
+		}
+		headers := map[string]string{}
+		for key, values := range r.Header {
+			if len(values) > 0 {
+				headers[key] = values[0]
+			}
+		}
+		resp, err := paymentlogic.NewVIPWechatPayNotifyLogic(store, wechatPayGateway).HandleNotify(r.Context(), paymentlogic.WechatPayNotifyReq{Headers: headers, Body: body})
+		if err != nil {
+			writeWechatPayNotifyError(w)
+			return
+		}
+		writeRawJSON(w, http.StatusOK, resp)
 	})
 }
 

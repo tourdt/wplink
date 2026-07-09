@@ -77,6 +77,10 @@ func (l *CreateResourceLogic) create(ctx context.Context, req CreateResourceReq,
 	}
 	result, err := l.store.CreateResource(ctx, input)
 	if err != nil {
+		if errors.Is(err, model.ErrPublishQuotaInsufficient) {
+			logx.Infof("创建资源被拦截: merchantId=%s typeCode=%s reason=publish_quota_insufficient", strings.TrimSpace(req.MerchantID), typeCode)
+			return CreateResourceResp{}, errx.New(errx.CodeQuotaNotEnough, "本月发布次数已用完，可开通 VIP 或购买发布包")
+		}
 		logx.Errorf("创建资源失败: merchantId=%s typeCode=%s targetStatus=%s err=%+v", strings.TrimSpace(req.MerchantID), typeCode, status, err)
 		return CreateResourceResp{}, err
 	}
@@ -191,6 +195,7 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		ContactPhone:         values["contactPhone"],
 		ContactWechat:        strings.TrimSpace(req.Contact.Wechat),
 		CreatedByUser:        strings.TrimSpace(req.CreatedByUser),
+		ConsumePublishQuota:  status != model.ResourceStatusDraft,
 	}, typeCode, nil
 }
 

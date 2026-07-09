@@ -32,7 +32,7 @@ func TestGetResourceReturnsPublishedDetail(t *testing.T) {
 				},
 			},
 			DisplayTemplate: model.JSONMap{"detail": []interface{}{"season", "allowLiveSale"}},
-			MerchantID:      "merchant-1", MerchantName: "织里样板童装厂", MerchantVerificationStatus: "verified",
+			MerchantID:      "merchant-1", MerchantName: "织里样板童装厂", MerchantVerificationStatus: "verified", MerchantVIPStatus: model.VIPStatusActive,
 			ContactName: "张老板", PhoneMasked: "138****0000", WechatMasked: "zhili_****",
 		},
 	}
@@ -45,6 +45,9 @@ func TestGetResourceReturnsPublishedDetail(t *testing.T) {
 
 	if resp.Merchant.Name != "织里样板童装厂" {
 		t.Fatalf("merchant = %#v, want merchant detail", resp.Merchant)
+	}
+	if resp.Merchant.VIPStatus != model.VIPStatusActive {
+		t.Fatalf("merchant vipStatus = %q, want active", resp.Merchant.VIPStatus)
 	}
 	if resp.Contact.PhoneMasked != "138****0000" {
 		t.Fatalf("phone = %q, want masked phone", resp.Contact.PhoneMasked)

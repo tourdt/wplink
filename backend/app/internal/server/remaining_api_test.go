@@ -235,6 +235,56 @@ func TestAPIRouterRequiresMerchantPermissionForEntitlements(t *testing.T) {
 	}
 }
 
+func TestAPIRouterRegistersVIPMembershipRoutes(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}), WithWechatPayDevMock(true))
+
+	plansRec := httptest.NewRecorder()
+	plansReq := httptest.NewRequest(http.MethodGet, "/api/v1/vip/plans", nil)
+	router.ServeHTTP(plansRec, plansReq)
+	plansData := decodeEnvelopeData(t, plansRec, http.StatusOK)
+	plans, ok := plansData["items"].([]interface{})
+	if !ok || len(plans) != 1 {
+		t.Fatalf("plans data = %#v, want one vip plan", plansData)
+	}
+
+	forbiddenRec := httptest.NewRecorder()
+	forbiddenReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-2/vip", nil)
+	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
+	}
+
+	statusRec := httptest.NewRecorder()
+	statusReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1/vip", nil)
+	statusReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(statusRec, statusReq)
+	statusData := decodeEnvelopeData(t, statusRec, http.StatusOK)
+	if statusData["status"] != model.VIPStatusActive {
+		t.Fatalf("vip status data = %#v, want active", statusData)
+	}
+
+	orderRec := httptest.NewRecorder()
+	orderReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1/vip/orders", strings.NewReader(`{"planCode":"monthly"}`))
+	orderReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(orderRec, orderReq)
+	decodeEnvelopeData(t, orderRec, http.StatusOK)
+	if store.createVIPOrderInput.UserID != "user-1" || store.createVIPOrderInput.PlanCode != "monthly" {
+		t.Fatalf("createVIPOrderInput = %#v, want token user and plan", store.createVIPOrderInput)
+	}
+
+	paymentRec := httptest.NewRecorder()
+	paymentReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1/vip/orders/order-1/payment", strings.NewReader(`{"userId":"attacker"}`))
+	paymentReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(paymentRec, paymentReq)
+	decodeEnvelopeData(t, paymentRec, http.StatusOK)
+	if store.markVIPOrderPaidInput.OutTradeNo != "VIP202607090001" {
+		t.Fatalf("markVIPOrderPaidInput = %#v, want dev mock payment", store.markVIPOrderPaidInput)
+	}
+}
+
 func TestAPIRouterRequiresOwnedMerchantForTopVoucherRedeem(t *testing.T) {
 	store := newFakeFullAPIStore()
 	store.managedMerchants = map[string]bool{"merchant-1": true}
@@ -455,6 +505,9 @@ type fakeFullAPIStore struct {
 	redeemResourceID             string
 	topVoucherMerchantIDs        map[string]string
 	grantEntitlementInput        model.GrantEntitlementInput
+	createVIPOrderInput          model.CreateVIPOrderInput
+	createVIPPaymentInput        model.CreateVIPPaymentOrderInput
+	markVIPOrderPaidInput        model.MarkVIPOrderPaidInput
 }
 
 type fakeAdminTokenService struct {
@@ -575,6 +628,79 @@ func (s *fakeFullAPIStore) RedeemTopVoucher(ctx context.Context, voucherID strin
 func (s *fakeFullAPIStore) GrantMerchantEntitlement(ctx context.Context, input model.GrantEntitlementInput) (model.GrantEntitlementResult, error) {
 	s.grantEntitlementInput = input
 	return model.GrantEntitlementResult{ID: "entitlement-1"}, nil
+}
+
+func (s *fakeFullAPIStore) ListVIPPlans(ctx context.Context) ([]model.VIPPlan, error) {
+	return []model.VIPPlan{{
+		Code:              "monthly",
+		Name:              "VIP 月卡",
+		DurationMonths:    1,
+		StandardPriceCent: 4900,
+		SalePriceCent:     1990,
+		SaleLabel:         "首月优惠",
+		Benefits:          model.VIPBenefitSnapshot{PublishPolicy: model.VIPPublishPolicyQuota, PublishQuota: 80, RefreshQuota: 30, TopVoucherCount: 3, TopDurationHours: 24},
+	}}, nil
+}
+
+func (s *fakeFullAPIStore) GetMerchantVIPSummary(ctx context.Context, merchantID string) (model.MerchantVIPSummary, error) {
+	return model.MerchantVIPSummary{
+		MerchantID:            merchantID,
+		Status:                model.VIPStatusActive,
+		PlanCode:              "monthly",
+		PlanName:              "VIP 月卡",
+		PublishQuotaRemaining: 80,
+		RefreshQuotaRemaining: 30,
+		TopVoucherCount:       3,
+	}, nil
+}
+
+func (s *fakeFullAPIStore) CreateVIPOrder(ctx context.Context, input model.CreateVIPOrderInput) (model.VIPOrder, error) {
+	s.createVIPOrderInput = input
+	return model.VIPOrder{
+		ID:                "order-1",
+		MerchantID:        input.MerchantID,
+		UserID:            input.UserID,
+		PlanCode:          input.PlanCode,
+		PlanName:          "VIP 月卡",
+		OutTradeNo:        "VIP202607090001",
+		Status:            model.PaymentOrderStatusPending,
+		Currency:          "CNY",
+		StandardPriceCent: 4900,
+		ActualPriceCent:   1990,
+		PromotionCode:     "launch_monthly_first",
+		Benefits:          model.VIPBenefitSnapshot{PublishPolicy: model.VIPPublishPolicyQuota, PublishQuota: 80, RefreshQuota: 30, TopVoucherCount: 3, TopDurationHours: 24},
+	}, nil
+}
+
+func (s *fakeFullAPIStore) GetVIPPaymentContext(ctx context.Context, input model.GetVIPPaymentContextInput) (model.VIPPaymentContext, error) {
+	return model.VIPPaymentContext{
+		OrderID:     input.OrderID,
+		MerchantID:  input.MerchantID,
+		UserID:      input.UserID,
+		OpenID:      "dev:openid",
+		Status:      model.PaymentOrderStatusPending,
+		OutTradeNo:  "VIP202607090001",
+		AmountTotal: 1990,
+		Currency:    "CNY",
+		PlanName:    "VIP 月卡",
+	}, nil
+}
+
+func (s *fakeFullAPIStore) CreateVIPPaymentOrder(ctx context.Context, input model.CreateVIPPaymentOrderInput) (model.VIPPaymentOrder, error) {
+	s.createVIPPaymentInput = input
+	return model.VIPPaymentOrder{
+		ID:          input.OrderID,
+		OutTradeNo:  "VIP202607090001",
+		AmountTotal: 1990,
+		Currency:    "CNY",
+		Status:      model.PaymentOrderStatusPending,
+		PlanName:    "VIP 月卡",
+	}, nil
+}
+
+func (s *fakeFullAPIStore) MarkVIPOrderPaid(ctx context.Context, input model.MarkVIPOrderPaidInput) (model.VIPPaymentResult, error) {
+	s.markVIPOrderPaidInput = input
+	return model.VIPPaymentResult{OrderID: "order-1", MerchantID: "merchant-1", Status: model.PaymentOrderStatusPaid}, nil
 }
 
 func (s *fakeFullAPIStore) GetResourceMetrics(ctx context.Context, resourceID string, from string, to string) (model.ResourceMetricsResult, error) {

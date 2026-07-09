@@ -230,11 +230,72 @@ func TestCreateResourceCreatesPendingResource(t *testing.T) {
 	if store.input.Status != "pending" {
 		t.Fatalf("status = %q, want pending", store.input.Status)
 	}
+	if !store.input.ConsumePublishQuota {
+		t.Fatalf("consumePublishQuota = false, want true for pending resource")
+	}
 	if store.input.CoverURL != "https://example.com/a.jpg" {
 		t.Fatalf("coverURL = %q, want first resource image", store.input.CoverURL)
 	}
 	if resp.ID != "resource-1" || resp.Status != "pending" {
 		t.Fatalf("resp = %#v, want pending resource", resp)
+	}
+}
+
+func TestCreateResourceDraftDoesNotConsumePublishQuota(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusDraft},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResourceDraft(context.Background(), CreateResourceReq{
+		MerchantID:   "merchant-1",
+		CityCode:     "zhili",
+		TypeCode:     "inventory",
+		Title:        "女童春款卫衣库存整包清",
+		Category:     "童装",
+		QuantityText: "3200 件",
+		Description:  "整包优先，可现场看货。",
+		Contact:      ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResourceDraft() error = %v", err)
+	}
+	if store.input.ConsumePublishQuota {
+		t.Fatalf("consumePublishQuota = true, want false for draft")
+	}
+}
+
+func TestCreateResourceMapsPublishQuotaInsufficient(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
+		},
+		createErr: model.ErrPublishQuotaInsufficient,
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:   "merchant-1",
+		CityCode:     "zhili",
+		TypeCode:     "inventory",
+		Title:        "女童春款卫衣库存整包清",
+		Category:     "童装",
+		QuantityText: "3200 件",
+		Description:  "整包优先，可现场看货。",
+		Contact:      ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+	})
+	if errx.CodeOf(err) != errx.CodeQuotaNotEnough {
+		t.Fatalf("error code = %q, want quota not enough", errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "本月发布次数已用完，可开通 VIP 或购买发布包" {
+		t.Fatalf("message = %q, want publish quota upsell message", errx.PublicMessage(err))
 	}
 }
 
@@ -504,6 +565,7 @@ type fakeCreateResourceStore struct {
 	operationLog         model.OperationLogInput
 	merchantContactPhone string
 	contactMerchantID    string
+	createErr            error
 }
 
 func (s *fakeCreateResourceStore) GetMerchantPublishStatus(ctx context.Context, merchantID string) (string, error) {
@@ -524,6 +586,9 @@ func (s *fakeCreateResourceStore) GetMerchantContactPhone(ctx context.Context, m
 
 func (s *fakeCreateResourceStore) CreateResource(ctx context.Context, input model.CreateResourceInput) (model.CreateResourceResult, error) {
 	s.input = input
+	if s.createErr != nil {
+		return model.CreateResourceResult{}, s.createErr
+	}
 	return s.result, nil
 }
 

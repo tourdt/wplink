@@ -46,6 +46,7 @@ type MerchantDetail struct {
 	MainCategories         []string
 	ProfileStatus          string
 	VerificationStatus     string
+	VIPStatus              string
 	VerificationReviewedAt string
 	VerificationExpiresAt  string
 	CreditTags             []CreditTag
@@ -181,6 +182,14 @@ SELECT
   m.main_categories,
   COALESCE(NULLIF(m.profile_status, ''), 'completed'),
   m.verification_status,
+  CASE WHEN EXISTS (
+    SELECT 1
+    FROM merchant_vip_subscriptions mvs
+    WHERE mvs.merchant_id = m.id
+      AND mvs.status = 'active'
+      AND mvs.starts_at <= now()
+      AND mvs.expires_at > now()
+  ) THEN 'active' ELSE 'none' END AS vip_status,
   m.contact_name,
   m.contact_phone,
   COALESCE(m.contact_wechat, ''),
@@ -224,6 +233,7 @@ GROUP BY m.id, cs.code
 		&categories,
 		&detail.ProfileStatus,
 		&detail.VerificationStatus,
+		&detail.VIPStatus,
 		&detail.ContactName,
 		&detail.PhoneMasked,
 		&detail.WechatMasked,

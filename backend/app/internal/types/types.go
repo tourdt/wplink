@@ -605,6 +605,31 @@ type CreateVerificationPaymentResp struct {
 	Payment WechatPayParams `json:"payment"`
 }
 
+type CreateVIPOrderReq struct {
+	PlanCode string `json:"planCode"`
+}
+
+type CreateVIPOrderResp struct {
+	OrderId           string         `json:"orderId"`
+	Status            string         `json:"status"`
+	PlanCode          string         `json:"planCode"`
+	PlanName          string         `json:"planName"`
+	StandardPriceCent int64          `json:"standardPriceCent"`
+	ActualPriceCent   int64          `json:"actualPriceCent"`
+	PromotionCode     string         `json:"promotionCode,optional"`
+	Benefits          VIPBenefitInfo `json:"benefits"`
+}
+
+type CreateVIPPaymentReq struct {
+	UserId string `json:"userId,optional"`
+}
+
+type CreateVIPPaymentResp struct {
+	OrderId string          `json:"orderId"`
+	Status  string          `json:"status"`
+	Payment WechatPayParams `json:"payment"`
+}
+
 type CreditTagInfo struct {
 	Code  string `json:"code"`
 	Label string `json:"label"`
@@ -883,6 +908,10 @@ type ListTopVouchersResp struct {
 	Items []TopVoucherInfo `json:"items"`
 }
 
+type ListVIPPlansResp struct {
+	Items []VIPPlanInfo `json:"items"`
+}
+
 type ManagedMerchantInfo struct {
 	Id            string `json:"id"`
 	Name          string `json:"name"`
@@ -1028,6 +1057,7 @@ type MerchantDetailResp struct {
 	MainCategories     []string                 `json:"mainCategories"`
 	ProfileStatus      string                   `json:"profileStatus"`
 	VerificationStatus string                   `json:"verificationStatus"`
+	VipStatus          string                   `json:"vipStatus"`
 	VerificationInfo   MerchantVerificationInfo `json:"verificationInfo,optional"`
 	CreditTags         []CreditTagInfo          `json:"creditTags"`
 	Contact            MerchantContactInfo      `json:"contact"`
@@ -1067,6 +1097,18 @@ type MerchantMetricsSummaryResp struct {
 	ExpiringResourceCount  int64                    `json:"expiringResourceCount"`
 	DealtResourceCount     int64                    `json:"dealtResourceCount"`
 	Last7Days              MerchantLast7DaysMetrics `json:"last7Days"`
+}
+
+type MerchantVIPResp struct {
+	MerchantId            string `json:"merchantId"`
+	Status                string `json:"status"`
+	PlanCode              string `json:"planCode,optional"`
+	PlanName              string `json:"planName,optional"`
+	StartsAt              string `json:"startsAt,optional"`
+	ExpiresAt             string `json:"expiresAt,optional"`
+	PublishQuotaRemaining int64  `json:"publishQuotaRemaining"`
+	RefreshQuotaRemaining int64  `json:"refreshQuotaRemaining"`
+	TopVoucherCount       int64  `json:"topVoucherCount"`
 }
 
 type MerchantResourcesSummary struct {
@@ -1220,6 +1262,7 @@ type ResourceMerchantBrief struct {
 	Id                 string `json:"id"`
 	Name               string `json:"name"`
 	VerificationStatus string `json:"verificationStatus"`
+	VipStatus          string `json:"vipStatus"`
 }
 
 type ResourceMetricsDailyItem struct {
@@ -1446,6 +1489,25 @@ type VerificationBillingConfigResp struct {
 	FreeEndAt     string `json:"freeEndAt,optional"`
 	Notice        string `json:"notice,optional"`
 	UpdatedAt     string `json:"updatedAt,optional"`
+}
+
+type VIPBenefitInfo struct {
+	PublishPolicy      string `json:"publishPolicy"`
+	PublishQuota       int64  `json:"publishQuota"`
+	RefreshQuota       int64  `json:"refreshQuota"`
+	TopVoucherCount    int64  `json:"topVoucherCount"`
+	TopDurationHours   int64  `json:"topDurationHours"`
+	HomepageImageLimit int64  `json:"homepageImageLimit,optional"`
+}
+
+type VIPPlanInfo struct {
+	Code              string         `json:"code"`
+	Name              string         `json:"name"`
+	DurationMonths    int64          `json:"durationMonths"`
+	StandardPriceCent int64          `json:"standardPriceCent"`
+	SalePriceCent     int64          `json:"salePriceCent,optional"`
+	SaleLabel         string         `json:"saleLabel,optional"`
+	Benefits          VIPBenefitInfo `json:"benefits"`
 }
 
 type WechatLoginReq struct {

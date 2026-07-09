@@ -28,6 +28,7 @@ type ResourceMerchantBrief struct {
 	ID                 string `json:"id"`
 	Name               string `json:"name"`
 	VerificationStatus string `json:"verificationStatus"`
+	VIPStatus          string `json:"vipStatus"`
 }
 
 type ResourceListItem struct {
@@ -95,12 +96,20 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 				ID:                 item.Merchant.ID,
 				Name:               item.Merchant.Name,
 				VerificationStatus: item.Merchant.VerificationStatus,
+				VIPStatus:          normalizeVIPStatus(item.Merchant.VIPStatus),
 			},
 			CreditTags:  append([]string(nil), item.CreditTags...),
 			RefreshedAt: item.RefreshedAt,
 		})
 	}
 	return ListResourcesResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil
+}
+
+func normalizeVIPStatus(status string) string {
+	if strings.TrimSpace(status) == model.VIPStatusActive {
+		return model.VIPStatusActive
+	}
+	return model.VIPStatusNone
 }
 
 func normalizeListDirection(direction string) (string, error) {

@@ -35,6 +35,7 @@ type APIStore struct {
 	*model.HotSearchKeywordModel
 	*model.VerificationModel
 	*model.MerchantEntitlementModel
+	*model.VIPModel
 	*model.MessageModel
 	*model.SearchLogModel
 	*model.ResourceContactEventModel
@@ -93,6 +94,7 @@ func newAPIStore(db *sql.DB) *APIStore {
 		HotSearchKeywordModel:     model.NewHotSearchKeywordModel(db),
 		VerificationModel:         model.NewVerificationModel(db),
 		MerchantEntitlementModel:  model.NewMerchantEntitlementModel(db),
+		VIPModel:                  model.NewVIPModel(db),
 		MessageModel:              model.NewMessageModel(db),
 		SearchLogModel:            model.NewSearchLogModel(db),
 		ResourceContactEventModel: model.NewResourceContactEventModel(db),

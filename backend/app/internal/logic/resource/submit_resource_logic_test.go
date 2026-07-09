@@ -61,6 +61,20 @@ func TestSubmitResourceRequiresSavedDraft(t *testing.T) {
 	}
 }
 
+func TestSubmitResourceMapsPublishQuotaInsufficient(t *testing.T) {
+	store := &fakeSubmitResourceStore{err: model.ErrPublishQuotaInsufficient}
+	logic := NewSubmitResourceLogic(store)
+
+	_, err := logic.SubmitResource(context.Background(), "resource-1")
+
+	if errx.CodeOf(err) != errx.CodeQuotaNotEnough {
+		t.Fatalf("error code = %q, want quota not enough", errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "本月发布次数已用完，可开通 VIP 或购买发布包" {
+		t.Fatalf("message = %q, want publish quota upsell message", errx.PublicMessage(err))
+	}
+}
+
 type fakeSubmitResourceStore struct {
 	resourceID string
 	result     model.SubmitResourceResult

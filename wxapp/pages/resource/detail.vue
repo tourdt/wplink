@@ -39,8 +39,7 @@
 
       <view class="resource-card">
         <view class="tag-row">
-          <text v-if="isVerifiedMerchant" class="tag verified">平台核实</text>
-          <text v-if="isVerifiedMerchant" class="tag verified">认证商家</text>
+          <text v-if="isVIPMerchant" class="tag vip">VIP</text>
           <text v-if="resource.status" class="tag">{{ statusText[resource.status] || resource.status }}</text>
           <text v-if="resource.refreshedAt" class="tag">{{ resource.refreshedAt }}</text>
         </view>
@@ -173,7 +172,7 @@ const statusText = {
   dealt: '已成交',
   taken_down: '已下架',
 }
-const isVerifiedMerchant = computed(() => (resource.value.merchant || {}).verificationStatus === 'verified')
+const isVIPMerchant = computed(() => (resource.value.merchant || {}).vipStatus === 'active')
 const merchantInfo = computed(() => ({
   ...(resource.value.merchant || {}),
   ...(merchantProfile.value || {}),
@@ -677,9 +676,9 @@ onShareAppMessage(() => ({
   font-size: 24rpx;
 }
 
-.tag.verified {
-  background: $wplink-success-soft;
-  color: $wplink-success;
+.tag.vip {
+  background: rgba(194, 58, 0, 0.1);
+  color: $wplink-warning;
 }
 
 .title-row {

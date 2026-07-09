@@ -10,7 +10,7 @@
           <view class="account-title-row">
             <view class="account-title-main">
               <text class="account-name">{{ accountName }}</text>
-              <text v-if="isLoggedIn" class="verification-status" :class="verificationStatusClass">{{ verificationStatusText }}</text>
+              <text v-if="isLoggedIn" class="verification-status" :class="accountStatusClass">{{ accountStatusText }}</text>
             </view>
             <text class="entry-arrow"></text>
           </view>
@@ -49,10 +49,10 @@
           </view>
           <text class="entry-arrow"></text>
         </view>
-        <view class="action-item" @click="openMerchantVerification">
+        <view class="action-item" @click="openVIP">
           <view class="action-main">
-            <text class="action-title">商家认证</text>
-            <text class="action-meta">{{ verificationActionMeta }}</text>
+            <text class="action-title">VIP 权益</text>
+            <text class="action-meta">80 条发布额度、刷新和置顶券</text>
           </view>
           <text class="entry-arrow"></text>
         </view>
@@ -90,12 +90,10 @@ import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { getSession } from '../../store/session'
 import { getMerchant } from '../../api/merchant'
 import { getMerchantMetricsSummary } from '../../api/metrics'
-import { getLatestVerification } from '../../api/verification'
 
 const token = ref('')
 const merchantId = ref('')
 const merchantProfile = ref({})
-const latestVerification = ref({ status: 'none' })
 const merchantMetricsSummary = ref(null)
 
 const isLoggedIn = computed(() => Boolean(token.value))
@@ -103,36 +101,22 @@ const merchantLogo = computed(() => merchantProfile.value.logoUrl || '')
 const merchantName = computed(() => merchantProfile.value.name || '')
 const avatarText = computed(() => merchantName.value.slice(0, 1) || (isLoggedIn.value ? '我' : '游'))
 const accountName = computed(() => merchantName.value || (isLoggedIn.value ? '我的账号' : '未登录'))
-const accountDesc = computed(() => (merchantName.value ? '已录入商户资料，可管理发布和认证' : isLoggedIn.value ? '已登录，可管理收藏和消息' : '登录后管理收藏和发布记录'))
-const verificationStatus = computed(() => {
+const accountDesc = computed(() => (merchantName.value ? '已录入商户资料，可管理发布和 VIP 权益' : isLoggedIn.value ? '已登录，可管理收藏和消息' : '登录后管理收藏和发布记录'))
+const accountStatus = computed(() => {
   if (!merchantId.value) return 'unconfigured'
-  return latestVerification.value.status || 'none'
+  if (merchantProfile.value.vipStatus === 'active') return 'vip'
+  if (merchantProfile.value.profileStatus === 'incomplete') return 'unconfigured'
+  return 'normal'
 })
-const verificationStatusText = computed(() => {
+const accountStatusText = computed(() => {
   const statusText = {
     unconfigured: '待完善',
-    none: '未认证',
-    pending: '审核中',
-    verified: '已认证',
-    rejected: '未通过',
-    revoked: '已撤销',
-    expired: '已过期',
+    normal: '普通用户',
+    vip: 'VIP',
   }
-  return statusText[verificationStatus.value] || '未认证'
+  return statusText[accountStatus.value] || '普通用户'
 })
-const verificationStatusClass = computed(() => `status-${verificationStatus.value}`)
-const verificationActionMeta = computed(() => {
-  const actionMeta = {
-    unconfigured: '先完善商家资料',
-    none: '提交主体资料',
-    pending: '查看审核进度',
-    verified: '查看认证状态',
-    rejected: '修改后重提',
-    revoked: '可重新提交',
-    expired: '重新认证',
-  }
-  return actionMeta[verificationStatus.value] || actionMeta.none
-})
+const accountStatusClass = computed(() => `status-${accountStatus.value}`)
 const merchantEffectVisible = computed(() => Boolean(token.value && merchantId.value && merchantMetricsSummary.value))
 const merchantEffectItems = computed(() => {
   const last7Days = merchantMetricsSummary.value?.last7Days || {}
@@ -155,7 +139,7 @@ async function syncSession() {
   const session = getSession()
   token.value = session.token
   merchantId.value = session.merchantId
-  await Promise.all([loadMerchantProfile(), loadVerificationStatus(), loadMerchantMetricsSummary()])
+  await Promise.all([loadMerchantProfile(), loadMerchantMetricsSummary()])
 }
 
 function openLogin() {
@@ -172,18 +156,6 @@ async function loadMerchantProfile() {
   } catch (err) {
     // 账号卡展示商户身份即可；详情加载失败时回落到普通账号，不影响我的页入口。
     merchantProfile.value = {}
-  }
-}
-
-async function loadVerificationStatus() {
-  if (!token.value || !merchantId.value) {
-    latestVerification.value = { status: 'none' }
-    return
-  }
-  try {
-    latestVerification.value = await getLatestVerification(merchantId.value)
-  } catch (err) {
-    latestVerification.value = { status: 'none' }
   }
 }
 
@@ -229,10 +201,9 @@ async function openMerchantHome() {
   uni.navigateTo({ url: `/pages/merchant/detail?id=${merchantId.value}` })
 }
 
-async function openMerchantVerification() {
+async function openVIP() {
   if (!requireLogin()) return
-  if (!(await ensureMerchantProfileReady(merchantId.value))) return
-  uni.navigateTo({ url: `/pages/verification/index?merchantId=${merchantId.value}` })
+  uni.navigateTo({ url: `/pages/vip/index?merchantId=${merchantId.value}` })
 }
 </script>
 
@@ -372,6 +343,11 @@ async function openMerchantVerification() {
 .status-verified {
   background: rgba(22, 163, 106, 0.12);
   color: $wplink-success;
+}
+
+.status-vip {
+  background: rgba(194, 58, 0, 0.1);
+  color: $wplink-warning;
 }
 
 .status-pending {

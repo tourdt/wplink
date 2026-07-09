@@ -1,0 +1,126 @@
+package vip
+
+import (
+	"context"
+	"testing"
+
+	"wplink/backend/app/internal/model"
+	"wplink/backend/common/errx"
+)
+
+func TestListVIPPlansReturnsPromotionalBenefits(t *testing.T) {
+	store := &fakeVIPStore{
+		plans: []model.VIPPlan{
+			{
+				Code:              "yearly",
+				Name:              "VIP 年卡",
+				DurationMonths:    12,
+				StandardPriceCent: 49900,
+				SalePriceCent:     29900,
+				SaleLabel:         "限时优惠",
+				Benefits: model.VIPBenefitSnapshot{
+					PublishPolicy:    model.VIPPublishPolicyQuota,
+					PublishQuota:     80,
+					RefreshQuota:     30,
+					TopVoucherCount:  3,
+					TopDurationHours: 24,
+				},
+			},
+		},
+	}
+
+	resp, err := NewListVIPPlansLogic(store).ListVIPPlans(context.Background())
+	if err != nil {
+		t.Fatalf("ListVIPPlans() error = %v", err)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Code != "yearly" || resp.Items[0].SalePriceCent != 29900 {
+		t.Fatalf("resp = %#v, want yearly sale plan", resp)
+	}
+	if resp.Items[0].Benefits.PublishQuota != 80 || resp.Items[0].Benefits.TopVoucherCount != 3 {
+		t.Fatalf("benefits = %#v, want quota benefits", resp.Items[0].Benefits)
+	}
+}
+
+func TestCreateVIPOrderValidatesPlanAndReturnsOrderSnapshot(t *testing.T) {
+	store := &fakeVIPStore{
+		order: model.VIPOrder{
+			ID:                "order-1",
+			MerchantID:        "merchant-1",
+			UserID:            "user-1",
+			PlanCode:          "monthly",
+			PlanName:          "VIP 月卡",
+			Status:            model.PaymentOrderStatusPending,
+			StandardPriceCent: 4900,
+			ActualPriceCent:   1990,
+			PromotionCode:     "launch_monthly_first",
+			Benefits: model.VIPBenefitSnapshot{
+				PublishPolicy:    model.VIPPublishPolicyQuota,
+				PublishQuota:     80,
+				RefreshQuota:     30,
+				TopVoucherCount:  3,
+				TopDurationHours: 24,
+			},
+		},
+	}
+	resp, err := NewCreateVIPOrderLogic(store).CreateVIPOrder(context.Background(), CreateVIPOrderReq{
+		MerchantID: " merchant-1 ",
+		UserID:     " user-1 ",
+		PlanCode:   " monthly ",
+	})
+	if err != nil {
+		t.Fatalf("CreateVIPOrder() error = %v", err)
+	}
+	if store.createInput.MerchantID != "merchant-1" || store.createInput.UserID != "user-1" || store.createInput.PlanCode != "monthly" {
+		t.Fatalf("createInput = %#v, want trimmed input", store.createInput)
+	}
+	if resp.OrderID != "order-1" || resp.ActualPriceCent != 1990 || resp.PromotionCode != "launch_monthly_first" {
+		t.Fatalf("resp = %#v, want discounted order snapshot", resp)
+	}
+
+	_, err = NewCreateVIPOrderLogic(store).CreateVIPOrder(context.Background(), CreateVIPOrderReq{MerchantID: "merchant-1", UserID: "user-1"})
+	if err == nil || errx.PublicMessage(err) != "请选择有效的 VIP 套餐" {
+		t.Fatalf("error = %v, want friendly invalid plan message", err)
+	}
+}
+
+func TestGetMerchantVIPReturnsActiveQuota(t *testing.T) {
+	store := &fakeVIPStore{
+		summary: model.MerchantVIPSummary{
+			MerchantID:            "merchant-1",
+			Status:                model.VIPStatusActive,
+			PlanCode:              "yearly",
+			PlanName:              "VIP 年卡",
+			ExpiresAt:             "2027-07-09T00:00:00+08:00",
+			PublishQuotaRemaining: 80,
+			RefreshQuotaRemaining: 30,
+			TopVoucherCount:       3,
+		},
+	}
+	resp, err := NewGetMerchantVIPLogic(store).GetMerchantVIP(context.Background(), " merchant-1 ")
+	if err != nil {
+		t.Fatalf("GetMerchantVIP() error = %v", err)
+	}
+	if resp.Status != model.VIPStatusActive || resp.PublishQuotaRemaining != 80 || resp.TopVoucherCount != 3 {
+		t.Fatalf("resp = %#v, want active vip quota summary", resp)
+	}
+}
+
+type fakeVIPStore struct {
+	plans       []model.VIPPlan
+	order       model.VIPOrder
+	summary     model.MerchantVIPSummary
+	createInput model.CreateVIPOrderInput
+}
+
+func (s *fakeVIPStore) ListVIPPlans(ctx context.Context) ([]model.VIPPlan, error) {
+	return s.plans, nil
+}
+
+func (s *fakeVIPStore) CreateVIPOrder(ctx context.Context, input model.CreateVIPOrderInput) (model.VIPOrder, error) {
+	s.createInput = input
+	return s.order, nil
+}
+
+func (s *fakeVIPStore) GetMerchantVIPSummary(ctx context.Context, merchantID string) (model.MerchantVIPSummary, error) {
+	return s.summary, nil
+}

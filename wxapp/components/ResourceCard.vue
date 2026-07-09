@@ -9,7 +9,7 @@
       <text class="resource-meta">{{ resourceSummaryText }}</text>
       <text v-if="resource.priceText" class="resource-price">{{ resource.priceText }}</text>
       <view class="merchant-line">
-        <text v-if="isVerifiedMerchant" class="verified-badge">已认证</text>
+        <text v-if="isVIPMerchant" class="vip-badge">VIP</text>
         <text class="merchant-name">{{ merchantName }}</text>
         <text class="refresh-time">{{ formatRefreshedAt(resource.refreshedAt) }}</text>
       </view>
@@ -47,7 +47,7 @@ const coverUrl = computed(() => {
   const images = props.resource.images || []
   return props.resource.coverUrl || images[0] || ''
 })
-const isVerifiedMerchant = computed(() => (props.resource.merchant || {}).verificationStatus === 'verified')
+const isVIPMerchant = computed(() => (props.resource.merchant || {}).vipStatus === 'active')
 const merchantName = computed(() => (props.resource.merchant || {}).name || '商家待确认')
 const resourceTypeLabel = computed(() => resourceTypeText[props.resource.typeCode] || '')
 const resourceSummaryText = computed(() => buildResourceSummaryText(props.resource, resourceTypeLabel.value || '供给信息待完善'))
@@ -125,12 +125,12 @@ function formatRefreshedAt(value) {
   justify-content: space-between;
 }
 
-.verified-badge {
+.vip-badge {
   flex: 0 0 auto;
   padding: 4rpx 10rpx;
   border-radius: 8rpx;
-  background: $wplink-success-soft;
-  color: $wplink-success;
+  background: rgba(194, 58, 0, 0.1);
+  color: $wplink-warning;
   font-size: 22rpx;
   font-weight: 700;
   line-height: 1.3;
@@ -226,7 +226,7 @@ function formatRefreshedAt(value) {
   line-height: 1.3;
 }
 
-.resource-card-home .verified-badge,
+.resource-card-home .vip-badge,
 .resource-card-home .merchant-name,
 .resource-card-home .refresh-time {
   font-size: 24rpx;
@@ -268,7 +268,7 @@ function formatRefreshedAt(value) {
   font-size: 28rpx;
 }
 
-.resource-card-compact .verified-badge,
+.resource-card-compact .vip-badge,
 .resource-card-compact .merchant-name,
 .resource-card-compact .refresh-time {
   font-size: 22rpx;

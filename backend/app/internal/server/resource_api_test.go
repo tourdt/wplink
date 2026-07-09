@@ -79,6 +79,9 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 	if store.created.Title != "女童春款卫衣库存" || store.created.ContactName != "周经理" {
 		t.Fatalf("created input = %#v, want mapped publish fields", store.created)
 	}
+	if !store.created.ConsumePublishQuota {
+		t.Fatalf("consumePublishQuota = false, want pending resource to consume publish quota")
+	}
 
 	submitRec := httptest.NewRecorder()
 	submitReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/submit", nil)

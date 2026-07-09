@@ -1,0 +1,79 @@
+syntax = "v1"
+
+type VIPBenefitInfo {
+	PublishPolicy      string `json:"publishPolicy"`
+	PublishQuota       int64  `json:"publishQuota"`
+	RefreshQuota       int64  `json:"refreshQuota"`
+	TopVoucherCount    int64  `json:"topVoucherCount"`
+	TopDurationHours   int64  `json:"topDurationHours"`
+	HomepageImageLimit int64  `json:"homepageImageLimit,optional"`
+}
+
+type VIPPlanInfo {
+	Code              string         `json:"code"`
+	Name              string         `json:"name"`
+	DurationMonths    int64          `json:"durationMonths"`
+	StandardPriceCent int64          `json:"standardPriceCent"`
+	SalePriceCent     int64          `json:"salePriceCent,optional"`
+	SaleLabel         string         `json:"saleLabel,optional"`
+	Benefits          VIPBenefitInfo `json:"benefits"`
+}
+
+type ListVIPPlansResp {
+	Items []VIPPlanInfo `json:"items"`
+}
+
+type MerchantVIPResp {
+	MerchantId            string `json:"merchantId"`
+	Status                string `json:"status"`
+	PlanCode              string `json:"planCode,optional"`
+	PlanName              string `json:"planName,optional"`
+	StartsAt              string `json:"startsAt,optional"`
+	ExpiresAt             string `json:"expiresAt,optional"`
+	PublishQuotaRemaining int64  `json:"publishQuotaRemaining"`
+	RefreshQuotaRemaining int64  `json:"refreshQuotaRemaining"`
+	TopVoucherCount       int64  `json:"topVoucherCount"`
+}
+
+type CreateVIPOrderReq {
+	PlanCode string `json:"planCode"`
+}
+
+type CreateVIPOrderResp {
+	OrderId           string         `json:"orderId"`
+	Status            string         `json:"status"`
+	PlanCode          string         `json:"planCode"`
+	PlanName          string         `json:"planName"`
+	StandardPriceCent int64          `json:"standardPriceCent"`
+	ActualPriceCent   int64          `json:"actualPriceCent"`
+	PromotionCode     string         `json:"promotionCode,optional"`
+	Benefits          VIPBenefitInfo `json:"benefits"`
+}
+
+type CreateVIPPaymentReq {
+	UserId string `json:"userId,optional"`
+}
+
+type CreateVIPPaymentResp {
+	OrderId string          `json:"orderId"`
+	Status  string          `json:"status"`
+	Payment WechatPayParams `json:"payment"`
+}
+
+@server(
+	prefix: /api/v1
+	group: vip
+)
+service wplink-api {
+	@handler ListVIPPlans
+	get /vip/plans returns (ListVIPPlansResp)
+
+	@handler GetMerchantVIP
+	get /merchants/:merchantId/vip returns (MerchantVIPResp)
+
+	@handler CreateVIPOrder
+	post /merchants/:merchantId/vip/orders (CreateVIPOrderReq) returns (CreateVIPOrderResp)
+
+	@handler CreateVIPPayment
+	post /merchants/:merchantId/vip/orders/:orderId/payment (CreateVIPPaymentReq) returns (CreateVIPPaymentResp)
+}

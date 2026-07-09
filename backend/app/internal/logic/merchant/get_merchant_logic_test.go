@@ -19,6 +19,7 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 			CityCode:               "zhili",
 			MainCategories:         []string{"童装"},
 			VerificationStatus:     "verified",
+			VIPStatus:              model.VIPStatusActive,
 			VerificationReviewedAt: "2026-06-30T10:24:00+08:00",
 			CreditTags:             []model.CreditTag{{Code: "verified_factory", Label: "已认证工厂"}},
 			ContactName:            "李厂长",
@@ -45,6 +46,9 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	}
 	if resp.CreditTags[0].Label != "已认证工厂" {
 		t.Fatalf("credit tag = %#v, want verified factory", resp.CreditTags)
+	}
+	if resp.VIPStatus != model.VIPStatusActive {
+		t.Fatalf("vipStatus = %q, want active", resp.VIPStatus)
 	}
 	if resp.ResourcesSummary.PublishedCount != 12 || resp.ResourcesSummary.DealtCount != 3 {
 		t.Fatalf("summary = %#v, want published/dealt count", resp.ResourcesSummary)

@@ -93,6 +93,20 @@ test('api contract exposes demand direction through unified resource APIs', () =
   assert(cityApiSource.includes('ListResourceTypesReq'), 'resource type lookup accepts direction')
 })
 
+test('api contract exposes vip membership endpoints', () => {
+  const appApiSource = fs.readFileSync(path.join(apiDir, 'app.api'), 'utf8')
+  const vipApiSource = fs.readFileSync(path.join(apiDir, 'vip.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
+
+  assert.match(appApiSource, /import "vip\.api"/)
+  assert.match(vipApiSource, /get \/vip\/plans returns \(ListVIPPlansResp\)/)
+  assert.match(vipApiSource, /get \/merchants\/:merchantId\/vip returns \(MerchantVIPResp\)/)
+  assert.match(vipApiSource, /post \/merchants\/:merchantId\/vip\/orders \(CreateVIPOrderReq\) returns \(CreateVIPOrderResp\)/)
+  assert.match(vipApiSource, /post \/merchants\/:merchantId\/vip\/orders\/:orderId\/payment \(CreateVIPPaymentReq\) returns \(CreateVIPPaymentResp\)/)
+  assert.match(typesSource, /type VIPPlanInfo struct/)
+  assert.match(typesSource, /type MerchantVIPResp struct/)
+})
+
 test('generated types do not keep retired manual matching DTOs', () => {
   const source = fs.readFileSync(typesFile, 'utf8')
 

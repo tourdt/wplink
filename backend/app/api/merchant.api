@@ -51,6 +51,7 @@ type MerchantDetailResp {
 	MainCategories     []string                 `json:"mainCategories"`
 	ProfileStatus      string                   `json:"profileStatus"`
 	VerificationStatus string                   `json:"verificationStatus"`
+	VipStatus          string                   `json:"vipStatus"`
 	VerificationInfo   MerchantVerificationInfo `json:"verificationInfo,optional"`
 	CreditTags         []CreditTagInfo          `json:"creditTags"`
 	Contact            MerchantContactInfo      `json:"contact"`

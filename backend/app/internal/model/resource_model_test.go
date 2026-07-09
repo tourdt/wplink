@@ -91,3 +91,42 @@ func TestExpiringResourcesSQLUsesTypeMessageRules(t *testing.T) {
 		}
 	}
 }
+
+func TestProfileMonthlyBenefitsForStatus(t *testing.T) {
+	tests := []struct {
+		name         string
+		status       string
+		publishQuota int64
+		refreshQuota int64
+	}{
+		{name: "incomplete merchant gets starter publish quota", status: MerchantProfileStatusIncomplete, publishQuota: 3, refreshQuota: 0},
+		{name: "completed merchant gets more monthly quota", status: MerchantProfileStatusCompleted, publishQuota: 10, refreshQuota: 3},
+		{name: "unknown status falls back to starter publish quota", status: " ", publishQuota: 3, refreshQuota: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			publishQuota, refreshQuota := profileMonthlyBenefitsForStatus(tt.status)
+
+			if publishQuota != tt.publishQuota || refreshQuota != tt.refreshQuota {
+				t.Fatalf("profileMonthlyBenefitsForStatus(%q) = (%d, %d), want (%d, %d)", tt.status, publishQuota, refreshQuota, tt.publishQuota, tt.refreshQuota)
+			}
+		})
+	}
+}
+
+func TestQuotaConsumeSQLGuardsOuterBalance(t *testing.T) {
+	for name, query := range map[string]string{
+		"publish": consumePublishQuotaSQL,
+		"refresh": consumeRefreshQuotaSQL,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if !strings.Contains(query, "AND remaining_amount > 0\nRETURNING") {
+				t.Fatalf("%s quota consume sql should guard remaining_amount on the updated row: %s", name, query)
+			}
+			if !strings.Contains(query, "AND starts_at <= now()") {
+				t.Fatalf("%s quota consume sql should ignore future entitlements: %s", name, query)
+			}
+		})
+	}
+}

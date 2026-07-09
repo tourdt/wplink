@@ -34,6 +34,13 @@ test('resource detail only shows merchant home entry after merchant profile is c
   assert.match(source, /function openMerchant\(\) \{[\s\S]*if \(!showMerchantHomeEntry\.value\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/merchant\/detail\?id=\$\{merchantId\}` \}\)/)
 })
 
+test('resource detail shows vip merchant tag without certification endorsement copy', () => {
+  assert.match(source, /const isVIPMerchant = computed\(\(\) => \(resource\.value\.merchant \|\| \{\}\)\.vipStatus === 'active'\)/)
+  assert.match(source, /<text v-if="isVIPMerchant" class="tag vip">VIP<\/text>/)
+  assert.doesNotMatch(source, /平台核实/)
+  assert.doesNotMatch(source, /认证商家/)
+})
+
 test('own resource detail keeps share and management actions in the bottom bar', () => {
   assert.match(source, /<view v-if="isOwnResource" class="owner-action-bar">/)
   assert.match(source, /<button class="share-button" @click="shareOwnResource" :open-type="canShareOwnResource \? 'share' : ''">分享<\/button>/)

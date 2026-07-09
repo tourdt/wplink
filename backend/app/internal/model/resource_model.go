@@ -3,6 +3,8 @@ package model
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"strings"
 	"time"
 )
 
@@ -16,7 +18,55 @@ const (
 
 	ResourceDirectionSupply = "supply"
 	ResourceDirectionDemand = "demand"
+
+	EntitlementTypePublishQuota     = "publish_quota"
+	EntitlementTypeRefreshQuota     = "refresh_quota"
+	EntitlementSourceProfileMonthly = "profile_monthly"
 )
+
+var ErrPublishQuotaInsufficient = errors.New("publish quota insufficient")
+
+const consumePublishQuotaSQL = `
+UPDATE merchant_entitlements
+SET used_amount = used_amount + 1,
+    remaining_amount = remaining_amount - 1,
+    updated_at = now()
+WHERE id = (
+  SELECT id
+  FROM merchant_entitlements
+  WHERE merchant_id = $1
+    AND entitlement_type = 'publish_quota'
+    AND status = 'active'
+    AND remaining_amount > 0
+    AND starts_at <= now()
+    AND (expires_at IS NULL OR expires_at > now())
+  ORDER BY expires_at NULLS LAST, created_at ASC
+  LIMIT 1
+)
+  AND remaining_amount > 0
+RETURNING id::text
+`
+
+const consumeRefreshQuotaSQL = `
+UPDATE merchant_entitlements
+SET used_amount = used_amount + 1,
+    remaining_amount = remaining_amount - 1,
+    updated_at = now()
+WHERE id = (
+  SELECT id
+  FROM merchant_entitlements
+  WHERE merchant_id = $1
+    AND entitlement_type = 'refresh_quota'
+    AND status = 'active'
+    AND remaining_amount > 0
+    AND starts_at <= now()
+    AND (expires_at IS NULL OR expires_at > now())
+  ORDER BY expires_at NULLS LAST, created_at ASC
+  LIMIT 1
+)
+  AND remaining_amount > 0
+RETURNING id::text, remaining_amount
+`
 
 type ResourcePublishConfig struct {
 	ID               string
@@ -49,6 +99,7 @@ type CreateResourceInput struct {
 	ContactPhone         string
 	ContactWechat        string
 	CreatedByUser        string
+	ConsumePublishQuota  bool
 }
 
 type CreateResourceResult struct {
@@ -65,6 +116,7 @@ type ResourceMerchantBrief struct {
 	ID                 string
 	Name               string
 	VerificationStatus string
+	VIPStatus          string
 }
 
 type ResourceListItem struct {
@@ -120,6 +172,7 @@ type ResourceDetail struct {
 	MerchantID                 string
 	MerchantName               string
 	MerchantVerificationStatus string
+	MerchantVIPStatus          string
 	ContactName                string
 	PhoneMasked                string
 	WechatMasked               string
@@ -151,6 +204,14 @@ SELECT
   m.id::text,
   m.name,
   m.verification_status,
+  CASE WHEN EXISTS (
+    SELECT 1
+    FROM merchant_vip_subscriptions mvs
+    WHERE mvs.merchant_id = m.id
+      AND mvs.status = 'active'
+      AND mvs.starts_at <= now()
+      AND mvs.expires_at > now()
+  ) THEN 'active' ELSE 'none' END AS vip_status,
   COALESCE(r.refreshed_at, r.published_at, r.created_at),
   COUNT(*) OVER() AS total
 FROM resources r
@@ -215,6 +276,14 @@ SELECT
   m.id::text,
   m.name,
   m.verification_status,
+  CASE WHEN EXISTS (
+    SELECT 1
+    FROM merchant_vip_subscriptions mvs
+    WHERE mvs.merchant_id = m.id
+      AND mvs.status = 'active'
+      AND mvs.starts_at <= now()
+      AND mvs.expires_at > now()
+  ) THEN 'active' ELSE 'none' END AS vip_status,
   r.contact_name,
   r.contact_phone,
   COALESCE(r.contact_wechat, ''),
@@ -463,8 +532,28 @@ WHERE id = $1 AND deleted_at IS NULL
 }
 
 func (m *ResourceModel) CreateResource(ctx context.Context, input CreateResourceInput) (CreateResourceResult, error) {
+	if input.ConsumePublishQuota {
+		var result CreateResourceResult
+		err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+			if err := consumePublishQuotaTx(ctx, tx, input.MerchantID); err != nil {
+				return err
+			}
+			var err error
+			result, err = insertResource(ctx, tx, input)
+			return err
+		})
+		return result, err
+	}
+	return insertResource(ctx, m.db, input)
+}
+
+type resourceQueryRower interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func insertResource(ctx context.Context, queryer resourceQueryRower, input CreateResourceInput) (CreateResourceResult, error) {
 	var result CreateResourceResult
-	err := m.db.QueryRowContext(ctx, `
+	err := queryer.QueryRowContext(ctx, `
 INSERT INTO resources (
   merchant_id,
   city_station_id,
@@ -538,7 +627,23 @@ RETURNING id::text, status
 
 func (m *ResourceModel) SubmitResourceForReview(ctx context.Context, resourceID string) (SubmitResourceResult, error) {
 	var result SubmitResourceResult
-	err := m.db.QueryRowContext(ctx, `
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		var merchantID string
+		// 草稿提交会进入审核队列，必须在同一事务内先扣发布额度再改状态，避免额度不足但资源已进入审核。
+		if err := tx.QueryRowContext(ctx, `
+SELECT merchant_id::text
+FROM resources
+WHERE id = $1
+  AND status = 'draft'
+  AND deleted_at IS NULL
+FOR UPDATE
+`, resourceID).Scan(&merchantID); err != nil {
+			return err
+		}
+		if err := consumePublishQuotaTx(ctx, tx, merchantID); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, `
 UPDATE resources
 SET status = 'pending', updated_at = now()
 WHERE id = $1
@@ -546,7 +651,107 @@ WHERE id = $1
   AND deleted_at IS NULL
 RETURNING id::text, status
 `, resourceID).Scan(&result.ID, &result.Status)
+	})
 	return result, err
+}
+
+func consumePublishQuotaTx(ctx context.Context, tx *sql.Tx, merchantID string) error {
+	if err := ensureProfileMonthlyEntitlementsTx(ctx, tx, merchantID); err != nil {
+		return err
+	}
+	var entitlementID string
+	err := tx.QueryRowContext(ctx, consumePublishQuotaSQL, merchantID).Scan(&entitlementID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrPublishQuotaInsufficient
+	}
+	return err
+}
+
+func ensureProfileMonthlyEntitlementsTx(ctx context.Context, tx *sql.Tx, merchantID string) error {
+	var profileStatus string
+	var hasActiveVIP bool
+	if err := tx.QueryRowContext(ctx, `
+SELECT
+  COALESCE(profile_status, 'incomplete') AS profile_status,
+  EXISTS (
+    SELECT 1
+    FROM merchant_vip_subscriptions
+    WHERE merchant_id = merchants.id
+      AND status = 'active'
+      AND starts_at <= now()
+      AND expires_at > now()
+  ) AS has_active_vip
+FROM merchants
+WHERE id = $1
+  AND deleted_at IS NULL
+  AND status = 'active'
+FOR UPDATE
+`, merchantID).Scan(&profileStatus, &hasActiveVIP); err != nil {
+		return err
+	}
+	if hasActiveVIP {
+		return nil
+	}
+
+	publishQuota, refreshQuota := profileMonthlyBenefitsForStatus(profileStatus)
+	periodStart, periodEnd := currentMonthlyEntitlementPeriod(time.Now().UTC())
+	for _, item := range []struct {
+		entitlementType string
+		totalAmount     int64
+	}{
+		{entitlementType: EntitlementTypePublishQuota, totalAmount: publishQuota},
+		{entitlementType: EntitlementTypeRefreshQuota, totalAmount: refreshQuota},
+	} {
+		if err := upsertProfileMonthlyEntitlementTx(ctx, tx, merchantID, item.entitlementType, item.totalAmount, periodStart, periodEnd); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func profileMonthlyBenefitsForStatus(profileStatus string) (int64, int64) {
+	switch strings.TrimSpace(profileStatus) {
+	case MerchantProfileStatusCompleted:
+		return 10, 3
+	default:
+		return 3, 0
+	}
+}
+
+func currentMonthlyEntitlementPeriod(now time.Time) (time.Time, time.Time) {
+	periodStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	return periodStart, periodStart.AddDate(0, 1, 0)
+}
+
+func upsertProfileMonthlyEntitlementTx(ctx context.Context, tx *sql.Tx, merchantID string, entitlementType string, totalAmount int64, periodStart time.Time, periodEnd time.Time) error {
+	if totalAmount <= 0 {
+		return nil
+	}
+	var entitlementID string
+	err := tx.QueryRowContext(ctx, `
+UPDATE merchant_entitlements
+SET total_amount = CASE WHEN total_amount < $6 THEN $6 ELSE total_amount END,
+    remaining_amount = CASE WHEN total_amount < $6 THEN remaining_amount + ($6 - total_amount) ELSE remaining_amount END,
+    updated_at = CASE WHEN total_amount < $6 THEN now() ELSE updated_at END
+WHERE merchant_id = $1
+  AND entitlement_type = $2
+  AND source_type = $3
+  AND starts_at = $4
+  AND expires_at = $5
+  AND status = 'active'
+RETURNING id::text
+`, merchantID, entitlementType, EntitlementSourceProfileMonthly, periodStart, periodEnd, totalAmount).Scan(&entitlementID)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	return tx.QueryRowContext(ctx, `
+INSERT INTO merchant_entitlements (merchant_id, entitlement_type, source_type, total_amount, remaining_amount, starts_at, expires_at, status)
+VALUES ($1, $2, $3, $4, $4, $5, $6, 'active')
+RETURNING id::text
+`, merchantID, entitlementType, EntitlementSourceProfileMonthly, totalAmount, periodStart, periodEnd).Scan(&entitlementID)
 }
 
 func (m *ResourceModel) UpdateResourceDraft(ctx context.Context, resourceID string, input CreateResourceInput) (CreateResourceResult, error) {
@@ -704,6 +909,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 			&item.Merchant.ID,
 			&item.Merchant.Name,
 			&item.Merchant.VerificationStatus,
+			&item.Merchant.VIPStatus,
 			&refreshedAt,
 			&total,
 		); err != nil {
@@ -743,6 +949,7 @@ func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resource
 		&detail.MerchantID,
 		&detail.MerchantName,
 		&detail.MerchantVerificationStatus,
+		&detail.MerchantVIPStatus,
 		&detail.ContactName,
 		&detail.PhoneMasked,
 		&detail.WechatMasked,
@@ -973,24 +1180,12 @@ WHERE id = $1
 func (m *ResourceModel) RefreshResource(ctx context.Context, merchantID string, resourceID string) (RefreshResourceResult, error) {
 	var result RefreshResourceResult
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		if err := ensureProfileMonthlyEntitlementsTx(ctx, tx, merchantID); err != nil {
+			return err
+		}
 		var entitlementID string
 		var remaining int64
-		if err := tx.QueryRowContext(ctx, `
-UPDATE merchant_entitlements
-SET used_amount = used_amount + 1, remaining_amount = remaining_amount - 1, updated_at = now()
-WHERE id = (
-  SELECT id
-  FROM merchant_entitlements
-  WHERE merchant_id = $1
-    AND entitlement_type = 'refresh_quota'
-    AND status = 'active'
-    AND remaining_amount > 0
-    AND (expires_at IS NULL OR expires_at > now())
-  ORDER BY expires_at NULLS LAST, created_at ASC
-  LIMIT 1
-)
-RETURNING id::text, remaining_amount
-`, merchantID).Scan(&entitlementID, &remaining); err != nil {
+		if err := tx.QueryRowContext(ctx, consumeRefreshQuotaSQL, merchantID).Scan(&entitlementID, &remaining); err != nil {
 			return err
 		}
 		var refreshedAt time.Time

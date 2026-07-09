@@ -10,8 +10,11 @@ import (
 func TestListResourcesRequestsPublishedOnly(t *testing.T) {
 	store := &fakeListResourcesStore{
 		result: model.ListResourcesResult{
-			Items: []model.ResourceListItem{{ID: "resource-1", TypeCode: "inventory", Title: "库存资源"}},
-			Page:  1, PageSize: 20, Total: 1,
+			Items: []model.ResourceListItem{{
+				ID: "resource-1", TypeCode: "inventory", Title: "库存资源",
+				Merchant: model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓", VIPStatus: model.VIPStatusActive},
+			}},
+			Page: 1, PageSize: 20, Total: 1,
 		},
 	}
 	logic := NewListResourcesLogic(store)
@@ -29,6 +32,9 @@ func TestListResourcesRequestsPublishedOnly(t *testing.T) {
 	}
 	if len(resp.Items) != 1 || resp.Items[0].ID != "resource-1" {
 		t.Fatalf("items = %#v, want resource item", resp.Items)
+	}
+	if resp.Items[0].Merchant.VIPStatus != model.VIPStatusActive {
+		t.Fatalf("merchant vipStatus = %q, want active", resp.Items[0].Merchant.VIPStatus)
 	}
 }
 

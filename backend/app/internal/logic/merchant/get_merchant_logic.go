@@ -46,6 +46,7 @@ type MerchantDetailResp struct {
 	MainCategories     []string                  `json:"mainCategories"`
 	ProfileStatus      string                    `json:"profileStatus"`
 	VerificationStatus string                    `json:"verificationStatus"`
+	VIPStatus          string                    `json:"vipStatus"`
 	VerificationInfo   *MerchantVerificationInfo `json:"verificationInfo,omitempty"`
 	CreditTags         []CreditTagInfo           `json:"creditTags"`
 	Contact            MerchantContactInfo       `json:"contact"`
@@ -93,6 +94,7 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 		MainCategories:     append([]string(nil), detail.MainCategories...),
 		ProfileStatus:      normalizeMerchantProfileStatus(detail.ProfileStatus),
 		VerificationStatus: detail.VerificationStatus,
+		VIPStatus:          normalizeMerchantVIPStatus(detail.VIPStatus),
 		VerificationInfo:   buildMerchantVerificationInfo(detail),
 		CreditTags:         tags,
 		Contact: MerchantContactInfo{
@@ -112,6 +114,13 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 		Images:       append([]string(nil), detail.Images...),
 		LastActiveAt: detail.LastActiveAt,
 	}, nil
+}
+
+func normalizeMerchantVIPStatus(status string) string {
+	if strings.TrimSpace(status) == model.VIPStatusActive {
+		return model.VIPStatusActive
+	}
+	return model.VIPStatusNone
 }
 
 func normalizeMerchantProfileStatus(status string) string {

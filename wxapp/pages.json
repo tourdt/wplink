@@ -72,6 +72,12 @@
       }
     },
     {
+      "path": "pages/vip/index",
+      "style": {
+        "navigationBarTitleText": "VIP 权益"
+      }
+    },
+    {
       "path": "pages/favorites/index",
       "style": {
         "navigationBarTitleText": "收藏关注",

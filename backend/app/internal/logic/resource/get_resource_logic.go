@@ -91,6 +91,7 @@ func resourceDetailRespFromModel(detail model.ResourceDetail) ResourceDetailResp
 			ID:                 detail.MerchantID,
 			Name:               detail.MerchantName,
 			VerificationStatus: detail.MerchantVerificationStatus,
+			VIPStatus:          normalizeVIPStatus(detail.MerchantVIPStatus),
 		},
 		Contact: ResourceContactMasked{
 			Name:         detail.ContactName,
