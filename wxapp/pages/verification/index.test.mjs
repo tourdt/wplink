@@ -33,6 +33,13 @@ test('verification page keeps merchant id as hidden context', () => {
   assert.match(source, /请先完成商家入驻/)
 })
 
+test('verification page prompts for merchant profile before loading certification data', () => {
+  const source = fs.readFileSync(sourcePath, 'utf8')
+
+  assert.match(source, /import \{ ensureMerchantProfileReady \} from '\.\.\/\.\.\/common\/merchantProfileGuard'/)
+  assert.match(source, /onLoad\(async \(options\) => \{[\s\S]*form\.merchantId = options\.merchantId \|\| getMerchantId\(\)[\s\S]*if \(!\(await ensureMerchantProfileReady\(form\.merchantId\)\)\) return[\s\S]*await Promise\.all\(\[loadMerchantProfile\(\), loadLatestVerification\(\), loadBillingConfig\(\)\]\)[\s\S]*\}\)/)
+})
+
 test('verification page reuses merchant profile identity instead of asking users to choose', () => {
   const source = fs.readFileSync(sourcePath, 'utf8')
 

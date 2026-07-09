@@ -77,21 +77,6 @@
         </view>
       </view>
 
-      <view v-if="merchantId" class="form-section map-binding-section">
-        <view class="section-heading map-binding-heading">
-          <view class="section-title-row">
-            <text class="section-title">拿货地图档口</text>
-            <text class="map-binding-badge">{{ mapBindingStatusText }}</text>
-          </view>
-          <button class="map-binding-button" :disabled="mapBindingLoading" @click="openMapBindingPage">
-            {{ mapBindingActionText }}
-          </button>
-        </view>
-        <view class="section-body map-binding-body">
-          <text class="field-helper">{{ mapBindingSummary }}</text>
-        </view>
-      </view>
-
       <view class="form-section brand-section">
         <button class="section-toggle" @click="toggleBrandSection">
           <view>
@@ -179,7 +164,6 @@ import UniGridItem from '../../components/uni-ui/uni-grid-item/uni-grid-item.vue
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { validateMerchantName } from '../../common/merchantName'
 import { createMerchant, getMerchant, updateMerchant } from '../../api/merchant'
-import { getMerchantMapBinding } from '../../api/sourcingMap'
 import { getLatestVerification } from '../../api/verification'
 import { createImageFileFromPath, uploadSelectedImage } from '../../common/upload'
 import {
@@ -211,8 +195,6 @@ const originalMerchantType = ref('factory')
 const merchantVerificationStatus = ref('unverified')
 const mainCategoriesText = ref('')
 const pendingLogoFile = ref(null)
-const mapBindingLoading = ref(false)
-const mapBindingStatus = ref({})
 const merchantImageEntries = ref([])
 const merchantProfileImageMaxCount = MERCHANT_PROFILE_IMAGE_MAX_COUNT
 const logoPreviewUrl = computed(() => pendingLogoFile.value?.path || form.logoUrl)
@@ -258,27 +240,6 @@ const contactWechatPlaceholder = computed(() => {
 const locationSelected = computed(() => hasValidLocation(form.location))
 const merchantTypeChanged = computed(() => Boolean(merchantId.value) && form.merchantType !== originalMerchantType.value)
 const merchantTypeChangeNeedsReverify = computed(() => merchantTypeChanged.value && ['pending', 'verified'].includes(merchantVerificationStatus.value))
-const mapBindingLatestRequest = computed(() => mapBindingStatus.value.latestRequest || {})
-const mapBindingBoundObject = computed(() => mapBindingStatus.value.boundObject || null)
-const mapBindingStatusText = computed(() => {
-  if (mapBindingBoundObject.value) return '已绑定'
-  if (mapBindingLatestRequest.value.status === 'pending') return '审核中'
-  if (mapBindingLatestRequest.value.status === 'rejected') return '已驳回'
-  return '未绑定'
-})
-const mapBindingActionText = computed(() => {
-  if (mapBindingBoundObject.value) return '查看档口'
-  if (mapBindingLatestRequest.value.status === 'pending') return '查看进度'
-  return '去绑定'
-})
-const mapBindingSummary = computed(() => {
-  const bound = mapBindingBoundObject.value
-  if (bound) return `${bound.sceneName || '拿货地图'} · ${bound.code || ''} ${bound.name || ''}`.trim()
-  const latest = mapBindingLatestRequest.value
-  if (latest.status === 'pending') return `${latest.objectCode || ''} ${latest.objectName || '档口'} 正在等待平台审核`
-  if (latest.status === 'rejected') return latest.reviewNote || '绑定申请未通过，可核对档口信息后重新提交'
-  return '绑定后，认证商户会在拿货地图上高亮展示，买家能更快找到你。'
-})
 
 onLoad((options) => {
   merchantId.value = options.merchantId || getMerchantId()
@@ -309,25 +270,9 @@ async function loadMerchant() {
       .filter(Boolean)
       .map(createStoredMerchantImageEntry)
     brandSectionOpen.value = Boolean(form.logoUrl || merchantImageEntries.value.length > 0)
-    await Promise.all([loadMerchantVerificationStatus(), loadMapBindingStatus()])
+    await loadMerchantVerificationStatus()
   } catch (err) {
     uni.showToast({ title: err.message || '商家资料加载失败', icon: 'none' })
-  }
-}
-
-async function loadMapBindingStatus() {
-  if (!merchantId.value) {
-    mapBindingStatus.value = {}
-    return
-  }
-  mapBindingLoading.value = true
-  try {
-    // 商户资料页只展示绑定摘要；选择档口和提交材料放到独立页面，避免保存资料时误触发绑定申请。
-    mapBindingStatus.value = await getMerchantMapBinding(merchantId.value, { suppressErrorToast: true })
-  } catch (err) {
-    mapBindingStatus.value = {}
-  } finally {
-    mapBindingLoading.value = false
   }
 }
 
@@ -464,14 +409,6 @@ function chooseMerchantLocation() {
 
 function clearMerchantLocation() {
   form.location = {}
-}
-
-function openMapBindingPage() {
-  if (!merchantId.value) {
-    uni.showToast({ title: '请先保存商家资料', icon: 'none' })
-    return
-  }
-  uni.navigateTo({ url: `/pages/merchant/map-binding?merchantId=${merchantId.value}` })
 }
 
 async function uploadMerchantImage() {
@@ -813,38 +750,6 @@ function isValidContactPhone(value) {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 56rpx;
-}
-
-.map-binding-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 156rpx;
-  gap: 16rpx;
-  align-items: center;
-}
-
-.map-binding-badge {
-  padding: 4rpx 12rpx;
-  border-radius: 999rpx;
-  background: $wplink-primary-soft;
-  color: $wplink-primary;
-  font-size: 22rpx;
-}
-
-.map-binding-button {
-  height: 64rpx;
-  border-radius: 10rpx;
-  background: $wplink-primary;
-  color: #fff;
-  font-size: 24rpx;
-  line-height: 64rpx;
-}
-
-.map-binding-button::after {
-  border: 0;
-}
-
-.map-binding-body {
-  padding-top: 2rpx;
 }
 
 .picker-field {

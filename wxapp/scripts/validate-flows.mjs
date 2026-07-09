@@ -18,7 +18,7 @@ export const defaultFlowChecks = [
       'sceneEntries',
       'PUBLISH_TYPE_KEY',
       '织里站 · 精选工厂',
-      '精选资源',
+      '平台精选',
       'ResourceCard',
       'listResources',
       'homeResources',

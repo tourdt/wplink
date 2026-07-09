@@ -136,10 +136,11 @@ test('home page keeps custom brand first screen structure', () => {
     '库存清仓',
     '工厂接单',
     '看需求',
-    '发需求',
+    '拿货地图',
   ]) {
     assert.match(source, new RegExp(token))
   }
+  assert.equal(source.includes('发需求'), false)
 })
 
 test('home search entry keeps a crisp icon and clear input surface', () => {
@@ -212,13 +213,15 @@ test('publish tab supports supply and demand entry selection', () => {
     'RESOURCE_DIRECTION_SUPPLY',
     'RESOURCE_DIRECTION_DEMAND',
     'navigateToPublishForm',
+    'ensureMerchantProfileReady',
   ]) {
     assert.match(tabSource, new RegExp(token))
   }
 
   assert.equal(tabSource.includes('<ResourcePublishForm'), false)
   assert.equal(tabSource.includes('selectedDirection'), false)
-  assert.match(tabSource, /function startPublish\(direction\) \{[\s\S]*navigateToPublishForm\(\{ typeCode: '', direction: publishDirection \}\)[\s\S]*\}/)
+  assert.match(tabSource, /async function startPublish\(direction\) \{[\s\S]*if \(!\(await ensureMerchantProfileReady\(\)\)\) return[\s\S]*navigateToPublishForm\(\{ typeCode: '', direction: publishDirection \}\)[\s\S]*\}/)
+  assert.match(tabSource, /async function applyPendingPublishType\(\) \{[\s\S]*const pendingPublish = uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*if \(!\(await ensureMerchantProfileReady\(\)\)\) return[\s\S]*uni\.removeStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode, direction: pendingDirection \}\)/)
   assert.match(tabSource, /function navigateToPublishForm\(options = \{\}\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?\$\{query\.join\('&'\)\}` \}\)/)
   assert.match(tabSource, /initialPublishOptions\.direction && query\.push\(`direction=\$\{encodeURIComponent\(initialPublishOptions\.direction\)\}`\)/)
   assert.match(tabSource, /initialPublishOptions\.typeCode && query\.push\(`typeCode=\$\{encodeURIComponent\(initialPublishOptions\.typeCode\)\}`\)/)
@@ -239,12 +242,15 @@ test('home quick actions map to supply and demand resource flows', () => {
   assert.match(source, /\{ title: '库存清仓'[\s\S]*icon: 'clearance'[\s\S]*typeCode: 'inventory'[\s\S]*keyword: '库存'/)
   assert.match(source, /\{ title: '工厂接单'[\s\S]*icon: 'factory'[\s\S]*typeCode: 'factory'[\s\S]*keyword: '小单快返'/)
   assert.match(source, /\{ title: '看需求'[\s\S]*icon: 'orders'[\s\S]*direction: RESOURCE_DIRECTION_DEMAND[\s\S]*typeCode: 'buy_goods'[\s\S]*keyword: '找现货'/)
-  assert.match(source, /\{ title: '发需求'[\s\S]*icon: 'demand'[\s\S]*action: 'publish-demand'[\s\S]*direction: RESOURCE_DIRECTION_DEMAND/)
+  assert.match(source, /\{ title: '拿货地图'[\s\S]*icon: 'map'[\s\S]*action: 'sourcing-map'/)
+  assert.match(source, /\.quick-action-grid \{[\s\S]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/)
   assert.match(source, /item\.icon === 'market'/)
   assert.match(source, /item\.icon === 'clearance'/)
   assert.match(source, /item\.icon === 'orders'/)
-  assert.match(source, /item\.icon === 'demand'/)
-  assert.match(source, /function openScene\(item\) \{[\s\S]*item\.action === 'publish-demand'[\s\S]*openPublish\(\{ direction: item\.direction \|\| RESOURCE_DIRECTION_DEMAND, typeCode: item\.typeCode \|\| '' \}\)[\s\S]*openSearch\(\{ keyword: item\.keyword, typeCode: item\.typeCode, direction: item\.direction \}\)[\s\S]*\}/)
+  assert.match(source, /item\.icon === 'map'/)
+  assert.equal(source.includes("item.icon === 'demand'"), false)
+  assert.equal(source.includes("action: 'publish-demand'"), false)
+  assert.equal(source.includes("item.action === 'publish-demand'"), false)
   assert.match(source, /function openSearch\(options = \{\}\) \{[\s\S]*typeof options === 'string'[\s\S]*searchOptions\.direction[\s\S]*uni\.setStorageSync\(SEARCH_KEY, searchOptions\)[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/search\/index' \}\)/)
   assert.match(source, /function openPublish\(options = \{\}\) \{[\s\S]*typeof options === 'string'[\s\S]*uni\.setStorageSync\(PUBLISH_TYPE_KEY, publishOptions\)[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)/)
 
@@ -312,7 +318,7 @@ test('my page separates guest and logged-in account states without merchant bind
     '商家认证',
     'openMerchantVerification',
     '/pages/verification/index\\?merchantId=',
-    '请先完善商家资料',
+    'ensureMerchantProfileReady',
     'openMessages',
     'requireLogin',
   ]) {
@@ -573,10 +579,14 @@ test('publish pages split tab creation and independent editing', () => {
   assert.equal(tabSource.includes('<ResourcePublishForm'), false)
   assert.match(tabSource, /PUBLISH_TYPE_KEY/)
   assert.match(tabSource, /onShow\(applyPendingPublishType\)/)
-  assert.match(tabSource, /function applyPendingPublishType\(\) \{[\s\S]*uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode, direction: pendingDirection \}\)/)
-  assert.match(editSource, /onLoad\(\(options\)/)
+  assert.match(tabSource, /async function applyPendingPublishType\(\) \{[\s\S]*uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*if \(!\(await ensureMerchantProfileReady\(\)\)\) return[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode, direction: pendingDirection \}\)/)
+  assert.match(editSource, /import \{ ensureMerchantProfileReady \} from '\.\.\/\.\.\/common\/merchantProfileGuard'/)
+  assert.match(editSource, /import \{ getMerchantId \} from '\.\.\/\.\.\/store\/session'/)
+  assert.match(editSource, /onLoad\(async \(options\)/)
   assert.match(editSource, /direction: ''/)
+  assert.match(editSource, /routeOptions\.merchantId = options\.merchantId \|\| getMerchantId\(\)/)
   assert.match(editSource, /routeOptions\.direction = options\.direction \|\| ''/)
+  assert.match(editSource, /if \(!\(await ensureMerchantProfileReady\(routeOptions\.merchantId\)\)\) return/)
   assert.match(editSource, /const publishFormMode = computed\(\(\) => routeOptions\.resourceId \? 'edit' : 'create'\)/)
   assert.match(editSource, /<ResourcePublishForm[\s\S]*:mode="publishFormMode"[\s\S]*:initial-options="routeOptions"/)
   assert.equal(tabSource.includes('publish:pending-edit-context'), false)
@@ -1157,6 +1167,24 @@ test('merchant profile page supports map based address selection', () => {
   }
 
   assert.equal(source.includes(':disabled="Boolean(merchantId)" placeholder="请输入地址"'), false)
+})
+
+test('merchant profile page hides sourcing map binding entry while keeping the page registered', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+
+  assert.ok(pagesConfig.pages.some((entry) => entry.path === 'pages/merchant/map-binding'))
+  for (const token of [
+    '拿货地图档口',
+    'map-binding-section',
+    'mapBindingStatus',
+    'getMerchantMapBinding',
+    'openMapBindingPage',
+    '/pages/merchant/map-binding',
+  ]) {
+    assert.equal(source.includes(token), false)
+  }
 })
 
 test('merchant detail page exposes map navigation when location exists', () => {

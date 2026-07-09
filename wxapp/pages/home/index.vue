@@ -78,10 +78,6 @@
               <text></text>
               <text></text>
             </view>
-            <view v-if="item.icon === 'demand'" class="icon-demand-sheet">
-              <text></text>
-              <text></text>
-            </view>
             <view v-if="item.icon === 'map'" class="icon-sourcing-map">
               <text></text>
             </view>
@@ -91,7 +87,7 @@
       </view>
 
       <view class="section-head">
-        <text class="section-title">精选资源</text>
+        <text class="section-title">平台精选</text>
         <text class="section-link" @click="openSearch()">更多</text>
       </view>
 
@@ -191,7 +187,6 @@ const sceneEntries = [
   { title: '库存清仓', tone: 'red', icon: 'clearance', direction: RESOURCE_DIRECTION_SUPPLY, typeCode: 'inventory', keyword: '库存' },
   { title: '工厂接单', tone: 'teal', icon: 'factory', direction: RESOURCE_DIRECTION_SUPPLY, typeCode: 'factory', keyword: '小单快返' },
   { title: '看需求', tone: 'amber', icon: 'orders', direction: RESOURCE_DIRECTION_DEMAND, typeCode: 'buy_goods', keyword: '找现货' },
-  { title: '发需求', tone: 'coral', icon: 'demand', action: 'publish-demand', direction: RESOURCE_DIRECTION_DEMAND },
   { title: '拿货地图', tone: 'green', icon: 'map', action: 'sourcing-map' },
 ]
 const displayBanners = computed(() => {
@@ -317,10 +312,6 @@ function openBanner(item) {
 function openScene(item) {
   if (item.action === 'sourcing-map') {
     openSourcingMap()
-    return
-  }
-  if (item.action === 'publish-demand') {
-    openPublish({ direction: item.direction || RESOURCE_DIRECTION_DEMAND, typeCode: item.typeCode || '' })
     return
   }
   openSearch({ keyword: item.keyword, typeCode: item.typeCode, direction: item.direction })
@@ -663,8 +654,8 @@ function bannerTone(jumpType) {
 
 .quick-action-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22rpx;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12rpx;
   margin: 0 0 42rpx;
 }
 
@@ -705,10 +696,6 @@ function bannerTone(jumpType) {
 
 .quick-action.amber .quick-icon {
   background: #f7f1ee;
-}
-
-.quick-action.coral .quick-icon {
-  background: #fff0ed;
 }
 
 .quick-action.green .quick-icon {
@@ -840,33 +827,6 @@ function bannerTone(jumpType) {
 
 .icon-orders-board text:nth-child(3) {
   width: 18rpx;
-}
-
-.icon-demand-sheet {
-  position: relative;
-  width: 42rpx;
-  height: 48rpx;
-  border: 5rpx solid $wplink-coral;
-  border-radius: 8rpx;
-}
-
-.icon-demand-sheet::before {
-  position: absolute;
-  top: -10rpx;
-  left: 9rpx;
-  width: 20rpx;
-  height: 10rpx;
-  border-radius: 8rpx 8rpx 0 0;
-  background: $wplink-coral;
-  content: '';
-}
-
-.icon-demand-sheet text {
-  display: block;
-  height: 5rpx;
-  margin: 10rpx 8rpx 0;
-  border-radius: 999rpx;
-  background: rgba($wplink-coral, 0.72);
 }
 
 .icon-sourcing-map {

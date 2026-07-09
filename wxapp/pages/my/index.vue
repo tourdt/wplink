@@ -86,6 +86,7 @@
 import { computed, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { buildLoginUrl, requireLogin } from '../../common/auth'
+import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { getSession } from '../../store/session'
 import { getMerchant } from '../../api/merchant'
 import { getMerchantMetricsSummary } from '../../api/metrics'
@@ -216,32 +217,21 @@ function openMessages() {
   uni.switchTab({ url: '/pages/messages/index' })
 }
 
-function openMyResources() {
+async function openMyResources() {
   if (!requireLogin()) return
-  if (!merchantId.value) {
-    uni.showToast({ title: '请先完善商家资料', icon: 'none' })
-    uni.navigateTo({ url: '/pages/merchant/profile' })
-    return
-  }
+  if (!(await ensureMerchantProfileReady(merchantId.value))) return
   uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${merchantId.value}` })
 }
 
-function openMerchantHome() {
+async function openMerchantHome() {
   if (!requireLogin()) return
-  if (!merchantId.value) {
-    uni.navigateTo({ url: '/pages/merchant/profile' })
-    return
-  }
+  if (!(await ensureMerchantProfileReady(merchantId.value))) return
   uni.navigateTo({ url: `/pages/merchant/detail?id=${merchantId.value}` })
 }
 
-function openMerchantVerification() {
+async function openMerchantVerification() {
   if (!requireLogin()) return
-  if (!merchantId.value) {
-    uni.showToast({ title: '请先完善商家资料', icon: 'none' })
-    uni.navigateTo({ url: '/pages/merchant/profile' })
-    return
-  }
+  if (!(await ensureMerchantProfileReady(merchantId.value))) return
   uni.navigateTo({ url: `/pages/verification/index?merchantId=${merchantId.value}` })
 }
 </script>

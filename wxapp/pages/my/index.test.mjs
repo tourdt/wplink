@@ -27,3 +27,13 @@ test('my page exposes native customer service entry without login gate', () => {
   assert.match(source, /<text class="action-meta">平台问题和使用咨询<\/text>/)
   assert.doesNotMatch(source, /function openCustomerService\(\)[\s\S]*?requireLogin/)
 })
+
+test('my page prompts before opening merchant-only entries without profile', () => {
+  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
+
+  assert.match(source, /import \{ ensureMerchantProfileReady \} from '\.\.\/\.\.\/common\/merchantProfileGuard'/)
+  assert.match(source, /async function openMyResources\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(!\(await ensureMerchantProfileReady\(merchantId\.value\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/my-resources\/index\?merchantId=\$\{merchantId\.value\}` \}\)/)
+  assert.match(source, /async function openMerchantHome\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(!\(await ensureMerchantProfileReady\(merchantId\.value\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/merchant\/detail\?id=\$\{merchantId\.value\}` \}\)/)
+  assert.match(source, /async function openMerchantVerification\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(!\(await ensureMerchantProfileReady\(merchantId\.value\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/verification\/index\?merchantId=\$\{merchantId\.value\}` \}\)/)
+  assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善商家资料'/)
+})

@@ -70,6 +70,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
+import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { getMerchantMapBinding, listMapBindCandidates, listMapScenes, submitMapBindRequest } from '../../api/sourcingMap'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { getMerchantId } from '../../store/session'
@@ -107,12 +108,9 @@ const statusSummary = computed(() => {
   return '请选择你的档口并提交证明，审核通过后会关联到拿货地图。'
 })
 
-onLoad((options) => {
+onLoad(async (options) => {
   merchantId.value = options.merchantId || getMerchantId()
-  if (!merchantId.value) {
-    uni.showToast({ title: '请先完善商家资料', icon: 'none' })
-    return
-  }
+  if (!(await ensureMerchantProfileReady(merchantId.value))) return
   loadInitialData()
 })
 

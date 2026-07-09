@@ -191,6 +191,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { getMerchantId, getUserId } from '../../store/session'
 import { getMerchant } from '../../api/merchant'
 import { createVerificationPayment, getLatestVerification, getVerificationBillingConfig, submitVerification } from '../../api/verification'
@@ -275,6 +276,7 @@ const submitButtonSubText = computed(() => {
 
 onLoad(async (options) => {
   form.merchantId = options.merchantId || getMerchantId()
+  if (!(await ensureMerchantProfileReady(form.merchantId))) return
   await Promise.all([loadMerchantProfile(), loadLatestVerification(), loadBillingConfig()])
 })
 

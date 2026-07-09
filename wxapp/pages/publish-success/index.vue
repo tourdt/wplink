@@ -2,8 +2,8 @@
   <view class="success-page">
     <view class="success-card">
       <view class="success-icon">✓</view>
-      <text class="success-title">资源已提交审核</text>
-      <text class="success-desc">审核通过后，资源会进入搜索、推荐和商家主页，后续进展会通过消息中心通知。</text>
+      <text class="success-title">{{ successCopy.title }}</text>
+      <text class="success-desc">{{ successCopy.desc }}</text>
 
       <view class="success-result-list">
         <view class="success-result-item">
@@ -11,8 +11,8 @@
           <text class="result-value">消息中心通知</text>
         </view>
         <view class="success-result-item">
-          <text class="result-label">通过后曝光</text>
-          <text class="result-value">搜索、推荐和商家主页</text>
+          <text class="result-label">{{ successCopy.exposureLabel }}</text>
+          <text class="result-value">{{ successCopy.exposureValue }}</text>
         </view>
       </view>
 
@@ -25,14 +25,47 @@
 </template>
 
 <script setup>
+import { computed, ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { getMerchantId } from '../../store/session'
+
+const RESOURCE_DIRECTION_SUPPLY = 'supply'
+const RESOURCE_DIRECTION_DEMAND = 'demand'
+const publishDirection = ref(RESOURCE_DIRECTION_SUPPLY)
+const successCopy = computed(() => {
+  if (publishDirection.value === RESOURCE_DIRECTION_DEMAND) {
+    return {
+      title: '需求已提交审核',
+      desc: '审核通过后，需求会进入搜索、推荐和需求列表，合适供应商可主动联系，后续进展会通过消息中心通知。',
+      exposureLabel: '通过后展示',
+      exposureValue: '搜索、推荐和需求列表',
+    }
+  }
+  return {
+    title: '资源已提交审核',
+    desc: '审核通过后，资源会进入搜索、推荐和商家主页，后续进展会通过消息中心通知。',
+    exposureLabel: '通过后曝光',
+    exposureValue: '搜索、推荐和商家主页',
+  }
+})
+
+onLoad((options = {}) => {
+  publishDirection.value = normalizePublishDirection(options.direction)
+})
 
 function openMessages() {
   uni.switchTab({ url: '/pages/messages/index' })
 }
 
-function openMyResources() {
-  uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${getMerchantId()}` })
+async function openMyResources() {
+  const merchantId = getMerchantId()
+  if (!(await ensureMerchantProfileReady(merchantId))) return
+  uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${merchantId}` })
+}
+
+function normalizePublishDirection(direction) {
+  return direction === RESOURCE_DIRECTION_DEMAND ? RESOURCE_DIRECTION_DEMAND : RESOURCE_DIRECTION_SUPPLY
 }
 </script>
 

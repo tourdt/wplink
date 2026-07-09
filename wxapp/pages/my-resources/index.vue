@@ -73,6 +73,7 @@
 import { reactive, ref } from 'vue'
 import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import MetricStrip from '../../components/MetricStrip.vue'
+import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { getMerchantId } from '../../store/session'
 import { redeemTopVoucher, listTopVouchers } from '../../api/entitlement'
 import { deleteTakenDownResource, getOwnResource, listMyResources, refreshResource, takeDownResource } from '../../api/resource'
@@ -131,13 +132,7 @@ onReachBottom(() => {
 
 async function loadRows({ reset = true } = {}) {
   if (loading.value) return
-  if (!merchantId.value) {
-    rows.value = []
-    total.value = 0
-    hasMore.value = false
-    uni.showToast({ title: '请先完善商家资料', icon: 'none' })
-    return
-  }
+  if (!(await ensurePageMerchantProfile())) return
   if (!reset && !hasMore.value) return
   loading.value = true
   try {
@@ -151,6 +146,15 @@ async function loadRows({ reset = true } = {}) {
   } finally {
     loading.value = false
   }
+}
+
+async function ensurePageMerchantProfile() {
+  merchantId.value = merchantId.value || getMerchantId()
+  if (await ensureMerchantProfileReady(merchantId.value)) return true
+  rows.value = []
+  total.value = 0
+  hasMore.value = false
+  return false
 }
 
 function selectDirection(direction) {
@@ -316,7 +320,8 @@ function expireText(item) {
   return '有效期待确认'
 }
 
-function openPublish() {
+async function openPublish() {
+  if (!(await ensurePageMerchantProfile())) return
   uni.navigateTo({ url: `/pages/publish/edit?merchantId=${merchantId.value}` })
 }
 

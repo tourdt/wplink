@@ -83,6 +83,14 @@ test('my resources hides the date row when no publish or expiry date exists', ()
 })
 
 test('my resources publish action opens the standalone publish editor', () => {
-  assert.match(source, /function openPublish\(\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}` \}\)[\s\S]*\}/)
-  assert.doesNotMatch(source, /function openPublish\(\) \{[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)[\s\S]*\}/)
+  assert.match(source, /async function openPublish\(\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}` \}\)[\s\S]*\}/)
+  assert.doesNotMatch(source, /async function openPublish\(\) \{[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)[\s\S]*\}/)
+})
+
+test('my resources prompts for merchant profile before list and publish actions', () => {
+  assert.match(source, /import \{ ensureMerchantProfileReady \} from '\.\.\/\.\.\/common\/merchantProfileGuard'/)
+  assert.match(source, /async function ensurePageMerchantProfile\(\) \{[\s\S]*if \(await ensureMerchantProfileReady\(merchantId\.value\)\) return true[\s\S]*rows\.value = \[\][\s\S]*return false[\s\S]*\}/)
+  assert.match(source, /async function loadRows\(\{ reset = true \} = \{\}\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*const resp = await listMyResources/)
+  assert.match(source, /async function openPublish\(\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}` \}\)/)
+  assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善商家资料'/)
 })

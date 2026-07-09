@@ -500,18 +500,23 @@ async function submit() {
       return
     }
     await submitResource(editingResourceId.value, form.merchantId)
+    openPublishSuccess()
     clearPublishLocalDraft()
     resetPublishForm()
     uni.showToast({ title: '已提交审核', icon: 'none' })
-    uni.navigateTo({ url: '/pages/publish-success/index' })
     return
   }
   const images = await uploadPendingResourceImages()
   await createResource({ ...form, images })
+  openPublishSuccess()
   clearPublishLocalDraft()
   resetPublishForm()
   uni.showToast({ title: '已提交审核', icon: 'none' })
-  uni.navigateTo({ url: '/pages/publish-success/index' })
+}
+
+function openPublishSuccess() {
+  const publishDirection = normalizePublishDirection(form.direction) || RESOURCE_DIRECTION_SUPPLY
+  uni.navigateTo({ url: `/pages/publish-success/index?direction=${encodeURIComponent(publishDirection)}` })
 }
 
 async function saveDraft() {

@@ -1,4 +1,4 @@
-import { normalizeApiBaseUrl } from './url'
+import { normalizeApiBaseUrl } from './url.js'
 
 export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env?.VITE_API_BASE_URL || '')
 
