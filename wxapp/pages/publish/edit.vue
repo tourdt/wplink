@@ -28,7 +28,7 @@ onLoad(async (options) => {
   if (!(await ensureMerchantProfileReady(routeOptions.merchantId))) return
   if (!routeOptions.resourceId) {
     uni.setNavigationBarTitle({
-      title: routeOptions.direction === 'demand' ? '发布需求' : '发布资源',
+      title: routeOptions.direction === 'demand' ? '发布需求' : '发布供给',
     })
   }
   routeReady.value = true

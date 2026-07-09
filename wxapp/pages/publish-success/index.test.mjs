@@ -21,10 +21,16 @@ test('publish success page switches copy for demand submissions', () => {
   assert.match(source, /搜索、推荐和需求列表/)
 })
 
+test('publish success page uses supply copy instead of resource copy', () => {
+  assert.match(source, /title: '供给已提交审核'/)
+  assert.match(source, /供给会进入搜索、推荐和商家主页/)
+  assert.doesNotMatch(source, /资源已提交审核/)
+})
+
 test('resource publish form passes direction to success page', () => {
   const formSource = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
 
   assert.match(formSource, /function openPublishSuccess\(\) \{[\s\S]*const publishDirection = normalizePublishDirection\(form\.direction\) \|\| RESOURCE_DIRECTION_SUPPLY[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish-success\/index\?direction=\$\{encodeURIComponent\(publishDirection\)\}` \}\)[\s\S]*\}/)
   assert.match(formSource, /await submitResource\(editingResourceId\.value, form\.merchantId\)[\s\S]*openPublishSuccess\(\)/)
-  assert.match(formSource, /await createResource\(\{ \.\.\.form, images \}\)[\s\S]*openPublishSuccess\(\)/)
+  assert.match(formSource, /const images = await uploadPendingResourceImages\(\)[\s\S]*await createResource\(buildResourcePublishPayload\(images\)\)[\s\S]*openPublishSuccess\(\)/)
 })

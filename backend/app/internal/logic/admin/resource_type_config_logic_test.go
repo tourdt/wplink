@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"wplink/backend/app/internal/model"
+	"wplink/backend/common/errx"
 )
 
 func TestListResourceTypeConfigsReturnsStoreItems(t *testing.T) {
@@ -16,6 +17,7 @@ func TestListResourceTypeConfigsReturnsStoreItems(t *testing.T) {
 				CityCode:         "zhili",
 				TypeCode:         "inventory",
 				TypeName:         "库存清仓",
+				Direction:        model.ResourceDirectionDemand,
 				DefaultValidDays: 7,
 				Status:           "active",
 			},
@@ -39,6 +41,9 @@ func TestListResourceTypeConfigsReturnsStoreItems(t *testing.T) {
 	}
 	if resp.Items[0].TypeCode != "inventory" {
 		t.Fatalf("typeCode = %q, want inventory", resp.Items[0].TypeCode)
+	}
+	if resp.Items[0].Direction != model.ResourceDirectionDemand {
+		t.Fatalf("direction = %q, want demand", resp.Items[0].Direction)
 	}
 }
 
@@ -133,6 +138,58 @@ func TestUpdateResourceTypeConfigRejectsSelectWithoutOptionsWhenCustomDisabled(t
 	}
 	if !strings.Contains(err.Error(), "请为下拉字段配置选项") {
 		t.Fatalf("error = %v, want select options message", err)
+	}
+}
+
+func TestUpdateResourceTypeConfigRejectsInvalidSummaryTarget(t *testing.T) {
+	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
+
+	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		DefaultValidDays: 10,
+		Status:           "active",
+		FieldSchema: map[string]interface{}{
+			"fields": []interface{}{
+				map[string]interface{}{"key": "serviceType", "label": "服务类型", "type": "text"},
+			},
+		},
+		RequiredFields: []string{"title", "serviceType", "contactPhone"},
+		DisplayTemplate: map[string]interface{}{
+			"summary": map[string]interface{}{
+				"unknown": "serviceType",
+			},
+		},
+	})
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if !strings.Contains(err.Error(), "摘要字段") {
+		t.Fatalf("error = %v, want summary validation message", err)
+	}
+}
+
+func TestUpdateResourceTypeConfigRejectsInvalidSummarySource(t *testing.T) {
+	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
+
+	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		DefaultValidDays: 10,
+		Status:           "active",
+		FieldSchema: map[string]interface{}{
+			"fields": []interface{}{
+				map[string]interface{}{"key": "serviceType", "label": "服务类型", "type": "text"},
+			},
+		},
+		RequiredFields: []string{"title", "serviceType", "contactPhone"},
+		DisplayTemplate: map[string]interface{}{
+			"summary": map[string]interface{}{
+				"category": "missingField",
+			},
+		},
+	})
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if !strings.Contains(err.Error(), "摘要字段") {
+		t.Fatalf("error = %v, want summary validation message", err)
 	}
 }
 

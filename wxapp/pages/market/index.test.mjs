@@ -40,7 +40,7 @@ test('supply demand page shows direction tabs and category controls', () => {
     'directionTabs',
     'activeDirection',
     'selectDirection',
-    '资源',
+    '供给',
     '需求',
     "direction: activeDirection.value",
     'DemandCard',
@@ -49,7 +49,7 @@ test('supply demand page shows direction tabs and category controls', () => {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 
-  assert.match(source, /const directionTabs = \[[\s\S]*\{ label: '资源', value: RESOURCE_DIRECTION_SUPPLY \}[\s\S]*\{ label: '需求', value: RESOURCE_DIRECTION_DEMAND \}[\s\S]*\]/)
+  assert.match(source, /const directionTabs = \[[\s\S]*\{ label: '供给', value: RESOURCE_DIRECTION_SUPPLY \}[\s\S]*\{ label: '需求', value: RESOURCE_DIRECTION_DEMAND \}[\s\S]*\]/)
   assert.doesNotMatch(source, /label: '找资源'/)
   assert.doesNotMatch(source, /label: '看需求'/)
   assert.match(source, /listCityResourceTypes\(filters\.cityCode,\s*\{ direction: activeDirection\.value \}\)/)
@@ -144,8 +144,9 @@ test('supply demand page does not restore retired standalone demand pages', () =
   }
 })
 
-test('resource recommendation empty state uses concise copy without image text', () => {
-  assert.match(source, /<text class="empty-title">暂无推荐资源<\/text>/)
+test('supply recommendation empty state uses concise copy without image text', () => {
+  assert.match(source, /<text class="empty-title">\{\{ recommendationEmptyTitle \}\}<\/text>/)
+  assert.match(source, /const recommendationEmptyTitle = computed\(\(\) => activeDirection\.value === RESOURCE_DIRECTION_DEMAND \? '暂无推荐需求' : '暂无推荐供给'\)/)
   assert.match(source, /<text class="empty-desc">换个类型或搜索关键词。<\/text>/)
   assert.doesNotMatch(source, /<text>资源<\/text>/)
   assert.doesNotMatch(source, /当前类型暂无推荐资源/)

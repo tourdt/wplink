@@ -30,9 +30,10 @@ WITH zhili AS (
 )
 UPDATE resource_type_configs rtc
 SET
-  field_schema = '{"fields":[{"key":"rentalType","label":"房源类型","type":"select","required":false,"filterable":true,"displayIn":["detail"],"options":["厂房","档口","仓库","商铺","商品房","宿舍","设备","其他"],"allowCustom":true},{"key":"areaText","label":"面积","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：120 平"},{"key":"rentText","label":"租金","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：6800 元/月"},{"key":"floor","label":"楼层","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：1 楼"},{"key":"transferFee","label":"转让费","type":"text","required":false,"filterable":false,"displayIn":["detail"],"placeholder":"例如：无"}]}'::jsonb,
-  filter_fields = '["rentalType","areaText","rentText","floor"]'::jsonb,
-  display_template = '{"list":["priceText","district"],"detail":["rentalType","areaText","rentText","floor","transferFee"]}'::jsonb,
+  field_schema = '{"fields":[{"key":"rentalType","label":"房源类型","type":"select","required":true,"filterable":true,"displayIn":["detail"],"options":["厂房","档口","仓库","商铺","商品房","宿舍","设备","其他"],"allowCustom":true},{"key":"areaText","label":"面积","type":"text","required":true,"filterable":true,"displayIn":["detail"],"placeholder":"例如：120 平"},{"key":"rentText","label":"租金","type":"text","required":true,"filterable":true,"displayIn":["detail"],"placeholder":"例如：6800 元/月"},{"key":"locationText","label":"位置","type":"text","required":true,"filterable":true,"displayIn":["detail"],"placeholder":"例如：童装城附近、某园区"},{"key":"floor","label":"楼层","type":"text","required":false,"filterable":true,"displayIn":["detail"],"placeholder":"例如：1 楼"},{"key":"transferFee","label":"转让费","type":"text","required":false,"filterable":false,"displayIn":["detail"],"placeholder":"例如：无"},{"key":"leaseTerms","label":"租期条件","type":"text","required":false,"filterable":false,"displayIn":["detail"],"placeholder":"例如：押金、租期、可入驻时间"}]}'::jsonb,
+  required_fields = '["title","rentalType","areaText","rentText","locationText","contactPhone"]'::jsonb,
+  filter_fields = '["rentalType","areaText","rentText","locationText","floor"]'::jsonb,
+  display_template = '{"summary":{"category":"rentalType","quantityText":"areaText","priceText":"rentText"},"list":["priceText","quantityText","district"],"detail":["rentalType","areaText","rentText","locationText","floor","transferFee","leaseTerms"]}'::jsonb,
   updated_at = now()
 FROM zhili
 WHERE rtc.city_station_id = zhili.id

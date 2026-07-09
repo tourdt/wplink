@@ -1,0 +1,1 @@
+import{h as r}from"./index-CoeznJaR.js";function n(e){return r.post("/api/v1/resources",e)}function i(e={}){return r.get("/api/v1/resources",{params:e})}function o(e={}){return r.get("/api/v1/admin/resources/pending",{params:e})}function u(e,s){return r.post(`/api/v1/admin/resources/${e}/review`,s)}export{i as a,n as c,o as l,u as r};

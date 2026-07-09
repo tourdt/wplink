@@ -24,6 +24,7 @@ type ResourceTypeConfigItem struct {
 	CityCode         string                 `json:"cityCode,omitempty"`
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
+	Direction        string                 `json:"direction"`
 	FieldSchema      map[string]interface{} `json:"fieldSchema"`
 	RequiredFields   []string               `json:"requiredFields"`
 	FilterFields     []string               `json:"filterFields"`
@@ -85,6 +86,12 @@ var baseResourceConfigFields = map[string]struct{}{
 	"tags":          {},
 }
 
+var resourceSummaryTargetFields = map[string]struct{}{
+	"category":     {},
+	"quantityText": {},
+	"priceText":    {},
+}
+
 func NewResourceTypeConfigLogic(store ResourceTypeConfigStore) *ResourceTypeConfigLogic {
 	return &ResourceTypeConfigLogic{store: store}
 }
@@ -102,6 +109,7 @@ func (l *ResourceTypeConfigLogic) ListResourceTypeConfigs(ctx context.Context, r
 			CityCode:         config.CityCode,
 			TypeCode:         config.TypeCode,
 			TypeName:         config.TypeName,
+			Direction:        config.Direction,
 			FieldSchema:      map[string]interface{}(config.FieldSchema),
 			RequiredFields:   append([]string(nil), config.RequiredFields...),
 			FilterFields:     append([]string(nil), config.FilterFields...),
@@ -178,6 +186,33 @@ func validateResourceTypeConfigPatch(req UpdateResourceTypeConfigReq) error {
 	}
 	for _, field := range stringsFromConfigValue(req.DisplayTemplate["detail"]) {
 		if err := validateReferencedConfigField("详情展示字段", field, allowedFields); err != nil {
+			return err
+		}
+	}
+	if err := validateDisplaySummaryTemplate(req.DisplayTemplate["summary"], allowedFields); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateDisplaySummaryTemplate(value interface{}, allowedFields map[string]struct{}) error {
+	if value == nil {
+		return nil
+	}
+	summary, ok := configMap(value)
+	if !ok {
+		return errx.New(errx.CodeValidationFailed, "摘要字段配置格式不正确")
+	}
+	for target, rawSource := range summary {
+		target = strings.TrimSpace(target)
+		if _, ok := resourceSummaryTargetFields[target]; !ok {
+			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("摘要字段 %q 不支持，请使用 category、quantityText 或 priceText", target))
+		}
+		source, ok := rawSource.(string)
+		if !ok {
+			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("摘要字段 %s 的来源字段格式不正确", target))
+		}
+		if err := validateReferencedConfigField(fmt.Sprintf("摘要字段 %s", target), source, allowedFields); err != nil {
 			return err
 		}
 	}

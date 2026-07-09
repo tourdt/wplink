@@ -9,6 +9,7 @@ export const resourceTypeText = {
   find_inventory: '找库存',
   find_factory: '找工厂',
   find_service: '找服务',
+  find_rental: '找场地',
 }
 
 export const resourceStatusText = {

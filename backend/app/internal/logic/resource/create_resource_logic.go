@@ -151,6 +151,7 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		}
 		values["contactPhone"] = strings.TrimSpace(merchantPhone)
 	}
+	deriveResourceSummaryFields(config, values, req.Attributes)
 	if err := validateResourceRequiredFields(config, values, req.Attributes, req.Tags, req.Images); err != nil {
 		return model.CreateResourceInput{}, "", err
 	}
@@ -163,6 +164,10 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 	}
 	if merchantStatus != model.MerchantStatusActive {
 		return model.CreateResourceInput{}, "", errx.New(errx.CodeValidationFailed, "商家已停用，不能发布资源")
+	}
+	if values["category"] == "" {
+		// 数据库仍使用 category 作为检索摘要列。类型没有可映射分类时写入稳定兜底值，避免把旧固定“品类”重新暴露给用户。
+		values["category"] = "待沟通"
 	}
 
 	return model.CreateResourceInput{
@@ -187,6 +192,49 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		ContactWechat:        strings.TrimSpace(req.Contact.Wechat),
 		CreatedByUser:        strings.TrimSpace(req.CreatedByUser),
 	}, typeCode, nil
+}
+
+func deriveResourceSummaryFields(config model.ResourcePublishConfig, values map[string]string, attributes model.JSONMap) {
+	summary, ok := config.DisplayTemplate["summary"].(map[string]interface{})
+	if !ok {
+		if typed, ok := config.DisplayTemplate["summary"].(model.JSONMap); ok {
+			summary = map[string]interface{}(typed)
+		}
+	}
+	if len(summary) == 0 {
+		return
+	}
+	for _, target := range []string{"category", "quantityText", "priceText"} {
+		source, _ := summary[target].(string)
+		source = strings.TrimSpace(source)
+		if source == "" {
+			continue
+		}
+		if value := resourceSummarySourceValue(source, values, attributes); value != "" {
+			values[target] = value
+		}
+	}
+}
+
+func resourceSummarySourceValue(source string, values map[string]string, attributes model.JSONMap) string {
+	if value, ok := values[source]; ok {
+		return strings.TrimSpace(value)
+	}
+	value, ok := attributes[source]
+	if !ok || value == nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case bool:
+		if typed {
+			return "是"
+		}
+		return "否"
+	default:
+		return strings.TrimSpace(fmt.Sprint(typed))
+	}
 }
 
 func normalizeConfigDirection(direction string) string {

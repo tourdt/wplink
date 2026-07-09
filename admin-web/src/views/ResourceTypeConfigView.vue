@@ -38,6 +38,13 @@
       <el-table v-loading="loading" :data="configs" stripe empty-text="暂无资源类型配置">
         <el-table-column prop="typeName" label="类型名称" width="140" />
         <el-table-column prop="typeCode" label="编码" width="140" />
+        <el-table-column label="类型归属" width="110">
+          <template #default="{ row }">
+            <el-tag :type="directionTagType(row.direction)" effect="plain">
+              {{ directionLabel(row.direction) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="defaultValidDays" label="有效期" width="100">
           <template #default="{ row }">{{ row.defaultValidDays }} 天</template>
         </el-table-column>
@@ -76,7 +83,12 @@
     <el-drawer v-model="drawerVisible" title="编辑资源类型配置" size="820px">
       <el-form v-if="editing" label-position="top">
         <el-form-item label="类型">
-          <el-input :model-value="`${editing.typeName}（${editing.typeCode}）`" disabled />
+          <div class="type-summary">
+            <el-input :model-value="`${editing.typeName}（${editing.typeCode}）`" disabled />
+            <el-tag :type="directionTagType(editing.direction)" effect="plain">
+              {{ directionLabel(editing.direction) }}
+            </el-tag>
+          </div>
         </el-form-item>
         <div class="basic-config-grid">
           <el-form-item label="默认有效期">
@@ -222,11 +234,12 @@ const fieldTypeOptions = [
   { value: 'number', label: '数字' },
   { value: 'textarea', label: '多行文本' },
 ]
+const directionTextMap = {
+  supply: '资源类型',
+  demand: '需求类型',
+}
 const baseRequiredFieldOptions = [
   { value: 'title', label: '标题' },
-  { value: 'category', label: '品类' },
-  { value: 'quantityText', label: '数量/产能' },
-  { value: 'priceText', label: '价格描述' },
   { value: 'description', label: '资源描述' },
   { value: 'contactName', label: '联系人' },
   { value: 'contactPhone', label: '联系电话' },
@@ -234,6 +247,7 @@ const baseRequiredFieldOptions = [
   { value: 'images', label: '资源图片' },
   { value: 'tags', label: '标签' },
 ]
+const summaryFieldValueSet = new Set(['category', 'quantityText', 'priceText'])
 const baseRequiredFieldValueSet = new Set(baseRequiredFieldOptions.map((field) => field.value))
 const fieldDescriptionMap = {
   merchantId: {
@@ -311,7 +325,7 @@ function openEditor(row) {
   fieldRows.value = normalizeFieldRowsFromSchema(row)
   const dynamicKeys = new Set(fieldRows.value.map((field) => field.key))
   baseRequiredFields.value = normalizeStringList(row.requiredFields).filter((field) => {
-    return baseRequiredFieldValueSet.has(field) && !dynamicKeys.has(field)
+    return baseRequiredFieldValueSet.has(field) && !summaryFieldValueSet.has(field) && !dynamicKeys.has(field)
   })
   advancedConfig.value = {
     displayTemplate: cloneConfig(row.displayTemplate || {}),
@@ -330,6 +344,14 @@ function fieldLabel(field) {
 
 function fieldDescription(field) {
   return fieldDescriptionMap[field]?.description || '该字段是发布此类资源时必须填写的信息。'
+}
+
+function directionLabel(direction) {
+  return directionTextMap[direction] || '资源类型'
+}
+
+function directionTagType(direction) {
+  return direction === 'demand' ? 'warning' : 'success'
 }
 
 function normalizeFieldRowsFromSchema(row) {
@@ -453,7 +475,7 @@ function syncEditorFromConfigJson() {
   fieldRows.value = normalizeFieldRowsFromSchema(row)
   const dynamicKeys = new Set(fieldRows.value.map((field) => field.key))
   baseRequiredFields.value = normalizeStringList(row.requiredFields).filter((field) => {
-    return baseRequiredFieldValueSet.has(field) && !dynamicKeys.has(field)
+    return baseRequiredFieldValueSet.has(field) && !summaryFieldValueSet.has(field) && !dynamicKeys.has(field)
   })
   advancedConfig.value = {
     displayTemplate: cloneConfig(row.displayTemplate),
@@ -608,6 +630,16 @@ async function saveConfig() {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.type-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.type-summary :deep(.el-input) {
+  flex: 1;
 }
 
 .required-field-note {

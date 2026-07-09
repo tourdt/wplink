@@ -24,6 +24,7 @@ type ResourcePublishConfig struct {
 	Direction        string
 	FieldSchema      JSONMap
 	RequiredFields   []string
+	DisplayTemplate  JSONMap
 	DefaultValidDays int64
 }
 
@@ -439,14 +440,14 @@ func (m *ResourceModel) GetResourcePublishConfig(ctx context.Context, cityCode s
 	var config ResourcePublishConfig
 	var requiredFields JSONStringSlice
 	err := m.db.QueryRowContext(ctx, `
-SELECT rtc.id::text, rtc.type_code, rtc.direction, rtc.field_schema, rtc.required_fields, rtc.default_valid_days
+SELECT rtc.id::text, rtc.type_code, rtc.direction, rtc.field_schema, rtc.required_fields, rtc.display_template, rtc.default_valid_days
 FROM resource_type_configs rtc
 JOIN city_stations cs ON cs.id = rtc.city_station_id
 WHERE cs.code = $1
   AND cs.status = 'active'
   AND rtc.type_code = $2
   AND rtc.status = 'active'
-`, cityCode, typeCode).Scan(&config.ID, &config.TypeCode, &config.Direction, &config.FieldSchema, &requiredFields, &config.DefaultValidDays)
+`, cityCode, typeCode).Scan(&config.ID, &config.TypeCode, &config.Direction, &config.FieldSchema, &requiredFields, &config.DisplayTemplate, &config.DefaultValidDays)
 	config.RequiredFields = []string(requiredFields)
 	return config, err
 }

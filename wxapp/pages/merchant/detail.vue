@@ -87,20 +87,20 @@
     <view class="section trust-note-section">
       <text class="section-title">温馨提醒</text>
       <text class="section-content">联系前请确认实物、价格和交期。</text>
-      <text class="section-tip">电话和微信见资源详情。</text>
+      <text class="section-tip">电话和微信见供给详情。</text>
     </view>
 
     <view class="section">
       <view class="section-head">
-        <text class="section-title">公开资源</text>
+        <text class="section-title">公开供给</text>
         <text class="section-link" v-if="merchantResourceCountText">{{ merchantResourceCountText }}</text>
       </view>
       <ResourceList
         :resources="merchantResources"
-        empty-text="暂无公开资源"
+        empty-text="暂无公开供给"
         :loading="merchantResourcesLoading"
         :has-more="hasMoreMerchantResources"
-        load-more-text="查看更多资源"
+        load-more-text="查看更多供给"
         @open="openResource"
         @load-more="loadMerchantResources"
       />
@@ -167,7 +167,7 @@ const profileDescription = computed(() => merchant.value.description || '暂无�
 const merchantSubtitle = computed(() => {
   const categories = merchantCategoryTags.value.join('、')
   const identity = [merchantTypeLabel.value, categories].filter(Boolean).join(' · ')
-  return identity || merchant.value.description || '服装资源商家'
+  return identity || merchant.value.description || '服装供给商家'
 })
 const hasMoreMerchantResources = computed(() => merchantResourceTotal.value > merchantResources.value.length)
 const merchantResourceCountText = computed(() => {
@@ -177,7 +177,7 @@ const merchantResourceCountText = computed(() => {
 })
 const statCards = computed(() => [
   {
-    label: '在售资源',
+    label: '在售供给',
     value: resourcesSummary.value.publishedCount || merchantResourceTotal.value || merchantResources.value.length || 0,
   },
   {
@@ -232,7 +232,7 @@ async function loadMerchantResources() {
     merchantResourceTotal.value = resp.total || merchantResources.value.length + items.length
     merchantResources.value = nextPage === 1 ? items : [...merchantResources.value, ...items]
   } catch (err) {
-    uni.showToast({ title: err.message || '资源加载失败，请稍后重试', icon: 'none' })
+    uni.showToast({ title: err.message || '供给加载失败，请稍后重试', icon: 'none' })
   } finally {
     merchantResourcesLoading.value = false
   }

@@ -40,8 +40,13 @@ test('resource type corner label stays visually secondary on the image', () => {
 })
 
 test('resource card uses a readable four-line content layout', () => {
-  assert.match(source, /<text class="resource-title">\{\{ resource\.title \|\| '资源标题待完善' \}\}<\/text>[\s\S]*<text class="resource-meta">\{\{ resource\.category \|\| '品类待沟通' \}\} · \{\{ resource\.quantityText \|\| '数量待沟通' \}\}<\/text>[\s\S]*<text class="resource-price">\{\{ resource\.priceText \|\| '价格面议' \}\}<\/text>[\s\S]*<view class="merchant-line">/)
+  assert.match(source, /<text class="resource-title">\{\{ resource\.title \|\| '供给标题待完善' \}\}<\/text>[\s\S]*<text class="resource-meta">\{\{ resourceSummaryText \}\}<\/text>[\s\S]*<text v-if="resource\.priceText" class="resource-price">\{\{ resource\.priceText \}\}<\/text>[\s\S]*<view class="merchant-line">/)
+  assert.match(source, /const resourceSummaryText = computed/)
+  assert.match(source, /buildResourceSummaryText/)
   assert.match(source, /<view class="merchant-line">[\s\S]*<text v-if="isVerifiedMerchant" class="verified-badge">已认证<\/text>[\s\S]*<text class="merchant-name">\{\{ merchantName \}\}<\/text>[\s\S]*<text class="refresh-time">\{\{ formatRefreshedAt\(resource\.refreshedAt\) \}\}<\/text>[\s\S]*<\/view>/)
+  assert.equal(source.includes('品类待沟通'), false)
+  assert.equal(source.includes('数量待沟通'), false)
+  assert.equal(source.includes('价格面议'), false)
   assert.equal(source.includes('meta-price-line'), false)
   assert.equal(source.includes('平台核实'), false)
   assert.equal(source.includes('hasCreditTags'), false)

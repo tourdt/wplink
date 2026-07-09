@@ -33,6 +33,8 @@ test('test database update script resets remote database with backup and confirm
     'resource_type_configs',
     'resources',
     'direction',
+    'find_rental',
+    'expected 5 demand resource types',
   ]) {
     assert.match(script, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }

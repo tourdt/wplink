@@ -5,9 +5,9 @@
       <text v-if="resourceTypeLabel" class="type-badge">{{ resourceTypeLabel }}</text>
     </view>
     <text class="demand-title">{{ resource.title || '需求标题待完善' }}</text>
-    <text class="demand-meta">{{ resource.category || '品类待沟通' }} · {{ resource.quantityText || '数量待沟通' }}</text>
+    <text class="demand-meta">{{ resourceSummaryText }}</text>
     <view class="demand-foot">
-      <text class="budget-text">{{ resource.priceText || '预算面议' }}</text>
+      <text v-if="resource.priceText" class="budget-text">{{ resource.priceText }}</text>
       <view class="merchant-line">
         <text v-if="isVerifiedMerchant" class="verified-badge">已认证</text>
         <text class="merchant-name">{{ merchantName }}</text>
@@ -35,6 +35,14 @@ defineEmits(['open'])
 const isVerifiedMerchant = computed(() => (props.resource.merchant || {}).verificationStatus === 'verified')
 const merchantName = computed(() => (props.resource.merchant || {}).name || '采购方待确认')
 const resourceTypeLabel = computed(() => resourceTypeText[props.resource.typeCode] || '')
+const resourceSummaryText = computed(() => buildResourceSummaryText(props.resource, resourceTypeLabel.value || '需求信息待完善'))
+
+function buildResourceSummaryText(resource, fallbackText) {
+  const parts = [resource.category, resource.quantityText]
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+  return parts.join(' · ') || fallbackText
+}
 
 function formatRefreshedAt(value) {
   return formatListFreshnessDate(value)

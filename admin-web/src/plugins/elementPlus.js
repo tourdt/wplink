@@ -1,5 +1,6 @@
 import { ElAlert } from 'element-plus/es/components/alert/index.mjs'
 import { ElButton, ElButtonGroup } from 'element-plus/es/components/button/index.mjs'
+import { ElCheckbox } from 'element-plus/es/components/checkbox/index.mjs'
 import { ElCollapse, ElCollapseItem } from 'element-plus/es/components/collapse/index.mjs'
 import { ElContainer, ElAside, ElHeader, ElMain } from 'element-plus/es/components/container/index.mjs'
 import { ElDatePicker } from 'element-plus/es/components/date-picker/index.mjs'
@@ -7,6 +8,7 @@ import { ElDescriptions, ElDescriptionsItem } from 'element-plus/es/components/d
 import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
 import { ElDrawer } from 'element-plus/es/components/drawer/index.mjs'
 import { ElDropdown, ElDropdownItem, ElDropdownMenu } from 'element-plus/es/components/dropdown/index.mjs'
+import { ElEmpty } from 'element-plus/es/components/empty/index.mjs'
 import { ElForm, ElFormItem } from 'element-plus/es/components/form/index.mjs'
 import { ElIcon } from 'element-plus/es/components/icon/index.mjs'
 import { ElImage } from 'element-plus/es/components/image/index.mjs'
@@ -17,6 +19,7 @@ import { ElMenu, ElMenuItem } from 'element-plus/es/components/menu/index.mjs'
 import { ElMessage } from 'element-plus/es/components/message/index.mjs'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index.mjs'
 import { ElPagination } from 'element-plus/es/components/pagination/index.mjs'
+import { ElRadioButton, ElRadioGroup } from 'element-plus/es/components/radio/index.mjs'
 import { ElSelect, ElOption } from 'element-plus/es/components/select/index.mjs'
 import { ElSkeleton } from 'element-plus/es/components/skeleton/index.mjs'
 import { ElSwitch } from 'element-plus/es/components/switch/index.mjs'
@@ -31,6 +34,7 @@ const elementPlusComponents = [
   ElAside,
   ElButton,
   ElButtonGroup,
+  ElCheckbox,
   ElCollapse,
   ElCollapseItem,
   ElContainer,
@@ -42,6 +46,7 @@ const elementPlusComponents = [
   ElDropdown,
   ElDropdownItem,
   ElDropdownMenu,
+  ElEmpty,
   ElForm,
   ElFormItem,
   ElHeader,
@@ -54,6 +59,8 @@ const elementPlusComponents = [
   ElMenuItem,
   ElOption,
   ElPagination,
+  ElRadioButton,
+  ElRadioGroup,
   ElSelect,
   ElSkeleton,
   ElSwitch,

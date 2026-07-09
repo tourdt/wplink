@@ -17,7 +17,7 @@
     {
       "path": "pages/search/index",
       "style": {
-        "navigationBarTitleText": "搜索资源",
+        "navigationBarTitleText": "搜索供需",
         "navigationStyle": "custom"
       }
     },
@@ -30,13 +30,13 @@
     {
       "path": "pages/publish/index",
       "style": {
-        "navigationBarTitleText": "发布资源"
+        "navigationBarTitleText": "发布供给"
       }
     },
     {
       "path": "pages/publish/edit",
       "style": {
-        "navigationBarTitleText": "编辑资源"
+        "navigationBarTitleText": "编辑供给"
       }
     },
     {
@@ -81,7 +81,7 @@
     {
       "path": "pages/resource/detail",
       "style": {
-        "navigationBarTitleText": "资源详情"
+        "navigationBarTitleText": "供需详情"
       }
     },
     {
@@ -105,7 +105,7 @@
     {
       "path": "pages/topic/index",
       "style": {
-        "navigationBarTitleText": "专题资源"
+        "navigationBarTitleText": "专题供给"
       }
     },
     {

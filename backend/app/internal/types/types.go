@@ -270,6 +270,7 @@ type AdminResourceTypeConfigItem struct {
 	CityCode         string                 `json:"cityCode,optional"`
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
+	Direction        string                 `json:"direction"`
 	FieldSchema      map[string]interface{} `json:"fieldSchema"`
 	RequiredFields   []string               `json:"requiredFields"`
 	FilterFields     []string               `json:"filterFields"`

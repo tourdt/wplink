@@ -27,7 +27,7 @@ defineProps({
   },
   emptyText: {
     type: String,
-    default: '暂无资源',
+    default: '暂无供给',
   },
   loading: {
     type: Boolean,

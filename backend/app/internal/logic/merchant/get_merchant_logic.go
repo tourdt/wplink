@@ -2,6 +2,8 @@ package merchant
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 
 	"wplink/backend/app/internal/model"
@@ -72,6 +74,9 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 
 	detail, err := l.store.GetMerchantDetail(ctx, merchantID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return MerchantDetailResp{}, errx.New(errx.CodeMerchantNotFound, "商家不存在或已停用")
+		}
 		return MerchantDetailResp{}, err
 	}
 

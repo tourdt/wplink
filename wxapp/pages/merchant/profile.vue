@@ -29,7 +29,7 @@
           </view>
           <view class="form-field">
             <text class="field-label">商家介绍</text>
-            <textarea v-model="form.description" class="textarea" placeholder="主营资源、供货能力" />
+            <textarea v-model="form.description" class="textarea" placeholder="主营供给、供货能力" />
           </view>
         </view>
       </view>

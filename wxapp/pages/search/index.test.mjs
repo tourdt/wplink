@@ -19,7 +19,7 @@ test('search page keeps the main tools and removes explanatory copy', () => {
     'directionTabs',
     'activeDirection',
     'selectDirection',
-    '资源',
+    '供给',
     '需求',
     'class="filter-row"',
     'class="hot-row"',
@@ -205,7 +205,7 @@ test('search empty state gives search-aware recovery actions', () => {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 
-  assert.match(source, /const emptyTitle = '暂无匹配资源'/)
+  assert.match(source, /const emptyTitle = computed\(\(\) => activeDirection\.value === RESOURCE_DIRECTION_DEMAND \? '暂无匹配需求' : '暂无匹配供给'\)/)
   assert.match(source, /const emptySuggestions = computed\(\(\) => hotKeywords\.value[\s\S]*slice\(0, 3\)\)/)
   assert.match(source, /async function resetSearchConditions\(\) \{[\s\S]*keyword\.value = ''[\s\S]*filters\.typeCode = ''[\s\S]*await scrollToSelectedType\(''\)[\s\S]*await search\(\)[\s\S]*\}/)
   assert.doesNotMatch(resetSearchConditionsBody, /rows\.value = \[\]/)
@@ -213,7 +213,7 @@ test('search empty state gives search-aware recovery actions', () => {
 })
 
 test('search empty state keeps copy short and illustration text-free', () => {
-  assert.match(source, /const emptyTitle = '暂无匹配资源'/)
+  assert.match(source, /const emptyTitle = computed\(\(\) => activeDirection\.value === RESOURCE_DIRECTION_DEMAND \? '暂无匹配需求' : '暂无匹配供给'\)/)
   assert.match(source, /const emptyDesc = '换个关键词或分类试试。'/)
   assert.doesNotMatch(source, /暂未找到「/)
   assert.doesNotMatch(source, /平台资源会保持更新/)

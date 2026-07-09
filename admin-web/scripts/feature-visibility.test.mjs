@@ -144,6 +144,52 @@ test('resource type config provides visual field schema editor', () => {
   assert.match(source, /高级 JSON/)
 })
 
+test('resource type config visual editor excludes derived summary fields from base required options', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/ResourceTypeConfigView.vue'), 'utf8')
+
+  assert.match(source, /summaryFieldValueSet/)
+  assert.doesNotMatch(source, /value:\s*'category'[\s\S]{0,80}label:\s*'品类'/)
+  assert.doesNotMatch(source, /value:\s*'quantityText'[\s\S]{0,80}label:\s*'数量\/产能'/)
+  assert.doesNotMatch(source, /value:\s*'priceText'[\s\S]{0,80}label:\s*'价格描述'/)
+})
+
+test('resource type config registers interactive Element Plus editor controls', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/ResourceTypeConfigView.vue'), 'utf8')
+  const registrySource = fs.readFileSync(path.join(root, 'src/plugins/elementPlus.js'), 'utf8')
+  const requiredComponents = [
+    ['<el-checkbox', 'ElCheckbox'],
+    ['<el-radio-group', 'ElRadioGroup'],
+    ['<el-radio-button', 'ElRadioButton'],
+    ['<el-empty', 'ElEmpty'],
+  ]
+
+  for (const [tag, component] of requiredComponents) {
+    assert.equal(source.includes(tag), true, `${tag} should remain covered by the registry test`)
+    assert.match(
+      registrySource,
+      new RegExp(`import \\{[^}]*\\b${component}\\b[^}]*\\} from 'element-plus/es/components/`),
+      `${component} should be imported for on-demand registration`,
+    )
+    assert.match(
+      registrySource,
+      new RegExp(`\\b${component}\\b,`),
+      `${component} should be registered with the app`,
+    )
+  }
+})
+
+test('resource type config shows read-only resource direction labels', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/ResourceTypeConfigView.vue'), 'utf8')
+
+  assert.match(source, /label="类型归属"/)
+  assert.match(source, /directionLabel/)
+  assert.match(source, /资源类型/)
+  assert.match(source, /需求类型/)
+  assert.match(source, /directionTagType/)
+  assert.match(source, /editing\.direction/)
+  assert.doesNotMatch(source, /direction:\s*editing\.value\.direction/)
+})
+
 test('banner target selectors support searchable remote options', () => {
   const source = fs.readFileSync(path.join(root, 'src/views/BannerTopicView.vue'), 'utf8')
 

@@ -272,15 +272,15 @@ BEGIN
   INTO demand_type_count
   FROM resource_type_configs
   WHERE direction = 'demand'
-    AND type_code IN ('buy_goods', 'find_inventory', 'find_factory', 'find_service');
+    AND type_code IN ('buy_goods', 'find_inventory', 'find_factory', 'find_service', 'find_rental');
 
-  IF demand_type_count < 4 THEN
-    RAISE EXCEPTION 'expected 4 demand resource types, got %', demand_type_count;
+  IF demand_type_count < 5 THEN
+    RAISE EXCEPTION 'expected 5 demand resource types, got %', demand_type_count;
   END IF;
 END $$;
 SQL
 
-psql_run "$database_url" -v ON_ERROR_STOP=1 -c "SELECT type_code, type_name, direction FROM resource_type_configs WHERE type_code IN ('goods','inventory','factory','service','buy_goods','find_inventory','find_factory','find_service') ORDER BY direction, type_code;"
+psql_run "$database_url" -v ON_ERROR_STOP=1 -c "SELECT type_code, type_name, direction FROM resource_type_configs WHERE type_code IN ('goods','inventory','factory','service','rental','buy_goods','find_inventory','find_factory','find_service','find_rental') ORDER BY direction, type_code;"
 
 printf 'test database updated successfully. Backup: %s\n' "$backup_file"
 REMOTE_SCRIPT

@@ -5,9 +5,9 @@
       <text v-if="resourceTypeLabel" class="type-corner">{{ resourceTypeLabel }}</text>
     </view>
     <view class="card-main">
-      <text class="resource-title">{{ resource.title || '资源标题待完善' }}</text>
-      <text class="resource-meta">{{ resource.category || '品类待沟通' }} · {{ resource.quantityText || '数量待沟通' }}</text>
-      <text class="resource-price">{{ resource.priceText || '价格面议' }}</text>
+      <text class="resource-title">{{ resource.title || '供给标题待完善' }}</text>
+      <text class="resource-meta">{{ resourceSummaryText }}</text>
+      <text v-if="resource.priceText" class="resource-price">{{ resource.priceText }}</text>
       <view class="merchant-line">
         <text v-if="isVerifiedMerchant" class="verified-badge">已认证</text>
         <text class="merchant-name">{{ merchantName }}</text>
@@ -50,6 +50,14 @@ const coverUrl = computed(() => {
 const isVerifiedMerchant = computed(() => (props.resource.merchant || {}).verificationStatus === 'verified')
 const merchantName = computed(() => (props.resource.merchant || {}).name || '商家待确认')
 const resourceTypeLabel = computed(() => resourceTypeText[props.resource.typeCode] || '')
+const resourceSummaryText = computed(() => buildResourceSummaryText(props.resource, resourceTypeLabel.value || '供给信息待完善'))
+
+function buildResourceSummaryText(resource, fallbackText) {
+  const parts = [resource.category, resource.quantityText]
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+  return parts.join(' · ') || fallbackText
+}
 
 function formatRefreshedAt(value) {
   return formatListFreshnessDate(value)

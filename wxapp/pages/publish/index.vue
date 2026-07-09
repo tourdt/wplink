@@ -2,7 +2,7 @@
   <view class="publish-entry-page">
     <view class="entry-head">
       <text class="entry-title">发布</text>
-      <text class="entry-desc">选择本次要发布的内容类型，后续字段会按资源或需求自动切换。</text>
+      <text class="entry-desc">选择本次要发布的内容类型，后续字段会按供给或需求自动切换。</text>
     </view>
     <view class="publish-direction-grid">
       <button
@@ -27,7 +27,7 @@ const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
 const publishDirectionOptions = [
   {
-    title: '发布资源',
+    title: '发布供给',
     desc: '发布现货、库存、工厂、招聘、服务等供给信息',
     value: RESOURCE_DIRECTION_SUPPLY,
   },

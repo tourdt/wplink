@@ -12,8 +12,8 @@
         <view class="activity-body">
           <text class="activity-tag">城市站活动</text>
           <text class="activity-title">织里童装夏款供需对接会</text>
-          <text class="activity-desc">活动页由已配置业务域名承载，返回小程序后可继续查看相关平台资源。</text>
-          <button class="secondary-button" @click="openTopic">查看相关资源</button>
+          <text class="activity-desc">活动页由已配置业务域名承载，返回小程序后可继续查看相关平台供给。</text>
+          <button class="secondary-button" @click="openTopic">查看相关供给</button>
         </view>
       </view>
       <web-view :src="allowedUrl" />
@@ -22,7 +22,7 @@
       <text class="blocked-title">链接不可访问</text>
       <text class="blocked-desc">该活动链接不在平台允许范围内。</text>
       <text class="blocked-rule">URL 必须属于已配置业务域名；活动页内容需和服装产业相关，并保留返回小程序路径。</text>
-      <button class="secondary-button" @click="openTopic">查看平台资源</button>
+      <button class="secondary-button" @click="openTopic">查看平台供给</button>
     </view>
   </view>
 </template>

@@ -135,7 +135,7 @@ const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
 const NAV_BOTTOM_RPX = 12
 const directionTabs = [
-  { label: '资源', value: RESOURCE_DIRECTION_SUPPLY },
+  { label: '供给', value: RESOURCE_DIRECTION_SUPPLY },
   { label: '需求', value: RESOURCE_DIRECTION_DEMAND },
 ]
 const directionStateCache = reactive({
@@ -176,7 +176,7 @@ const searchPlaceholder = computed(() => (
     ? '搜采购/找厂/服务'
     : '搜现货/库存/工厂'
 ))
-const emptyTitle = '暂无匹配资源'
+const emptyTitle = computed(() => activeDirection.value === RESOURCE_DIRECTION_DEMAND ? '暂无匹配需求' : '暂无匹配供给')
 const emptyDesc = '换个关键词或分类试试。'
 const emptySuggestions = computed(() => hotKeywords.value
   .filter((item) => item !== trimmedKeyword.value)

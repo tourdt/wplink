@@ -127,10 +127,10 @@ test('home page keeps custom brand first screen structure', () => {
     'mode="aspectFit"',
     'getMenuButtonBoundingClientRect',
     'homeContentStyle',
-    '搜索资源、需求、工厂或服务',
+    '搜索供给、需求、工厂或服务',
     'factory-hero',
     '织里站 · 精选工厂',
-    '童装产业带资源服务平台',
+    '童装产业带供需服务平台',
     'quick-action-grid',
     '现货货源',
     '库存清仓',
@@ -166,14 +166,14 @@ test('resource tab separates recommendation discovery from keyword search page',
   assert.ok(pagesConfig.pages.some((item) => item.path === 'pages/search/index'))
   assert.equal(resourceTab?.text, '供需')
 
-  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectType', "label: '资源'", "label: '需求'", 'DemandCard']) {
+  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectType', "label: '供给'", "label: '需求'", 'DemandCard']) {
     assert.match(resourceSource, new RegExp(token))
   }
   for (const removedToken of ['createSavedSearch', 'applySavedSearch', 'saveCurrentSearch']) {
     assert.equal(resourceSource.includes(removedToken), false)
   }
 
-  for (const token of ['searchResources', '暂无匹配资源', '换个条件', 'activeDirection', 'DemandCard']) {
+  for (const token of ['searchResources', '暂无匹配供给', '换个条件', 'activeDirection', 'DemandCard']) {
     assert.match(searchSource, new RegExp(token))
   }
   for (const removedToken of ['提交采购需求', 'openDemand', '/pages/demand/index']) {
@@ -200,6 +200,19 @@ test('publish page supports custom select fields from resource type schema', () 
   assert.match(source, /field\.options\.length/)
 })
 
+test('publish custom select fields reveal manual input only after choosing custom option', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
+
+  assert.match(source, /getDynamicFieldSelectOptions/)
+  assert.match(source, /isDynamicFieldCustomSelectActive\(field\)/)
+  assert.match(source, /v-if="isDynamicFieldCustomSelectActive\(field\)"/)
+  assert.doesNotMatch(
+    source,
+    /v-else-if="field\.type === 'select' && field\.allowCustom" class="select-with-custom"[\s\S]*@input="setDynamicFieldCustomSelect\(field, \$event\.detail\.value\)"/,
+  )
+})
+
 test('publish tab supports supply and demand entry selection', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const tabSource = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
@@ -207,7 +220,7 @@ test('publish tab supports supply and demand entry selection', () => {
 
   for (const token of [
     'publishDirectionOptions',
-    '发布资源',
+    '发布供给',
     '发布需求',
     'startPublish',
     'RESOURCE_DIRECTION_SUPPLY',
@@ -228,8 +241,45 @@ test('publish tab supports supply and demand entry selection', () => {
   assert.match(formSource, /direction:\s*RESOURCE_DIRECTION_SUPPLY/)
   assert.match(formSource, /listCityResourceTypes\(form\.cityCode,\s*\{ direction: form\.direction \}\)/)
   assert.match(formSource, /需求信息/)
-  assert.match(formSource, /采购要求/)
   assert.match(formSource, /参考图片/)
+  assert.equal(formSource.includes('采购要求'), false)
+})
+
+test('publish form renders type fields from schema instead of fixed category purchase fields', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const formSource = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
+
+  assert.equal(formSource.includes('<text class="field-label">品类</text>'), false)
+  assert.equal(formSource.includes("detailTitle: '采购要求'"), false)
+  assert.equal(formSource.includes("quantityLabel: '需求数量'"), false)
+  assert.equal(formSource.includes("priceLabel: '预算描述'"), false)
+  assert.equal(formSource.includes("['typeCode', 'title', 'category', 'contactName', 'contactPhone'"), false)
+  assert.equal(formSource.includes("uni.showToast({ title: '请填写品类'"), false)
+  assert.match(formSource, /buildResourcePublishPayload/)
+  assert.match(formSource, /applySummaryFieldsToPayload/)
+  assert.match(formSource, /displayTemplate\?\.summary/)
+})
+
+test('resource cards and detail display configured summaries without fixed category quantity wording', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const resourceCardSource = fs.readFileSync(path.join(root, 'components/ResourceCard.vue'), 'utf8')
+  const demandCardSource = fs.readFileSync(path.join(root, 'components/DemandCard.vue'), 'utf8')
+  const detailSource = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
+
+  for (const source of [resourceCardSource, demandCardSource]) {
+    assert.match(source, /resourceSummaryText/)
+    assert.equal(source.includes('品类待沟通'), false)
+    assert.equal(source.includes('数量待沟通'), false)
+  }
+  assert.equal(demandCardSource.includes('预算面议'), false)
+  assert.match(resourceCardSource, /v-if="resource\.priceText"/)
+  assert.match(demandCardSource, /v-if="resource\.priceText"/)
+
+  assert.match(detailSource, /summarySpecItems/)
+  assert.match(detailSource, /attributeSpecValues/)
+  assert.equal(detailSource.includes("{ label: '品类', value: resource.value.category || '待沟通' }"), false)
+  assert.equal(detailSource.includes("{ label: '数量', value: resource.value.quantityText || '待沟通' }"), false)
+  assert.equal(detailSource.includes("{ label: '价格', value: resource.value.priceText || '面议' }"), false)
 })
 
 test('home quick actions map to supply and demand resource flows', () => {
@@ -277,6 +327,7 @@ test('resource type display names use buyer-friendly wording', () => {
     "find_inventory: '找库存'",
     "find_factory: '找工厂'",
     "find_service: '找服务'",
+    "find_rental: '找场地'",
   ]) {
     assert.match(enumSource, new RegExp(token))
   }
@@ -289,7 +340,7 @@ test('topic empty state does not expose demand submission in MVP', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/topic/index.vue'), 'utf8')
 
-  for (const token of ['getTopicResources', 'ResourceCard', 'Banner 专题', 'topicStats', '继续浏览资源', 'openSearch']) {
+  for (const token of ['getTopicResources', 'ResourceCard', 'Banner 专题', 'topicStats', '继续浏览供给', 'openSearch']) {
     assert.match(source, new RegExp(token))
   }
 
@@ -412,7 +463,7 @@ test('my resources page keeps list concise and dates day-only', () => {
     'background: $wplink-card;',
     'box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.06);',
     'directionOptions',
-    '资源发布',
+    '供给发布',
     '需求发布',
     'direction: filters.direction',
     'displayStatusText(item)',
@@ -429,7 +480,7 @@ test('my resources page keeps list concise and dates day-only', () => {
     'hasMore.value',
     'loading.value',
     'class="empty-state"',
-    '暂无发布资源',
+    '暂无发布供给',
     '继续发布',
     'load-more-text',
     'padding-bottom: calc(128rpx + env(safe-area-inset-bottom));',
@@ -511,9 +562,9 @@ test('favorites page matches my resources filter and supports refresh pagination
     'emptyDesc',
     'emptyActionText',
     'openEmptyAction',
-    '暂无收藏资源',
+    '暂无收藏供给',
     '暂无关注商家',
-    '去找资源',
+    '去找供给',
     '去找商家',
     'load-more-text',
     'listFavoriteResources({ page: nextPage, pageSize })',
@@ -728,10 +779,11 @@ test('publish page presents grouped fast publishing workflow', () => {
     'fixed-save-spacer',
     'fixed-save-bar',
     'fixed-save-actions',
-    '资源类型',
+    '供给类型',
     '基础信息',
-    '供应信息',
-    '资源图片',
+    '供给说明',
+    '类型字段',
+    '供给图片',
     '联系信息',
     '保存草稿',
     '提交审核',
@@ -801,6 +853,7 @@ test('publish page defaults contact phone from merchant profile masked phone', (
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
 
+  assert.match(source, /const detail = await getMerchant\(form\.merchantId,\s*\{ suppressErrorToast: true \}\)/)
   assert.match(source, /contact\.phone \|\| contact\.phoneMasked/)
   assert.match(source, /form\.contact\.phone = contact\.phone \|\| contact\.phoneMasked/)
 })
@@ -1314,7 +1367,7 @@ test('resource detail related resources use reusable resource list', () => {
     "import ResourceList from '../../components/ResourceList.vue'",
     ':resources="relatedResources"',
     'variant="compact"',
-    'empty-text="暂无同类资源"',
+    'empty-text="暂无同类供给"',
     '@open="openRelatedResource"',
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
@@ -1323,7 +1376,7 @@ test('resource detail related resources use reusable resource list', () => {
   assert.equal(source.includes('<ResourceCard v-for="item in relatedResources"'), false)
   assert.match(cardSource, /props\.variant === 'compact'[\s\S]*'resource-card-compact'/)
   assert.match(cardSource, /\.resource-card-compact \.thumb-wrap \{[\s\S]*width: 144rpx;[\s\S]*height: 144rpx;/)
-  assert.match(cardSource, /<text class="resource-title">[\s\S]*<text class="resource-meta">[\s\S]*<text class="resource-price">[\s\S]*<view class="merchant-line">/)
+  assert.match(cardSource, /<text class="resource-title">[\s\S]*<text class="resource-meta">[\s\S]*<text v-if="resource\.priceText" class="resource-price">[\s\S]*<view class="merchant-line">/)
   assert.equal(cardSource.includes('meta-price-line'), false)
   assert.equal(cardSource.includes('平台核实'), false)
   assert.equal(cardSource.includes('查看详情'), false)
@@ -1412,7 +1465,7 @@ test('merchant detail page uses trust-first homepage layout', () => {
     'profile-chip.category',
     '热度',
     '主营待补充',
-    '电话和微信见资源详情',
+    '电话和微信见供给详情',
   ]) {
     assert.match(source, new RegExp(token))
   }

@@ -1,10 +1,10 @@
 <template>
   <view class="resource-page">
     <view v-if="resourceUnavailable" class="unavailable-state">
-      <text class="unavailable-title">资源暂不可查看</text>
-      <text class="unavailable-desc">该资源可能正在审核、已下架或已过期。你可以继续搜索同类资源，或返回首页查看平台推荐。</text>
+      <text class="unavailable-title">内容暂不可查看</text>
+      <text class="unavailable-desc">该内容可能正在审核、已下架或已过期。你可以继续搜索同类内容，或返回首页查看平台推荐。</text>
       <view class="unavailable-actions">
-        <button class="primary-button" @click="openSearch">去找其他资源</button>
+        <button class="primary-button" @click="openSearch">去找其他内容</button>
         <button @click="backHome">返回首页</button>
       </view>
     </view>
@@ -33,7 +33,7 @@
           @click="previewGalleryImage(0)"
         />
         <view v-else class="gallery-main gallery-placeholder">
-          <text>{{ resource.category || '资源实拍' }}</text>
+          <text>{{ resource.category || '供给实拍' }}</text>
         </view>
       </view>
 
@@ -48,7 +48,7 @@
           <text class="title">{{ resource.title }}</text>
           <button class="favorite-button" @click="toggleFavorite">{{ favorited ? '已收藏' : '收藏' }}</button>
         </view>
-        <text class="price">{{ resource.priceText || '价格面议' }}</text>
+        <text v-if="resource.priceText" class="price">{{ resource.priceText }}</text>
         <view class="spec-list">
           <view v-for="item in specItems" :key="item.label" class="spec-item">
             <text class="spec-label">{{ item.label }}</text>
@@ -83,7 +83,7 @@
         <ResourceList
           :resources="relatedResources"
           variant="compact"
-          empty-text="暂无同类资源"
+          empty-text="暂无同类供给"
           @open="openRelatedResource"
         />
       </view>
@@ -200,11 +200,15 @@ const attributeSpecItems = computed(() => (resource.value.attributeItems || [])
     label: item.label,
     value: item.value,
   })))
+const attributeSpecValues = computed(() => new Set(attributeSpecItems.value.map((item) => String(item.value))))
+const summarySpecItems = computed(() => [
+  { label: '分类摘要', value: resource.value.category },
+  { label: '数量摘要', value: resource.value.quantityText },
+  { label: '价格摘要', value: resource.value.priceText },
+].filter((item) => item.value && !attributeSpecValues.value.has(String(item.value))))
 const specItems = computed(() => [
-  { label: '品类', value: resource.value.category || '待沟通' },
-  { label: '数量', value: resource.value.quantityText || '待沟通' },
-  { label: '价格', value: resource.value.priceText || '面议' },
   ...attributeSpecItems.value,
+  ...summarySpecItems.value,
   { label: '刷新', value: resource.value.refreshedAt || '近期更新' },
 ])
 const isExpiredResource = computed(() => {
@@ -215,17 +219,17 @@ const isExpiredResource = computed(() => {
 })
 const isDealtResource = computed(() => resource.value.status === 'dealt' || Boolean(resource.value.dealtAt))
 const canShareOwnResource = computed(() => resource.value.status === 'published' && !isExpiredResource.value && !resource.value.dealtAt)
-const managementTitle = computed(() => statusText[resource.value.status] || '资源管理')
+const managementTitle = computed(() => statusText[resource.value.status] || '供给管理')
 const managementNotice = computed(() => {
   if (resource.value.status === 'pending') {
-    return '资源正在审核，审核通过后会公开展示。当前暂不能刷新、置顶、下架或分享。'
+    return '供给正在审核，审核通过后会公开展示。当前暂不能刷新、置顶、下架或分享。'
   }
   if (resource.value.status === 'draft') return '草稿可继续编辑，完善后再提交审核。'
-  if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : '资源已被驳回，可编辑后重新提交审核。'
-  if (isExpiredResource.value) return '资源已过期，建议再发类似资源后重新提交审核。'
-  if (isDealtResource.value) return '资源已成交，不再公开展示，可再发类似资源。'
-  if (resource.value.status === 'taken_down') return '资源已下架，不再公开展示。'
-  return '资源展示中，可按需刷新、置顶或下架。'
+  if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : '供给已被驳回，可编辑后重新提交审核。'
+  if (isExpiredResource.value) return '供给已过期，建议再发类似供给后重新提交审核。'
+  if (isDealtResource.value) return '供给已成交，不再公开展示，可再发类似供给。'
+  if (resource.value.status === 'taken_down') return '供给已下架，不再公开展示。'
+  return '供给展示中，可按需刷新、置顶或下架。'
 })
 const managementActions = computed(() => {
   if (resource.value.status === 'pending') return []
@@ -253,7 +257,7 @@ const managementActions = computed(() => {
 
 onLoad(async (options) => {
   if (!options.id) return
-  // 从“我的发布”进入时允许查看待审核、草稿、已下架等非公开状态，避免误提示资源已下架。
+  // 从“我的发布”进入时允许查看待审核、草稿、已下架等非公开状态，避免误提示供给已下架。
   ownerMerchantId.value = options.merchantId || ''
   isOwnResource.value = options.from === 'my-resources' || Boolean(ownerMerchantId.value)
   resourceUnavailable.value = false
@@ -338,14 +342,14 @@ async function loadFavoriteState(resourceId) {
 async function toggleFavorite() {
   if (!resource.value.id) return
   if (isOwnResource.value) {
-    uni.showToast({ title: '不能收藏自己发布的资源', icon: 'none' })
+    uni.showToast({ title: '不能收藏自己发布的供给', icon: 'none' })
     return
   }
   try {
     // 收藏状态以服务端返回为准，避免弱网下本地乐观更新和真实状态不一致。
     const resp = await setResourceFavorite(resource.value.id, !favorited.value)
     favorited.value = Boolean(resp.favorited)
-    uni.showToast({ title: favorited.value ? '已收藏资源' : '已取消收藏', icon: 'none' })
+    uni.showToast({ title: favorited.value ? '已收藏供给' : '已取消收藏', icon: 'none' })
   } catch (err) {
     uni.showToast({ title: err.message || '收藏失败，请稍后重试', icon: 'none' })
   }
@@ -405,7 +409,7 @@ function closeManagementSheet() {
 
 function shareOwnResource() {
   if (canShareOwnResource.value) return
-  uni.showToast({ title: '资源审核通过后可分享', icon: 'none' })
+  uni.showToast({ title: '供给审核通过后可分享', icon: 'none' })
 }
 
 async function handleManagementAction(action) {
@@ -467,8 +471,8 @@ async function topOwnResource() {
 
 async function takeDownOwnResource() {
   const confirmed = await confirmManagementAction({
-    title: '下架资源',
-    content: '下架后资源将不再公开展示，确认下架吗？',
+    title: '下架供给',
+    content: '下架后供给将不再公开展示，确认下架吗？',
     confirmText: '下架',
     confirmColor: '#c2410c',
   })
@@ -509,7 +513,7 @@ function buildRepostInitialForm(detail) {
 
 async function deleteOwnResource() {
   const confirmed = await confirmManagementAction({
-    title: '删除资源',
+    title: '删除供给',
     content: '删除后将不再显示在我的发布中，确认删除吗？',
     confirmText: '删除',
     confirmColor: '#c2410c',
@@ -561,7 +565,7 @@ async function shareResource() {
 }
 
 onShareAppMessage(() => ({
-  title: resource.value.title || '衣货通资源',
+  title: resource.value.title || '衣货通供给',
   path: resource.value.id ? `/pages/resource/detail?id=${resource.value.id}` : '/pages/home/index',
 }))
 </script>

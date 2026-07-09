@@ -274,6 +274,56 @@ func TestCreateResourceCreatesDemandDirectionResource(t *testing.T) {
 	}
 }
 
+func TestCreateResourceDerivesSummaryFieldsFromDisplayTemplate(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-find-rental",
+			TypeCode:       "find_rental",
+			Direction:      model.ResourceDirectionDemand,
+			RequiredFields: []string{"title", "rentalNeedType", "contactPhone"},
+			FieldSchema: model.JSONMap{
+				"fields": []interface{}{
+					map[string]interface{}{"key": "rentalNeedType", "label": "标的类型", "type": "select", "options": []interface{}{"档口", "仓库"}, "allowCustom": false},
+					map[string]interface{}{"key": "expectedAreaText", "label": "期望面积", "type": "text"},
+					map[string]interface{}{"key": "budgetRentText", "label": "预算租金", "type": "text"},
+				},
+			},
+			DisplayTemplate: model.JSONMap{
+				"summary": map[string]interface{}{
+					"category":     "rentalNeedType",
+					"quantityText": "expectedAreaText",
+					"priceText":    "budgetRentText",
+				},
+			},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "find_rental",
+		Title:       "急找童装城附近档口",
+		Attributes:  model.JSONMap{"rentalNeedType": "档口", "expectedAreaText": "80-120 平", "budgetRentText": "8000 元/月以内"},
+		Description: "希望可以两周内入驻。",
+		Contact:     ResourceContactReq{Name: "李老板", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+
+	if store.input.Category != "档口" {
+		t.Fatalf("category = %q, want derived rental type", store.input.Category)
+	}
+	if store.input.QuantityText != "80-120 平" {
+		t.Fatalf("quantityText = %q, want derived area", store.input.QuantityText)
+	}
+	if store.input.PriceText != "8000 元/月以内" {
+		t.Fatalf("priceText = %q, want derived rent budget", store.input.PriceText)
+	}
+}
+
 func TestCreateResourceUsesMerchantContactPhoneWhenRequestPhoneIsMasked(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{

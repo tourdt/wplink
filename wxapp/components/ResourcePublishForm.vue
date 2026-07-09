@@ -29,24 +29,12 @@
         <text class="field-label">标题</text>
         <input v-model="form.title" class="field" :placeholder="directionLabels.titlePlaceholder" />
       </view>
-      <view class="field-group">
-        <text class="field-label">品类</text>
-        <input v-model="form.category" class="field" :placeholder="directionLabels.categoryPlaceholder" />
-      </view>
     </view>
 
     <view class="form-section supply-section">
       <view class="section-head">
         <text class="section-title">{{ directionLabels.detailTitle }}</text>
         <text class="section-note">建议填写</text>
-      </view>
-      <view class="field-group">
-        <text class="field-label">{{ directionLabels.quantityLabel }}</text>
-        <input v-model="form.quantityText" class="field" :placeholder="directionLabels.quantityPlaceholder" />
-      </view>
-      <view class="field-group">
-        <text class="field-label">{{ directionLabels.priceLabel }}</text>
-        <input v-model="form.priceText" class="field" :placeholder="directionLabels.pricePlaceholder" />
       </view>
       <view class="field-group">
         <text class="field-label">{{ directionLabels.descriptionLabel }}</text>
@@ -75,10 +63,10 @@
             否
           </button>
         </view>
-        <view v-else-if="field.type === 'select' && field.allowCustom" class="select-with-custom">
+        <view v-else-if="isDynamicFieldCustomSelect(field)" class="select-with-custom">
           <picker
-            v-if="field.options.length"
-            :range="field.options"
+            v-if="getDynamicFieldSelectOptions(field).length"
+            :range="getDynamicFieldSelectOptions(field)"
             :value="getDynamicFieldOptionIndex(field)"
             @change="setDynamicFieldSelect(field, $event)"
           >
@@ -88,9 +76,10 @@
             </view>
           </picker>
           <input
+            v-if="isDynamicFieldCustomSelectActive(field)"
             class="field"
             :value="form.attributes[field.key]"
-            :placeholder="field.placeholder || `可选择或填写${field.label}`"
+            :placeholder="field.placeholder || `请填写${field.label}`"
             @input="setDynamicFieldCustomSelect(field, $event.detail.value)"
           />
         </view>
@@ -207,6 +196,9 @@ const props = defineProps({
 
 const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
+const CUSTOM_SELECT_OPTION_LABEL = '其他'
+const summaryFieldNames = new Set(['category', 'quantityText', 'priceText'])
+const customSelectOptionLabels = new Set(['其他', '其它', '自定义', '其他/自定义'])
 
 const reserveBottomSafeArea = computed(() => props.reserveBottomSafeArea)
 const resourceTypes = ref([])
@@ -238,6 +230,7 @@ const form = reactive({
     wechat: '',
   },
 })
+const customSelectFieldKeys = reactive({})
 
 const resourceTypeNames = computed(() => resourceTypes.value.map((item) => item.typeName))
 const currentResourceType = computed(() => resourceTypes.value[selectedTypeIndex.value] || {})
@@ -249,19 +242,14 @@ const directionLabels = computed(() => {
   if (isDemandDirection.value) {
     return {
       basicTitle: '需求信息',
-      progressDesc: '标题、品类、联系人和联系电话为必填项',
+      progressDesc: '标题、联系人、联系电话和类型必填项需填写完整',
       typeLabel: '需求类型',
       typeHelper: '需求类型会用于搜索筛选和分类展示。',
       titlePlaceholder: '例如：急找童装春款现货 3000 件',
-      categoryPlaceholder: '例如：童装、女装、面料、加工需求',
-      detailTitle: '采购要求',
-      quantityLabel: '需求数量',
-      quantityPlaceholder: '例如：3000 件、长期每周 500 件',
-      priceLabel: '预算描述',
-      pricePlaceholder: '例如：18-25 元/件，可按品质议价',
+      detailTitle: '需求说明',
       descriptionLabel: '需求描述',
       descriptionPlaceholder: '说明款式、尺码颜色、交期、验货和交付要求',
-      attributeTitle: '需求属性',
+      attributeTitle: '需求字段',
       attributeNote: '按需求类型',
       imageTitle: '参考图片',
       contactNamePlaceholder: '供应商看到的联系人',
@@ -270,21 +258,16 @@ const directionLabels = computed(() => {
   }
   return {
     basicTitle: '基础信息',
-    progressDesc: '标题、品类、联系人和联系电话为必填项',
-    typeLabel: '资源类型',
-    typeHelper: '资源类型会用于搜索筛选和分类展示。',
+    progressDesc: '标题、联系人、联系电话和类型必填项需填写完整',
+    typeLabel: '供给类型',
+    typeHelper: '供给类型会用于搜索筛选和分类展示。',
     titlePlaceholder: '例如：童装春款现货 3000 件',
-    categoryPlaceholder: '例如：童装、女装、面料、加工',
-    detailTitle: '供应信息',
-    quantityLabel: '数量/产能',
-    quantityPlaceholder: '例如：3000 件、日产 800 件',
-    priceLabel: '价格描述',
-    pricePlaceholder: '例如：18-25 元/件，量大可议',
-    descriptionLabel: '资源描述',
+    detailTitle: '供给说明',
+    descriptionLabel: '供给描述',
     descriptionPlaceholder: '说明货品状态、尺码颜色、交期、看样方式等关键信息',
-    attributeTitle: '类型信息',
-    attributeNote: '按资源类型',
-    imageTitle: '资源图片',
+    attributeTitle: '类型字段',
+    attributeNote: '按供给类型',
+    imageTitle: '供给图片',
     contactNamePlaceholder: '买家看到的联系人',
     contactPhonePlaceholder: '用于买家发起联系',
   }
@@ -292,7 +275,8 @@ const directionLabels = computed(() => {
 const dynamicFieldItems = computed(() => normalizeDynamicFieldItems(currentResourceType.value.fieldSchema))
 const requiredFields = computed(() => {
   const configuredFields = Array.isArray(currentResourceType.value.requiredFields) ? currentResourceType.value.requiredFields : []
-  return Array.from(new Set(['typeCode', 'title', 'category', 'contactName', 'contactPhone', ...configuredFields]))
+  const visibleConfiguredFields = configuredFields.filter((field) => !summaryFieldNames.has(field))
+  return Array.from(new Set(['typeCode', 'title', 'contactName', 'contactPhone', ...visibleConfiguredFields]))
 })
 const requiredFieldStates = computed(() => requiredFields.value.map(isPublishFieldCompleted))
 const canSubmit = computed(() => requiredFieldStates.value.every(Boolean))
@@ -363,6 +347,7 @@ async function initializePublishForm(options = {}) {
   editingResourceStatus.value = ''
   editSavedAsDraft.value = true
   Object.assign(form, createEmptyPublishForm())
+  resetCustomSelectFieldKeys()
   resourceImageEntries.value = []
   selectedTypeIndex.value = 0
   form.merchantId = options.merchantId || getMerchantId()
@@ -408,7 +393,7 @@ function selectType(event) {
 async function loadMerchantContact() {
   if (!form.merchantId) return
   try {
-    const detail = await getMerchant(form.merchantId)
+    const detail = await getMerchant(form.merchantId, { suppressErrorToast: true })
     applyMerchantContactDefaults(detail.contact || {})
   } catch (err) {
     // 商户资料无法加载时不阻断发布，联系人继续由用户手动填写。
@@ -507,7 +492,7 @@ async function submit() {
     return
   }
   const images = await uploadPendingResourceImages()
-  await createResource({ ...form, images })
+  await createResource(buildResourcePublishPayload(images))
   openPublishSuccess()
   clearPublishLocalDraft()
   resetPublishForm()
@@ -534,7 +519,7 @@ async function saveDraft() {
 }
 
 async function saveResourceDraftPayload(images) {
-  const payload = { ...form, images }
+  const payload = buildResourcePublishPayload(images)
   if (!editingResourceId.value) {
     return createResourceDraft(payload)
   }
@@ -609,6 +594,7 @@ function resetPublishForm() {
   editingResourceStatus.value = ''
   editSavedAsDraft.value = true
   Object.assign(form, createEmptyPublishForm())
+  resetCustomSelectFieldKeys()
   resourceImageEntries.value = []
   selectedTypeIndex.value = 0
 }
@@ -641,6 +627,37 @@ function normalizePublishDirection(value) {
 
 function clonePublishForm() {
   return JSON.parse(JSON.stringify(form))
+}
+
+function buildResourcePublishPayload(images) {
+  const payload = {
+    ...clonePublishForm(),
+    images,
+  }
+  applySummaryFieldsToPayload(payload, currentResourceType.value)
+  return payload
+}
+
+function applySummaryFieldsToPayload(payload, resourceType = {}) {
+  const summary = resourceType.displayTemplate?.summary || {}
+  for (const field of summaryFieldNames) {
+    const sourceKey = String(summary[field] || '').trim()
+    payload[field] = sourceKey ? getPublishSummarySourceValue(payload, sourceKey) : normalizeSummaryText(payload[field])
+  }
+}
+
+function getPublishSummarySourceValue(payload, sourceKey) {
+  if (sourceKey in (payload.attributes || {})) {
+    return normalizeSummaryText(payload.attributes[sourceKey])
+  }
+  return normalizeSummaryText(payload[sourceKey])
+}
+
+function normalizeSummaryText(value) {
+  if (value === false) return '否'
+  if (value === true) return '是'
+  if (value === undefined || value === null) return ''
+  return String(value).trim()
 }
 
 function serializeResourceImageEntry(entry) {
@@ -698,6 +715,11 @@ function syncAttributesWithSelectedType() {
       delete form.attributes[key]
     }
   })
+  Object.keys(customSelectFieldKeys).forEach((key) => {
+    if (!allowedKeys.has(key)) {
+      delete customSelectFieldKeys[key]
+    }
+  })
 }
 
 function getDynamicFieldValue(key) {
@@ -715,17 +737,67 @@ function setDynamicFieldBoolean(key, value) {
 
 function setDynamicFieldSelect(field, event) {
   const index = Number(event.detail.value)
-  setDynamicFieldValue(field.key, field.options[index] || '')
+  const option = getDynamicFieldSelectOptions(field)[index] || ''
+  if (field.allowCustom && isDynamicFieldCustomOption(option)) {
+    customSelectFieldKeys[field.key] = true
+    if (isDynamicFieldConfiguredOption(field, getDynamicFieldValue(field.key))) {
+      setDynamicFieldValue(field.key, '')
+    }
+    return
+  }
+  customSelectFieldKeys[field.key] = false
+  setDynamicFieldValue(field.key, option)
 }
 
 function setDynamicFieldCustomSelect(field, value) {
+  customSelectFieldKeys[field.key] = true
   setDynamicFieldValue(field.key, value)
 }
 
 function getDynamicFieldOptionIndex(field) {
+  const options = getDynamicFieldSelectOptions(field)
+  if (isDynamicFieldCustomSelectActive(field)) {
+    const customIndex = options.findIndex(isDynamicFieldCustomOption)
+    return customIndex >= 0 ? customIndex : 0
+  }
   const value = getDynamicFieldValue(field.key)
-  const index = field.options.findIndex((item) => item === value)
+  const index = options.findIndex((item) => item === value)
   return index >= 0 ? index : 0
+}
+
+function isDynamicFieldCustomSelect(field) {
+  return field.type === 'select' && field.allowCustom
+}
+
+function getDynamicFieldSelectOptions(field) {
+  const options = Array.isArray(field.options) ? field.options : []
+  if (!field.allowCustom || options.some(isDynamicFieldCustomOption)) {
+    return options
+  }
+  return [...options, CUSTOM_SELECT_OPTION_LABEL]
+}
+
+function isDynamicFieldCustomSelectActive(field) {
+  if (!isDynamicFieldCustomSelect(field)) return false
+  if (!field.options.length) return true
+  if (customSelectFieldKeys[field.key] === true) return true
+  const value = normalizeSummaryText(getDynamicFieldValue(field.key))
+  return value !== '' && !isDynamicFieldConfiguredOption(field, value)
+}
+
+function isDynamicFieldConfiguredOption(field, value) {
+  const text = normalizeSummaryText(value)
+  return text !== '' && field.options.includes(text) && !isDynamicFieldCustomOption(text)
+}
+
+function isDynamicFieldCustomOption(option) {
+  return customSelectOptionLabels.has(normalizeSummaryText(option))
+}
+
+function resetCustomSelectFieldKeys() {
+  Object.keys(customSelectFieldKeys).forEach((key) => {
+    delete customSelectFieldKeys[key]
+  })
 }
 
 function isPublishFieldCompleted(field) {
@@ -854,10 +926,6 @@ function validatePublishForm() {
     uni.showToast({ title: '请填写标题', icon: 'none' })
     return false
   }
-  if (!form.category.trim()) {
-    uni.showToast({ title: '请填写品类', icon: 'none' })
-    return false
-  }
   if (!form.contact.name.trim()) {
     uni.showToast({ title: '请填写联系人', icon: 'none' })
     return false
@@ -880,15 +948,15 @@ function getPublishFieldLabel(field) {
   const labels = {
     typeCode: directionLabels.value.typeLabel,
     title: '标题',
-    category: '品类',
-    quantityText: directionLabels.value.quantityLabel,
-    priceText: directionLabels.value.priceLabel,
+    category: '分类摘要',
+    quantityText: '数量摘要',
+    priceText: '价格摘要',
     description: directionLabels.value.descriptionLabel,
     contactName: '联系人',
     contactPhone: '联系电话',
     contactWechat: '联系微信',
     images: directionLabels.value.imageTitle,
-    tags: isDemandDirection.value ? '需求标签' : '资源标签',
+    tags: isDemandDirection.value ? '需求标签' : '供给标签',
   }
   return labels[field] || '配置字段'
 }

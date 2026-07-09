@@ -50,7 +50,7 @@ import ResourceCard from '../../components/ResourceCard.vue'
 import { listFavoriteResources, listFollowedMerchants } from '../../api/favorite'
 
 const tabs = [
-  { label: '资源', value: 'resources' },
+  { label: '供给', value: 'resources' },
   { label: '商家', value: 'merchants' },
 ]
 const activeTab = ref('resources')
@@ -69,12 +69,12 @@ const merchantTypeText = {
   buyer: '采购商',
 }
 const currentRows = computed(() => (activeTab.value === 'resources' ? favoriteResources.value : followedMerchants.value))
-const emptyTitle = computed(() => (activeTab.value === 'resources' ? '暂无收藏资源' : '暂无关注商家'))
+const emptyTitle = computed(() => (activeTab.value === 'resources' ? '暂无收藏供给' : '暂无关注商家'))
 const emptyDesc = computed(() => {
   if (activeTab.value === 'resources') return '看到合适的库存清仓、现货货源或工厂接单后点收藏，后续可在这里快速回看。'
   return '关注常合作或感兴趣的商家，后续可从这里快速进入商家主页。'
 })
-const emptyActionText = computed(() => (activeTab.value === 'resources' ? '去找资源' : '去找商家'))
+const emptyActionText = computed(() => (activeTab.value === 'resources' ? '去找供给' : '去找商家'))
 
 onLoad(() => {
   loadRows({ reset: true })

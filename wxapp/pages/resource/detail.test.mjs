@@ -38,7 +38,7 @@ test('own resource detail keeps share and management actions in the bottom bar',
 })
 
 test('pending own resource management sheet only explains review state', () => {
-  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*resource\.value\.status === 'pending'[\s\S]*资源正在审核，审核通过后会公开展示。当前暂不能刷新、置顶、下架或分享。[\s\S]*\}\)/)
+  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*resource\.value\.status === 'pending'[\s\S]*供给正在审核，审核通过后会公开展示。当前暂不能刷新、置顶、下架或分享。[\s\S]*\}\)/)
   assert.match(source, /<view v-if="showManagementSheet" class="sheet-mask" @click="closeManagementSheet">/)
   assert.match(source, /<text class="sheet-title">\{\{ managementTitle \}\}<\/text>/)
   assert.match(source, /<text v-if="!managementActions\.length" class="sheet-desc">\{\{ managementNotice \}\}<\/text>/)
@@ -74,6 +74,12 @@ test('resource detail renders configured attribute items as specs', () => {
   assert.match(source, /resource\.value\.attributeItems \|\| \[\]/)
   assert.match(source, /label: item\.label/)
   assert.match(source, /value: item\.value/)
+  assert.match(source, /const summarySpecItems = computed\(\(\) =>/)
+  assert.match(source, /const attributeSpecValues = computed\(\(\) =>/)
   assert.match(source, /const specItems = computed\(\(\) => \[/)
   assert.match(source, /\.\.\.attributeSpecItems\.value/)
+  assert.match(source, /\.\.\.summarySpecItems\.value/)
+  assert.equal(source.includes("{ label: '品类', value: resource.value.category || '待沟通' }"), false)
+  assert.equal(source.includes("{ label: '数量', value: resource.value.quantityText || '待沟通' }"), false)
+  assert.equal(source.includes("{ label: '价格', value: resource.value.priceText || '面议' }"), false)
 })

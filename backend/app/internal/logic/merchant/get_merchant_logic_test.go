@@ -2,9 +2,11 @@ package merchant
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"wplink/backend/app/internal/model"
+	"wplink/backend/common/errx"
 )
 
 func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
@@ -82,12 +84,29 @@ func TestCalculateMerchantHeatScoreCapsFollowerContribution(t *testing.T) {
 	}
 }
 
+func TestGetMerchantReturnsNotFoundWhenMerchantMissing(t *testing.T) {
+	store := &fakeMerchantDetailStore{err: sql.ErrNoRows}
+	logic := NewGetMerchantLogic(store)
+
+	_, err := logic.GetMerchant(context.Background(), "merchant-missing")
+	if errx.CodeOf(err) != errx.CodeMerchantNotFound {
+		t.Fatalf("error code = %q, want merchant not found", errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "商家不存在或已停用" {
+		t.Fatalf("message = %q, want friendly merchant missing message", errx.PublicMessage(err))
+	}
+}
+
 type fakeMerchantDetailStore struct {
 	merchantID string
 	detail     model.MerchantDetail
+	err        error
 }
 
 func (s *fakeMerchantDetailStore) GetMerchantDetail(ctx context.Context, merchantID string) (model.MerchantDetail, error) {
 	s.merchantID = merchantID
+	if s.err != nil {
+		return model.MerchantDetail{}, s.err
+	}
 	return s.detail, nil
 }

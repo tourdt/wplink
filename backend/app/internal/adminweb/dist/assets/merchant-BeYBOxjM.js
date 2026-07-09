@@ -1,0 +1,1 @@
+import{h as n}from"./index-CoeznJaR.js";function a(t={}){return n.get("/api/v1/admin/merchants",{params:t})}function e(t){return n.post("/api/v1/merchants",t)}function c(t){return n.get(`/api/v1/merchants/${t}`)}export{e as c,c as g,a as l};

@@ -24,8 +24,8 @@
     </view>
 
     <view v-if="!loading && rows.length === 0" class="empty-state">
-      <text class="empty-title">暂无发布资源</text>
-      <text class="empty-desc">发布资源后，可在这里查看审核进度、曝光数据和推广效果。</text>
+      <text class="empty-title">暂无发布供给</text>
+      <text class="empty-desc">发布供给后，可在这里查看审核进度、曝光数据和推广效果。</text>
       <button class="empty-action" @click="openPublish">继续发布</button>
     </view>
 
@@ -85,7 +85,7 @@ const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
 
 const directionOptions = [
-  { label: '资源发布', value: RESOURCE_DIRECTION_SUPPLY },
+  { label: '供给发布', value: RESOURCE_DIRECTION_SUPPLY },
   { label: '需求发布', value: RESOURCE_DIRECTION_DEMAND },
 ]
 const statusOptions = [
@@ -232,10 +232,10 @@ function buildRepostInitialForm(detail) {
 }
 
 async function deleteTakenDown(item) {
-  // 已下架资源删除后会从我的发布隐藏，保留后台统计和审计数据。
+  // 已下架供给删除后会从我的发布隐藏，保留后台统计和审计数据。
   const confirmed = await new Promise((resolve) => {
     uni.showModal({
-      title: '删除资源',
+      title: '删除供给',
       content: '删除后将不再显示在我的发布中，确认删除吗？',
       confirmText: '删除',
       confirmColor: '#c2410c',
@@ -297,7 +297,7 @@ function statusClass(item) {
 }
 
 function displayResourceTypeText(item) {
-  return resourceTypeText[item.typeCode] || item.typeCode || '资源'
+  return resourceTypeText[item.typeCode] || item.typeCode || '供给'
 }
 
 function shouldShowResourceDates(item) {
