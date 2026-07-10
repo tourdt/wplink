@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import test from 'node:test'
+
+const root = path.resolve(new URL('../..', import.meta.url).pathname)
+
+test('growth entitlement detail page is registered and loads public campaign rules', () => {
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const pagePaths = pagesConfig.pages.map((item) => item.path)
+  const source = fs.readFileSync(path.join(root, 'pages/my/growth-entitlement.vue'), 'utf8')
+  const apiSource = fs.readFileSync(path.join(root, 'api/growthCampaign.js'), 'utf8')
+
+  assert.ok(pagePaths.includes('pages/my/growth-entitlement'))
+  assert.match(apiSource, /getActiveGrowthCampaigns/)
+  assert.match(apiSource, /\/api\/v1\/growth-campaigns\/active/)
+  assert.match(apiSource, /getGrowthTasks/)
+  assert.match(apiSource, /\/api\/v1\/merchants\/\$\{merchantId\}\/growth-tasks/)
+  assert.match(source, /权益余额/)
+  assert.match(source, /新手成长进度/)
+  assert.match(source, /新手主线任务/)
+  assert.match(source, /每日曝光任务/)
+  assert.match(source, /规则说明/)
+  assert.match(source, /getMerchantEntitlements/)
+  assert.match(source, /getActiveGrowthCampaigns/)
+  assert.match(source, /getGrowthTasks/)
+  assert.match(source, /starterTasks/)
+  assert.match(source, /dailyTasks/)
+  assert.match(source, /taskStatusText/)
+  assert.match(source, /openTaskAction/)
+  assert.match(source, /发布次数/)
+  assert.match(source, /刷新次数/)
+  assert.match(source, /有效联系/)
+  assert.doesNotMatch(source, /可继续获得/)
+  assert.match(source, /权益达标后自动到账/)
+})

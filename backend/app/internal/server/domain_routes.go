@@ -14,6 +14,7 @@ import (
 	discoverylogic "wplink/backend/app/internal/logic/discovery"
 	entitlementlogic "wplink/backend/app/internal/logic/entitlement"
 	favoritelogic "wplink/backend/app/internal/logic/favorite"
+	growthlogic "wplink/backend/app/internal/logic/growth"
 	maplogic "wplink/backend/app/internal/logic/map"
 	merchantlogic "wplink/backend/app/internal/logic/merchant"
 	messagelogic "wplink/backend/app/internal/logic/message"
@@ -69,6 +70,14 @@ type GrowthCampaignAPIStore interface {
 	adminlogic.GrowthCampaignAdminStore
 }
 
+type GrowthCampaignPublicAPIStore interface {
+	growthlogic.CampaignPublicStore
+}
+
+type GrowthTaskAPIStore interface {
+	growthlogic.GrowthTaskStore
+}
+
 type TopVoucherMerchantStore interface {
 	GetTopVoucherMerchantID(ctx context.Context, voucherID string) (string, error)
 }
@@ -120,6 +129,12 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	}
 	if vipStore, ok := store.(VIPAPIStore); ok {
 		registerVIPRoutes(mux, vipStore, userTokenService, adminTokenService, permissionStore, wechatPayGateway, wechatPayDevMock)
+	}
+	if growthPublicStore, ok := store.(GrowthCampaignPublicAPIStore); ok {
+		registerPublicGrowthCampaignRoutes(mux, growthPublicStore)
+	}
+	if growthTaskStore, ok := store.(GrowthTaskAPIStore); ok {
+		registerGrowthTaskRoutes(mux, growthTaskStore, userTokenService, adminTokenService, permissionStore)
 	}
 	if growthStore, ok := store.(GrowthCampaignAPIStore); ok {
 		registerGrowthCampaignRoutes(mux, growthStore, adminTokenService)
@@ -640,6 +655,25 @@ func registerEntitlementRoutes(mux *http.ServeMux, store EntitlementAPIStore, to
 			body.OperatorID = operatorID
 		}
 		resp, err := adminlogic.NewEntitlementAdminLogic(store).GrantMerchantEntitlement(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
+}
+
+func registerPublicGrowthCampaignRoutes(mux *http.ServeMux, store GrowthCampaignPublicAPIStore) {
+	mux.HandleFunc("GET /api/v1/growth-campaigns/active", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := growthlogic.NewCampaignPublicLogic(store).ListActiveCampaigns(r.Context())
+		response.JSON(w, resp, err)
+	})
+}
+
+func registerGrowthTaskRoutes(mux *http.ServeMux, store GrowthTaskAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore) {
+	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/growth-tasks", func(w http.ResponseWriter, r *http.Request) {
+		merchantID := r.PathValue("merchantId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := growthlogic.NewGrowthTaskLogic(store).GetGrowthTasks(r.Context(), merchantID)
 		response.JSON(w, resp, err)
 	})
 }

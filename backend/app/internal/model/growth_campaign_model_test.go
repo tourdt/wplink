@@ -18,6 +18,7 @@ func TestGrowthCampaignModelUsesCampaignSourceAndIdempotency(t *testing.T) {
 		"growth_campaigns",
 		"growth_campaign_rules",
 		"growth_reward_grants",
+		"rule_name",
 		"idempotency_key",
 		"ON CONFLICT (idempotency_key) DO NOTHING",
 		"INSERT INTO merchant_entitlements",
@@ -71,6 +72,29 @@ func TestGrowthCampaignModelIgnoresInactiveCampaignStatuses(t *testing.T) {
 	} {
 		if !strings.Contains(text, snippet) {
 			t.Fatalf("growth campaign active query missing snippet %q", snippet)
+		}
+	}
+}
+
+func TestGrowthTaskProgressSQLUsesResourceAndContactSignals(t *testing.T) {
+	checks := []string{
+		"COUNT(*) FILTER (WHERE status = 'published')",
+		"COUNT(*) FILTER (WHERE status = 'pending')",
+		"created_at >= date_trunc('day', now())",
+		"action IN ('phone', 'wechat')",
+		"action = 'share_view'",
+	}
+	for _, snippet := range checks {
+		if !strings.Contains(growthTaskProgressSQL, snippet) {
+			t.Fatalf("growthTaskProgressSQL missing %q:\n%s", snippet, growthTaskProgressSQL)
+		}
+	}
+}
+
+func TestMerchantGrowthRewardGrantsSQLFiltersGrantedByMerchant(t *testing.T) {
+	for _, snippet := range []string{"FROM growth_reward_grants", "merchant_id = $1", "status = 'granted'"} {
+		if !strings.Contains(listMerchantGrowthRewardGrantsSQL, snippet) {
+			t.Fatalf("listMerchantGrowthRewardGrantsSQL missing %q:\n%s", snippet, listMerchantGrowthRewardGrantsSQL)
 		}
 	}
 }

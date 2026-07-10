@@ -235,6 +235,29 @@ func TestAPIRouterRequiresMerchantPermissionForEntitlements(t *testing.T) {
 	}
 }
 
+func TestAPIRouterRequiresMerchantPermissionForGrowthTasks(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	forbiddenRec := httptest.NewRecorder()
+	forbiddenReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-2/growth-tasks", nil)
+	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
+	}
+
+	allowedRec := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1/growth-tasks", nil)
+	allowedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(allowedRec, allowedReq)
+	data := decodeEnvelopeData(t, allowedRec, http.StatusOK)
+	if _, ok := data["tasks"].([]interface{}); !ok {
+		t.Fatalf("data = %#v, want tasks array", data)
+	}
+}
+
 func TestAPIRouterRegistersVIPMembershipRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
 	store.managedMerchants = map[string]bool{"merchant-1": true}
@@ -300,6 +323,29 @@ func TestAPIRouterRegistersVIPMembershipRoutes(t *testing.T) {
 	decodeEnvelopeData(t, paymentRec, http.StatusOK)
 	if store.markVIPOrderPaidInput.OutTradeNo != "VIP202607090001" {
 		t.Fatalf("markVIPOrderPaidInput = %#v, want dev mock payment", store.markVIPOrderPaidInput)
+	}
+}
+
+func TestAPIRouterRegistersPublicGrowthCampaignRoute(t *testing.T) {
+	store := newFakeFullAPIStore()
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/growth-campaigns/active", nil)
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	items, ok := data["items"].([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("growth campaign data = %#v, want one active campaign", data)
+	}
+	campaign := items[0].(map[string]interface{})
+	if campaign["title"] != "新手发布权益" {
+		t.Fatalf("campaign = %#v, want public starter title", campaign)
+	}
+	rules := campaign["rules"].([]interface{})
+	if len(rules) != 1 || rules[0].(map[string]interface{})["rewardText"] != "5 次发布次数" {
+		t.Fatalf("rules = %#v, want Chinese public rule", rules)
 	}
 }
 
@@ -689,6 +735,30 @@ func (s *fakeFullAPIStore) RedeemTopVoucher(ctx context.Context, voucherID strin
 func (s *fakeFullAPIStore) GrantMerchantEntitlement(ctx context.Context, input model.GrantEntitlementInput) (model.GrantEntitlementResult, error) {
 	s.grantEntitlementInput = input
 	return model.GrantEntitlementResult{ID: "entitlement-1"}, nil
+}
+
+func (s *fakeFullAPIStore) ListActiveGrowthCampaigns(ctx context.Context) ([]model.PublicGrowthCampaign, error) {
+	return []model.PublicGrowthCampaign{{
+		Code:  "starter_growth_2026_q3",
+		Name:  "新手成长权益活动",
+		Title: "新手发布权益",
+		Hint:  "发布优质资源、有效分享可获得更多曝光权益",
+		Rules: []model.PublicGrowthRule{{
+			RuleName:     "首条资源审核通过奖励",
+			TriggerEvent: model.GrowthEventResourceFirstApproved,
+			RewardType:   model.EntitlementTypePublishQuota,
+			RewardAmount: 5,
+			ValidDays:    30,
+		}},
+	}}, nil
+}
+
+func (s *fakeFullAPIStore) GetGrowthTaskProgress(ctx context.Context, merchantID string) (model.GrowthTaskProgress, error) {
+	return model.GrowthTaskProgress{TotalResourceCount: 1, PendingResourceCount: 1}, nil
+}
+
+func (s *fakeFullAPIStore) ListMerchantGrowthRewardGrants(ctx context.Context, merchantID string) ([]model.MerchantGrowthRewardGrant, error) {
+	return []model.MerchantGrowthRewardGrant{}, nil
 }
 
 func (s *fakeFullAPIStore) ListVIPPlans(ctx context.Context) ([]model.VIPPlan, error) {

@@ -74,6 +74,7 @@ type SaveAdminGrowthCampaignInput struct {
 type AdminGrowthRuleConfig struct {
 	CampaignCode          string
 	RuleCode              string
+	RuleName              string
 	TriggerEvent          string
 	Status                string
 	Priority              int64
@@ -91,6 +92,7 @@ type AdminGrowthRuleConfig struct {
 type SaveAdminGrowthRuleInput struct {
 	CampaignCode          string
 	RuleCode              string
+	RuleName              string
 	TriggerEvent          string
 	Status                string
 	Priority              int64
@@ -117,6 +119,7 @@ type AdminGrowthRewardGrant struct {
 	ID           string
 	CampaignCode string
 	RuleCode     string
+	RuleName     string
 	MerchantID   string
 	ResourceID   string
 	RewardType   string
@@ -126,6 +129,42 @@ type AdminGrowthRewardGrant struct {
 	CreatedAt    string
 }
 
+type GrowthTaskProgress struct {
+	TotalResourceCount         int64
+	PendingResourceCount       int64
+	PublishedResourceCount     int64
+	ApprovedWithinWindowCount  int64
+	TodayEffectiveContactCount int64
+	ShareViewWindowCount       int64
+}
+
+type MerchantGrowthRewardGrant struct {
+	RuleCode string
+	Status   string
+}
+
+type PublicGrowthCampaign struct {
+	Code  string
+	Name  string
+	Title string
+	Hint  string
+	Rules []PublicGrowthRule
+}
+
+type PublicGrowthRule struct {
+	RuleCode              string
+	RuleName              string
+	TriggerEvent          string
+	RewardType            string
+	RewardAmount          int64
+	ValidDays             int64
+	PerUserLimit          int64
+	PerUserDailyLimit     int64
+	PerResourceDailyLimit int64
+	Description           string
+	Conditions            JSONMap
+}
+
 type AdminGrowthConfigSaveResult struct {
 	Code      string
 	UpdatedAt string
@@ -133,6 +172,75 @@ type AdminGrowthConfigSaveResult struct {
 
 func NewGrowthCampaignModel(db *sql.DB) *GrowthCampaignModel {
 	return &GrowthCampaignModel{db: db}
+}
+
+func (m *GrowthCampaignModel) ListActiveGrowthCampaigns(ctx context.Context) ([]PublicGrowthCampaign, error) {
+	rows, err := m.db.QueryContext(ctx, `
+SELECT
+  gc.code, gc.name, gc.config_snapshot,
+  gcr.rule_code, gcr.rule_name, gcr.trigger_event, gcr.reward_type, gcr.reward_amount, gcr.valid_days,
+  gcr.per_user_limit, gcr.per_user_daily_limit, gcr.per_resource_daily_limit, gcr.description, gcr.conditions
+FROM growth_campaigns gc
+JOIN growth_campaign_rules gcr ON gcr.campaign_code = gc.code
+WHERE gc.status = 'active'
+  AND gcr.status = 'active'
+  AND gc.starts_at <= now()
+  AND (gc.ends_at IS NULL OR gc.ends_at > now())
+ORDER BY gc.starts_at DESC, gcr.priority ASC, gcr.id ASC
+`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	campaigns := make([]PublicGrowthCampaign, 0)
+	indexByCode := make(map[string]int)
+	for rows.Next() {
+		var code string
+		var name string
+		var config JSONMap
+		var rule PublicGrowthRule
+		var perUserLimit sql.NullInt64
+		var perUserDailyLimit sql.NullInt64
+		var perResourceDailyLimit sql.NullInt64
+		if err := rows.Scan(
+			&code,
+			&name,
+			&config,
+			&rule.RuleCode,
+			&rule.RuleName,
+			&rule.TriggerEvent,
+			&rule.RewardType,
+			&rule.RewardAmount,
+			&rule.ValidDays,
+			&perUserLimit,
+			&perUserDailyLimit,
+			&perResourceDailyLimit,
+			&rule.Description,
+			&rule.Conditions,
+		); err != nil {
+			return nil, err
+		}
+		rule.PerUserLimit = nullableInt64Value(perUserLimit)
+		rule.PerUserDailyLimit = nullableInt64Value(perUserDailyLimit)
+		rule.PerResourceDailyLimit = nullableInt64Value(perResourceDailyLimit)
+
+		campaignIndex, exists := indexByCode[code]
+		if !exists {
+			campaign := PublicGrowthCampaign{
+				Code:  code,
+				Name:  name,
+				Title: jsonString(config, "frontendTitle", name),
+				Hint:  jsonString(config, "frontendHint", ""),
+				Rules: []PublicGrowthRule{},
+			}
+			indexByCode[code] = len(campaigns)
+			campaigns = append(campaigns, campaign)
+			campaignIndex = len(campaigns) - 1
+		}
+		campaigns[campaignIndex].Rules = append(campaigns[campaignIndex].Rules, rule)
+	}
+	return campaigns, rows.Err()
 }
 
 func (m *GrowthCampaignModel) ListAdminGrowthCampaigns(ctx context.Context, status string) ([]AdminGrowthCampaignConfig, error) {
@@ -207,7 +315,7 @@ RETURNING code, updated_at
 func (m *GrowthCampaignModel) ListAdminGrowthRules(ctx context.Context, campaignCode string) ([]AdminGrowthRuleConfig, error) {
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  campaign_code, rule_code, trigger_event, status, priority, conditions, reward_type, reward_amount,
+  campaign_code, rule_code, rule_name, trigger_event, status, priority, conditions, reward_type, reward_amount,
   valid_days, per_user_limit, per_user_daily_limit, per_resource_daily_limit, description, updated_at
 FROM growth_campaign_rules
 WHERE campaign_code = $1
@@ -228,6 +336,7 @@ ORDER BY priority ASC, id ASC
 		if err := rows.Scan(
 			&item.CampaignCode,
 			&item.RuleCode,
+			&item.RuleName,
 			&item.TriggerEvent,
 			&item.Status,
 			&item.Priority,
@@ -261,13 +370,14 @@ func (m *GrowthCampaignModel) SaveAdminGrowthRule(ctx context.Context, input Sav
 		var updatedAt time.Time
 		if err := tx.QueryRowContext(ctx, `
 INSERT INTO growth_campaign_rules (
-  campaign_code, rule_code, trigger_event, status, priority, conditions, reward_type, reward_amount,
+  campaign_code, rule_code, rule_name, trigger_event, status, priority, conditions, reward_type, reward_amount,
   valid_days, per_user_limit, per_user_daily_limit, per_resource_daily_limit, description
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9,
-  NULLIF($10, 0), NULLIF($11, 0), NULLIF($12, 0), $13
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+  NULLIF($11, 0), NULLIF($12, 0), NULLIF($13, 0), $14
 )
 ON CONFLICT (campaign_code, rule_code) DO UPDATE SET
+  rule_name = EXCLUDED.rule_name,
   trigger_event = EXCLUDED.trigger_event,
   status = EXCLUDED.status,
   priority = EXCLUDED.priority,
@@ -281,7 +391,7 @@ ON CONFLICT (campaign_code, rule_code) DO UPDATE SET
   description = EXCLUDED.description,
   updated_at = now()
 RETURNING rule_code, updated_at
-`, input.CampaignCode, input.RuleCode, input.TriggerEvent, input.Status, input.Priority, input.Conditions, input.RewardType, input.RewardAmount, input.ValidDays, input.PerUserLimit, input.PerUserDailyLimit, input.PerResourceDailyLimit, input.Description).Scan(&result.Code, &updatedAt); err != nil {
+`, input.CampaignCode, input.RuleCode, input.RuleName, input.TriggerEvent, input.Status, input.Priority, input.Conditions, input.RewardType, input.RewardAmount, input.ValidDays, input.PerUserLimit, input.PerUserDailyLimit, input.PerResourceDailyLimit, input.Description).Scan(&result.Code, &updatedAt); err != nil {
 			return err
 		}
 		result.UpdatedAt = updatedAt.Format(time.RFC3339)
@@ -291,7 +401,7 @@ RETURNING rule_code, updated_at
 			Action:         "growth_campaign_rule_save",
 			ObjectType:     "growth_campaign",
 			BeforeSnapshot: JSONMap{"campaignCode": input.CampaignCode, "ruleCode": input.RuleCode},
-			AfterSnapshot:  JSONMap{"campaignCode": input.CampaignCode, "ruleCode": input.RuleCode, "status": input.Status, "rewardType": input.RewardType, "rewardAmount": input.RewardAmount, "validDays": input.ValidDays},
+			AfterSnapshot:  JSONMap{"campaignCode": input.CampaignCode, "ruleCode": input.RuleCode, "ruleName": input.RuleName, "status": input.Status, "rewardType": input.RewardType, "rewardAmount": input.RewardAmount, "validDays": input.ValidDays},
 		})
 	})
 	return result, err
@@ -304,14 +414,15 @@ func (m *GrowthCampaignModel) ListAdminGrowthRewardGrants(ctx context.Context, f
 	}
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
-  id::text, campaign_code, rule_code, merchant_id::text, COALESCE(resource_id::text, ''),
-  reward_type, reward_amount, status, reason, created_at
-FROM growth_reward_grants
-WHERE campaign_code = $1
-  AND ($2 = '' OR rule_code = $2)
-  AND ($3 = '' OR merchant_id = NULLIF($3, '')::bigint)
-  AND ($4 = '' OR status = $4)
-ORDER BY created_at DESC, id DESC
+  gr.id::text, gr.campaign_code, gr.rule_code, COALESCE(gcr.rule_name, ''), gr.merchant_id::text, COALESCE(gr.resource_id::text, ''),
+  gr.reward_type, gr.reward_amount, gr.status, gr.reason, gr.created_at
+FROM growth_reward_grants gr
+LEFT JOIN growth_campaign_rules gcr ON gcr.campaign_code = gr.campaign_code AND gcr.rule_code = gr.rule_code
+WHERE gr.campaign_code = $1
+  AND ($2 = '' OR gr.rule_code = $2)
+  AND ($3 = '' OR gr.merchant_id = NULLIF($3, '')::bigint)
+  AND ($4 = '' OR gr.status = $4)
+ORDER BY gr.created_at DESC, gr.id DESC
 LIMIT $5
 `, strings.TrimSpace(filter.CampaignCode), strings.TrimSpace(filter.RuleCode), strings.TrimSpace(filter.MerchantID), strings.TrimSpace(filter.Status), pageSize)
 	if err != nil {
@@ -323,13 +434,90 @@ LIMIT $5
 	for rows.Next() {
 		var item AdminGrowthRewardGrant
 		var createdAt time.Time
-		if err := rows.Scan(&item.ID, &item.CampaignCode, &item.RuleCode, &item.MerchantID, &item.ResourceID, &item.RewardType, &item.RewardAmount, &item.Status, &item.Reason, &createdAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.CampaignCode, &item.RuleCode, &item.RuleName, &item.MerchantID, &item.ResourceID, &item.RewardType, &item.RewardAmount, &item.Status, &item.Reason, &createdAt); err != nil {
 			return nil, err
 		}
 		item.CreatedAt = createdAt.Format(time.RFC3339)
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+const growthTaskProgressSQL = `
+WITH resource_stats AS (
+  SELECT
+    COUNT(*) AS total_resource_count,
+    COUNT(*) FILTER (WHERE status = 'pending') AS pending_resource_count,
+    COUNT(*) FILTER (WHERE status = 'published') AS published_resource_count,
+    COUNT(*) FILTER (
+      WHERE status = 'published'
+        AND published_at >= now() - make_interval(days => GREATEST($2, 1)::int)
+    ) AS approved_within_window_count
+  FROM resources
+  WHERE merchant_id = $1
+    AND deleted_at IS NULL
+),
+contact_stats AS (
+  SELECT
+    COUNT(*) FILTER (
+      WHERE action IN ('phone', 'wechat')
+        AND created_at >= date_trunc('day', now())
+    ) AS today_effective_contact_count,
+    COUNT(*) FILTER (
+      WHERE action = 'share_view'
+        AND created_at >= now() - make_interval(hours => GREATEST($3, 1)::int)
+    ) AS share_view_window_count
+  FROM resource_contact_events
+  WHERE merchant_id = $1
+)
+SELECT
+  resource_stats.total_resource_count,
+  resource_stats.pending_resource_count,
+  resource_stats.published_resource_count,
+  resource_stats.approved_within_window_count,
+  contact_stats.today_effective_contact_count,
+  contact_stats.share_view_window_count
+FROM resource_stats
+CROSS JOIN contact_stats
+`
+
+func (m *GrowthCampaignModel) GetGrowthTaskProgress(ctx context.Context, merchantID string) (GrowthTaskProgress, error) {
+	var progress GrowthTaskProgress
+	err := m.db.QueryRowContext(ctx, growthTaskProgressSQL, merchantID, growthDefaultWindowDays, growthDefaultWindowHours).Scan(
+		&progress.TotalResourceCount,
+		&progress.PendingResourceCount,
+		&progress.PublishedResourceCount,
+		&progress.ApprovedWithinWindowCount,
+		&progress.TodayEffectiveContactCount,
+		&progress.ShareViewWindowCount,
+	)
+	return progress, err
+}
+
+const listMerchantGrowthRewardGrantsSQL = `
+SELECT rule_code, status
+FROM growth_reward_grants
+WHERE merchant_id = $1
+  AND status = 'granted'
+ORDER BY created_at DESC
+`
+
+func (m *GrowthCampaignModel) ListMerchantGrowthRewardGrants(ctx context.Context, merchantID string) ([]MerchantGrowthRewardGrant, error) {
+	rows, err := m.db.QueryContext(ctx, listMerchantGrowthRewardGrantsSQL, merchantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	grants := make([]MerchantGrowthRewardGrant, 0)
+	for rows.Next() {
+		var grant MerchantGrowthRewardGrant
+		if err := rows.Scan(&grant.RuleCode, &grant.Status); err != nil {
+			return nil, err
+		}
+		grants = append(grants, grant)
+	}
+	return grants, rows.Err()
 }
 
 func (m *GrowthCampaignModel) TriggerGrowthEvent(ctx context.Context, input GrowthEventInput) ([]GrowthRewardGrantResult, error) {
@@ -642,4 +830,15 @@ func nullableInt64Value(value sql.NullInt64) int64 {
 		return value.Int64
 	}
 	return 0
+}
+
+func jsonString(values JSONMap, key string, fallback string) string {
+	if values == nil {
+		return fallback
+	}
+	text, ok := values[key].(string)
+	if !ok || strings.TrimSpace(text) == "" {
+		return fallback
+	}
+	return strings.TrimSpace(text)
 }
