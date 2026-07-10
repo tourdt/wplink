@@ -356,17 +356,21 @@ test('my page separates guest and logged-in account states without merchant bind
   for (const token of [
     'isLoggedIn',
     '未登录',
-    '登录后管理收藏和发布记录',
     '微信登录',
     '我的账号',
-    '已登录，可管理收藏和消息',
+    'merchantNo',
+    'merchantNoVisible',
+    'account-number-row',
+    '编号：',
+    '复制',
+    'copyMerchantNo',
+    '编号已复制',
     'accountStatusText',
     '待完善',
-    'quotaSummaryVisible',
-    '免费额度：本月可发布',
     'openAccountCard',
     'openMerchantHome',
-    '商家主页',
+    '我的主页',
+    '查看对外展示资料',
     'VIP 权益',
     '查看额度和限时特价',
     'openVIP',
@@ -378,7 +382,7 @@ test('my page separates guest and logged-in account states without merchant bind
     assert.match(source, new RegExp(token))
   }
 
-  for (const hiddenToken of ['保存身份', '商家 ID', '用户 ID：', '主页配置', 'merchant-actions', '我的权益', '权益提醒', '手机号绑定', '登录后可用', '同步收藏关注', '接收审核和联系消息', '我的需求', 'openMyDemands']) {
+  for (const hiddenToken of ['保存身份', '商家 ID', '用户 ID：', '主页配置', 'merchant-actions', '权益提醒', '手机号绑定', '登录后可用', '同步收藏关注', '接收审核和联系消息', '我的需求', 'openMyDemands', '登录后管理收藏和发布记录', '已登录，可管理收藏和消息']) {
     assert.equal(source.includes(hiddenToken), false)
   }
 })
@@ -391,18 +395,11 @@ test('my page presents merchant workspace and grouped service entries', () => {
     'account-shell',
     'account-side',
     'account-title-main',
+    'account-number-row',
+    'account-number-copy',
     'width: 104rpx',
     'font-size: 38rpx',
-    'merchant-effect-card',
-    'merchantEffectVisible',
-    'merchantEffectItems',
-    'getMerchantMetricsSummary',
     'common-service-section',
-    '商家本周效果',
-    '近 7 天',
-    '曝光',
-    '浏览',
-    '联系',
     '我的发布',
     '状态、数据、推广',
     'openMyResources',
@@ -440,6 +437,14 @@ test('my page presents merchant workspace and grouped service entries', () => {
     '优先处理发布、管理和曝光相关动作',
     '完善资料后获取更完整的商家展示和认证能力',
     '集中查看采购、收藏和平台提醒',
+    'merchant-effect-card',
+    'merchantEffectVisible',
+    'merchantEffectItems',
+    'getMerchantMetricsSummary',
+    '商家本周效果',
+    '近 7 天',
+    '曝光',
+    '浏览',
   ]) {
     assert.equal(source.includes(verboseCopy), false)
   }
@@ -662,13 +667,13 @@ test('merchant profile page labels every field and removes manual image url entr
     '商家名称',
     '主要身份',
     '主营品类',
-    '主页联系人',
-    '主页联系电话',
-    '主页微信',
+    '联系人',
+    '联系电话',
+    '微信',
     '商家地址',
     '商家介绍',
-    '商家主页图片',
-    '主页展示图',
+    '资料图片',
+    '公开展示图',
     'form-field',
     'field-label',
     'image-helper',
@@ -945,7 +950,7 @@ test('success pages explain the result and next step consistently', () => {
     assert.match(publishSource, new RegExp(token))
   }
 
-  for (const token of ['审核结果', '消息中心通知', '通过后曝光', '搜索、推荐和商家主页']) {
+  for (const token of ['审核结果', '消息中心通知', '通过后曝光', '搜索、推荐和供给方资料']) {
     assert.match(publishSource, new RegExp(token))
   }
 })
@@ -1160,14 +1165,14 @@ test('merchant profile page keeps contact fields optional and collapsed', () => 
     '买家联系和导航',
     'contact-section',
     'section-toggle',
-    '主页联系人',
-    '主页联系电话',
+    '联系人',
+    '联系电话',
   ]) {
     assert.match(source, new RegExp(token))
   }
 
   assert.equal(source.includes('请填写联系人和电话'), false)
-  assert.equal(source.includes('<text class="required-badge">必填</text>\\n          </view>\\n        </view>\\n        <view class="section-body">\\n          <view class="form-field">\\n            <text class="field-label">主页联系人</text>'), false)
+  assert.equal(source.includes('<text class="required-badge">必填</text>\\n          </view>\\n        </view>\\n        <view class="section-body">\\n          <view class="form-field">\\n            <text class="field-label">联系人</text>'), false)
 })
 
 test('merchant profile page reserves space above fixed save bar', () => {
@@ -1463,7 +1468,7 @@ test('merchant detail page uses trust-first homepage layout', () => {
     'statCards',
     'heatScore',
     "' · '",
-    '商家简介',
+    '发布者介绍',
     'profile-chip category',
     'profile-chip.category',
     '热度',

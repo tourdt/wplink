@@ -123,7 +123,7 @@ const fallbackTaskSummary = computed(() => ({
   starterTotalCount: 0,
 }))
 const taskEmptyText = computed(() => {
-  if (!merchantId.value) return '请先完善商家资料。'
+  if (!merchantId.value) return '请先完善发布者资料。'
   if (tasksLoadFailed.value) return '成长任务暂不可用，请稍后重试。'
   if (!tasksLoaded.value) return '任务加载中。'
   if (!hasTaskCampaign.value) return '当前暂无活动。'
@@ -131,7 +131,7 @@ const taskEmptyText = computed(() => {
   return '暂无主线任务。'
 })
 const dailyEmptyText = computed(() => {
-  if (!merchantId.value) return '请先完善商家资料。'
+  if (!merchantId.value) return '请先完善发布者资料。'
   if (tasksLoadFailed.value) return '每日任务暂不可用，请稍后重试。'
   if (!tasksLoaded.value) return '任务加载中。'
   if (!hasTaskCampaign.value) return '当前暂无活动。'

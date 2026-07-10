@@ -28,6 +28,7 @@ type CreateMerchantInput struct {
 
 type CreateMerchantResult struct {
 	ID                 string
+	MerchantNo         string
 	Name               string
 	VerificationStatus string
 	Status             string
@@ -40,6 +41,7 @@ type CreditTag struct {
 
 type MerchantDetail struct {
 	ID                     string
+	MerchantNo             string
 	Name                   string
 	MerchantType           string
 	CityCode               string
@@ -138,7 +140,7 @@ SELECT
   $9
 FROM city_stations cs
 WHERE cs.code = $1 AND cs.status = 'active'
-RETURNING id::text, name, verification_status, status
+RETURNING id::text, COALESCE(merchant_no, ''), name, verification_status, status
 `,
 			input.CityCode,
 			input.Name,
@@ -149,7 +151,7 @@ RETURNING id::text, name, verification_status, status
 			input.ContactPhone,
 			input.ContactWechat,
 			input.AddressText,
-		).Scan(&result.ID, &result.Name, &result.VerificationStatus, &result.Status); err != nil {
+		).Scan(&result.ID, &result.MerchantNo, &result.Name, &result.VerificationStatus, &result.Status); err != nil {
 			return err
 		}
 		if input.CreatorUserID == "" {
@@ -176,6 +178,7 @@ func (m *MerchantModel) GetMerchantDetail(ctx context.Context, merchantID string
 	err := m.db.QueryRowContext(ctx, `
 SELECT
   m.id::text,
+  COALESCE(m.merchant_no, ''),
   m.name,
   m.merchant_type,
   cs.code,
@@ -227,6 +230,7 @@ WHERE m.id = $1 AND m.deleted_at IS NULL
 GROUP BY m.id, cs.code
 `, merchantID).Scan(
 		&detail.ID,
+		&detail.MerchantNo,
 		&detail.Name,
 		&detail.MerchantType,
 		&detail.CityCode,

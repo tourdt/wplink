@@ -14,7 +14,11 @@
             </view>
             <text class="entry-arrow"></text>
           </view>
-          <text class="account-desc">{{ accountDesc }}</text>
+          <view v-if="merchantNoVisible" class="account-number-row" @click.stop="copyMerchantNo">
+            <text class="account-number-label">编号：</text>
+            <text class="account-number-value">{{ merchantNo }}</text>
+            <text class="account-number-copy">复制</text>
+          </view>
         </view>
       </view>
       <button v-if="!isLoggedIn" class="login-button" @click.stop="openLogin">微信登录</button>
@@ -52,8 +56,8 @@
         </view>
         <view class="action-item" @click="openMerchantHome">
           <view class="action-main">
-            <text class="action-title">商家主页</text>
-            <text class="action-meta">查看自己的公开页</text>
+            <text class="action-title">我的主页</text>
+            <text class="action-meta">查看对外展示资料</text>
           </view>
           <text class="entry-arrow"></text>
         </view>
@@ -113,9 +117,10 @@ const growthCampaigns = ref([])
 const isLoggedIn = computed(() => Boolean(token.value))
 const merchantLogo = computed(() => merchantProfile.value.logoUrl || '')
 const merchantName = computed(() => merchantProfile.value.name || '')
+const merchantNo = computed(() => merchantProfile.value.merchantNo || '')
+const merchantNoVisible = computed(() => Boolean(isLoggedIn.value && merchantNo.value))
 const avatarText = computed(() => merchantName.value.slice(0, 1) || (isLoggedIn.value ? '我' : '游'))
 const accountName = computed(() => merchantName.value || (isLoggedIn.value ? '我的账号' : '未登录'))
-const accountDesc = computed(() => (merchantName.value ? '已录入商户资料，可管理发布和 VIP 权益' : isLoggedIn.value ? '已登录，可管理收藏和消息' : '登录后管理收藏和发布记录'))
 const accountStatus = computed(() => {
   if (!merchantId.value) return 'unconfigured'
   if (merchantProfile.value.vipStatus === 'active') return 'vip'
@@ -232,6 +237,16 @@ function openAccountCard() {
     return
   }
   openMerchantHome()
+}
+
+function copyMerchantNo() {
+  if (!merchantNo.value) return
+  uni.setClipboardData({
+    data: merchantNo.value,
+    success: () => {
+      uni.showToast({ title: '编号已复制', icon: 'none' })
+    },
+  })
 }
 
 function openFavorites() {
@@ -369,12 +384,41 @@ async function openGrowthEntitlement() {
   line-height: 1.25;
 }
 
-.account-desc,
 .action-meta,
 .benefit-desc {
   color: $wplink-muted;
   font-size: 26rpx;
   line-height: 1.5;
+}
+
+.account-number-row {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  max-width: 100%;
+  min-height: 40rpx;
+  color: $wplink-muted;
+  font-size: 26rpx;
+  line-height: 1.4;
+}
+
+.account-number-label,
+.account-number-value,
+.account-number-copy {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.account-number-value {
+  color: $wplink-primary;
+  font-weight: 700;
+}
+
+.account-number-copy {
+  margin-left: 14rpx;
+  color: $wplink-accent;
+  font-size: 24rpx;
+  font-weight: 700;
 }
 
 .benefit-overview-card {

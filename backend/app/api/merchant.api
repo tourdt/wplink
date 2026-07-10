@@ -14,6 +14,7 @@ type CreateMerchantReq {
 
 type CreateMerchantResp {
 	Id                 string `json:"id"`
+	MerchantNo         string `json:"merchantNo,optional"`
 	Name               string `json:"name"`
 	VerificationStatus string `json:"verificationStatus"`
 	Status             string `json:"status"`
@@ -45,6 +46,7 @@ type MerchantVerificationInfo {
 
 type MerchantDetailResp {
 	Id                 string                   `json:"id"`
+	MerchantNo         string                   `json:"merchantNo"`
 	Name               string                   `json:"name"`
 	MerchantType       string                   `json:"merchantType"`
 	CityCode           string                   `json:"cityCode"`

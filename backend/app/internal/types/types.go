@@ -640,6 +640,7 @@ type CreateMerchantReq struct {
 
 type CreateMerchantResp struct {
 	Id                 string `json:"id"`
+	MerchantNo         string `json:"merchantNo,optional"`
 	Name               string `json:"name"`
 	VerificationStatus string `json:"verificationStatus"`
 	Status             string `json:"status"`
@@ -1173,6 +1174,7 @@ type MerchantContactInfo struct {
 
 type MerchantDetailResp struct {
 	Id                 string                   `json:"id"`
+	MerchantNo         string                   `json:"merchantNo"`
 	Name               string                   `json:"name"`
 	MerchantType       string                   `json:"merchantType"`
 	CityCode           string                   `json:"cityCode"`

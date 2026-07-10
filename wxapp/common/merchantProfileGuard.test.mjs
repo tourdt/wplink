@@ -56,7 +56,7 @@ test('merchant profile guard shows concise prompt and opens profile when confirm
 
   assert.equal(ready, false)
   assert.equal(uniMock.modalOptions.title, '完善资料')
-  assert.equal(uniMock.modalOptions.content, '需要先完善商家资料。')
+  assert.equal(uniMock.modalOptions.content, '需要先完善发布者资料。')
   assert.equal(uniMock.modalOptions.confirmText, '去完善')
   assert.equal(uniMock.modalOptions.cancelText, '取消')
   assert.deepEqual(uniMock.navigateOptions, { url: '/pages/merchant/profile' })

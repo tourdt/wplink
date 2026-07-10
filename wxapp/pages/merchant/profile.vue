@@ -44,22 +44,22 @@
         </button>
         <view v-if="contactSectionOpen" class="section-body">
           <view class="form-field">
-            <text class="field-label">主页联系人</text>
+            <text class="field-label">联系人</text>
             <input v-model="form.contactName" class="field" placeholder="联系人姓名" />
           </view>
           <view v-if="merchantId" class="form-field contact-phone-card">
-            <text class="field-label">主页联系电话</text>
+            <text class="field-label">联系电话</text>
             <text v-if="contactPhoneHint" class="field-helper">当前：{{ contactPhoneHint }}，填新号可更换</text>
             <input v-model="form.contactPhone" class="field" type="number" maxlength="20" placeholder="新手机号" @input="sanitizeContactPhone" />
             <text class="field-helper">手机号需为 6-20 位数字</text>
           </view>
           <view v-else class="form-field">
-            <text class="field-label">主页联系电话</text>
+            <text class="field-label">联系电话</text>
             <input v-model="form.contactPhone" class="field" type="number" maxlength="20" placeholder="联系电话" @input="sanitizeContactPhone" />
             <text class="field-helper">手机号需为 6-20 位数字</text>
           </view>
           <view class="form-field">
-            <text class="field-label">主页微信</text>
+            <text class="field-label">微信</text>
             <text v-if="merchantId && contactWechatHint" class="field-helper">当前：{{ contactWechatHint }}，填新微信可更换</text>
             <input v-model="form.contactWechat" class="field" :placeholder="contactWechatPlaceholder" />
           </view>
@@ -122,10 +122,10 @@
           </view>
           <view class="form-field image-field">
             <view class="image-title-row">
-              <text class="field-label">商家主页图片</text>
+              <text class="field-label">资料图片</text>
               <text class="image-count">{{ merchantImageEntries.length }}/{{ merchantProfileImageMaxCount }}</text>
             </view>
-            <text class="image-helper">主页展示图，点击图片预览，点击最后一格添加</text>
+            <text class="image-helper">公开展示图，点击图片预览，点击最后一格添加</text>
             <view class="image-grid-wrap">
               <UniGrid :column="3" :show-border="false" :square="true" @change="onMerchantImageGridItemClick">
                 <UniGridItem v-for="(item, index) in merchantImageGridItems" :key="item.id" :index="index">
@@ -390,7 +390,7 @@ function chooseMerchantLocation() {
         uni.showToast({ title: '未获取到有效地图位置', icon: 'none' })
         return
       }
-      // 地图坐标用于商家主页导航；文字地址仍保留给用户手动修正。
+      // 地图坐标用于发布者资料页导航；文字地址仍保留给用户手动修正。
       form.location = {
         latitude,
         longitude,

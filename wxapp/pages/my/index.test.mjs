@@ -19,6 +19,20 @@ test('my page shows merchant logo and name when merchant profile exists', () => 
   assert.match(source, /merchantProfile\.value = await getMerchant\(merchantId\.value, \{ suppressErrorToast: true \}\)/)
 })
 
+test('my page shows merchant number below account name and copies it from the whole row', () => {
+  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
+
+  assert.match(source, /const merchantNo = computed\(\(\) => merchantProfile\.value\.merchantNo \|\| ''\)/)
+  assert.match(source, /const merchantNoVisible = computed\(\(\) => Boolean\(isLoggedIn\.value && merchantNo\.value\)\)/)
+  assert.match(source, /<view v-if="merchantNoVisible" class="account-number-row" @click\.stop="copyMerchantNo">/)
+  assert.match(source, /<text class="account-number-label">编号：<\/text>/)
+  assert.match(source, /<text class="account-number-value">\{\{ merchantNo \}\}<\/text>/)
+  assert.match(source, /<text class="account-number-copy">复制<\/text>/)
+  assert.match(source, /uni\.setClipboardData\(\{[\s\S]*data: merchantNo\.value,[\s\S]*success: \(\) => \{[\s\S]*uni\.showToast\(\{ title: '编号已复制', icon: 'none' \}\)/)
+  assert.doesNotMatch(source, /<text class="account-desc">\{\{ accountDesc \}\}<\/text>/)
+  assert.doesNotMatch(source, /const accountDesc = computed/)
+})
+
 test('my page exposes native customer service entry without login gate', () => {
   const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
 
@@ -34,7 +48,7 @@ test('my page prompts before opening merchant-only entries without profile', () 
   assert.match(source, /import \{ ensureMerchantProfileReady \} from '\.\.\/\.\.\/common\/merchantProfileGuard'/)
   assert.match(source, /async function openMyResources\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(!\(await ensureMerchantProfileReady\(merchantId\.value\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/my-resources\/index\?merchantId=\$\{merchantId\.value\}` \}\)/)
   assert.match(source, /async function openMerchantHome\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(!\(await ensureMerchantProfileReady\(merchantId\.value\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/merchant\/detail\?id=\$\{merchantId\.value\}` \}\)/)
-  assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善商家资料'/)
+  assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善发布者资料'/)
 })
 
 test('my page shows compact entitlement overview and hides duplicated quota sections', () => {

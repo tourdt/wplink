@@ -41,7 +41,7 @@ test('growth entitlement detail page is registered and loads public campaign rul
   assert.match(source, /nearestExpiryText/)
   assert.match(source, /最近到期/)
   assert.match(source, /shouldShowTaskAction/)
-  assert.match(source, /请先完善商家资料/)
+  assert.match(source, /请先完善发布者资料/)
   assert.match(source, /当前暂无活动/)
   assert.match(source, /活动规则未开启/)
   assert.match(source, /flex-wrap:\s*wrap/)

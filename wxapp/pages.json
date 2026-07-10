@@ -99,7 +99,7 @@
     {
       "path": "pages/merchant/detail",
       "style": {
-        "navigationBarTitleText": "商家主页"
+        "navigationBarTitleText": "商家资料"
       }
     },
     {

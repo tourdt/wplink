@@ -28,7 +28,7 @@
 
     <view class="profile-panel">
       <view class="section-head">
-        <text class="section-title">商家简介</text>
+        <text class="section-title">发布者介绍</text>
       </view>
       <view class="profile-chip-row">
         <text v-if="merchantCategoryTags.length === 0" class="profile-chip muted">主营待补充</text>

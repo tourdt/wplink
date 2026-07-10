@@ -27,6 +27,7 @@ type CreateMerchantReq struct {
 
 type CreateMerchantResp struct {
 	ID                 string `json:"id"`
+	MerchantNo         string `json:"merchantNo,omitempty"`
 	Name               string `json:"name"`
 	VerificationStatus string `json:"verificationStatus"`
 	Status             string `json:"status"`
@@ -69,6 +70,7 @@ func (l *CreateMerchantLogic) CreateMerchant(ctx context.Context, req CreateMerc
 	}
 	return CreateMerchantResp{
 		ID:                 result.ID,
+		MerchantNo:         result.MerchantNo,
 		Name:               result.Name,
 		VerificationStatus: result.VerificationStatus,
 		Status:             result.Status,

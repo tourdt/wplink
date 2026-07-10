@@ -23,7 +23,7 @@ test('publish success page switches copy for demand submissions', () => {
 
 test('publish success page uses supply copy instead of resource copy', () => {
   assert.match(source, /title: '供给已提交审核'/)
-  assert.match(source, /供给会进入搜索、推荐和商家主页/)
+  assert.match(source, /供给会进入搜索、推荐和供给方资料/)
   assert.doesNotMatch(source, /资源已提交审核/)
 })
 

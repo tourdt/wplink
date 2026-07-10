@@ -14,6 +14,7 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	store := &fakeMerchantDetailStore{
 		detail: model.MerchantDetail{
 			ID:                     "merchant-1",
+			MerchantNo:             "M61000005",
 			Name:                   "织里样板童装厂",
 			MerchantType:           "factory",
 			CityCode:               "zhili",
@@ -43,6 +44,9 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 
 	if store.merchantID != "merchant-1" {
 		t.Fatalf("merchantID = %q, want trimmed merchant-1", store.merchantID)
+	}
+	if resp.MerchantNo != "M61000005" {
+		t.Fatalf("merchantNo = %q, want public merchant number", resp.MerchantNo)
 	}
 	if resp.CreditTags[0].Label != "已认证工厂" {
 		t.Fatalf("credit tag = %#v, want verified factory", resp.CreditTags)

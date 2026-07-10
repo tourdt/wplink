@@ -40,6 +40,7 @@ type MerchantVerificationInfo struct {
 
 type MerchantDetailResp struct {
 	ID                 string                    `json:"id"`
+	MerchantNo         string                    `json:"merchantNo"`
 	Name               string                    `json:"name"`
 	MerchantType       string                    `json:"merchantType"`
 	CityCode           string                    `json:"cityCode"`
@@ -88,6 +89,7 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 	}
 	return MerchantDetailResp{
 		ID:                 detail.ID,
+		MerchantNo:         detail.MerchantNo,
 		Name:               detail.Name,
 		MerchantType:       detail.MerchantType,
 		CityCode:           detail.CityCode,

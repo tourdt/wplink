@@ -24,7 +24,7 @@ export function promptCompleteMerchantProfile() {
   merchantProfilePromptTask = new Promise((resolve) => {
     uni.showModal({
       title: '完善资料',
-      content: '需要先完善商家资料。',
+      content: '需要先完善发布者资料。',
       confirmText: '去完善',
       cancelText: '取消',
       success: (res) => {

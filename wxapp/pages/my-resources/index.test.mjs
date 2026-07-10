@@ -90,7 +90,7 @@ test('my resources prompts for merchant profile before list and publish actions'
   assert.match(source, /async function ensurePageMerchantProfile\(\) \{[\s\S]*if \(await ensureMerchantProfileReady\(merchantId\.value\)\) return true[\s\S]*rows\.value = \[\][\s\S]*return false[\s\S]*\}/)
   assert.match(source, /async function loadRows\(\{ reset = true \} = \{\}\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*const resp = await listMyResources/)
   assert.match(source, /async function openPublish\(\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}` \}\)/)
-  assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善商家资料'/)
+  assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善发布者资料'/)
 })
 
 test('my resources soft-disables top voucher actions for merchants', () => {
