@@ -16,6 +16,7 @@
           <text class="quota-label">{{ item.label }}</text>
         </view>
       </view>
+      <text v-if="nearestExpiryText" class="quota-expiry">{{ nearestExpiryText }}</text>
     </view>
 
     <view class="section-card progress-card">
@@ -47,7 +48,7 @@
             </view>
             <text v-if="task.hint" class="task-hint">{{ task.hint }}</text>
           </view>
-          <button v-if="task.actionType !== 'none'" class="task-action" @click="openTaskAction(task)">{{ task.actionText || '去完成' }}</button>
+          <button v-if="shouldShowTaskAction(task)" class="task-action" @click="openTaskAction(task)">{{ taskActionText(task) }}</button>
         </view>
       </view>
       <text v-else class="empty-text">{{ taskEmptyText }}</text>
@@ -72,7 +73,7 @@
             </view>
             <text v-if="task.hint" class="task-hint">{{ task.hint }}</text>
           </view>
-          <button v-if="task.actionType !== 'none'" class="task-action secondary" @click="openTaskAction(task)">{{ task.actionText || '去完成' }}</button>
+          <button v-if="shouldShowTaskAction(task)" class="task-action secondary" @click="openTaskAction(task)">{{ taskActionText(task) }}</button>
         </view>
       </view>
       <text v-else class="empty-text">{{ dailyEmptyText }}</text>
@@ -97,6 +98,7 @@ import { computed, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 
 import { requireLogin } from '../../common/auth'
+import { formatDateToDay } from '../../common/date'
 import { getSession } from '../../store/session'
 import { getMerchantEntitlements } from '../../api/entitlement'
 import { getActiveGrowthCampaigns, getGrowthTasks } from '../../api/growthCampaign'
@@ -105,18 +107,33 @@ const merchantId = ref('')
 const entitlements = ref([])
 const campaigns = ref([])
 const growthTaskData = ref(null)
+const tasksLoaded = ref(false)
 const tasksLoadFailed = ref(false)
+let growthPageLoadSeq = 0
+let skipNextShowLoad = false
 
 const activeCampaign = computed(() => growthTaskData.value?.campaign?.code ? growthTaskData.value.campaign : campaigns.value[0] || {})
-const campaignHint = computed(() => '发资源、做分享，自动得权益')
+const campaignHint = computed(() => activeCampaign.value.hint || '发资源、做分享，自动得权益')
 const taskSummary = computed(() => growthTaskData.value?.summary || fallbackTaskSummary.value)
 const allTasks = computed(() => growthTaskData.value?.tasks || [])
 const starterTasks = computed(() => allTasks.value.filter((task) => task.group === 'starter'))
 const dailyTasks = computed(() => allTasks.value.filter((task) => task.group === 'daily'))
+const hasTaskCampaign = computed(() => Boolean(growthTaskData.value?.campaign?.code))
 const quotaCards = computed(() => [
   { key: 'publish', label: '发布次数', value: Number(taskSummary.value.publishQuotaRemaining || 0) },
   { key: 'refresh', label: '刷新次数', value: Number(taskSummary.value.refreshQuotaRemaining || 0) },
 ])
+const nearestExpiryText = computed(() => {
+  const candidates = entitlements.value
+    .filter((item) => item.type !== 'top_voucher' && Number(item.remainingAmount || 0) > 0 && item.expiresAt)
+    .map((item) => ({ ...item, expiresAtTime: Date.parse(item.expiresAt) }))
+    .filter((item) => !Number.isNaN(item.expiresAtTime))
+    .sort((left, right) => left.expiresAtTime - right.expiresAtTime)
+  if (!candidates.length) return ''
+  const nearest = candidates[0]
+  const amount = Number(nearest.remainingAmount || 0)
+  return `最近到期：${entitlementLabel(nearest.type)} ${amount} 次，${formatDateToDay(nearest.expiresAt, '')} 到期`
+})
 const fallbackTaskSummary = computed(() => ({
   publishQuotaRemaining: entitlementRemaining('publish_quota'),
   refreshQuotaRemaining: entitlementRemaining('refresh_quota'),
@@ -129,15 +146,35 @@ const starterProgressPercent = computed(() => {
   const completed = Math.min(Number(taskSummary.value.starterCompletedCount || 0), total)
   return `${Math.round((completed / total) * 100)}%`
 })
-const taskEmptyText = computed(() => (tasksLoadFailed.value ? '成长任务暂不可用，请稍后重试。' : '暂无可参与的新手任务。'))
-const dailyEmptyText = computed(() => (tasksLoadFailed.value ? '每日任务暂不可用，请稍后重试。' : '暂无每日任务。'))
+const taskEmptyText = computed(() => {
+  if (!merchantId.value) return '请先完善商家资料。'
+  if (tasksLoadFailed.value) return '成长任务暂不可用，请稍后重试。'
+  if (!tasksLoaded.value) return '任务加载中。'
+  if (!hasTaskCampaign.value) return '当前暂无活动。'
+  if (!allTasks.value.length) return '活动规则未开启。'
+  return '暂无主线任务。'
+})
+const dailyEmptyText = computed(() => {
+  if (!merchantId.value) return '请先完善商家资料。'
+  if (tasksLoadFailed.value) return '每日任务暂不可用，请稍后重试。'
+  if (!tasksLoaded.value) return '任务加载中。'
+  if (!hasTaskCampaign.value) return '当前暂无活动。'
+  if (!allTasks.value.length) return '活动规则未开启。'
+  return '暂无每日任务。'
+})
 
 onLoad((options = {}) => {
   merchantId.value = options.merchantId || getSession().merchantId || ''
+  skipNextShowLoad = true
   loadGrowthPageData()
 })
 
 onShow(() => {
+  if (skipNextShowLoad) {
+    // uni-app 首次进入页面会在 onLoad 后立即触发 onShow；首屏请求已在 onLoad 发起，这里跳过一次避免重复拉取。
+    skipNextShowLoad = false
+    return
+  }
   const sessionMerchantId = getSession().merchantId
   if (!merchantId.value && sessionMerchantId) merchantId.value = sessionMerchantId
   loadGrowthPageData()
@@ -145,50 +182,73 @@ onShow(() => {
 
 async function loadGrowthPageData() {
   if (!requireLogin()) return
-  await Promise.all([loadGrowthTasks(), loadEntitlements(), loadCampaigns()])
+  const loadSeq = ++growthPageLoadSeq
+  await Promise.all([loadGrowthTasks(loadSeq), loadEntitlements(loadSeq), loadCampaigns(loadSeq)])
 }
 
-async function loadGrowthTasks() {
+async function loadGrowthTasks(loadSeq = growthPageLoadSeq) {
+  tasksLoaded.value = false
   if (!merchantId.value) {
+    // 任务进度按商户统计；缺少商户 ID 时不请求接口，直接给出可理解的空态。
     growthTaskData.value = null
+    tasksLoadFailed.value = false
+    tasksLoaded.value = true
     return
   }
   try {
     const resp = await getGrowthTasks(merchantId.value, { suppressErrorToast: true })
+    if (isStaleGrowthPageLoad(loadSeq)) return
     growthTaskData.value = resp || null
     tasksLoadFailed.value = false
   } catch (err) {
+    if (isStaleGrowthPageLoad(loadSeq)) return
     growthTaskData.value = null
     tasksLoadFailed.value = true
+  } finally {
+    if (!isStaleGrowthPageLoad(loadSeq)) tasksLoaded.value = true
   }
 }
 
-async function loadEntitlements() {
+async function loadEntitlements(loadSeq = growthPageLoadSeq) {
   if (!merchantId.value) {
     entitlements.value = []
     return
   }
   try {
     const resp = await getMerchantEntitlements(merchantId.value, { suppressErrorToast: true })
+    if (isStaleGrowthPageLoad(loadSeq)) return
     entitlements.value = resp.items || []
   } catch (err) {
+    if (isStaleGrowthPageLoad(loadSeq)) return
     entitlements.value = []
   }
 }
 
-async function loadCampaigns() {
+async function loadCampaigns(loadSeq = growthPageLoadSeq) {
   try {
     const resp = await getActiveGrowthCampaigns({ suppressErrorToast: true })
+    if (isStaleGrowthPageLoad(loadSeq)) return
     campaigns.value = resp.items || []
   } catch (err) {
+    if (isStaleGrowthPageLoad(loadSeq)) return
     campaigns.value = []
   }
+}
+
+function isStaleGrowthPageLoad(loadSeq) {
+  return loadSeq !== growthPageLoadSeq
 }
 
 function entitlementRemaining(type) {
   return entitlements.value
     .filter((item) => item.type === type && item.type !== 'top_voucher')
     .reduce((sum, item) => sum + Number(item.remainingAmount || 0), 0)
+}
+
+function entitlementLabel(type) {
+  if (type === 'refresh_quota') return '刷新次数'
+  if (type === 'publish_quota') return '发布次数'
+  return '权益'
 }
 
 function taskStatusText(status) {
@@ -217,19 +277,35 @@ function taskRewardMeta(task = {}) {
   return `奖励 ${amount} 次${typeText}`
 }
 
+function shouldShowTaskAction(task = {}) {
+  if (!task || task.actionType === 'none') return false
+  return !['completed', 'locked'].includes(task.status)
+}
+
+function taskActionText(task = {}) {
+  if (task.status === 'granted') return task.actionText || '去使用'
+  if (task.status === 'pending_review') return task.actionText || '查看进度'
+  return task.actionText || '去完成'
+}
+
 function openTaskAction(task = {}) {
+  if (!shouldShowTaskAction(task)) return
   const action = task.actionType
   if (action === 'publish') {
     navigateTo('/pages/publish/index')
     return
   }
   if (action === 'share' || action === 'manage_resources') {
-    navigateTo('/pages/my-resources/index')
+    navigateTo(withMerchantQuery('/pages/my-resources/index'))
     return
   }
   if (action === 'use_entitlement') {
-    navigateTo(task.rewardType === 'refresh_quota' ? '/pages/my-resources/index' : '/pages/publish/index')
+    navigateTo(task.rewardType === 'refresh_quota' ? withMerchantQuery('/pages/my-resources/index') : '/pages/publish/index')
   }
+}
+
+function withMerchantQuery(url) {
+  return merchantId.value ? `${url}?merchantId=${merchantId.value}` : url
 }
 
 function navigateTo(url) {
@@ -325,6 +401,12 @@ function navigateTo(url) {
   line-height: 1.3;
 }
 
+.quota-expiry {
+  color: $wplink-warning;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
 .progress-track {
   position: relative;
   overflow: hidden;
@@ -368,12 +450,14 @@ function navigateTo(url) {
 .task-title-row,
 .task-progress-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12rpx;
   min-width: 0;
 }
 
 .task-title {
+  flex: 1 1 220rpx;
   min-width: 0;
   color: $wplink-primary;
   font-size: 28rpx;

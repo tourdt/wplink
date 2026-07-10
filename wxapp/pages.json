@@ -72,6 +72,12 @@
       }
     },
     {
+      "path": "pages/my/growth-entitlement",
+      "style": {
+        "navigationBarTitleText": "新手权益"
+      }
+    },
+    {
       "path": "pages/vip/index",
       "style": {
         "navigationBarTitleText": "VIP 权益"

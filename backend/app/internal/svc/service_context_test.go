@@ -64,3 +64,30 @@ func TestNewServiceContextReturnsWechatPayInitError(t *testing.T) {
 		t.Fatalf("NewServiceContext() error = %v, want wrapped wechat pay message", err)
 	}
 }
+
+func TestEnabledAdminMasterPasswordOnlyAllowsDevelopmentModes(t *testing.T) {
+	tests := []struct {
+		name string
+		mode string
+		want string
+	}{
+		{name: "development", mode: "development", want: "a123456"},
+		{name: "local", mode: "local", want: "a123456"},
+		{name: "empty defaults to development", mode: "", want: "a123456"},
+		{name: "staging", mode: "staging", want: ""},
+		{name: "production", mode: "production", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.Config{
+				RuntimeMode: tt.mode,
+				AdminAuth:   config.AdminAuthConfig{MasterPassword: " a123456 "},
+			}
+
+			if got := enabledAdminMasterPassword(cfg); got != tt.want {
+				t.Fatalf("enabledAdminMasterPassword() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

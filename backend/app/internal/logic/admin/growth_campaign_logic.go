@@ -59,6 +59,7 @@ type SaveGrowthConfigResp struct {
 type GrowthRuleItem struct {
 	CampaignCode          string        `json:"campaignCode"`
 	RuleCode              string        `json:"ruleCode"`
+	RuleName              string        `json:"ruleName"`
 	TriggerEvent          string        `json:"triggerEvent"`
 	Status                string        `json:"status"`
 	Priority              int64         `json:"priority"`
@@ -79,6 +80,7 @@ type ListGrowthRulesResp struct {
 
 type SaveGrowthRuleReq struct {
 	RuleCode              string        `json:"ruleCode,omitempty"`
+	RuleName              string        `json:"ruleName"`
 	TriggerEvent          string        `json:"triggerEvent"`
 	Status                string        `json:"status,omitempty"`
 	Priority              int64         `json:"priority,omitempty"`
@@ -96,6 +98,7 @@ type GrowthGrantItem struct {
 	ID           string `json:"id"`
 	CampaignCode string `json:"campaignCode"`
 	RuleCode     string `json:"ruleCode"`
+	RuleName     string `json:"ruleName,omitempty"`
 	MerchantID   string `json:"merchantId"`
 	ResourceID   string `json:"resourceId,omitempty"`
 	RewardType   string `json:"rewardType"`
@@ -171,6 +174,7 @@ func (l *GrowthCampaignAdminLogic) ListGrowthRules(ctx context.Context, campaign
 		items = append(items, GrowthRuleItem{
 			CampaignCode:          rule.CampaignCode,
 			RuleCode:              rule.RuleCode,
+			RuleName:              rule.RuleName,
 			TriggerEvent:          rule.TriggerEvent,
 			Status:                rule.Status,
 			Priority:              rule.Priority,
@@ -192,6 +196,7 @@ func (l *GrowthCampaignAdminLogic) SaveGrowthRule(ctx context.Context, campaignC
 	input := model.SaveAdminGrowthRuleInput{
 		CampaignCode:          strings.TrimSpace(campaignCode),
 		RuleCode:              configCode(pathRuleCode, req.RuleCode),
+		RuleName:              strings.TrimSpace(req.RuleName),
 		TriggerEvent:          strings.TrimSpace(req.TriggerEvent),
 		Status:                normalizeActiveInactive(req.Status),
 		Priority:              req.Priority,
@@ -238,6 +243,7 @@ func (l *GrowthCampaignAdminLogic) ListGrowthRewardGrants(ctx context.Context, f
 			ID:           grant.ID,
 			CampaignCode: grant.CampaignCode,
 			RuleCode:     grant.RuleCode,
+			RuleName:     grant.RuleName,
 			MerchantID:   grant.MerchantID,
 			ResourceID:   grant.ResourceID,
 			RewardType:   grant.RewardType,
@@ -278,7 +284,10 @@ func validateGrowthCampaignInput(input model.SaveAdminGrowthCampaignInput) error
 
 func validateGrowthRuleInput(input model.SaveAdminGrowthRuleInput) error {
 	if input.CampaignCode == "" || input.RuleCode == "" {
-		return errx.New(errx.CodeValidationFailed, "请填写活动和规则编码")
+		return errx.New(errx.CodeValidationFailed, "规则信息不完整，请刷新后重试")
+	}
+	if input.RuleName == "" {
+		return errx.New(errx.CodeValidationFailed, "请填写规则名称")
 	}
 	if !isGrowthRuleStatus(input.Status) {
 		return errx.New(errx.CodeValidationFailed, "规则状态不正确")

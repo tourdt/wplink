@@ -192,6 +192,7 @@ func growthTaskFromRule(rule model.PublicGrowthRule, progress model.GrowthTaskPr
 		return GrowthTaskItem{}, false
 	}
 	task.Status = growthTaskStatus(rule, task, progress, grantedRules)
+	normalizeGrowthTaskAction(&task)
 	return task, true
 }
 
@@ -210,16 +211,26 @@ func growthTaskStatus(rule model.PublicGrowthRule, task GrowthTaskItem, progress
 	if task.Group == growthTaskGroupStarter && grantedRules[rule.RuleCode] {
 		return growthTaskStatusGranted
 	}
-	if rule.TriggerEvent == model.GrowthEventResourceFirstApproved && progress.PendingResourceCount > 0 {
-		return growthTaskStatusPendingReview
-	}
 	if task.ProgressTarget > 0 && task.ProgressCurrent >= task.ProgressTarget {
 		return growthTaskStatusCompleted
+	}
+	if rule.TriggerEvent == model.GrowthEventResourceFirstApproved && progress.PendingResourceCount > 0 {
+		return growthTaskStatusPendingReview
 	}
 	if task.ProgressCurrent > 0 {
 		return growthTaskStatusInProgress
 	}
 	return growthTaskStatusTodo
+}
+
+func normalizeGrowthTaskAction(task *GrowthTaskItem) {
+	if task.Status != growthTaskStatusCompleted {
+		return
+	}
+	// 已达标但还没有发放记录时，前台只提示等待到账，避免用户误点到不可用的权益。
+	task.ActionType = growthTaskActionNone
+	task.ActionText = ""
+	task.Hint = "权益正在到账中"
 }
 
 func growthTaskTitle(rule model.PublicGrowthRule) string {

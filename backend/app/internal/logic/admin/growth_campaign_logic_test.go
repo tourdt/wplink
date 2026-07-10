@@ -47,6 +47,7 @@ func TestSaveGrowthRuleRejectsShareRewardWithoutLimit(t *testing.T) {
 
 	_, err := logic.SaveGrowthRule(context.Background(), "starter_growth_2026_q3", "", SaveGrowthRuleReq{
 		RuleCode:     "share_contact_refresh_quota",
+		RuleName:     "分享带来有效联系",
 		TriggerEvent: model.GrowthEventResourceShareEffectiveContact,
 		Status:       "active",
 		RewardType:   model.EntitlementTypeRefreshQuota,
@@ -59,11 +60,29 @@ func TestSaveGrowthRuleRejectsShareRewardWithoutLimit(t *testing.T) {
 	}
 }
 
+func TestSaveGrowthRuleRequiresRuleName(t *testing.T) {
+	logic := NewGrowthCampaignAdminLogic(&fakeGrowthCampaignAdminStore{})
+
+	_, err := logic.SaveGrowthRule(context.Background(), "starter_growth_2026_q3", "", SaveGrowthRuleReq{
+		RuleCode:     "first_login_publish_quota",
+		TriggerEvent: model.GrowthEventUserFirstLogin,
+		Status:       "active",
+		RewardType:   model.EntitlementTypePublishQuota,
+		RewardAmount: 3,
+		ValidDays:    30,
+	}, "admin-1")
+
+	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("SaveGrowthRule() error = %v, want validation error", err)
+	}
+}
+
 func TestSaveGrowthRuleRejectsTopVoucherBeforeTopParametersExist(t *testing.T) {
 	logic := NewGrowthCampaignAdminLogic(&fakeGrowthCampaignAdminStore{})
 
 	_, err := logic.SaveGrowthRule(context.Background(), "starter_growth_2026_q3", "", SaveGrowthRuleReq{
 		RuleCode:     "first_login_top_voucher",
+		RuleName:     "首次登录赠送置顶券",
 		TriggerEvent: model.GrowthEventUserFirstLogin,
 		Status:       "active",
 		RewardType:   model.EntitlementTypeTopVoucher,
@@ -81,6 +100,7 @@ func TestSaveGrowthRulePassesNormalizedInputToStore(t *testing.T) {
 	logic := NewGrowthCampaignAdminLogic(store)
 
 	resp, err := logic.SaveGrowthRule(context.Background(), " starter_growth_2026_q3 ", " first_login_publish_quota ", SaveGrowthRuleReq{
+		RuleName:     " 首次登录赠送发布次数 ",
 		TriggerEvent: model.GrowthEventUserFirstLogin,
 		RewardType:   model.EntitlementTypePublishQuota,
 		RewardAmount: 3,
@@ -92,6 +112,9 @@ func TestSaveGrowthRulePassesNormalizedInputToStore(t *testing.T) {
 
 	if resp.Code != "first_login_publish_quota" || store.ruleInput.CampaignCode != "starter_growth_2026_q3" || store.ruleInput.RuleCode != "first_login_publish_quota" {
 		t.Fatalf("resp = %#v input = %#v, want normalized rule", resp, store.ruleInput)
+	}
+	if store.ruleInput.RuleName != "首次登录赠送发布次数" {
+		t.Fatalf("ruleName = %q, want trimmed Chinese rule name", store.ruleInput.RuleName)
 	}
 	if store.ruleInput.Status != "active" || store.ruleInput.OperatorID != "admin-1" {
 		t.Fatalf("input = %#v, want active status and trimmed operator", store.ruleInput)
@@ -114,7 +137,7 @@ func (s *fakeGrowthCampaignAdminStore) SaveAdminGrowthCampaign(ctx context.Conte
 }
 
 func (s *fakeGrowthCampaignAdminStore) ListAdminGrowthRules(ctx context.Context, campaignCode string) ([]model.AdminGrowthRuleConfig, error) {
-	return []model.AdminGrowthRuleConfig{{CampaignCode: campaignCode, RuleCode: "first_login_publish_quota", Status: "active"}}, nil
+	return []model.AdminGrowthRuleConfig{{CampaignCode: campaignCode, RuleCode: "first_login_publish_quota", RuleName: "首次登录赠送发布次数", Status: "active"}}, nil
 }
 
 func (s *fakeGrowthCampaignAdminStore) SaveAdminGrowthRule(ctx context.Context, input model.SaveAdminGrowthRuleInput) (model.AdminGrowthConfigSaveResult, error) {

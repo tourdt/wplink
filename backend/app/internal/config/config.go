@@ -32,8 +32,9 @@ type PostgresConfig struct {
 }
 
 type AdminAuthConfig struct {
-	TokenSecret string
-	TokenTTL    time.Duration
+	TokenSecret    string
+	TokenTTL       time.Duration
+	MasterPassword string
 }
 
 type WechatConfig struct {

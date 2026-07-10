@@ -100,6 +100,16 @@ func TestValidateForProductionRejectsWechatPayDevMock(t *testing.T) {
 	}
 }
 
+func TestValidateForProductionRejectsAdminMasterPassword(t *testing.T) {
+	cfg := requiredProductionConfig()
+	cfg.AdminAuth.MasterPassword = "a123456"
+
+	err := ValidateForProduction(cfg)
+	if err == nil || !strings.Contains(err.Error(), "AdminAuth.MasterPassword") {
+		t.Fatalf("ValidateForProduction() error = %v, want reject admin master password", err)
+	}
+}
+
 func TestValidateForProductionRejectsConsoleLogMode(t *testing.T) {
 	cfg := requiredProductionConfig()
 	cfg.Log.Mode = "console"

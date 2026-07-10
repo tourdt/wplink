@@ -101,9 +101,56 @@ func TestLoginRejectsInvalidPassword(t *testing.T) {
 	}
 }
 
+func TestLoginSucceedsWithMasterPasswordForOperatorWithoutLoginCredential(t *testing.T) {
+	store := &fakeAdminStore{
+		adminIdentity: AdminCredential{
+			UserID:    "user-5",
+			LoginName: "19900000001",
+			Status:    CredentialStatusEnabled,
+			Roles:     []string{RolePlatformOperator},
+		},
+	}
+	verifier := fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}
+	service := NewLoginService(store, verifier, fakeTokenIssuer{token: "admin-token"}, WithMasterPassword("a123456"))
+
+	resp, err := service.Login(context.Background(), LoginRequest{
+		LoginName: "19900000001",
+		Password:  "a123456",
+	})
+	if err != nil {
+		t.Fatalf("Login() error = %v", err)
+	}
+	if resp.Token != "admin-token" {
+		t.Fatalf("Token = %q, want admin-token", resp.Token)
+	}
+}
+
+func TestLoginMasterPasswordDoesNotBypassDisabledCredential(t *testing.T) {
+	store := &fakeAdminStore{
+		adminIdentity: AdminCredential{
+			UserID:    "user-6",
+			LoginName: "disabled-master",
+			Status:    CredentialStatusDisabled,
+			Roles:     []string{RolePlatformOperator},
+		},
+	}
+	verifier := fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}
+	service := NewLoginService(store, verifier, fakeTokenIssuer{token: "ignored"}, WithMasterPassword("a123456"))
+
+	_, err := service.Login(context.Background(), LoginRequest{
+		LoginName: "disabled-master",
+		Password:  "a123456",
+	})
+	if !errors.Is(err, ErrCredentialDisabled) {
+		t.Fatalf("Login() error = %v, want ErrCredentialDisabled", err)
+	}
+}
+
 type fakeAdminStore struct {
-	credential AdminCredential
-	err        error
+	credential    AdminCredential
+	err           error
+	adminIdentity AdminCredential
+	adminErr      error
 }
 
 func (s *fakeAdminStore) FindCredentialByLoginName(_ context.Context, loginName string) (AdminCredential, error) {
@@ -114,6 +161,16 @@ func (s *fakeAdminStore) FindCredentialByLoginName(_ context.Context, loginName 
 		return AdminCredential{}, ErrCredentialNotFound
 	}
 	return s.credential, nil
+}
+
+func (s *fakeAdminStore) FindAdminIdentityByLoginName(_ context.Context, loginName string) (AdminCredential, error) {
+	if s.adminErr != nil {
+		return AdminCredential{}, s.adminErr
+	}
+	if s.adminIdentity.LoginName != loginName {
+		return AdminCredential{}, ErrCredentialNotFound
+	}
+	return s.adminIdentity, nil
 }
 
 type fakePasswordVerifier struct {

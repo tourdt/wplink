@@ -70,8 +70,9 @@ type fileLogConfig struct {
 }
 
 type fileAdminAuthConfig struct {
-	TokenSecret string         `yaml:"TokenSecret"`
-	TokenTTL    configDuration `yaml:"TokenTTL"`
+	TokenSecret    string         `yaml:"TokenSecret"`
+	TokenTTL       configDuration `yaml:"TokenTTL"`
+	MasterPassword string         `yaml:"MasterPassword"`
 }
 
 type fileWechatPayConfig struct {
@@ -142,10 +143,11 @@ func (d configDuration) Duration() time.Duration {
 
 func (c fileConfig) toConfig() Config {
 	adminAuth := AdminAuthConfig{
-		TokenSecret: strings.TrimSpace(c.AdminAuth.TokenSecret),
-		TokenTTL:    c.AdminAuth.TokenTTL.Duration(),
+		TokenSecret:    strings.TrimSpace(c.AdminAuth.TokenSecret),
+		TokenTTL:       c.AdminAuth.TokenTTL.Duration(),
+		MasterPassword: strings.TrimSpace(c.AdminAuth.MasterPassword),
 	}
-	if adminAuth.TokenSecret == "" && isDevelopmentMode(c.RuntimeMode) {
+	if adminAuth.TokenSecret == "" && IsDevelopmentMode(c.RuntimeMode) {
 		// 本地开发配置经常依赖未导出的环境变量；只在开发模式补固定开发密钥，避免登录链路因空密钥中断。
 		adminAuth.TokenSecret = defaultDevelopmentTokenSecret
 	}
@@ -267,7 +269,7 @@ func expandEnvPlaceholders(content string) string {
 	})
 }
 
-func isDevelopmentMode(mode string) bool {
+func IsDevelopmentMode(mode string) bool {
 	switch strings.TrimSpace(strings.ToLower(mode)) {
 	case "", "dev", "development", "local":
 		return true

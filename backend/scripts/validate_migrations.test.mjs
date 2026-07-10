@@ -169,18 +169,25 @@ test('growth campaign migration supports configurable stoppable rewards', () => 
     'CREATE TABLE IF NOT EXISTS growth_campaigns',
     'CREATE TABLE IF NOT EXISTS growth_campaign_rules',
     'CREATE TABLE IF NOT EXISTS growth_reward_grants',
+    'rule_name varchar(128) NOT NULL DEFAULT',
     "status varchar(32) NOT NULL DEFAULT 'draft'",
     'idempotency_key varchar(255) NOT NULL',
     'UNIQUE (idempotency_key)',
     'idx_growth_campaign_rules_campaign_status',
     'idx_growth_reward_grants_merchant',
     "'growth_campaign'",
-    "'share_view_refresh_quota', 'resource_share_effective_view', 'inactive'",
-    "'invitee_first_resource_approved', 'invitee_first_resource_approved', 'inactive'",
+    "'first_login_publish_quota', '首次登录赠送发布次数'",
+    "'share_view_refresh_quota', '分享有效浏览奖励', 'resource_share_effective_view', 'inactive'",
+    "'invitee_first_resource_approved', '邀请成功奖励', 'invitee_first_resource_approved', 'inactive'",
   ]) {
     assert(upSql.includes(snippet), `growth campaign migration should include snippet ${snippet}`)
   }
   assert(!upSql.includes("'top_voucher'"), 'growth campaign rewards should not expose top vouchers before top parameters are configurable')
+  assert(
+    upSql.indexOf('ADD COLUMN IF NOT EXISTS rule_name') > 0 &&
+      upSql.indexOf('ADD COLUMN IF NOT EXISTS rule_name') < upSql.indexOf('INSERT INTO growth_campaign_rules'),
+    'growth campaign migration should backfill rule_name before inserting seeded rules for databases with an existing growth_campaign_rules table',
+  )
 
   for (const snippet of [
     'DROP TABLE IF EXISTS growth_reward_grants',

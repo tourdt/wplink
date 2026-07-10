@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"wplink/backend/app/internal/config"
 	"wplink/backend/app/internal/logic/adminauth"
@@ -63,6 +64,10 @@ type ServiceContext struct {
 func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 	adminTokenService := session.NewHMACAdminTokenIssuer(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL)
 	adminTokenIssuer := adminauth.NewSessionTokenIssuer(adminTokenService)
+	adminLoginOptions := make([]adminauth.LoginServiceOption, 0, 1)
+	if masterPassword := enabledAdminMasterPassword(c); masterPassword != "" {
+		adminLoginOptions = append(adminLoginOptions, adminauth.WithMasterPassword(masterPassword))
+	}
 	apiStore := newAPIStore(db)
 	wechatPayGateway, err := paymentlogic.NewHTTPWechatPayGateway(c.WechatPay)
 	if err != nil {
@@ -73,7 +78,7 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		DB:                  db,
 		APIStore:            apiStore,
 		CityStore:           apiStore,
-		AdminLoginService:   adminauth.NewLoginService(adminauth.NewSQLAdminStore(db), adminauth.BcryptPasswordHasher{}, adminTokenIssuer),
+		AdminLoginService:   adminauth.NewLoginService(adminauth.NewSQLAdminStore(db), adminauth.BcryptPasswordHasher{}, adminTokenIssuer, adminLoginOptions...),
 		AdminTokenService:   adminTokenService,
 		UploadTokenService:  uploadlogic.NewUploadTokenLogic(c.Storage),
 		UserTokenService:    session.NewHMACUserTokenService(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL),
@@ -81,6 +86,13 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		SMSVerifier:         authlogic.NewConfiguredSMSVerifier(c.SMS),
 		WechatPayGateway:    wechatPayGateway,
 	}, nil
+}
+
+func enabledAdminMasterPassword(c config.Config) string {
+	if !config.IsDevelopmentMode(c.RuntimeMode) {
+		return ""
+	}
+	return strings.TrimSpace(c.AdminAuth.MasterPassword)
 }
 
 func newAPIStore(db *sql.DB) *APIStore {

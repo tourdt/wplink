@@ -30,6 +30,7 @@ Postgres:
 AdminAuth:
   TokenSecret: "${JWT_SECRET}"
   TokenTTL: 24h
+  MasterPassword: "a123456"
 
 Wechat:
   AppID: "${WECHAT_APP_ID}"
@@ -100,8 +101,8 @@ Storage:
 	if cfg.Postgres.MaxOpenConns != 30 || cfg.Postgres.MaxIdleConns != 10 || cfg.Postgres.ConnMaxLifetime != 30*time.Minute || cfg.Postgres.ConnMaxIdleTime != 5*time.Minute {
 		t.Fatalf("postgres pool = %#v, want configured pool", cfg.Postgres)
 	}
-	if cfg.AdminAuth.TokenSecret != "secret-token" || cfg.AdminAuth.TokenTTL != 24*time.Hour {
-		t.Fatalf("admin auth = %#v, want env token and ttl", cfg.AdminAuth)
+	if cfg.AdminAuth.TokenSecret != "secret-token" || cfg.AdminAuth.TokenTTL != 24*time.Hour || cfg.AdminAuth.MasterPassword != "a123456" {
+		t.Fatalf("admin auth = %#v, want env token, ttl and master password", cfg.AdminAuth)
 	}
 	if cfg.Wechat.AppID != "wx-local" || cfg.Wechat.AppSecret != "wechat-secret" || !cfg.Wechat.AllowDevCode {
 		t.Fatalf("wechat = %#v, want env app config", cfg.Wechat)

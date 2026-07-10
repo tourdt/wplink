@@ -7,9 +7,14 @@ const root = path.resolve(import.meta.dirname, '..')
 
 test('growth campaign admin page exposes campaign rule and grant controls', () => {
   const view = fs.readFileSync(path.join(root, 'src/views/GrowthCampaignView.vue'), 'utf8')
-  for (const token of ['增长活动', '暂停', '停用', '规则配置', '奖励数量', '有效期', '每日上限', '发放记录']) {
+  for (const token of ['增长活动', '暂停', '停用', '规则配置', '规则名称', '奖励数量', '有效期', '每日上限', '发放记录', 'ruleName']) {
     assert.match(view, new RegExp(token))
   }
+  for (const token of ['rewardTypeText', '发布次数', '刷新次数']) {
+    assert.match(view, new RegExp(token))
+  }
+  assert.doesNotMatch(view, /规则编码/)
+  assert.doesNotMatch(view, /prop="rewardType"/)
   assert.doesNotMatch(view, /top_voucher/)
 })
 

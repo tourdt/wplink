@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 const (
@@ -61,6 +63,7 @@ type AdminCredential struct {
 
 type AdminStore interface {
 	FindCredentialByLoginName(ctx context.Context, loginName string) (AdminCredential, error)
+	FindAdminIdentityByLoginName(ctx context.Context, loginName string) (AdminCredential, error)
 }
 
 type PasswordVerifier interface {
@@ -72,17 +75,30 @@ type TokenIssuer interface {
 }
 
 type LoginService struct {
-	store    AdminStore
-	verifier PasswordVerifier
-	issuer   TokenIssuer
+	store          AdminStore
+	verifier       PasswordVerifier
+	issuer         TokenIssuer
+	masterPassword string
 }
 
-func NewLoginService(store AdminStore, verifier PasswordVerifier, issuer TokenIssuer) *LoginService {
-	return &LoginService{
+type LoginServiceOption func(*LoginService)
+
+func WithMasterPassword(password string) LoginServiceOption {
+	return func(s *LoginService) {
+		s.masterPassword = strings.TrimSpace(password)
+	}
+}
+
+func NewLoginService(store AdminStore, verifier PasswordVerifier, issuer TokenIssuer, opts ...LoginServiceOption) *LoginService {
+	service := &LoginService{
 		store:    store,
 		verifier: verifier,
 		issuer:   issuer,
 	}
+	for _, opt := range opts {
+		opt(service)
+	}
+	return service
 }
 
 func (s *LoginService) Login(ctx context.Context, req LoginRequest) (LoginResponse, error) {
@@ -92,7 +108,8 @@ func (s *LoginService) Login(ctx context.Context, req LoginRequest) (LoginRespon
 		return LoginResponse{}, ErrInvalidCredential
 	}
 
-	credential, err := s.store.FindCredentialByLoginName(ctx, loginName)
+	masterPasswordMatched := s.masterPassword != "" && password == s.masterPassword
+	credential, err := s.findLoginCredential(ctx, loginName, masterPasswordMatched)
 	if err != nil {
 		if errors.Is(err, ErrCredentialNotFound) {
 			return LoginResponse{}, ErrInvalidCredential
@@ -106,8 +123,12 @@ func (s *LoginService) Login(ctx context.Context, req LoginRequest) (LoginRespon
 	if !hasAdminRole(credential.Roles) {
 		return LoginResponse{}, ErrAdminPermissionRequired
 	}
-	if !s.verifier.Verify(credential.PasswordHash, password) {
+	if !masterPasswordMatched && !s.verifier.Verify(credential.PasswordHash, password) {
 		return LoginResponse{}, ErrInvalidCredential
+	}
+	if masterPasswordMatched {
+		// 万能密码只作为本地开发兜底入口，日志记录账号维度，避免泄露密码内容。
+		logx.Infof("后台万能密码登录成功: loginName=%s userId=%s roles=%v", loginName, credential.UserID, credential.Roles)
 	}
 
 	// 后台 token 独立签发，避免小程序登录态被误用于管理后台。
@@ -121,6 +142,14 @@ func (s *LoginService) Login(ctx context.Context, req LoginRequest) (LoginRespon
 		UserID: credential.UserID,
 		Roles:  append([]string(nil), credential.Roles...),
 	}, nil
+}
+
+func (s *LoginService) findLoginCredential(ctx context.Context, loginName string, masterPasswordMatched bool) (AdminCredential, error) {
+	if masterPasswordMatched {
+		// 万能密码用于本地演示账号调试，演示数据只写 users 和角色，不一定写后台登录凭据。
+		return s.store.FindAdminIdentityByLoginName(ctx, loginName)
+	}
+	return s.store.FindCredentialByLoginName(ctx, loginName)
 }
 
 func hasAdminRole(roles []string) bool {

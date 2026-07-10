@@ -62,7 +62,7 @@ func TestGetGrowthTasksBuildsStarterAndDailyTasks(t *testing.T) {
 		progress: model.GrowthTaskProgress{
 			TotalResourceCount:         1,
 			PendingResourceCount:       1,
-			PublishedResourceCount:     1,
+			PublishedResourceCount:     0,
 			ApprovedWithinWindowCount:  1,
 			TodayEffectiveContactCount: 1,
 		},
@@ -83,7 +83,7 @@ func TestGetGrowthTasksBuildsStarterAndDailyTasks(t *testing.T) {
 		t.Fatalf("tasks length = %d, want 4", len(resp.Tasks))
 	}
 	assertGrowthTask(t, resp.Tasks, "first_login_publish_quota", "starter", "granted", 1, 1, "去发布")
-	assertGrowthTask(t, resp.Tasks, "first_resource_approved_publish_quota", "starter", "pending_review", 1, 1, "查看发布")
+	assertGrowthTask(t, resp.Tasks, "first_resource_approved_publish_quota", "starter", "pending_review", 0, 1, "查看发布")
 	assertGrowthTask(t, resp.Tasks, "three_approved_resources_publish_quota", "starter", "in_progress", 1, 3, "去发布")
 	assertGrowthTask(t, resp.Tasks, "share_contact_refresh_quota", "daily", "in_progress", 1, 3, "去分享")
 }
@@ -152,6 +152,31 @@ func TestGetGrowthTasksKeepsStarterTasksWhenLegacyRuleLimitMissing(t *testing.T)
 		t.Fatalf("GetGrowthTasks() error = %v", err)
 	}
 	assertGrowthTask(t, resp.Tasks, "first_resource_approved_publish_quota", "starter", "todo", 0, 1, "查看发布")
+}
+
+func TestGetGrowthTasksKeepsApprovedTaskCompletedWhenAnotherResourceIsPending(t *testing.T) {
+	store := &fakeGrowthTaskStore{
+		campaigns: []model.PublicGrowthCampaign{{
+			Code:  "starter_growth_2026_q3",
+			Title: "新手发布权益",
+			Rules: []model.PublicGrowthRule{{
+				RuleCode:     "first_resource_approved_publish_quota",
+				RuleName:     "首条资源审核通过奖励",
+				TriggerEvent: model.GrowthEventResourceFirstApproved,
+				RewardType:   model.EntitlementTypePublishQuota,
+				RewardAmount: 5,
+				ValidDays:    30,
+				PerUserLimit: 1,
+			}},
+		}},
+		progress: model.GrowthTaskProgress{PendingResourceCount: 1, PublishedResourceCount: 1},
+	}
+
+	resp, err := NewGrowthTaskLogic(store).GetGrowthTasks(context.Background(), "merchant-1")
+	if err != nil {
+		t.Fatalf("GetGrowthTasks() error = %v", err)
+	}
+	assertGrowthTask(t, resp.Tasks, "first_resource_approved_publish_quota", "starter", "completed", 1, 1, "")
 }
 
 func TestGetGrowthTasksRejectsEmptyMerchantID(t *testing.T) {

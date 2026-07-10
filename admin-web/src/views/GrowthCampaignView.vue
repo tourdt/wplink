@@ -42,9 +42,11 @@
         <el-button type="primary" :disabled="!selectedCampaignCode" @click="openRuleEditor()">新增规则</el-button>
       </div>
       <el-table v-loading="ruleLoading" :data="rules" stripe empty-text="请选择活动">
-        <el-table-column prop="ruleCode" label="规则编码" min-width="210" />
+        <el-table-column prop="ruleName" label="规则名称" min-width="190" />
         <el-table-column prop="triggerEvent" label="触发事件" min-width="210" />
-        <el-table-column prop="rewardType" label="奖励类型" width="120" />
+        <el-table-column label="奖励类型" width="120">
+          <template #default="{ row }">{{ rewardTypeText(row.rewardType) }}</template>
+        </el-table-column>
         <el-table-column prop="rewardAmount" label="奖励数量" width="100" />
         <el-table-column prop="validDays" label="有效期" width="90" />
         <el-table-column prop="perUserDailyLimit" label="每日上限" width="100" />
@@ -68,8 +70,12 @@
       </div>
       <el-table v-loading="grantLoading" :data="grants" stripe empty-text="暂无发放记录">
         <el-table-column prop="merchantId" label="商家" min-width="150" />
-        <el-table-column prop="ruleCode" label="规则" min-width="190" />
-        <el-table-column prop="rewardType" label="权益" width="120" />
+        <el-table-column label="规则" min-width="190">
+          <template #default="{ row }">{{ displayGrantRuleName(row) }}</template>
+        </el-table-column>
+        <el-table-column label="权益" width="120">
+          <template #default="{ row }">{{ rewardTypeText(row.rewardType) }}</template>
+        </el-table-column>
         <el-table-column prop="rewardAmount" label="数量" width="80" />
         <el-table-column prop="status" label="状态" width="90" />
         <el-table-column prop="reason" label="原因" width="120" />
@@ -116,8 +122,8 @@
 
     <el-drawer v-model="ruleDrawerVisible" title="规则配置" size="560px">
       <el-form label-position="top">
-        <el-form-item label="规则编码">
-          <el-input v-model.trim="ruleForm.ruleCode" :disabled="Boolean(editingRuleCode)" />
+        <el-form-item label="规则名称">
+          <el-input v-model.trim="ruleForm.ruleName" />
         </el-form-item>
         <div class="form-grid">
           <el-form-item label="触发事件">
@@ -268,6 +274,7 @@ function openRuleEditor(row) {
   editingRuleCode.value = row?.ruleCode || ''
   Object.assign(ruleForm, row ? {
     ruleCode: row.ruleCode,
+    ruleName: row.ruleName || '',
     triggerEvent: row.triggerEvent,
     status: row.status || 'active',
     priority: row.priority || 100,
@@ -326,10 +333,16 @@ async function disableCampaign(row) {
 
 async function saveRule() {
   if (!selectedCampaignCode.value) return
+  const ruleName = ruleForm.ruleName.trim()
+  if (!ruleName) {
+    ElMessage.warning('请填写规则名称')
+    return
+  }
   saving.value = true
   try {
     const payload = {
-      ruleCode: ruleForm.ruleCode.trim(),
+      ruleCode: editingRuleCode.value || ruleForm.ruleCode.trim() || createInternalRuleCode(),
+      ruleName,
       triggerEvent: ruleForm.triggerEvent,
       status: ruleForm.status,
       priority: Number(ruleForm.priority || 100),
@@ -368,6 +381,7 @@ function createCampaignForm() {
 function createRuleForm() {
   return {
     ruleCode: '',
+    ruleName: '',
     triggerEvent: 'user_first_login',
     status: 'active',
     priority: 100,
@@ -379,6 +393,22 @@ function createRuleForm() {
     perResourceDailyLimit: 0,
     description: '',
   }
+}
+
+function createInternalRuleCode() {
+  return `custom_rule_${Date.now().toString(36)}`
+}
+
+function displayGrantRuleName(row = {}) {
+  return row.ruleName || row.ruleCode || '-'
+}
+
+function rewardTypeText(rewardType) {
+  const texts = {
+    publish_quota: '发布次数',
+    refresh_quota: '刷新次数',
+  }
+  return texts[rewardType] || rewardType || '-'
 }
 
 function campaignStatusText(status) {
