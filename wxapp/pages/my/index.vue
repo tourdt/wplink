@@ -31,13 +31,14 @@
       <view class="benefit-stats">
         <view class="benefit-stat">
           <text class="benefit-value">{{ publishQuotaRemaining }}</text>
-          <text class="benefit-label">发布</text>
+          <text class="benefit-label">发布次数</text>
         </view>
         <view class="benefit-stat">
           <text class="benefit-value">{{ refreshQuotaRemaining }}</text>
-          <text class="benefit-label">刷新</text>
+          <text class="benefit-label">刷新次数</text>
         </view>
       </view>
+      <text v-if="benefitExpiryReminder" class="benefit-expiry">{{ benefitExpiryReminder }}</text>
     </view>
 
     <view class="common-service-section section-card">
@@ -95,10 +96,13 @@ import { computed, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { buildLoginUrl, requireLogin } from '../../common/auth'
 import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
+import { formatDateToDay } from '../../common/date'
 import { getSession } from '../../store/session'
 import { getMerchantEntitlements } from '../../api/entitlement'
 import { getActiveGrowthCampaigns } from '../../api/growthCampaign'
 import { getMerchant } from '../../api/merchant'
+
+const BENEFIT_EXPIRY_SOON_DAYS = 7
 
 const token = ref('')
 const merchantId = ref('')
@@ -131,6 +135,17 @@ const benefitOverviewVisible = computed(() => Boolean(isLoggedIn.value))
 const publishQuotaRemaining = computed(() => entitlementRemaining('publish_quota'))
 const refreshQuotaRemaining = computed(() => entitlementRemaining('refresh_quota'))
 const activeGrowthCampaign = computed(() => growthCampaigns.value[0] || {})
+const benefitExpiryReminder = computed(() => {
+  const candidates = merchantEntitlements.value
+    .filter((item) => ['publish_quota', 'refresh_quota'].includes(item.type) && Number(item.remainingAmount || 0) > 0 && item.expiresAt)
+    .map((item) => ({ ...item, expiresAtTime: Date.parse(item.expiresAt) }))
+    .filter((item) => !Number.isNaN(item.expiresAtTime) && item.expiresAtTime > Date.now() && item.expiresAtTime - Date.now() <= BENEFIT_EXPIRY_SOON_DAYS * 24 * 60 * 60 * 1000)
+    .sort((left, right) => left.expiresAtTime - right.expiresAtTime)
+  if (!candidates.length) return ''
+  const nearest = candidates[0]
+  const amount = Number(nearest.remainingAmount || 0)
+  return `最近到期：${entitlementLabel(nearest.type)} ${amount} 次，${formatDateToDay(nearest.expiresAt, '')} 到期`
+})
 const benefitOverviewDesc = computed(() => {
   if (merchantProfile.value.vipStatus === 'active') {
     return 'VIP 权益已启用，可购买次数包补充'
@@ -203,6 +218,12 @@ async function loadGrowthCampaigns() {
 function entitlementRemaining(type) {
   const items = merchantEntitlements.value.filter((item) => item.type === type)
   return items.reduce((sum, item) => sum + Number(item.remainingAmount || 0), 0)
+}
+
+function entitlementLabel(type) {
+  if (type === 'refresh_quota') return '刷新次数'
+  if (type === 'publish_quota') return '发布次数'
+  return '权益'
 }
 
 function openAccountCard() {
@@ -415,6 +436,16 @@ async function openGrowthEntitlement() {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.3;
+}
+
+.benefit-expiry {
+  padding: 14rpx 18rpx;
+  border-radius: 10rpx;
+  background: $wplink-warning-soft;
+  color: $wplink-warning;
+  font-size: 24rpx;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .login-button {

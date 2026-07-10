@@ -47,9 +47,9 @@ test('my page shows compact entitlement overview and hides duplicated quota sect
   assert.match(source, /<text class="benefit-desc">\{\{ benefitOverviewDesc \}\}<\/text>/)
   assert.match(source, /<text class="benefit-action">查看<\/text>/)
   assert.match(source, /<text class="benefit-value">\{\{ publishQuotaRemaining \}\}<\/text>/)
-  assert.match(source, /<text class="benefit-label">发布<\/text>/)
+  assert.match(source, /<text class="benefit-label">发布次数<\/text>/)
   assert.match(source, /<text class="benefit-value">\{\{ refreshQuotaRemaining \}\}<\/text>/)
-  assert.match(source, /<text class="benefit-label">刷新<\/text>/)
+  assert.match(source, /<text class="benefit-label">刷新次数<\/text>/)
   assert.match(source, /const benefitOverviewVisible = computed\(\(\) => Boolean\(isLoggedIn\.value\)\)/)
   assert.match(source, /const benefitOverviewDesc = computed/)
   assert.match(source, /function entitlementRemaining\(type\)/)
@@ -70,6 +70,21 @@ test('my page shows compact entitlement overview and hides duplicated quota sect
   assert.doesNotMatch(source, /<text class="action-title">商家认证<\/text>/)
   assert.doesNotMatch(source, /openMerchantVerification/)
   assert.doesNotMatch(source, /getLatestVerification/)
+})
+
+test('my page shows nearest 7-day expiring entitlement reminder', () => {
+  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
+
+  assert.match(source, /import \{ formatDateToDay \} from '\.\.\/\.\.\/common\/date'/)
+  assert.match(source, /const BENEFIT_EXPIRY_SOON_DAYS = 7/)
+  assert.match(source, /<text v-if="benefitExpiryReminder" class="benefit-expiry">\{\{ benefitExpiryReminder \}\}<\/text>/)
+  assert.match(source, /const benefitExpiryReminder = computed/)
+  assert.match(source, /Date\.parse\(item\.expiresAt\)/)
+  assert.match(source, /expiresAtTime - Date\.now\(\) <= BENEFIT_EXPIRY_SOON_DAYS \* 24 \* 60 \* 60 \* 1000/)
+  assert.match(source, /最近到期：\$\{entitlementLabel\(nearest\.type\)\} \$\{amount\} 次，\$\{formatDateToDay\(nearest\.expiresAt, ''\)\} 到期/)
+  assert.match(source, /function entitlementLabel\(type\)/)
+  assert.match(source, /if \(type === 'refresh_quota'\) return '刷新次数'/)
+  assert.match(source, /if \(type === 'publish_quota'\) return '发布次数'/)
 })
 
 test('my page uses growth campaign data in compact entitlement overview', () => {
