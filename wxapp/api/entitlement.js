@@ -8,6 +8,14 @@ export function getMerchantEntitlements(merchantId, options = {}) {
   })
 }
 
+export function getMerchantEntitlementUsageRecords(merchantId, entitlementId, options = {}) {
+  return request({
+    url: `/api/v1/merchants/${merchantId}/entitlements/${entitlementId}/usage-records`,
+    method: 'GET',
+    ...options,
+  })
+}
+
 export function listTopVouchers(merchantId) {
   return request({
     url: `/api/v1/merchants/${merchantId}/top-vouchers`,

@@ -325,8 +325,8 @@ VALUES ($1, NULLIF($2, '')::bigint, 'verification', $3, $4, '认证审核通过�
 		entitlementType string
 		totalAmount     int64
 	}{
-		{entitlementType: "publish_quota", totalAmount: 20},
-		{entitlementType: "refresh_quota", totalAmount: 30},
+		{entitlementType: EntitlementTypePublishQuota, totalAmount: 20},
+		{entitlementType: EntitlementTypeRefreshQuota, totalAmount: 30},
 	} {
 		if _, err := tx.ExecContext(ctx, `
 INSERT INTO merchant_entitlements (merchant_id, entitlement_type, source_type, total_amount, remaining_amount)
@@ -335,13 +335,11 @@ VALUES ($1, $2, 'verification', $3, $3)
 			return err
 		}
 	}
-	for i := 0; i < 3; i++ {
-		if _, err := tx.ExecContext(ctx, `
-INSERT INTO top_vouchers (merchant_id, source_type, allowed_type_codes, top_duration_hours, status)
-VALUES ($1, 'verification', '[]'::jsonb, 24, 'unused')
-`, merchantID); err != nil {
-			return err
-		}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO merchant_entitlements (merchant_id, entitlement_type, source_type, total_amount, remaining_amount, allowed_type_codes, top_duration_hours)
+VALUES ($1, $2, 'verification', 3, 3, '[]'::jsonb, 24)
+`, merchantID, EntitlementTypeTopVoucher); err != nil {
+		return err
 	}
 	return nil
 }

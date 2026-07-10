@@ -453,6 +453,7 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "submit verification", method: http.MethodPost, path: "/api/v1/merchants/merchant-1/verifications", body: `{"applicantUserId":"user-1","verificationType":"stockist","businessName":"织里云仓"}`},
 		{name: "latest verification", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/verifications/latest"},
 		{name: "list entitlements", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/entitlements"},
+		{name: "list entitlement usage records", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/entitlements/entitlement-1/usage-records"},
 		{name: "list top vouchers", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/top-vouchers"},
 		{name: "redeem top voucher", method: http.MethodPost, path: "/api/v1/top-vouchers/voucher-1/redeem", body: `{"resourceId":"resource-1"}`},
 		{name: "resource metrics", method: http.MethodGet, path: "/api/v1/resources/resource-1/metrics"},
@@ -620,11 +621,18 @@ func (s *fakeFullAPIStore) ReviewVerification(ctx context.Context, input model.R
 }
 
 func (s *fakeFullAPIStore) ListMerchantEntitlements(ctx context.Context, merchantID string) ([]model.MerchantEntitlement, error) {
-	return []model.MerchantEntitlement{{Type: "publish_quota", SourceType: "manual", TotalAmount: 3, RemainingAmount: 2}}, nil
+	return []model.MerchantEntitlement{{ID: "entitlement-1", Type: "publish_quota", SourceType: "manual", Status: "active", TotalAmount: 3, RemainingAmount: 2}}, nil
+}
+
+func (s *fakeFullAPIStore) ListMerchantEntitlementUsageRecords(ctx context.Context, merchantID string, entitlementID string) ([]model.EntitlementUsageRecord, error) {
+	return []model.EntitlementUsageRecord{{
+		ID: "usage-1", EntitlementID: entitlementID, EntitlementType: "publish_quota", ActionType: "publish_resource",
+		Amount: 1, ResourceID: "resource-1", BeforeRemainingAmount: 3, AfterRemainingAmount: 2, UsedAt: "2026-07-09T10:00:00Z",
+	}}, nil
 }
 
 func (s *fakeFullAPIStore) ListTopVouchers(ctx context.Context, merchantID string) ([]model.TopVoucher, error) {
-	return []model.TopVoucher{{ID: "voucher-1", Status: "unused", TopDurationHours: 24}}, nil
+	return []model.TopVoucher{{ID: "voucher-1", Status: "unused", RemainingAmount: 1, TopDurationHours: 24}}, nil
 }
 
 func (s *fakeFullAPIStore) GetTopVoucherMerchantID(ctx context.Context, voucherID string) (string, error) {

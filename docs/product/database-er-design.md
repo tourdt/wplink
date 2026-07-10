@@ -41,12 +41,12 @@ erDiagram
   resources ||--o{ resource_review_records : reviewed
   resources ||--o{ resource_contact_events : contacted
   resources ||--o{ resource_metrics_daily : measured
-  resources ||--o{ top_vouchers : used_by
+  resources ||--o{ merchant_entitlement_usage_records : consumes
   merchants ||--o{ verifications : applies
   resources ||--o{ verifications : may_verify
   merchants ||--o{ credit_records : earns
   merchants ||--o{ merchant_entitlements : owns
-  merchants ||--o{ top_vouchers : owns
+  merchants ||--o{ merchant_entitlement_usage_records : uses
   users ||--o{ purchase_demands : submits
   purchase_demands ||--o{ match_cases : drives
   resources ||--o{ match_case_resources : matched
@@ -342,6 +342,8 @@ erDiagram
 | is_verified | boolean | NOT NULL DEFAULT false | 是否有认证背书 |
 | published_at | timestamptz | NULL | 发布时间 |
 | refreshed_at | timestamptz | NULL | 刷新时间 |
+| top_started_at | timestamptz | NULL | 当前置顶开始时间 |
+| top_expires_at | timestamptz | NULL | 当前置顶到期时间 |
 | expires_at | timestamptz | NULL | 过期时间 |
 | dealt_at | timestamptz | NULL | 成交/强意向时间 |
 | taken_down_at | timestamptz | NULL | 下架时间 |
@@ -359,6 +361,7 @@ erDiagram
 - `idx_resources_merchant_status(merchant_id, status)`
 - `idx_resources_category_status(category, status)`
 - `idx_resources_refreshed_at(refreshed_at DESC)`
+- `idx_resources_top_expires_at(top_expires_at DESC)`
 - `idx_resources_expires_at(expires_at)`
 - `idx_resources_attributes_gin` using GIN on `attributes`
 - `idx_resources_search_text` 可后续使用全文索引
@@ -554,6 +557,8 @@ erDiagram
 | total_amount | integer | NOT NULL | 总额度 |
 | used_amount | integer | NOT NULL DEFAULT 0 | 已使用 |
 | remaining_amount | integer | NOT NULL | 剩余 |
+| allowed_type_codes | jsonb | NOT NULL DEFAULT '[]' | 置顶券可用资源类型，非置顶权益为空数组 |
+| top_duration_hours | integer | NOT NULL DEFAULT 0 | 单张置顶券置顶时长，非置顶权益为 0 |
 | starts_at | timestamptz | NOT NULL | 生效时间 |
 | expires_at | timestamptz | NULL | 过期时间 |
 | status | varchar(32) | NOT NULL | active, expired, revoked |
@@ -565,28 +570,29 @@ erDiagram
 - `idx_merchant_entitlements_merchant_type_status`
 - `idx_merchant_entitlements_expires_at`
 
-### 4.18 top_vouchers
+### 4.18 merchant_entitlement_usage_records
 
-置顶券表。
+权益使用记录表。
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | bigint | PK | 券 ID |
+| id | bigint | PK | 使用记录 ID |
+| entitlement_id | bigint | FK -> merchant_entitlements.id NOT NULL | 权益批次 |
 | merchant_id | bigint | FK -> merchants.id NOT NULL | 商家 |
-| entitlement_id | bigint | FK -> merchant_entitlements.id NULL | 来源权益 |
-| source_type | varchar(64) | NOT NULL | verification_gift, membership_plan, operator_grant, purchase |
-| allowed_type_codes | jsonb | NOT NULL DEFAULT '[]' | 可用资源类型 |
-| top_duration_hours | integer | NOT NULL | 置顶时长 |
-| used_resource_id | bigint | FK -> resources.id NULL | 使用资源 |
-| used_at | timestamptz | NULL | 使用时间 |
-| expires_at | timestamptz | NULL | 过期时间 |
-| status | varchar(32) | NOT NULL | unused, used, expired, voided |
-| created_at | timestamptz | NOT NULL | 创建时间 |
+| entitlement_type | varchar(64) | NOT NULL | publish_quota, refresh_quota, top_voucher |
+| action_type | varchar(64) | NOT NULL | publish_resource, refresh_resource, top_resource |
+| amount | integer | NOT NULL DEFAULT 1 | 本次使用数量 |
+| resource_id | bigint | FK -> resources.id NULL | 关联资源 |
+| before_remaining_amount | integer | NOT NULL | 使用前剩余 |
+| after_remaining_amount | integer | NOT NULL | 使用后剩余 |
+| snapshot | jsonb | NOT NULL DEFAULT '{}' | 使用时业务快照 |
+| used_at | timestamptz | NOT NULL | 使用时间 |
 
 索引：
 
-- `idx_top_vouchers_merchant_status`
-- `idx_top_vouchers_used_resource`
+- `idx_entitlement_usage_entitlement`
+- `idx_entitlement_usage_merchant`
+- `idx_entitlement_usage_resource`
 
 ### 4.19 resource_contact_events
 
@@ -712,12 +718,11 @@ erDiagram
 - `verified`
 - `rejected`
 
-### 5.4 top_vouchers.status
+### 5.4 merchant_entitlements.status
 
-- `unused`
-- `used`
 - `expired`
-- `voided`
+- `active`
+- `revoked`
 
 ## 6. 扩展字段设计
 
@@ -832,7 +837,7 @@ MVP 必建：
 - purchase_demands
 - search_logs
 - merchant_entitlements
-- top_vouchers
+- merchant_entitlement_usage_records
 - resource_contact_events
 - resource_metrics_daily
 - messages

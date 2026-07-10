@@ -138,6 +138,29 @@ test('vip migration backfills product columns for databases that already applied
   }
 })
 
+test('entitlement migrations store top vouchers as merchant entitlement batches with usage records', () => {
+  const coreSql = fs.readFileSync(path.resolve(migrationsDir, '000002_core_domain.up.sql'), 'utf8')
+  const upgradeSql = fs.readFileSync(path.resolve(migrationsDir, '000019_entitlement_usage_records.up.sql'), 'utf8')
+
+  for (const sql of [coreSql, upgradeSql]) {
+    for (const snippet of [
+      'top_started_at timestamptz',
+      'top_expires_at timestamptz',
+      'allowed_type_codes jsonb NOT NULL DEFAULT',
+      'top_duration_hours integer NOT NULL DEFAULT 0',
+      'CREATE TABLE IF NOT EXISTS merchant_entitlement_usage_records',
+      'before_remaining_amount integer NOT NULL',
+      'after_remaining_amount integer NOT NULL',
+      'resource_id bigint REFERENCES resources(id)',
+    ]) {
+      assert(sql.includes(snippet), `entitlement migration should include snippet ${snippet}`)
+    }
+    assert(!sql.includes('CREATE TABLE IF NOT EXISTS top_vouchers'), 'top_vouchers should not be created after entitlement unification')
+  }
+
+  assert(upgradeSql.includes('DROP TABLE IF EXISTS top_vouchers'), 'upgrade migration should drop retired top_vouchers table')
+})
+
 test('resource type seed uses type-specific publish fields and summary mappings', () => {
   const seedSql = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')
   const rentalDisplaySql = fs.readFileSync(path.resolve(migrationsDir, '000014_resource_type_display_names.up.sql'), 'utf8')

@@ -21,7 +21,12 @@ const (
 
 	EntitlementTypePublishQuota     = "publish_quota"
 	EntitlementTypeRefreshQuota     = "refresh_quota"
+	EntitlementTypeTopVoucher       = "top_voucher"
 	EntitlementSourceProfileMonthly = "profile_monthly"
+
+	ActionTypePublishResource = "publish_resource"
+	ActionTypeRefreshResource = "refresh_resource"
+	ActionTypeTopResource     = "top_resource"
 )
 
 var ErrPublishQuotaInsufficient = errors.New("publish quota insufficient")
@@ -44,7 +49,7 @@ WHERE id = (
   LIMIT 1
 )
   AND remaining_amount > 0
-RETURNING id::text
+RETURNING id::text, remaining_amount + 1, remaining_amount
 `
 
 const consumeRefreshQuotaSQL = `
@@ -65,7 +70,7 @@ WHERE id = (
   LIMIT 1
 )
   AND remaining_amount > 0
-RETURNING id::text, remaining_amount
+RETURNING id::text, remaining_amount + 1, remaining_amount
 `
 
 type ResourcePublishConfig struct {
@@ -235,7 +240,9 @@ WHERE r.deleted_at IS NULL
   )
   AND ($8 = false OR r.is_verified = true OR m.verification_status = 'verified')
   AND (r.expires_at IS NULL OR r.expires_at > now())
-ORDER BY COALESCE(r.refreshed_at, r.published_at, r.created_at) DESC
+ORDER BY
+  CASE WHEN r.top_expires_at IS NOT NULL AND r.top_expires_at > now() THEN 1 ELSE 0 END DESC,
+  COALESCE(r.refreshed_at, r.published_at, r.created_at) DESC
 LIMIT $9 OFFSET $10
 `
 
@@ -535,12 +542,13 @@ func (m *ResourceModel) CreateResource(ctx context.Context, input CreateResource
 	if input.ConsumePublishQuota {
 		var result CreateResourceResult
 		err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
-			if err := consumePublishQuotaTx(ctx, tx, input.MerchantID); err != nil {
-				return err
-			}
 			var err error
 			result, err = insertResource(ctx, tx, input)
-			return err
+			if err != nil {
+				return err
+			}
+			// 资源 id 生成后再扣减发布额度，便于权益使用记录精确关联到本次发布；事务会保证额度不足时资源不会落库。
+			return consumePublishQuotaTx(ctx, tx, input.MerchantID, result.ID)
 		})
 		return result, err
 	}
@@ -640,7 +648,7 @@ FOR UPDATE
 `, resourceID).Scan(&merchantID); err != nil {
 			return err
 		}
-		if err := consumePublishQuotaTx(ctx, tx, merchantID); err != nil {
+		if err := consumePublishQuotaTx(ctx, tx, merchantID, resourceID); err != nil {
 			return err
 		}
 		return tx.QueryRowContext(ctx, `
@@ -655,16 +663,25 @@ RETURNING id::text, status
 	return result, err
 }
 
-func consumePublishQuotaTx(ctx context.Context, tx *sql.Tx, merchantID string) error {
+func consumePublishQuotaTx(ctx context.Context, tx *sql.Tx, merchantID string, resourceID string) error {
 	if err := ensureProfileMonthlyEntitlementsTx(ctx, tx, merchantID); err != nil {
 		return err
 	}
-	var entitlementID string
-	err := tx.QueryRowContext(ctx, consumePublishQuotaSQL, merchantID).Scan(&entitlementID)
+	var usage entitlementUsageInput
+	err := tx.QueryRowContext(ctx, consumePublishQuotaSQL, merchantID).Scan(&usage.EntitlementID, &usage.BeforeRemainingAmount, &usage.AfterRemainingAmount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrPublishQuotaInsufficient
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	usage.MerchantID = merchantID
+	usage.EntitlementType = EntitlementTypePublishQuota
+	usage.ActionType = ActionTypePublishResource
+	usage.ResourceID = resourceID
+	usage.Amount = 1
+	usage.Snapshot = JSONMap{"resourceId": resourceID}
+	return recordEntitlementUsageTx(ctx, tx, usage)
 }
 
 func ensureProfileMonthlyEntitlementsTx(ctx context.Context, tx *sql.Tx, merchantID string) error {
@@ -1184,8 +1201,9 @@ func (m *ResourceModel) RefreshResource(ctx context.Context, merchantID string, 
 			return err
 		}
 		var entitlementID string
+		var beforeRemaining int64
 		var remaining int64
-		if err := tx.QueryRowContext(ctx, consumeRefreshQuotaSQL, merchantID).Scan(&entitlementID, &remaining); err != nil {
+		if err := tx.QueryRowContext(ctx, consumeRefreshQuotaSQL, merchantID).Scan(&entitlementID, &beforeRemaining, &remaining); err != nil {
 			return err
 		}
 		var refreshedAt time.Time
@@ -1200,9 +1218,21 @@ RETURNING id::text, refreshed_at
 `, resourceID, merchantID).Scan(&result.ID, &refreshedAt); err != nil {
 			return err
 		}
+		if err := recordEntitlementUsageTx(ctx, tx, entitlementUsageInput{
+			EntitlementID:         entitlementID,
+			MerchantID:            merchantID,
+			EntitlementType:       EntitlementTypeRefreshQuota,
+			ActionType:            ActionTypeRefreshResource,
+			Amount:                1,
+			ResourceID:            result.ID,
+			BeforeRemainingAmount: beforeRemaining,
+			AfterRemainingAmount:  remaining,
+			Snapshot:              JSONMap{"refreshedAt": refreshedAt.Format(time.RFC3339)},
+		}); err != nil {
+			return err
+		}
 		result.RefreshedAt = refreshedAt.Format(time.RFC3339)
 		result.RemainingRefreshQuota = remaining
-		_ = entitlementID
 		return nil
 	})
 	return result, err

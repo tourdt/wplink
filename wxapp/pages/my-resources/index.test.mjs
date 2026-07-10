@@ -51,14 +51,12 @@ test('my resources supports supply and demand direction filters', () => {
     'RESOURCE_DIRECTION_SUPPLY',
     'RESOURCE_DIRECTION_DEMAND',
     'direction: filters.direction',
-    'isSupplyResource',
   ]) {
     assert.match(source, new RegExp(token))
   }
 
   assert.match(source, /const filters = reactive\(\{ status: '', direction: RESOURCE_DIRECTION_SUPPLY \}\)/)
   assert.match(source, /listMyResources\(\{ merchantId: merchantId\.value, status: filters\.status, direction: filters\.direction, page: nextPage, pageSize \}\)/)
-  assert.match(source, /function canTopResource\(item\) \{[\s\S]*return isSupplyResource\(item\) && isActivePublished\(item\)[\s\S]*\}/)
 })
 
 test('my resources card actions avoid a visible toolbar frame', () => {
@@ -93,4 +91,13 @@ test('my resources prompts for merchant profile before list and publish actions'
   assert.match(source, /async function loadRows\(\{ reset = true \} = \{\}\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*const resp = await listMyResources/)
   assert.match(source, /async function openPublish\(\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}` \}\)/)
   assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善商家资料'/)
+})
+
+test('my resources soft-disables top voucher actions for merchants', () => {
+  assert.doesNotMatch(source, /import \{ redeemTopVoucher, listTopVouchers \} from '\.\.\/\.\.\/api\/entitlement'/)
+  assert.doesNotMatch(source, /class="top-tag">可置顶<\/text>/)
+  assert.doesNotMatch(source, /@click="topResource\(item\)">置顶<\/button>/)
+  assert.doesNotMatch(source, /async function topResource\(item\)/)
+  assert.doesNotMatch(source, /listTopVouchers\(merchantId\.value\)/)
+  assert.doesNotMatch(source, /redeemTopVoucher\(voucher\.id, item\.id, merchantId\.value\)/)
 })

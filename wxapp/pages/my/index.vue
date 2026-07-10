@@ -24,6 +24,25 @@
       <button v-if="!isLoggedIn" class="login-button" @click.stop="openLogin">微信登录</button>
     </view>
 
+    <view v-if="entitlementCards.length" class="entitlement-section section-card">
+      <view class="section-head">
+        <text class="section-title">权益余额</text>
+        <text class="section-subtitle">剩余次数与有效期</text>
+      </view>
+      <view class="entitlement-list">
+        <view v-for="item in entitlementCards" :key="item.key" class="entitlement-item" @click="openEntitlementDetail(item)">
+          <view class="entitlement-main">
+            <text class="entitlement-title">{{ item.title }}</text>
+            <text class="entitlement-meta">{{ item.sourceText }} · {{ item.expiresText }}</text>
+          </view>
+          <view class="entitlement-count">
+            <text class="entitlement-count-value">{{ item.remainingAmount }}</text>
+            <text class="entitlement-count-label">剩余</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
     <view v-if="merchantEffectVisible" class="merchant-effect-card section-card">
       <view class="section-head effect-head">
         <text class="section-title">商家本周效果</text>
@@ -56,7 +75,7 @@
         <view class="action-item" @click="openVIP">
           <view class="action-main">
             <text class="action-title">VIP 权益</text>
-            <text class="action-meta">查看额度、置顶券和限时特价</text>
+            <text class="action-meta">查看额度和限时特价</text>
           </view>
           <text class="entry-arrow"></text>
         </view>
@@ -83,6 +102,49 @@
         </button>
       </view>
     </view>
+
+    <view v-if="selectedEntitlement" class="entitlement-detail-mask" @click="closeEntitlementDetail">
+      <view class="entitlement-detail-panel" @click.stop>
+        <view class="detail-head">
+          <view class="detail-title-wrap">
+            <text class="detail-title">{{ selectedEntitlement.title }}</text>
+            <text class="detail-subtitle">{{ selectedEntitlement.sourceText }}</text>
+          </view>
+          <button class="detail-close" @click="closeEntitlementDetail">关闭</button>
+        </view>
+        <view class="detail-stats">
+          <view class="detail-stat">
+            <text class="detail-stat-value">{{ selectedEntitlement.remainingAmount }}</text>
+            <text class="detail-stat-label">剩余次数</text>
+          </view>
+          <view class="detail-stat">
+            <text class="detail-stat-value">{{ selectedEntitlement.totalAmount }}</text>
+            <text class="detail-stat-label">发放次数</text>
+          </view>
+        </view>
+        <view class="detail-expire-row">
+          <text class="detail-label">过期时间</text>
+          <text class="detail-value">{{ selectedEntitlement.expiresText }}</text>
+        </view>
+        <view class="usage-list">
+          <view class="usage-head">
+            <text class="usage-title">使用记录</text>
+            <text class="usage-count">{{ entitlementUsageRecords.length }} 条</text>
+          </view>
+          <text v-if="usageRecordsLoading" class="usage-empty">加载中</text>
+          <text v-else-if="!entitlementUsageRecords.length" class="usage-empty">暂无使用记录</text>
+          <template v-else>
+            <view v-for="record in entitlementUsageRecords" :key="record.id" class="usage-item">
+              <view class="usage-main">
+                <text class="usage-action">{{ usageActionText(record.actionType) }}</text>
+                <text class="usage-time">{{ formatDateToMinute(record.usedAt) }}</text>
+              </view>
+              <text class="usage-balance">{{ record.beforeRemainingAmount }} 到 {{ record.afterRemainingAmount }}</text>
+            </view>
+          </template>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -92,7 +154,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { buildLoginUrl, requireLogin } from '../../common/auth'
 import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { getSession } from '../../store/session'
-import { getMerchantEntitlements } from '../../api/entitlement'
+import { getMerchantEntitlements, getMerchantEntitlementUsageRecords } from '../../api/entitlement'
 import { getMerchant } from '../../api/merchant'
 import { getMerchantMetricsSummary } from '../../api/metrics'
 
@@ -101,6 +163,9 @@ const merchantId = ref('')
 const merchantProfile = ref({})
 const merchantMetricsSummary = ref(null)
 const merchantEntitlements = ref([])
+const selectedEntitlement = ref(null)
+const entitlementUsageRecords = ref([])
+const usageRecordsLoading = ref(false)
 
 const isLoggedIn = computed(() => Boolean(token.value))
 const merchantLogo = computed(() => merchantProfile.value.logoUrl || '')
@@ -137,7 +202,7 @@ const quotaSummaryTitle = computed(() => {
 })
 const quotaSummaryDesc = computed(() => {
   if (merchantProfile.value.vipStatus === 'active') {
-    return '置顶券可在发布管理中使用'
+    return '置顶功能暂未开放，当前可使用发布和刷新权益'
   }
   if (merchantProfile.value.profileStatus === 'completed') {
     return '需要更多发布和曝光，可查看 VIP 权益'
@@ -145,6 +210,16 @@ const quotaSummaryDesc = computed(() => {
   return '完善资料后每月可发布 10 条，并获得 3 次刷新'
 })
 const merchantEffectVisible = computed(() => Boolean(token.value && merchantId.value && merchantMetricsSummary.value))
+const visibleEntitlements = computed(() => merchantEntitlements.value.filter((item) => item.type !== 'top_voucher'))
+const entitlementCards = computed(() => visibleEntitlements.value.map((item, index) => ({
+  ...item,
+  key: item.id || `${item.type}-${item.sourceType}-${index}`,
+  title: entitlementTitle(item.type),
+  sourceText: entitlementSourceText(item.sourceType),
+  remainingAmount: Number(item.remainingAmount || 0),
+  totalAmount: Number(item.totalAmount || 0),
+  expiresText: formatDateToMinute(item.expiresAt) || '长期有效',
+})))
 const merchantEffectItems = computed(() => {
   const last7Days = merchantMetricsSummary.value?.last7Days || {}
   return [
@@ -259,6 +334,64 @@ async function openMerchantHome() {
 async function openVIP() {
   if (!requireLogin()) return
   uni.navigateTo({ url: `/pages/vip/index?merchantId=${merchantId.value}` })
+}
+
+async function openEntitlementDetail(item) {
+  selectedEntitlement.value = item
+  entitlementUsageRecords.value = []
+  if (!item.id || !merchantId.value) return
+  usageRecordsLoading.value = true
+  try {
+    const resp = await getMerchantEntitlementUsageRecords(merchantId.value, item.id, { suppressErrorToast: true })
+    entitlementUsageRecords.value = resp.items || []
+  } catch (err) {
+    entitlementUsageRecords.value = []
+  } finally {
+    usageRecordsLoading.value = false
+  }
+}
+
+function closeEntitlementDetail() {
+  selectedEntitlement.value = null
+  entitlementUsageRecords.value = []
+  usageRecordsLoading.value = false
+}
+
+function entitlementTitle(type) {
+  const titleMap = {
+    publish_quota: '发布额度',
+    refresh_quota: '刷新次数',
+    top_voucher: '置顶券',
+  }
+  return titleMap[type] || '权益'
+}
+
+function entitlementSourceText(sourceType) {
+  const sourceMap = {
+    vip: 'VIP赠送',
+    quota_pack: '次数包',
+    verification: '认证赠送',
+    profile_monthly: '资料权益',
+    manual: '手动发放',
+  }
+  return sourceMap[sourceType] || '权益发放'
+}
+
+function usageActionText(actionType) {
+  const actionMap = {
+    publish_resource: '消耗发布额度',
+    refresh_resource: '刷新资源',
+    top_resource: '置顶资源',
+  }
+  return actionMap[actionType] || '使用权益'
+}
+
+function formatDateToMinute(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (num) => String(num).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 </script>
 
@@ -463,6 +596,223 @@ async function openVIP() {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12rpx;
+}
+
+.entitlement-list {
+  display: grid;
+  gap: 12rpx;
+}
+
+.entitlement-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  min-width: 0;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid $wplink-line;
+}
+
+.entitlement-item:last-child {
+  border-bottom: 0;
+}
+
+.entitlement-main {
+  display: grid;
+  gap: 8rpx;
+  min-width: 0;
+}
+
+.entitlement-title {
+  color: $wplink-primary;
+  font-size: 29rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.entitlement-meta {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.entitlement-count {
+  display: grid;
+  gap: 2rpx;
+  flex: 0 0 96rpx;
+  text-align: right;
+}
+
+.entitlement-count-value {
+  color: $wplink-primary;
+  font-size: 34rpx;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.entitlement-count-label {
+  color: $wplink-muted;
+  font-size: 22rpx;
+  line-height: 1.3;
+}
+
+.entitlement-detail-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(15, 23, 42, 0.36);
+}
+
+.entitlement-detail-panel {
+  display: grid;
+  gap: 22rpx;
+  width: 100%;
+  max-height: 78vh;
+  padding: 28rpx 28rpx calc(34rpx + env(safe-area-inset-bottom));
+  border-radius: 18rpx 18rpx 0 0;
+  background: $wplink-card;
+  overflow-y: auto;
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.detail-title-wrap {
+  display: grid;
+  gap: 6rpx;
+  min-width: 0;
+}
+
+.detail-title {
+  color: $wplink-primary;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.detail-subtitle,
+.detail-label,
+.usage-count,
+.usage-time {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.detail-close {
+  flex: 0 0 auto;
+  min-width: 112rpx;
+  height: 58rpx;
+  padding: 0 18rpx;
+  border-radius: 10rpx;
+  background: #f4f7fd;
+  color: $wplink-primary;
+  font-size: 24rpx;
+  line-height: 58rpx;
+}
+
+.detail-close::after {
+  border: 0;
+}
+
+.detail-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.detail-stat {
+  display: grid;
+  gap: 6rpx;
+  padding: 18rpx;
+  border-radius: 10rpx;
+  background: #f8fafc;
+}
+
+.detail-stat-value {
+  color: $wplink-primary;
+  font-size: 34rpx;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.detail-stat-label {
+  color: $wplink-muted;
+  font-size: 23rpx;
+  line-height: 1.4;
+}
+
+.detail-expire-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 18rpx 0;
+  border-top: 1rpx solid $wplink-line;
+  border-bottom: 1rpx solid $wplink-line;
+}
+
+.detail-value {
+  color: $wplink-primary;
+  font-size: 25rpx;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.usage-list {
+  display: grid;
+  gap: 12rpx;
+}
+
+.usage-head,
+.usage-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.usage-title,
+.usage-action {
+  color: $wplink-primary;
+  font-size: 27rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.usage-main {
+  display: grid;
+  gap: 4rpx;
+  min-width: 0;
+}
+
+.usage-item {
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid $wplink-line;
+}
+
+.usage-item:last-child {
+  border-bottom: 0;
+}
+
+.usage-balance {
+  flex: 0 0 auto;
+  color: $wplink-primary;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.usage-empty {
+  padding: 20rpx 0;
+  color: $wplink-muted;
+  font-size: 25rpx;
+  line-height: 1.5;
 }
 
 .merchant-effect-item {

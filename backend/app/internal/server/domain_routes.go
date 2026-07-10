@@ -480,6 +480,15 @@ func registerEntitlementRoutes(mux *http.ServeMux, store EntitlementAPIStore, to
 		resp, err := entitlementlogic.NewListEntitlementsLogic(store).ListEntitlements(r.Context(), merchantID)
 		response.JSON(w, resp, err)
 	})
+	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/entitlements/{entitlementId}/usage-records", func(w http.ResponseWriter, r *http.Request) {
+		merchantID := r.PathValue("merchantId")
+		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := entitlementlogic.NewListEntitlementUsageRecordsLogic(store).ListUsageRecords(r.Context(), merchantID, r.PathValue("entitlementId"))
+		response.JSON(w, resp, err)
+	})
 	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/top-vouchers", func(w http.ResponseWriter, r *http.Request) {
 		merchantID := r.PathValue("merchantId")
 		if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {

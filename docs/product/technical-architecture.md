@@ -401,7 +401,8 @@ sequenceDiagram
   M->>W: 选择资源使用置顶券
   W->>A: POST /top-vouchers/{id}/use
   A->>A: 校验券状态、商家归属、资源状态
-  A->>D: 更新 top_vouchers 为 used
+  A->>D: 扣减 merchant_entitlements 的 top_voucher 余额
+  A->>D: 写入 merchant_entitlement_usage_records
   A->>D: 写入资源置顶时间
   A-->>W: 返回置顶成功
 ```

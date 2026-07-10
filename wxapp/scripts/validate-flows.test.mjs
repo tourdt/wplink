@@ -368,7 +368,7 @@ test('my page separates guest and logged-in account states without merchant bind
     'openMerchantHome',
     '商家主页',
     'VIP 权益',
-    '查看额度、置顶券和限时特价',
+    '查看额度和限时特价',
     'openVIP',
     '/pages/vip/index\\?merchantId=',
     'ensureMerchantProfileReady',

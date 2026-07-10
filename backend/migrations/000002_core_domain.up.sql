@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS resources (
   is_verified boolean NOT NULL DEFAULT false,
   published_at timestamptz,
   refreshed_at timestamptz,
+  top_started_at timestamptz,
+  top_expires_at timestamptz,
   expires_at timestamptz,
   dealt_at timestamptz,
   taken_down_at timestamptz,
@@ -142,6 +144,7 @@ CREATE INDEX IF NOT EXISTS idx_resources_city_direction_type_status ON resources
 CREATE INDEX IF NOT EXISTS idx_resources_merchant_status ON resources(merchant_id, status);
 CREATE INDEX IF NOT EXISTS idx_resources_category_status ON resources(category, status);
 CREATE INDEX IF NOT EXISTS idx_resources_refreshed_at ON resources(refreshed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_resources_top_expires_at ON resources(top_expires_at DESC);
 CREATE INDEX IF NOT EXISTS idx_resources_expires_at ON resources(expires_at);
 CREATE INDEX IF NOT EXISTS idx_resources_attributes_gin ON resources USING gin(attributes);
 
@@ -220,6 +223,8 @@ CREATE TABLE IF NOT EXISTS merchant_entitlements (
   total_amount integer NOT NULL,
   used_amount integer NOT NULL DEFAULT 0,
   remaining_amount integer NOT NULL,
+  allowed_type_codes jsonb NOT NULL DEFAULT '[]'::jsonb,
+  top_duration_hours integer NOT NULL DEFAULT 0,
   starts_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz,
   status varchar(32) NOT NULL DEFAULT 'active',
@@ -230,22 +235,23 @@ CREATE TABLE IF NOT EXISTS merchant_entitlements (
 CREATE INDEX IF NOT EXISTS idx_merchant_entitlements_merchant_type_status ON merchant_entitlements(merchant_id, entitlement_type, status);
 CREATE INDEX IF NOT EXISTS idx_merchant_entitlements_expires_at ON merchant_entitlements(expires_at);
 
-CREATE TABLE IF NOT EXISTS top_vouchers (
+CREATE TABLE IF NOT EXISTS merchant_entitlement_usage_records (
   id bigint PRIMARY KEY DEFAULT next_tsid(),
+  entitlement_id bigint NOT NULL REFERENCES merchant_entitlements(id),
   merchant_id bigint NOT NULL REFERENCES merchants(id),
-  entitlement_id bigint REFERENCES merchant_entitlements(id),
-  source_type varchar(64) NOT NULL,
-  allowed_type_codes jsonb NOT NULL DEFAULT '[]'::jsonb,
-  top_duration_hours integer NOT NULL,
-  used_resource_id bigint REFERENCES resources(id),
-  used_at timestamptz,
-  expires_at timestamptz,
-  status varchar(32) NOT NULL DEFAULT 'unused',
-  created_at timestamptz NOT NULL DEFAULT now()
+  entitlement_type varchar(64) NOT NULL,
+  action_type varchar(64) NOT NULL,
+  amount integer NOT NULL DEFAULT 1,
+  resource_id bigint REFERENCES resources(id),
+  before_remaining_amount integer NOT NULL,
+  after_remaining_amount integer NOT NULL,
+  snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+  used_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_top_vouchers_merchant_status ON top_vouchers(merchant_id, status);
-CREATE INDEX IF NOT EXISTS idx_top_vouchers_used_resource ON top_vouchers(used_resource_id);
+CREATE INDEX IF NOT EXISTS idx_entitlement_usage_entitlement ON merchant_entitlement_usage_records(entitlement_id, used_at DESC);
+CREATE INDEX IF NOT EXISTS idx_entitlement_usage_merchant ON merchant_entitlement_usage_records(merchant_id, used_at DESC);
+CREATE INDEX IF NOT EXISTS idx_entitlement_usage_resource ON merchant_entitlement_usage_records(resource_id);
 
 CREATE TABLE IF NOT EXISTS resource_contact_events (
   id bigint PRIMARY KEY DEFAULT next_tsid(),

@@ -129,7 +129,6 @@ import { computed, ref } from 'vue'
 import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import MerchantBadge from '../../components/MerchantBadge.vue'
 import ResourceList from '../../components/ResourceList.vue'
-import { listTopVouchers, redeemTopVoucher } from '../../api/entitlement'
 import { getResourceFavoriteState, setResourceFavorite } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
 import {
@@ -225,14 +224,14 @@ const canShareOwnResource = computed(() => resource.value.status === 'published'
 const managementTitle = computed(() => statusText[resource.value.status] || '供给管理')
 const managementNotice = computed(() => {
   if (resource.value.status === 'pending') {
-    return '供给正在审核，审核通过后会公开展示。当前暂不能刷新、置顶、下架或分享。'
+    return '供给正在审核，审核通过后会公开展示。当前暂不能刷新、下架或分享。'
   }
   if (resource.value.status === 'draft') return '草稿可继续编辑，完善后再提交审核。'
   if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : '供给已被驳回，可编辑后重新提交审核。'
   if (isExpiredResource.value) return '供给已过期，建议再发类似供给后重新提交审核。'
   if (isDealtResource.value) return '供给已成交，不再公开展示，可再发类似供给。'
   if (resource.value.status === 'taken_down') return '供给已下架，不再公开展示。'
-  return '供给展示中，可按需刷新、置顶或下架。'
+  return '供给展示中，可按需刷新或下架。'
 })
 const managementActions = computed(() => {
   if (resource.value.status === 'pending') return []
@@ -251,7 +250,6 @@ const managementActions = computed(() => {
   if (resource.value.status === 'published') {
     return [
       { key: 'refresh', label: '刷新', primary: true },
-      { key: 'top', label: '置顶' },
       { key: 'take-down', label: '下架', danger: true },
     ]
   }
@@ -428,10 +426,6 @@ async function handleManagementAction(action) {
       await refreshOwnResource()
       return
     }
-    if (action === 'top') {
-      await topOwnResource()
-      return
-    }
     if (action === 'take-down') {
       await takeDownOwnResource()
       return
@@ -459,18 +453,6 @@ async function refreshOwnResource() {
   uni.showToast({ title: '已刷新', icon: 'none' })
   closeManagementSheet()
   await reloadOwnResource()
-}
-
-async function topOwnResource() {
-  const resp = await listTopVouchers(ownerMerchantId.value)
-  const voucher = (resp.items || []).find((entry) => entry.status === 'unused')
-  if (!voucher) {
-    uni.showToast({ title: '暂无可用置顶券', icon: 'none' })
-    return
-  }
-  await redeemTopVoucher(voucher.id, resource.value.id, ownerMerchantId.value)
-  uni.showToast({ title: '已置顶', icon: 'none' })
-  closeManagementSheet()
 }
 
 async function takeDownOwnResource() {

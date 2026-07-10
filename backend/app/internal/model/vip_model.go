@@ -338,7 +338,7 @@ SELECT
   s.expires_at,
   COALESCE(ent.publish_quota_remaining, 0) AS publish_quota_remaining,
   COALESCE(ent.refresh_quota_remaining, 0) AS refresh_quota_remaining,
-  COALESCE(tv.top_voucher_count, 0) AS top_voucher_count
+  COALESCE(ent.top_voucher_count, 0) AS top_voucher_count
 FROM merchants m
 LEFT JOIN LATERAL (
   SELECT *
@@ -351,7 +351,8 @@ LEFT JOIN vip_plans p ON p.id = s.plan_id
 LEFT JOIN LATERAL (
   SELECT
     SUM(remaining_amount) FILTER (WHERE entitlement_type = 'publish_quota') AS publish_quota_remaining,
-    SUM(remaining_amount) FILTER (WHERE entitlement_type = 'refresh_quota') AS refresh_quota_remaining
+    SUM(remaining_amount) FILTER (WHERE entitlement_type = 'refresh_quota') AS refresh_quota_remaining,
+    SUM(remaining_amount) FILTER (WHERE entitlement_type = 'top_voucher') AS top_voucher_count
   FROM merchant_entitlements
   WHERE merchant_id = m.id
     AND source_type = 'vip'
@@ -359,14 +360,6 @@ LEFT JOIN LATERAL (
     AND starts_at <= now()
     AND (expires_at IS NULL OR expires_at > now())
 ) ent ON true
-LEFT JOIN LATERAL (
-  SELECT COUNT(*) AS top_voucher_count
-  FROM top_vouchers
-  WHERE merchant_id = m.id
-    AND source_type = 'vip'
-    AND status = 'unused'
-    AND (expires_at IS NULL OR expires_at > now())
-) tv ON true
 WHERE m.id = $1
   AND m.deleted_at IS NULL
 LIMIT 1
@@ -795,8 +788,8 @@ func GrantVIPMonthlyBenefits(ctx context.Context, tx *sql.Tx, merchantID string,
 		entitlementType string
 		totalAmount     int64
 	}{
-		{entitlementType: "publish_quota", totalAmount: snapshot.PublishQuota},
-		{entitlementType: "refresh_quota", totalAmount: snapshot.RefreshQuota},
+		{entitlementType: EntitlementTypePublishQuota, totalAmount: snapshot.PublishQuota},
+		{entitlementType: EntitlementTypeRefreshQuota, totalAmount: snapshot.RefreshQuota},
 	} {
 		if item.totalAmount <= 0 {
 			continue
@@ -808,14 +801,12 @@ VALUES ($1, $2, 'vip', $3, $3, $4, $5, 'active')
 			return err
 		}
 	}
-	if snapshot.TopDurationHours > 0 {
-		for i := int64(0); i < snapshot.TopVoucherCount; i++ {
-			if _, err := tx.ExecContext(ctx, `
-INSERT INTO top_vouchers (merchant_id, source_type, allowed_type_codes, top_duration_hours, expires_at, status)
-VALUES ($1, 'vip', '[]'::jsonb, $2, $3, 'unused')
-`, merchantID, snapshot.TopDurationHours, periodEnd); err != nil {
-				return err
-			}
+	if snapshot.TopVoucherCount > 0 && snapshot.TopDurationHours > 0 {
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO merchant_entitlements (merchant_id, entitlement_type, source_type, total_amount, remaining_amount, starts_at, expires_at, status, allowed_type_codes, top_duration_hours)
+VALUES ($1, $2, 'vip', $3, $3, $4, $5, 'active', '[]'::jsonb, $6)
+`, merchantID, EntitlementTypeTopVoucher, snapshot.TopVoucherCount, periodStart, periodEnd, snapshot.TopDurationHours); err != nil {
+			return err
 		}
 	}
 	return recordOperationLogTx(ctx, tx, OperationLogInput{
@@ -863,14 +854,12 @@ VALUES ($1, $2, 'quota_pack', $3, $3, $4, $5, 'active')
 			return err
 		}
 	}
-	if snapshot.TopDurationHours > 0 {
-		for i := int64(0); i < snapshot.TopVoucherCount; i++ {
-			if _, err := tx.ExecContext(ctx, `
-INSERT INTO top_vouchers (merchant_id, source_type, allowed_type_codes, top_duration_hours, expires_at, status)
-VALUES ($1, 'quota_pack', '[]'::jsonb, $2, $3, 'unused')
-`, merchantID, snapshot.TopDurationHours, quotaPackExpiresAt); err != nil {
-				return err
-			}
+	if snapshot.TopVoucherCount > 0 && snapshot.TopDurationHours > 0 {
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO merchant_entitlements (merchant_id, entitlement_type, source_type, total_amount, remaining_amount, starts_at, expires_at, status, allowed_type_codes, top_duration_hours)
+VALUES ($1, $2, 'quota_pack', $3, $3, $4, $5, 'active', '[]'::jsonb, $6)
+`, merchantID, EntitlementTypeTopVoucher, snapshot.TopVoucherCount, paidAt, quotaPackExpiresAt, snapshot.TopDurationHours); err != nil {
+			return err
 		}
 	}
 	return recordOperationLogTx(ctx, tx, OperationLogInput{

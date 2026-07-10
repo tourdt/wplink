@@ -2,7 +2,7 @@ DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS banner_topics;
 DROP TABLE IF EXISTS resource_metrics_daily;
 DROP TABLE IF EXISTS resource_contact_events;
-DROP TABLE IF EXISTS top_vouchers;
+DROP TABLE IF EXISTS merchant_entitlement_usage_records;
 DROP TABLE IF EXISTS merchant_entitlements;
 DROP TABLE IF EXISTS search_logs;
 DROP TABLE IF EXISTS credit_records;

@@ -1,12 +1,16 @@
 syntax = "v1"
 
 type MerchantEntitlementInfo {
+	Id              string `json:"id"`
 	Type            string `json:"type"`
 	SourceType      string `json:"sourceType"`
+	Status          string `json:"status"`
 	TotalAmount     int64  `json:"totalAmount"`
 	UsedAmount      int64  `json:"usedAmount"`
 	RemainingAmount int64  `json:"remainingAmount"`
-	ExpiresAt       string `json:"expiresAt,optional"`
+	TopDurationHours int64  `json:"topDurationHours,optional"`
+	AllowedTypeCodes []string `json:"allowedTypeCodes,optional"`
+	ExpiresAt        string `json:"expiresAt,optional"`
 }
 
 type ListMerchantEntitlementsResp {
@@ -16,6 +20,7 @@ type ListMerchantEntitlementsResp {
 type TopVoucherInfo {
 	Id               string   `json:"id"`
 	Status           string   `json:"status"`
+	RemainingAmount  int64    `json:"remainingAmount"`
 	TopDurationHours int64    `json:"topDurationHours"`
 	AllowedTypeCodes []string `json:"allowedTypeCodes"`
 	ExpiresAt        string   `json:"expiresAt,optional"`
@@ -31,10 +36,27 @@ type RedeemTopVoucherReq {
 }
 
 type RedeemTopVoucherResp {
-	VoucherId  string `json:"voucherId"`
-	ResourceId string `json:"resourceId"`
-	Status     string `json:"status"`
-	Message    string `json:"message"`
+	VoucherId    string `json:"voucherId"`
+	ResourceId   string `json:"resourceId"`
+	Status       string `json:"status"`
+	TopExpiresAt string `json:"topExpiresAt,optional"`
+	Message      string `json:"message"`
+}
+
+type EntitlementUsageRecordInfo {
+	Id                    string `json:"id"`
+	EntitlementId         string `json:"entitlementId"`
+	EntitlementType       string `json:"entitlementType"`
+	ActionType            string `json:"actionType"`
+	Amount                int64  `json:"amount"`
+	ResourceId            string `json:"resourceId,optional"`
+	BeforeRemainingAmount int64  `json:"beforeRemainingAmount"`
+	AfterRemainingAmount  int64  `json:"afterRemainingAmount"`
+	UsedAt                string `json:"usedAt"`
+}
+
+type ListEntitlementUsageRecordsResp {
+	Items []EntitlementUsageRecordInfo `json:"items"`
 }
 
 @server(
@@ -44,6 +66,9 @@ type RedeemTopVoucherResp {
 service wplink-api {
 	@handler ListMerchantEntitlements
 	get /merchants/:merchantId/entitlements returns (ListMerchantEntitlementsResp)
+
+	@handler ListEntitlementUsageRecords
+	get /merchants/:merchantId/entitlements/:entitlementId/usage-records returns (ListEntitlementUsageRecordsResp)
 
 	@handler ListTopVouchers
 	get /merchants/:merchantId/top-vouchers returns (ListTopVouchersResp)

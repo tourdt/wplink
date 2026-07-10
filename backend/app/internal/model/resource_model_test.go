@@ -26,6 +26,19 @@ func TestListResourcesSQLHidesInactiveMerchants(t *testing.T) {
 	}
 }
 
+func TestListResourcesSQLPrioritizesActiveTopResources(t *testing.T) {
+	requiredSnippets := []string{
+		"r.top_expires_at",
+		"r.top_expires_at > now()",
+		"CASE WHEN r.top_expires_at IS NOT NULL AND r.top_expires_at > now() THEN 1 ELSE 0 END DESC",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(listResourcesSQL, snippet) {
+			t.Fatalf("listResourcesSQL missing top priority snippet %q:\n%s", snippet, listResourcesSQL)
+		}
+	}
+}
+
 func TestReviewResourceSQLUsesConfiguredValidDays(t *testing.T) {
 	requiredSnippets := []string{
 		"rtc.default_valid_days",

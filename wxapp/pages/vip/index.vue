@@ -49,8 +49,7 @@
 
     <view class="rules-panel">
       <text class="rules-title">权益有效期说明</text>
-      <text class="rules-text">每张置顶券可让 1 条已发布资源置顶 24 小时，从使用成功时开始计算。</text>
-      <text class="rules-text">VIP 赠送的发布额度、刷新次数和置顶券均在发放后 30 天内有效，未使用完不结转。</text>
+      <text class="rules-text">VIP 赠送的发布额度和刷新次数均在发放后 30 天内有效，未使用完不结转。</text>
       <text class="rules-text">单独购买的次数包有效期 180 天，到期未使用自动失效。</text>
     </view>
   </view>
@@ -74,7 +73,6 @@ const payingPackCode = ref('')
 const addOnPacks = [
   { code: 'publish_5', name: '发布次数包', standardPriceCent: 2500, salePriceCent: 2500, actionText: '¥25 购买', description: '临时多发供需', benefits: { publishQuota: 5 } },
   { code: 'refresh_10', name: '刷新次数包', standardPriceCent: 1900, salePriceCent: 1900, actionText: '¥19 购买', description: '让信息回到前面', benefits: { refreshQuota: 10 } },
-  { code: 'top_3', name: '置顶券包', standardPriceCent: 2900, salePriceCent: 2900, actionText: '¥29 购买', description: '单张可置顶 24 小时', benefits: { topVoucherCount: 3, topDurationHours: 24 } },
 ]
 
 const displayPlans = computed(() => {
@@ -87,8 +85,8 @@ const displayPlans = computed(() => {
 })
 
 const displayAddOnPacks = computed(() => {
-  if (quotaPacks.value.length > 0) return quotaPacks.value
-  return addOnPacks
+  if (quotaPacks.value.length > 0) return filterAvailableQuotaPacks(quotaPacks.value)
+  return filterAvailableQuotaPacks(addOnPacks)
 })
 
 onLoad((options = {}) => {
@@ -120,7 +118,7 @@ async function loadPlans() {
 async function loadQuotaPacks() {
   try {
     const resp = await listQuotaPacks()
-    quotaPacks.value = resp.items || []
+    quotaPacks.value = filterAvailableQuotaPacks(resp.items || [])
   } catch (err) {
     quotaPacks.value = []
   }
@@ -221,7 +219,16 @@ function packActionText(item) {
 function planBenefitText(plan) {
   const benefits = plan.benefits || {}
   const periodText = Number(plan.durationMonths || 1) > 1 ? '每 30 天到账' : '开通后到账'
-  return `${periodText}：${benefits.publishQuota || 80} 条发布额度 · ${benefits.refreshQuota || 30} 次刷新 · ${benefits.topVoucherCount || 3} 张置顶券`
+  return `${periodText}：${benefits.publishQuota || 80} 条发布额度 · ${benefits.refreshQuota || 30} 次刷新`
+}
+
+function filterAvailableQuotaPacks(items = []) {
+  return items.filter((item) => !isTopVoucherPack(item))
+}
+
+function isTopVoucherPack(item) {
+  const benefits = item.benefits || {}
+  return item.code === 'top_3' || Boolean(benefits.topVoucherCount)
 }
 
 function planDisplayName(plan) {
@@ -255,7 +262,7 @@ function fallbackPlan(code, name, durationMonths, standardPriceCent, salePriceCe
     standardPriceCent,
     salePriceCent,
     saleLabel,
-    benefits: { publishQuota: 80, refreshQuota: 30, topVoucherCount: 3, topDurationHours: 24 },
+    benefits: { publishQuota: 80, refreshQuota: 30 },
   }
 }
 </script>

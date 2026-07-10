@@ -125,7 +125,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/my-resources/index.vue',
     description: '我的发布管理动作和指标',
-    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'listTopVouchers', 'redeemTopVoucher', 'takeDownResource', 'deleteTakenDownResource', 'canDeleteTakenDown', 'openDraftEditor', 'openRejectedEditor', 'openPublishEditor', '/pages/publish/edit?merchantId=', 'uni.navigateTo', 'rejectReason', '驳回原因', 'getOwnResource', 'buildRepostInitialForm', 'repostInitialForm', 'wechatCopyCount', 'formatDateToDay', 'publish-fab', 'position: fixed', 'canTopResource', '再发类似', 'from=my-resources'],
+    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'takeDownResource', 'deleteTakenDownResource', 'canDeleteTakenDown', 'openDraftEditor', 'openRejectedEditor', 'openPublishEditor', '/pages/publish/edit?merchantId=', 'uni.navigateTo', 'rejectReason', '驳回原因', 'getOwnResource', 'buildRepostInitialForm', 'repostInitialForm', 'wechatCopyCount', 'formatDateToDay', 'publish-fab', 'position: fixed', '再发类似', 'from=my-resources'],
   },
   {
     file: 'pages/messages/index.vue',
@@ -320,7 +320,7 @@ export const defaultFlowChecks = [
       '商家主页',
       '查看自己的公开页',
       'VIP 权益',
-      '查看额度、置顶券和限时特价',
+      '查看额度和限时特价',
       '我的发布',
       '状态、数据、推广',
       '/pages/merchant/detail?id=',

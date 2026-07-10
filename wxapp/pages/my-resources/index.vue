@@ -35,7 +35,6 @@
           <view class="tag-row">
             <text :class="['status-tag', statusClass(item)]">{{ displayStatusText(item) }}</text>
             <text v-if="isExpiringSoon(item)" class="expire-tag">即将过期</text>
-            <text v-if="canTopResource(item)" class="top-tag">可置顶</text>
           </view>
           <text class="expire-text">{{ expireText(item) }}</text>
         </view>
@@ -53,7 +52,6 @@
         <MetricStrip :items="metricItems(item)" />
         <view class="action-row">
           <button v-if="isActivePublished(item)" class="primary-action" @click="refresh(item)">刷新</button>
-          <button v-if="isActivePublished(item)" @click="topResource(item)">置顶</button>
           <button v-if="isActivePublished(item)" @click="takeDown(item)">下架</button>
           <button v-if="item.status === 'draft'" class="primary-action" @click="openDraftEditor(item)">编辑</button>
           <button v-if="item.status === 'rejected'" class="primary-action" @click="openRejectedEditor(item)">编辑</button>
@@ -75,7 +73,6 @@ import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import MetricStrip from '../../components/MetricStrip.vue'
 import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { getMerchantId } from '../../store/session'
-import { redeemTopVoucher, listTopVouchers } from '../../api/entitlement'
 import { deleteTakenDownResource, getOwnResource, listMyResources, refreshResource, takeDownResource } from '../../api/resource'
 import { formatDateToDay } from '../../common/date'
 import { resourceTypeText } from '../../common/enums'
@@ -173,18 +170,6 @@ async function refresh(item) {
   await loadRows({ reset: true })
 }
 
-async function topResource(item) {
-  const resp = await listTopVouchers(merchantId.value)
-  const voucher = (resp.items || []).find((entry) => entry.status === 'unused')
-  if (!voucher) {
-    uni.showToast({ title: '暂无可用置顶券', icon: 'none' })
-    return
-  }
-  await redeemTopVoucher(voucher.id, item.id, merchantId.value)
-  uni.showToast({ title: '已置顶', icon: 'none' })
-  await loadRows({ reset: true })
-}
-
 async function takeDown(item) {
   await takeDownResource(item.id, merchantId.value, '商家主动下架')
   uni.showToast({ title: '已下架', icon: 'none' })
@@ -274,14 +259,6 @@ function isExpiredResource(item) {
   if (!item.expiresAt) return false
   const expiresAt = Date.parse(item.expiresAt)
   return !Number.isNaN(expiresAt) && expiresAt <= Date.now()
-}
-
-function canTopResource(item) {
-  return isSupplyResource(item) && isActivePublished(item)
-}
-
-function isSupplyResource(item) {
-  return (item.direction || RESOURCE_DIRECTION_SUPPLY) === RESOURCE_DIRECTION_SUPPLY
 }
 
 function displayStatusText(item) {
@@ -536,8 +513,7 @@ function metricItems(item) {
 }
 
 .status-tag,
-.expire-tag,
-.top-tag {
+.expire-tag {
   padding: 6rpx 12rpx;
   border-radius: 8rpx;
   background: #edf2f7;
@@ -557,11 +533,6 @@ function metricItems(item) {
 .expire-tag {
   background: #fff7ed;
   color: #c2410c;
-}
-
-.top-tag {
-  background: $wplink-warning-soft;
-  color: $wplink-warning;
 }
 
 .expire-text {

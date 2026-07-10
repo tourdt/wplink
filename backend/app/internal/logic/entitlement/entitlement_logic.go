@@ -2,25 +2,34 @@ package entitlement
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type EntitlementStore interface {
 	ListMerchantEntitlements(ctx context.Context, merchantID string) ([]model.MerchantEntitlement, error)
+	ListMerchantEntitlementUsageRecords(ctx context.Context, merchantID string, entitlementID string) ([]model.EntitlementUsageRecord, error)
 	ListTopVouchers(ctx context.Context, merchantID string) ([]model.TopVoucher, error)
 	RedeemTopVoucher(ctx context.Context, voucherID string, resourceID string) (model.RedeemTopVoucherResult, error)
 }
 
 type MerchantEntitlementInfo struct {
-	Type            string `json:"type"`
-	SourceType      string `json:"sourceType"`
-	TotalAmount     int64  `json:"totalAmount"`
-	UsedAmount      int64  `json:"usedAmount"`
-	RemainingAmount int64  `json:"remainingAmount"`
-	ExpiresAt       string `json:"expiresAt,omitempty"`
+	ID               string   `json:"id"`
+	Type             string   `json:"type"`
+	SourceType       string   `json:"sourceType"`
+	Status           string   `json:"status"`
+	TotalAmount      int64    `json:"totalAmount"`
+	UsedAmount       int64    `json:"usedAmount"`
+	RemainingAmount  int64    `json:"remainingAmount"`
+	TopDurationHours int64    `json:"topDurationHours,omitempty"`
+	AllowedTypeCodes []string `json:"allowedTypeCodes,omitempty"`
+	ExpiresAt        string   `json:"expiresAt,omitempty"`
 }
 
 type ListMerchantEntitlementsResp struct {
@@ -30,6 +39,7 @@ type ListMerchantEntitlementsResp struct {
 type TopVoucherInfo struct {
 	ID               string   `json:"id"`
 	Status           string   `json:"status"`
+	RemainingAmount  int64    `json:"remainingAmount"`
 	TopDurationHours int64    `json:"topDurationHours"`
 	AllowedTypeCodes []string `json:"allowedTypeCodes"`
 	ExpiresAt        string   `json:"expiresAt,omitempty"`
@@ -46,10 +56,27 @@ type RedeemTopVoucherReq struct {
 }
 
 type RedeemTopVoucherResp struct {
-	VoucherID  string `json:"voucherId"`
-	ResourceID string `json:"resourceId"`
-	Status     string `json:"status"`
-	Message    string `json:"message"`
+	VoucherID    string `json:"voucherId"`
+	ResourceID   string `json:"resourceId"`
+	Status       string `json:"status"`
+	TopExpiresAt string `json:"topExpiresAt,omitempty"`
+	Message      string `json:"message"`
+}
+
+type EntitlementUsageRecordInfo struct {
+	ID                    string `json:"id"`
+	EntitlementID         string `json:"entitlementId"`
+	EntitlementType       string `json:"entitlementType"`
+	ActionType            string `json:"actionType"`
+	Amount                int64  `json:"amount"`
+	ResourceID            string `json:"resourceId,omitempty"`
+	BeforeRemainingAmount int64  `json:"beforeRemainingAmount"`
+	AfterRemainingAmount  int64  `json:"afterRemainingAmount"`
+	UsedAt                string `json:"usedAt"`
+}
+
+type ListEntitlementUsageRecordsResp struct {
+	Items []EntitlementUsageRecordInfo `json:"items"`
 }
 
 type ListEntitlementsLogic struct {
@@ -72,11 +99,41 @@ func (l *ListEntitlementsLogic) ListEntitlements(ctx context.Context, merchantID
 	items := make([]MerchantEntitlementInfo, 0, len(entitlements))
 	for _, item := range entitlements {
 		items = append(items, MerchantEntitlementInfo{
-			Type: item.Type, SourceType: item.SourceType, TotalAmount: item.TotalAmount,
-			UsedAmount: item.UsedAmount, RemainingAmount: item.RemainingAmount, ExpiresAt: item.ExpiresAt,
+			ID: item.ID, Type: item.Type, SourceType: item.SourceType, Status: item.Status, TotalAmount: item.TotalAmount,
+			UsedAmount: item.UsedAmount, RemainingAmount: item.RemainingAmount, TopDurationHours: item.TopDurationHours,
+			AllowedTypeCodes: append([]string(nil), item.AllowedTypeCodes...), ExpiresAt: item.ExpiresAt,
 		})
 	}
 	return ListMerchantEntitlementsResp{Items: items}, nil
+}
+
+type ListEntitlementUsageRecordsLogic struct {
+	store EntitlementStore
+}
+
+func NewListEntitlementUsageRecordsLogic(store EntitlementStore) *ListEntitlementUsageRecordsLogic {
+	return &ListEntitlementUsageRecordsLogic{store: store}
+}
+
+func (l *ListEntitlementUsageRecordsLogic) ListUsageRecords(ctx context.Context, merchantID string, entitlementID string) (ListEntitlementUsageRecordsResp, error) {
+	merchantID = strings.TrimSpace(merchantID)
+	entitlementID = strings.TrimSpace(entitlementID)
+	if merchantID == "" || entitlementID == "" {
+		return ListEntitlementUsageRecordsResp{}, errx.New(errx.CodeValidationFailed, "权益不存在")
+	}
+	records, err := l.store.ListMerchantEntitlementUsageRecords(ctx, merchantID, entitlementID)
+	if err != nil {
+		return ListEntitlementUsageRecordsResp{}, err
+	}
+	items := make([]EntitlementUsageRecordInfo, 0, len(records))
+	for _, item := range records {
+		items = append(items, EntitlementUsageRecordInfo{
+			ID: item.ID, EntitlementID: item.EntitlementID, EntitlementType: item.EntitlementType, ActionType: item.ActionType,
+			Amount: item.Amount, ResourceID: item.ResourceID, BeforeRemainingAmount: item.BeforeRemainingAmount,
+			AfterRemainingAmount: item.AfterRemainingAmount, UsedAt: item.UsedAt,
+		})
+	}
+	return ListEntitlementUsageRecordsResp{Items: items}, nil
 }
 
 type ListTopVouchersLogic struct {
@@ -99,7 +156,7 @@ func (l *ListTopVouchersLogic) ListTopVouchers(ctx context.Context, merchantID s
 	items := make([]TopVoucherInfo, 0, len(vouchers))
 	for _, item := range vouchers {
 		items = append(items, TopVoucherInfo{
-			ID: item.ID, Status: item.Status, TopDurationHours: item.TopDurationHours,
+			ID: item.ID, Status: item.Status, RemainingAmount: item.RemainingAmount, TopDurationHours: item.TopDurationHours,
 			AllowedTypeCodes: append([]string(nil), item.AllowedTypeCodes...), ExpiresAt: item.ExpiresAt,
 		})
 	}
@@ -122,9 +179,15 @@ func (l *RedeemTopVoucherLogic) RedeemTopVoucher(ctx context.Context, req Redeem
 	}
 	result, err := l.store.RedeemTopVoucher(ctx, voucherID, resourceID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			logx.Infof("置顶券核销被拦截: voucherId=%s resourceId=%s reason=not_available_or_resource_invalid", voucherID, resourceID)
+			return RedeemTopVoucherResp{}, errx.New(errx.CodeValidationFailed, "暂无可用置顶券，或资源当前不可置顶")
+		}
+		logx.Errorf("置顶券核销失败: voucherId=%s resourceId=%s err=%+v", voucherID, resourceID, err)
 		return RedeemTopVoucherResp{}, err
 	}
+	logx.Infof("置顶券核销成功: voucherId=%s resourceId=%s topExpiresAt=%s", result.VoucherID, result.ResourceID, result.TopExpiresAt)
 	return RedeemTopVoucherResp{
-		VoucherID: result.VoucherID, ResourceID: result.ResourceID, Status: result.Status, Message: "置顶券已使用",
+		VoucherID: result.VoucherID, ResourceID: result.ResourceID, Status: result.Status, TopExpiresAt: result.TopExpiresAt, Message: "置顶券已使用",
 	}, nil
 }

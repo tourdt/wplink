@@ -42,7 +42,8 @@ func TestQuotaPackBenefitsUse180DayExpiration(t *testing.T) {
 	for _, snippet := range []string{
 		"quotaPackExpiresAt := paidAt.AddDate(0, 0, quotaPackValidityDays)",
 		"VALUES ($1, $2, 'quota_pack', $3, $3, $4, $5, 'active')",
-		"VALUES ($1, 'quota_pack', '[]'::jsonb, $2, $3, 'unused')",
+		"VALUES ($1, $2, 'quota_pack', $3, $3, $4, $5, 'active', '[]'::jsonb, $6)",
+		"EntitlementTypeTopVoucher",
 	} {
 		if !strings.Contains(text, snippet) {
 			t.Fatalf("vip_model.go should include quota pack expiration snippet %q", snippet)
@@ -51,8 +52,8 @@ func TestQuotaPackBenefitsUse180DayExpiration(t *testing.T) {
 	if strings.Contains(text, "VALUES ($1, $2, 'quota_pack', $3, $3, $4, NULL, 'active')") {
 		t.Fatal("quota pack entitlements must not be granted without expiration")
 	}
-	if strings.Contains(text, "VALUES ($1, 'quota_pack', '[]'::jsonb, $2, NULL, 'unused')") {
-		t.Fatal("quota pack top vouchers must not be granted without expiration")
+	if strings.Contains(text, "INSERT INTO top_vouchers") {
+		t.Fatal("quota pack top vouchers must be granted through merchant_entitlements, not top_vouchers")
 	}
 }
 

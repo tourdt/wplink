@@ -177,10 +177,9 @@
 
 - `publish_quota`：发布额度。
 - `refresh_quota`：刷新额度。
+- `top_voucher`：置顶券余额批次，`total_amount`/`remaining_amount` 表示券数量，`top_duration_hours` 表示单张券置顶时长。
 
-继续复用现有 `top_vouchers`：
-
-- VIP 开通或每 30 天发放时生成置顶券。
+新增 `merchant_entitlement_usage_records` 记录每次发布、刷新、置顶核销流水，资源当前置顶状态由 `resources.top_started_at` 和 `resources.top_expires_at` 承载。
 
 新增 `source_type = vip`、`source_type = vip_addon`、`source_type = manual` 区分来源。
 
@@ -273,4 +272,4 @@
 
 - 新增 VIP 表的 up/down 迁移完整。
 - 默认套餐和冷启动优惠种子数据可重复执行。
-- 现有 `merchant_entitlements` 和 `top_vouchers` 数据不受破坏。
+- 置顶券统一写入 `merchant_entitlements`，不再依赖 `top_vouchers`。

@@ -51,7 +51,7 @@ test('own resource detail keeps share and management actions in the bottom bar',
 })
 
 test('pending own resource management sheet only explains review state', () => {
-  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*resource\.value\.status === 'pending'[\s\S]*供给正在审核，审核通过后会公开展示。当前暂不能刷新、置顶、下架或分享。[\s\S]*\}\)/)
+  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*resource\.value\.status === 'pending'[\s\S]*供给正在审核，审核通过后会公开展示。当前暂不能刷新、下架或分享。[\s\S]*\}\)/)
   assert.match(source, /<view v-if="showManagementSheet" class="sheet-mask" @click="closeManagementSheet">/)
   assert.match(source, /<text class="sheet-title">\{\{ managementTitle \}\}<\/text>/)
   assert.match(source, /<text v-if="!managementActions\.length" class="sheet-desc">\{\{ managementNotice \}\}<\/text>/)
@@ -95,4 +95,15 @@ test('resource detail renders configured attribute items as specs', () => {
   assert.equal(source.includes("{ label: '品类', value: resource.value.category || '待沟通' }"), false)
   assert.equal(source.includes("{ label: '数量', value: resource.value.quantityText || '待沟通' }"), false)
   assert.equal(source.includes("{ label: '价格', value: resource.value.priceText || '面议' }"), false)
+})
+
+test('resource detail soft-disables top voucher management action', () => {
+  assert.doesNotMatch(source, /import \{ redeemTopVoucher, listTopVouchers \} from '\.\.\/\.\.\/api\/entitlement'/)
+  assert.doesNotMatch(source, /供给展示中，可按需刷新、置顶或下架。/)
+  assert.match(source, /供给展示中，可按需刷新或下架。/)
+  assert.doesNotMatch(source, /key: 'top'/)
+  assert.doesNotMatch(source, /label: '置顶'/)
+  assert.doesNotMatch(source, /async function topOwnResource\(\)/)
+  assert.doesNotMatch(source, /listTopVouchers\(ownerMerchantId\.value\)/)
+  assert.doesNotMatch(source, /redeemTopVoucher\(voucher\.id, resource\.value\.id, ownerMerchantId\.value\)/)
 })
