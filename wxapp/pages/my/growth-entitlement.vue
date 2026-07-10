@@ -2,13 +2,13 @@
   <view class="growth-page">
     <view class="hero-card">
       <text class="hero-title">{{ activeCampaign.title || '新手发布权益' }}</text>
-      <text class="hero-desc">{{ activeCampaign.hint || '发布优质资源、有效分享，可获得更多发布和刷新次数' }}</text>
+      <text class="hero-desc">{{ campaignHint }}</text>
     </view>
 
     <view class="section-card quota-card">
       <view class="section-head">
         <text class="section-title">权益余额</text>
-        <text class="section-subtitle">当前可用发布和刷新次数</text>
+        <text class="section-subtitle">当前可用次数</text>
       </view>
       <view class="quota-grid">
         <view v-for="item in quotaCards" :key="item.key" class="quota-item">
@@ -21,7 +21,7 @@
     <view class="section-card progress-card">
       <view class="section-head">
         <text class="section-title">新手成长进度</text>
-        <text class="section-subtitle">已完成 {{ taskSummary.starterCompletedCount || 0 }}/{{ taskSummary.starterTotalCount || 0 }} 个主线任务</text>
+        <text class="section-subtitle">主线 {{ taskSummary.starterCompletedCount || 0 }}/{{ taskSummary.starterTotalCount || 0 }}</text>
       </view>
       <view class="progress-track">
         <view class="progress-fill" :style="{ width: starterProgressPercent }"></view>
@@ -31,7 +31,7 @@
     <view class="section-card">
       <view class="section-head">
         <text class="section-title">新手主线任务</text>
-        <text class="section-subtitle">完成一次即可，帮你跑通发布和审核路径</text>
+        <text class="section-subtitle">完成一次，跑通发布审核</text>
       </view>
       <view v-if="starterTasks.length" class="task-list">
         <view v-for="task in starterTasks" :key="task.taskCode" class="task-item">
@@ -56,7 +56,7 @@
     <view class="section-card">
       <view class="section-head">
         <text class="section-title">每日曝光任务</text>
-        <text class="section-subtitle">每天刷新，奖励以有效浏览或有效联系为准</text>
+        <text class="section-subtitle">每日刷新，只看有效结果</text>
       </view>
       <view v-if="dailyTasks.length" class="task-list">
         <view v-for="task in dailyTasks" :key="task.taskCode" class="task-item">
@@ -83,10 +83,10 @@
         <text class="section-title">规则说明</text>
       </view>
       <view class="rule-note-list">
-        <text class="rule-note">权益达标后自动到账，不需要手动领取。</text>
-        <text class="rule-note">发布类任务为新手主线任务，不会每日重置。</text>
-        <text class="rule-note">每日曝光任务只统计有效浏览、电话点击或微信复制，单纯分享不直接奖励。</text>
-        <text class="rule-note">活动权益按规则有效期使用，到期未使用会自动失效。</text>
+        <text class="rule-note">达标自动到账，无需领取。</text>
+        <text class="rule-note">发布类不每日重置。</text>
+        <text class="rule-note">分享需产生有效浏览或联系。</text>
+        <text class="rule-note">权益到期未用自动失效。</text>
       </view>
     </view>
   </view>
@@ -108,6 +108,7 @@ const growthTaskData = ref(null)
 const tasksLoadFailed = ref(false)
 
 const activeCampaign = computed(() => growthTaskData.value?.campaign?.code ? growthTaskData.value.campaign : campaigns.value[0] || {})
+const campaignHint = computed(() => '发资源、做分享，自动得权益')
 const taskSummary = computed(() => growthTaskData.value?.summary || fallbackTaskSummary.value)
 const allTasks = computed(() => growthTaskData.value?.tasks || [])
 const starterTasks = computed(() => allTasks.value.filter((task) => task.group === 'starter'))
@@ -128,8 +129,8 @@ const starterProgressPercent = computed(() => {
   const completed = Math.min(Number(taskSummary.value.starterCompletedCount || 0), total)
   return `${Math.round((completed / total) * 100)}%`
 })
-const taskEmptyText = computed(() => (tasksLoadFailed.value ? '成长任务暂时不可用，请稍后重试。' : '当前暂无进行中的新手主线任务。'))
-const dailyEmptyText = computed(() => (tasksLoadFailed.value ? '每日任务暂时不可用，请稍后重试。' : '当前暂无每日曝光任务。'))
+const taskEmptyText = computed(() => (tasksLoadFailed.value ? '成长任务暂不可用，请稍后重试。' : '暂无可参与的新手任务。'))
+const dailyEmptyText = computed(() => (tasksLoadFailed.value ? '每日任务暂不可用，请稍后重试。' : '暂无每日任务。'))
 
 onLoad((options = {}) => {
   merchantId.value = options.merchantId || getSession().merchantId || ''

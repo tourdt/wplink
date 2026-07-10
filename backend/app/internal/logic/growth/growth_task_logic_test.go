@@ -131,6 +131,29 @@ func TestGetGrowthTasksDoesNotTreatDailyHistoricalGrantAsCompleted(t *testing.T)
 	assertGrowthTask(t, resp.Tasks, "share_contact_refresh_quota", "daily", "in_progress", 1, 3, "去分享")
 }
 
+func TestGetGrowthTasksKeepsStarterTasksWhenLegacyRuleLimitMissing(t *testing.T) {
+	store := &fakeGrowthTaskStore{
+		campaigns: []model.PublicGrowthCampaign{{
+			Code:  "starter_growth_2026_q3",
+			Title: "新手发布权益",
+			Rules: []model.PublicGrowthRule{{
+				RuleCode:     "first_resource_approved_publish_quota",
+				RuleName:     "首条资源审核通过奖励",
+				TriggerEvent: model.GrowthEventResourceFirstApproved,
+				RewardType:   model.EntitlementTypePublishQuota,
+				RewardAmount: 5,
+				ValidDays:    30,
+			}},
+		}},
+	}
+
+	resp, err := NewGrowthTaskLogic(store).GetGrowthTasks(context.Background(), "merchant-1")
+	if err != nil {
+		t.Fatalf("GetGrowthTasks() error = %v", err)
+	}
+	assertGrowthTask(t, resp.Tasks, "first_resource_approved_publish_quota", "starter", "todo", 0, 1, "查看发布")
+}
+
 func TestGetGrowthTasksRejectsEmptyMerchantID(t *testing.T) {
 	_, err := NewGrowthTaskLogic(&fakeGrowthTaskStore{}).GetGrowthTasks(context.Background(), " ")
 	if err == nil || errx.PublicMessage(err) != "商家不存在" {

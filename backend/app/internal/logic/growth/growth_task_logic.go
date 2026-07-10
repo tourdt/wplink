@@ -198,9 +198,8 @@ func growthTaskFromRule(rule model.PublicGrowthRule, progress model.GrowthTaskPr
 func growthTaskGroup(rule model.PublicGrowthRule) (string, bool) {
 	switch rule.TriggerEvent {
 	case model.GrowthEventUserFirstLogin, model.GrowthEventResourceFirstApproved, model.GrowthEventResourceApprovedCountReached:
-		if rule.PerUserLimit == 1 {
-			return growthTaskGroupStarter, true
-		}
+		// 老库里的活动规则可能是在 per_user_limit 回填前插入的；主线任务按事件语义归类，避免前台空白。
+		return growthTaskGroupStarter, true
 	case model.GrowthEventResourceShareEffectiveContact, model.GrowthEventResourceShareEffectiveView:
 		return growthTaskGroupDaily, true
 	}
@@ -233,17 +232,17 @@ func growthTaskTitle(rule model.PublicGrowthRule) string {
 func growthTaskDescription(rule model.PublicGrowthRule) string {
 	switch rule.TriggerEvent {
 	case model.GrowthEventUserFirstLogin:
-		return "登录后获得基础发布次数"
+		return "登录得发布次数"
 	case model.GrowthEventResourceFirstApproved:
-		return "发布真实资源并通过审核"
+		return "发资源并过审"
 	case model.GrowthEventResourceApprovedCountReached:
-		return "持续发布优质资源并通过审核"
+		return "发布 3 条优质资源"
 	case model.GrowthEventResourceShareEffectiveContact:
-		return "分享资源并带来电话或微信联系"
+		return "分享带来联系"
 	case model.GrowthEventResourceShareEffectiveView:
-		return "分享资源并带来有效浏览"
+		return "分享带来浏览"
 	default:
-		return "完成活动任务后获得权益"
+		return "完成任务得权益"
 	}
 }
 
