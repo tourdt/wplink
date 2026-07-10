@@ -158,6 +158,10 @@ type AdminListMerchantsResp struct {
 	Total    int64                   `json:"total"`
 }
 
+type AdminListQuotaPacksResp struct {
+	Items []AdminQuotaPackConfigItem `json:"items"`
+}
+
 type AdminListResourceTypeConfigsReq struct {
 	CityCode string `form:"cityCode,optional"`
 	Status   string `form:"status,optional"`
@@ -165,6 +169,14 @@ type AdminListResourceTypeConfigsReq struct {
 
 type AdminListResourceTypeConfigsResp struct {
 	Items []AdminResourceTypeConfigItem `json:"items"`
+}
+
+type AdminListVIPPlansResp struct {
+	Items []AdminVIPPlanConfigItem `json:"items"`
+}
+
+type AdminListVIPPromotionsResp struct {
+	Items []AdminVIPPromotionConfigItem `json:"items"`
 }
 
 type AdminLoginReq struct {
@@ -263,6 +275,19 @@ type AdminPendingVerificationsResp struct {
 type AdminPublishMapSceneResp struct {
 	Item    MapSceneItem `json:"item"`
 	Message string       `json:"message"`
+}
+
+type AdminQuotaPackConfigItem struct {
+	Code              string                `json:"code"`
+	Name              string                `json:"name"`
+	Description       string                `json:"description,optional"`
+	StandardPriceCent int64                 `json:"standardPriceCent"`
+	SalePriceCent     int64                 `json:"salePriceCent,optional"`
+	SaleLabel         string                `json:"saleLabel,optional"`
+	Status            string                `json:"status"`
+	DisplayOrder      int64                 `json:"displayOrder"`
+	Benefits          AdminVIPBenefitConfig `json:"benefits"`
+	UpdatedAt         string                `json:"updatedAt,optional"`
 }
 
 type AdminResourceTypeConfigItem struct {
@@ -419,6 +444,44 @@ type AdminSaveMapSceneResp struct {
 	Item MapSceneItem `json:"item"`
 }
 
+type AdminSaveQuotaPackConfigReq struct {
+	Code              string                `json:"code,optional"`
+	Name              string                `json:"name"`
+	Description       string                `json:"description,optional"`
+	StandardPriceCent int64                 `json:"standardPriceCent"`
+	SalePriceCent     int64                 `json:"salePriceCent,optional"`
+	SaleLabel         string                `json:"saleLabel,optional"`
+	Status            string                `json:"status,optional"`
+	DisplayOrder      int64                 `json:"displayOrder,optional"`
+	Benefits          AdminVIPBenefitConfig `json:"benefits"`
+}
+
+type AdminSaveVIPConfigResp struct {
+	Code      string `json:"code"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+type AdminSaveVIPPlanConfigReq struct {
+	Code              string                `json:"code,optional"`
+	Name              string                `json:"name"`
+	DurationMonths    int64                 `json:"durationMonths"`
+	StandardPriceCent int64                 `json:"standardPriceCent"`
+	Status            string                `json:"status,optional"`
+	DisplayOrder      int64                 `json:"displayOrder,optional"`
+	Benefits          AdminVIPBenefitConfig `json:"benefits"`
+}
+
+type AdminSaveVIPPromotionConfigReq struct {
+	Code          string `json:"code,optional"`
+	PlanCode      string `json:"planCode"`
+	PromotionType string `json:"promotionType"`
+	SalePriceCent int64  `json:"salePriceCent"`
+	StartsAt      string `json:"startsAt,optional"`
+	EndsAt        string `json:"endsAt,optional"`
+	QuotaLimit    int64  `json:"quotaLimit,optional"`
+	Status        string `json:"status,optional"`
+}
+
 type AdminSearchLogItem struct {
 	Id          string                 `json:"id"`
 	UserId      string                 `json:"userId,optional"`
@@ -467,6 +530,40 @@ type AdminUpdateResourceTypeConfigReq struct {
 type AdminUpdateResourceTypeConfigResp struct {
 	Id        string `json:"id"`
 	UpdatedAt string `json:"updatedAt"`
+}
+
+type AdminVIPBenefitConfig struct {
+	PublishPolicy      string `json:"publishPolicy,optional"`
+	PublishQuota       int64  `json:"publishQuota"`
+	RefreshQuota       int64  `json:"refreshQuota"`
+	TopVoucherCount    int64  `json:"topVoucherCount"`
+	TopDurationHours   int64  `json:"topDurationHours"`
+	HomepageImageLimit int64  `json:"homepageImageLimit,optional"`
+}
+
+type AdminVIPPlanConfigItem struct {
+	Code              string                `json:"code"`
+	Name              string                `json:"name"`
+	DurationMonths    int64                 `json:"durationMonths"`
+	StandardPriceCent int64                 `json:"standardPriceCent"`
+	Status            string                `json:"status"`
+	DisplayOrder      int64                 `json:"displayOrder"`
+	Benefits          AdminVIPBenefitConfig `json:"benefits"`
+	UpdatedAt         string                `json:"updatedAt,optional"`
+}
+
+type AdminVIPPromotionConfigItem struct {
+	Code          string `json:"code"`
+	PlanCode      string `json:"planCode"`
+	PlanName      string `json:"planName,optional"`
+	PromotionType string `json:"promotionType"`
+	SalePriceCent int64  `json:"salePriceCent"`
+	StartsAt      string `json:"startsAt"`
+	EndsAt        string `json:"endsAt,optional"`
+	QuotaLimit    int64  `json:"quotaLimit,optional"`
+	UsedCount     int64  `json:"usedCount"`
+	Status        string `json:"status"`
+	UpdatedAt     string `json:"updatedAt,optional"`
 }
 
 type AdminVerificationBillingConfigReq struct {
@@ -595,16 +692,6 @@ type CreateUploadTokenResp struct {
 	ExpiresAt     string `json:"expiresAt"`
 }
 
-type CreateVerificationPaymentReq struct {
-	UserId string `json:"userId,optional"`
-}
-
-type CreateVerificationPaymentResp struct {
-	OrderId string          `json:"orderId"`
-	Status  string          `json:"status"`
-	Payment WechatPayParams `json:"payment"`
-}
-
 type CreateVIPOrderReq struct {
 	ProductType string `json:"productType,optional"`
 	ProductCode string `json:"productCode,optional"`
@@ -630,6 +717,16 @@ type CreateVIPPaymentReq struct {
 }
 
 type CreateVIPPaymentResp struct {
+	OrderId string          `json:"orderId"`
+	Status  string          `json:"status"`
+	Payment WechatPayParams `json:"payment"`
+}
+
+type CreateVerificationPaymentReq struct {
+	UserId string `json:"userId,optional"`
+}
+
+type CreateVerificationPaymentResp struct {
 	OrderId string          `json:"orderId"`
 	Status  string          `json:"status"`
 	Payment WechatPayParams `json:"payment"`
@@ -696,6 +793,18 @@ type EditableResourceResp struct {
 	Images       []string                `json:"images"`
 	Contact      EditableResourceContact `json:"contact"`
 	RejectReason string                  `json:"rejectReason,optional"`
+}
+
+type EntitlementUsageRecordInfo struct {
+	Id                    string `json:"id"`
+	EntitlementId         string `json:"entitlementId"`
+	EntitlementType       string `json:"entitlementType"`
+	ActionType            string `json:"actionType"`
+	Amount                int64  `json:"amount"`
+	ResourceId            string `json:"resourceId,optional"`
+	BeforeRemainingAmount int64  `json:"beforeRemainingAmount"`
+	AfterRemainingAmount  int64  `json:"afterRemainingAmount"`
+	UsedAt                string `json:"usedAt"`
 }
 
 type FollowedMerchantItem struct {
@@ -770,6 +879,10 @@ type LatestVerificationResp struct {
 
 type ListCityStationsResp struct {
 	Items []CityStationInfo `json:"items"`
+}
+
+type ListEntitlementUsageRecordsResp struct {
+	Items []EntitlementUsageRecordInfo `json:"items"`
 }
 
 type ListFollowedMerchantsResp struct {
@@ -875,6 +988,10 @@ type ListNearbyPoisResp struct {
 	Items []NearbyPoiItem `json:"items"`
 }
 
+type ListQuotaPacksResp struct {
+	Items []QuotaPackInfo `json:"items"`
+}
+
 type ListResourceTypesReq struct {
 	Direction string `form:"direction,optional"`
 }
@@ -915,10 +1032,6 @@ type ListTopVouchersResp struct {
 
 type ListVIPPlansResp struct {
 	Items []VIPPlanInfo `json:"items"`
-}
-
-type ListQuotaPacksResp struct {
-	Items []QuotaPackInfo `json:"items"`
 }
 
 type ManagedMerchantInfo struct {
@@ -1081,12 +1194,16 @@ type MerchantDetailResp struct {
 }
 
 type MerchantEntitlementInfo struct {
-	Type            string `json:"type"`
-	SourceType      string `json:"sourceType"`
-	TotalAmount     int64  `json:"totalAmount"`
-	UsedAmount      int64  `json:"usedAmount"`
-	RemainingAmount int64  `json:"remainingAmount"`
-	ExpiresAt       string `json:"expiresAt,optional"`
+	Id               string   `json:"id"`
+	Type             string   `json:"type"`
+	SourceType       string   `json:"sourceType"`
+	Status           string   `json:"status"`
+	TotalAmount      int64    `json:"totalAmount"`
+	UsedAmount       int64    `json:"usedAmount"`
+	RemainingAmount  int64    `json:"remainingAmount"`
+	TopDurationHours int64    `json:"topDurationHours,optional"`
+	AllowedTypeCodes []string `json:"allowedTypeCodes,optional"`
+	ExpiresAt        string   `json:"expiresAt,optional"`
 }
 
 type MerchantFollowStateResp struct {
@@ -1108,6 +1225,11 @@ type MerchantMetricsSummaryResp struct {
 	Last7Days              MerchantLast7DaysMetrics `json:"last7Days"`
 }
 
+type MerchantResourcesSummary struct {
+	PublishedCount int64 `json:"publishedCount"`
+	DealtCount     int64 `json:"dealtCount"`
+}
+
 type MerchantVIPResp struct {
 	MerchantId            string `json:"merchantId"`
 	Status                string `json:"status"`
@@ -1118,11 +1240,6 @@ type MerchantVIPResp struct {
 	PublishQuotaRemaining int64  `json:"publishQuotaRemaining"`
 	RefreshQuotaRemaining int64  `json:"refreshQuotaRemaining"`
 	TopVoucherCount       int64  `json:"topVoucherCount"`
-}
-
-type MerchantResourcesSummary struct {
-	PublishedCount int64 `json:"publishedCount"`
-	DealtCount     int64 `json:"dealtCount"`
 }
 
 type MerchantVerificationInfo struct {
@@ -1175,6 +1292,16 @@ type NearbyPoiItem struct {
 	CenterY      string `json:"centerY,optional"`
 }
 
+type QuotaPackInfo struct {
+	Code              string         `json:"code"`
+	Name              string         `json:"name"`
+	Description       string         `json:"description"`
+	StandardPriceCent int64          `json:"standardPriceCent"`
+	SalePriceCent     int64          `json:"salePriceCent,optional"`
+	SaleLabel         string         `json:"saleLabel,optional"`
+	Benefits          VIPBenefitInfo `json:"benefits"`
+}
+
 type ReadMessageReq struct {
 	UserId   string `json:"userId,optional"`
 	RoleCode string `json:"roleCode,optional"`
@@ -1191,10 +1318,11 @@ type RedeemTopVoucherReq struct {
 }
 
 type RedeemTopVoucherResp struct {
-	VoucherId  string `json:"voucherId"`
-	ResourceId string `json:"resourceId"`
-	Status     string `json:"status"`
-	Message    string `json:"message"`
+	VoucherId    string `json:"voucherId"`
+	ResourceId   string `json:"resourceId"`
+	Status       string `json:"status"`
+	TopExpiresAt string `json:"topExpiresAt,optional"`
+	Message      string `json:"message"`
 }
 
 type RefreshResourceResp struct {
@@ -1422,6 +1550,7 @@ type TakeDownOwnResourceResp struct {
 type TopVoucherInfo struct {
 	Id               string   `json:"id"`
 	Status           string   `json:"status"`
+	RemainingAmount  int64    `json:"remainingAmount"`
 	TopDurationHours int64    `json:"topDurationHours"`
 	AllowedTypeCodes []string `json:"allowedTypeCodes"`
 	ExpiresAt        string   `json:"expiresAt,optional"`
@@ -1479,27 +1608,6 @@ type UpdateMerchantResp struct {
 	UpdatedAt string `json:"updatedAt"`
 }
 
-type ValidateWebviewReq struct {
-	Url string `json:"url"`
-}
-
-type ValidateWebviewResp struct {
-	Allowed bool   `json:"allowed"`
-	Url     string `json:"url"`
-}
-
-type VerificationBillingConfigResp struct {
-	CityCode      string `json:"cityCode"`
-	ChargeEnabled bool   `json:"chargeEnabled"`
-	FeeAmount     int64  `json:"feeAmount"`
-	Currency      string `json:"currency"`
-	FreeEnabled   bool   `json:"freeEnabled"`
-	FreeStartAt   string `json:"freeStartAt,optional"`
-	FreeEndAt     string `json:"freeEndAt,optional"`
-	Notice        string `json:"notice,optional"`
-	UpdatedAt     string `json:"updatedAt,optional"`
-}
-
 type VIPBenefitInfo struct {
 	PublishPolicy      string `json:"publishPolicy"`
 	PublishQuota       int64  `json:"publishQuota"`
@@ -1519,14 +1627,25 @@ type VIPPlanInfo struct {
 	Benefits          VIPBenefitInfo `json:"benefits"`
 }
 
-type QuotaPackInfo struct {
-	Code              string         `json:"code"`
-	Name              string         `json:"name"`
-	Description       string         `json:"description"`
-	StandardPriceCent int64          `json:"standardPriceCent"`
-	SalePriceCent     int64          `json:"salePriceCent,optional"`
-	SaleLabel         string         `json:"saleLabel,optional"`
-	Benefits          VIPBenefitInfo `json:"benefits"`
+type ValidateWebviewReq struct {
+	Url string `json:"url"`
+}
+
+type ValidateWebviewResp struct {
+	Allowed bool   `json:"allowed"`
+	Url     string `json:"url"`
+}
+
+type VerificationBillingConfigResp struct {
+	CityCode      string `json:"cityCode"`
+	ChargeEnabled bool   `json:"chargeEnabled"`
+	FeeAmount     int64  `json:"feeAmount"`
+	Currency      string `json:"currency"`
+	FreeEnabled   bool   `json:"freeEnabled"`
+	FreeStartAt   string `json:"freeStartAt,optional"`
+	FreeEndAt     string `json:"freeEndAt,optional"`
+	Notice        string `json:"notice,optional"`
+	UpdatedAt     string `json:"updatedAt,optional"`
 }
 
 type WechatLoginReq struct {

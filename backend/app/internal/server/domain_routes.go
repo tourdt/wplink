@@ -62,6 +62,7 @@ type EntitlementAPIStore interface {
 type VIPAPIStore interface {
 	viplogic.Store
 	paymentlogic.VIPPaymentStore
+	adminlogic.VIPConfigAdminStore
 }
 
 type TopVoucherMerchantStore interface {
@@ -393,6 +394,102 @@ func registerVIPRoutes(mux *http.ServeMux, store VIPAPIStore, tokenService authl
 	})
 	mux.HandleFunc("GET /api/v1/vip/quota-packs", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := viplogic.NewListQuotaPacksLogic(store).ListQuotaPacks(r.Context())
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/vip/plans", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := adminlogic.NewVIPConfigAdminLogic(store).ListVIPPlans(r.Context())
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/vip/plans", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveVIPPlanConfigReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewVIPConfigAdminLogic(store).SaveVIPPlan(r.Context(), "", body, operatorID)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/vip/plans/{planCode}", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveVIPPlanConfigReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewVIPConfigAdminLogic(store).SaveVIPPlan(r.Context(), r.PathValue("planCode"), body, operatorID)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/vip/quota-packs", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := adminlogic.NewVIPConfigAdminLogic(store).ListQuotaPacks(r.Context())
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/vip/quota-packs", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveQuotaPackConfigReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewVIPConfigAdminLogic(store).SaveQuotaPack(r.Context(), "", body, operatorID)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/vip/quota-packs/{packCode}", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveQuotaPackConfigReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewVIPConfigAdminLogic(store).SaveQuotaPack(r.Context(), r.PathValue("packCode"), body, operatorID)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/vip/promotions", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := adminlogic.NewVIPConfigAdminLogic(store).ListVIPPromotions(r.Context())
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/vip/promotions", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveVIPPromotionConfigReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewVIPConfigAdminLogic(store).SaveVIPPromotion(r.Context(), "", body, operatorID)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/vip/promotions/{promotionCode}", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveVIPPromotionConfigReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewVIPConfigAdminLogic(store).SaveVIPPromotion(r.Context(), r.PathValue("promotionCode"), body, operatorID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/vip", func(w http.ResponseWriter, r *http.Request) {

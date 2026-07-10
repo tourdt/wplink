@@ -30,6 +30,42 @@ func TestVIPBenefitSnapshotFromJSONDefaultsToQuotaPolicy(t *testing.T) {
 	}
 }
 
+func TestVIPModelExposesAdminConfigPersistenceMethods(t *testing.T) {
+	var vipModel *VIPModel
+
+	_ = vipModel.ListAdminVIPPlans
+	_ = vipModel.SaveAdminVIPPlan
+	_ = vipModel.ListAdminQuotaPacks
+	_ = vipModel.SaveAdminQuotaPack
+	_ = vipModel.ListAdminVIPPromotions
+	_ = vipModel.SaveAdminVIPPromotion
+}
+
+func TestVIPAdminConfigSaveInputsPreserveBenefitSnapshot(t *testing.T) {
+	input := SaveAdminVIPPlanInput{
+		Code:              "monthly",
+		Name:              "VIP 月卡",
+		DurationMonths:    1,
+		StandardPriceCent: 4900,
+		Status:            "active",
+		DisplayOrder:      10,
+		Benefits: VIPBenefitSnapshot{
+			PublishPolicy:      VIPPublishPolicyQuota,
+			PublishQuota:       80,
+			RefreshQuota:       30,
+			TopVoucherCount:    3,
+			TopDurationHours:   24,
+			HomepageImageLimit: 18,
+		},
+		OperatorID: "admin-1",
+	}
+
+	values := input.Benefits.ToJSONMap()
+	if values["publishQuota"] != int64(80) || values["refreshQuota"] != int64(30) || values["topVoucherCount"] != int64(3) {
+		t.Fatalf("benefits json = %#v, want quota snapshot values", values)
+	}
+}
+
 func TestQuotaPackBenefitsUse180DayExpiration(t *testing.T) {
 	source, err := os.ReadFile("vip_model.go")
 	if err != nil {

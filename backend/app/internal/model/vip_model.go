@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -50,6 +51,85 @@ type QuotaPack struct {
 	SalePriceCent     int64
 	SaleLabel         string
 	Benefits          VIPBenefitSnapshot
+}
+
+type AdminVIPPlanConfig struct {
+	Code              string
+	Name              string
+	DurationMonths    int64
+	StandardPriceCent int64
+	Status            string
+	DisplayOrder      int64
+	Benefits          VIPBenefitSnapshot
+	UpdatedAt         string
+}
+
+type SaveAdminVIPPlanInput struct {
+	Code              string
+	Name              string
+	DurationMonths    int64
+	StandardPriceCent int64
+	Status            string
+	DisplayOrder      int64
+	Benefits          VIPBenefitSnapshot
+	OperatorID        string
+}
+
+type AdminQuotaPackConfig struct {
+	Code              string
+	Name              string
+	Description       string
+	StandardPriceCent int64
+	SalePriceCent     int64
+	SaleLabel         string
+	Status            string
+	DisplayOrder      int64
+	Benefits          VIPBenefitSnapshot
+	UpdatedAt         string
+}
+
+type SaveAdminQuotaPackInput struct {
+	Code              string
+	Name              string
+	Description       string
+	StandardPriceCent int64
+	SalePriceCent     int64
+	SaleLabel         string
+	Status            string
+	DisplayOrder      int64
+	Benefits          VIPBenefitSnapshot
+	OperatorID        string
+}
+
+type AdminVIPPromotionConfig struct {
+	Code          string
+	PlanCode      string
+	PlanName      string
+	PromotionType string
+	SalePriceCent int64
+	StartsAt      string
+	EndsAt        string
+	QuotaLimit    int64
+	UsedCount     int64
+	Status        string
+	UpdatedAt     string
+}
+
+type SaveAdminVIPPromotionInput struct {
+	Code          string
+	PlanCode      string
+	PromotionType string
+	SalePriceCent int64
+	StartsAt      string
+	EndsAt        string
+	QuotaLimit    int64
+	Status        string
+	OperatorID    string
+}
+
+type AdminVIPConfigSaveResult struct {
+	Code      string
+	UpdatedAt string
 }
 
 type VIPPromotion struct {
@@ -317,6 +397,531 @@ ORDER BY display_order ASC, standard_price_cent ASC
 		return nil, err
 	}
 	return items, nil
+}
+
+func (m *VIPModel) ListAdminVIPPlans(ctx context.Context) ([]AdminVIPPlanConfig, error) {
+	rows, err := m.db.QueryContext(ctx, `
+SELECT
+  p.code,
+  p.name,
+  p.duration_months,
+  p.standard_price_cent,
+  p.status,
+  p.display_order,
+  COALESCE(v.benefits, '{}'::jsonb) AS benefits,
+  p.updated_at
+FROM vip_plans p
+LEFT JOIN LATERAL (
+  SELECT benefits
+  FROM vip_plan_versions
+  WHERE plan_id = p.id
+  ORDER BY version DESC
+  LIMIT 1
+) v ON true
+ORDER BY p.display_order ASC, p.duration_months ASC
+`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]AdminVIPPlanConfig, 0)
+	for rows.Next() {
+		var item AdminVIPPlanConfig
+		var benefits JSONMap
+		var updatedAt time.Time
+		if err := rows.Scan(
+			&item.Code,
+			&item.Name,
+			&item.DurationMonths,
+			&item.StandardPriceCent,
+			&item.Status,
+			&item.DisplayOrder,
+			&benefits,
+			&updatedAt,
+		); err != nil {
+			return nil, err
+		}
+		item.Benefits = VIPBenefitSnapshotFromJSON(benefits)
+		item.UpdatedAt = updatedAt.Format(time.RFC3339)
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (m *VIPModel) SaveAdminVIPPlan(ctx context.Context, input SaveAdminVIPPlanInput) (AdminVIPConfigSaveResult, error) {
+	var result AdminVIPConfigSaveResult
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		beforeSnapshot, err := adminVIPPlanSnapshotTx(ctx, tx, input.Code)
+		if err != nil {
+			return err
+		}
+
+		var planID string
+		var updatedAt time.Time
+		err = tx.QueryRowContext(ctx, `
+INSERT INTO vip_plans (
+  code,
+  name,
+  duration_months,
+  standard_price_cent,
+  status,
+  display_order
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  duration_months = EXCLUDED.duration_months,
+  standard_price_cent = EXCLUDED.standard_price_cent,
+  status = EXCLUDED.status,
+  display_order = EXCLUDED.display_order,
+  updated_at = now()
+RETURNING id::text, code, updated_at
+`, input.Code, input.Name, input.DurationMonths, input.StandardPriceCent, input.Status, input.DisplayOrder).Scan(&planID, &result.Code, &updatedAt)
+		if err != nil {
+			return err
+		}
+
+		// 套餐权益必须以版本形式追加，保证已创建订单继续按 benefits_snapshot 执行。
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO vip_plan_versions (plan_id, version, benefits, status)
+SELECT $1::bigint, COALESCE(MAX(version), 0) + 1, $2, 'active'
+FROM vip_plan_versions
+WHERE plan_id = $1::bigint
+`, planID, input.Benefits.ToJSONMap()); err != nil {
+			return err
+		}
+
+		result.UpdatedAt = updatedAt.Format(time.RFC3339)
+		return recordOperationLogTx(ctx, tx, OperationLogInput{
+			OperatorID:     input.OperatorID,
+			OperatorRole:   "platform_operator",
+			Action:         "vip_plan_save",
+			ObjectType:     "vip_config",
+			ObjectID:       "",
+			BeforeSnapshot: beforeSnapshot,
+			AfterSnapshot: JSONMap{
+				"code":              input.Code,
+				"name":              input.Name,
+				"durationMonths":    input.DurationMonths,
+				"standardPriceCent": input.StandardPriceCent,
+				"status":            input.Status,
+				"displayOrder":      input.DisplayOrder,
+				"benefits":          input.Benefits.ToJSONMap(),
+			},
+		})
+	})
+	if err != nil {
+		return AdminVIPConfigSaveResult{}, err
+	}
+	return result, nil
+}
+
+func (m *VIPModel) ListAdminQuotaPacks(ctx context.Context) ([]AdminQuotaPackConfig, error) {
+	rows, err := m.db.QueryContext(ctx, `
+SELECT
+  code,
+  name,
+  description,
+  standard_price_cent,
+  sale_price_cent,
+  sale_label,
+  status,
+  display_order,
+  COALESCE(benefits, '{}'::jsonb) AS benefits,
+  updated_at
+FROM vip_quota_packs
+ORDER BY display_order ASC, standard_price_cent ASC
+`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]AdminQuotaPackConfig, 0)
+	for rows.Next() {
+		var item AdminQuotaPackConfig
+		var salePrice sql.NullInt64
+		var saleLabel sql.NullString
+		var benefits JSONMap
+		var updatedAt time.Time
+		if err := rows.Scan(
+			&item.Code,
+			&item.Name,
+			&item.Description,
+			&item.StandardPriceCent,
+			&salePrice,
+			&saleLabel,
+			&item.Status,
+			&item.DisplayOrder,
+			&benefits,
+			&updatedAt,
+		); err != nil {
+			return nil, err
+		}
+		if salePrice.Valid {
+			item.SalePriceCent = salePrice.Int64
+		}
+		if saleLabel.Valid {
+			item.SaleLabel = saleLabel.String
+		}
+		item.Benefits = VIPBenefitSnapshotFromJSON(benefits)
+		item.UpdatedAt = updatedAt.Format(time.RFC3339)
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (m *VIPModel) SaveAdminQuotaPack(ctx context.Context, input SaveAdminQuotaPackInput) (AdminVIPConfigSaveResult, error) {
+	var result AdminVIPConfigSaveResult
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		beforeSnapshot, err := adminQuotaPackSnapshotTx(ctx, tx, input.Code)
+		if err != nil {
+			return err
+		}
+		var updatedAt time.Time
+		err = tx.QueryRowContext(ctx, `
+INSERT INTO vip_quota_packs (
+  code,
+  name,
+  description,
+  standard_price_cent,
+  sale_price_cent,
+  sale_label,
+  benefits,
+  status,
+  display_order
+)
+VALUES ($1, $2, $3, $4, NULLIF($5, 0), NULLIF($6, ''), $7, $8, $9)
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  standard_price_cent = EXCLUDED.standard_price_cent,
+  sale_price_cent = EXCLUDED.sale_price_cent,
+  sale_label = EXCLUDED.sale_label,
+  benefits = EXCLUDED.benefits,
+  status = EXCLUDED.status,
+  display_order = EXCLUDED.display_order,
+  updated_at = now()
+RETURNING code, updated_at
+`, input.Code, input.Name, input.Description, input.StandardPriceCent, input.SalePriceCent, input.SaleLabel, input.Benefits.ToJSONMap(), input.Status, input.DisplayOrder).Scan(&result.Code, &updatedAt)
+		if err != nil {
+			return err
+		}
+		result.UpdatedAt = updatedAt.Format(time.RFC3339)
+		return recordOperationLogTx(ctx, tx, OperationLogInput{
+			OperatorID:     input.OperatorID,
+			OperatorRole:   "platform_operator",
+			Action:         "vip_quota_pack_save",
+			ObjectType:     "vip_config",
+			ObjectID:       "",
+			BeforeSnapshot: beforeSnapshot,
+			AfterSnapshot: JSONMap{
+				"code":              input.Code,
+				"name":              input.Name,
+				"description":       input.Description,
+				"standardPriceCent": input.StandardPriceCent,
+				"salePriceCent":     input.SalePriceCent,
+				"saleLabel":         input.SaleLabel,
+				"status":            input.Status,
+				"displayOrder":      input.DisplayOrder,
+				"benefits":          input.Benefits.ToJSONMap(),
+			},
+		})
+	})
+	if err != nil {
+		return AdminVIPConfigSaveResult{}, err
+	}
+	return result, nil
+}
+
+func (m *VIPModel) ListAdminVIPPromotions(ctx context.Context) ([]AdminVIPPromotionConfig, error) {
+	rows, err := m.db.QueryContext(ctx, `
+SELECT
+  promo.code,
+  p.code AS plan_code,
+  p.name AS plan_name,
+  promo.promotion_type,
+  promo.sale_price_cent,
+  promo.starts_at,
+  promo.ends_at,
+  promo.quota_limit,
+  promo.used_count,
+  promo.status,
+  promo.updated_at
+FROM vip_promotions promo
+JOIN vip_plans p ON p.id = promo.plan_id
+ORDER BY promo.updated_at DESC, promo.created_at DESC
+`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]AdminVIPPromotionConfig, 0)
+	for rows.Next() {
+		var item AdminVIPPromotionConfig
+		var startsAt time.Time
+		var endsAt sql.NullTime
+		var quotaLimit sql.NullInt64
+		var updatedAt time.Time
+		if err := rows.Scan(
+			&item.Code,
+			&item.PlanCode,
+			&item.PlanName,
+			&item.PromotionType,
+			&item.SalePriceCent,
+			&startsAt,
+			&endsAt,
+			&quotaLimit,
+			&item.UsedCount,
+			&item.Status,
+			&updatedAt,
+		); err != nil {
+			return nil, err
+		}
+		item.StartsAt = startsAt.Format(time.RFC3339)
+		if endsAt.Valid {
+			item.EndsAt = endsAt.Time.Format(time.RFC3339)
+		}
+		if quotaLimit.Valid {
+			item.QuotaLimit = quotaLimit.Int64
+		}
+		item.UpdatedAt = updatedAt.Format(time.RFC3339)
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (m *VIPModel) SaveAdminVIPPromotion(ctx context.Context, input SaveAdminVIPPromotionInput) (AdminVIPConfigSaveResult, error) {
+	var result AdminVIPConfigSaveResult
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		beforeSnapshot, err := adminVIPPromotionSnapshotTx(ctx, tx, input.Code)
+		if err != nil {
+			return err
+		}
+
+		var updatedAt time.Time
+		err = tx.QueryRowContext(ctx, `
+WITH selected_plan AS (
+  SELECT id
+  FROM vip_plans
+  WHERE code = $2
+  LIMIT 1
+)
+INSERT INTO vip_promotions (
+  code,
+  plan_id,
+  promotion_type,
+  sale_price_cent,
+  starts_at,
+  ends_at,
+  quota_limit,
+  status
+)
+SELECT
+  $1,
+  selected_plan.id,
+  $3,
+  $4,
+  COALESCE(NULLIF($5, '')::timestamptz, now()),
+  NULLIF($6, '')::timestamptz,
+  NULLIF($7, 0),
+  $8
+FROM selected_plan
+ON CONFLICT (code) DO UPDATE SET
+  plan_id = EXCLUDED.plan_id,
+  promotion_type = EXCLUDED.promotion_type,
+  sale_price_cent = EXCLUDED.sale_price_cent,
+  starts_at = EXCLUDED.starts_at,
+  ends_at = EXCLUDED.ends_at,
+  quota_limit = EXCLUDED.quota_limit,
+  status = EXCLUDED.status,
+  updated_at = now()
+RETURNING code, updated_at
+`, input.Code, input.PlanCode, input.PromotionType, input.SalePriceCent, input.StartsAt, input.EndsAt, input.QuotaLimit, input.Status).Scan(&result.Code, &updatedAt)
+		if err != nil {
+			return err
+		}
+		result.UpdatedAt = updatedAt.Format(time.RFC3339)
+		return recordOperationLogTx(ctx, tx, OperationLogInput{
+			OperatorID:     input.OperatorID,
+			OperatorRole:   "platform_operator",
+			Action:         "vip_promotion_save",
+			ObjectType:     "vip_config",
+			ObjectID:       "",
+			BeforeSnapshot: beforeSnapshot,
+			AfterSnapshot: JSONMap{
+				"code":          input.Code,
+				"planCode":      input.PlanCode,
+				"promotionType": input.PromotionType,
+				"salePriceCent": input.SalePriceCent,
+				"startsAt":      input.StartsAt,
+				"endsAt":        input.EndsAt,
+				"quotaLimit":    input.QuotaLimit,
+				"status":        input.Status,
+			},
+		})
+	})
+	if err != nil {
+		return AdminVIPConfigSaveResult{}, err
+	}
+	return result, nil
+}
+
+func adminVIPPlanSnapshotTx(ctx context.Context, tx *sql.Tx, code string) (JSONMap, error) {
+	var snapshot JSONMap
+	var benefits JSONMap
+	var updatedAt time.Time
+	var name string
+	var durationMonths int64
+	var standardPriceCent int64
+	var status string
+	var displayOrder int64
+	err := tx.QueryRowContext(ctx, `
+SELECT
+  p.name,
+  p.duration_months,
+  p.standard_price_cent,
+  p.status,
+  p.display_order,
+  COALESCE(v.benefits, '{}'::jsonb) AS benefits,
+  p.updated_at
+FROM vip_plans p
+LEFT JOIN LATERAL (
+  SELECT benefits
+  FROM vip_plan_versions
+  WHERE plan_id = p.id
+  ORDER BY version DESC
+  LIMIT 1
+) v ON true
+WHERE p.code = $1
+LIMIT 1
+`, strings.TrimSpace(code)).Scan(&name, &durationMonths, &standardPriceCent, &status, &displayOrder, &benefits, &updatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return JSONMap{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	snapshot = JSONMap{
+		"code":              strings.TrimSpace(code),
+		"name":              name,
+		"durationMonths":    durationMonths,
+		"standardPriceCent": standardPriceCent,
+		"status":            status,
+		"displayOrder":      displayOrder,
+		"benefits":          benefits,
+		"updatedAt":         updatedAt.Format(time.RFC3339),
+	}
+	return snapshot, nil
+}
+
+func adminQuotaPackSnapshotTx(ctx context.Context, tx *sql.Tx, code string) (JSONMap, error) {
+	var benefits JSONMap
+	var salePrice sql.NullInt64
+	var saleLabel sql.NullString
+	var updatedAt time.Time
+	var name string
+	var description string
+	var standardPriceCent int64
+	var status string
+	var displayOrder int64
+	err := tx.QueryRowContext(ctx, `
+SELECT
+  name,
+  description,
+  standard_price_cent,
+  sale_price_cent,
+  sale_label,
+  status,
+  display_order,
+  COALESCE(benefits, '{}'::jsonb) AS benefits,
+  updated_at
+FROM vip_quota_packs
+WHERE code = $1
+LIMIT 1
+`, strings.TrimSpace(code)).Scan(&name, &description, &standardPriceCent, &salePrice, &saleLabel, &status, &displayOrder, &benefits, &updatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return JSONMap{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	snapshot := JSONMap{
+		"code":              strings.TrimSpace(code),
+		"name":              name,
+		"description":       description,
+		"standardPriceCent": standardPriceCent,
+		"status":            status,
+		"displayOrder":      displayOrder,
+		"benefits":          benefits,
+		"updatedAt":         updatedAt.Format(time.RFC3339),
+	}
+	if salePrice.Valid {
+		snapshot["salePriceCent"] = salePrice.Int64
+	}
+	if saleLabel.Valid {
+		snapshot["saleLabel"] = saleLabel.String
+	}
+	return snapshot, nil
+}
+
+func adminVIPPromotionSnapshotTx(ctx context.Context, tx *sql.Tx, code string) (JSONMap, error) {
+	var startsAt time.Time
+	var endsAt sql.NullTime
+	var quotaLimit sql.NullInt64
+	var updatedAt time.Time
+	var planCode string
+	var promotionType string
+	var salePriceCent int64
+	var usedCount int64
+	var status string
+	err := tx.QueryRowContext(ctx, `
+SELECT
+  p.code,
+  promo.promotion_type,
+  promo.sale_price_cent,
+  promo.starts_at,
+  promo.ends_at,
+  promo.quota_limit,
+  promo.used_count,
+  promo.status,
+  promo.updated_at
+FROM vip_promotions promo
+JOIN vip_plans p ON p.id = promo.plan_id
+WHERE promo.code = $1
+LIMIT 1
+`, strings.TrimSpace(code)).Scan(&planCode, &promotionType, &salePriceCent, &startsAt, &endsAt, &quotaLimit, &usedCount, &status, &updatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return JSONMap{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	snapshot := JSONMap{
+		"code":          strings.TrimSpace(code),
+		"planCode":      planCode,
+		"promotionType": promotionType,
+		"salePriceCent": salePriceCent,
+		"startsAt":      startsAt.Format(time.RFC3339),
+		"usedCount":     usedCount,
+		"status":        status,
+		"updatedAt":     updatedAt.Format(time.RFC3339),
+	}
+	if endsAt.Valid {
+		snapshot["endsAt"] = endsAt.Time.Format(time.RFC3339)
+	}
+	if quotaLimit.Valid {
+		snapshot["quotaLimit"] = quotaLimit.Int64
+	}
+	return snapshot, nil
 }
 
 func (m *VIPModel) GetMerchantVIPSummary(ctx context.Context, merchantID string) (MerchantVIPSummary, error) {

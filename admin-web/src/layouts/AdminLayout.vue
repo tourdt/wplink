@@ -34,6 +34,10 @@
           <el-icon><Search /></el-icon>
           <span>热门搜索词</span>
         </el-menu-item>
+        <el-menu-item index="/vip-configs">
+          <el-icon><Medal /></el-icon>
+          <span>VIP 配置</span>
+        </el-menu-item>
         <el-menu-item index="/sourcing-map">
           <el-icon><MapLocation /></el-icon>
           <span>拿货地图</span>
@@ -81,7 +85,7 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { CircleCheck, DataLine, Document, MapLocation, Picture, Search, Setting, Shop, Ticket, Tickets, User } from '@element-plus/icons-vue'
+import { CircleCheck, DataLine, Document, MapLocation, Medal, Picture, Search, Setting, Shop, Ticket, Tickets, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()

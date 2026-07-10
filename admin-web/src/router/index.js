@@ -14,6 +14,7 @@ const ResourceTypeConfigView = () => import('../views/ResourceTypeConfigView.vue
 const BannerTopicView = () => import('../views/BannerTopicView.vue')
 const HotSearchKeywordView = () => import('../views/HotSearchKeywordView.vue')
 const SourcingMapView = () => import('../views/SourcingMapView.vue')
+const VIPConfigView = () => import('../views/VIPConfigView.vue')
 
 const routes = [
   {
@@ -34,6 +35,7 @@ const routes = [
       { path: 'entitlements', name: 'entitlements', component: EntitlementView },
       { path: 'banner-topics', name: 'bannerTopics', component: BannerTopicView },
       { path: 'hot-search-keywords', name: 'hotSearchKeywords', component: HotSearchKeywordView },
+      { path: 'vip-configs', name: 'vipConfigs', component: VIPConfigView },
       { path: 'sourcing-map', name: 'sourcingMap', component: SourcingMapView },
       { path: 'resource-type-configs', name: 'resourceTypeConfigs', component: ResourceTypeConfigView },
       { path: 'operation-logs', name: 'operationLogs', component: OperationLogView },

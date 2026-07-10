@@ -303,6 +303,37 @@ func TestAPIRouterRegistersVIPMembershipRoutes(t *testing.T) {
 	}
 }
 
+func TestAPIRouterServesAdminVIPConfigRoutes(t *testing.T) {
+	store := newFakeFullAPIStore()
+	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}))
+
+	listRec := httptest.NewRecorder()
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/vip/plans", nil)
+	listReq.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(listRec, listReq)
+	data := decodeEnvelopeData(t, listRec, http.StatusOK)
+	items, ok := data["items"].([]interface{})
+	if !ok || len(items) == 0 {
+		t.Fatalf("items = %#v, want vip plan items", data["items"])
+	}
+
+	saveRec := httptest.NewRecorder()
+	saveReq := httptest.NewRequest(http.MethodPost, "/api/v1/admin/vip/plans/monthly", strings.NewReader(`{
+		"name":"VIP 月卡",
+		"durationMonths":1,
+		"standardPriceCent":4900,
+		"status":"active",
+		"displayOrder":10,
+		"benefits":{"publishQuota":80,"refreshQuota":30,"topVoucherCount":3,"topDurationHours":24}
+	}`))
+	saveReq.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(saveRec, saveReq)
+	decodeEnvelopeData(t, saveRec, http.StatusOK)
+	if store.saveVIPPlanInput.OperatorID != "admin-1" {
+		t.Fatalf("operatorID = %q, want token admin user", store.saveVIPPlanInput.OperatorID)
+	}
+}
+
 func TestAPIRouterRequiresOwnedMerchantForTopVoucherRedeem(t *testing.T) {
 	store := newFakeFullAPIStore()
 	store.managedMerchants = map[string]bool{"merchant-1": true}
@@ -528,6 +559,9 @@ type fakeFullAPIStore struct {
 	createQuotaPackOrderInput    model.CreateQuotaPackOrderInput
 	createVIPPaymentInput        model.CreateVIPPaymentOrderInput
 	markVIPOrderPaidInput        model.MarkVIPOrderPaidInput
+	saveVIPPlanInput             model.SaveAdminVIPPlanInput
+	saveQuotaPackInput           model.SaveAdminQuotaPackInput
+	saveVIPPromotionInput        model.SaveAdminVIPPromotionInput
 }
 
 type fakeAdminTokenService struct {
@@ -679,6 +713,60 @@ func (s *fakeFullAPIStore) ListQuotaPacks(ctx context.Context) ([]model.QuotaPac
 		SaleLabel:         "限时特价",
 		Benefits:          model.VIPBenefitSnapshot{PublishQuota: 5},
 	}}, nil
+}
+
+func (s *fakeFullAPIStore) ListAdminVIPPlans(ctx context.Context) ([]model.AdminVIPPlanConfig, error) {
+	return []model.AdminVIPPlanConfig{{
+		Code:              "monthly",
+		Name:              "VIP 月卡",
+		DurationMonths:    1,
+		StandardPriceCent: 4900,
+		Status:            "active",
+		DisplayOrder:      10,
+		Benefits:          model.VIPBenefitSnapshot{PublishPolicy: model.VIPPublishPolicyQuota, PublishQuota: 80, RefreshQuota: 30, TopVoucherCount: 3, TopDurationHours: 24},
+		UpdatedAt:         "2026-07-10T10:00:00Z",
+	}}, nil
+}
+
+func (s *fakeFullAPIStore) SaveAdminVIPPlan(ctx context.Context, input model.SaveAdminVIPPlanInput) (model.AdminVIPConfigSaveResult, error) {
+	s.saveVIPPlanInput = input
+	return model.AdminVIPConfigSaveResult{Code: input.Code, UpdatedAt: "2026-07-10T10:00:00Z"}, nil
+}
+
+func (s *fakeFullAPIStore) ListAdminQuotaPacks(ctx context.Context) ([]model.AdminQuotaPackConfig, error) {
+	return []model.AdminQuotaPackConfig{{
+		Code:              "publish_5",
+		Name:              "发布次数包",
+		Description:       "临时多发供需",
+		StandardPriceCent: 2500,
+		Status:            "active",
+		DisplayOrder:      10,
+		Benefits:          model.VIPBenefitSnapshot{PublishQuota: 5},
+		UpdatedAt:         "2026-07-10T10:00:00Z",
+	}}, nil
+}
+
+func (s *fakeFullAPIStore) SaveAdminQuotaPack(ctx context.Context, input model.SaveAdminQuotaPackInput) (model.AdminVIPConfigSaveResult, error) {
+	s.saveQuotaPackInput = input
+	return model.AdminVIPConfigSaveResult{Code: input.Code, UpdatedAt: "2026-07-10T10:00:00Z"}, nil
+}
+
+func (s *fakeFullAPIStore) ListAdminVIPPromotions(ctx context.Context) ([]model.AdminVIPPromotionConfig, error) {
+	return []model.AdminVIPPromotionConfig{{
+		Code:          "launch_monthly",
+		PlanCode:      "monthly",
+		PlanName:      "VIP 月卡",
+		PromotionType: "launch",
+		SalePriceCent: 1990,
+		StartsAt:      "2026-07-10T00:00:00Z",
+		Status:        "active",
+		UpdatedAt:     "2026-07-10T10:00:00Z",
+	}}, nil
+}
+
+func (s *fakeFullAPIStore) SaveAdminVIPPromotion(ctx context.Context, input model.SaveAdminVIPPromotionInput) (model.AdminVIPConfigSaveResult, error) {
+	s.saveVIPPromotionInput = input
+	return model.AdminVIPConfigSaveResult{Code: input.Code, UpdatedAt: "2026-07-10T10:00:00Z"}, nil
 }
 
 func (s *fakeFullAPIStore) GetMerchantVIPSummary(ctx context.Context, merchantID string) (model.MerchantVIPSummary, error) {

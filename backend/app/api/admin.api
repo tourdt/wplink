@@ -345,6 +345,103 @@ type AdminUpdateResourceTypeConfigResp {
 	UpdatedAt string `json:"updatedAt"`
 }
 
+type AdminVIPBenefitConfig {
+	PublishPolicy      string `json:"publishPolicy,optional"`
+	PublishQuota       int64  `json:"publishQuota"`
+	RefreshQuota       int64  `json:"refreshQuota"`
+	TopVoucherCount    int64  `json:"topVoucherCount"`
+	TopDurationHours   int64  `json:"topDurationHours"`
+	HomepageImageLimit int64  `json:"homepageImageLimit,optional"`
+}
+
+type AdminVIPPlanConfigItem {
+	Code              string                `json:"code"`
+	Name              string                `json:"name"`
+	DurationMonths    int64                 `json:"durationMonths"`
+	StandardPriceCent int64                 `json:"standardPriceCent"`
+	Status            string                `json:"status"`
+	DisplayOrder      int64                 `json:"displayOrder"`
+	Benefits          AdminVIPBenefitConfig `json:"benefits"`
+	UpdatedAt         string                `json:"updatedAt,optional"`
+}
+
+type AdminListVIPPlansResp {
+	Items []AdminVIPPlanConfigItem `json:"items"`
+}
+
+type AdminSaveVIPPlanConfigReq {
+	Code              string                `json:"code,optional"`
+	Name              string                `json:"name"`
+	DurationMonths    int64                 `json:"durationMonths"`
+	StandardPriceCent int64                 `json:"standardPriceCent"`
+	Status            string                `json:"status,optional"`
+	DisplayOrder      int64                 `json:"displayOrder,optional"`
+	Benefits          AdminVIPBenefitConfig `json:"benefits"`
+}
+
+type AdminQuotaPackConfigItem {
+	Code              string                `json:"code"`
+	Name              string                `json:"name"`
+	Description       string                `json:"description,optional"`
+	StandardPriceCent int64                 `json:"standardPriceCent"`
+	SalePriceCent     int64                 `json:"salePriceCent,optional"`
+	SaleLabel         string                `json:"saleLabel,optional"`
+	Status            string                `json:"status"`
+	DisplayOrder      int64                 `json:"displayOrder"`
+	Benefits          AdminVIPBenefitConfig `json:"benefits"`
+	UpdatedAt         string                `json:"updatedAt,optional"`
+}
+
+type AdminListQuotaPacksResp {
+	Items []AdminQuotaPackConfigItem `json:"items"`
+}
+
+type AdminSaveQuotaPackConfigReq {
+	Code              string                `json:"code,optional"`
+	Name              string                `json:"name"`
+	Description       string                `json:"description,optional"`
+	StandardPriceCent int64                 `json:"standardPriceCent"`
+	SalePriceCent     int64                 `json:"salePriceCent,optional"`
+	SaleLabel         string                `json:"saleLabel,optional"`
+	Status            string                `json:"status,optional"`
+	DisplayOrder      int64                 `json:"displayOrder,optional"`
+	Benefits          AdminVIPBenefitConfig `json:"benefits"`
+}
+
+type AdminVIPPromotionConfigItem {
+	Code          string `json:"code"`
+	PlanCode      string `json:"planCode"`
+	PlanName      string `json:"planName,optional"`
+	PromotionType string `json:"promotionType"`
+	SalePriceCent int64  `json:"salePriceCent"`
+	StartsAt      string `json:"startsAt"`
+	EndsAt        string `json:"endsAt,optional"`
+	QuotaLimit    int64  `json:"quotaLimit,optional"`
+	UsedCount     int64  `json:"usedCount"`
+	Status        string `json:"status"`
+	UpdatedAt     string `json:"updatedAt,optional"`
+}
+
+type AdminListVIPPromotionsResp {
+	Items []AdminVIPPromotionConfigItem `json:"items"`
+}
+
+type AdminSaveVIPPromotionConfigReq {
+	Code          string `json:"code,optional"`
+	PlanCode      string `json:"planCode"`
+	PromotionType string `json:"promotionType"`
+	SalePriceCent int64  `json:"salePriceCent"`
+	StartsAt      string `json:"startsAt,optional"`
+	EndsAt        string `json:"endsAt,optional"`
+	QuotaLimit    int64  `json:"quotaLimit,optional"`
+	Status        string `json:"status,optional"`
+}
+
+type AdminSaveVIPConfigResp {
+	Code      string `json:"code"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
 @server(
 	prefix: /api/v1/admin
 	group: adminauth
@@ -454,6 +551,39 @@ service wplink-api {
 
 	@handler AdminUpdateHotSearchKeyword
 	post /hot-search-keywords/:configId (AdminSaveHotSearchKeywordReq) returns (AdminSaveHotSearchKeywordResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminvipconfig
+)
+service wplink-api {
+	@handler AdminListVIPPlans
+	get /vip/plans returns (AdminListVIPPlansResp)
+
+	@handler AdminCreateVIPPlan
+	post /vip/plans (AdminSaveVIPPlanConfigReq) returns (AdminSaveVIPConfigResp)
+
+	@handler AdminUpdateVIPPlan
+	post /vip/plans/:planCode (AdminSaveVIPPlanConfigReq) returns (AdminSaveVIPConfigResp)
+
+	@handler AdminListQuotaPacks
+	get /vip/quota-packs returns (AdminListQuotaPacksResp)
+
+	@handler AdminCreateQuotaPack
+	post /vip/quota-packs (AdminSaveQuotaPackConfigReq) returns (AdminSaveVIPConfigResp)
+
+	@handler AdminUpdateQuotaPack
+	post /vip/quota-packs/:packCode (AdminSaveQuotaPackConfigReq) returns (AdminSaveVIPConfigResp)
+
+	@handler AdminListVIPPromotions
+	get /vip/promotions returns (AdminListVIPPromotionsResp)
+
+	@handler AdminCreateVIPPromotion
+	post /vip/promotions (AdminSaveVIPPromotionConfigReq) returns (AdminSaveVIPConfigResp)
+
+	@handler AdminUpdateVIPPromotion
+	post /vip/promotions/:promotionCode (AdminSaveVIPPromotionConfigReq) returns (AdminSaveVIPConfigResp)
 }
 
 @server(

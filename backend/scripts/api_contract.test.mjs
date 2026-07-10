@@ -110,6 +110,41 @@ test('api contract exposes vip membership endpoints', () => {
   assert.match(typesSource, /type MerchantVIPResp struct/)
 })
 
+test('admin api contract exposes vip config endpoints', () => {
+  const adminApiSource = fs.readFileSync(path.join(apiDir, 'admin.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
+
+  for (const snippet of [
+    'type AdminVIPBenefitConfig',
+    'type AdminVIPPlanConfigItem',
+    'type AdminSaveVIPPlanConfigReq',
+    'type AdminQuotaPackConfigItem',
+    'type AdminSaveQuotaPackConfigReq',
+    'type AdminVIPPromotionConfigItem',
+    'type AdminSaveVIPPromotionConfigReq',
+    'get /vip/plans returns (AdminListVIPPlansResp)',
+    'post /vip/plans (AdminSaveVIPPlanConfigReq) returns (AdminSaveVIPConfigResp)',
+    'post /vip/plans/:planCode (AdminSaveVIPPlanConfigReq) returns (AdminSaveVIPConfigResp)',
+    'get /vip/quota-packs returns (AdminListQuotaPacksResp)',
+    'post /vip/quota-packs (AdminSaveQuotaPackConfigReq) returns (AdminSaveVIPConfigResp)',
+    'post /vip/quota-packs/:packCode (AdminSaveQuotaPackConfigReq) returns (AdminSaveVIPConfigResp)',
+    'get /vip/promotions returns (AdminListVIPPromotionsResp)',
+    'post /vip/promotions (AdminSaveVIPPromotionConfigReq) returns (AdminSaveVIPConfigResp)',
+    'post /vip/promotions/:promotionCode (AdminSaveVIPPromotionConfigReq) returns (AdminSaveVIPConfigResp)',
+  ]) {
+    assert(adminApiSource.includes(snippet), `admin.api should contain ${snippet}`)
+  }
+
+  for (const snippet of [
+    'type AdminVIPPlanConfigItem struct',
+    'type AdminSaveVIPPlanConfigReq struct',
+    'type AdminQuotaPackConfigItem struct',
+    'type AdminVIPPromotionConfigItem struct',
+  ]) {
+    assert(typesSource.includes(snippet), `types.go should contain ${snippet}`)
+  }
+})
+
 test('generated types do not keep retired manual matching DTOs', () => {
   const source = fs.readFileSync(typesFile, 'utf8')
 

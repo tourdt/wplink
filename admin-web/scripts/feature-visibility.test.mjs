@@ -33,6 +33,37 @@ test('admin routes lazy-load page views to keep initial bundle maintainable', ()
   assert.match(routeSource, /const SourcingMapView = \(\) => import\('\.\.\/views\/SourcingMapView\.vue'\)/)
 })
 
+test('admin ui exposes vip config management entry', () => {
+  const routeSource = fs.readFileSync(path.join(root, 'src/router/index.js'), 'utf8')
+  const layoutSource = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.vue'), 'utf8')
+  const apiSource = fs.readFileSync(path.join(root, 'src/api/vipConfig.js'), 'utf8')
+
+  assert.match(routeSource, /const VIPConfigView = \(\) => import\('\.\.\/views\/VIPConfigView\.vue'\)/)
+  assert.match(routeSource, /path: 'vip-configs'/)
+  assert.match(layoutSource, /index="\/vip-configs"/)
+  assert.match(layoutSource, /<span>VIP 配置<\/span>/)
+  assert.match(apiSource, /\/api\/v1\/admin\/vip\/plans/)
+  assert.match(apiSource, /\/api\/v1\/admin\/vip\/quota-packs/)
+  assert.match(apiSource, /\/api\/v1\/admin\/vip\/promotions/)
+})
+
+test('vip config page provides plan quota pack and promotion tabs', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/VIPConfigView.vue'), 'utf8')
+
+  assert.match(source, /<h2>VIP 配置<\/h2>/)
+  assert.match(source, /<el-tab-pane label="VIP 套餐" name="plans">/)
+  assert.match(source, /<el-tab-pane label="次数包" name="quotaPacks">/)
+  assert.match(source, /<el-tab-pane label="优惠活动" name="promotions">/)
+  assert.match(source, /openPlanEditor/)
+  assert.match(source, /openQuotaPackEditor/)
+  assert.match(source, /openPromotionEditor/)
+  assert.match(source, /yuanToCent/)
+  assert.match(source, /centToYuan/)
+  assert.match(source, /buildPlanPayload/)
+  assert.match(source, /buildQuotaPackPayload/)
+  assert.match(source, /buildPromotionPayload/)
+})
+
 test('admin build splits framework and ui libraries into stable vendor chunks', () => {
   const viteSource = fs.readFileSync(path.join(root, 'vite.config.js'), 'utf8')
 
