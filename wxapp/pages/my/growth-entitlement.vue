@@ -8,7 +8,7 @@
     <view class="section-card quota-card">
       <view class="section-head">
         <text class="section-title">权益余额</text>
-        <text class="section-subtitle">当前可用次数</text>
+        <text class="section-subtitle">当前可用次数 · 主线进度 {{ taskSummary.starterCompletedCount || 0 }}/{{ taskSummary.starterTotalCount || 0 }}</text>
       </view>
       <view class="quota-grid">
         <view v-for="item in quotaCards" :key="item.key" class="quota-item">
@@ -19,20 +19,10 @@
       <text v-if="nearestExpiryText" class="quota-expiry">{{ nearestExpiryText }}</text>
     </view>
 
-    <view class="section-card progress-card">
-      <view class="section-head">
-        <text class="section-title">新手成长进度</text>
-        <text class="section-subtitle">主线 {{ taskSummary.starterCompletedCount || 0 }}/{{ taskSummary.starterTotalCount || 0 }}</text>
-      </view>
-      <view class="progress-track">
-        <view class="progress-fill" :style="{ width: starterProgressPercent }"></view>
-      </view>
-    </view>
-
     <view class="section-card">
       <view class="section-head">
         <text class="section-title">新手主线任务</text>
-        <text class="section-subtitle">完成一次，跑通发布审核</text>
+        <text class="section-subtitle">优先完成发布和审核</text>
       </view>
       <view v-if="starterTasks.length" class="task-list">
         <view v-for="task in starterTasks" :key="task.taskCode" class="task-item">
@@ -57,7 +47,7 @@
     <view class="section-card">
       <view class="section-head">
         <text class="section-title">每日曝光任务</text>
-        <text class="section-subtitle">每日刷新，只看有效结果</text>
+        <text class="section-subtitle">分享带来有效结果后奖励</text>
       </view>
       <view v-if="dailyTasks.length" class="task-list">
         <view v-for="task in dailyTasks" :key="task.taskCode" class="task-item">
@@ -80,15 +70,7 @@
     </view>
 
     <view class="section-card">
-      <view class="section-head">
-        <text class="section-title">规则说明</text>
-      </view>
-      <view class="rule-note-list">
-        <text class="rule-note">达标自动到账，无需领取。</text>
-        <text class="rule-note">发布类不每日重置。</text>
-        <text class="rule-note">分享需产生有效浏览或联系。</text>
-        <text class="rule-note">权益到期未用自动失效。</text>
-      </view>
+      <text class="rule-note">规则说明：达标自动到账；分享需产生有效浏览或联系；权益到期未用自动失效。</text>
     </view>
   </view>
 </template>
@@ -140,12 +122,6 @@ const fallbackTaskSummary = computed(() => ({
   starterCompletedCount: 0,
   starterTotalCount: 0,
 }))
-const starterProgressPercent = computed(() => {
-  const total = Number(taskSummary.value.starterTotalCount || 0)
-  if (!total) return '0%'
-  const completed = Math.min(Number(taskSummary.value.starterCompletedCount || 0), total)
-  return `${Math.round((completed / total) * 100)}%`
-})
 const taskEmptyText = computed(() => {
   if (!merchantId.value) return '请先完善商家资料。'
   if (tasksLoadFailed.value) return '成长任务暂不可用，请稍后重试。'
@@ -407,22 +383,7 @@ function navigateTo(url) {
   line-height: 1.45;
 }
 
-.progress-track {
-  position: relative;
-  overflow: hidden;
-  height: 14rpx;
-  border-radius: 999rpx;
-  background: $wplink-line;
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: $wplink-accent;
-}
-
-.task-list,
-.rule-note-list {
+.task-list {
   display: grid;
   gap: 14rpx;
 }
