@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 	"time"
 )
 
@@ -727,12 +726,8 @@ FOR UPDATE
 }
 
 func profileMonthlyBenefitsForStatus(profileStatus string) (int64, int64) {
-	switch strings.TrimSpace(profileStatus) {
-	case MerchantProfileStatusCompleted:
-		return 10, 3
-	default:
-		return 3, 0
-	}
+	// 冷启动发布次数改由增长活动配置发放，避免继续把“完善商家名片”作为获取额度的主路径。
+	return 0, 0
 }
 
 func currentMonthlyEntitlementPeriod(now time.Time) (time.Time, time.Time) {

@@ -35,6 +35,9 @@ func TestWechatLoginCreatesUserAndIssuesToken(t *testing.T) {
 	if len(resp.ManagedMerchants) != 1 || resp.ManagedMerchants[0].ID != "merchant-1" {
 		t.Fatalf("managed merchants = %#v, want merchant-1", resp.ManagedMerchants)
 	}
+	if store.growthInput.EventType != model.GrowthEventUserFirstLogin || store.growthInput.MerchantID != "merchant-1" || store.growthInput.UserID != "user-1" {
+		t.Fatalf("growthInput = %#v, want first login event for default merchant", store.growthInput)
+	}
 }
 
 func TestWechatLoginHidesStoreFailure(t *testing.T) {
@@ -120,6 +123,7 @@ func TestSendSMSCodeTrimsPhoneAndCallsSender(t *testing.T) {
 
 type fakeAuthStore struct {
 	upsertInput model.UpsertWechatUserInput
+	growthInput model.GrowthEventInput
 	boundUserID string
 	boundPhone  string
 	upsertErr   error
@@ -141,6 +145,11 @@ func (s *fakeAuthStore) BindUserPhone(ctx context.Context, userID string, phone 
 	s.boundUserID = userID
 	s.boundPhone = phone
 	return s.profile(phone), nil
+}
+
+func (s *fakeAuthStore) TriggerGrowthEvent(ctx context.Context, input model.GrowthEventInput) ([]model.GrowthRewardGrantResult, error) {
+	s.growthInput = input
+	return nil, nil
 }
 
 func (s *fakeAuthStore) profile(phone string) model.UserProfile {

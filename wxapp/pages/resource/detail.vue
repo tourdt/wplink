@@ -120,13 +120,21 @@
         <button class="primary-button" @click="callPhone">联系商家</button>
         <button open-type="share" @click="shareResource">分享</button>
       </view>
+
+      <canvas
+        canvas-id="resourceShareCoverCanvas"
+        id="resourceShareCoverCanvas"
+        class="share-cover-canvas"
+        :width="shareCoverCanvasSize.width"
+        :height="shareCoverCanvasSize.height"
+      />
     </view>
   </view>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
-import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
+import { onLoad, onReady, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import MerchantBadge from '../../components/MerchantBadge.vue'
 import ResourceList from '../../components/ResourceList.vue'
 import { getResourceFavoriteState, setResourceFavorite } from '../../api/favorite'
@@ -142,6 +150,14 @@ import {
   takeDownResource,
 } from '../../api/resource'
 import { requireLogin } from '../../common/auth'
+import {
+  RESOURCE_SHARE_COVER_CANVAS_ID,
+  RESOURCE_SHARE_COVER_SIZE,
+  buildResourceSharePayload,
+  buildResourceSharePosterModel,
+  buildResourceTimelinePayload,
+  getResourceShareCoverSource,
+} from '../../common/resourceShare'
 import { getSession } from '../../store/session'
 
 const resource = ref({})
@@ -154,7 +170,12 @@ const resourceUnavailable = ref(false)
 const selectedGalleryIndex = ref(0)
 const showManagementSheet = ref(false)
 const managementBusy = ref(false)
+const shareImageUrl = ref('')
+const shareCoverCanvasSize = RESOURCE_SHARE_COVER_SIZE
 const SEARCH_KEY = 'wplink_pending_search_keyword'
+let shareCanvasReady = false
+let shareCoverRenderTimer = null
+let shareCoverRendering = false
 const merchantTypeText = {
   factory: '源头工厂',
   stall: '现货档口',
@@ -275,11 +296,18 @@ onLoad(async (options) => {
     return
   }
   await loadMerchantProfile()
+  enableShareMenu()
+  scheduleShareCoverRender()
   if (!isOwnResource.value) {
     await recordResourceDetailView(options.id)
     await loadFavoriteState(options.id)
     await loadRelatedResources()
   }
+})
+
+onReady(() => {
+  shareCanvasReady = true
+  scheduleShareCoverRender()
 })
 
 async function loadOwnResourceIfCurrentMerchant(resourceId) {
@@ -291,6 +319,9 @@ async function loadOwnResourceIfCurrentMerchant(resourceId) {
     isOwnResource.value = true
     resourceUnavailable.value = false
     selectedGalleryIndex.value = 0
+    await loadMerchantProfile()
+    enableShareMenu()
+    scheduleShareCoverRender()
     return true
   } catch (err) {
     return false
@@ -550,10 +581,220 @@ async function shareResource() {
   await recordContact('share')
 }
 
-onShareAppMessage(() => ({
-  title: resource.value.title || '衣货通供给',
-  path: resource.value.id ? `/pages/resource/detail?id=${resource.value.id}` : '/pages/home/index',
-}))
+function enableShareMenu() {
+  if (typeof uni.showShareMenu !== 'function') return
+  // 小程序页面内按钮只能直接转发给好友/微信群；朋友圈入口需要显式开放右上角菜单。
+  uni.showShareMenu({
+    withShareTicket: true,
+    menus: ['shareAppMessage', 'shareTimeline'],
+  })
+}
+
+function scheduleShareCoverRender() {
+  if (!shareCanvasReady || !resource.value.id) return
+  clearTimeout(shareCoverRenderTimer)
+  // 等待资源主图和隐藏 canvas 完成一次视图更新，避免刚加载详情时导出空白封面。
+  shareCoverRenderTimer = setTimeout(() => {
+    shareCoverRenderTimer = null
+    renderShareCover()
+  }, 80)
+}
+
+async function renderShareCover() {
+  if (shareCoverRendering || !shareCanvasReady || !resource.value.id) return
+  shareCoverRendering = true
+  try {
+    const poster = buildResourceSharePosterModel(resource.value, merchantInfo.value)
+    const ctx = uni.createCanvasContext(RESOURCE_SHARE_COVER_CANVAS_ID)
+    await drawResourceShareCover(ctx, poster)
+    const tempFilePath = await exportShareCoverImage()
+    shareImageUrl.value = tempFilePath || getResourceShareCoverSource(resource.value)
+  } catch (err) {
+    console.warn('资源分享封面生成失败', {
+      resourceId: resource.value.id,
+      message: err?.message || String(err),
+    })
+    shareImageUrl.value = getResourceShareCoverSource(resource.value)
+  } finally {
+    shareCoverRendering = false
+  }
+}
+
+async function drawResourceShareCover(ctx, poster) {
+  const { width, height } = RESOURCE_SHARE_COVER_SIZE
+  const coverHeight = 280
+  ctx.setFillStyle('#f7fafc')
+  ctx.fillRect(0, 0, width, height)
+
+  const coverPath = await resolveCanvasImagePath(poster.coverSource)
+  if (coverPath) {
+    ctx.drawImage(coverPath, 0, 0, width, coverHeight)
+    drawImageShade(ctx, width, coverHeight)
+  } else {
+    drawCoverPlaceholder(ctx, poster, width, coverHeight)
+  }
+
+  drawBadge(ctx, poster.typeLabel, 28, 26, { background: 'rgba(6, 22, 37, 0.86)', color: '#ffffff' })
+  ctx.setFillStyle('rgba(255, 255, 255, 0.92)')
+  ctx.setFontSize(24)
+  ctx.fillText('衣货通', width - 104, 52)
+
+  ctx.setFillStyle('#ffffff')
+  ctx.fillRect(24, 246, width - 48, 206)
+  ctx.setFillStyle('#c2410c')
+  ctx.fillRect(24, 246, 8, 206)
+
+  let badgeX = 46
+  for (const badge of poster.badges.slice(0, 3)) {
+    const badgeWidth = drawBadge(ctx, badge, badgeX, 270, { background: '#fff4ed', color: '#c2410c' })
+    badgeX += badgeWidth + 10
+  }
+
+  ctx.setFillStyle('#061625')
+  ctx.setFontSize(34)
+  drawWrappedText(ctx, poster.title, 46, 340, width - 92, 42, 2)
+
+  ctx.setFillStyle('#c2410c')
+  ctx.setFontSize(28)
+  drawWrappedText(ctx, poster.summaryLines.join(' · ') || '欢迎联系商家确认详情', 46, 418, width - 92, 34, 1)
+
+  ctx.setFillStyle('#64748b')
+  ctx.setFontSize(22)
+  ctx.fillText(poster.merchantName, 46, height - 24)
+  ctx.fillText(poster.footerText, width - 214, height - 24)
+
+  await flushCanvas(ctx)
+}
+
+function resolveCanvasImagePath(src) {
+  return new Promise((resolve) => {
+    if (!src || typeof uni.getImageInfo !== 'function') {
+      resolve('')
+      return
+    }
+    uni.getImageInfo({
+      src,
+      success: (res) => resolve(res.path || src),
+      fail: () => resolve(''),
+    })
+  })
+}
+
+function exportShareCoverImage() {
+  return new Promise((resolve) => {
+    if (typeof uni.canvasToTempFilePath !== 'function') {
+      resolve('')
+      return
+    }
+    const { width, height } = RESOURCE_SHARE_COVER_SIZE
+    uni.canvasToTempFilePath({
+      canvasId: RESOURCE_SHARE_COVER_CANVAS_ID,
+      width,
+      height,
+      destWidth: width,
+      destHeight: height,
+      fileType: 'jpg',
+      quality: 0.92,
+      success: (res) => resolve(res.tempFilePath || ''),
+      fail: () => resolve(''),
+    })
+  })
+}
+
+function drawImageShade(ctx, width, coverHeight) {
+  const gradient = ctx.createLinearGradient(0, 120, 0, coverHeight)
+  gradient.addColorStop(0, 'rgba(6, 22, 37, 0)')
+  gradient.addColorStop(1, 'rgba(6, 22, 37, 0.48)')
+  ctx.setFillStyle(gradient)
+  ctx.fillRect(0, 120, width, coverHeight - 120)
+}
+
+function drawCoverPlaceholder(ctx, poster, width, coverHeight) {
+  const gradient = ctx.createLinearGradient(0, 0, width, coverHeight)
+  gradient.addColorStop(0, '#061625')
+  gradient.addColorStop(1, '#d88a80')
+  ctx.setFillStyle(gradient)
+  ctx.fillRect(0, 0, width, coverHeight)
+  ctx.setFillStyle('rgba(255, 255, 255, 0.16)')
+  for (let x = -80; x < width; x += 120) {
+    ctx.fillRect(x, 0, 42, coverHeight)
+  }
+  ctx.setFillStyle('#ffffff')
+  ctx.setFontSize(42)
+  drawWrappedText(ctx, poster.typeLabel, 36, 184, width - 72, 48, 1)
+}
+
+function drawBadge(ctx, text, x, y, options = {}) {
+  const label = String(text || '').slice(0, 8)
+  if (!label) return 0
+  const width = Math.max(58, getTextWidth(ctx, label, 22) + 26)
+  ctx.setFillStyle(options.background || '#eef2f7')
+  ctx.fillRect(x, y, width, 34)
+  ctx.setFillStyle(options.color || '#364152')
+  ctx.setFontSize(20)
+  ctx.fillText(label, x + 13, y + 24)
+  return width
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+  const chars = Array.from(String(text || '').trim())
+  const lines = []
+  let line = ''
+  let index = 0
+  for (; index < chars.length; index += 1) {
+    const char = chars[index]
+    const nextLine = `${line}${char}`
+    if (line && getTextWidth(ctx, nextLine) > maxWidth) {
+      lines.push(line)
+      if (lines.length === maxLines) break
+      line = char
+    } else {
+      line = nextLine
+    }
+  }
+  if (line && lines.length < maxLines) lines.push(line)
+  if (index < chars.length && lines.length) {
+    const lastIndex = Math.min(lines.length, maxLines) - 1
+    lines[lastIndex] = fitText(ctx, lines[lastIndex], maxWidth, '…')
+  }
+  lines.slice(0, maxLines).forEach((item, index) => {
+    ctx.fillText(item, x, y + index * lineHeight)
+  })
+}
+
+function fitText(ctx, text, maxWidth, suffix = '') {
+  let result = String(text || '')
+  while (result && getTextWidth(ctx, `${result}${suffix}`) > maxWidth) {
+    result = result.slice(0, -1)
+  }
+  return `${result}${suffix}`
+}
+
+function getTextWidth(ctx, text, fontSize = 28) {
+  if (typeof ctx.measureText === 'function') return ctx.measureText(text).width
+  return String(text || '').length * fontSize
+}
+
+function flushCanvas(ctx) {
+  return new Promise((resolve) => {
+    ctx.draw(false, resolve)
+  })
+}
+
+function trackShareFromMenu() {
+  if (isOwnResource.value || !resource.value.id) return
+  recordContact('share').catch(() => {})
+}
+
+onShareAppMessage((shareEvent) => {
+  if (shareEvent?.from === 'menu') trackShareFromMenu()
+  return buildResourceSharePayload(resource.value, shareImageUrl.value)
+})
+
+onShareTimeline(() => {
+  trackShareFromMenu()
+  return buildResourceTimelinePayload(resource.value, shareImageUrl.value)
+})
 </script>
 
 <style lang="scss" scoped>
@@ -873,6 +1114,16 @@ onShareAppMessage(() => ({
 .owner-action-bar .share-button {
   background: $wplink-card;
   color: $wplink-primary;
+}
+
+.share-cover-canvas {
+  position: fixed;
+  left: -9999px;
+  top: -9999px;
+  width: 600px;
+  height: 480px;
+  pointer-events: none;
+  opacity: 0;
 }
 
 .sheet-mask {

@@ -38,6 +38,10 @@
           <el-icon><Medal /></el-icon>
           <span>VIP 配置</span>
         </el-menu-item>
+        <el-menu-item index="/growth-campaigns">
+          <el-icon><Tickets /></el-icon>
+          <span>增长活动</span>
+        </el-menu-item>
         <el-menu-item index="/sourcing-map">
           <el-icon><MapLocation /></el-icon>
           <span>拿货地图</span>

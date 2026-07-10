@@ -38,6 +38,9 @@ func TestRecordContactRecordsPhoneEventAndMetric(t *testing.T) {
 	if resp.Phone != "18800000002" || resp.Action != "phone" || resp.Message != "电话已解锁" {
 		t.Fatalf("resp = %#v, want unlocked phone", resp)
 	}
+	if store.growthInput.EventType != model.GrowthEventResourceShareEffectiveContact || store.growthInput.EventID != "event-1" || store.growthInput.MerchantID != "merchant-1" {
+		t.Fatalf("growthInput = %#v, want effective contact growth event", store.growthInput)
+	}
 }
 
 func TestRecordContactReturnsWechatOnlyAfterSuccessfulUnlock(t *testing.T) {
@@ -144,6 +147,23 @@ func TestRecordContactRecordsShareMetric(t *testing.T) {
 	if store.metricDelta.ContactClickCount != 1 || store.metricDelta.ShareCount != 1 {
 		t.Fatalf("metricDelta = %#v, want share counters", store.metricDelta)
 	}
+	if store.growthInput.EventType != "" {
+		t.Fatalf("growthInput = %#v, want no reward for raw share action", store.growthInput)
+	}
+}
+
+func TestRecordContactRecordsShareViewGrowthEvent(t *testing.T) {
+	store := &fakeContactStore{eventResult: model.ResourceContactEventResult{ID: "event-2", MerchantID: "merchant-1"}}
+	logic := NewRecordContactLogic(store)
+
+	_, err := logic.RecordContact(context.Background(), RecordContactReq{ResourceID: "resource-1", UserID: "user-2", Action: "share_view"})
+	if err != nil {
+		t.Fatalf("RecordContact() error = %v", err)
+	}
+
+	if store.growthInput.EventType != model.GrowthEventResourceShareEffectiveView || store.growthInput.EventID != "event-2" {
+		t.Fatalf("growthInput = %#v, want share view growth event", store.growthInput)
+	}
 }
 
 func TestRecordContactAcceptsMerchantProfileAlias(t *testing.T) {
@@ -164,6 +184,7 @@ type fakeContactStore struct {
 	eventInput          model.ResourceContactEventInput
 	eventResult         model.ResourceContactEventResult
 	metricDelta         model.ResourceMetricDelta
+	growthInput         model.GrowthEventInput
 	userManagedMerchant bool
 }
 
@@ -184,4 +205,9 @@ func (s *fakeContactStore) RecordResourceContactEvent(ctx context.Context, input
 func (s *fakeContactStore) UpsertResourceMetric(ctx context.Context, delta model.ResourceMetricDelta) error {
 	s.metricDelta = delta
 	return nil
+}
+
+func (s *fakeContactStore) TriggerGrowthEvent(ctx context.Context, input model.GrowthEventInput) ([]model.GrowthRewardGrantResult, error) {
+	s.growthInput = input
+	return nil, nil
 }

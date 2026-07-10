@@ -65,6 +65,10 @@ type VIPAPIStore interface {
 	adminlogic.VIPConfigAdminStore
 }
 
+type GrowthCampaignAPIStore interface {
+	adminlogic.GrowthCampaignAdminStore
+}
+
 type TopVoucherMerchantStore interface {
 	GetTopVoucherMerchantID(ctx context.Context, voucherID string) (string, error)
 }
@@ -116,6 +120,9 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	}
 	if vipStore, ok := store.(VIPAPIStore); ok {
 		registerVIPRoutes(mux, vipStore, userTokenService, adminTokenService, permissionStore, wechatPayGateway, wechatPayDevMock)
+	}
+	if growthStore, ok := store.(GrowthCampaignAPIStore); ok {
+		registerGrowthCampaignRoutes(mux, growthStore, adminTokenService)
 	}
 	if messageStore, ok := store.(MessageAPIStore); ok {
 		registerMessageRoutes(mux, messageStore, userTokenService, adminTokenService, permissionStore)
@@ -633,6 +640,84 @@ func registerEntitlementRoutes(mux *http.ServeMux, store EntitlementAPIStore, to
 			body.OperatorID = operatorID
 		}
 		resp, err := adminlogic.NewEntitlementAdminLogic(store).GrantMerchantEntitlement(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
+}
+
+func registerGrowthCampaignRoutes(mux *http.ServeMux, store GrowthCampaignAPIStore, adminTokenService AdminTokenService) {
+	mux.HandleFunc("GET /api/v1/admin/growth-campaigns", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := adminlogic.NewGrowthCampaignAdminLogic(store).ListGrowthCampaigns(r.Context(), r.URL.Query().Get("status"))
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/growth-campaigns", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveGrowthCampaignReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewGrowthCampaignAdminLogic(store).SaveGrowthCampaign(r.Context(), "", body, operatorID)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/growth-campaigns/{campaignCode}", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveGrowthCampaignReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewGrowthCampaignAdminLogic(store).SaveGrowthCampaign(r.Context(), r.PathValue("campaignCode"), body, operatorID)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/growth-campaigns/{campaignCode}/rules", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := adminlogic.NewGrowthCampaignAdminLogic(store).ListGrowthRules(r.Context(), r.PathValue("campaignCode"))
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/growth-campaigns/{campaignCode}/rules", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveGrowthRuleReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewGrowthCampaignAdminLogic(store).SaveGrowthRule(r.Context(), r.PathValue("campaignCode"), "", body, operatorID)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/growth-campaigns/{campaignCode}/rules/{ruleCode}", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.SaveGrowthRuleReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewGrowthCampaignAdminLogic(store).SaveGrowthRule(r.Context(), r.PathValue("campaignCode"), r.PathValue("ruleCode"), body, operatorID)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/growth-campaigns/{campaignCode}/grants", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		resp, err := adminlogic.NewGrowthCampaignAdminLogic(store).ListGrowthRewardGrants(r.Context(), model.AdminGrowthRewardGrantFilter{
+			CampaignCode: r.PathValue("campaignCode"),
+			RuleCode:     query.Get("ruleCode"),
+			MerchantID:   query.Get("merchantId"),
+			Status:       query.Get("status"),
+			PageSize:     int64FromQuery(r, "pageSize"),
+		})
 		response.JSON(w, resp, err)
 	})
 }

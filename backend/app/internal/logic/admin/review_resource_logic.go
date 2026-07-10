@@ -14,6 +14,10 @@ type ReviewResourceStore interface {
 	ReviewResource(ctx context.Context, resourceID string, input model.ReviewResourceInput) (model.ReviewResourceResult, error)
 }
 
+type ResourceReviewGrowthStore interface {
+	TriggerGrowthEvent(ctx context.Context, input model.GrowthEventInput) ([]model.GrowthRewardGrantResult, error)
+}
+
 type ReviewResourceReq struct {
 	Action     string
 	Reason     string
@@ -59,7 +63,27 @@ func (l *ReviewResourceLogic) ReviewResource(ctx context.Context, resourceID str
 	}
 	// 资源审核会改变前台可见性，记录状态流转方便上线后追溯误审、下架和驳回问题。
 	logx.Infof("管理员审核资源成功: resourceId=%s reviewerId=%s action=%s newStatus=%s", result.ID, strings.TrimSpace(req.ReviewerID), action, result.Status)
+	l.triggerResourceApprovedGrowthReward(ctx, result, strings.TrimSpace(req.ReviewerID), action)
 	return ReviewResourceResp{ID: result.ID, Status: result.Status, Message: reviewMessage(action)}, nil
+}
+
+func (l *ReviewResourceLogic) triggerResourceApprovedGrowthReward(ctx context.Context, result model.ReviewResourceResult, reviewerID string, action string) {
+	if action != "approve" || result.Status != model.ResourceStatusPublished {
+		return
+	}
+	growthStore, ok := l.store.(ResourceReviewGrowthStore)
+	if !ok {
+		return
+	}
+	for _, eventType := range []string{model.GrowthEventResourceFirstApproved, model.GrowthEventResourceApprovedCountReached} {
+		// 审核通过后的成长奖励是运营激励，失败不能改变审核结果，只记录日志待后台排查或补发。
+		if _, err := growthStore.TriggerGrowthEvent(ctx, model.GrowthEventInput{
+			EventType:  eventType,
+			ResourceID: result.ID,
+		}); err != nil {
+			logx.Errorf("资源审核通过后触发成长权益失败: resourceId=%s reviewerId=%s eventType=%s err=%+v", result.ID, reviewerID, eventType, err)
+		}
+	}
 }
 
 func reviewMessage(action string) string {

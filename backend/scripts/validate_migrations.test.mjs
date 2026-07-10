@@ -161,6 +161,36 @@ test('entitlement migrations store top vouchers as merchant entitlement batches 
   assert(upgradeSql.includes('DROP TABLE IF EXISTS top_vouchers'), 'upgrade migration should drop retired top_vouchers table')
 })
 
+test('growth campaign migration supports configurable stoppable rewards', () => {
+  const upSql = fs.readFileSync(path.resolve(migrationsDir, '000020_growth_campaigns.up.sql'), 'utf8')
+  const downSql = fs.readFileSync(path.resolve(migrationsDir, '000020_growth_campaigns.down.sql'), 'utf8')
+
+  for (const snippet of [
+    'CREATE TABLE IF NOT EXISTS growth_campaigns',
+    'CREATE TABLE IF NOT EXISTS growth_campaign_rules',
+    'CREATE TABLE IF NOT EXISTS growth_reward_grants',
+    "status varchar(32) NOT NULL DEFAULT 'draft'",
+    'idempotency_key varchar(255) NOT NULL',
+    'UNIQUE (idempotency_key)',
+    'idx_growth_campaign_rules_campaign_status',
+    'idx_growth_reward_grants_merchant',
+    "'growth_campaign'",
+    "'share_view_refresh_quota', 'resource_share_effective_view', 'inactive'",
+    "'invitee_first_resource_approved', 'invitee_first_resource_approved', 'inactive'",
+  ]) {
+    assert(upSql.includes(snippet), `growth campaign migration should include snippet ${snippet}`)
+  }
+  assert(!upSql.includes("'top_voucher'"), 'growth campaign rewards should not expose top vouchers before top parameters are configurable')
+
+  for (const snippet of [
+    'DROP TABLE IF EXISTS growth_reward_grants',
+    'DROP TABLE IF EXISTS growth_campaign_rules',
+    'DROP TABLE IF EXISTS growth_campaigns',
+  ]) {
+    assert(downSql.includes(snippet), `growth campaign rollback should include snippet ${snippet}`)
+  }
+})
+
 test('resource type seed uses type-specific publish fields and summary mappings', () => {
   const seedSql = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')
   const rentalDisplaySql = fs.readFileSync(path.resolve(migrationsDir, '000014_resource_type_display_names.up.sql'), 'utf8')

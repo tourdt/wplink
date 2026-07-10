@@ -30,6 +30,10 @@ type TokenService interface {
 	ParseUserToken(ctx context.Context, token string) (session.UserTokenSubject, error)
 }
 
+type GrowthEventStore interface {
+	TriggerGrowthEvent(ctx context.Context, input model.GrowthEventInput) ([]model.GrowthRewardGrantResult, error)
+}
+
 type WechatLoginReq struct {
 	Code            string `json:"code"`
 	DefaultCityCode string `json:"defaultCityCode,omitempty"`
@@ -126,6 +130,7 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 	if err != nil {
 		return WechatLoginResp{}, err
 	}
+	l.triggerFirstLoginGrowthReward(ctx, profile)
 	roles := normalizedRoles(profile.Roles)
 	token, err := l.tokenService.IssueUserToken(ctx, session.UserTokenSubject{UserID: profile.ID, Roles: roles})
 	if err != nil {
@@ -138,6 +143,28 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 		User:             authUserInfoFromProfile(profile),
 		ManagedMerchants: managedMerchantInfosFromProfile(profile),
 	}, nil
+}
+
+func (l *WechatLoginLogic) triggerFirstLoginGrowthReward(ctx context.Context, profile model.UserProfile) {
+	growthStore, ok := l.store.(GrowthEventStore)
+	if !ok {
+		return
+	}
+	for _, merchant := range profile.ManagedMerchants {
+		merchantID := strings.TrimSpace(merchant.ID)
+		if merchantID == "" {
+			continue
+		}
+		// 新手发布权益以默认商家为归属发放；失败只影响权益到账，不能阻断登录主流程。
+		if _, err := growthStore.TriggerGrowthEvent(ctx, model.GrowthEventInput{
+			EventType:  model.GrowthEventUserFirstLogin,
+			MerchantID: merchantID,
+			UserID:     profile.ID,
+		}); err != nil {
+			logx.Errorf("登录后触发新手成长权益失败: userId=%s merchantId=%s err=%+v", profile.ID, merchantID, err)
+		}
+		return
+	}
 }
 
 func (l *WechatLoginLogic) ensureDefaultMerchantProfile(ctx context.Context, profile model.UserProfile, cityCode string) (model.UserProfile, error) {

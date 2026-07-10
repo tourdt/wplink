@@ -82,6 +82,22 @@ test('resource detail unlocks contact through backend before copy or call', () =
   assert.equal(source.includes('已记录联系，完整电话由平台保护'), false)
 })
 
+test('resource detail supports WeChat group and timeline sharing with generated cover image', () => {
+  assert.match(source, /import \{ onLoad, onReady, onShareAppMessage, onShareTimeline \} from '@dcloudio\/uni-app'/)
+  assert.match(source, /buildResourceSharePayload/)
+  assert.match(source, /buildResourceTimelinePayload/)
+  assert.match(source, /buildResourceSharePosterModel/)
+  assert.match(source, /RESOURCE_SHARE_COVER_CANVAS_ID/)
+  assert.match(source, /RESOURCE_SHARE_COVER_SIZE/)
+  assert.match(source, /const shareImageUrl = ref\(''\)/)
+  assert.match(source, /<canvas[\s\S]*canvas-id="resourceShareCoverCanvas"[\s\S]*class="share-cover-canvas"[\s\S]*:width="shareCoverCanvasSize\.width"[\s\S]*:height="shareCoverCanvasSize\.height"/)
+  assert.match(source, /uni\.showShareMenu\(\{[\s\S]*menus: \['shareAppMessage', 'shareTimeline'\][\s\S]*\}\)/)
+  assert.match(source, /uni\.canvasToTempFilePath\(\{[\s\S]*canvasId: RESOURCE_SHARE_COVER_CANVAS_ID[\s\S]*success: \(res\) => resolve\(res\.tempFilePath \|\| ''\)/)
+  assert.match(source, /onShareAppMessage\(\(shareEvent\) => \{[\s\S]*buildResourceSharePayload\(resource\.value, shareImageUrl\.value\)[\s\S]*\}\)/)
+  assert.match(source, /onShareTimeline\(\(\) => \{[\s\S]*buildResourceTimelinePayload\(resource\.value, shareImageUrl\.value\)[\s\S]*\}\)/)
+  assert.match(source, /\.share-cover-canvas \{[\s\S]*position: fixed;[\s\S]*left: -9999px;[\s\S]*width: 600px;[\s\S]*height: 480px;/)
+})
+
 test('resource detail renders configured attribute items as specs', () => {
   assert.match(source, /const attributeSpecItems = computed\(\(\) =>/)
   assert.match(source, /resource\.value\.attributeItems \|\| \[\]/)

@@ -9,6 +9,8 @@ import (
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type ContactStore interface {
@@ -16,6 +18,10 @@ type ContactStore interface {
 	UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error)
 	RecordResourceContactEvent(ctx context.Context, input model.ResourceContactEventInput) (model.ResourceContactEventResult, error)
 	UpsertResourceMetric(ctx context.Context, delta model.ResourceMetricDelta) error
+}
+
+type ContactGrowthStore interface {
+	TriggerGrowthEvent(ctx context.Context, input model.GrowthEventInput) ([]model.GrowthRewardGrantResult, error)
 }
 
 type RecordContactReq struct {
@@ -58,16 +64,44 @@ func (l *RecordContactLogic) RecordContact(ctx context.Context, req RecordContac
 	if skipRecord {
 		return contactResp, nil
 	}
-	if _, err := l.store.RecordResourceContactEvent(ctx, input); err != nil {
+	eventResult, err := l.store.RecordResourceContactEvent(ctx, input)
+	if err != nil {
 		return RecordContactResp{}, err
 	}
 	if err := l.store.UpsertResourceMetric(ctx, contactMetricDelta(input.ResourceID, input.Action)); err != nil {
 		return RecordContactResp{}, err
 	}
+	l.triggerContactGrowthReward(ctx, input, eventResult)
 	if contactResp.Message != "" {
 		return contactResp, nil
 	}
 	return RecordContactResp{Message: "联系行为已记录", Action: input.Action}, nil
+}
+
+func (l *RecordContactLogic) triggerContactGrowthReward(ctx context.Context, input model.ResourceContactEventInput, eventResult model.ResourceContactEventResult) {
+	growthStore, ok := l.store.(ContactGrowthStore)
+	if !ok {
+		return
+	}
+	eventType := ""
+	switch input.Action {
+	case "phone", "wechat":
+		eventType = model.GrowthEventResourceShareEffectiveContact
+	case "share_view":
+		eventType = model.GrowthEventResourceShareEffectiveView
+	default:
+		return
+	}
+	// 联系/分享归因奖励失败不能影响用户查看联系方式或分享主流程，记录日志后由后台补偿。
+	if _, err := growthStore.TriggerGrowthEvent(ctx, model.GrowthEventInput{
+		EventType:  eventType,
+		MerchantID: eventResult.MerchantID,
+		UserID:     input.UserID,
+		ResourceID: input.ResourceID,
+		EventID:    eventResult.ID,
+	}); err != nil {
+		logx.Errorf("联系事件触发成长权益失败: resourceId=%s userId=%s action=%s eventId=%s err=%+v", input.ResourceID, input.UserID, input.Action, eventResult.ID, err)
+	}
 }
 
 func (l *RecordContactLogic) validateContactUnlock(ctx context.Context, input model.ResourceContactEventInput) (RecordContactResp, bool, error) {
@@ -115,7 +149,7 @@ func isExpired(expiresAt sql.NullTime) bool {
 
 func isSupportedContactAction(action string) bool {
 	switch action {
-	case "phone", "wechat", "merchant_home", "merchant_profile", "share":
+	case "phone", "wechat", "merchant_home", "merchant_profile", "share", "share_view":
 		return true
 	default:
 		return false

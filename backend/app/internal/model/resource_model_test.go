@@ -112,9 +112,9 @@ func TestProfileMonthlyBenefitsForStatus(t *testing.T) {
 		publishQuota int64
 		refreshQuota int64
 	}{
-		{name: "incomplete merchant gets starter publish quota", status: MerchantProfileStatusIncomplete, publishQuota: 3, refreshQuota: 0},
-		{name: "completed merchant gets more monthly quota", status: MerchantProfileStatusCompleted, publishQuota: 10, refreshQuota: 3},
-		{name: "unknown status falls back to starter publish quota", status: " ", publishQuota: 3, refreshQuota: 0},
+		{name: "incomplete merchant no longer gets profile monthly quota", status: MerchantProfileStatusIncomplete, publishQuota: 0, refreshQuota: 0},
+		{name: "completed merchant no longer gets more quota from merchant card", status: MerchantProfileStatusCompleted, publishQuota: 0, refreshQuota: 0},
+		{name: "unknown status no longer falls back to profile quota", status: " ", publishQuota: 0, refreshQuota: 0},
 	}
 
 	for _, tt := range tests {
