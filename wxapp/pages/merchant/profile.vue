@@ -9,27 +9,58 @@
           </view>
         </view>
         <view class="section-body">
+          <view class="form-field logo-field">
+            <view class="logo-layout">
+              <view class="logo-copy">
+                <text class="field-label">头像 / LOGO</text>
+                <text class="image-helper">正方形头像或 LOGO，裁剪后保存</text>
+              </view>
+              <view v-if="logoPreviewUrl" class="logo-preview-wrap">
+                <button class="logo-preview-tile" @click="previewMerchantLogo">
+                  <image class="logo-preview" :src="logoPreviewUrl" mode="aspectFill" />
+                </button>
+                <button
+                  class="logo-change-button"
+                  :disabled="submitting"
+                  open-type="chooseAvatar"
+                  @chooseavatar="onChooseMerchantLogoAvatar"
+                >
+                  更换图片
+                </button>
+              </view>
+              <button
+                v-else
+                class="logo-upload-tile"
+                :disabled="submitting"
+                open-type="chooseAvatar"
+                @chooseavatar="onChooseMerchantLogoAvatar"
+              >
+                <view class="logo-plus">
+                  <view class="logo-plus-icon" />
+                </view>
+              </button>
+            </view>
+          </view>
           <view class="form-field">
-            <text class="field-label">商家名称</text>
-            <input v-model="form.name" class="field" :disabled="Boolean(merchantId)" placeholder="请输入商家名称" />
+            <text class="field-label">展示名称</text>
+            <input v-model="form.name" class="field" placeholder="请输入展示名称" />
           </view>
           <view class="form-field">
             <text class="field-label">主要身份</text>
             <picker :range="merchantTypeOptions" range-key="label" @change="changeMerchantType">
               <view class="field picker-field">{{ currentMerchantTypeLabel }}</view>
             </picker>
-            <text class="field-helper">选择最主要的经营身份，其他业务可写在主营品类和介绍里。</text>
             <text v-if="merchantTypeChangeNeedsReverify" class="field-helper warning-helper">
               修改后可能需要重新认证，保存后需重新提交认证。
             </text>
           </view>
           <view class="form-field">
-            <text class="field-label">主营品类</text>
-            <input v-model="mainCategoriesText" class="field" placeholder="如：童装,面料" />
+            <text class="field-label">主营内容</text>
+            <input v-model="mainCategoriesText" class="field" placeholder="如：童装现货、女装尾货、厂房出租、档口转让、设备转让" />
           </view>
           <view class="form-field">
-            <text class="field-label">商家介绍</text>
-            <textarea v-model="form.description" class="textarea" placeholder="主营供给、供货能力" />
+            <text class="field-label">简介</text>
+            <textarea v-model="form.description" class="textarea" placeholder="比如：主做童装现货，支持看样和小单补货" />
           </view>
         </view>
       </view>
@@ -64,9 +95,9 @@
             <input v-model="form.contactWechat" class="field" :placeholder="contactWechatPlaceholder" />
           </view>
           <view class="form-field">
-            <text class="field-label">商家地址</text>
+            <text class="field-label">经营地址</text>
             <view class="address-row">
-              <input v-model="form.addressText" class="field" placeholder="请输入地址" />
+              <input v-model="form.addressText" class="field" placeholder="请输入经营地址" />
               <button class="map-button" @click="chooseMerchantLocation">地图选择</button>
             </view>
             <view class="location-status">
@@ -81,51 +112,19 @@
         <button class="section-toggle" @click="toggleBrandSection">
           <view>
             <view class="section-title-row">
-              <text class="section-title">品牌展示</text>
+              <text class="section-title">主页展示</text>
             </view>
-            <text class="section-summary">头像、卡片、主页图</text>
+            <text class="section-summary">补充公开展示图片</text>
           </view>
           <text class="toggle-mark">{{ brandSectionOpen ? '收起' : '展开' }}</text>
         </button>
         <view v-if="brandSectionOpen" class="section-body brand-fields">
-          <view class="form-field logo-field">
-            <view class="logo-layout">
-              <view class="logo-copy">
-                <text class="field-label">商家 LOGO</text>
-                <text class="image-helper">正方形 LOGO，裁剪后保存</text>
-              </view>
-              <view v-if="logoPreviewUrl" class="logo-preview-wrap">
-                <button class="logo-preview-tile" @click="previewMerchantLogo">
-                  <image class="logo-preview" :src="logoPreviewUrl" mode="aspectFill" />
-                </button>
-                <button
-                  class="logo-change-button"
-                  :disabled="submitting"
-                  open-type="chooseAvatar"
-                  @chooseavatar="onChooseMerchantLogoAvatar"
-                >
-                  更换 LOGO
-                </button>
-              </view>
-              <button
-                v-else
-                class="logo-upload-tile"
-                :disabled="submitting"
-                open-type="chooseAvatar"
-                @chooseavatar="onChooseMerchantLogoAvatar"
-              >
-                <view class="logo-plus">
-                  <view class="logo-plus-icon" />
-                </view>
-              </button>
-            </view>
-          </view>
           <view class="form-field image-field">
             <view class="image-title-row">
-              <text class="field-label">资料图片</text>
+              <text class="field-label">展示图片</text>
               <text class="image-count">{{ merchantImageEntries.length }}/{{ merchantProfileImageMaxCount }}</text>
             </view>
-            <text class="image-helper">公开展示图，点击图片预览，点击最后一格添加</text>
+            <text class="image-helper">公开展示图片，点击图片预览，点击最后一格添加</text>
             <view class="image-grid-wrap">
               <UniGrid :column="3" :show-border="false" :square="true" @change="onMerchantImageGridItemClick">
                 <UniGridItem v-for="(item, index) in merchantImageGridItems" :key="item.id" :index="index">
@@ -178,12 +177,17 @@ import {
 } from '../../common/merchantProfileImages'
 import { getMerchantId, saveMerchantId } from '../../store/session'
 
+const DEFAULT_MERCHANT_TYPE = 'individual'
 const merchantTypeOptions = [
+  { label: '个人', value: 'individual' },
   { label: '源头工厂', value: 'factory' },
-  { label: '现货档口', value: 'stall' },
   { label: '库存货源', value: 'stockist' },
   { label: '配套服务', value: 'service_provider' },
+  { label: '采购', value: 'buyer' },
 ]
+const legacyMerchantTypeText = {
+  stall: '现货档口',
+}
 
 const merchantId = ref('')
 const submitting = ref(false)
@@ -191,7 +195,7 @@ const contactSectionOpen = ref(false)
 const brandSectionOpen = ref(false)
 const contactPhoneHint = ref('')
 const contactWechatHint = ref('')
-const originalMerchantType = ref('factory')
+const originalMerchantType = ref(DEFAULT_MERCHANT_TYPE)
 const merchantVerificationStatus = ref('unverified')
 const mainCategoriesText = ref('')
 const pendingLogoFile = ref(null)
@@ -214,12 +218,12 @@ const hasPendingImages = computed(() => Boolean(
 ))
 const saveButtonText = computed(() => {
   if (hasPendingImages.value) return '上传并保存'
-  return merchantId.value ? '保存资料' : '提交入驻'
+  return '保存资料'
 })
 const form = reactive({
   cityCode: DEFAULT_CITY_CODE,
   name: '',
-  merchantType: 'factory',
+  merchantType: DEFAULT_MERCHANT_TYPE,
   contactName: '',
   contactPhone: '',
   contactWechat: '',
@@ -231,7 +235,7 @@ const form = reactive({
 
 const currentMerchantTypeLabel = computed(() => {
   const matched = merchantTypeOptions.find((item) => item.value === form.merchantType) || {}
-  return matched.label || '源头工厂'
+  return matched.label || legacyMerchantTypeText[form.merchantType] || '个人'
 })
 const contactWechatPlaceholder = computed(() => {
   if (!merchantId.value || !contactWechatHint.value) return '微信号'
@@ -252,7 +256,7 @@ async function loadMerchant() {
     const detail = await getMerchant(merchantId.value)
     form.name = detail.name || ''
     form.cityCode = detail.cityCode || DEFAULT_CITY_CODE
-    form.merchantType = detail.merchantType || 'factory'
+    form.merchantType = detail.merchantType || DEFAULT_MERCHANT_TYPE
     originalMerchantType.value = form.merchantType
     merchantVerificationStatus.value = detail.verificationStatus || 'unverified'
     const contact = detail.contact || {}
@@ -272,7 +276,7 @@ async function loadMerchant() {
     brandSectionOpen.value = Boolean(form.logoUrl || merchantImageEntries.value.length > 0)
     await loadMerchantVerificationStatus()
   } catch (err) {
-    uni.showToast({ title: err.message || '商家资料加载失败', icon: 'none' })
+    uni.showToast({ title: err.message || '资料加载失败', icon: 'none' })
   }
 }
 
@@ -297,7 +301,7 @@ function toggleContactSection() {
 
 function changeMerchantType(event) {
   const selected = merchantTypeOptions[Number(event.detail.value)] || {}
-  form.merchantType = selected.value || 'factory'
+  form.merchantType = selected.value || DEFAULT_MERCHANT_TYPE
 }
 
 async function submitMerchantProfile() {
@@ -310,7 +314,7 @@ async function submitMerchantProfile() {
     return
   }
   if (mainCategories.length === 0) {
-    uni.showToast({ title: '请填写主营品类', icon: 'none' })
+    uni.showToast({ title: '请填写主营内容', icon: 'none' })
     return
   }
   if (normalizedContactPhone && !isValidContactPhone(normalizedContactPhone)) {
@@ -324,6 +328,7 @@ async function submitMerchantProfile() {
     const images = getStoredMerchantImageUrls(merchantImageEntries.value)
     if (merchantId.value) {
       const patch = {
+        name: form.name.trim(),
         mainCategories,
         merchantType: form.merchantType,
         description: form.description.trim(),
@@ -373,9 +378,9 @@ async function submitMerchantProfile() {
         })
       }
     }
-    uni.showToast({ title: needsReverifyAfterSave ? '已保存，请重新提交认证' : '商家资料已保存', icon: 'none' })
+    uni.showToast({ title: needsReverifyAfterSave ? '已保存，请重新提交认证' : '资料已保存', icon: 'none' })
   } catch (err) {
-    uni.showToast({ title: err.message || '商家资料保存失败', icon: 'none' })
+    uni.showToast({ title: err.message || '资料保存失败', icon: 'none' })
   } finally {
     submitting.value = false
   }

@@ -830,9 +830,13 @@ test('admin merchant identity wording matches mini program copy', () => {
   const identitySource = fs.readFileSync(path.join(root, 'src/common/merchantIdentity.js'), 'utf8')
   const combinedSource = [merchantSource, verificationSource, entitlementSource, bannerSource, identitySource].join('\n')
 
-  for (const token of ['主要身份', '源头工厂', '现货档口', '库存货源', '配套服务']) {
+  for (const token of ['主要身份', '个人', '场地/设备方', '源头工厂', '现货档口', '库存货源', '配套服务', '采购']) {
     assert.match(combinedSource, new RegExp(token))
   }
+  assert.doesNotMatch(identitySource, /merchantIdentityOptions = \[[\s\S]*value: 'stall'/)
+  assert.doesNotMatch(identitySource, /\{ label: '场地\/设备方', value: 'rental_provider' \}/)
+  assert.match(identitySource, /stall: '现货档口'/)
+  assert.match(identitySource, /rental_provider: '场地\/设备方'/)
 
   for (const oldToken of [
     '商家类型',

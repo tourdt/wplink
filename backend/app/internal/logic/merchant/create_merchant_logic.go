@@ -55,7 +55,7 @@ func (l *CreateMerchantLogic) CreateMerchant(ctx context.Context, req CreateMerc
 		Description:    strings.TrimSpace(req.Description),
 	}
 	if input.CityCode == "" || input.Name == "" || input.MerchantType == "" || len(input.MainCategories) == 0 {
-		return CreateMerchantResp{}, errx.New(errx.CodeValidationFailed, "请补充商家名称、类型和主营品类")
+		return CreateMerchantResp{}, errx.New(errx.CodeValidationFailed, "请补充展示名称、主要身份和主营内容")
 	}
 	if err := validateMerchantName(input.Name); err != nil {
 		return CreateMerchantResp{}, err

@@ -21,3 +21,4 @@ backend/etc/AppleRootCA-G3.cer
 backend/etc/SubscriptionKey.p8
 logs/
 backend/logs/
+backend/app/internal/adminweb/dist/

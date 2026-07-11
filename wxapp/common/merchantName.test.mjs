@@ -9,10 +9,10 @@ test('accepts normal merchant name', () => {
 
 test('rejects misleading merchant name keywords', () => {
   for (const name of ['织里官方童装厂', '织里认证工厂', '平台推荐童装厂']) {
-    assert.equal(validateMerchantName(name), '商家名称不能包含认证、官方等容易误导的字样')
+    assert.equal(validateMerchantName(name), '展示名称不能包含认证、官方等容易误导的字样')
   }
 })
 
 test('rejects empty merchant name', () => {
-  assert.equal(validateMerchantName('  '), '请填写商家名称')
+  assert.equal(validateMerchantName('  '), '请填写展示名称')
 })

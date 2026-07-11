@@ -25,6 +25,7 @@ func TestUpdateMerchantPassesPatchToStore(t *testing.T) {
 	logic := NewUpdateMerchantLogic(store, verifier)
 
 	resp, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+		Name:           "  织里晨星童装  ",
 		MainCategories: []string{"童装", "卫衣"},
 		MerchantType:   " stockist ",
 		Description:    "支持小单快反",
@@ -42,6 +43,9 @@ func TestUpdateMerchantPassesPatchToStore(t *testing.T) {
 
 	if store.merchantID != "merchant-1" {
 		t.Fatalf("merchantID = %q, want merchant-1", store.merchantID)
+	}
+	if store.patch.Name != "织里晨星童装" {
+		t.Fatalf("name = %q, want trimmed merchant display name", store.patch.Name)
 	}
 	if store.patch.Description != "支持小单快反" {
 		t.Fatalf("description = %q, want updated description", store.patch.Description)
@@ -66,6 +70,23 @@ func TestUpdateMerchantPassesPatchToStore(t *testing.T) {
 	}
 	if resp.UpdatedAt != "2026-06-27T10:00:00+08:00" {
 		t.Fatalf("updatedAt = %q, want fixed time", resp.UpdatedAt)
+	}
+}
+
+func TestUpdateMerchantRejectsMisleadingName(t *testing.T) {
+	store := &fakeMerchantUpdateStore{updatedAt: "2026-06-27T10:00:00+08:00"}
+	logic := NewUpdateMerchantLogic(store)
+
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+		Name:           "官方认证童装",
+		MainCategories: []string{"童装"},
+	})
+
+	if err == nil || err.Error() != "展示名称不能包含认证、官方等容易误导的字样" {
+		t.Fatalf("error = %v, want misleading display name message", err)
+	}
+	if store.merchantID != "" {
+		t.Fatalf("store was called for invalid merchant display name update")
 	}
 }
 

@@ -67,6 +67,7 @@ type MerchantDetail struct {
 }
 
 type UpdateMerchantPatch struct {
+	Name           string
 	MainCategories []string
 	MerchantType   string
 	Description    string
@@ -326,21 +327,22 @@ FOR UPDATE
 		result, err := tx.ExecContext(ctx, `
 UPDATE merchants
 SET
-  main_categories = $2,
-  merchant_type = $3,
-  verification_status = $4,
-  description = $5,
-  logo_url = $6,
-  images = $7,
-  updated_at = $8,
-  contact_name = COALESCE(NULLIF($9, ''), contact_name),
-  contact_phone = COALESCE(NULLIF($10, ''), contact_phone),
-  contact_wechat = COALESCE(NULLIF($11, ''), contact_wechat),
-  address_text = COALESCE(NULLIF($12, ''), address_text),
-  location = CASE WHEN $13 THEN $14 ELSE location END,
+  name = COALESCE(NULLIF($2, ''), name),
+  main_categories = $3,
+  merchant_type = $4,
+  verification_status = $5,
+  description = $6,
+  logo_url = $7,
+  images = $8,
+  updated_at = $9,
+  contact_name = COALESCE(NULLIF($10, ''), contact_name),
+  contact_phone = COALESCE(NULLIF($11, ''), contact_phone),
+  contact_wechat = COALESCE(NULLIF($12, ''), contact_wechat),
+  address_text = COALESCE(NULLIF($13, ''), address_text),
+  location = CASE WHEN $14 THEN $15 ELSE location END,
   profile_status = 'completed'
 WHERE id = $1 AND deleted_at IS NULL
-`, merchantID, JSONStringSlice(patch.MainCategories), nextMerchantType, nextVerificationStatus, patch.Description, patch.LogoURL, JSONStringSlice(patch.Images), updatedAt, patch.ContactName, patch.ContactPhone, patch.ContactWechat, patch.AddressText, patch.LocationSet, patch.Location)
+`, merchantID, patch.Name, JSONStringSlice(patch.MainCategories), nextMerchantType, nextVerificationStatus, patch.Description, patch.LogoURL, JSONStringSlice(patch.Images), updatedAt, patch.ContactName, patch.ContactPhone, patch.ContactWechat, patch.AddressText, patch.LocationSet, patch.Location)
 		if err != nil {
 			return err
 		}

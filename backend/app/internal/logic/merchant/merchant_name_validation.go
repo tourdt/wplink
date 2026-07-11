@@ -6,7 +6,7 @@ import (
 	"wplink/backend/common/errx"
 )
 
-const misleadingMerchantNameMessage = "商家名称不能包含认证、官方等容易误导的字样"
+const misleadingMerchantNameMessage = "展示名称不能包含认证、官方等容易误导的字样"
 
 var misleadingMerchantNameKeywords = []string{
 	"认证",

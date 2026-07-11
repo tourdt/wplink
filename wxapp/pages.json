@@ -105,7 +105,7 @@
     {
       "path": "pages/merchant/profile",
       "style": {
-        "navigationBarTitleText": "商家资料"
+        "navigationBarTitleText": "资料设置"
       }
     },
     {

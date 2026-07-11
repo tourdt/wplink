@@ -262,7 +262,7 @@ export const defaultFlowChecks = [
       'toggleContactSection',
       'validateMerchantName',
       'merchantNameMessage',
-      '请填写主营品类',
+      '请填写主营内容',
     ],
   },
   {

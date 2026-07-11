@@ -664,16 +664,16 @@ test('merchant profile page labels every field and removes manual image url entr
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
 
   for (const token of [
-    '商家名称',
+    '展示名称',
     '主要身份',
-    '主营品类',
+    '主营内容',
     '联系人',
     '联系电话',
     '微信',
-    '商家地址',
-    '商家介绍',
-    '资料图片',
-    '公开展示图',
+    '经营地址',
+    '简介',
+    '展示图片',
+    '公开展示图片',
     'form-field',
     'field-label',
     'image-helper',
@@ -683,6 +683,67 @@ test('merchant profile page labels every field and removes manual image url entr
 
   assert.equal(source.includes('也可粘贴图片 URL'), false)
   assert.equal(source.includes('图片 URL'), false)
+})
+
+test('merchant profile page uses neutral profile setup wording and keeps basic field order', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const profilePage = pagesConfig.pages.find((entry) => entry.path === 'pages/merchant/profile')
+
+  assert.equal(profilePage?.style?.navigationBarTitleText, '资料设置')
+  for (const token of [
+    '展示名称',
+    '请输入展示名称',
+    '主要身份',
+    '主营内容',
+    '如：童装现货、女装尾货、厂房出租、档口转让、设备转让',
+    '请填写主营内容',
+    '简介',
+    '经营地址',
+    '头像 / LOGO',
+    '主页展示',
+    '补充公开展示图片',
+    '展示图片',
+    '资料加载失败',
+    '资料已保存',
+    '资料保存失败',
+  ]) {
+    assert.match(source, new RegExp(token))
+  }
+
+  const basicSectionEndIndex = source.indexOf('<view class="form-section contact-section">')
+  const basicSectionSource = source.slice(0, basicSectionEndIndex)
+  const logoIndex = basicSectionSource.indexOf('头像 / LOGO')
+  const nameIndex = source.indexOf('展示名称')
+  const identityIndex = source.indexOf('主要身份')
+  const categoryIndex = source.indexOf('主营内容')
+  const introIndex = source.indexOf('简介')
+  assert.ok(logoIndex > -1 && logoIndex < nameIndex)
+  assert.ok(nameIndex < identityIndex)
+  assert.ok(identityIndex < categoryIndex)
+  assert.ok(categoryIndex < introIndex)
+  assert.doesNotMatch(source, /:disabled="Boolean\(merchantId\)" placeholder="请输入展示名称"/)
+  assert.match(source, /const patch = \{[\s\S]*name: form\.name\.trim\(\),[\s\S]*mainCategories,/)
+
+  for (const token of [
+    '商家名称',
+    '商家介绍',
+    '商家地址',
+    '商家 LOGO',
+    '主营品类',
+    '选择最主要的经营身份',
+    '经营简介',
+    '品牌展示',
+    '提交入驻',
+    '商家资料加载失败',
+    '商家资料已保存',
+    '商家资料保存失败',
+    '选择最接近你发布资源的身份',
+    '包装、辅料、印花绣花、物流等选配套服务',
+  ]) {
+    assert.equal(source.includes(token), false)
+  }
 })
 
 test('merchant identity wording is unified across profile and display pages', () => {
@@ -698,21 +759,28 @@ test('merchant identity wording is unified across profile and display pages', ()
 
   for (const token of [
     '主要身份',
-    '选择最主要的经营身份',
+    '个人',
     '源头工厂',
-    '现货档口',
     '库存货源',
     '配套服务',
+    '采购',
   ]) {
     assert.match(profileSource, new RegExp(token))
   }
+  assert.match(profileSource, /const DEFAULT_MERCHANT_TYPE = 'individual'/)
+  assert.doesNotMatch(profileSource, /\{ label: '现货档口', value: 'stall' \}/)
+  assert.doesNotMatch(profileSource, /\{ label: '场地\/设备方', value: 'rental_provider' \}/)
+  assert.doesNotMatch(profileSource, /merchantTypeOptions = \[[\s\S]*value: 'stall'/)
+  assert.doesNotMatch(profileSource, /merchantTypeOptions = \[[\s\S]*value: 'rental_provider'/)
+  assert.doesNotMatch(profileSource, /选择最接近你发布资源的身份/)
+  assert.doesNotMatch(profileSource, /包装、辅料、印花绣花、物流等选配套服务/)
 
   for (const source of displaySources) {
-    for (const token of ['源头工厂', '现货档口', '库存货源', '配套服务']) {
+    for (const token of ['个人', '场地/设备方', '源头工厂', '现货档口', '库存货源', '配套服务', '采购']) {
       assert.match(source, new RegExp(token))
     }
   }
-  for (const token of ['源头工厂', '现货档口', '库存货源', '配套服务']) {
+  for (const token of ['个人', '场地/设备方', '源头工厂', '现货档口', '库存货源', '配套服务', '采购']) {
     assert.match(enumSource, new RegExp(token))
   }
 
@@ -981,8 +1049,8 @@ test('merchant profile page supports independent merchant logo upload', () => {
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
 
   for (const token of [
-    '商家 LOGO',
-    '正方形 LOGO',
+    '头像 / LOGO',
+    '正方形头像或 LOGO',
     'logoUrl',
     'open-type="chooseAvatar"',
     'onChooseMerchantLogoAvatar',
@@ -997,7 +1065,7 @@ test('merchant profile page supports independent merchant logo upload', () => {
     'logo-preview',
     'logo-plus',
     'logo-plus-icon',
-    '更换 LOGO',
+    '更换图片',
   ]) {
     assert.match(source, new RegExp(token))
   }
@@ -1008,7 +1076,7 @@ test('merchant profile page supports independent merchant logo upload', () => {
   assert.equal(source.includes('removeMerchantLogo'), false)
   assert.equal(source.includes('logo-action-button'), false)
   assert.equal(source.includes('logo-actions'), false)
-  assert.match(source, /<view v-if="logoPreviewUrl" class="logo-preview-wrap">[\s\S]*class="logo-preview-tile"[\s\S]*@click="previewMerchantLogo"[\s\S]*class="logo-change-button"[\s\S]*open-type="chooseAvatar"[\s\S]*@chooseavatar="onChooseMerchantLogoAvatar"[\s\S]*更换 LOGO[\s\S]*<\/view>/)
+  assert.match(source, /<view v-if="logoPreviewUrl" class="logo-preview-wrap">[\s\S]*class="logo-preview-tile"[\s\S]*@click="previewMerchantLogo"[\s\S]*class="logo-change-button"[\s\S]*open-type="chooseAvatar"[\s\S]*@chooseavatar="onChooseMerchantLogoAvatar"[\s\S]*更换图片[\s\S]*<\/view>/)
   assert.match(source, /\.logo-change-button \{[\s\S]*position: absolute;[\s\S]*bottom: 0;[\s\S]*background: rgba\(0, 0, 0, 0\.5\);[\s\S]*color: #fff;[\s\S]*\}/)
 })
 
@@ -1075,7 +1143,7 @@ test('merchant profile page uses wechat avatar picker for merchant logo', () => 
   const uploadSource = fs.readFileSync(path.join(root, 'common/upload.js'), 'utf8')
 
   for (const token of [
-    '正方形 LOGO',
+    '正方形头像或 LOGO',
     'open-type="chooseAvatar"',
     '@chooseavatar="onChooseMerchantLogoAvatar"',
     'onChooseMerchantLogoAvatar',
@@ -1131,9 +1199,9 @@ test('merchant profile page groups long form and collapses optional brand sectio
   for (const token of [
     '基础资料',
     '联系方式',
-    '品牌展示',
+    '主页展示',
     '买家联系和导航',
-    '头像、卡片、主页图',
+    '补充公开展示图片',
     'brandSectionOpen',
     'toggleBrandSection',
     'fixed-save-bar',

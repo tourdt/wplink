@@ -40,6 +40,12 @@
       <text class="review-reject-meta">请按原因修改资料后重新提交。</text>
     </view>
 
+    <view v-if="showUnsupportedVerificationNotice" class="review-progress-card">
+      <text class="review-progress-title">当前身份暂不支持认证</text>
+      <text class="review-progress-desc">当前身份可先完善资料并发布资源。</text>
+      <text class="review-progress-meta">如需提交认证，请先在资料设置中调整为可认证身份。</text>
+    </view>
+
     <view v-if="showVerifiedSummary" class="verified-summary-card">
       <text class="verified-summary-title">认证已通过</text>
       <text class="verified-summary-desc">认证资料已生效，买家可在商家信息中看到认证状态。</text>
@@ -204,6 +210,7 @@ const merchantIdentityOptions = [
   { label: '库存货源', value: 'stockist' },
   { label: '配套服务', value: 'service_provider' },
 ]
+const certifiableVerificationTypes = ['factory', 'stall', 'stockist', 'service_provider']
 
 const form = reactive({
   merchantId: '',
@@ -253,6 +260,7 @@ const isVerificationPending = computed(() => latestVerification.value.status ===
 const isVerificationPaymentPending = computed(() => latestVerification.value.status === 'payment_pending')
 const isVerificationRejected = computed(() => latestVerification.value.status === 'rejected')
 const isVerificationVerified = computed(() => latestVerification.value.status === 'verified')
+const isUnsupportedVerificationType = computed(() => !certifiableVerificationTypes.includes(form.verificationType))
 const verificationReviewedDate = computed(() => formatDateToDay(latestVerification.value.reviewedAt, '等待审核'))
 const verificationExpiresDate = computed(() => formatDateToDay(latestVerification.value.expiresAt, ''))
 const verificationRejectReason = computed(() => {
@@ -260,8 +268,9 @@ const verificationRejectReason = computed(() => {
   return reason || '平台未填写具体原因，请检查资料后重新提交'
 })
 const showVerifiedSummary = computed(() => isVerificationVerified.value && !changingVerifiedCertification.value)
-const showVerificationForm = computed(() => !isVerificationPending.value && !isVerificationPaymentPending.value && (!isVerificationVerified.value || changingVerifiedCertification.value))
+const showVerificationForm = computed(() => !isVerificationPending.value && !isVerificationPaymentPending.value && !isUnsupportedVerificationType.value && (!isVerificationVerified.value || changingVerifiedCertification.value))
 const showSubmitBar = computed(() => showVerificationForm.value)
+const showUnsupportedVerificationNotice = computed(() => !isVerificationPending.value && !isVerificationPaymentPending.value && !isVerificationVerified.value && isUnsupportedVerificationType.value)
 const submitButtonMainText = computed(() => {
   if (submitting.value) return '正在提交'
   if (isVerificationVerified.value && changingVerifiedCertification.value) return '提交变更审核'
@@ -445,6 +454,7 @@ async function submit() {
 function validateForm() {
   if (!form.merchantId.trim()) return '请先完成商家入驻'
   if (isVerificationPaymentPending.value) return '认证资料已审核通过，请先支付认证费'
+  if (isUnsupportedVerificationType.value) return '当前身份暂不支持认证，请先调整主要身份'
   if (!form.businessName.trim()) return '请填写营业主体名称'
   if (!form.socialCreditCode.trim()) return '请填写统一社会信用代码'
   if (!form.licenseUrl.trim()) return '请上传营业执照'

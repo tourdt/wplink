@@ -62,11 +62,13 @@ const total = ref(0)
 const hasMore = ref(true)
 const loading = ref(false)
 const merchantTypeText = {
+  individual: '个人',
+  rental_provider: '场地/设备方',
   factory: '源头工厂',
   stall: '现货档口',
   stockist: '库存货源',
   service_provider: '配套服务',
-  buyer: '采购商',
+  buyer: '采购',
 }
 const currentRows = computed(() => (activeTab.value === 'resources' ? favoriteResources.value : followedMerchants.value))
 const emptyTitle = computed(() => (activeTab.value === 'resources' ? '暂无收藏供给' : '暂无关注商家'))

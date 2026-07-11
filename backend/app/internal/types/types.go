@@ -1592,6 +1592,7 @@ type TopicResourcesResp struct {
 }
 
 type UpdateMerchantReq struct {
+	Name           string                 `json:"name,optional"`
 	MainCategories []string               `json:"mainCategories,optional"`
 	MerchantType   string                 `json:"merchantType,optional"`
 	Description    string                 `json:"description,optional"`

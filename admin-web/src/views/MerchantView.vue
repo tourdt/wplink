@@ -134,7 +134,7 @@ const filters = reactive({
 const form = reactive({
   cityCode: defaultCityCode,
   name: '',
-  merchantType: 'factory',
+  merchantType: 'individual',
   mainCategories: ['童装'],
   contactName: '',
   contactPhone: '',

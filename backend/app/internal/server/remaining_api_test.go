@@ -521,7 +521,7 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 	}{
 		{name: "create merchant", method: http.MethodPost, path: "/api/v1/merchants", body: `{"cityCode":"zhili","name":"织里云仓","merchantType":"stockist","mainCategories":["童装"],"contactName":"周经理","contactPhone":"18800000002"}`},
 		{name: "get merchant", method: http.MethodGet, path: "/api/v1/merchants/merchant-1"},
-		{name: "update merchant", method: http.MethodPost, path: "/api/v1/merchants/merchant-1", body: `{"mainCategories":["童装"],"merchantType":"service_provider","description":"更新简介","logoUrl":"https://example.com/logo.png","images":["https://example.com/a.jpg"],"addressText":"织里镇利济路88号","location":{"latitude":30.1,"longitude":120.2,"name":"织里童装城","address":"织里镇利济路88号"}}`},
+		{name: "update merchant", method: http.MethodPost, path: "/api/v1/merchants/merchant-1", body: `{"name":"  织里晨星童装  ","mainCategories":["童装"],"merchantType":"service_provider","description":"更新简介","logoUrl":"https://example.com/logo.png","images":["https://example.com/a.jpg"],"addressText":"织里镇利济路88号","location":{"latitude":30.1,"longitude":120.2,"name":"织里童装城","address":"织里镇利济路88号"}}`},
 		{name: "home banners", method: http.MethodGet, path: "/api/v1/home/banners?cityCode=zhili"},
 		{name: "home recommend cards", method: http.MethodGet, path: "/api/v1/home/recommend-cards?cityCode=zhili"},
 		{name: "hot search keywords", method: http.MethodGet, path: "/api/v1/search/hot-keywords?cityCode=zhili"},
@@ -565,6 +565,9 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 	}
 	if store.updateMerchantPatch.LogoURL != "https://example.com/logo.png" {
 		t.Fatalf("update merchant logoURL = %q, want decoded logo URL", store.updateMerchantPatch.LogoURL)
+	}
+	if store.updateMerchantPatch.Name != "织里晨星童装" {
+		t.Fatalf("update merchant name = %q, want decoded display name", store.updateMerchantPatch.Name)
 	}
 	if store.updateMerchantPatch.MerchantType != "service_provider" {
 		t.Fatalf("update merchant merchantType = %q, want decoded service_provider", store.updateMerchantPatch.MerchantType)

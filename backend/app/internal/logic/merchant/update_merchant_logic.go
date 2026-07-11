@@ -15,6 +15,7 @@ type UpdateMerchantStore interface {
 }
 
 type UpdateMerchantReq struct {
+	Name           string        `json:"name,omitempty"`
 	MainCategories []string      `json:"mainCategories,omitempty"`
 	MerchantType   string        `json:"merchantType,omitempty"`
 	Description    string        `json:"description,omitempty"`
@@ -48,6 +49,10 @@ func (l *UpdateMerchantLogic) UpdateMerchant(ctx context.Context, merchantID str
 	if merchantID == "" {
 		return UpdateMerchantResp{}, errx.New(errx.CodeValidationFailed, "商家不存在或已停用")
 	}
+	name := strings.TrimSpace(req.Name)
+	if err := validateMerchantName(name); err != nil {
+		return UpdateMerchantResp{}, err
+	}
 	contactPhone := strings.TrimSpace(req.ContactPhone)
 	if contactPhone != "" {
 		if !isValidContactPhone(contactPhone) {
@@ -56,6 +61,7 @@ func (l *UpdateMerchantLogic) UpdateMerchant(ctx context.Context, merchantID str
 	}
 
 	updatedAt, err := l.store.UpdateMerchant(ctx, merchantID, model.UpdateMerchantPatch{
+		Name:           name,
 		MainCategories: append([]string(nil), req.MainCategories...),
 		MerchantType:   strings.TrimSpace(req.MerchantType),
 		Description:    strings.TrimSpace(req.Description),
