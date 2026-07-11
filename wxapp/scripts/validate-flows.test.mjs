@@ -24,6 +24,7 @@ test('launch UI hides matching feature copy', () => {
   const visibleSource = files.map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n')
 
   assert.equal(visibleSource.includes('撮合'), false)
+  assert.equal(visibleSource.includes('采购需求'), false)
   assert.equal(visibleSource.includes('登录后同步收藏、需求'), false)
 })
 

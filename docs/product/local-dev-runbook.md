@@ -58,16 +58,16 @@ node backend/scripts/validate_migrations.mjs
 - 认证工厂、认证库存商、服务商、采购商
 - 七类已发布资源，以及待审核、已驳回、即将过期、已过期资源
 - 已发布的织里利济路拿货地图示范场景、档口和配套点位
-- 采购需求
+- 需求方向资源示例
 - 消息、资源指标、联系事件、操作日志、置顶券和权益
 
-说明：种子数据和后端模型可保留撮合相关预留数据结构，但人工撮合功能首期暂不上线，演示和验收不进入撮合后台。
+说明：演示数据统一使用 `resources` 表表达供给和需求方向资源，不再包含独立需求线索或后台对接数据。
 
 本地若要清库重跑，建议直接重建数据库后重新执行上述脚本。当前 migration down 文件可用于开发验证，但演示环境优先使用干净数据库。
 
 ## 后端验证
 
-当前后端已有 HTTP 服务入口，已挂载 `/healthz`、`/readyz`、`/admin/` 一体化后台静态路由，并接入 `backend/app/api/app.api` 中的账号、城市站、商家、资源、需求、发现、认证、权益、消息、指标和后台管理 API。账号链路首发使用 `/api/v1/auth/wechat-login` 和 `/api/v1/me`；`/api/v1/auth/sms-code`、`/api/v1/me/phone` 为手机号绑定后续版本预留接口。未配置 API handler 的兜底路由仍会返回 `API_NOT_CONNECTED`，用于暴露后续新增接口尚未接线的问题。
+当前后端已有 HTTP 服务入口，已挂载 `/healthz`、`/readyz`、`/admin/` 一体化后台静态路由，并接入 `backend/app/api/app.api` 中的账号、城市站、商家、资源、发现、认证、权益、消息、指标和后台管理 API。账号链路首发使用 `/api/v1/auth/wechat-login` 和 `/api/v1/me`；`/api/v1/auth/sms-code`、`/api/v1/me/phone` 为手机号绑定后续版本预留接口。未配置 API handler 的兜底路由仍会返回 `API_NOT_CONNECTED`，用于暴露后续新增接口尚未接线的问题。
 
 先运行领域测试和 API 契约校验：
 
@@ -130,7 +130,7 @@ node backend/scripts/prepare_admin_embed.mjs
 - `/dashboard` 数据概览
 - `/resources/pending` 资源审核
 - `/merchants` 商家管理
-- `/demands` 采购需求
+- `/resources?direction=demand` 需求方向资源筛选
 - `/verifications` 认证审核
 - `/entitlements` 权益发放
 - `/banner-topics` Banner 专题

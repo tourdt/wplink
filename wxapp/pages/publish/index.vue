@@ -70,7 +70,7 @@ const publishDirectionOptions = [
   },
   {
     title: '发布需求',
-    desc: '找货、找工厂、找服务等采购需求',
+    desc: '找货、找工厂、找服务等需求',
     value: RESOURCE_DIRECTION_DEMAND,
   },
 ]

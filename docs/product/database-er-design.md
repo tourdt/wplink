@@ -14,7 +14,7 @@
 - 以 `resources` 作为统一资源表，承载货源、库存、工厂产能、订单、招聘、出租、服务等资源类型。
 - 通过 `resource_type_configs` 定义字段模板、有效期、审核规则和展示规则，避免为每种业务复制一套表。
 - 稳定字段关系化，业务扩展字段 JSONB 化。
-- 支持城市站扩展、商家认证、发布效果、权益核销、人工撮合、消息通知和操作审计。
+- 支持城市站扩展、商家认证、发布效果、权益核销、消息通知和操作审计。
 - MVP 先保证核心闭环，复杂推荐、交易、合同、支付暂不建表。
 
 默认数据库：PostgreSQL。  
@@ -47,11 +47,6 @@ erDiagram
   merchants ||--o{ credit_records : earns
   merchants ||--o{ merchant_entitlements : owns
   merchants ||--o{ merchant_entitlement_usage_records : uses
-  users ||--o{ purchase_demands : submits
-  purchase_demands ||--o{ match_cases : drives
-  resources ||--o{ match_case_resources : matched
-  match_cases ||--o{ match_case_resources : includes
-  match_cases ||--o{ match_case_participants : has
   users ||--o{ search_logs : searches
   users ||--o{ messages : receives
   users ||--o{ operation_logs : operates
@@ -436,36 +431,7 @@ erDiagram
 - `idx_credit_records_merchant_visibility`
 - `idx_credit_records_tag_code`
 
-### 4.12 purchase_demands
-
-采购需求表。
-
-| 字段 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| id | bigint | PK | 需求 ID |
-| user_id | bigint | FK -> users.id NOT NULL | 发布用户 |
-| city_station_id | bigint | FK -> city_stations.id NULL | 城市站 |
-| demand_type | varchar(64) | NOT NULL | goods, factory, inventory, service |
-| status | varchar(32) | NOT NULL | pending, reviewed, matching, matched, expired, closed |
-| title | varchar(128) | NOT NULL | 需求标题 |
-| category | varchar(64) | NOT NULL | 品类 |
-| price_range | jsonb | NOT NULL DEFAULT '{}' | 价格区间 |
-| quantity_requirement | jsonb | NOT NULL DEFAULT '{}' | 数量/产能要求 |
-| attributes | jsonb | NOT NULL DEFAULT '{}' | 尺码、季节、风格等 |
-| contact_name | varchar(64) | NOT NULL | 联系人 |
-| contact_phone | varchar(32) | NOT NULL | 电话 |
-| contact_wechat | varchar(64) | NULL | 微信 |
-| expires_at | timestamptz | NULL | 过期时间 |
-| created_at | timestamptz | NOT NULL | 创建时间 |
-| updated_at | timestamptz | NOT NULL | 更新时间 |
-
-索引：
-
-- `idx_purchase_demands_city_type_status`
-- `idx_purchase_demands_user_status`
-- `idx_purchase_demands_attributes_gin`
-
-### 4.13 search_logs
+### 4.12 search_logs
 
 搜索记录表。
 
@@ -478,7 +444,6 @@ erDiagram
 | filters | jsonb | NOT NULL DEFAULT '{}' | 筛选条件 |
 | result_count | integer | NOT NULL DEFAULT 0 | 结果数量 |
 | clicked_resource_id | bigint | FK -> resources.id NULL | 点击资源 |
-| generated_demand_id | bigint | FK -> purchase_demands.id NULL | 转化需求 |
 | created_at | timestamptz | NOT NULL | 搜索时间 |
 
 索引：
@@ -487,64 +452,7 @@ erDiagram
 - `idx_search_logs_city_created`
 - `idx_search_logs_result_count`
 
-### 4.14 match_cases
-
-撮合记录表。
-
-| 字段 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| id | bigint | PK | 撮合 ID |
-| purchase_demand_id | bigint | FK -> purchase_demands.id NULL | 关联需求 |
-| city_station_id | bigint | FK -> city_stations.id NULL | 城市站 |
-| status | varchar(32) | NOT NULL | open, contacted, succeeded, failed, closed |
-| source | varchar(32) | NOT NULL | manual, system |
-| operator_id | bigint | FK -> users.id NULL | 运营人员 |
-| result_note | text | NULL | 结果说明 |
-| created_at | timestamptz | NOT NULL | 创建时间 |
-| updated_at | timestamptz | NOT NULL | 更新时间 |
-| closed_at | timestamptz | NULL | 关闭时间 |
-
-索引：
-
-- `idx_match_cases_demand`
-- `idx_match_cases_operator_status`
-
-### 4.15 match_case_resources
-
-撮合资源关联表。
-
-| 字段 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| id | bigint | PK | ID |
-| match_case_id | bigint | FK -> match_cases.id NOT NULL | 撮合 |
-| resource_id | bigint | FK -> resources.id NOT NULL | 资源 |
-| role | varchar(32) | NOT NULL | supply, demand |
-| created_at | timestamptz | NOT NULL | 创建时间 |
-
-唯一约束：
-
-- `uniq_match_case_resource(match_case_id, resource_id)`
-
-### 4.16 match_case_participants
-
-撮合参与方表。
-
-| 字段 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| id | bigint | PK | ID |
-| match_case_id | bigint | FK -> match_cases.id NOT NULL | 撮合 |
-| user_id | bigint | FK -> users.id NULL | 用户 |
-| merchant_id | bigint | FK -> merchants.id NULL | 商家 |
-| participant_role | varchar(32) | NOT NULL | buyer, supplier, operator |
-| contact_status | varchar(32) | NOT NULL | pending, contacted, no_response, interested |
-| created_at | timestamptz | NOT NULL | 创建时间 |
-| updated_at | timestamptz | NOT NULL | 更新时间 |
-
-约束：
-
-- `user_id` 和 `merchant_id` 至少一个非空。
-
-### 4.17 merchant_entitlements
+### 4.13 merchant_entitlements
 
 商家权益表。
 
@@ -570,7 +478,7 @@ erDiagram
 - `idx_merchant_entitlements_merchant_type_status`
 - `idx_merchant_entitlements_expires_at`
 
-### 4.18 merchant_entitlement_usage_records
+### 4.14 merchant_entitlement_usage_records
 
 权益使用记录表。
 
@@ -594,7 +502,7 @@ erDiagram
 - `idx_entitlement_usage_merchant`
 - `idx_entitlement_usage_resource`
 
-### 4.19 resource_contact_events
+### 4.15 resource_contact_events
 
 资源联系事件表。
 
@@ -612,7 +520,7 @@ erDiagram
 - `idx_resource_contact_events_resource_action`
 - `idx_resource_contact_events_merchant_created`
 
-### 4.20 resource_metrics_daily
+### 4.16 resource_metrics_daily
 
 资源每日效果统计表。
 
@@ -643,7 +551,7 @@ erDiagram
 
 - `idx_resource_metrics_daily_merchant_date`
 
-### 4.21 messages
+### 4.17 messages
 
 消息表。
 
@@ -669,7 +577,7 @@ erDiagram
 - `idx_messages_recipient_status`
 - `idx_messages_trigger`
 
-### 4.22 operation_logs
+### 4.18 operation_logs
 
 操作日志表。
 
@@ -793,11 +701,11 @@ erDiagram
 - 置顶券只能用于该商家的已发布资源。
 - 权益使用需要写入操作日志或权益流水。
 
-### 7.5 搜索与采购需求
+### 7.5 搜索与需求方向资源
 
-- 搜索记录可转化为采购需求。
+- 搜索记录只记录查询、筛选、结果数和点击资源。
 - 搜索无结果词进入运营补货清单。
-- 采购需求首期进入后台运营处理，后续可进入人工撮合。
+- 需要找货、找厂、找服务的用户统一发布 `direction = demand` 的资源。
 
 ## 8. 索引与性能建议
 
@@ -808,7 +716,6 @@ MVP 重点索引：
 - `resources(refreshed_at DESC)`
 - `resources(expires_at)`
 - `resources USING GIN(attributes)`
-- `purchase_demands(city_station_id, demand_type, status)`
 - `resource_metrics_daily(merchant_id, stat_date)`
 - `resource_contact_events(resource_id, action)`
 - `messages(recipient_user_id, status)`
@@ -834,7 +741,6 @@ MVP 必建：
 - resource_review_records
 - verifications
 - credit_records
-- purchase_demands
 - search_logs
 - merchant_entitlements
 - merchant_entitlement_usage_records
@@ -842,8 +748,6 @@ MVP 必建：
 - resource_metrics_daily
 - messages
 - operation_logs
-
-首期暂不上线人工撮合功能。`match_cases`、`match_case_resources`、`match_case_participants` 可作为后续版本预留表保留在迁移中，但不属于当前 MVP 必验能力。
 
 MVP 暂不建：
 

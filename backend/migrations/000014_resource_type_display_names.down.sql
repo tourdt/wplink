@@ -11,10 +11,10 @@ type_names AS (
       ('job', '招聘'),
       ('rental', '出租/转让'),
       ('service', '服务'),
-      ('buy_goods', '采购需求'),
-      ('find_inventory', '采购需求'),
-      ('find_factory', '订单需求'),
-      ('find_service', '采购需求')
+      ('buy_goods', '找现货'),
+      ('find_inventory', '找库存'),
+      ('find_factory', '找工厂'),
+      ('find_service', '找服务')
   ) AS cfg(type_code, type_name)
 )
 UPDATE resource_type_configs rtc

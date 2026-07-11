@@ -61,17 +61,15 @@
 | `POST /api/v1/resources/:resourceId/repost-similar` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/my_resource_logic.go` | 不适用 | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/resources/:resourceId/contact-events` | `backend/app/api/resource.api` | `backend/app/internal/logic/metrics/record_contact_logic.go` | 效果统计 | 资源详情联系按钮 | 已接 handler，测试通过 |
 
-## 采购需求
+## 需求方向资源
 
-说明：采购需求相关接口和页面已预留，但“提交需求”、“我的需求”和后台“采购需求”处理流程暂不纳入首发上线与 MVP 验收。
+说明：需求方向资源统一使用资源发布、资源列表、我的发布和后台资源审核接口，不再保留独立 API 文件、独立小程序页面或独立后台专用处理页面。
 
-| 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
-|---|---|---|---|---|---|
-| `POST /api/v1/purchase-demands` | `backend/app/api/demand.api` | `backend/app/internal/logic/demand/create_demand_logic.go` | 需求线索池 | `wxapp/pages/demand/index.vue` | 已接 handler，测试通过 |
-| `GET /api/v1/me/purchase-demands` | `backend/app/api/demand.api` | `backend/app/internal/logic/demand/list_my_demands_logic.go` | 不适用 | `wxapp/pages/my-demands/index.vue` | 已接 handler，测试通过 |
-| `GET /api/v1/admin/purchase-demands` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/demand_admin_logic.go` | `admin-web/src/views/DemandView.vue` | 不适用 | 已接 handler，测试通过 |
-| `GET /api/v1/admin/purchase-demands/:demandId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/demand_admin_logic.go` | `admin-web/src/views/DemandView.vue` | 不适用 | 已接 handler，测试通过 |
-| `PATCH /api/v1/admin/purchase-demands/:demandId/status` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/demand_admin_logic.go` | `admin-web/src/views/DemandView.vue` | 不适用 | 已接 handler，测试通过 |
+| 场景 | 统一接口 | API 文件 | 前端入口 | 状态 |
+|---|---|---|---|---|
+| 发布找货、找厂、找服务等需求方向资源 | `POST /api/v1/resources` | `backend/app/api/resource.api` | `wxapp/pages/publish/index.vue` | 已接 handler，测试通过 |
+| 查看我的需求方向资源 | `GET /api/v1/me/resources?direction=demand` | `backend/app/api/resource.api` | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |
+| 后台审核需求方向资源 | `GET /api/v1/admin/resources/pending`、`POST /api/v1/admin/resources/:resourceId/review` | `backend/app/api/admin.api` | `admin-web/src/views/ResourceReviewView.vue` | 已接 handler，测试通过 |
 
 ## 发现与运营位
 
@@ -137,11 +135,6 @@
 | `GET /api/v1/admin/verifications/pending` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/verification_admin_logic.go` | `admin-web/src/views/VerificationView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/verifications/:verificationId/review` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/verification_admin_logic.go` | `admin-web/src/views/VerificationView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/merchants/:merchantId/entitlements` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/entitlement_admin_logic.go` | `admin-web/src/views/EntitlementView.vue` | 不适用 | 已接 handler，测试通过 |
-| `POST /api/v1/admin/match-cases` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | 已隐藏 | 不适用 | 后续版本预留，首期不上线 |
-| `GET /api/v1/admin/match-cases` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | 已隐藏 | 不适用 | 后续版本预留，首期不上线 |
-| `PATCH /api/v1/admin/match-cases/:matchCaseId/status` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | 已隐藏 | 不适用 | 后续版本预留，首期不上线 |
-| `POST /api/v1/admin/match-cases/:matchCaseId/resources` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | 已隐藏 | 不适用 | 后续版本预留，首期不上线 |
-| `POST /api/v1/admin/match-cases/:matchCaseId/participants` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/match_case_logic.go` | 已隐藏 | 不适用 | 后续版本预留，首期不上线 |
 | `GET /api/v1/admin/operation-logs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/operation_log_logic.go` | `admin-web/src/views/OperationLogView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/search-logs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/search_log_logic.go` | `admin-web/src/views/SearchLogView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/tasks/resource-lifecycle/run` | `backend/app/api/admin.api` | `backend/app/internal/task/resource_lifecycle_task.go` | 运维/运营手动触发 | 不适用 | 已接 handler，测试通过 |

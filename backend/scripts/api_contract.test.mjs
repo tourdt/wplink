@@ -8,6 +8,37 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const appDir = path.resolve(scriptDir, '../app')
 const apiDir = path.join(appDir, 'api')
 const typesFile = path.join(appDir, 'internal/types/types.go')
+const productDocsDir = path.resolve(scriptDir, '../../docs/product')
+
+test('product docs do not describe retired purchase demand or manual matching features', () => {
+  const retiredSnippets = [
+    '采购需求',
+    '人工撮合',
+    'purchase_demands',
+    'match_cases',
+    'match_case',
+    'purchase-demands',
+    'match-cases',
+    '/demands',
+    '撮合记录',
+    '撮合工作台',
+    '撮合进度',
+    '撮合权益',
+    '撮合指标',
+  ]
+  const docFiles = fs.readdirSync(productDocsDir)
+    .filter((fileName) => fileName.endsWith('.md'))
+    .map((fileName) => ({
+      name: fileName,
+      source: fs.readFileSync(path.join(productDocsDir, fileName), 'utf8'),
+    }))
+
+  for (const file of docFiles) {
+    for (const snippet of retiredSnippets) {
+      assert(!file.source.includes(snippet), `${file.name} should not contain retired feature copy ${snippet}`)
+    }
+  }
+})
 
 test('api contract does not expose retired purchase demand endpoints', () => {
 	const retiredSnippets = [

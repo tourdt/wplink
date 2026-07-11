@@ -113,7 +113,7 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	if merchantStore, ok := store.(MerchantAPIStore); ok {
 		registerMerchantRoutes(mux, merchantStore, userTokenService, adminTokenService, permissionStore, smsVerifier)
 	}
-	// 采购需求入口已从小程序和后台下线，这里不再注册旧 API，避免新客户端继续依赖已废弃流程。
+	// 旧独立需求入口已从小程序和后台下线，这里不再注册旧 API，避免新客户端继续依赖已废弃流程。
 	if discoveryStore, ok := store.(DiscoveryAPIStore); ok {
 		registerDiscoveryRoutes(mux, discoveryStore)
 	}

@@ -63,7 +63,7 @@ test('publish entry removes the old page title copy and uses understated list ro
     '发布供给',
     '发布需求',
     '货源、产能、服务等可供应内容',
-    '找货、找工厂、找服务等采购需求',
+    '找货、找工厂、找服务等需求',
   ]) {
     assert.match(source, new RegExp(token))
   }
@@ -93,4 +93,5 @@ test('publish entry removes the old page title copy and uses understated list ro
   ]) {
     assert.doesNotMatch(source, new RegExp(token))
   }
+  assert.doesNotMatch(source, /采购需求/)
 })

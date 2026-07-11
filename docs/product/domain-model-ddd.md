@@ -13,25 +13,24 @@
 - 围绕领域对象设计平台，而不是围绕功能页面设计平台。
 - 资源是平台核心抽象，货源、库存、工厂、订单、招聘、出租、服务都是资源类型。
 - 新业务优先通过资源类型配置扩展，而不是新增独立系统。
-- 发布、审核、搜索、联系、生命周期、消息、效果数据、信用和撮合是公共能力。
+- 发布、审核、搜索、联系、生命周期、消息、效果数据和信用是公共能力。
 - MVP 保持模型完整但实现克制，复杂策略可由运营人工替代。
 
 ## 2. 统一语言
 
 | 术语 | 定义 |
 |---|---|
-| 用户 | 使用平台的自然人账号，可以浏览、搜索、联系、提交需求或管理商家。 |
+| 用户 | 使用平台的自然人账号，可以浏览、搜索、联系、发布需求方向资源或管理商家。 |
 | 商家 | 工厂、档口、库存商、服务商、采购商等经营主体。 |
 | 商家管理员 | 代表商家维护主页、发布资源、查看效果数据的用户。 |
-| 资源 | 可被搜索、展示、联系和撮合的供给或需求，是平台核心业务对象。 |
+| 资源 | 可被搜索、展示和联系的供给或需求，是平台核心业务对象。 |
 | 资源类型 | 资源的业务分类，如库存、货源、工厂产能、订单、招聘、出租、服务。 |
 | 资源类型配置 | 定义某类资源的字段、有效期、审核规则、展示模板、排序权重等。 |
-| 采购需求 | 买家、主播、电商卖家、订单方提交的明确找货、找厂或找服务需求。 |
+| 需求方向资源 | 买家、主播、电商卖家、订单方发布的找货、找厂或找服务资源，属于 `Resource` 聚合。 |
 | 城市站 | 织里、广州、虎门、杭州等产业带运营单元。 |
 | 认证 | 平台对商家、库存、服务能力等真实性进行核验。 |
 | 信用记录 | 认证、成交反馈、投诉、平台核实等事实形成的信用依据。 |
 | 联系行为 | 电话点击、微信复制、进入商家主页、分享等用户联系动作。 |
-| 撮合 | 平台将需求方和供给方进行对接的过程，可人工或系统推荐。 |
 | 发布效果 | 资源发布后的曝光、浏览、联系、收藏、分享、成交反馈等数据。 |
 | 权益 | 商家因认证、会员、运营赠送或购买获得的发布额度、刷新次数、置顶券等。 |
 | 置顶券 | 可让指定资源获得一定时长置顶展示的权益凭证。 |
@@ -121,46 +120,26 @@
 - 复杂信用分。
 - 担保交易。
 
-### 3.5 搜索与需求上下文
+### 3.5 搜索上下文
 
 职责：
 
-- 管理搜索记录、采购需求和搜索无结果兜底。
-- 将需求数据反向反馈给供给增长和运营。
+- 管理搜索记录、筛选条件和搜索无结果兜底。
+- 将无结果词、热门词和点击资源反向反馈给供给增长和运营。
 
 核心对象：
 
 - SearchQuery
 - SearchResult
-- PurchaseDemand
-- DemandProfile
 - NoResultSearch
+- SupplyGap
 
 不负责：
 
 - 搜索引擎底层实现。
 - 资源生命周期状态变更。
 
-### 3.6 撮合上下文
-
-职责：
-
-- 记录平台人工或系统推荐产生的供需对接。
-- 管理撮合进度、结果和成交反馈。
-
-核心对象：
-
-- MatchCase
-- MatchParticipant
-- MatchStatus
-- MatchResult
-
-不负责：
-
-- 在线交易。
-- 合同、支付、履约。
-
-### 3.7 权益与商业化上下文
+### 3.6 权益与商业化上下文
 
 职责：
 
@@ -244,18 +223,14 @@ flowchart TD
   Account["账号与权限上下文"] --> Merchant["商家上下文"]
   Merchant --> Resource["资源上下文"]
   City["城市站上下文"] --> Resource
-  City --> Search["搜索与需求上下文"]
+  City --> Search["搜索上下文"]
   Resource --> Search
   Resource --> Metrics["发布效果上下文"]
   Resource --> Message["消息上下文"]
-  Resource --> Match["撮合上下文"]
-  Demand["搜索与需求上下文"] --> Match
   Verification["认证与信用上下文"] --> Merchant
   Verification --> Resource
   Entitlement["权益与商业化上下文"] --> Resource
   Entitlement --> Merchant
-  Match --> Verification
-  Match --> Metrics
 ```
 
 关系说明：
@@ -412,57 +387,13 @@ flowchart TD
 - VerificationRejected
 - CreditRecordCreated
 
-### 5.5 PurchaseDemand 聚合
-
-聚合根：PurchaseDemand
-
-职责：
-
-- 管理买家提交的找货、找厂、找库存、找服务需求。
-- 承接搜索无结果后的采购需求处理。
-
-核心不变量：
-
-- 采购需求必须有需求类型、城市或产业带、品类和联系方式。
-- 过期需求不进入待处理列表。
-- 需求方联系方式不直接暴露给商家，除非运营确认或用户主动联系。
-
-领域事件：
-
-- PurchaseDemandSubmitted
-- PurchaseDemandReviewed
-- PurchaseDemandMatched
-- PurchaseDemandExpired
-
-### 5.6 MatchCase 聚合
-
-聚合根：MatchCase
-
-职责：
-
-- 管理一次供需撮合的参与方、资源、需求、进度和结果。
-
-核心不变量：
-
-- 撮合必须至少有一个需求方和一个供给方。
-- 撮合结果不能直接等同于成交，成交需要反馈确认。
-- 撮合记录必须保留运营人员或系统来源。
-
-领域事件：
-
-- MatchCaseCreated
-- MatchParticipantAdded
-- MatchCaseContacted
-- MatchCaseSucceeded
-- MatchCaseFailed
-
-### 5.7 MerchantEntitlement 聚合
+### 5.5 MerchantEntitlement 聚合
 
 聚合根：MerchantEntitlement
 
 职责：
 
-- 管理商家的发布额度、刷新次数、置顶券、主页权益、数据权益和撮合权益。
+- 管理商家的发布额度、刷新次数、置顶券、主页权益、数据权益和数据权益。
 
 核心不变量：
 
@@ -655,22 +586,15 @@ flowchart TD
 - 扣减额度或核销券。
 - 确保权益不能绕过审核。
 
-### 7.5 MatchingService
-
-职责：
-
-- 根据采购需求、资源类型、城市站、品类、认证状态寻找候选资源。
-- 创建人工撮合记录。
-
-### 7.6 SearchDemandService
+### 7.5 SearchDemandService
 
 职责：
 
 - 记录搜索词和筛选条件。
-- 在无结果时引导创建采购需求。
+- 在无结果时引导用户发布需求方向资源。
 - 输出热门搜索和供给缺口。
 
-### 7.7 EffectInsightService
+### 7.6 EffectInsightService
 
 职责：
 
@@ -686,8 +610,6 @@ flowchart TD
 - MerchantRepository
 - VerificationRepository
 - CreditRecordRepository
-- PurchaseDemandRepository
-- MatchCaseRepository
 - MerchantEntitlementRepository
 - MessageRepository
 - ResourceMetricRepository
@@ -733,15 +655,12 @@ flowchart TD
 - CityStationEnabled
 - StationResourceTypeEnabled
 
-### 需求与撮合事件
+### 搜索与需求方向资源事件
 
-- PurchaseDemandSubmitted
-- PurchaseDemandReviewed
-- PurchaseDemandMatched
-- PurchaseDemandExpired
-- MatchCaseCreated
-- MatchCaseSucceeded
-- MatchCaseFailed
+- NoResultSearchRecorded
+- SupplyGapDetected
+- DemandResourcePublished
+- DemandResourceReviewed
 
 ### 权益事件
 
@@ -790,16 +709,15 @@ flowchart TD
 7. 审核通过后资源发布。
 8. 发布效果上下文统计曝光和联系。
 
-### 10.2 买家搜索无结果后提交需求
+### 10.2 买家搜索无结果后发布需求方向资源
 
 1. 买家搜索资源。
 2. 搜索结果为空或不足。
-3. 搜索与需求上下文记录 NoResultSearch。
-4. 用户提交采购需求。
-5. 运营审核需求。
-6. 撮合上下文创建 MatchCase。
-7. 运营匹配商家或资源。
-8. 撮合结果进入效果数据和信用记录。
+3. 搜索上下文记录 NoResultSearch 和供给缺口。
+4. 用户通过发布页选择需求方向资源类型。
+5. 资源上下文创建 `direction = demand` 的 Resource。
+6. 后台资源审核通过后进入统一资源列表。
+7. 用户联系资源或商家后进入发布效果统计。
 
 ### 10.3 认证商家使用置顶券
 
@@ -828,7 +746,6 @@ MVP 必须建模：
 - Merchant
 - User
 - Verification
-- PurchaseDemand
 - MerchantEntitlement
 - TopVoucher 作为 MerchantEntitlement 聚合内实体
 - ResourceMetric
@@ -840,7 +757,7 @@ MVP 可以简化：
 
 - 信用只做事实标签，不做信用分。
 - 消息只做审核、过期、认证和效果基础提醒。
-- 撮合上下文首期暂不上线；MatchCase 作为后续版本预留模型，不进入当前 MVP 验收。
+- 需求方向资源并入 Resource 聚合，不再单独建模独立需求或后台对接聚合。
 - 权益只做发布额度、刷新次数、置顶券。
 - 发布效果只做曝光、详情浏览、电话点击、微信复制。
 - 多商家管理员后置，MVP 先一个主管理员。
@@ -863,8 +780,6 @@ domain/
   merchant/
   resource/
   verification/
-  demand/
-  matching/
   entitlement/
   messaging/
   metrics/
@@ -892,6 +807,6 @@ policies/
 1. 商家认证年费是否按自然年、购买日起一年，还是按城市站周期计算。
 2. 认证商家每月发布额度和置顶券是否自然月清零。
 3. 商家是否允许同时属于多个城市站。
-4. 采购需求后续是否前台公开展示，还是继续只进入后台运营处理。
+4. 需求方向资源是否需要独立频道展示，还是仅作为资源列表筛选项。
 5. 普通用户是否允许直接发布资源，还是必须先创建商家。
 6. 运营代发资源是否在前台展示“平台代发”标记。

@@ -165,7 +165,7 @@ const defaultBanners = [
   {
     id: 'default-demand',
     kindText: '看需求 · 找供应',
-    title: '附近采购需求正在更新',
+    title: '附近需求正在更新',
     jumpType: 'search',
     jumpTarget: '找现货',
     typeCode: 'buy_goods',
