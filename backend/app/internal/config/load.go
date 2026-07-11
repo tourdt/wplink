@@ -13,6 +13,7 @@ import (
 var envPlaceholderPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
 const defaultDevelopmentTokenSecret = "wplink-local-development-token-secret"
+const defaultDevelopmentUserTokenSecret = "wplink-local-development-user-token-secret"
 
 func Load(path string) (Config, error) {
 	content, err := os.ReadFile(path)
@@ -36,6 +37,7 @@ type fileConfig struct {
 	Log         fileLogConfig       `yaml:"Log"`
 	Postgres    filePostgresConfig  `yaml:"Postgres"`
 	AdminAuth   fileAdminAuthConfig `yaml:"AdminAuth"`
+	UserAuth    fileUserAuthConfig  `yaml:"UserAuth"`
 	Wechat      WechatConfig        `yaml:"Wechat"`
 	WechatPay   fileWechatPayConfig `yaml:"WechatPay"`
 	SMS         fileSMSConfig       `yaml:"SMS"`
@@ -73,6 +75,11 @@ type fileAdminAuthConfig struct {
 	TokenSecret    string         `yaml:"TokenSecret"`
 	TokenTTL       configDuration `yaml:"TokenTTL"`
 	MasterPassword string         `yaml:"MasterPassword"`
+}
+
+type fileUserAuthConfig struct {
+	TokenSecret string         `yaml:"TokenSecret"`
+	TokenTTL    configDuration `yaml:"TokenTTL"`
 }
 
 type fileWechatPayConfig struct {
@@ -151,6 +158,18 @@ func (c fileConfig) toConfig() Config {
 		// 本地开发配置经常依赖未导出的环境变量；只在开发模式补固定开发密钥，避免登录链路因空密钥中断。
 		adminAuth.TokenSecret = defaultDevelopmentTokenSecret
 	}
+	userAuth := UserAuthConfig{
+		TokenSecret: strings.TrimSpace(c.UserAuth.TokenSecret),
+		TokenTTL:    c.UserAuth.TokenTTL.Duration(),
+	}
+	if userAuth.TokenTTL == 0 {
+		// UserAuth 是新增配置；未显式设置 TTL 时沿用后台 TTL，保持现有登录有效期体验不变。
+		userAuth.TokenTTL = adminAuth.TokenTTL
+	}
+	if userAuth.TokenSecret == "" && IsDevelopmentMode(c.RuntimeMode) {
+		// 用户 token 使用独立开发密钥，避免本地也形成后台/用户 token 共用密钥的坏习惯。
+		userAuth.TokenSecret = defaultDevelopmentUserTokenSecret
+	}
 
 	return Config{
 		Name:        c.Name,
@@ -166,6 +185,7 @@ func (c fileConfig) toConfig() Config {
 			ConnMaxIdleTime: c.Postgres.ConnMaxIdleTime.Duration(),
 		},
 		AdminAuth: adminAuth,
+		UserAuth:  userAuth,
 		Wechat:    c.Wechat,
 		WechatPay: WechatPayConfig{
 			Enabled:                c.WechatPay.Enabled,

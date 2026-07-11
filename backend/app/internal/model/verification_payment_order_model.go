@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 func (m *VerificationModel) GetVerificationPaymentContext(ctx context.Context, input GetVerificationPaymentContextInput) (VerificationPaymentContext, error) {
@@ -86,32 +88,42 @@ func (m *VerificationModel) MarkVerificationPaymentPaid(ctx context.Context, inp
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
 		var verificationType string
 		var paidAt sql.NullTime
+		var previousOrderStatus string
 		if strings.TrimSpace(input.SuccessTime) != "" {
 			if parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(input.SuccessTime)); err == nil {
 				paidAt = sql.NullTime{Time: parsed, Valid: true}
 			}
 		}
 		err := tx.QueryRowContext(ctx, `
-UPDATE verification_payment_orders
+WITH target_order AS (
+  SELECT id, verification_id, merchant_id, status AS previous_status
+  FROM verification_payment_orders
+  WHERE out_trade_no = $1
+    AND status IN ('pending', 'paid')
+    AND ($3 <= 0 OR amount_total = $3)
+  FOR UPDATE
+)
+UPDATE verification_payment_orders AS vpo
 SET transaction_id = $2,
     amount_total = CASE WHEN $3 > 0 THEN $3 ELSE amount_total END,
     status = 'paid',
     notify_payload = $4,
     paid_at = COALESCE($5, paid_at, now()),
     updated_at = now()
-WHERE out_trade_no = $1
-  AND status IN ('pending', 'paid')
-  AND ($3 <= 0 OR amount_total = $3)
-RETURNING id::text, verification_id::text, merchant_id::text, status
+FROM target_order
+WHERE vpo.id = target_order.id
+RETURNING vpo.id::text, vpo.verification_id::text, vpo.merchant_id::text, vpo.status, target_order.previous_status
 `, input.OutTradeNo, input.TransactionID, input.AmountTotal, input.NotifyPayload, paidAt).Scan(
 			&result.OrderID,
 			&result.VerificationID,
 			&result.MerchantID,
 			&result.Status,
+			&previousOrderStatus,
 		)
 		if err != nil {
 			return err
 		}
+		paymentPreviouslyPending := previousOrderStatus == "pending"
 
 		err = tx.QueryRowContext(ctx, `
 UPDATE verifications
@@ -148,6 +160,11 @@ SELECT EXISTS (
 				return err
 			}
 		}
+		if !paymentPreviouslyPending {
+			logx.Infof("认证支付重复回调已幂等处理: orderId=%s verificationId=%s merchantId=%s outTradeNo=%s previousStatus=%s", result.OrderID, result.VerificationID, result.MerchantID, input.OutTradeNo, previousOrderStatus)
+			return nil
+		}
+		// 支付结果消息只在订单首次从 pending 变为 paid 时创建，避免微信重复回调造成商家端重复通知。
 		_, err = tx.ExecContext(ctx, `
 INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
 VALUES ($1, 'verification_result', 'verification_payment_paid', $2, '认证支付成功', $3, $4, 'unread')

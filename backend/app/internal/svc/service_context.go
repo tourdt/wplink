@@ -81,7 +81,7 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		AdminLoginService:   adminauth.NewLoginService(adminauth.NewSQLAdminStore(db), adminauth.BcryptPasswordHasher{}, adminTokenIssuer, adminLoginOptions...),
 		AdminTokenService:   adminTokenService,
 		UploadTokenService:  uploadlogic.NewUploadTokenLogic(c.Storage),
-		UserTokenService:    session.NewHMACUserTokenService(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL),
+		UserTokenService:    session.NewHMACUserTokenService(c.UserAuth.TokenSecret, c.UserAuth.TokenTTL),
 		WechatSessionClient: authlogic.NewWechatSessionClient(c.Wechat, "", nil),
 		SMSVerifier:         authlogic.NewConfiguredSMSVerifier(c.SMS),
 		WechatPayGateway:    wechatPayGateway,

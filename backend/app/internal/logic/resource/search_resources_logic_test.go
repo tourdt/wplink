@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -49,10 +50,29 @@ func TestSearchResourcesPassesDirectionToListAndSearchLog(t *testing.T) {
 	}
 }
 
+func TestSearchResourcesReturnsResultsWhenSearchLogFails(t *testing.T) {
+	store := &fakeSearchResourceStore{
+		result:    model.ListResourcesResult{Items: []model.ResourceListItem{{ID: "resource-1"}}, Total: 1, Page: 1, PageSize: 20},
+		recordErr: errors.New("insert search log failed"),
+	}
+	logic := NewSearchResourcesLogic(store)
+
+	resp, err := logic.SearchResources(context.Background(), SearchResourcesReq{
+		UserID: "user-1", CityCode: "zhili", Keyword: "卫衣", Page: 1, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("SearchResources() error = %v, want nil when search log fails", err)
+	}
+	if resp.Total != 1 || store.searchLog.Keyword != "卫衣" {
+		t.Fatalf("resp = %#v searchLog = %#v, want search result and attempted log", resp, store.searchLog)
+	}
+}
+
 type fakeSearchResourceStore struct {
 	filter    model.ListResourcesFilter
 	searchLog model.SearchLogInput
 	result    model.ListResourcesResult
+	recordErr error
 }
 
 func (s *fakeSearchResourceStore) ListResources(ctx context.Context, filter model.ListResourcesFilter) (model.ListResourcesResult, error) {
@@ -62,5 +82,5 @@ func (s *fakeSearchResourceStore) ListResources(ctx context.Context, filter mode
 
 func (s *fakeSearchResourceStore) RecordSearchLog(ctx context.Context, input model.SearchLogInput) error {
 	s.searchLog = input
-	return nil
+	return s.recordErr
 }

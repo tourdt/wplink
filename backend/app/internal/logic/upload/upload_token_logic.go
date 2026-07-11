@@ -53,9 +53,10 @@ func (l *UploadTokenLogic) CreateUploadToken(_ context.Context, req CreateUpload
 	expiresAt := time.Now().Add(expire).UTC()
 	objectKey := buildObjectKey(req.Purpose, req.FileName)
 	policy := map[string]interface{}{
-		"scope":     l.cfg.Bucket + ":" + objectKey,
-		"deadline":  expiresAt.Unix(),
-		"mimeLimit": strings.TrimSpace(req.ContentType),
+		"scope":      l.cfg.Bucket + ":" + objectKey,
+		"deadline":   expiresAt.Unix(),
+		"mimeLimit":  strings.TrimSpace(req.ContentType),
+		"fsizeLimit": req.FileSize,
 	}
 	policyBytes, err := json.Marshal(policy)
 	if err != nil {

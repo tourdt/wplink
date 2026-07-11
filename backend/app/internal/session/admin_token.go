@@ -19,6 +19,7 @@ type AdminTokenSubject struct {
 type adminTokenPayload struct {
 	Subject string   `json:"sub"`
 	Roles   []string `json:"roles"`
+	Type    string   `json:"typ"`
 	Issued  int64    `json:"iat"`
 	Expires int64    `json:"exp"`
 }
@@ -47,6 +48,7 @@ func (i *HMACAdminTokenIssuer) IssueAdminToken(_ context.Context, subject AdminT
 	payload := map[string]interface{}{
 		"sub":   subject.UserID,
 		"roles": subject.Roles,
+		"typ":   "admin",
 		"iat":   now.Unix(),
 		"exp":   now.Add(i.ttl).Unix(),
 	}
@@ -97,7 +99,7 @@ func (i *HMACAdminTokenIssuer) ParseAdminToken(_ context.Context, token string) 
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return AdminTokenSubject{}, errors.New("登录状态无效，请重新登录")
 	}
-	if strings.TrimSpace(payload.Subject) == "" {
+	if payload.Type != "admin" || strings.TrimSpace(payload.Subject) == "" {
 		return AdminTokenSubject{}, errors.New("登录状态无效，请重新登录")
 	}
 	if payload.Expires > 0 && time.Now().Unix() > payload.Expires {

@@ -10,7 +10,8 @@ import (
 
 func TestLoadReadsAppYAMLAndExpandsEnv(t *testing.T) {
 	t.Setenv("POSTGRES_PASSWORD", "secret-pass")
-	t.Setenv("JWT_SECRET", "secret-token")
+	t.Setenv("ADMIN_TOKEN_SECRET", "secret-token")
+	t.Setenv("USER_TOKEN_SECRET", "user-secret-token")
 	t.Setenv("WECHAT_APP_ID", "wx-local")
 	t.Setenv("WECHAT_APP_SECRET", "wechat-secret")
 
@@ -28,9 +29,13 @@ Postgres:
   ConnMaxIdleTime: 5m
 
 AdminAuth:
-  TokenSecret: "${JWT_SECRET}"
+  TokenSecret: "${ADMIN_TOKEN_SECRET}"
   TokenTTL: 24h
   MasterPassword: "a123456"
+
+UserAuth:
+  TokenSecret: "${USER_TOKEN_SECRET}"
+  TokenTTL: 12h
 
 Wechat:
   AppID: "${WECHAT_APP_ID}"
@@ -104,6 +109,9 @@ Storage:
 	if cfg.AdminAuth.TokenSecret != "secret-token" || cfg.AdminAuth.TokenTTL != 24*time.Hour || cfg.AdminAuth.MasterPassword != "a123456" {
 		t.Fatalf("admin auth = %#v, want env token, ttl and master password", cfg.AdminAuth)
 	}
+	if cfg.UserAuth.TokenSecret != "user-secret-token" || cfg.UserAuth.TokenTTL != 12*time.Hour {
+		t.Fatalf("user auth = %#v, want independent env token and ttl", cfg.UserAuth)
+	}
 	if cfg.Wechat.AppID != "wx-local" || cfg.Wechat.AppSecret != "wechat-secret" || !cfg.Wechat.AllowDevCode {
 		t.Fatalf("wechat = %#v, want env app config", cfg.Wechat)
 	}
@@ -165,8 +173,17 @@ AdminAuth:
 	if cfg.AdminAuth.TokenSecret == "" {
 		t.Fatal("AdminAuth.TokenSecret = empty, want local development fallback")
 	}
+	if cfg.UserAuth.TokenSecret == "" {
+		t.Fatal("UserAuth.TokenSecret = empty, want local development fallback")
+	}
+	if cfg.UserAuth.TokenSecret == cfg.AdminAuth.TokenSecret {
+		t.Fatal("UserAuth.TokenSecret equals AdminAuth.TokenSecret, want isolated local development secrets")
+	}
 	if cfg.AdminAuth.TokenTTL != 24*time.Hour {
 		t.Fatalf("AdminAuth.TokenTTL = %s, want configured TTL", cfg.AdminAuth.TokenTTL)
+	}
+	if cfg.UserAuth.TokenTTL != 24*time.Hour {
+		t.Fatalf("UserAuth.TokenTTL = %s, want admin TTL fallback when user ttl missing", cfg.UserAuth.TokenTTL)
 	}
 }
 
@@ -190,6 +207,9 @@ AdminAuth:
 	if cfg.AdminAuth.TokenSecret != "" {
 		t.Fatalf("AdminAuth.TokenSecret = %q, want empty production config before validation", cfg.AdminAuth.TokenSecret)
 	}
+	if cfg.UserAuth.TokenSecret != "" {
+		t.Fatalf("UserAuth.TokenSecret = %q, want empty production config before validation", cfg.UserAuth.TokenSecret)
+	}
 }
 
 func TestLoadDoesNotDefaultStagingTokenSecret(t *testing.T) {
@@ -211,6 +231,9 @@ AdminAuth:
 
 	if cfg.AdminAuth.TokenSecret != "" {
 		t.Fatalf("AdminAuth.TokenSecret = %q, want empty staging config", cfg.AdminAuth.TokenSecret)
+	}
+	if cfg.UserAuth.TokenSecret != "" {
+		t.Fatalf("UserAuth.TokenSecret = %q, want empty staging config", cfg.UserAuth.TokenSecret)
 	}
 }
 

@@ -18,7 +18,7 @@ func TestValidateForProductionRejectsMissingCriticalConfig(t *testing.T) {
 		t.Fatal("ValidateForProduction() error = nil, want missing config error")
 	}
 	message := err.Error()
-	for _, want := range []string{"Postgres.DSN", "AdminAuth.TokenSecret", "Wechat.AppID", "Wechat.AppSecret", "SMS.Provider", "Storage.AccessKeyID", "Tasks.ResourceLifecycleInterval", "Log.Mode", "Log.Path", "Log.KeepDays"} {
+	for _, want := range []string{"Postgres.DSN", "AdminAuth.TokenSecret", "UserAuth.TokenSecret", "Wechat.AppID", "Wechat.AppSecret", "SMS.Provider", "Storage.AccessKeyID", "Tasks.ResourceLifecycleInterval", "Log.Mode", "Log.Path", "Log.KeepDays"} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("error = %q, want mention %s", message, want)
 		}
@@ -30,6 +30,7 @@ func TestValidateForProductionAcceptsRequiredConfig(t *testing.T) {
 		RuntimeMode: "production",
 		Postgres:    productionPostgresConfig(),
 		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
+		UserAuth:    UserAuthConfig{TokenSecret: "user-secret", TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
 		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
 		Log:         defaultProductionLogConfig(),
@@ -161,6 +162,7 @@ func requiredProductionConfig() Config {
 		RuntimeMode: "production",
 		Postgres:    productionPostgresConfig(),
 		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
+		UserAuth:    UserAuthConfig{TokenSecret: "user-secret", TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
 		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
 		Log:         defaultProductionLogConfig(),

@@ -45,27 +45,21 @@ bash deploy/scripts/build-release.sh
 - `SMS.Provider: "http"`
 - `SMS.DevCode: ""`
 
-生产密钥只放在服务器环境文件或密钥管理系统，不提交到代码仓库。上线前至少轮换 `JWT_SECRET`、数据库密码、微信 AppSecret、短信密钥和七牛密钥。
+生产密钥只放在服务器环境文件或密钥管理系统，不提交到代码仓库。上线前至少轮换 `ADMIN_TOKEN_SECRET`、`USER_TOKEN_SECRET`、数据库密码、微信 AppSecret、短信密钥和七牛密钥。
 
 ## 3. 数据库
 
-在干净生产库上按顺序执行：
+推荐使用 `deploy/scripts/deploy-server.sh` 自动发布。脚本会从 `backend/migrations/*.up.sql` 生成迁移清单，随发布包上传，并在服务器数据库中维护 `schema_migrations` 表，重复发布时只执行未记录的 migration。
+
+如需人工初始化干净生产库，可按文件名顺序执行全部 `.up.sql`：
 
 ```bash
-psql "$DATABASE_URL" -f backend/migrations/000001_admin_auth.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000002_core_domain.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000003_seed_zhili.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000004_user_interactions.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000005_merchant_logo.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000006_merchant_type_change_logs.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000007_verification_payments.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000008_hot_search_keywords.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000009_verification_expiration.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000010_sourcing_map.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000011_map_object_bind_requests.up.sql
+for file in backend/migrations/*.up.sql; do
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$file"
+done
 ```
 
-自动化脚本会在服务器数据库中维护 `schema_migrations` 表，重复发布时只执行未记录的 migration。若生产库已经手动执行过这些 migration，但还没有 `schema_migrations` 记录，可在确认数据库结构一致后执行：
+若生产库已经手动执行过这些 migration，但还没有 `schema_migrations` 记录，可在确认数据库结构一致后执行：
 
 ```bash
 WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --mark-migrations-applied
@@ -101,7 +95,7 @@ cd wxapp
 VITE_API_BASE_URL=https://YOUR_DOMAIN npm run build:mp-weixin
 ```
 
-用微信开发者工具导入 `wxapp/dist/build/mp-weixin`，按 `docs/product/wxapp-manual-acceptance.md` 完成手工验收。
+用微信开发者工具导入 `wxapp/dist/mp-weixin`，按 `docs/product/wxapp-manual-acceptance.md` 完成手工验收。
 
 微信公众平台必须配置：
 

@@ -18,20 +18,15 @@ RUN_MIGRATIONS="${RUN_MIGRATIONS:-1}"
 MARK_MIGRATIONS_APPLIED="${MARK_MIGRATIONS_APPLIED:-0}"
 INSTALL_NGINX="${INSTALL_NGINX:-0}"
 
-MIGRATION_FILES=(
-  "000001_admin_auth.up.sql"
-  "000002_core_domain.up.sql"
-  "000003_seed_zhili.up.sql"
-  "000004_user_interactions.up.sql"
-  "000005_merchant_logo.up.sql"
-  "000006_merchant_type_change_logs.up.sql"
-  "000007_verification_payments.up.sql"
-  "000008_hot_search_keywords.up.sql"
-  "000009_verification_expiration.up.sql"
-  "000010_sourcing_map.up.sql"
-  "000011_map_object_bind_requests.up.sql"
-  "000012_search_trigram_indexes.up.sql"
-)
+MIGRATION_FILES=()
+while IFS= read -r migration_file; do
+  [[ -n "$migration_file" ]] && MIGRATION_FILES+=("$migration_file")
+done < <(find "$ROOT_DIR/backend/migrations" -maxdepth 1 -type f -name '*.up.sql' -exec basename {} \; | sort)
+
+if [[ ${#MIGRATION_FILES[@]} -eq 0 ]]; then
+  printf 'no migration files found under backend/migrations\n' >&2
+  exit 1
+fi
 
 usage() {
   cat <<'EOF'
@@ -159,6 +154,9 @@ for release_file in "${required_release_files[@]}"; do
   fi
 done
 
+migration_manifest="$ROOT_DIR/dist/release/migrations.manifest"
+printf '%s\n' "${MIGRATION_FILES[@]}" > "$migration_manifest"
+
 release_name="wplink-$(date +%Y%m%d%H%M%S)"
 local_bundle="$ROOT_DIR/dist/$release_name.tar.gz"
 remote_tmp="/tmp/$release_name"
@@ -168,6 +166,7 @@ bundle_items=(
   "dist/release/wplink.nginx.conf"
   "dist/release/app.yaml.example"
   "dist/release/wplink.env.example"
+  "dist/release/migrations.manifest"
 )
 
 for migration_file in "${MIGRATION_FILES[@]}"; do
@@ -326,20 +325,15 @@ if [[ "$RUN_MIGRATIONS" == "1" || "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
 
   psql_run "$database_url" -v ON_ERROR_STOP=1 -q -c "CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, name text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now());"
 
-  migration_files=(
-    "000001_admin_auth.up.sql"
-    "000002_core_domain.up.sql"
-    "000003_seed_zhili.up.sql"
-    "000004_user_interactions.up.sql"
-    "000005_merchant_logo.up.sql"
-    "000006_merchant_type_change_logs.up.sql"
-    "000007_verification_payments.up.sql"
-    "000008_hot_search_keywords.up.sql"
-    "000009_verification_expiration.up.sql"
-    "000010_sourcing_map.up.sql"
-    "000011_map_object_bind_requests.up.sql"
-    "000012_search_trigram_indexes.up.sql"
-  )
+  migration_files=()
+  while IFS= read -r migration_file; do
+    [[ -n "$migration_file" ]] && migration_files+=("$migration_file")
+  done < "$extract_dir/dist/release/migrations.manifest"
+
+  if [[ ${#migration_files[@]} -eq 0 ]]; then
+    printf 'migration manifest is empty\n' >&2
+    exit 1
+  fi
 
   for migration_file in "${migration_files[@]}"; do
     migration_key="${migration_file%.up.sql}"

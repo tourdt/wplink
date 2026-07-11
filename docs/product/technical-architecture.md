@@ -64,8 +64,6 @@ wplink/
         entitlement.api
         message.api
         admin.api
-      etc/
-        app.yaml
       internal/
         config/
         handler/
@@ -80,6 +78,8 @@ wplink/
         task/
       goctl/
       script/
+    etc/
+      app.yaml
     model/
     common/
       response/

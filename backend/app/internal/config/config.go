@@ -14,6 +14,7 @@ type Config struct {
 	Log         LogConfig
 	Postgres    PostgresConfig
 	AdminAuth   AdminAuthConfig
+	UserAuth    UserAuthConfig
 	Wechat      WechatConfig
 	WechatPay   WechatPayConfig
 	SMS         SMSConfig
@@ -35,6 +36,11 @@ type AdminAuthConfig struct {
 	TokenSecret    string
 	TokenTTL       time.Duration
 	MasterPassword string
+}
+
+type UserAuthConfig struct {
+	TokenSecret string
+	TokenTTL    time.Duration
 }
 
 type WechatConfig struct {

@@ -16,7 +16,7 @@ func NewGoZeroServer(cfg config.Config, svcCtx *svc.ServiceContext, adminHandler
 	srv, err := rest.NewServer(
 		restConfFromConfig(cfg),
 		rest.WithNotFoundHandler(fallbackHandler(adminHandler, apiHandler)),
-		rest.WithCors(),
+		rest.WithCors(corsAllowedOrigins(cfg)...),
 	)
 	if err != nil {
 		return nil, err
@@ -32,6 +32,17 @@ func NewGoZeroServer(cfg config.Config, svcCtx *svc.ServiceContext, adminHandler
 		Handler: readyzHandler(svcCtx),
 	})
 	return srv, nil
+}
+
+func corsAllowedOrigins(cfg config.Config) []string {
+	if config.IsProductionMode(cfg.RuntimeMode) {
+		return []string{"https://app.iweipi.cn"}
+	}
+	return []string{
+		"https://app.iweipi.cn",
+		"http://127.0.0.1:5173",
+		"http://localhost:5173",
+	}
 }
 
 func restConfFromConfig(cfg config.Config) rest.RestConf {

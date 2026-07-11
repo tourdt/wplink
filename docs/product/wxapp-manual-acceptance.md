@@ -4,7 +4,7 @@
 
 - 后端生产或验收环境 `/healthz`、`/readyz` 均返回 `ok`。
 - 微信公众平台已配置 request、uploadFile、downloadFile 合法域名。
-- `wxapp/dist/build/mp-weixin` 已用生产 API 域名构建。
+- `wxapp/dist/mp-weixin` 已用生产 API 域名构建。
 - 微信开发者工具已导入项目，AppID 使用正式或体验版 AppID。
 
 ## 验收流程

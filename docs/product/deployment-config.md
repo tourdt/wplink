@@ -81,6 +81,7 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 
 - `Postgres.DSN`、`Postgres.MaxOpenConns`、`Postgres.MaxIdleConns`、`Postgres.ConnMaxLifetime`、`Postgres.ConnMaxIdleTime`
 - `AdminAuth.TokenSecret`
+- `UserAuth.TokenSecret`
 - `Wechat.AppID`、`Wechat.AppSecret`
 - `SMS.Provider`，以及对应供应商所需字段；`http` 模式需要 `SMS.SendURL`、`SMS.VerifyURL`、`SMS.AccessKeySecret`
 - `Tasks.ResourceLifecycleInterval`
@@ -166,5 +167,5 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 - 监控和发布检查使用 `/healthz` 判断进程存活，使用 `/readyz` 判断 PostgreSQL 就绪；`/readyz` 返回 503 时不应切入流量。
 - 生产只开放 `80/443/22`，不要开放 PostgreSQL 和 API 内部端口。
 - PostgreSQL 使用独立业务用户，不使用超级用户连接应用。
-- `JWT_SECRET`、`QINIU_SECRET_KEY`、数据库密码只放服务器环境或密钥管理系统。
+- `ADMIN_TOKEN_SECRET`、`USER_TOKEN_SECRET`、`QINIU_SECRET_KEY`、数据库密码只放服务器环境或密钥管理系统。
 - 正式小程序必须使用 HTTPS API 域名，并在微信公众平台配置 request 合法域名。

@@ -44,6 +44,23 @@ func TestHMACAdminTokenIssuerParsesSignedToken(t *testing.T) {
 	}
 }
 
+func TestHMACAdminTokenIssuerRejectsUserTokenWithAdminRole(t *testing.T) {
+	userTokenService := NewHMACUserTokenService("shared-secret", time.Hour)
+	adminIssuer := NewHMACAdminTokenIssuer("shared-secret", time.Hour)
+	token, err := userTokenService.IssueUserToken(context.Background(), UserTokenSubject{
+		UserID: "user-1",
+		Roles:  []string{"platform_operator"},
+	})
+	if err != nil {
+		t.Fatalf("IssueUserToken() error = %v", err)
+	}
+
+	_, err = adminIssuer.ParseAdminToken(context.Background(), token)
+	if err == nil || !strings.Contains(err.Error(), "登录状态无效") {
+		t.Fatalf("ParseAdminToken() error = %v, want invalid login state", err)
+	}
+}
+
 func TestHMACAdminTokenIssuerRejectsEmptySecret(t *testing.T) {
 	issuer := NewHMACAdminTokenIssuer("", time.Hour)
 

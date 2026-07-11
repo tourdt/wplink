@@ -1,11 +1,13 @@
 package svc
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
 
 	"wplink/backend/app/internal/config"
+	"wplink/backend/app/internal/session"
 )
 
 func TestNewServiceContextBuildsServerDependencies(t *testing.T) {
@@ -13,6 +15,10 @@ func TestNewServiceContextBuildsServerDependencies(t *testing.T) {
 		Name: "wplink-api",
 		AdminAuth: config.AdminAuthConfig{
 			TokenSecret: "secret",
+			TokenTTL:    time.Hour,
+		},
+		UserAuth: config.UserAuthConfig{
+			TokenSecret: "user-secret",
 			TokenTTL:    time.Hour,
 		},
 	}
@@ -45,6 +51,10 @@ func TestNewServiceContextReturnsWechatPayInitError(t *testing.T) {
 			TokenSecret: "secret",
 			TokenTTL:    time.Hour,
 		},
+		UserAuth: config.UserAuthConfig{
+			TokenSecret: "user-secret",
+			TokenTTL:    time.Hour,
+		},
 		WechatPay: config.WechatPayConfig{
 			Enabled:                true,
 			MerchantPrivateKeyPath: "/path/not/exist/apiclient_key.pem",
@@ -62,6 +72,28 @@ func TestNewServiceContextReturnsWechatPayInitError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "初始化微信支付网关失败") {
 		t.Fatalf("NewServiceContext() error = %v, want wrapped wechat pay message", err)
+	}
+}
+
+func TestNewServiceContextUsesUserAuthForUserTokens(t *testing.T) {
+	cfg := config.Config{
+		AdminAuth: config.AdminAuthConfig{TokenSecret: "admin-secret", TokenTTL: time.Hour},
+		UserAuth:  config.UserAuthConfig{TokenSecret: "user-secret", TokenTTL: time.Hour},
+	}
+	ctx, err := NewServiceContext(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewServiceContext() error = %v", err)
+	}
+
+	token, err := ctx.UserTokenService.IssueUserToken(context.Background(), session.UserTokenSubject{UserID: "user-1"})
+	if err != nil {
+		t.Fatalf("IssueUserToken() error = %v", err)
+	}
+	if _, err := session.NewHMACUserTokenService("user-secret", time.Hour).ParseUserToken(context.Background(), token); err != nil {
+		t.Fatalf("ParseUserToken() with user secret error = %v", err)
+	}
+	if _, err := session.NewHMACUserTokenService("admin-secret", time.Hour).ParseUserToken(context.Background(), token); err == nil {
+		t.Fatal("ParseUserToken() with admin secret error = nil, want signature mismatch")
 	}
 }
 

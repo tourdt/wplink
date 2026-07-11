@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"wplink/backend/app/internal/model"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type SearchResourceStore interface {
@@ -47,7 +49,7 @@ func (l *SearchResourcesLogic) SearchResources(ctx context.Context, req SearchRe
 		ResultCount: resp.Total,
 	})
 	if err != nil {
-		return ListResourcesResp{}, err
+		logx.Errorf("记录搜索日志失败: userId=%s cityCode=%s keyword=%s err=%+v", strings.TrimSpace(req.UserID), strings.TrimSpace(req.CityCode), strings.TrimSpace(req.Keyword), err)
 	}
 	return resp, nil
 }

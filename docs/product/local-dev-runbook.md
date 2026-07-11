@@ -7,7 +7,7 @@
 - Go 1.23+
 - Node.js 24+ 或兼容当前依赖的 LTS 版本
 - PostgreSQL 14+
-- 可选：微信开发者工具，用于导入 `wxapp/dist/build/mp-weixin`
+- 可选：微信开发者工具，用于导入 `wxapp/dist/mp-weixin`
 
 ## 配置模板
 
@@ -19,7 +19,7 @@
 
 当前已实现七牛 Kodo 上传凭证签发，小程序可通过 `/api/v1/uploads/token` 获取凭证后直传对象存储。图片字段仍保存最终 CDN URL。生产服务启用用户 token 后，资源发布和“我的发布”管理会校验用户是否绑定对应商家。
 
-正式运营时必须使用 `RuntimeMode: production` 并提供真实 `JWT_SECRET`、PostgreSQL DSN、PostgreSQL 连接池参数、微信小程序 AppID/Secret、短信验证码服务配置、资源生命周期任务间隔和七牛密钥。生产模式会在启动前校验关键配置，缺失时拒绝启动；短信 `dev` provider 仅允许本地开发。
+正式运营时必须使用 `RuntimeMode: production` 并提供真实 `ADMIN_TOKEN_SECRET`、`USER_TOKEN_SECRET`、PostgreSQL DSN、PostgreSQL 连接池参数、微信小程序 AppID/Secret、短信验证码服务配置、资源生命周期任务间隔和七牛密钥。生产模式会在启动前校验关键配置，缺失时拒绝启动；短信 `dev` provider 仅允许本地开发。
 
 ## 数据库初始化
 
@@ -159,7 +159,7 @@ npm run build:mp-weixin
 构建成功后，用微信开发者工具导入：
 
 ```text
-wxapp/dist/build/mp-weixin
+wxapp/dist/mp-weixin
 ```
 
 如需连接本地 API，在构建或开发命令前设置：

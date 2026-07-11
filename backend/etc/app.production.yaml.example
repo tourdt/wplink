@@ -21,7 +21,11 @@ Postgres:
   ConnMaxIdleTime: 5m
 
 AdminAuth:
-  TokenSecret: "${JWT_SECRET}"
+  TokenSecret: "${ADMIN_TOKEN_SECRET}"
+  TokenTTL: 24h
+
+UserAuth:
+  TokenSecret: "${USER_TOKEN_SECRET}"
   TokenTTL: 24h
 
 Wechat:

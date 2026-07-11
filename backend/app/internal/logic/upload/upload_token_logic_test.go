@@ -61,6 +61,9 @@ func TestCreateUploadTokenSignsQiniuPolicy(t *testing.T) {
 	if policy["scope"] != "wplink-test:"+resp.ObjectKey {
 		t.Fatalf("policy = %#v, want scoped object key", policy)
 	}
+	if got, ok := policy["fsizeLimit"].(float64); !ok || int64(got) != 128 {
+		t.Fatalf("policy fsizeLimit = %#v, want requested file size 128", policy["fsizeLimit"])
+	}
 	if resp.UploadURL != "https://upload-z2.qiniup.com" || resp.PublicBaseURL != "https://cdn.example.com" {
 		t.Fatalf("resp = %#v, want configured endpoints", resp)
 	}

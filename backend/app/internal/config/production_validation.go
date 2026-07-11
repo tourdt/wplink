@@ -39,6 +39,7 @@ func ValidateForProduction(cfg Config) error {
 	requirePositiveDuration("Postgres.ConnMaxLifetime", cfg.Postgres.ConnMaxLifetime)
 	requirePositiveDuration("Postgres.ConnMaxIdleTime", cfg.Postgres.ConnMaxIdleTime)
 	require("AdminAuth.TokenSecret", cfg.AdminAuth.TokenSecret)
+	require("UserAuth.TokenSecret", cfg.UserAuth.TokenSecret)
 	require("Wechat.AppID", cfg.Wechat.AppID)
 	require("Wechat.AppSecret", cfg.Wechat.AppSecret)
 	validateProductionWechatPay(cfg.WechatPay, require, requirePositiveDuration)
