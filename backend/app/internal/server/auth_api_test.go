@@ -61,6 +61,18 @@ func TestAuthAPIRouterRunsLoginMeAndBindPhoneFlow(t *testing.T) {
 		t.Fatalf("sms verifier = %q/%q, want trimmed phone and code", smsVerifier.phone, smsVerifier.code)
 	}
 
+	wechatPhoneRec := httptest.NewRecorder()
+	wechatPhoneReq := httptest.NewRequest(http.MethodPost, "/api/v1/me/wechat-phone", strings.NewReader(`{"code":"phone-code"}`))
+	wechatPhoneReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(wechatPhoneRec, wechatPhoneReq)
+	wechatPhoneData := decodeEnvelopeData(t, wechatPhoneRec, http.StatusOK)
+	if wechatPhoneData["phone"] != "18800000003" || store.boundPhone != "18800000003" {
+		t.Fatalf("wechat phone data = %#v bound = %q, want wechat phone bound", wechatPhoneData, store.boundPhone)
+	}
+	if wechatClient.phoneCode != "phone-code" {
+		t.Fatalf("wechat phone code = %q, want trimmed code", wechatClient.phoneCode)
+	}
+
 	smsRec := httptest.NewRecorder()
 	smsReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/sms-code", strings.NewReader(`{"phone":"18800000002"}`))
 	router.ServeHTTP(smsRec, smsReq)
@@ -204,13 +216,23 @@ func (s *rawErrorUserTokenService) ParseUserToken(ctx context.Context, token str
 }
 
 type fakeAuthWechatSessionClient struct {
-	code    string
-	session authlogic.WechatSession
+	code        string
+	phoneCode   string
+	session     authlogic.WechatSession
+	phoneNumber authlogic.WechatPhoneNumber
 }
 
 func (s *fakeAuthWechatSessionClient) Code2Session(ctx context.Context, code string) (authlogic.WechatSession, error) {
 	s.code = code
 	return s.session, nil
+}
+
+func (s *fakeAuthWechatSessionClient) GetPhoneNumber(ctx context.Context, code string) (authlogic.WechatPhoneNumber, error) {
+	s.phoneCode = code
+	if strings.TrimSpace(s.phoneNumber.PurePhoneNumber) == "" {
+		return authlogic.WechatPhoneNumber{PurePhoneNumber: "18800000003"}, nil
+	}
+	return s.phoneNumber, nil
 }
 
 type fakeAuthSMSVerifier struct {

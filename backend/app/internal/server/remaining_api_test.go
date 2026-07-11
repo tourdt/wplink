@@ -76,6 +76,34 @@ func TestAPIRouterRequiresMerchantPermissionForMerchantMessages(t *testing.T) {
 	}
 }
 
+func TestAPIRouterReturnsEditableMerchantContactForManagerOnly(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	authorizedRec := httptest.NewRecorder()
+	authorizedReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1", nil)
+	authorizedReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(authorizedRec, authorizedReq)
+	authorizedData := decodeEnvelopeData(t, authorizedRec, http.StatusOK)
+	authorizedContact := authorizedData["contact"].(map[string]interface{})
+	if authorizedContact["phone"] != "18800000002" || authorizedContact["wechat"] != "stock-demo" {
+		t.Fatalf("authorized contact = %#v, want editable phone and wechat", authorizedContact)
+	}
+
+	publicRec := httptest.NewRecorder()
+	publicReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1", nil)
+	router.ServeHTTP(publicRec, publicReq)
+	publicData := decodeEnvelopeData(t, publicRec, http.StatusOK)
+	publicContact := publicData["contact"].(map[string]interface{})
+	if _, ok := publicContact["phone"]; ok {
+		t.Fatalf("public contact = %#v, should not expose raw phone", publicContact)
+	}
+	if _, ok := publicContact["wechat"]; ok {
+		t.Fatalf("public contact = %#v, should not expose raw wechat", publicContact)
+	}
+}
+
 func TestAPIRouterDoesNotExposePurchaseDemandRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
@@ -630,7 +658,7 @@ func (s *fakeFullAPIStore) CreateMerchant(ctx context.Context, input model.Creat
 }
 
 func (s *fakeFullAPIStore) GetMerchantDetail(ctx context.Context, merchantID string) (model.MerchantDetail, error) {
-	return model.MerchantDetail{ID: merchantID, Name: "织里云仓", MerchantType: "stockist", CityCode: "zhili", MainCategories: []string{"童装"}, VerificationStatus: "verified", ContactName: "周经理", PhoneMasked: "188****0002", AddressText: "织里镇利济路88号", Location: model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"}, PublishedCount: 1}, nil
+	return model.MerchantDetail{ID: merchantID, Name: "织里云仓", MerchantType: "stockist", CityCode: "zhili", MainCategories: []string{"童装"}, VerificationStatus: "verified", ContactName: "周经理", ContactPhone: "18800000002", ContactWechat: "stock-demo", PhoneMasked: "188****0002", WechatMasked: "stock-demo", AddressText: "织里镇利济路88号", Location: model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"}, PublishedCount: 1}, nil
 }
 
 func (s *fakeFullAPIStore) UpdateMerchant(ctx context.Context, merchantID string, patch model.UpdateMerchantPatch) (string, error) {

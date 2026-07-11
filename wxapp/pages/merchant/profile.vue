@@ -62,64 +62,7 @@
             <text class="field-label">简介</text>
             <textarea v-model="form.description" class="textarea" placeholder="比如：主做童装现货，支持看样和小单补货" />
           </view>
-        </view>
-      </view>
-
-      <view class="form-section contact-section">
-        <button class="section-toggle" @click="toggleContactSection">
-          <view>
-            <text class="section-title">联系方式</text>
-            <text class="section-summary">买家联系和导航</text>
-          </view>
-          <text class="toggle-mark">{{ contactSectionOpen ? '收起' : '展开' }}</text>
-        </button>
-        <view v-if="contactSectionOpen" class="section-body">
-          <view class="form-field">
-            <text class="field-label">联系人</text>
-            <input v-model="form.contactName" class="field" placeholder="联系人姓名" />
-          </view>
-          <view v-if="merchantId" class="form-field contact-phone-card">
-            <text class="field-label">联系电话</text>
-            <text v-if="contactPhoneHint" class="field-helper">当前：{{ contactPhoneHint }}，填新号可更换</text>
-            <input v-model="form.contactPhone" class="field" type="number" maxlength="20" placeholder="新手机号" @input="sanitizeContactPhone" />
-            <text class="field-helper">手机号需为 6-20 位数字</text>
-          </view>
-          <view v-else class="form-field">
-            <text class="field-label">联系电话</text>
-            <input v-model="form.contactPhone" class="field" type="number" maxlength="20" placeholder="联系电话" @input="sanitizeContactPhone" />
-            <text class="field-helper">手机号需为 6-20 位数字</text>
-          </view>
-          <view class="form-field">
-            <text class="field-label">微信</text>
-            <text v-if="merchantId && contactWechatHint" class="field-helper">当前：{{ contactWechatHint }}，填新微信可更换</text>
-            <input v-model="form.contactWechat" class="field" :placeholder="contactWechatPlaceholder" />
-          </view>
-          <view class="form-field">
-            <text class="field-label">经营地址</text>
-            <view class="address-row">
-              <input v-model="form.addressText" class="field" placeholder="请输入经营地址" />
-              <button class="map-button" @click="chooseMerchantLocation">地图选择</button>
-            </view>
-            <view class="location-status">
-              <text>{{ locationSelected ? '已选地图位置' : '可选地图定位' }}</text>
-              <button v-if="locationSelected" class="location-clear-button" @click="clearMerchantLocation">清除位置</button>
-            </view>
-          </view>
-        </view>
-      </view>
-
-      <view class="form-section brand-section">
-        <button class="section-toggle" @click="toggleBrandSection">
-          <view>
-            <view class="section-title-row">
-              <text class="section-title">主页展示</text>
-            </view>
-            <text class="section-summary">补充公开展示图片</text>
-          </view>
-          <text class="toggle-mark">{{ brandSectionOpen ? '收起' : '展开' }}</text>
-        </button>
-        <view v-if="brandSectionOpen" class="section-body brand-fields">
-          <view class="form-field image-field">
+          <view class="form-field image-field profile-images-field">
             <view class="image-title-row">
               <text class="field-label">展示图片</text>
               <text class="image-count">{{ merchantImageEntries.length }}/{{ merchantProfileImageMaxCount }}</text>
@@ -145,6 +88,54 @@
           </view>
         </view>
       </view>
+
+      <view class="form-section contact-section">
+        <button class="section-toggle" @click="toggleContactSection">
+          <view>
+            <text class="section-title">联系方式</text>
+            <text class="section-summary">买家联系和导航</text>
+          </view>
+          <text class="toggle-mark">{{ contactSectionOpen ? '收起' : '展开' }}</text>
+        </button>
+        <view v-if="contactSectionOpen" class="section-body">
+          <view class="form-field">
+            <text class="field-label">联系人</text>
+            <input v-model="form.contactName" class="field" placeholder="联系人姓名" />
+          </view>
+          <view class="form-field contact-phone-card">
+            <text class="field-label">联系电话</text>
+            <view class="phone-input-row">
+              <input v-model="form.contactPhone" class="field" type="number" maxlength="20" placeholder="联系电话" @input="sanitizeContactPhone" />
+              <button
+                class="wechat-phone-button"
+                :disabled="submitting || phoneAuthorizing"
+                :loading="phoneAuthorizing"
+                open-type="getPhoneNumber"
+                @getphonenumber="useWechatPhoneNumber"
+              >
+                微信手机号
+              </button>
+            </view>
+            <text class="field-helper">手机号需为 6-20 位数字</text>
+          </view>
+          <view class="form-field">
+            <text class="field-label">微信</text>
+            <input v-model="form.contactWechat" class="field" maxlength="32" placeholder="微信号" @input="sanitizeContactWechat" />
+            <text class="field-helper">支持字母、数字、下划线和减号，最多 32 位</text>
+          </view>
+          <view class="form-field">
+            <text class="field-label">经营地址</text>
+            <view class="address-row">
+              <input v-model="form.addressText" class="field" placeholder="请输入经营地址" />
+              <button class="map-button" @click="chooseMerchantLocation">地图选择</button>
+            </view>
+            <view class="location-status">
+              <text>{{ locationSelected ? '已选地图位置' : '可选地图定位' }}</text>
+              <button v-if="locationSelected" class="location-clear-button" @click="clearMerchantLocation">清除位置</button>
+            </view>
+          </view>
+        </view>
+      </view>
     </view>
     <view class="fixed-save-spacer" />
     <view class="fixed-save-bar">
@@ -162,6 +153,7 @@ import UniGrid from '../../components/uni-ui/uni-grid/uni-grid.vue'
 import UniGridItem from '../../components/uni-ui/uni-grid-item/uni-grid-item.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { validateMerchantName } from '../../common/merchantName'
+import { bindWechatPhone } from '../../api/auth'
 import { createMerchant, getMerchant, updateMerchant } from '../../api/merchant'
 import { getLatestVerification } from '../../api/verification'
 import { createImageFileFromPath, uploadSelectedImage } from '../../common/upload'
@@ -191,10 +183,8 @@ const legacyMerchantTypeText = {
 
 const merchantId = ref('')
 const submitting = ref(false)
+const phoneAuthorizing = ref(false)
 const contactSectionOpen = ref(false)
-const brandSectionOpen = ref(false)
-const contactPhoneHint = ref('')
-const contactWechatHint = ref('')
 const originalMerchantType = ref(DEFAULT_MERCHANT_TYPE)
 const merchantVerificationStatus = ref('unverified')
 const mainCategoriesText = ref('')
@@ -237,10 +227,6 @@ const currentMerchantTypeLabel = computed(() => {
   const matched = merchantTypeOptions.find((item) => item.value === form.merchantType) || {}
   return matched.label || legacyMerchantTypeText[form.merchantType] || '个人'
 })
-const contactWechatPlaceholder = computed(() => {
-  if (!merchantId.value || !contactWechatHint.value) return '微信号'
-  return '新微信号'
-})
 const locationSelected = computed(() => hasValidLocation(form.location))
 const merchantTypeChanged = computed(() => Boolean(merchantId.value) && form.merchantType !== originalMerchantType.value)
 const merchantTypeChangeNeedsReverify = computed(() => merchantTypeChanged.value && ['pending', 'verified'].includes(merchantVerificationStatus.value))
@@ -261,10 +247,8 @@ async function loadMerchant() {
     merchantVerificationStatus.value = detail.verificationStatus || 'unverified'
     const contact = detail.contact || {}
     form.contactName = contact.name || ''
-    contactPhoneHint.value = contact.phoneMasked || ''
-    contactWechatHint.value = contact.wechatMasked || ''
-    form.contactPhone = ''
-    form.contactWechat = ''
+    form.contactPhone = sanitizeContactPhoneValue(contact.phone || '')
+    form.contactWechat = sanitizeContactWechatValue(contact.wechat || '')
     form.addressText = detail.addressText || ''
     form.location = detail.location || {}
     form.description = detail.description || ''
@@ -273,7 +257,7 @@ async function loadMerchant() {
     merchantImageEntries.value = (detail.images || [])
       .filter(Boolean)
       .map(createStoredMerchantImageEntry)
-    brandSectionOpen.value = Boolean(form.logoUrl || merchantImageEntries.value.length > 0)
+    contactSectionOpen.value = hasExistingContactInfo()
     await loadMerchantVerificationStatus()
   } catch (err) {
     uni.showToast({ title: err.message || '资料加载失败', icon: 'none' })
@@ -291,10 +275,6 @@ async function loadMerchantVerificationStatus() {
   }
 }
 
-function toggleBrandSection() {
-  brandSectionOpen.value = !brandSectionOpen.value
-}
-
 function toggleContactSection() {
   contactSectionOpen.value = !contactSectionOpen.value
 }
@@ -307,7 +287,9 @@ function changeMerchantType(event) {
 async function submitMerchantProfile() {
   const mainCategories = parseList(mainCategoriesText.value)
   const normalizedContactPhone = sanitizeContactPhoneValue(form.contactPhone)
+  const normalizedWechat = sanitizeContactWechatValue(form.contactWechat)
   form.contactPhone = normalizedContactPhone
+  form.contactWechat = normalizedWechat
   const merchantNameMessage = validateMerchantName(form.name)
   if (merchantNameMessage) {
     uni.showToast({ title: merchantNameMessage, icon: 'none' })
@@ -341,7 +323,6 @@ async function submitMerchantProfile() {
       if (normalizedContactPhone) {
         patch.contactPhone = normalizedContactPhone
       }
-      const normalizedWechat = form.contactWechat.trim()
       if (normalizedWechat) {
         patch.contactWechat = normalizedWechat
       }
@@ -360,7 +341,7 @@ async function submitMerchantProfile() {
         mainCategories,
         contactName: form.contactName.trim(),
         contactPhone: normalizedContactPhone,
-        contactWechat: form.contactWechat.trim(),
+        contactWechat: normalizedWechat,
         addressText: form.addressText.trim(),
         description: form.description.trim(),
       })
@@ -586,12 +567,54 @@ function hasValidLocation(location) {
   return Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude))
 }
 
+function hasExistingContactInfo() {
+  return Boolean(
+    form.contactName.trim()
+      || form.contactPhone.trim()
+      || form.contactWechat.trim()
+      || form.addressText.trim()
+      || hasValidLocation(form.location),
+  )
+}
+
 function sanitizeContactPhone(event) {
   form.contactPhone = sanitizeContactPhoneValue(event?.detail?.value ?? form.contactPhone)
 }
 
+function sanitizeContactWechat(event) {
+  form.contactWechat = sanitizeContactWechatValue(event?.detail?.value ?? form.contactWechat)
+}
+
+async function useWechatPhoneNumber(event) {
+  const code = String(event?.detail?.code || '').trim()
+  if (!code) {
+    uni.showToast({ title: '未获取到微信手机号，请手动填写', icon: 'none' })
+    return
+  }
+  if (phoneAuthorizing.value) return
+  try {
+    phoneAuthorizing.value = true
+    const resp = await bindWechatPhone({ code })
+    const phone = sanitizeContactPhoneValue(resp?.phone)
+    if (!isValidContactPhone(phone)) {
+      uni.showToast({ title: '未获取到微信手机号，请手动填写', icon: 'none' })
+      return
+    }
+    form.contactPhone = phone
+    uni.showToast({ title: '已填入微信手机号', icon: 'none' })
+  } catch (err) {
+    uni.showToast({ title: err.message || '手机号获取失败，请手动填写', icon: 'none' })
+  } finally {
+    phoneAuthorizing.value = false
+  }
+}
+
 function sanitizeContactPhoneValue(value) {
   return String(value || '').replace(/\D/g, '').slice(0, 20)
+}
+
+function sanitizeContactWechatValue(value) {
+  return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32)
 }
 
 function isValidContactPhone(value) {
@@ -652,8 +675,7 @@ function isValidContactPhone(value) {
   color: $wplink-warning;
 }
 
-.section-body,
-.brand-fields {
+.section-body {
   display: grid;
   gap: 18rpx;
 }
@@ -719,6 +741,28 @@ function isValidContactPhone(value) {
 
 .warning-helper {
   color: $wplink-warning;
+}
+
+.phone-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 176rpx;
+  gap: 14rpx;
+  align-items: center;
+}
+
+.wechat-phone-button {
+  height: 80rpx;
+  padding: 0;
+  border: 1rpx solid $wplink-primary;
+  border-radius: 10rpx;
+  background: $wplink-card;
+  color: $wplink-primary;
+  font-size: 24rpx;
+  line-height: 80rpx;
+}
+
+.wechat-phone-button::after {
+  border: 0;
 }
 
 .address-row {

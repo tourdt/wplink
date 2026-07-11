@@ -108,6 +108,35 @@ func TestBindPhoneUpdatesUserPhone(t *testing.T) {
 	}
 }
 
+func TestBindWechatPhoneUpdatesUserPhone(t *testing.T) {
+	store := &fakeAuthStore{}
+	wechatClient := &fakeWechatSessionClient{phoneNumber: WechatPhoneNumber{PurePhoneNumber: "18800000003"}}
+	logic := NewMeLogic(store)
+
+	resp, err := logic.BindWechatPhone(context.Background(), " user-1 ", BindWechatPhoneReq{Code: " phone-code "}, wechatClient)
+	if err != nil {
+		t.Fatalf("bind wechat phone: %v", err)
+	}
+	if wechatClient.phoneCode != "phone-code" {
+		t.Fatalf("wechat phone code = %q, want trimmed code", wechatClient.phoneCode)
+	}
+	if store.boundUserID != "user-1" || store.boundPhone != "18800000003" || resp.Phone != "18800000003" {
+		t.Fatalf("bound user = %q phone = %q resp = %#v, want wechat phone", store.boundUserID, store.boundPhone, resp)
+	}
+}
+
+func TestBindWechatPhoneRequiresCode(t *testing.T) {
+	logic := NewMeLogic(&fakeAuthStore{})
+
+	_, err := logic.BindWechatPhone(context.Background(), "user-1", BindWechatPhoneReq{}, &fakeWechatSessionClient{})
+	if err == nil {
+		t.Fatal("err = nil, want validation error")
+	}
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("err code = %s, want validation failed", errx.CodeOf(err))
+	}
+}
+
 func TestSendSMSCodeTrimsPhoneAndCallsSender(t *testing.T) {
 	sender := &fakeSMSVerifier{}
 	logic := NewSendSMSCodeLogic(sender)
@@ -185,13 +214,20 @@ func (s *fakeTokenService) ParseUserToken(ctx context.Context, token string) (se
 }
 
 type fakeWechatSessionClient struct {
-	code    string
-	session WechatSession
+	code        string
+	phoneCode   string
+	session     WechatSession
+	phoneNumber WechatPhoneNumber
 }
 
 func (s *fakeWechatSessionClient) Code2Session(ctx context.Context, code string) (WechatSession, error) {
 	s.code = code
 	return s.session, nil
+}
+
+func (s *fakeWechatSessionClient) GetPhoneNumber(ctx context.Context, code string) (WechatPhoneNumber, error) {
+	s.phoneCode = code
+	return s.phoneNumber, nil
 }
 
 type fakeSMSVerifier struct {

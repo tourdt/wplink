@@ -74,6 +74,10 @@ type BindPhoneReq struct {
 	SmsCode string `json:"smsCode"`
 }
 
+type BindWechatPhoneReq struct {
+	Code string `json:"code"`
+}
+
 type BindPhoneResp struct {
 	ID    string `json:"id"`
 	Phone string `json:"phone"`
@@ -240,6 +244,41 @@ func (l *MeLogic) BindPhone(ctx context.Context, userID string, req BindPhoneReq
 	profile, err := l.store.BindUserPhone(ctx, userID, phone)
 	if err != nil {
 		return BindPhoneResp{}, err
+	}
+	return BindPhoneResp{ID: profile.ID, Phone: profile.Phone}, nil
+}
+
+func (l *MeLogic) BindWechatPhone(ctx context.Context, userID string, req BindWechatPhoneReq, wechatClient WechatSessionClient) (BindPhoneResp, error) {
+	userID = strings.TrimSpace(userID)
+	code := strings.TrimSpace(req.Code)
+	if userID == "" {
+		return BindPhoneResp{}, errx.New(errx.CodeUnauthorized, "请先登录")
+	}
+	if code == "" {
+		return BindPhoneResp{}, errx.New(errx.CodeValidationFailed, "请授权微信手机号")
+	}
+	if wechatClient == nil {
+		return BindPhoneResp{}, errx.New(errx.CodeInternalError, "微信手机号服务未配置，请手动填写")
+	}
+
+	phoneInfo, err := wechatClient.GetPhoneNumber(ctx, code)
+	if err != nil {
+		logx.Errorf("微信手机号授权换取失败: userId=%s err=%+v", userID, err)
+		return BindPhoneResp{}, loginDependencyError(err, "手机号获取失败，请手动填写")
+	}
+	phone := strings.TrimSpace(phoneInfo.PurePhoneNumber)
+	if phone == "" {
+		phone = strings.TrimSpace(phoneInfo.PhoneNumber)
+	}
+	if len(phone) < 6 || len(phone) > 20 {
+		logx.Errorf("微信手机号授权返回号码异常: userId=%s hasPhone=%t countryCode=%s", userID, strings.TrimSpace(phoneInfo.PhoneNumber) != "" || strings.TrimSpace(phoneInfo.PurePhoneNumber) != "", strings.TrimSpace(phoneInfo.CountryCode))
+		return BindPhoneResp{}, errx.New(errx.CodeInternalError, "手机号获取失败，请手动填写")
+	}
+
+	profile, err := l.store.BindUserPhone(ctx, userID, phone)
+	if err != nil {
+		logx.Errorf("微信手机号绑定写入失败: userId=%s err=%+v", userID, err)
+		return BindPhoneResp{}, loginDependencyError(err, "手机号绑定失败，请稍后重试")
 	}
 	return BindPhoneResp{ID: profile.ID, Phone: profile.Phone}, nil
 }

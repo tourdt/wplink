@@ -702,8 +702,6 @@ test('merchant profile page uses neutral profile setup wording and keeps basic f
     '简介',
     '经营地址',
     '头像 / LOGO',
-    '主页展示',
-    '补充公开展示图片',
     '展示图片',
     '资料加载失败',
     '资料已保存',
@@ -719,10 +717,12 @@ test('merchant profile page uses neutral profile setup wording and keeps basic f
   const identityIndex = source.indexOf('主要身份')
   const categoryIndex = source.indexOf('主营内容')
   const introIndex = source.indexOf('简介')
+  const imageIndex = source.indexOf('展示图片')
   assert.ok(logoIndex > -1 && logoIndex < nameIndex)
   assert.ok(nameIndex < identityIndex)
   assert.ok(identityIndex < categoryIndex)
   assert.ok(categoryIndex < introIndex)
+  assert.ok(introIndex < imageIndex && imageIndex < basicSectionEndIndex)
   assert.doesNotMatch(source, /:disabled="Boolean\(merchantId\)" placeholder="请输入展示名称"/)
   assert.match(source, /const patch = \{[\s\S]*name: form\.name\.trim\(\),[\s\S]*mainCategories,/)
 
@@ -735,6 +735,8 @@ test('merchant profile page uses neutral profile setup wording and keeps basic f
     '选择最主要的经营身份',
     '经营简介',
     '品牌展示',
+    '主页展示',
+    '补充公开展示图片',
     '提交入驻',
     '商家资料加载失败',
     '商家资料已保存',
@@ -1192,18 +1194,16 @@ test('merchant profile page uses wechat avatar picker for merchant logo', () => 
   assert.equal(profileSource.includes('top: -9999px'), false)
 })
 
-test('merchant profile page groups long form and collapses optional brand section', () => {
+test('merchant profile page keeps display images inline and collapses contact fields', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
 
   for (const token of [
     '基础资料',
     '联系方式',
-    '主页展示',
     '买家联系和导航',
-    '补充公开展示图片',
-    'brandSectionOpen',
-    'toggleBrandSection',
+    '展示图片',
+    '公开展示图片，点击图片预览，点击最后一格添加',
     'fixed-save-bar',
     'section-toggle',
     'section-body',
@@ -1211,6 +1211,11 @@ test('merchant profile page groups long form and collapses optional brand sectio
     assert.match(source, new RegExp(token))
   }
 
+  assert.equal(source.includes('主页展示'), false)
+  assert.equal(source.includes('补充公开展示图片'), false)
+  assert.equal(source.includes('brandSectionOpen'), false)
+  assert.equal(source.includes('toggleBrandSection'), false)
+  assert.match(source, /<text class="field-label">简介<\/text>[\s\S]*?<text class="field-label">展示图片<\/text>[\s\S]*?<view class="form-section contact-section">/)
   assert.equal(source.includes('optional-badge'), false)
   assert.equal(source.includes('选填'), false)
   assert.equal(source.includes('page-head'), false)
@@ -1241,6 +1246,30 @@ test('merchant profile page keeps contact fields optional and collapsed', () => 
 
   assert.equal(source.includes('请填写联系人和电话'), false)
   assert.equal(source.includes('<text class="required-badge">必填</text>\\n          </view>\\n        </view>\\n        <view class="section-body">\\n          <view class="form-field">\\n            <text class="field-label">联系人</text>'), false)
+})
+
+test('merchant profile page echoes existing contact values in inputs and sanitizes contact input', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+
+  for (const token of [
+    'form.contactPhone = sanitizeContactPhoneValue(contact.phone || \'\')',
+    'form.contactWechat = sanitizeContactWechatValue(contact.wechat || \'\')',
+    'contactSectionOpen.value = hasExistingContactInfo()',
+    'function hasExistingContactInfo()',
+    '@input="sanitizeContactPhone"',
+    '@input="sanitizeContactWechat"',
+    'sanitizeContactWechatValue',
+    "replace(/[^a-zA-Z0-9_-]/g, '')",
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.equal(source.includes('contactPhoneHint'), false)
+  assert.equal(source.includes('contactWechatHint'), false)
+  assert.equal(source.includes('当前：'), false)
+  assert.equal(source.includes('填新号可更换'), false)
+  assert.equal(source.includes('填新微信可更换'), false)
 })
 
 test('merchant profile page reserves space above fixed save bar', () => {
@@ -1491,6 +1520,27 @@ test('login page provides reusable wechat login and redirect guard', () => {
 
   assert.match(mySource, /buildLoginUrl/)
   assert.equal(mySource.includes("import { bindPhone, sendSmsCode, wechatLogin }"), false)
+})
+
+test('merchant profile supports filling contact phone from wechat authorization', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const profileSource = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+  const authSource = fs.readFileSync(path.join(root, 'api/auth.js'), 'utf8')
+
+  assert.match(authSource, /bindWechatPhone/)
+  assert.match(authSource, /\/api\/v1\/me\/wechat-phone/)
+
+  for (const token of [
+    "import { bindWechatPhone } from '../../api/auth'",
+    'phoneAuthorizing',
+    'open-type="getPhoneNumber"',
+    '@getphonenumber="useWechatPhoneNumber"',
+    '微信手机号',
+    'bindWechatPhone({ code })',
+    '已填入微信手机号',
+  ]) {
+    assert.match(profileSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
 })
 
 test('wxapp uses industrial b2b theme colors without legacy green primary', () => {

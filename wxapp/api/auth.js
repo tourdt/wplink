@@ -30,3 +30,11 @@ export function bindPhone(data) {
     data,
   })
 }
+
+export function bindWechatPhone(data) {
+  return request({
+    url: '/api/v1/me/wechat-phone',
+    method: 'POST',
+    data,
+  })
+}

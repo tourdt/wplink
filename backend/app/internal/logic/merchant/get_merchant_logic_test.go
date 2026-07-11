@@ -24,6 +24,8 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 			VerificationReviewedAt: "2026-06-30T10:24:00+08:00",
 			CreditTags:             []model.CreditTag{{Code: "verified_factory", Label: "已认证工厂"}},
 			ContactName:            "李厂长",
+			ContactPhone:           "13800000000",
+			ContactWechat:          "zhili_factory",
 			PhoneMasked:            "138****0000",
 			WechatMasked:           "zhili_****",
 			PublishedCount:         12,
@@ -89,6 +91,42 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	if decoded["profileStatus"] != "completed" {
 		t.Fatalf("profileStatus = %#v, want completed", decoded["profileStatus"])
 	}
+	contact := decoded["contact"].(map[string]interface{})
+	if _, ok := contact["phone"]; ok {
+		t.Fatalf("contact = %#v, public merchant detail should not expose raw phone", contact)
+	}
+	if _, ok := contact["wechat"]; ok {
+		t.Fatalf("contact = %#v, public merchant detail should not expose raw wechat", contact)
+	}
+}
+
+func TestGetMerchantReturnsEditableContactForManager(t *testing.T) {
+	store := &fakeMerchantDetailStore{
+		canManage: true,
+		detail: model.MerchantDetail{
+			ID:            "merchant-1",
+			Name:          "织里样板童装厂",
+			MerchantType:  "factory",
+			CityCode:      "zhili",
+			ContactName:   "李厂长",
+			ContactPhone:  "13800000000",
+			ContactWechat: "zhili_factory",
+			PhoneMasked:   "138****0000",
+			WechatMasked:  "zhili_****",
+		},
+	}
+	logic := NewGetMerchantLogic(store)
+
+	resp, err := logic.GetMerchant(context.Background(), " merchant-1 ", " user-1 ")
+	if err != nil {
+		t.Fatalf("GetMerchant() error = %v", err)
+	}
+	if store.permissionUserID != "user-1" || store.permissionMerchantID != "merchant-1" {
+		t.Fatalf("permission user=%q merchant=%q, want user-1 merchant-1", store.permissionUserID, store.permissionMerchantID)
+	}
+	if resp.Contact.Phone != "13800000000" || resp.Contact.Wechat != "zhili_factory" {
+		t.Fatalf("contact = %#v, want editable raw contact values", resp.Contact)
+	}
 }
 
 func TestCalculateMerchantHeatScoreCapsFollowerContribution(t *testing.T) {
@@ -118,9 +156,12 @@ func TestGetMerchantReturnsNotFoundWhenMerchantMissing(t *testing.T) {
 }
 
 type fakeMerchantDetailStore struct {
-	merchantID string
-	detail     model.MerchantDetail
-	err        error
+	merchantID           string
+	permissionUserID     string
+	permissionMerchantID string
+	canManage            bool
+	detail               model.MerchantDetail
+	err                  error
 }
 
 func (s *fakeMerchantDetailStore) GetMerchantDetail(ctx context.Context, merchantID string) (model.MerchantDetail, error) {
@@ -129,4 +170,10 @@ func (s *fakeMerchantDetailStore) GetMerchantDetail(ctx context.Context, merchan
 		return model.MerchantDetail{}, s.err
 	}
 	return s.detail, nil
+}
+
+func (s *fakeMerchantDetailStore) UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error) {
+	s.permissionUserID = userID
+	s.permissionMerchantID = merchantID
+	return s.canManage, nil
 }

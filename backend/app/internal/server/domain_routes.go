@@ -175,7 +175,12 @@ func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore, tokenSer
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/merchants/{merchantId}", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := merchantlogic.NewGetMerchantLogic(store).GetMerchant(r.Context(), r.PathValue("merchantId"))
+		userID, err := optionalUserIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := merchantlogic.NewGetMerchantLogic(store).GetMerchant(r.Context(), r.PathValue("merchantId"), userID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/merchants/{merchantId}", func(w http.ResponseWriter, r *http.Request) {

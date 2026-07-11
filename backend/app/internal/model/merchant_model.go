@@ -53,6 +53,8 @@ type MerchantDetail struct {
 	VerificationExpiresAt  string
 	CreditTags             []CreditTag
 	ContactName            string
+	ContactPhone           string
+	ContactWechat          string
 	PhoneMasked            string
 	WechatMasked           string
 	PublishedCount         int64
@@ -240,8 +242,8 @@ GROUP BY m.id, cs.code
 		&detail.VerificationStatus,
 		&detail.VIPStatus,
 		&detail.ContactName,
-		&detail.PhoneMasked,
-		&detail.WechatMasked,
+		&detail.ContactPhone,
+		&detail.ContactWechat,
 		&detail.AddressText,
 		&detail.Location,
 		&detail.Description,
@@ -261,8 +263,8 @@ GROUP BY m.id, cs.code
 	detail.MainCategories = []string(categories)
 	detail.ProfileStatus = normalizeMerchantProfileStatus(detail.ProfileStatus)
 	detail.Images = []string(images)
-	detail.PhoneMasked = maskContact(detail.PhoneMasked)
-	detail.WechatMasked = maskWechat(detail.WechatMasked)
+	detail.PhoneMasked = maskContact(detail.ContactPhone)
+	detail.WechatMasked = maskWechat(detail.ContactWechat)
 	if lastActive.Valid {
 		detail.LastActiveAt = lastActive.Time.Format(time.RFC3339)
 	}

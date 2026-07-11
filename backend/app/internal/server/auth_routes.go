@@ -53,6 +53,20 @@ func registerAuthRoutes(mux *http.ServeMux, store authlogic.UserStore, tokenServ
 		resp, err := authlogic.NewMeLogic(store, smsVerifier).BindPhone(r.Context(), userID, body)
 		response.JSON(w, resp, err)
 	})
+	mux.HandleFunc("POST /api/v1/me/wechat-phone", func(w http.ResponseWriter, r *http.Request) {
+		userID, err := userIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		var body authlogic.BindWechatPhoneReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := authlogic.NewMeLogic(store).BindWechatPhone(r.Context(), userID, body, wechatClient)
+		response.JSON(w, resp, err)
+	})
 }
 
 func userIDFromBearerToken(r *http.Request, tokenService authlogic.TokenService) (string, error) {

@@ -77,6 +77,10 @@ func (fakeWechatSessionClient) Code2Session(ctx context.Context, code string) (a
 	return authlogic.WechatSession{OpenID: "openid"}, nil
 }
 
+func (fakeWechatSessionClient) GetPhoneNumber(ctx context.Context, code string) (authlogic.WechatPhoneNumber, error) {
+	return authlogic.WechatPhoneNumber{PurePhoneNumber: "18800000003"}, nil
+}
+
 type fakeSMSVerifier struct{}
 
 func (fakeSMSVerifier) VerifySMSCode(ctx context.Context, phone string, code string) error {

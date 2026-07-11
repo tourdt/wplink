@@ -8,10 +8,16 @@ import (
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type GetMerchantStore interface {
 	GetMerchantDetail(ctx context.Context, merchantID string) (model.MerchantDetail, error)
+}
+
+type MerchantPermissionStore interface {
+	UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error)
 }
 
 type CreditTagInfo struct {
@@ -21,6 +27,8 @@ type CreditTagInfo struct {
 
 type MerchantContactInfo struct {
 	Name         string `json:"name"`
+	Phone        string `json:"phone,omitempty"`
+	Wechat       string `json:"wechat,omitempty"`
 	PhoneMasked  string `json:"phoneMasked"`
 	WechatMasked string `json:"wechatMasked,omitempty"`
 }
@@ -69,7 +77,7 @@ func NewGetMerchantLogic(store GetMerchantStore) *GetMerchantLogic {
 	return &GetMerchantLogic{store: store}
 }
 
-func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (MerchantDetailResp, error) {
+func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string, viewerUserID ...string) (MerchantDetailResp, error) {
 	merchantID = strings.TrimSpace(merchantID)
 	if merchantID == "" {
 		return MerchantDetailResp{}, errx.New(errx.CodeValidationFailed, "商家不存在或已停用")
@@ -87,6 +95,20 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 	for _, tag := range detail.CreditTags {
 		tags = append(tags, CreditTagInfo{Code: tag.Code, Label: tag.Label})
 	}
+	contact := MerchantContactInfo{
+		Name:         detail.ContactName,
+		PhoneMasked:  detail.PhoneMasked,
+		WechatMasked: detail.WechatMasked,
+	}
+	canExposeContact, err := canExposeEditableContact(ctx, l.store, merchantID, firstViewerUserID(viewerUserID))
+	if err != nil {
+		logx.Errorf("商家详情联系方式权限判断失败: merchantId=%s userId=%s err=%+v", merchantID, firstViewerUserID(viewerUserID), err)
+		return MerchantDetailResp{}, errx.New(errx.CodeInternalError, "资料加载失败，请稍后重试")
+	}
+	if canExposeContact {
+		contact.Phone = detail.ContactPhone
+		contact.Wechat = detail.ContactWechat
+	}
 	return MerchantDetailResp{
 		ID:                 detail.ID,
 		MerchantNo:         detail.MerchantNo,
@@ -99,11 +121,7 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 		VIPStatus:          normalizeMerchantVIPStatus(detail.VIPStatus),
 		VerificationInfo:   buildMerchantVerificationInfo(detail),
 		CreditTags:         tags,
-		Contact: MerchantContactInfo{
-			Name:         detail.ContactName,
-			PhoneMasked:  detail.PhoneMasked,
-			WechatMasked: detail.WechatMasked,
-		},
+		Contact:            contact,
 		ResourcesSummary: MerchantResourcesSummary{
 			PublishedCount: detail.PublishedCount,
 			DealtCount:     detail.DealtCount,
@@ -116,6 +134,29 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string) (
 		Images:       append([]string(nil), detail.Images...),
 		LastActiveAt: detail.LastActiveAt,
 	}, nil
+}
+
+func firstViewerUserID(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(values[0])
+}
+
+func canExposeEditableContact(ctx context.Context, store GetMerchantStore, merchantID string, userID string) (bool, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return false, nil
+	}
+	permissionStore, ok := store.(MerchantPermissionStore)
+	if !ok {
+		return false, nil
+	}
+	allowed, err := permissionStore.UserCanManageMerchant(ctx, userID, merchantID)
+	if err != nil {
+		return false, err
+	}
+	return allowed, nil
 }
 
 func normalizeMerchantVIPStatus(status string) string {

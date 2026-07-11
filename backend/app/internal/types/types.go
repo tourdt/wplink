@@ -607,6 +607,10 @@ type BindPhoneResp struct {
 	Phone string `json:"phone"`
 }
 
+type BindWechatPhoneReq struct {
+	Code string `json:"code"`
+}
+
 type CityStationInfo struct {
 	Id              string `json:"id"`
 	Code            string `json:"code"`
@@ -1168,6 +1172,8 @@ type MeResp struct {
 
 type MerchantContactInfo struct {
 	Name         string `json:"name"`
+	Phone        string `json:"phone,optional"`
+	Wechat       string `json:"wechat,optional"`
 	PhoneMasked  string `json:"phoneMasked"`
 	WechatMasked string `json:"wechatMasked,optional"`
 }

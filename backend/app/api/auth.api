@@ -40,6 +40,10 @@ type BindPhoneReq {
 	SmsCode string `json:"smsCode"`
 }
 
+type BindWechatPhoneReq {
+	Code string `json:"code"`
+}
+
 type BindPhoneResp {
 	Id    string `json:"id"`
 	Phone string `json:"phone"`
@@ -69,4 +73,7 @@ service wplink-api {
 
 	@handler BindPhone
 	post /me/phone (BindPhoneReq) returns (BindPhoneResp)
+
+	@handler BindWechatPhone
+	post /me/wechat-phone (BindWechatPhoneReq) returns (BindPhoneResp)
 }

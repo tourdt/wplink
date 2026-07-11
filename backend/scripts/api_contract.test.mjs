@@ -145,6 +145,18 @@ test('admin api contract exposes vip config endpoints', () => {
   }
 })
 
+test('merchant detail contract exposes editable contact only as optional fields', () => {
+  const merchantApiSource = fs.readFileSync(path.join(apiDir, 'merchant.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
+
+  for (const source of [merchantApiSource, typesSource]) {
+    assert.match(source, /Phone\s+string `json:"phone,optional"`/, 'merchant contact should expose optional editable phone')
+    assert.match(source, /Wechat\s+string `json:"wechat,optional"`/, 'merchant contact should expose optional editable wechat')
+    assert(source.includes('PhoneMasked'), 'merchant contact should keep masked phone for public detail')
+    assert(source.includes('WechatMasked'), 'merchant contact should keep masked wechat for public detail')
+  }
+})
+
 test('generated types do not keep retired manual matching DTOs', () => {
   const source = fs.readFileSync(typesFile, 'utf8')
 
