@@ -14,7 +14,7 @@
 - `backend/app/api/app.api` 是 go-zero API 单一入口，其他 `.api` 文件只按领域拆分。
 - 小程序和后台共用 `/api/v1` 前缀。
 - 管理后台接口统一使用 `/api/v1/admin` 前缀。
-- 运行时实现必须保持 `resources` 统一资源模型，不能为库存、工厂、招聘、出租等类型拆独立业务系统。
+- 运行时实现必须保持 `resources` 统一供需信息模型，不能为库存、工厂、招聘、出租等类型拆独立业务系统。
 - 前端可见错误必须中文、明确、可操作；后端日志记录内部原因，接口不返回 SQL、堆栈、表名、token 或敏感原始字段。
 
 ## 账号与权限
@@ -33,7 +33,7 @@
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
 | `GET /api/v1/city-stations` | `backend/app/api/city.api` | `backend/app/internal/logic/city/list_city_stations_logic.go` | 可用于全局筛选 | 首页/发布/搜索 | 已接 handler，测试通过 |
-| `GET /api/v1/city-stations/:cityCode/resource-types` | `backend/app/api/city.api` | `backend/app/internal/logic/city/list_resource_types_logic.go` | 资源类型配置页 | 发布/搜索筛选 | 已接 handler，测试通过 |
+| `GET /api/v1/city-stations/:cityCode/resource-types` | `backend/app/api/city.api` | `backend/app/internal/logic/city/list_resource_types_logic.go` | 供需类型配置页 | 发布/搜索筛选 | 已接 handler，测试通过 |
 
 ## 商家
 
@@ -43,33 +43,33 @@
 | `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue`，含认证、信用标签和发布记录 | 已接 handler，测试通过 |
 | `PATCH /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/update_merchant_logic.go` | 商家编辑 | `wxapp/pages/merchant/profile.vue` 商家资料编辑 | 已接 handler，测试通过 |
 
-## 资源
+## 供需信息
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
-| `POST /api/v1/resources` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/create_resource_logic.go` | 代发资源 | `wxapp/pages/publish/index.vue` | 已接 handler，测试通过 |
+| `POST /api/v1/resources` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/create_resource_logic.go` | 代发供需信息 | `wxapp/pages/publish/index.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/resources/drafts` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/create_resource_logic.go` | 可用于代发草稿 | `wxapp/pages/publish/index.vue` 保存草稿 | 已接 handler，测试通过 |
 | `POST /api/v1/resources/:resourceId/submit` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/submit_resource_logic.go` | 可用于代发草稿提交 | `wxapp/pages/my-resources/index.vue` 草稿提交审核 | 已接 handler，测试通过 |
-| `GET /api/v1/resources` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/list_resources_logic.go` | 可用于资源检索 | `wxapp/pages/search/index.vue` | 已接 handler，测试通过 |
-| `GET /api/v1/resource-search` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/search_resources_logic.go` | 可用于资源检索 | `wxapp/pages/search/index.vue` | 已接 handler，测试通过 |
+| `GET /api/v1/resources` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/list_resources_logic.go` | 可用于供需信息检索 | `wxapp/pages/search/index.vue` | 已接 handler，测试通过 |
+| `GET /api/v1/resource-search` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/search_resources_logic.go` | 可用于供需信息检索 | `wxapp/pages/search/index.vue` | 已接 handler，测试通过 |
 | `GET /api/v1/me/resources` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/my_resource_logic.go` | 不适用 | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |
-| `GET /api/v1/resources/:resourceId` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/get_resource_logic.go` | 资源详情抽屉 | `wxapp/pages/resource/detail.vue` | 已接 handler，测试通过 |
+| `GET /api/v1/resources/:resourceId` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/get_resource_logic.go` | 供需信息详情抽屉 | `wxapp/pages/resource/detail.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/resources/:resourceId/detail-view` | `backend/app/api/resource.api` | `backend/app/internal/logic/metrics/record_detail_view_logic.go` | 效果统计 | `wxapp/pages/resource/detail.vue` | 已接 handler，测试通过 |
-| `POST /api/v1/resources/:resourceId/refresh` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/my_resource_logic.go` | 资源运营操作 | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |
+| `POST /api/v1/resources/:resourceId/refresh` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/my_resource_logic.go` | 供需信息运营操作 | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/resources/:resourceId/deal-feedback` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/my_resource_logic.go` | 成交标记 | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |
-| `POST /api/v1/resources/:resourceId/take-down` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/my_resource_logic.go` | 资源运营操作 | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |
+| `POST /api/v1/resources/:resourceId/take-down` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/my_resource_logic.go` | 供需信息运营操作 | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/resources/:resourceId/repost-similar` | `backend/app/api/resource.api` | `backend/app/internal/logic/resource/my_resource_logic.go` | 不适用 | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |
-| `POST /api/v1/resources/:resourceId/contact-events` | `backend/app/api/resource.api` | `backend/app/internal/logic/metrics/record_contact_logic.go` | 效果统计 | 资源详情联系按钮 | 已接 handler，测试通过 |
+| `POST /api/v1/resources/:resourceId/contact-events` | `backend/app/api/resource.api` | `backend/app/internal/logic/metrics/record_contact_logic.go` | 效果统计 | 供需信息详情联系按钮 | 已接 handler，测试通过 |
 
-## 需求方向资源
+## 需求方向供需信息
 
-说明：需求方向资源统一使用资源发布、资源列表、我的发布和后台资源审核接口，不再保留独立 API 文件、独立小程序页面或独立后台专用处理页面。
+说明：需求方向供需信息统一使用供需信息发布、供需信息列表、我的发布和后台供需信息审核接口，不再保留独立 API 文件、独立小程序页面或独立后台专用处理页面。
 
 | 场景 | 统一接口 | API 文件 | 前端入口 | 状态 |
 |---|---|---|---|---|
-| 发布找货、找厂、找服务等需求方向资源 | `POST /api/v1/resources` | `backend/app/api/resource.api` | `wxapp/pages/publish/index.vue` | 已接 handler，测试通过 |
-| 查看我的需求方向资源 | `GET /api/v1/me/resources?direction=demand` | `backend/app/api/resource.api` | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |
-| 后台审核需求方向资源 | `GET /api/v1/admin/resources/pending`、`POST /api/v1/admin/resources/:resourceId/review` | `backend/app/api/admin.api` | `admin-web/src/views/ResourceReviewView.vue` | 已接 handler，测试通过 |
+| 发布找货、找厂、找服务等需求方向供需信息 | `POST /api/v1/resources` | `backend/app/api/resource.api` | `wxapp/pages/publish/index.vue` | 已接 handler，测试通过 |
+| 查看我的需求方向供需信息 | `GET /api/v1/me/resources?direction=demand` | `backend/app/api/resource.api` | `wxapp/pages/my-resources/index.vue` | 已接 handler，测试通过 |
+| 后台审核需求方向供需信息 | `GET /api/v1/admin/resources/pending`、`POST /api/v1/admin/resources/:resourceId/review` | `backend/app/api/admin.api` | `admin-web/src/views/ResourceReviewView.vue` | 已接 handler，测试通过 |
 
 ## 发现与运营位
 
@@ -101,7 +101,7 @@
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
-| `GET /api/v1/resources/:resourceId/metrics` | `backend/app/api/metrics.api` | `backend/app/internal/logic/metrics/get_resource_metrics_logic.go` | 资源效果详情 | 我的发布资源卡片/效果页 | 已接 handler，测试通过 |
+| `GET /api/v1/resources/:resourceId/metrics` | `backend/app/api/metrics.api` | `backend/app/internal/logic/metrics/get_resource_metrics_logic.go` | 供需信息效果详情 | 我的发布供需信息卡片/效果页 | 已接 handler，测试通过 |
 | `GET /api/v1/merchants/:merchantId/metrics/summary` | `backend/app/api/metrics.api` | `backend/app/internal/logic/metrics/get_merchant_metrics_logic.go` | 数据概览/商家详情 | 我的页/商家后台入口 | 已接 handler，测试通过 |
 
 ## 消息

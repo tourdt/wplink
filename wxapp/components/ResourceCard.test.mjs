@@ -20,7 +20,7 @@ test('resource card uses the default cover when resource image is missing', () =
   assert.match(source, /<text v-if="resourceTypeLabel" class="type-corner">\{\{ resourceTypeLabel \}\}<\/text>/)
   assert.equal(source.includes('placeholder-thumb'), false)
   assert.equal(source.includes('placeholderLabel'), false)
-  assert.equal(source.includes('资源图片'), false)
+  assert.equal(source.includes('供需信息图片'), false)
   assert.equal(source.includes('props.resource.typeCode || props.resource.category'), false)
 })
 
@@ -40,7 +40,7 @@ test('resource type corner label stays visually secondary on the image', () => {
 })
 
 test('resource card uses a readable four-line content layout', () => {
-  assert.match(source, /<text class="resource-title">\{\{ resource\.title \|\| '供给标题待完善' \}\}<\/text>[\s\S]*<text class="resource-meta">\{\{ resourceSummaryText \}\}<\/text>[\s\S]*<text v-if="resource\.priceText" class="resource-price">\{\{ resource\.priceText \}\}<\/text>[\s\S]*<view class="merchant-line">/)
+  assert.match(source, /<text class="resource-title">\{\{ resource\.title \|\| '供应标题待完善' \}\}<\/text>[\s\S]*<text class="resource-meta">\{\{ resourceSummaryText \}\}<\/text>[\s\S]*<text v-if="resource\.priceText" class="resource-price">\{\{ resource\.priceText \}\}<\/text>[\s\S]*<view class="merchant-line">/)
   assert.match(source, /const resourceSummaryText = computed/)
   assert.match(source, /buildResourceSummaryText/)
   assert.match(source, /<view class="merchant-line">[\s\S]*<text v-if="isVIPMerchant" class="vip-badge">VIP<\/text>[\s\S]*<text class="merchant-name">\{\{ merchantName \}\}<\/text>[\s\S]*<text class="refresh-time">\{\{ formatRefreshedAt\(resource\.refreshedAt\) \}\}<\/text>[\s\S]*<\/view>/)

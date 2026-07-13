@@ -60,10 +60,10 @@ test('publish entry removes the old page title copy and uses understated list ro
     'direction-marker',
     'direction-arrow',
     '<text class="direction-arrow">›</text>',
-    '发布供给',
-    '发布需求',
-    '货源、产能、服务等可供应内容',
-    '找货、找工厂、找服务等需求',
+    '我能提供',
+    '我想寻找',
+    '发布货源、库存、产能、服务等供需信息',
+    '发布找货、找工厂、找服务等需求',
   ]) {
     assert.match(source, new RegExp(token))
   }
@@ -83,6 +83,7 @@ test('publish entry removes the old page title copy and uses understated list ro
     'direction-chip',
     'direction-title-row',
     'direction-action',
+    '发布供给',
     '开始填写',
     '快速发布',
     '采购找货',

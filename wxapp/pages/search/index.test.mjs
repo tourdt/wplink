@@ -19,7 +19,7 @@ test('search page keeps the main tools and removes explanatory copy', () => {
     'directionTabs',
     'activeDirection',
     'selectDirection',
-    '供给',
+    '供应',
     '需求',
     'class="filter-row"',
     'class="hot-row"',
@@ -36,7 +36,7 @@ test('search page keeps the main tools and removes explanatory copy', () => {
     'empty-visual-label',
     '输入关键词或先选热门条件',
     '刷新保存',
-    '推广资源均需审核通过',
+    '推广供需信息均需审核通过',
     '平台运营会继续留意库存',
     'search-guide',
     'promotion-note',
@@ -205,7 +205,7 @@ test('search empty state gives search-aware recovery actions', () => {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 
-  assert.match(source, /const emptyTitle = computed\(\(\) => activeDirection\.value === RESOURCE_DIRECTION_DEMAND \? '暂无匹配需求' : '暂无匹配供给'\)/)
+  assert.match(source, /const emptyTitle = computed\(\(\) => activeDirection\.value === RESOURCE_DIRECTION_DEMAND \? '暂无匹配需求' : '暂无匹配供应'\)/)
   assert.match(source, /const emptySuggestions = computed\(\(\) => hotKeywords\.value[\s\S]*slice\(0, 3\)\)/)
   assert.match(source, /async function resetSearchConditions\(\) \{[\s\S]*keyword\.value = ''[\s\S]*filters\.typeCode = ''[\s\S]*await scrollToSelectedType\(''\)[\s\S]*await search\(\)[\s\S]*\}/)
   assert.doesNotMatch(resetSearchConditionsBody, /rows\.value = \[\]/)
@@ -213,10 +213,10 @@ test('search empty state gives search-aware recovery actions', () => {
 })
 
 test('search empty state keeps copy short and illustration text-free', () => {
-  assert.match(source, /const emptyTitle = computed\(\(\) => activeDirection\.value === RESOURCE_DIRECTION_DEMAND \? '暂无匹配需求' : '暂无匹配供给'\)/)
+  assert.match(source, /const emptyTitle = computed\(\(\) => activeDirection\.value === RESOURCE_DIRECTION_DEMAND \? '暂无匹配需求' : '暂无匹配供应'\)/)
   assert.match(source, /const emptyDesc = '换个关键词或分类试试。'/)
   assert.doesNotMatch(source, /暂未找到「/)
-  assert.doesNotMatch(source, /平台资源会保持更新/)
+  assert.doesNotMatch(source, /平台供需信息会保持更新/)
 })
 
 test('search empty state is visually subdued', () => {

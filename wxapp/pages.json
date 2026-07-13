@@ -30,13 +30,13 @@
     {
       "path": "pages/publish/index",
       "style": {
-        "navigationBarTitleText": "发布供给"
+        "navigationBarTitleText": "发布"
       }
     },
     {
       "path": "pages/publish/edit",
       "style": {
-        "navigationBarTitleText": "编辑供给"
+        "navigationBarTitleText": "编辑发布"
       }
     },
     {
@@ -117,7 +117,7 @@
     {
       "path": "pages/topic/index",
       "style": {
-        "navigationBarTitleText": "专题供给"
+        "navigationBarTitleText": "专题供应"
       }
     },
     {

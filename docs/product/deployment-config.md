@@ -28,7 +28,7 @@ node backend/scripts/prepare_admin_embed.mjs
 1. `VITE_ADMIN_BASE=/admin/ npm run build`
 2. 将 `admin-web/dist` 复制到 `backend/app/internal/adminweb/dist`
 
-Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，Vue history 路由刷新会回退到 `index.html`，缺失的静态资源仍返回 404。当前 `backend/app/api/app.api` 中的 MVP API 已接入；后续新增但未接线的 `/api/` 路由会返回 `API_NOT_CONNECTED`。
+Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，Vue history 路由刷新会回退到 `index.html`，缺失的静态供需信息仍返回 404。当前 `backend/app/api/app.api` 中的 MVP API 已接入；后续新增但未接线的 `/api/` 路由会返回 `API_NOT_CONNECTED`。
 
 后台 API 客户端默认使用同源 `/api/...`，一体化部署时不需要设置 `VITE_API_BASE_URL`。本地分离开发时可以设置 `VITE_API_BASE_URL=http://127.0.0.1:4000`。
 
@@ -102,23 +102,23 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 
 ## 权限边界
 
-后台 `/api/v1/admin/*` 接口在配置 admin token 服务时会校验 `Authorization: Bearer <token>`，只有 `platform_operator` 和 `super_admin` 可访问。小程序侧资源发布、草稿、我的发布列表、刷新、成交反馈、下架、再发类似、权益查看和置顶券核销等商家操作，在生产服务启用用户 token 后，会校验当前用户与目标商家的 active 管理绑定关系；未绑定商家会返回 `FORBIDDEN`。
+后台 `/api/v1/admin/*` 接口在配置 admin token 服务时会校验 `Authorization: Bearer <token>`，只有 `platform_operator` 和 `super_admin` 可访问。小程序侧供需信息发布、草稿、我的发布列表、刷新、成交反馈、下架、再发类似、权益查看和置顶券核销等商家操作，在生产服务启用用户 token 后，会校验当前用户与目标商家的 active 管理绑定关系；未绑定商家会返回 `FORBIDDEN`。
 
-用户私有数据接口在生产启用用户 token 后以 token 身份为准，不信任前端传入的 `userId`。当前覆盖资源发布、草稿和我的发布、认证提交、用户消息列表和消息已读；商家角色消息 `merchant:<merchantId>` 还会校验当前用户是否能管理该商家，点击后可按商家角色标记已读。
+用户私有数据接口在生产启用用户 token 后以 token 身份为准，不信任前端传入的 `userId`。当前覆盖供需信息发布、草稿和我的发布、认证提交、用户消息列表和消息已读；商家角色消息 `merchant:<merchantId>` 还会校验当前用户是否能管理该商家，点击后可按商家角色标记已读。
 
-资源发布和草稿保存接口在生产启用用户 token 或后台 token 后，会把 `resources.created_by` 绑定为后端解析出的用户或后台操作员；前端不能提交或覆盖资源创建人身份。
+供需信息发布和草稿保存接口在生产启用用户 token 或后台 token 后，会把 `resources.created_by` 绑定为后端解析出的用户或后台操作员；前端不能提交或覆盖供需信息创建人身份。
 
-资源提交审核 `POST /api/v1/resources/{resourceId}/submit` 在生产启用用户 token 后，会按资源真实所属商家校验管理权限，不接受请求体中的 `merchantId` 作为权限依据。
+供需信息提交审核 `POST /api/v1/resources/{resourceId}/submit` 在生产启用用户 token 后，会按供需信息真实所属商家校验管理权限，不接受请求体中的 `merchantId` 作为权限依据。
 
-资源刷新、成交反馈、下架和再发类似等带 `resourceId` 的商家操作，在生产启用用户 token 后同样按资源真实所属商家校验权限，不接受请求体或 query 中的 `merchantId` 作为权限依据。
+供需信息刷新、成交反馈、下架和再发类似等带 `resourceId` 的商家操作，在生产启用用户 token 后同样按供需信息真实所属商家校验权限，不接受请求体或 query 中的 `merchantId` 作为权限依据。
 
-置顶券核销 `POST /api/v1/top-vouchers/{voucherId}/redeem` 在生产启用用户 token 后，会按置顶券真实所属商家校验管理权限，不接受请求体中的 `merchantId` 作为权限依据；兑换 SQL 仍会校验资源与置顶券属于同一商家且资源已发布。
+置顶券核销 `POST /api/v1/top-vouchers/{voucherId}/redeem` 在生产启用用户 token 后，会按置顶券真实所属商家校验管理权限，不接受请求体中的 `merchantId` 作为权限依据；兑换 SQL 仍会校验供需信息与置顶券属于同一商家且供需信息已发布。
 
-资源联系行为 `POST /api/v1/resources/{resourceId}/contact-events` 中，`phone` 和 `wechat` 属于完整联系方式解锁动作，生产环境必须携带用户 token，成功解锁后才计入电话点击或微信复制指标；后端解析出的 token 用户为归因身份，不接受前端 body 中的 `userId`。`merchant_home`、`merchant_profile` 和 `share` 可继续作为非联系方式解锁事件记录。
+供需信息联系行为 `POST /api/v1/resources/{resourceId}/contact-events` 中，`phone` 和 `wechat` 属于完整联系方式解锁动作，生产环境必须携带用户 token，成功解锁后才计入电话点击或微信复制指标；后端解析出的 token 用户为归因身份，不接受前端 body 中的 `userId`。`merchant_home`、`merchant_profile` 和 `share` 可继续作为非联系方式解锁事件记录。
 
-资源搜索日志 `GET /api/v1/resource-search` 允许匿名记录关键词和筛选条件；请求携带用户 token 时以后端解析出的 token 用户为准，不接受 query 中的 `userId` 作为搜索归因身份。
+供需信息搜索日志 `GET /api/v1/resource-search` 允许匿名记录关键词和筛选条件；请求携带用户 token 时以后端解析出的 token 用户为准，不接受 query 中的 `userId` 作为搜索归因身份。
 
-资源指标 `GET /api/v1/resources/{resourceId}/metrics` 和商家指标汇总 `GET /api/v1/merchants/{merchantId}/metrics/summary` 属于商家经营数据；生产启用用户 token 后，会校验当前用户是否能管理对应商家，或使用具备后台访问角色的 admin token 访问。
+供需信息指标 `GET /api/v1/resources/{resourceId}/metrics` 和商家指标汇总 `GET /api/v1/merchants/{merchantId}/metrics/summary` 属于商家经营数据；生产启用用户 token 后，会校验当前用户是否能管理对应商家，或使用具备后台访问角色的 admin token 访问。
 
 上传凭证接口 `POST /api/v1/uploads/token` 在只配置上传服务、未配置用户或后台 token 服务时保留本地开发兼容；生产接入用户 token 或后台 token 服务后，必须携带合法的用户 token 或具备后台访问角色的 admin token 才会签发对象存储上传凭证。
 
@@ -135,10 +135,10 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 
 ## 自动任务
 
-`Tasks.ResourceLifecycleInterval` 控制资源生命周期任务执行间隔，模板默认 `1h`。服务启动后会先执行一次，再按间隔持续扫描：
+`Tasks.ResourceLifecycleInterval` 控制供需信息生命周期任务执行间隔，模板默认 `1h`。服务启动后会先执行一次，再按间隔持续扫描：
 
-- 已到期资源会自动标记为 `expired`，并向商家发送过期提醒。
-- 即将过期资源会向商家发送提醒消息。
+- 已到期供需信息会自动标记为 `expired`，并向商家发送过期提醒。
+- 即将过期供需信息会向商家发送提醒消息。
 
 生产模式要求该配置大于 0。多实例部署时每个实例都会执行该任务，正式运营建议只让一个后端实例启用自动任务，或后续迁移到独立 worker/分布式锁，避免重复提醒。
 

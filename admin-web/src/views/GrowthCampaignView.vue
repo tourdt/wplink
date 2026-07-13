@@ -162,7 +162,7 @@
           <el-form-item label="每日上限">
             <el-input-number v-model="ruleForm.perUserDailyLimit" :min="0" />
           </el-form-item>
-          <el-form-item label="资源每日上限">
+          <el-form-item label="供需信息每日上限">
             <el-input-number v-model="ruleForm.perResourceDailyLimit" :min="0" />
           </el-form-item>
         </div>
@@ -208,7 +208,7 @@ const ruleForm = reactive(createRuleForm())
 
 const triggerEvents = [
   { label: '首次登录', value: 'user_first_login' },
-  { label: '首条资源审核通过', value: 'resource_first_approved' },
+  { label: '首条供需信息审核通过', value: 'resource_first_approved' },
   { label: '审核通过数量达标', value: 'resource_approved_count_reached' },
   { label: '分享有效浏览', value: 'resource_share_effective_view' },
   { label: '分享有效联系', value: 'resource_share_effective_contact' },

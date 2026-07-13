@@ -28,7 +28,7 @@ test('vip page is registered and shows vip benefits with add-on quota tab', () =
   assert.match(source, /durationMonths \|\| 1/)
   assert.match(source, /每 30 天到账/)
   assert.match(source, /开通后到账/)
-  assert.doesNotMatch(source, /每张置顶券可让 1 条已发布资源置顶 24 小时/)
+  assert.doesNotMatch(source, /每张置顶券可让 1 条已发布供需信息置顶 24 小时/)
   assert.match(source, /VIP 赠送的发布额度和刷新次数均在发放后 30 天内有效/)
   assert.doesNotMatch(source, /均当月有效/)
   assert.match(source, /单独购买的次数包有效期 180 天/)

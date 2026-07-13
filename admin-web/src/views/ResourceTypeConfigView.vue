@@ -1,13 +1,13 @@
 <template>
   <section>
     <div class="page-title">
-      <h2>资源类型配置</h2>
+      <h2>供需类型配置</h2>
       <el-button :loading="loading" plain @click="loadConfigs">刷新</el-button>
     </div>
 
     <section class="panel">
       <el-alert
-        title="必填字段控制商家发布或保存资源时必须补全的信息；不同资源类型可以要求不同字段。"
+        title="必填字段控制商家发布或保存供需信息时必须补全的信息；不同供需类型可以要求不同字段。"
         type="info"
         :closable="false"
         show-icon
@@ -35,7 +35,7 @@
         <span>{{ errorText }}</span>
         <el-button type="danger" plain @click="loadConfigs">重试</el-button>
       </div>
-      <el-table v-loading="loading" :data="configs" stripe empty-text="暂无资源类型配置">
+      <el-table v-loading="loading" :data="configs" stripe empty-text="暂无供需类型配置">
         <el-table-column prop="typeName" label="类型名称" width="140" />
         <el-table-column prop="typeCode" label="编码" width="140" />
         <el-table-column label="类型归属" width="110">
@@ -80,7 +80,7 @@
       </el-table>
     </section>
 
-    <el-drawer v-model="drawerVisible" title="编辑资源类型配置" size="820px">
+    <el-drawer v-model="drawerVisible" title="编辑供需类型配置" size="820px">
       <el-form v-if="editing" label-position="top">
         <el-form-item label="类型">
           <div class="type-summary">
@@ -103,7 +103,7 @@
         </div>
         <section class="required-field-note">
           <h3>必填字段说明</h3>
-          <p>这些字段决定商家发布或保存该类型资源时，哪些信息必须填写完整。</p>
+          <p>这些字段决定商家发布或保存该类型供需信息时，哪些信息必须填写完整。</p>
           <dl>
             <template v-for="field in editing.requiredFields || []" :key="field">
               <dt>{{ fieldLabel(field) }}（{{ field }}）</dt>
@@ -235,16 +235,16 @@ const fieldTypeOptions = [
   { value: 'textarea', label: '多行文本' },
 ]
 const directionTextMap = {
-  supply: '资源类型',
+  supply: '供应类型',
   demand: '需求类型',
 }
 const baseRequiredFieldOptions = [
   { value: 'title', label: '标题' },
-  { value: 'description', label: '资源描述' },
+  { value: 'description', label: '供需信息描述' },
   { value: 'contactName', label: '联系人' },
   { value: 'contactPhone', label: '联系电话' },
   { value: 'contactWechat', label: '微信号' },
-  { value: 'images', label: '资源图片' },
+  { value: 'images', label: '供需信息图片' },
   { value: 'tags', label: '标签' },
 ]
 const summaryFieldValueSet = new Set(['category', 'quantityText', 'priceText'])
@@ -252,23 +252,23 @@ const baseRequiredFieldValueSet = new Set(baseRequiredFieldOptions.map((field) =
 const fieldDescriptionMap = {
   merchantId: {
     label: '商家',
-    description: '指定资源归属的商家，用于商家主页展示、权益校验和后台追溯。',
+    description: '指定供需信息归属的商家，用于商家主页展示、权益校验和后台追溯。',
   },
   cityCode: {
     label: '城市站',
-    description: '决定资源发布到哪个城市站，影响搜索、推荐和专题筛选范围。',
+    description: '决定供需信息发布到哪个城市站，影响搜索、推荐和专题筛选范围。',
   },
   typeCode: {
-    label: '资源类型',
-    description: '决定资源属于库存清仓、现货货源、工厂接单、配套服务等哪一类，影响发布表单、搜索筛选和专题展示。',
+    label: '供需类型',
+    description: '决定供需信息属于库存清仓、现货货源、工厂接单、配套服务等哪一类，影响发布表单、搜索筛选和专题展示。',
   },
   title: {
     label: '标题',
-    description: '标题用于搜索、列表卡片和详情页主标题，应该直接说明资源卖点。',
+    description: '标题用于搜索、列表卡片和详情页主标题，应该直接说明供需信息卖点。',
   },
   category: {
     label: '品类',
-    description: '说明资源所属品类，例如童装、卫衣、套装，用于买家筛选和运营审核。',
+    description: '说明供需信息所属品类，例如童装、卫衣、套装，用于买家筛选和运营审核。',
   },
   quantityText: {
     label: '数量/产能',
@@ -280,7 +280,7 @@ const fieldDescriptionMap = {
   },
   contactName: {
     label: '联系人',
-    description: '买家和平台审核联系资源发布人的姓名或称呼。',
+    description: '买家和平台审核联系供需信息发布人的姓名或称呼。',
   },
   contactPhone: {
     label: '联系电话',
@@ -291,16 +291,16 @@ const fieldDescriptionMap = {
     description: '微信号用于买家补充联系，适合电话不便接听的场景。',
   },
   description: {
-    label: '资源描述',
-    description: '补充资源细节、交易条件和注意事项，帮助审核和买家理解资源。',
+    label: '供需信息描述',
+    description: '补充供需信息细节、交易条件和注意事项，帮助审核和买家理解。',
   },
   images: {
-    label: '资源图片',
+    label: '供需信息图片',
     description: '图片用于展示货品、厂房、服务案例或环境，提升买家判断效率。',
   },
   tags: {
     label: '标签',
-    description: '标签用于补充资源特征，方便运营归类和买家快速识别。',
+    description: '标签用于补充供需信息特征，方便运营归类和买家快速识别。',
   },
 }
 
@@ -313,7 +313,7 @@ async function loadConfigs() {
     const resp = await listResourceTypeConfigs(filters)
     configs.value = resp.items || []
   } catch {
-    errorText.value = '资源类型配置加载失败，请重试'
+    errorText.value = '供需类型配置加载失败，请重试'
   } finally {
     loading.value = false
   }
@@ -343,11 +343,11 @@ function fieldLabel(field) {
 }
 
 function fieldDescription(field) {
-  return fieldDescriptionMap[field]?.description || '该字段是发布此类资源时必须填写的信息。'
+  return fieldDescriptionMap[field]?.description || '该字段是发布此类供需信息时必须填写的信息。'
 }
 
 function directionLabel(direction) {
-  return directionTextMap[direction] || '资源类型'
+  return directionTextMap[direction] || '供应类型'
 }
 
 function directionTagType(direction) {
@@ -596,7 +596,7 @@ async function saveConfig() {
     return
   }
   try {
-    await ElMessageBox.confirm(`确认保存「${editing.value.typeName}」的资源类型配置吗？`, '确认保存配置', {
+    await ElMessageBox.confirm(`确认保存「${editing.value.typeName}」的供需类型配置吗？`, '确认保存配置', {
       type: 'warning',
       confirmButtonText: '确认保存',
       cancelButtonText: '取消',
@@ -612,7 +612,7 @@ async function saveConfig() {
       defaultValidDays: editing.value.defaultValidDays,
       status: editing.value.status,
     })
-    ElMessage.success('资源类型配置已保存')
+    ElMessage.success('供需类型配置已保存')
     drawerVisible.value = false
     await loadConfigs()
   } finally {

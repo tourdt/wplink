@@ -115,7 +115,7 @@ CROSS JOIN (
       '杭州童装采购商',
       'buyer',
       '["童装","电商供货"]',
-      '采购商，长期寻找织里现货、工厂和快反资源。',
+      '采购商，长期寻找织里现货、工厂和快反供需信息。',
       '王采购',
       '18800000004',
       'buyer-demo',
@@ -212,10 +212,10 @@ CROSS JOIN (
     (8030000000000000005, 8020000000000000001, 'job', 'published', '童装平车熟练工招聘', '招聘', '织里', '计件 0.8-1.2 元', '招聘 8 人', '', '工厂招聘熟练平车工，订单稳定。', '{"position":"平车工","payText":"计件0.8-1.2元","headcount":8,"includeMealsHousing":true}', '["招聘","平车工"]', '陈厂长', '18800000001', 'factory-demo', true, now() - interval '4 days', now() - interval '2 days', now() + interval '10 days', NULL, 8010000000000000002),
     (8030000000000000006, 8020000000000000003, 'rental', 'published', '织里童装城旁 120 平仓库出租', '厂房仓库', '织里', '6800 元/月', '120 平', '', '童装城附近仓库出租，可短租。', '{"areaText":"120平","rentText":"6800元/月","floor":"1楼","transferFee":"无"}', '["出租","仓库"]', '李经理', '18800000003', 'service-demo', true, now() - interval '5 days', now() - interval '3 days', now() + interval '25 days', NULL, 8010000000000000004),
     (8030000000000000007, 8020000000000000003, 'service', 'published', '童装吊牌包装快印服务', '配套服务', '织里', '按量报价', '当天出样', '', '提供吊牌、洗标、包装袋和电商拍摄服务。', '{"serviceType":"包装快印","serviceArea":"织里及周边","leadTime":"当天出样","caseAvailable":true}', '["服务","包装"]', '李经理', '18800000003', 'service-demo', true, now() - interval '6 days', now() - interval '6 hours', now() + interval '28 days', NULL, 8010000000000000004),
-    (8030000000000000008, 8020000000000000002, 'inventory', 'pending', '待审核夏款短袖库存', '童装短袖', '织里', '12-18 元/件', '1800 件', '', '演示待审核资源。', '{"season":"夏季","sizeRange":"90-130","allowSample":true,"allowLiveSale":false}', '["待审核"]', '周经理', '18800000002', 'stock-demo', true, NULL, NULL, now() + interval '7 days', NULL, 8010000000000000003),
-    (8030000000000000009, 8020000000000000001, 'goods', 'rejected', '资料不完整的货源演示', '童装', '织里', '面议', '起批待确认', '', '演示已驳回资源。', '{"style":"基础款","spotAvailable":false}', '["已驳回"]', '陈厂长', '18800000001', 'factory-demo', true, NULL, NULL, now() + interval '7 days', '缺少清晰价格和联系方式确认材料', 8010000000000000002),
-    (8030000000000000010, 8020000000000000002, 'inventory', 'published', '即将过期的直播童裙库存', '童裙', '织里', '22 元/件', '900 件', '', '演示即将过期资源。', '{"season":"夏季","sizeRange":"100-140","allowSample":true,"allowLiveSale":true}', '["即将过期"]', '周经理', '18800000002', 'stock-demo', true, now() - interval '6 days', now() - interval '5 days', now() + interval '1 day', NULL, 8010000000000000003),
-    (8030000000000000011, 8020000000000000003, 'service', 'expired', '已过期的旧拍摄服务套餐', '电商拍摄', '织里', '套餐价 999 元', '限 10 套', '', '演示已过期资源。', '{"serviceType":"拍摄","serviceArea":"织里","leadTime":"3天","caseAvailable":true}', '["已过期"]', '李经理', '18800000003', 'service-demo', true, now() - interval '40 days', now() - interval '35 days', now() - interval '1 day', NULL, 8010000000000000004)
+    (8030000000000000008, 8020000000000000002, 'inventory', 'pending', '待审核夏款短袖库存', '童装短袖', '织里', '12-18 元/件', '1800 件', '', '演示待审核供需信息。', '{"season":"夏季","sizeRange":"90-130","allowSample":true,"allowLiveSale":false}', '["待审核"]', '周经理', '18800000002', 'stock-demo', true, NULL, NULL, now() + interval '7 days', NULL, 8010000000000000003),
+    (8030000000000000009, 8020000000000000001, 'goods', 'rejected', '资料不完整的货源演示', '童装', '织里', '面议', '起批待确认', '', '演示已驳回供需信息。', '{"style":"基础款","spotAvailable":false}', '["已驳回"]', '陈厂长', '18800000001', 'factory-demo', true, NULL, NULL, now() + interval '7 days', '缺少清晰价格和联系方式确认材料', 8010000000000000002),
+    (8030000000000000010, 8020000000000000002, 'inventory', 'published', '即将过期的直播童裙库存', '童裙', '织里', '22 元/件', '900 件', '', '演示即将过期供需信息。', '{"season":"夏季","sizeRange":"100-140","allowSample":true,"allowLiveSale":true}', '["即将过期"]', '周经理', '18800000002', 'stock-demo', true, now() - interval '6 days', now() - interval '5 days', now() + interval '1 day', NULL, 8010000000000000003),
+    (8030000000000000011, 8020000000000000003, 'service', 'expired', '已过期的旧拍摄服务套餐', '电商拍摄', '织里', '套餐价 999 元', '限 10 套', '', '演示已过期供需信息。', '{"serviceType":"拍摄","serviceArea":"织里","leadTime":"3天","caseAvailable":true}', '["已过期"]', '李经理', '18800000003', 'service-demo', true, now() - interval '40 days', now() - interval '35 days', now() - interval '1 day', NULL, 8010000000000000004)
 ) AS r(id, merchant_id, type_code, status, title, category, district, price_text, quantity_text, cover_url, description, attributes, tags, contact_name, contact_phone, contact_wechat, is_verified, published_at, refreshed_at, expires_at, reject_reason, created_by)
 WHERE cs.code = 'zhili'
   AND rtc.type_code = r.type_code
@@ -844,8 +844,8 @@ ON CONFLICT (scene_code, code) DO UPDATE SET
 
 INSERT INTO messages (id, recipient_user_id, recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status, sent_at)
 VALUES
-  (8052000000000000001, NULL, 'merchant:8020000000000000002', 'resource_review', 'resource_approve', 8030000000000000001, '资源审核通过', '女童春款卫衣库存整包清 已公开展示', '/pages/my-resources/index', 'unread', now()),
-  (8052000000000000002, NULL, 'merchant:8020000000000000002', 'resource_expiring', 'resource_expiring', 8030000000000000010, '资源即将过期', '即将过期的直播童裙库存 将在 1 天后过期', '/pages/my-resources/index', 'unread', now())
+  (8052000000000000001, NULL, 'merchant:8020000000000000002', 'resource_review', 'resource_approve', 8030000000000000001, '供需信息审核通过', '女童春款卫衣库存整包清 已公开展示', '/pages/my-resources/index', 'unread', now()),
+  (8052000000000000002, NULL, 'merchant:8020000000000000002', 'resource_expiring', 'resource_expiring', 8030000000000000010, '供需信息即将过期', '即将过期的直播童裙库存 将在 1 天后过期', '/pages/my-resources/index', 'unread', now())
 ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, content = EXCLUDED.content, sent_at = EXCLUDED.sent_at;
 
 INSERT INTO banner_topics (id, city_station_id, kind, title, subtitle, cover_url, type_scope, jump_type, jump_target, tags, sort_order, status, start_at, end_at)

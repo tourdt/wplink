@@ -5,7 +5,7 @@
       <view class="topic-copy">
         <text class="topic-label">Banner 专题</text>
         <text class="topic-title">{{ topic.title }}</text>
-        <text class="topic-subtitle">{{ topic.subtitle || '运营配置专题列表，只展示已审核、未过期、平台内供给。' }}</text>
+        <text class="topic-subtitle">{{ topic.subtitle || '运营配置专题列表，只展示已审核、未过期、平台内供应。' }}</text>
       </view>
     </view>
 
@@ -30,8 +30,8 @@
 
     <view v-else class="empty-card">
       <text class="empty-title">{{ emptyTitle }}</text>
-      <text class="empty-desc">可以先去供需页按类型继续浏览，平台会持续更新专题供给。</text>
-      <button class="primary-button" @click="openSearch">继续浏览供给</button>
+      <text class="empty-desc">可以先去供需页按类型继续浏览，平台会持续更新专题供应。</text>
+      <button class="primary-button" @click="openSearch">继续浏览供应</button>
     </view>
   </view>
 </template>
@@ -46,11 +46,11 @@ import { getTopicResources } from '../../api/discovery'
 const topic = ref({})
 const rows = ref([])
 const topicStats = computed(() => [
-  { label: '专题供给', value: rows.value.length },
-  { label: '平台内供给', value: rows.value.filter((item) => item.status === 'published').length || rows.value.length },
-  { label: '持续更新', value: rows.value.length ? '有供给' : '待更新' },
+  { label: '专题供应', value: rows.value.length },
+  { label: '平台内供应', value: rows.value.filter((item) => item.status === 'published').length || rows.value.length },
+  { label: '持续更新', value: rows.value.length ? '有供应' : '待更新' },
 ])
-const emptyTitle = computed(() => '专题供给暂未更新')
+const emptyTitle = computed(() => '专题供应暂未更新')
 
 onLoad(async (options) => {
   if (!options.id) return

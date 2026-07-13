@@ -12,7 +12,7 @@
         </el-menu-item>
         <el-menu-item index="/resources/pending">
           <el-icon><Tickets /></el-icon>
-          <span>资源审核</span>
+          <span>供需信息审核</span>
         </el-menu-item>
         <el-menu-item index="/merchants">
           <el-icon><Shop /></el-icon>
@@ -48,7 +48,7 @@
         </el-menu-item>
         <el-menu-item index="/resource-type-configs">
           <el-icon><Setting /></el-icon>
-          <span>资源配置</span>
+          <span>供需类型配置</span>
         </el-menu-item>
         <el-menu-item index="/operation-logs">
           <el-icon><Document /></el-icon>

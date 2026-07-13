@@ -28,7 +28,7 @@ onLoad((options) => {
   routeOptions.repost = options.repost || ''
   if (!routeOptions.resourceId) {
     uni.setNavigationBarTitle({
-      title: routeOptions.direction === 'demand' ? '发布需求' : '发布供给',
+      title: routeOptions.direction === 'demand' ? '发布需求' : '发布供应',
     })
   }
   routeReady.value = true

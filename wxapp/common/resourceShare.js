@@ -60,23 +60,23 @@ export function buildResourceSharePosterModel(resource = {}, merchant = {}) {
 
   return {
     typeLabel,
-    title: normalizeText(resource.title) || '服装产业资源',
+    title: normalizeText(resource.title) || '服装产业供需信息',
     coverSource: getResourceShareCoverSource(resource),
     badges,
     summaryLines: buildSummaryLines(resource),
     merchantName: normalizeText(merchant.name || resource.merchant?.name) || '衣货通商家',
-    footerText: '衣货通 · 服装产业资源',
+    footerText: '衣货通 · 服装产业供需信息',
   }
 }
 
 export function buildResourceShareTitle(resource = {}) {
   const typeLabel = getResourceTypeLabel(resource)
-  const title = normalizeText(resource.title || resource.category) || '服装产业资源'
+  const title = normalizeText(resource.title || resource.category) || '服装产业供需信息'
   return `${typeLabel}｜${title}`
 }
 
 export function getResourceTypeLabel(resource = {}) {
-  return resourceTypeText[resource.typeCode] || resourceTypeText[resource.resourceType] || '衣货通供给'
+  return resourceTypeText[resource.typeCode] || resourceTypeText[resource.resourceType] || '衣货通供应'
 }
 
 function buildSummaryLines(resource = {}) {

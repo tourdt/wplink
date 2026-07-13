@@ -47,11 +47,11 @@ test('own resource detail keeps share and management actions in the bottom bar',
   assert.match(source, /const canShareOwnResource = computed\(\(\) => resource\.value\.status === 'published' && !isExpiredResource\.value && !resource\.value\.dealtAt\)/)
   assert.match(source, /<button class="primary-button" @click="openManagementSheet">管理<\/button>/)
   assert.match(source, /<view v-else class="contact-bar">/)
-  assert.doesNotMatch(source, /这是你发布的资源，可在我的发布中管理/)
+  assert.doesNotMatch(source, /这是你发布的供需信息，可在我的发布中管理/)
 })
 
 test('pending own resource management sheet only explains review state', () => {
-  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*resource\.value\.status === 'pending'[\s\S]*供给正在审核，审核通过后会公开展示。当前暂不能刷新、下架或分享。[\s\S]*\}\)/)
+  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*resource\.value\.status === 'pending'[\s\S]*供应正在审核，审核通过后会公开展示。当前暂不能刷新、下架或分享。[\s\S]*\}\)/)
   assert.match(source, /<view v-if="showManagementSheet" class="sheet-mask" @click="closeManagementSheet">/)
   assert.match(source, /<text class="sheet-title">\{\{ managementTitle \}\}<\/text>/)
   assert.match(source, /<text v-if="!managementActions\.length" class="sheet-desc">\{\{ managementNotice \}\}<\/text>/)
@@ -115,8 +115,8 @@ test('resource detail renders configured attribute items as specs', () => {
 
 test('resource detail soft-disables top voucher management action', () => {
   assert.doesNotMatch(source, /import \{ redeemTopVoucher, listTopVouchers \} from '\.\.\/\.\.\/api\/entitlement'/)
-  assert.doesNotMatch(source, /供给展示中，可按需刷新、置顶或下架。/)
-  assert.match(source, /供给展示中，可按需刷新或下架。/)
+  assert.doesNotMatch(source, /供应展示中，可按需刷新、置顶或下架。/)
+  assert.match(source, /供应展示中，可按需刷新或下架。/)
   assert.doesNotMatch(source, /key: 'top'/)
   assert.doesNotMatch(source, /label: '置顶'/)
   assert.doesNotMatch(source, /async function topOwnResource\(\)/)

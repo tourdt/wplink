@@ -1,4 +1,4 @@
-# 服装产业带资源撮合平台数据库设计与 ER 图
+# 服装产业带供需信息撮合平台数据库设计与 ER 图
 
 版本：v0.1  
 日期：2026-06-27  
@@ -11,7 +11,7 @@
 
 数据库设计围绕 DDD 领域模型展开，核心目标是：
 
-- 以 `resources` 作为统一资源表，承载货源、库存、工厂产能、订单、招聘、出租、服务等资源类型。
+- 以 `resources` 作为统一供需信息表，承载货源、库存、工厂产能、订单、招聘、出租、服务等供需类型。
 - 通过 `resource_type_configs` 定义字段模板、有效期、审核规则和展示规则，避免为每种业务复制一套表。
 - 稳定字段关系化，业务扩展字段 JSONB 化。
 - 支持城市站扩展、商家认证、发布效果、权益核销、消息通知和操作审计。
@@ -54,7 +54,7 @@ erDiagram
 
 ## 3. 核心建模策略
 
-### 3.1 统一资源模型
+### 3.1 统一供需信息模型
 
 所有可发布、可审核、可搜索、可联系、可过期、可统计效果的对象都进入 `resources` 表。
 
@@ -68,7 +68,7 @@ erDiagram
 - 出租/转让：`resource_type = rental`
 - 服务：`resource_type = service`
 
-不同资源的差异字段进入 `resources.attributes JSONB`，字段规则由 `resource_type_configs.field_schema JSONB` 定义。
+不同供需信息的差异字段进入 `resources.attributes JSONB`，字段规则由 `resource_type_configs.field_schema JSONB` 定义。
 
 ### 3.2 核心字段关系化
 
@@ -280,7 +280,7 @@ erDiagram
 
 ### 4.7 resource_type_configs
 
-资源类型配置表。
+供需类型配置表。
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
@@ -311,14 +311,14 @@ erDiagram
 
 ### 4.8 resources
 
-统一资源表。
+统一供需信息表。
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | bigint | PK | 资源 ID |
+| id | bigint | PK | 供需信息 ID |
 | merchant_id | bigint | FK -> merchants.id NOT NULL | 所属商家 |
 | city_station_id | bigint | FK -> city_stations.id NOT NULL | 城市站 |
-| resource_type_config_id | bigint | FK -> resource_type_configs.id NOT NULL | 资源类型配置 |
+| resource_type_config_id | bigint | FK -> resource_type_configs.id NOT NULL | 供需类型配置 |
 | type_code | varchar(64) | NOT NULL | 冗余类型编码，便于查询 |
 | status | varchar(32) | NOT NULL | draft, pending, published, rejected, expired, dealt, taken_down, archived |
 | title | varchar(128) | NOT NULL | 标题 |
@@ -363,16 +363,16 @@ erDiagram
 
 ### 4.9 resource_review_records
 
-资源审核记录表。
+供需信息审核记录表。
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
 | id | bigint | PK | 审核记录 ID |
-| resource_id | bigint | FK -> resources.id NOT NULL | 资源 |
+| resource_id | bigint | FK -> resources.id NOT NULL | 供需信息 |
 | reviewer_id | bigint | FK -> users.id NOT NULL | 审核人 |
 | action | varchar(32) | NOT NULL | approve, reject, take_down |
 | reason | text | NULL | 原因 |
-| snapshot | jsonb | NOT NULL DEFAULT '{}' | 审核时资源快照 |
+| snapshot | jsonb | NOT NULL DEFAULT '{}' | 审核时供需信息快照 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 
 索引：
@@ -388,7 +388,7 @@ erDiagram
 |---|---|---|---|
 | id | bigint | PK | 认证 ID |
 | merchant_id | bigint | FK -> merchants.id NOT NULL | 商家 |
-| resource_id | bigint | FK -> resources.id NULL | 可选资源认证 |
+| resource_id | bigint | FK -> resources.id NULL | 可选供需信息认证 |
 | verification_type | varchar(64) | NOT NULL | factory, stall, inventory, service_provider |
 | status | varchar(32) | NOT NULL | pending, approved, rejected, revoked |
 | applicant_user_id | bigint | FK -> users.id NOT NULL | 申请人 |
@@ -416,7 +416,7 @@ erDiagram
 |---|---|---|---|
 | id | bigint | PK | 信用记录 ID |
 | merchant_id | bigint | FK -> merchants.id NOT NULL | 商家 |
-| resource_id | bigint | FK -> resources.id NULL | 相关资源 |
+| resource_id | bigint | FK -> resources.id NULL | 相关供需信息 |
 | source_type | varchar(64) | NOT NULL | verification, deal_feedback, complaint, platform_check |
 | tag_code | varchar(64) | NOT NULL | verified_factory, recent_active, risk_flag |
 | tag_label | varchar(64) | NOT NULL | 展示标签 |
@@ -443,7 +443,7 @@ erDiagram
 | keyword | varchar(128) | NOT NULL | 搜索词 |
 | filters | jsonb | NOT NULL DEFAULT '{}' | 筛选条件 |
 | result_count | integer | NOT NULL DEFAULT 0 | 结果数量 |
-| clicked_resource_id | bigint | FK -> resources.id NULL | 点击资源 |
+| clicked_resource_id | bigint | FK -> resources.id NULL | 点击供需信息 |
 | created_at | timestamptz | NOT NULL | 搜索时间 |
 
 索引：
@@ -465,7 +465,7 @@ erDiagram
 | total_amount | integer | NOT NULL | 总额度 |
 | used_amount | integer | NOT NULL DEFAULT 0 | 已使用 |
 | remaining_amount | integer | NOT NULL | 剩余 |
-| allowed_type_codes | jsonb | NOT NULL DEFAULT '[]' | 置顶券可用资源类型，非置顶权益为空数组 |
+| allowed_type_codes | jsonb | NOT NULL DEFAULT '[]' | 置顶券可用供需类型，非置顶权益为空数组 |
 | top_duration_hours | integer | NOT NULL DEFAULT 0 | 单张置顶券置顶时长，非置顶权益为 0 |
 | starts_at | timestamptz | NOT NULL | 生效时间 |
 | expires_at | timestamptz | NULL | 过期时间 |
@@ -490,7 +490,7 @@ erDiagram
 | entitlement_type | varchar(64) | NOT NULL | publish_quota, refresh_quota, top_voucher |
 | action_type | varchar(64) | NOT NULL | publish_resource, refresh_resource, top_resource |
 | amount | integer | NOT NULL DEFAULT 1 | 本次使用数量 |
-| resource_id | bigint | FK -> resources.id NULL | 关联资源 |
+| resource_id | bigint | FK -> resources.id NULL | 关联供需信息 |
 | before_remaining_amount | integer | NOT NULL | 使用前剩余 |
 | after_remaining_amount | integer | NOT NULL | 使用后剩余 |
 | snapshot | jsonb | NOT NULL DEFAULT '{}' | 使用时业务快照 |
@@ -504,14 +504,14 @@ erDiagram
 
 ### 4.15 resource_contact_events
 
-资源联系事件表。
+供需信息联系事件表。
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
 | id | bigint | PK | 联系事件 ID |
-| resource_id | bigint | FK -> resources.id NOT NULL | 资源 |
+| resource_id | bigint | FK -> resources.id NOT NULL | 供需信息 |
 | user_id | bigint | FK -> users.id NULL | 联系用户 |
-| merchant_id | bigint | FK -> merchants.id NOT NULL | 资源商家 |
+| merchant_id | bigint | FK -> merchants.id NOT NULL | 供需信息商家 |
 | action | varchar(32) | NOT NULL | phone, wechat, merchant_profile, share |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 
@@ -522,12 +522,12 @@ erDiagram
 
 ### 4.16 resource_metrics_daily
 
-资源每日效果统计表。
+供需信息每日效果统计表。
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
 | id | bigint | PK | 统计 ID |
-| resource_id | bigint | FK -> resources.id NOT NULL | 资源 |
+| resource_id | bigint | FK -> resources.id NOT NULL | 供需信息 |
 | merchant_id | bigint | FK -> merchants.id NOT NULL | 商家 |
 | stat_date | date | NOT NULL | 日期 |
 | exposure_count | integer | NOT NULL DEFAULT 0 | 曝光 |
@@ -636,7 +636,7 @@ erDiagram
 
 ### 6.1 resource_type_configs.field_schema
 
-示例：库存资源字段模板。
+示例：库存供需信息字段模板。
 
 ```json
 {
@@ -651,7 +651,7 @@ erDiagram
 
 ### 6.2 resources.attributes
 
-示例：库存资源扩展字段。
+示例：库存供需信息扩展字段。
 
 ```json
 {
@@ -677,35 +677,35 @@ erDiagram
 
 ## 7. 关键关系说明
 
-### 7.1 商家与资源
+### 7.1 商家与供需信息
 
-- 一个商家可以发布多条资源。
-- 一条资源只归属一个商家。
-- 资源联系数据汇总到商家发布效果。
+- 一个商家可以发布多条供需信息。
+- 一条供需信息只归属一个商家。
+- 供需信息联系数据汇总到商家发布效果。
 
-### 7.2 城市站与资源
+### 7.2 城市站与供需信息
 
-- 一个城市站包含多条资源。
-- 一条资源归属一个城市站。
+- 一个城市站包含多条供需信息。
+- 一条供需信息归属一个城市站。
 - 跨城搜索通过 city_station_id 过滤或放开。
 
-### 7.3 资源类型配置与资源
+### 7.3 供需类型配置与供需信息
 
-- 一条资源必须绑定一个资源类型配置。
-- 资源类型配置决定字段校验、展示、有效期和审核规则。
-- 资源表不因新增业务类型新增表。
+- 一条供需信息必须绑定一个供需类型配置。
+- 供需类型配置决定字段校验、展示、有效期和审核规则。
+- 供需信息表不因新增业务类型新增表。
 
-### 7.4 权益与资源
+### 7.4 权益与供需信息
 
 - 商家权益归属商家。
-- 置顶券只能用于该商家的已发布资源。
+- 置顶券只能用于该商家的已发布供需信息。
 - 权益使用需要写入操作日志或权益流水。
 
-### 7.5 搜索与需求方向资源
+### 7.5 搜索与需求方向供需信息
 
-- 搜索记录只记录查询、筛选、结果数和点击资源。
+- 搜索记录只记录查询、筛选、结果数和点击供需信息。
 - 搜索无结果词进入运营补货清单。
-- 需要找货、找厂、找服务的用户统一发布 `direction = demand` 的资源。
+- 需要找货、找厂、找服务的用户统一发布 `direction = demand` 的供需信息。
 
 ## 8. 索引与性能建议
 
@@ -765,4 +765,4 @@ MVP 暂不建：
 3. 搜索是否先用 PostgreSQL 全文检索，还是直接接入搜索服务。
 4. 认证年费和会员套餐是否需要立即设计支付订单表。
 5. 电话和微信是否需要脱敏展示或联系前授权。
-6. 资源图片是否只存 URL，还是需要单独 asset 表管理。
+6. 供需信息图片是否只存 URL，还是需要单独 asset 表管理。

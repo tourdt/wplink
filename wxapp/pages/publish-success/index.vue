@@ -43,10 +43,10 @@ const successCopy = computed(() => {
     }
   }
   return {
-    title: '供给已提交审核',
-    desc: '审核通过后，供给会进入搜索、推荐和供给方资料，后续进展会通过消息中心通知。',
+    title: '供应已提交审核',
+    desc: '审核通过后，供应会进入搜索、推荐和供应方资料，后续进展会通过消息中心通知。',
     exposureLabel: '通过后曝光',
-    exposureValue: '搜索、推荐和供给方资料',
+    exposureValue: '搜索、推荐和供应方资料',
   }
 })
 

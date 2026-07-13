@@ -1,8 +1,8 @@
 <template>
   <section>
     <div class="page-title">
-      <h2>资源审核</h2>
-      <el-button type="primary" @click="openProxyCreate">代发资源</el-button>
+      <h2>供需信息审核</h2>
+      <el-button type="primary" @click="openProxyCreate">代发供需信息</el-button>
     </div>
 
     <section class="panel">
@@ -12,7 +12,7 @@
             <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="资源类型">
+        <el-form-item label="供需类型">
           <el-select v-model="filters.typeCode" placeholder="全部" style="width: 160px">
             <el-option label="全部" value="" />
             <el-option label="库存清仓" value="inventory" />
@@ -33,8 +33,8 @@
         <span>{{ errorText }}</span>
         <el-button type="danger" plain @click="loadRows">重试</el-button>
       </div>
-      <el-table v-loading="loading" :data="rows" stripe empty-text="暂无待审核资源">
-        <el-table-column prop="title" label="资源标题" min-width="220" />
+      <el-table v-loading="loading" :data="rows" stripe empty-text="暂无待审核供需信息">
+        <el-table-column prop="title" label="信息标题" min-width="220" />
         <el-table-column label="类型" width="120">
           <template #default="{ row }">{{ typeText[row.typeCode] || row.typeCode }}</template>
         </el-table-column>
@@ -51,7 +51,7 @@
       </el-table>
     </section>
 
-    <el-dialog v-model="reasonVisible" :title="reasonAction === 'reject' ? '驳回资源' : '下架资源'" width="420px">
+    <el-dialog v-model="reasonVisible" :title="reasonAction === 'reject' ? '驳回供需信息' : '下架供需信息'" width="420px">
       <el-input v-model="reasonText" type="textarea" :rows="4" placeholder="请填写处理原因" />
       <template #footer>
         <el-button @click="reasonVisible = false">取消</el-button>
@@ -61,12 +61,12 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="proxyVisible" title="代发资源" size="520px">
+    <el-drawer v-model="proxyVisible" title="代发供需信息" size="520px">
       <el-form label-position="top">
         <el-form-item label="商家 ID">
           <el-input v-model.trim="proxyForm.merchantId" />
         </el-form-item>
-        <el-form-item label="资源类型">
+        <el-form-item label="供需类型">
           <el-select v-model="proxyForm.typeCode">
             <el-option v-for="(label, value) in typeText" :key="value" :label="label" :value="value" />
           </el-select>
@@ -99,10 +99,10 @@
       </el-form>
     </el-drawer>
 
-    <el-drawer v-model="detailVisible" title="资源详情" size="420px">
+    <el-drawer v-model="detailVisible" title="供需信息详情" size="420px">
       <el-descriptions v-if="detailRow" :column="1" border>
-        <el-descriptions-item label="资源标题">{{ detailRow.title }}</el-descriptions-item>
-        <el-descriptions-item label="资源类型">{{ typeText[detailRow.typeCode] || detailRow.typeCode }}</el-descriptions-item>
+        <el-descriptions-item label="信息标题">{{ detailRow.title }}</el-descriptions-item>
+        <el-descriptions-item label="供需类型">{{ typeText[detailRow.typeCode] || detailRow.typeCode }}</el-descriptions-item>
         <el-descriptions-item label="商家">{{ detailRow.merchantName }}</el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ detailRow.createdAt }}</el-descriptions-item>
       </el-descriptions>
@@ -155,7 +155,7 @@ async function loadRows() {
     const resp = await listPendingResources({ ...filters, page: 1, pageSize: 20 })
     rows.value = resp.items || []
   } catch {
-    errorText.value = '资源审核列表加载失败，请重试'
+    errorText.value = '供需信息审核列表加载失败，请重试'
   } finally {
     loading.value = false
   }
@@ -163,7 +163,7 @@ async function loadRows() {
 
 async function approve(row) {
   try {
-    await ElMessageBox.confirm(`确认通过「${row.title}」的资源审核吗？`, '确认审核通过', {
+    await ElMessageBox.confirm(`确认通过「${row.title}」的供需信息审核吗？`, '确认审核通过', {
       type: 'warning',
       confirmButtonText: '确认通过',
       cancelButtonText: '取消',
@@ -174,7 +174,7 @@ async function approve(row) {
   submitting.value = true
   try {
     await reviewResource(row.id, { action: 'approve', reviewerId: currentOperatorId() })
-    ElMessage.success('资源已审核通过')
+    ElMessage.success('供需信息已审核通过')
     await loadRows()
   } finally {
     submitting.value = false
@@ -203,7 +203,7 @@ async function submitReasonAction() {
   submitting.value = true
   try {
     await reviewResource(reasonTarget.value.id, { action: reasonAction.value, reason: reasonText.value.trim(), reviewerId: currentOperatorId() })
-    ElMessage.success(reasonAction.value === 'reject' ? '资源已驳回' : '资源已下架')
+    ElMessage.success(reasonAction.value === 'reject' ? '供需信息已驳回' : '供需信息已下架')
     reasonVisible.value = false
     await loadRows()
   } finally {
@@ -224,7 +224,7 @@ async function submitProxyCreate() {
   savingProxy.value = true
   try {
     await createResource({ ...proxyForm, contact: { ...proxyForm.contact } })
-    ElMessage.success('资源已提交审核')
+    ElMessage.success('供需信息已提交审核')
     proxyVisible.value = false
     await loadRows()
   } finally {

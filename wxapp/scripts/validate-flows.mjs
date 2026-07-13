@@ -50,12 +50,12 @@ export const defaultFlowChecks = [
   {
     file: 'pages/market/index.vue',
     description: '供需 tab 推荐和类型筛选',
-    checks: ['供需市场', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'DemandCard', "label: '供给'", "label: '需求'", 'activeDirection', 'openSearchPage', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
+    checks: ['供需市场', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'DemandCard', "label: '供应'", "label: '需求'", 'activeDirection', 'openSearchPage', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
   },
   {
     file: 'pages/search/index.vue',
     description: '独立搜索和无结果换条件',
-    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', 'DemandCard', 'activeDirection', '暂无匹配供给', 'hotKeywords', '换个条件'],
+    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', 'DemandCard', 'activeDirection', '暂无匹配供应', 'hotKeywords', '换个条件'],
   },
   {
     file: 'pages/resource/detail.vue',
@@ -78,7 +78,7 @@ export const defaultFlowChecks = [
       'getResourceFavoriteState',
       'setResourceFavorite',
       'toggleFavorite',
-      '不能收藏自己发布的供给',
+      '不能收藏自己发布的供应',
       'loadOwnResourceIfCurrentMerchant',
       'resourceUnavailable',
       '内容暂不可查看',
@@ -92,12 +92,12 @@ export const defaultFlowChecks = [
   },
   {
     file: 'pages/publish/edit.vue',
-    description: '独立供给编辑页入口',
+    description: '独立供应编辑页入口',
     checks: ['ResourcePublishForm', 'onLoad', 'routeOptions', 'publishFormMode', ':mode="publishFormMode"', 'direction'],
   },
   {
     file: 'components/ResourcePublishForm.vue',
-    description: '供给发布和草稿保存',
+    description: '供应发布和草稿保存',
     checks: [
       'listCityResourceTypes',
       'createResource',
@@ -178,8 +178,8 @@ export const defaultFlowChecks = [
   },
   {
     file: 'pages/topic/index.vue',
-    description: '专题供给和继续浏览兜底',
-    checks: ['getTopicResources', 'ResourceCard', 'openSearch', 'Banner 专题', 'topicStats', '继续浏览供给'],
+    description: '专题供应和继续浏览兜底',
+    checks: ['getTopicResources', 'ResourceCard', 'openSearch', 'Banner 专题', 'topicStats', '继续浏览供应'],
   },
   {
     file: 'pages/webview/index.vue',
@@ -189,7 +189,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/merchant/detail.vue',
     description: '发布者资料认证和发布记录',
-    checks: ['getMerchant', 'listResources', 'ResourceList', 'merchantResources', 'loadMerchantResources', 'hasMoreMerchantResources', 'onReachBottom', 'openResource', 'verificationStatus', 'resourcesSummary', 'heatScore', '热度', 'merchantLogo', 'merchantImages', 'merchantLocation', 'openMerchantLocation', 'uni.openLocation', '导航', 'merchant-hero-card', 'merchant-gallery', 'merchant-image', 'previewMerchantImage', 'uni.previewImage', 'trust-note-section', '电话和微信见供给详情', 'getMerchantFollowState', 'setMerchantFollow', 'toggleFollow', 'isOwnMerchant', 'openMerchantEditor', '编辑', '/pages/merchant/profile?merchantId='],
+    checks: ['getMerchant', 'listResources', 'ResourceList', 'merchantResources', 'loadMerchantResources', 'hasMoreMerchantResources', 'onReachBottom', 'openResource', 'verificationStatus', 'resourcesSummary', 'heatScore', '热度', 'merchantLogo', 'merchantImages', 'merchantLocation', 'openMerchantLocation', 'uni.openLocation', '导航', 'merchant-hero-card', 'merchant-gallery', 'merchant-image', 'previewMerchantImage', 'uni.previewImage', 'trust-note-section', '电话和微信见供应详情', 'getMerchantFollowState', 'setMerchantFollow', 'toggleFollow', 'isOwnMerchant', 'openMerchantEditor', '编辑', '/pages/merchant/profile?merchantId='],
   },
   {
     file: 'api/favorite.js',
@@ -203,12 +203,12 @@ export const defaultFlowChecks = [
   },
   {
     file: 'components/ResourceCard.vue',
-    description: '供给卡四行信息和供给类型角标',
+    description: '供应卡四行信息和供应类型角标',
     checks: ['isVIPMerchant', 'vip-badge', 'merchant-line', 'resource-title', 'resource-meta', 'resource-price', 'type-corner', 'formatRefreshedAt'],
   },
   {
     file: 'components/ResourceList.vue',
-    description: '通用供给列表、空态和加载更多',
+    description: '通用供应列表、空态和加载更多',
     checks: ['ResourceCard', 'resources', 'emptyText', 'loading', 'hasMore', 'loadMoreText', "emit('load-more')"],
   },
   {

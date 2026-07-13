@@ -150,11 +150,13 @@ test('home recommend card config hides banner image fields', () => {
 test('resource type config explains required field meanings', () => {
   const source = fs.readFileSync(path.join(root, 'src/views/ResourceTypeConfigView.vue'), 'utf8')
 
-  assert.match(source, /必填字段控制商家发布或保存资源时必须补全的信息/)
+  assert.match(source, /供需类型配置/)
+  assert.match(source, /必填字段控制商家发布或保存供需信息时必须补全的信息/)
   assert.match(source, /fieldDescriptionMap/)
   assert.match(source, /标题用于搜索、列表卡片和详情页主标题/)
   assert.match(source, /联系电话用于买家联系和平台审核核验/)
   assert.match(source, /required-field-note/)
+  assert.doesNotMatch(source, /资源类型配置/)
 })
 
 test('resource type config provides visual field schema editor', () => {
@@ -214,11 +216,26 @@ test('resource type config shows read-only resource direction labels', () => {
 
   assert.match(source, /label="类型归属"/)
   assert.match(source, /directionLabel/)
-  assert.match(source, /资源类型/)
+  assert.match(source, /供应类型/)
   assert.match(source, /需求类型/)
   assert.match(source, /directionTagType/)
   assert.match(source, /editing\.direction/)
   assert.doesNotMatch(source, /direction:\s*editing\.value\.direction/)
+})
+
+test('admin navigation uses supply demand information wording for resource sections', () => {
+  const layoutSource = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.vue'), 'utf8')
+  const reviewSource = fs.readFileSync(path.join(root, 'src/views/ResourceReviewView.vue'), 'utf8')
+  const configSource = fs.readFileSync(path.join(root, 'src/views/ResourceTypeConfigView.vue'), 'utf8')
+
+  assert.match(layoutSource, /供需信息审核/)
+  assert.match(layoutSource, /供需类型配置/)
+  assert.match(reviewSource, /<h2>供需信息审核<\/h2>/)
+  assert.match(configSource, /<h2>供需类型配置<\/h2>/)
+  assert.doesNotMatch(layoutSource, />资源审核</)
+  assert.doesNotMatch(layoutSource, />资源配置</)
+  assert.doesNotMatch(reviewSource, /<h2>资源审核<\/h2>/)
+  assert.doesNotMatch(configSource, /<h2>资源类型配置<\/h2>/)
 })
 
 test('banner target selectors support searchable remote options', () => {

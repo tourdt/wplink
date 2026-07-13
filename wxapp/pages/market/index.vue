@@ -105,7 +105,7 @@ const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
 const NAV_BOTTOM_RPX = 12
 const directionTabs = [
-  { label: '供给', value: RESOURCE_DIRECTION_SUPPLY },
+  { label: '供应', value: RESOURCE_DIRECTION_SUPPLY },
   { label: '需求', value: RESOURCE_DIRECTION_DEMAND },
 ]
 const directionStateCache = reactive({
@@ -137,7 +137,7 @@ const resourceNavStyle = computed(() => `padding-top: ${headerMetrics.value.stat
 const resourceTitleBarStyle = computed(() => `height: ${headerMetrics.value.navBarHeight}px;`)
 const resourcePageStyle = computed(() => `padding-top: calc(${headerMetrics.value.headerHeight}px + 24rpx);`)
 const resourceToolbarStyle = computed(() => `top: ${headerMetrics.value.headerHeight}px;`)
-const recommendationEmptyTitle = computed(() => activeDirection.value === RESOURCE_DIRECTION_DEMAND ? '暂无推荐需求' : '暂无推荐供给')
+const recommendationEmptyTitle = computed(() => activeDirection.value === RESOURCE_DIRECTION_DEMAND ? '暂无推荐需求' : '暂无推荐供应')
 const searchPlaceholder = computed(() => (
   activeDirection.value === RESOURCE_DIRECTION_DEMAND
     ? '搜采购/找厂/服务'

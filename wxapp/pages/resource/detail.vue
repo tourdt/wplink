@@ -33,7 +33,7 @@
           @click="previewGalleryImage(0)"
         />
         <view v-else class="gallery-main gallery-placeholder">
-          <text>{{ resource.category || '供给实拍' }}</text>
+          <text>{{ resource.category || '供应实拍' }}</text>
         </view>
       </view>
 
@@ -82,7 +82,7 @@
         <ResourceList
           :resources="relatedResources"
           variant="compact"
-          empty-text="暂无同类供给"
+          empty-text="暂无同类供应"
           @open="openRelatedResource"
         />
       </view>
@@ -244,17 +244,17 @@ const isExpiredResource = computed(() => {
 })
 const isDealtResource = computed(() => resource.value.status === 'dealt' || Boolean(resource.value.dealtAt))
 const canShareOwnResource = computed(() => resource.value.status === 'published' && !isExpiredResource.value && !resource.value.dealtAt)
-const managementTitle = computed(() => statusText[resource.value.status] || '供给管理')
+const managementTitle = computed(() => statusText[resource.value.status] || '供应管理')
 const managementNotice = computed(() => {
   if (resource.value.status === 'pending') {
-    return '供给正在审核，审核通过后会公开展示。当前暂不能刷新、下架或分享。'
+    return '供应正在审核，审核通过后会公开展示。当前暂不能刷新、下架或分享。'
   }
   if (resource.value.status === 'draft') return '草稿可继续编辑，完善后再提交审核。'
-  if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : '供给已被驳回，可编辑后重新提交审核。'
-  if (isExpiredResource.value) return '供给已过期，建议再发类似供给后重新提交审核。'
-  if (isDealtResource.value) return '供给已成交，不再公开展示，可再发类似供给。'
-  if (resource.value.status === 'taken_down') return '供给已下架，不再公开展示。'
-  return '供给展示中，可按需刷新或下架。'
+  if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : '供应已被驳回，可编辑后重新提交审核。'
+  if (isExpiredResource.value) return '供应已过期，建议再发类似供应后重新提交审核。'
+  if (isDealtResource.value) return '供应已成交，不再公开展示，可再发类似供应。'
+  if (resource.value.status === 'taken_down') return '供应已下架，不再公开展示。'
+  return '供应展示中，可按需刷新或下架。'
 })
 const managementActions = computed(() => {
   if (resource.value.status === 'pending') return []
@@ -281,7 +281,7 @@ const managementActions = computed(() => {
 
 onLoad(async (options) => {
   if (!options.id) return
-  // 从“我的发布”进入时允许查看待审核、草稿、已下架等非公开状态，避免误提示供给已下架。
+  // 从“我的发布”进入时允许查看待审核、草稿、已下架等非公开状态，避免误提示供应已下架。
   ownerMerchantId.value = options.merchantId || ''
   isOwnResource.value = options.from === 'my-resources' || Boolean(ownerMerchantId.value)
   resourceUnavailable.value = false
@@ -376,14 +376,14 @@ async function loadFavoriteState(resourceId) {
 async function toggleFavorite() {
   if (!resource.value.id) return
   if (isOwnResource.value) {
-    uni.showToast({ title: '不能收藏自己发布的供给', icon: 'none' })
+    uni.showToast({ title: '不能收藏自己发布的供应', icon: 'none' })
     return
   }
   try {
     // 收藏状态以服务端返回为准，避免弱网下本地乐观更新和真实状态不一致。
     const resp = await setResourceFavorite(resource.value.id, !favorited.value)
     favorited.value = Boolean(resp.favorited)
-    uni.showToast({ title: favorited.value ? '已收藏供给' : '已取消收藏', icon: 'none' })
+    uni.showToast({ title: favorited.value ? '已收藏供应' : '已取消收藏', icon: 'none' })
   } catch (err) {
     uni.showToast({ title: err.message || '收藏失败，请稍后重试', icon: 'none' })
   }
@@ -444,7 +444,7 @@ function closeManagementSheet() {
 
 function shareOwnResource() {
   if (canShareOwnResource.value) return
-  uni.showToast({ title: '供给审核通过后可分享', icon: 'none' })
+  uni.showToast({ title: '供应审核通过后可分享', icon: 'none' })
 }
 
 async function handleManagementAction(action) {
@@ -490,8 +490,8 @@ async function refreshOwnResource() {
 
 async function takeDownOwnResource() {
   const confirmed = await confirmManagementAction({
-    title: '下架供给',
-    content: '下架后供给将不再公开展示，确认下架吗？',
+    title: '下架供应',
+    content: '下架后供应将不再公开展示，确认下架吗？',
     confirmText: '下架',
     confirmColor: '#c2410c',
   })
@@ -532,7 +532,7 @@ function buildRepostInitialForm(detail) {
 
 async function deleteOwnResource() {
   const confirmed = await confirmManagementAction({
-    title: '删除供给',
+    title: '删除供应',
     content: '删除后将不再显示在我的发布中，确认删除吗？',
     confirmText: '删除',
     confirmColor: '#c2410c',
@@ -595,7 +595,7 @@ function enableShareMenu() {
 function scheduleShareCoverRender() {
   if (!shareCanvasReady || !resource.value.id) return
   clearTimeout(shareCoverRenderTimer)
-  // 等待资源主图和隐藏 canvas 完成一次视图更新，避免刚加载详情时导出空白封面。
+  // 等待供需信息主图和隐藏 canvas 完成一次视图更新，避免刚加载详情时导出空白封面。
   shareCoverRenderTimer = setTimeout(() => {
     shareCoverRenderTimer = null
     renderShareCover()
@@ -612,7 +612,7 @@ async function renderShareCover() {
     const tempFilePath = await exportShareCoverImage()
     shareImageUrl.value = tempFilePath || getResourceShareCoverSource(resource.value)
   } catch (err) {
-    console.warn('资源分享封面生成失败', {
+    console.warn('供需信息分享封面生成失败', {
       resourceId: resource.value.id,
       message: err?.message || String(err),
     })

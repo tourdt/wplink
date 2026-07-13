@@ -95,7 +95,7 @@ let growthPageLoadSeq = 0
 let skipNextShowLoad = false
 
 const activeCampaign = computed(() => growthTaskData.value?.campaign?.code ? growthTaskData.value.campaign : campaigns.value[0] || {})
-const campaignHint = computed(() => activeCampaign.value.hint || '发资源、做分享，自动得权益')
+const campaignHint = computed(() => activeCampaign.value.hint || '发供需信息、做分享，自动得权益')
 const taskSummary = computed(() => growthTaskData.value?.summary || fallbackTaskSummary.value)
 const allTasks = computed(() => growthTaskData.value?.tasks || [])
 const starterTasks = computed(() => allTasks.value.filter((task) => task.group === 'starter'))

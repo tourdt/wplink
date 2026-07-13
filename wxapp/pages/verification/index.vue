@@ -42,7 +42,7 @@
 
     <view v-if="showUnsupportedVerificationNotice" class="review-progress-card">
       <text class="review-progress-title">当前身份暂不支持认证</text>
-      <text class="review-progress-desc">当前身份可先完善资料并发布资源。</text>
+      <text class="review-progress-desc">当前身份可先完善资料并发布供需信息。</text>
       <text class="review-progress-meta">如需提交认证，请先在资料设置中调整为可认证身份。</text>
     </view>
 

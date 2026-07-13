@@ -39,7 +39,7 @@
           <template #default="{ row }">{{ kindText[row.kind] || row.kind }}</template>
         </el-table-column>
         <el-table-column prop="title" label="标题" min-width="180" />
-        <el-table-column label="资源范围" width="180">
+        <el-table-column label="供需信息范围" width="180">
           <template #default="{ row }">{{ row.typeScope?.join('、') || '-' }}</template>
         </el-table-column>
         <el-table-column label="跳转" min-width="180">
@@ -99,7 +99,7 @@
             </div>
           </div>
         </el-form-item>
-        <el-form-item v-if="isBannerKind" label="资源类型范围">
+        <el-form-item v-if="isBannerKind" label="供需类型范围">
           <el-select v-model="form.typeScope" multiple>
             <el-option label="库存清仓" value="inventory" />
             <el-option label="现货货源" value="goods" />
@@ -134,7 +134,7 @@
             reserve-keyword
             :remote-method="searchResourceTargets"
             :loading="resourceTargetLoading"
-            placeholder="选择资源"
+            placeholder="选择供需信息"
           >
             <el-option v-for="item in resourceOptions" :key="item.id" :label="resourceOptionLabel(item)" :value="item.id" />
           </el-select>
@@ -201,7 +201,7 @@ import { uploadBannerImage } from '../api/upload'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { merchantTypeLabel } from '../common/merchantIdentity'
 
-const jumpTypeText = { topic: '专题落地页', resource: '资源', merchant: '商家', internal: '内部页', webview: '网页' }
+const jumpTypeText = { topic: '专题落地页', resource: '供需信息', merchant: '商家', internal: '内部页', webview: '网页' }
 const kindText = { banner: '首页 Banner', home_recommend_card: '首页推荐卡' }
 const statusText = { draft: '草稿', active: '启用', disabled: '停用' }
 const statusTagType = { draft: 'info', active: 'success', disabled: 'warning' }
@@ -211,7 +211,7 @@ const kindOptions = [
 ]
 const jumpTypeOptions = [
   { label: '专题落地页', value: 'topic' },
-  { label: '资源详情', value: 'resource' },
+  { label: '供需信息详情', value: 'resource' },
   { label: '商家主页', value: 'merchant' },
   { label: '内部页面', value: 'internal' },
   { label: '活动网页', value: 'webview' },

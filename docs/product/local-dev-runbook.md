@@ -17,9 +17,9 @@
 - systemd 示例：`deploy/systemd/wplink-api.service`
 - 详细说明：`docs/product/deployment-config.md`
 
-当前已实现七牛 Kodo 上传凭证签发，小程序可通过 `/api/v1/uploads/token` 获取凭证后直传对象存储。图片字段仍保存最终 CDN URL。生产服务启用用户 token 后，资源发布和“我的发布”管理会校验用户是否绑定对应商家。
+当前已实现七牛 Kodo 上传凭证签发，小程序可通过 `/api/v1/uploads/token` 获取凭证后直传对象存储。图片字段仍保存最终 CDN URL。生产服务启用用户 token 后，供需信息发布和“我的发布”管理会校验用户是否绑定对应商家。
 
-正式运营时必须使用 `RuntimeMode: production` 并提供真实 `ADMIN_TOKEN_SECRET`、`USER_TOKEN_SECRET`、PostgreSQL DSN、PostgreSQL 连接池参数、微信小程序 AppID/Secret、短信验证码服务配置、资源生命周期任务间隔和七牛密钥。生产模式会在启动前校验关键配置，缺失时拒绝启动；短信 `dev` provider 仅允许本地开发。
+正式运营时必须使用 `RuntimeMode: production` 并提供真实 `ADMIN_TOKEN_SECRET`、`USER_TOKEN_SECRET`、PostgreSQL DSN、PostgreSQL 连接池参数、微信小程序 AppID/Secret、短信验证码服务配置、供需信息生命周期任务间隔和七牛密钥。生产模式会在启动前校验关键配置，缺失时拒绝启动；短信 `dev` provider 仅允许本地开发。
 
 ## 数据库初始化
 
@@ -54,20 +54,20 @@ node backend/scripts/validate_migrations.mjs
 
 演示数据包含：
 
-- 织里城市站和七类资源类型配置
+- 织里城市站和七类供需类型配置
 - 认证工厂、认证库存商、服务商、采购商
-- 七类已发布资源，以及待审核、已驳回、即将过期、已过期资源
+- 七类已发布供需信息，以及待审核、已驳回、即将过期、已过期供需信息
 - 已发布的织里利济路拿货地图示范场景、档口和配套点位
-- 需求方向资源示例
-- 消息、资源指标、联系事件、操作日志、置顶券和权益
+- 需求方向供需信息示例
+- 消息、供需信息指标、联系事件、操作日志、置顶券和权益
 
-说明：演示数据统一使用 `resources` 表表达供给和需求方向资源，不再包含独立需求线索或后台对接数据。
+说明：演示数据统一使用 `resources` 表表达供应和需求方向的供需信息，不再包含独立需求线索或后台对接数据。
 
 本地若要清库重跑，建议直接重建数据库后重新执行上述脚本。当前 migration down 文件可用于开发验证，但演示环境优先使用干净数据库。
 
 ## 后端验证
 
-当前后端已有 HTTP 服务入口，已挂载 `/healthz`、`/readyz`、`/admin/` 一体化后台静态路由，并接入 `backend/app/api/app.api` 中的账号、城市站、商家、资源、发现、认证、权益、消息、指标和后台管理 API。账号链路首发使用 `/api/v1/auth/wechat-login` 和 `/api/v1/me`；`/api/v1/auth/sms-code`、`/api/v1/me/phone` 为手机号绑定后续版本预留接口。未配置 API handler 的兜底路由仍会返回 `API_NOT_CONNECTED`，用于暴露后续新增接口尚未接线的问题。
+当前后端已有 HTTP 服务入口，已挂载 `/healthz`、`/readyz`、`/admin/` 一体化后台静态路由，并接入 `backend/app/api/app.api` 中的账号、城市站、商家、供需信息、发现、认证、权益、消息、指标和后台管理 API。账号链路首发使用 `/api/v1/auth/wechat-login` 和 `/api/v1/me`；`/api/v1/auth/sms-code`、`/api/v1/me/phone` 为手机号绑定后续版本预留接口。未配置 API handler 的兜底路由仍会返回 `API_NOT_CONNECTED`，用于暴露后续新增接口尚未接线的问题。
 
 先运行领域测试和 API 契约校验：
 
@@ -92,7 +92,7 @@ go run ./app -f etc/app.yaml
 - `/healthz`：只验证 HTTP 进程存活，返回 `ok`。
 - `/readyz`：验证服务已连接 PostgreSQL；数据库不可用时返回 `503 not ready`。
 
-服务启动后会按 `Tasks.ResourceLifecycleInterval` 自动执行资源生命周期任务，用于过期资源状态流转和即将过期/已过期消息提醒。本地演示可使用模板默认 `1h`；多实例生产部署时建议只保留一个实例启用该任务。
+服务启动后会按 `Tasks.ResourceLifecycleInterval` 自动执行供需信息生命周期任务，用于过期供需信息状态流转和即将过期/已过期消息提醒。本地演示可使用模板默认 `1h`；多实例生产部署时建议只保留一个实例启用该任务。
 
 如果只验证入口和后台静态路由，也可以使用模板配置：
 
@@ -128,13 +128,13 @@ node backend/scripts/prepare_admin_embed.mjs
 后台核心页面：
 
 - `/dashboard` 数据概览
-- `/resources/pending` 资源审核
+- `/resources/pending` 供需信息审核
 - `/merchants` 商家管理
-- `/resources?direction=demand` 需求方向资源筛选
+- `/resources?direction=demand` 需求方向供需信息筛选
 - `/verifications` 认证审核
 - `/entitlements` 权益发放
 - `/banner-topics` Banner 专题
-- `/resource-type-configs` 资源配置
+- `/resource-type-configs` 供需类型配置
 - `/operation-logs` 操作日志
 - `/search-logs` 搜索日志
 
@@ -168,7 +168,7 @@ wxapp/dist/mp-weixin
 VITE_API_BASE_URL=http://127.0.0.1:4000 npm run build:mp-weixin
 ```
 
-发布资源和商家认证页面已接入图片上传。正式小程序需同时在微信公众平台配置 request 合法域名和 uploadFile 合法域名，分别指向 API 域名和七牛上传域名。
+发布供需信息和商家认证页面已接入图片上传。正式小程序需同时在微信公众平台配置 request 合法域名和 uploadFile 合法域名，分别指向 API 域名和七牛上传域名。
 
 ## 演示账号和标识
 
@@ -189,6 +189,6 @@ VITE_API_BASE_URL=http://127.0.0.1:4000 npm run build:mp-weixin
 ## 已知限制
 
 - migration 静态校验不能替代真实 PostgreSQL up/down；数据库可连接时应运行 `go run ./scripts/verify_migrations.go -config etc/app.yaml`，由临时数据库完成 up/down 验证。
-- 当前后端 HTTP 服务入口已可启动，业务 API 已接入账号、城市站、商家、资源、需求、发现、认证、权益、消息、指标和后台管理路由。
+- 当前后端 HTTP 服务入口已可启动，业务 API 已接入账号、城市站、商家、供需信息、需求、发现、认证、权益、消息、指标和后台管理路由。
 - 短信验证码本地可用 `SMS.Provider: dev` 和固定 `DevCode` 验证；相关后端接口已预留。首发小程序不开放手机号绑定入口，正式运营验收不要求短信验证码服务可用。
 - 小程序构建会出现 Sass `@import` 和 legacy JS API 的上游弃用警告，不影响当前构建产物。

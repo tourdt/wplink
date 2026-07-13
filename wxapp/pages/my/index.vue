@@ -71,7 +71,7 @@
         <view class="action-item" @click="openFavorites">
           <view class="action-main">
             <text class="action-title">收藏关注</text>
-            <text class="action-meta">供给、商家、搜索</text>
+            <text class="action-meta">供应、商家、搜索</text>
           </view>
           <text class="entry-arrow"></text>
         </view>

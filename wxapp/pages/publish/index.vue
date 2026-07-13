@@ -64,13 +64,13 @@ const publishRules = [
 ]
 const publishDirectionOptions = [
   {
-    title: '发布供给',
-    desc: '货源、产能、服务等可供应内容',
+    title: '我能提供',
+    desc: '发布货源、库存、产能、服务等供需信息',
     value: RESOURCE_DIRECTION_SUPPLY,
   },
   {
-    title: '发布需求',
-    desc: '找货、找工厂、找服务等需求',
+    title: '我想寻找',
+    desc: '发布找货、找工厂、找服务等需求',
     value: RESOURCE_DIRECTION_DEMAND,
   },
 ]

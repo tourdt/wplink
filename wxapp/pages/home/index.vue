@@ -9,7 +9,7 @@
 
       <view class="search-entry" @click="openSearch()">
         <view class="search-icon" aria-hidden="true"></view>
-        <text class="search-placeholder">搜索供给、需求、工厂或服务...</text>
+        <text class="search-placeholder">搜索供应、需求、工厂或服务...</text>
       </view>
     </view>
 
@@ -259,7 +259,7 @@ async function loadHomeResources() {
 }
 
 async function loadRecommendCards() {
-  // 首页推荐卡由后台运营位配置驱动；加载失败只隐藏该卡片，不影响下方供给列表。
+  // 首页推荐卡由后台运营位配置驱动；加载失败只隐藏该卡片，不影响下方供应列表。
   try {
     const resp = await listHomeRecommendCards({ cityCode: DEFAULT_CITY_CODE })
     recommendCards.value = resp.items || []
@@ -397,7 +397,7 @@ function bannerKindText(item) {
   if (item.tags && item.tags.length) return item.tags.slice(0, 2).join(' · ')
   const kindMap = {
     topic: '专题推荐',
-    resource: '供给推荐',
+    resource: '供应推荐',
     merchant: '认证商家',
     publish: '商家发布',
     search: '热门搜索',

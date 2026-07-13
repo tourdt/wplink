@@ -258,7 +258,7 @@ test('resource type migrations resolve to a self-contained final publish config'
 
   for (const typeCode of expectedTypeCodes) {
     if (!configs.has(typeCode)) {
-      issues.push(`缺少资源类型配置 ${typeCode}`)
+      issues.push(`缺少供需类型配置 ${typeCode}`)
     }
   }
 

@@ -47,7 +47,7 @@ test('growth entitlement detail page is registered and loads public campaign rul
   assert.match(source, /flex-wrap:\s*wrap/)
   assert.doesNotMatch(source, /可继续获得/)
   assert.doesNotMatch(source, /当前暂无进行中的新手主线任务/)
-  assert.doesNotMatch(source, /发布优质资源、有效分享，可获得更多发布和刷新次数/)
+  assert.doesNotMatch(source, /发布优质供需信息、有效分享，可获得更多发布和刷新次数/)
   assert.doesNotMatch(source, /权益达标后自动到账，不需要手动领取/)
   assert.doesNotMatch(source, /暂无可参与的新手任务/)
   assert.match(source, /达标自动到账/)

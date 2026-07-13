@@ -128,7 +128,7 @@ test('home page keeps custom brand first screen structure', () => {
     'mode="aspectFit"',
     'getMenuButtonBoundingClientRect',
     'homeContentStyle',
-    '搜索供给、需求、工厂或服务',
+    '搜索供应、需求、工厂或服务',
     'factory-hero',
     '织里站 · 精选工厂',
     '童装产业带供需服务平台',
@@ -167,14 +167,14 @@ test('resource tab separates recommendation discovery from keyword search page',
   assert.ok(pagesConfig.pages.some((item) => item.path === 'pages/search/index'))
   assert.equal(resourceTab?.text, '供需')
 
-  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectType', "label: '供给'", "label: '需求'", 'DemandCard']) {
+  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectType', "label: '供应'", "label: '需求'", 'DemandCard']) {
     assert.match(resourceSource, new RegExp(token))
   }
   for (const removedToken of ['createSavedSearch', 'applySavedSearch', 'saveCurrentSearch']) {
     assert.equal(resourceSource.includes(removedToken), false)
   }
 
-  for (const token of ['searchResources', '暂无匹配供给', '换个条件', 'activeDirection', 'DemandCard']) {
+  for (const token of ['searchResources', '暂无匹配供应', '换个条件', 'activeDirection', 'DemandCard']) {
     assert.match(searchSource, new RegExp(token))
   }
   for (const removedToken of ['提交采购需求', 'openDemand', '/pages/demand/index']) {
@@ -221,8 +221,8 @@ test('publish tab supports supply and demand entry selection', () => {
 
   for (const token of [
     'publishDirectionOptions',
-    '发布供给',
-    '发布需求',
+    '我能提供',
+    '我想寻找',
     'startPublish',
     'RESOURCE_DIRECTION_SUPPLY',
     'RESOURCE_DIRECTION_DEMAND',
@@ -341,7 +341,7 @@ test('topic empty state does not expose demand submission in MVP', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/topic/index.vue'), 'utf8')
 
-  for (const token of ['getTopicResources', 'ResourceCard', 'Banner 专题', 'topicStats', '继续浏览供给', 'openSearch']) {
+  for (const token of ['getTopicResources', 'ResourceCard', 'Banner 专题', 'topicStats', '继续浏览供应', 'openSearch']) {
     assert.match(source, new RegExp(token))
   }
 
@@ -418,12 +418,12 @@ test('my page presents merchant workspace and grouped service entries', () => {
   assert.match(source, /<view class="action-list">\s*<view class="action-item" @click="openMyResources">[\s\S]*<text class="action-title">我的发布<\/text>/)
 
   for (const verboseCopy of [
-    '进入我的发布查看每条资源的表现',
-    '进入我的发布查看每条资源表现',
+    '进入我的发布查看每条供需信息的表现',
+    '进入我的发布查看每条供需信息表现',
     'quick-entry-grid',
     'quick-entry',
     '发布和推广',
-    '发布资源',
+    '发布供需信息',
     'openPublish',
     'quick-entry.primary {\n  background: $wplink-primary',
     'quick-entry.primary .quick-desc {\n  color: rgba(255, 255, 255',
@@ -471,7 +471,7 @@ test('my resources page keeps list concise and dates day-only', () => {
     'background: $wplink-card;',
     'box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.06);',
     'directionOptions',
-    '供给发布',
+    '供应发布',
     '需求发布',
     'direction: filters.direction',
     'displayStatusText(item)',
@@ -488,7 +488,7 @@ test('my resources page keeps list concise and dates day-only', () => {
     'hasMore.value',
     'loading.value',
     'class="empty-state"',
-    '暂无发布供给',
+    '暂无供应发布',
     '继续发布',
     'load-more-text',
     'padding-bottom: calc(128rpx + env(safe-area-inset-bottom));',
@@ -514,13 +514,13 @@ test('my resources page keeps list concise and dates day-only', () => {
     'effectAdvice',
     'effect-advice',
     '<scroll-view class="filter-row" scroll-x>',
-    '已发布资源可刷新、置顶或下架，过期后可再发类似。',
+    '已发布供需信息可刷新、置顶或下架，过期后可再发类似。',
     '审核通过后开始展示。',
-    '可再发类似资源继续曝光。',
+    '可再发类似供需信息继续曝光。',
     '根据曝光和联系情况刷新或置顶。',
     '完善信息有助于买家判断。',
-    '管理资源状态、效果数据和推广权益',
-    '管理资源状态和推广效果',
+    '管理供需信息状态、效果数据和推广权益',
+    '管理供需信息状态和推广效果',
     'resource-manager-head',
     'manager-title',
     'manager-desc',
@@ -570,9 +570,9 @@ test('favorites page matches my resources filter and supports refresh pagination
     'emptyDesc',
     'emptyActionText',
     'openEmptyAction',
-    '暂无收藏供给',
+    '暂无收藏供应',
     '暂无关注商家',
-    '去找供给',
+    '去找供应',
     '去找商家',
     'load-more-text',
     'listFavoriteResources({ page: nextPage, pageSize })',
@@ -742,7 +742,7 @@ test('merchant profile page uses neutral profile setup wording and keeps basic f
     '商家资料加载失败',
     '商家资料已保存',
     '商家资料保存失败',
-    '选择最接近你发布资源的身份',
+    '选择最接近你发布供需信息的身份',
     '包装、辅料、印花绣花、物流等选配套服务',
   ]) {
     assert.equal(source.includes(token), false)
@@ -775,7 +775,7 @@ test('merchant identity wording is unified across profile and display pages', ()
   assert.doesNotMatch(profileSource, /\{ label: '场地\/设备方', value: 'rental_provider' \}/)
   assert.doesNotMatch(profileSource, /merchantTypeOptions = \[[\s\S]*value: 'stall'/)
   assert.doesNotMatch(profileSource, /merchantTypeOptions = \[[\s\S]*value: 'rental_provider'/)
-  assert.doesNotMatch(profileSource, /选择最接近你发布资源的身份/)
+  assert.doesNotMatch(profileSource, /选择最接近你发布供需信息的身份/)
   assert.doesNotMatch(profileSource, /包装、辅料、印花绣花、物流等选配套服务/)
 
   for (const source of displaySources) {
@@ -858,11 +858,11 @@ test('publish page presents grouped fast publishing workflow', () => {
     'fixed-save-spacer',
     'fixed-save-bar',
     'fixed-save-actions',
-    '供给类型',
+    '供应类型',
     '基础信息',
-    '供给说明',
+    '供应说明',
     '类型字段',
-    '供给图片',
+    '供应图片',
     '联系信息',
     '保存草稿',
     '提交审核',
@@ -1021,7 +1021,7 @@ test('success pages explain the result and next step consistently', () => {
     assert.match(publishSource, new RegExp(token))
   }
 
-  for (const token of ['审核结果', '消息中心通知', '通过后曝光', '搜索、推荐和供给方资料']) {
+  for (const token of ['审核结果', '消息中心通知', '通过后曝光', '搜索、推荐和供应方资料']) {
     assert.match(publishSource, new RegExp(token))
   }
 })
@@ -1389,8 +1389,8 @@ test('merchant detail page does not show misleading direct contact buttons', () 
     'callPhone',
     '微信联系',
     '电话联系',
-    '请到资源详情页查看电话',
-    '请到资源详情页查看微信',
+    '请到供需信息详情页查看电话',
+    '请到供需信息详情页查看微信',
   ]) {
     assert.equal(source.includes(token), false)
   }
@@ -1473,7 +1473,7 @@ test('resource detail related resources use reusable resource list', () => {
     "import ResourceList from '../../components/ResourceList.vue'",
     ':resources="relatedResources"',
     'variant="compact"',
-    'empty-text="暂无同类供给"',
+    'empty-text="暂无同类供应"',
     '@open="openRelatedResource"',
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
@@ -1592,7 +1592,7 @@ test('merchant detail page uses trust-first homepage layout', () => {
     'profile-chip.category',
     '热度',
     '主营待补充',
-    '电话和微信见供给详情',
+    '电话和微信见供应详情',
   ]) {
     assert.match(source, new RegExp(token))
   }

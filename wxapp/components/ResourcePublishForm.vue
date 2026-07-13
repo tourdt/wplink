@@ -259,15 +259,15 @@ const directionLabels = computed(() => {
   return {
     basicTitle: '基础信息',
     progressDesc: '标题、联系人、联系电话和类型必填项需填写完整',
-    typeLabel: '供给类型',
-    typeHelper: '供给类型会用于搜索筛选和分类展示。',
+    typeLabel: '供应类型',
+    typeHelper: '供应类型会用于搜索筛选和分类展示。',
     titlePlaceholder: '例如：童装春款现货 3000 件',
-    detailTitle: '供给说明',
-    descriptionLabel: '供给描述',
+    detailTitle: '供应说明',
+    descriptionLabel: '供应描述',
     descriptionPlaceholder: '说明货品状态、尺码颜色、交期、看样方式等关键信息',
     attributeTitle: '类型字段',
-    attributeNote: '按供给类型',
-    imageTitle: '供给图片',
+    attributeNote: '按供应类型',
+    imageTitle: '供应图片',
     contactNamePlaceholder: '买家看到的联系人',
     contactPhonePlaceholder: '用于买家发起联系',
   }
@@ -956,7 +956,7 @@ function getPublishFieldLabel(field) {
     contactPhone: '联系电话',
     contactWechat: '联系微信',
     images: directionLabels.value.imageTitle,
-    tags: isDemandDirection.value ? '需求标签' : '供给标签',
+    tags: isDemandDirection.value ? '需求标签' : '供应标签',
   }
   return labels[field] || '配置字段'
 }
