@@ -66,6 +66,39 @@ func TestGetResourceReturnsPublishedDetail(t *testing.T) {
 	}
 }
 
+func TestGetResourceReturnsContactAccessWithoutRawContact(t *testing.T) {
+	store := &fakeGetResourceStore{
+		detail: model.ResourceDetail{
+			ID: "resource-1", Status: model.ResourceStatusPublished, TypeCode: "job_seek", Title: "求职需求",
+			TypeName: "我要求职", Category: "求职",
+			Attributes: model.JSONMap{}, MerchantID: "merchant-1", MerchantName: "求职用户",
+			ContactName: "李先生", PhoneMasked: "188****0002", WechatMasked: "",
+			CommercialRules: model.JSONMap{
+				"contactUnlock": model.JSONMap{
+					"mode":             model.ContactUnlockModePaidOrVIP,
+					"priceCent":        int64(500),
+					"currency":         "CNY",
+					"vipFree":          true,
+					"repeatUnlockDays": int64(30),
+				},
+			},
+		},
+	}
+	logic := NewGetResourceLogic(store)
+
+	resp, err := logic.GetResource(context.Background(), "resource-1")
+	if err != nil {
+		t.Fatalf("GetResource() error = %v", err)
+	}
+
+	if resp.ContactAccess.Mode != model.ContactUnlockModePaidOrVIP || resp.ContactAccess.PriceCent != 500 || resp.ContactAccess.Unlocked {
+		t.Fatalf("contactAccess = %#v, want paid_or_vip locked", resp.ContactAccess)
+	}
+	if resp.Contact.PhoneMasked == "18800000002" || resp.Contact.WechatMasked == "stock-demo" {
+		t.Fatalf("contact = %#v, public detail should only expose masked contact", resp.Contact)
+	}
+}
+
 func TestGetResourceMapsMissingPublishedResourceToNotFound(t *testing.T) {
 	logic := NewGetResourceLogic(&fakeGetResourceStore{err: sql.ErrNoRows})
 

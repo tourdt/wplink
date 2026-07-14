@@ -30,7 +30,10 @@ export default function request(options) {
         if (unauthorizedSession || !options.suppressErrorToast) {
           uni.showToast({ title: message, icon: 'none' })
         }
-        reject(new Error(message))
+        const error = new Error(message)
+        error.code = res.data?.errorCode || ''
+        error.statusCode = res.statusCode
+        reject(error)
       },
       fail: (err) => {
         if (!options.suppressErrorToast) {

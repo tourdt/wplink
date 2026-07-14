@@ -28,7 +28,10 @@ const (
 	ActionTypeTopResource     = "top_resource"
 )
 
-var ErrPublishQuotaInsufficient = errors.New("publish quota insufficient")
+var (
+	ErrPublishQuotaInsufficient = errors.New("publish quota insufficient")
+	ErrPublishDisabled          = errors.New("publish disabled")
+)
 
 const consumePublishQuotaSQL = `
 UPDATE merchant_entitlements
@@ -79,6 +82,7 @@ type ResourcePublishConfig struct {
 	FieldSchema      JSONMap
 	RequiredFields   []string
 	DisplayTemplate  JSONMap
+	CommercialRules  JSONMap
 	DefaultValidDays int64
 }
 
@@ -173,6 +177,7 @@ type ResourceDetail struct {
 	Attributes                 JSONMap
 	FieldSchema                JSONMap
 	DisplayTemplate            JSONMap
+	CommercialRules            JSONMap
 	Tags                       []string
 	Images                     []string
 	MerchantID                 string
@@ -282,6 +287,7 @@ SELECT
   r.attributes,
   rtc.field_schema,
   rtc.display_template,
+  rtc.commercial_rules,
   r.tags,
   r.images,
   m.id::text,
@@ -528,14 +534,14 @@ func (m *ResourceModel) GetResourcePublishConfig(ctx context.Context, cityCode s
 	var config ResourcePublishConfig
 	var requiredFields JSONStringSlice
 	err := m.db.QueryRowContext(ctx, `
-SELECT rtc.id::text, rtc.type_code, rtc.direction, rtc.field_schema, rtc.required_fields, rtc.display_template, rtc.default_valid_days
+SELECT rtc.id::text, rtc.type_code, rtc.direction, rtc.field_schema, rtc.required_fields, rtc.display_template, rtc.commercial_rules, rtc.default_valid_days
 FROM resource_type_configs rtc
 JOIN city_stations cs ON cs.id = rtc.city_station_id
 WHERE cs.code = $1
   AND cs.status = 'active'
   AND rtc.type_code = $2
   AND rtc.status = 'active'
-`, cityCode, typeCode).Scan(&config.ID, &config.TypeCode, &config.Direction, &config.FieldSchema, &requiredFields, &config.DisplayTemplate, &config.DefaultValidDays)
+`, cityCode, typeCode).Scan(&config.ID, &config.TypeCode, &config.Direction, &config.FieldSchema, &requiredFields, &config.DisplayTemplate, &config.CommercialRules, &config.DefaultValidDays)
 	config.RequiredFields = []string(requiredFields)
 	return config, err
 }
@@ -645,32 +651,45 @@ RETURNING id::text, status
 	return result, err
 }
 
-func (m *ResourceModel) SubmitResourceForReview(ctx context.Context, resourceID string) (SubmitResourceResult, error) {
-	var result SubmitResourceResult
-	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
-		var merchantID string
-		// 草稿提交会进入审核队列，必须在同一事务内先扣发布额度再改状态，避免额度不足但资源已进入审核。
-		if err := tx.QueryRowContext(ctx, `
-SELECT merchant_id::text
-FROM resources
-WHERE id = $1
-  AND status = 'draft'
-  AND deleted_at IS NULL
+const submitResourceForReviewLockSQL = `
+SELECT r.merchant_id::text, rtc.commercial_rules
+FROM resources r
+JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
+WHERE r.id = $1
+  AND r.status = 'draft'
+  AND r.deleted_at IS NULL
 FOR UPDATE
-`, resourceID).Scan(&merchantID); err != nil {
-			return err
-		}
-		if err := consumePublishQuotaTx(ctx, tx, merchantID, resourceID); err != nil {
-			return err
-		}
-		return tx.QueryRowContext(ctx, `
+`
+
+const submitResourceForReviewUpdateSQL = `
 UPDATE resources
 SET status = 'pending', updated_at = now()
 WHERE id = $1
   AND status = 'draft'
   AND deleted_at IS NULL
 RETURNING id::text, status
-`, resourceID).Scan(&result.ID, &result.Status)
+`
+
+func (m *ResourceModel) SubmitResourceForReview(ctx context.Context, resourceID string) (SubmitResourceResult, error) {
+	var result SubmitResourceResult
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		var merchantID string
+		var commercialRules JSONMap
+		// 草稿提交会进入审核队列，发布策略和状态变更必须在同一事务内判断，避免分类暂停或额度不足时资源进入审核。
+		if err := tx.QueryRowContext(ctx, submitResourceForReviewLockSQL, resourceID).Scan(&merchantID, &commercialRules); err != nil {
+			return err
+		}
+		switch PublishModeFromCommercialRules(commercialRules) {
+		case ResourcePublishModeDisabled:
+			return ErrPublishDisabled
+		case ResourcePublishModeFree:
+			// 免费发布分类不消耗商家的发布额度，后台配置变更后提交草稿立即按新策略生效。
+		default:
+			if err := consumePublishQuotaTx(ctx, tx, merchantID, resourceID); err != nil {
+				return err
+			}
+		}
+		return tx.QueryRowContext(ctx, submitResourceForReviewUpdateSQL, resourceID).Scan(&result.ID, &result.Status)
 	})
 	return result, err
 }
@@ -972,6 +991,7 @@ func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resource
 		&detail.Attributes,
 		&detail.FieldSchema,
 		&detail.DisplayTemplate,
+		&detail.CommercialRules,
 		&tags,
 		&images,
 		&detail.MerchantID,

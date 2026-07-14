@@ -42,6 +42,10 @@ func (l *SubmitResourceLogic) SubmitResource(ctx context.Context, resourceID str
 			logx.Infof("提交资源审核被拦截: resourceId=%s reason=publish_quota_insufficient", resourceID)
 			return SubmitResourceResp{}, errx.New(errx.CodeQuotaNotEnough, "本月发布次数已用完，可开通 VIP 或购买发布包")
 		}
+		if errors.Is(err, model.ErrPublishDisabled) {
+			logx.Infof("提交资源审核被拦截: resourceId=%s reason=publish_disabled", resourceID)
+			return SubmitResourceResp{}, errx.New(errx.CodeValidationFailed, "该分类暂不开放发布")
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			logx.Infof("提交资源审核被拦截: resourceId=%s reason=draft_not_editable", resourceID)
 			return SubmitResourceResp{}, errx.New(errx.CodeStateConflict, "请先编辑并保存草稿后再提交审核")

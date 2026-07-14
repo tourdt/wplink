@@ -77,6 +77,35 @@ func TestRecordContactRequiresLoginForWechatUnlock(t *testing.T) {
 	}
 }
 
+func TestRecordContactRequiresPaymentForPaidCategory(t *testing.T) {
+	store := &fakeContactStore{
+		contact: model.ResourceContactUnlockInfo{
+			ResourceID: "resource-1",
+			MerchantID: "merchant-1",
+			Status:     model.ResourceStatusPublished,
+			Phone:      "18800000002",
+			CommercialRules: model.JSONMap{
+				"contactUnlock": model.JSONMap{
+					"mode":             model.ContactUnlockModePaidOrVIP,
+					"priceCent":        int64(500),
+					"currency":         "CNY",
+					"repeatUnlockDays": int64(30),
+				},
+			},
+		},
+	}
+	logic := NewRecordContactLogic(store)
+
+	_, err := logic.RecordContact(context.Background(), RecordContactReq{ResourceID: "resource-1", UserID: "user-1", Action: "phone"})
+
+	if err == nil || errx.CodeOf(err) != errx.CodePaymentRequired {
+		t.Fatalf("RecordContact() error = %v, want payment required", err)
+	}
+	if store.eventInput.ResourceID != "" || store.metricDelta.ContactClickCount != 0 {
+		t.Fatalf("eventInput = %#v metricDelta = %#v, want no writes", store.eventInput, store.metricDelta)
+	}
+}
+
 func TestRecordContactRejectsWechatWithoutPersistingMetricWhenWechatMissing(t *testing.T) {
 	store := &fakeContactStore{
 		contact: model.ResourceContactUnlockInfo{ResourceID: "resource-1", MerchantID: "merchant-1", Status: model.ResourceStatusPublished},
@@ -181,6 +210,9 @@ func TestRecordContactAcceptsMerchantProfileAlias(t *testing.T) {
 
 type fakeContactStore struct {
 	contact             model.ResourceContactUnlockInfo
+	unlockState         model.ContactUnlockState
+	vipManagedMerchant  model.VIPManagedMerchant
+	unlockInput         model.ContactUnlockInput
 	eventInput          model.ResourceContactEventInput
 	eventResult         model.ResourceContactEventResult
 	metricDelta         model.ResourceMetricDelta
@@ -195,6 +227,19 @@ func (s *fakeContactStore) GetResourceContactUnlockInfo(ctx context.Context, res
 
 func (s *fakeContactStore) UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error) {
 	return s.userManagedMerchant, nil
+}
+
+func (s *fakeContactStore) HasActiveContactUnlock(ctx context.Context, resourceID string, userID string) (model.ContactUnlockState, error) {
+	return s.unlockState, nil
+}
+
+func (s *fakeContactStore) FindActiveVIPManagedMerchant(ctx context.Context, userID string) (model.VIPManagedMerchant, error) {
+	return s.vipManagedMerchant, nil
+}
+
+func (s *fakeContactStore) UpsertContactUnlock(ctx context.Context, input model.ContactUnlockInput) (model.ContactUnlockResult, error) {
+	s.unlockInput = input
+	return model.ContactUnlockResult{ID: "unlock-1", ResourceID: input.ResourceID, UserID: input.UserID, SourceType: input.SourceType, ExpiresAt: input.ExpiresAt}, nil
 }
 
 func (s *fakeContactStore) RecordResourceContactEvent(ctx context.Context, input model.ResourceContactEventInput) (model.ResourceContactEventResult, error) {

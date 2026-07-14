@@ -150,6 +150,16 @@ test('vip membership migration supports online quota pack purchase products', ()
   }
 })
 
+test('category commercial rules migration defines contact unlock commerce schema', () => {
+  const source = fs.readFileSync(path.resolve(migrationsDir, '000023_category_commercial_rules.up.sql'), 'utf8')
+
+  assert.match(source, /ALTER TABLE resource_type_configs\s+ADD COLUMN IF NOT EXISTS commercial_rules jsonb/i)
+  assert.match(source, /CREATE TABLE IF NOT EXISTS resource_contact_unlock_orders/i)
+  assert.match(source, /CREATE TABLE IF NOT EXISTS resource_contact_unlocks/i)
+  assert.match(source, /idx_contact_unlock_orders_out_trade_no/i)
+  assert.match(source, /idx_contact_unlocks_resource_user/i)
+})
+
 test('vip migration backfills product columns for databases that already applied old 000017', () => {
   const repairSql = fs.readFileSync(path.resolve(migrationsDir, '000018_vip_order_product_backfill.up.sql'), 'utf8')
 

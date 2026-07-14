@@ -18,6 +18,7 @@ type ResourceTypeConfig struct {
 	RequiredFields   []string
 	FilterFields     []string
 	DisplayTemplate  JSONMap
+	CommercialRules  JSONMap
 }
 
 type AdminResourceTypeConfig struct {
@@ -33,6 +34,7 @@ type AdminResourceTypeConfig struct {
 	ReviewRules      JSONMap
 	SortWeights      JSONMap
 	MessageRules     JSONMap
+	CommercialRules  JSONMap
 	DefaultValidDays int64
 	Status           string
 }
@@ -45,6 +47,7 @@ type ResourceTypeConfigPatch struct {
 	ReviewRules      JSONMap
 	SortWeights      JSONMap
 	MessageRules     JSONMap
+	CommercialRules  JSONMap
 	DefaultValidDays int64
 	Status           string
 }
@@ -61,6 +64,7 @@ type CreateResourceTypeConfigInput struct {
 	ReviewRules      JSONMap
 	SortWeights      JSONMap
 	MessageRules     JSONMap
+	CommercialRules  JSONMap
 	DefaultValidDays int64
 	Status           string
 }
@@ -80,6 +84,7 @@ type resourceTypeConfigRow struct {
 	RequiredFields   JSONStringSlice `db:"required_fields"`
 	FilterFields     JSONStringSlice `db:"filter_fields"`
 	DisplayTemplate  JSONMap         `db:"display_template"`
+	CommercialRules  JSONMap         `db:"commercial_rules"`
 }
 
 type adminResourceTypeConfigRow struct {
@@ -95,6 +100,7 @@ type adminResourceTypeConfigRow struct {
 	ReviewRules      JSONMap         `db:"review_rules"`
 	SortWeights      JSONMap         `db:"sort_weights"`
 	MessageRules     JSONMap         `db:"message_rules"`
+	CommercialRules  JSONMap         `db:"commercial_rules"`
 	DefaultValidDays int64           `db:"default_valid_days"`
 	Status           string          `db:"status"`
 }
@@ -124,7 +130,8 @@ SELECT
   rtc.field_schema,
   rtc.required_fields,
   rtc.filter_fields,
-  rtc.display_template
+  rtc.display_template,
+  rtc.commercial_rules
 FROM resource_type_configs rtc
 JOIN city_stations cs ON cs.id = rtc.city_station_id
 WHERE cs.code = $1
@@ -148,6 +155,7 @@ ORDER BY rtc.created_at ASC
 			RequiredFields:   []string(row.RequiredFields),
 			FilterFields:     []string(row.FilterFields),
 			DisplayTemplate:  row.DisplayTemplate,
+			CommercialRules:  row.CommercialRules,
 		})
 	}
 	return configs, nil
@@ -169,6 +177,7 @@ SELECT
   rtc.review_rules,
   rtc.sort_weights,
   rtc.message_rules,
+  rtc.commercial_rules,
   rtc.default_valid_days,
   rtc.status
 FROM resource_type_configs rtc
@@ -195,6 +204,7 @@ ORDER BY rtc.created_at ASC
 			ReviewRules:      row.ReviewRules,
 			SortWeights:      row.SortWeights,
 			MessageRules:     row.MessageRules,
+			CommercialRules:  row.CommercialRules,
 			DefaultValidDays: row.DefaultValidDays,
 			Status:           row.Status,
 		})
@@ -214,9 +224,10 @@ SET
   review_rules = $6,
   sort_weights = $7,
   message_rules = $8,
-  default_valid_days = $9,
-  status = $10,
-  updated_at = $11
+  commercial_rules = $9,
+  default_valid_days = $10,
+  status = $11,
+  updated_at = $12
 WHERE id = $1
 `, configID,
 		patch.FieldSchema,
@@ -226,6 +237,7 @@ WHERE id = $1
 		patch.ReviewRules,
 		patch.SortWeights,
 		patch.MessageRules,
+		patch.CommercialRules,
 		patch.DefaultValidDays,
 		patch.Status,
 		updatedAt,
@@ -255,6 +267,7 @@ INSERT INTO resource_type_configs (
   review_rules,
   sort_weights,
   message_rules,
+  commercial_rules,
   default_valid_days,
   status,
   updated_at
@@ -273,7 +286,8 @@ SELECT
   $11,
   $12,
   $13,
-  $14
+  $14,
+  $15
 FROM city_stations cs
 WHERE cs.code = $1
 RETURNING id::text, updated_at
@@ -289,6 +303,7 @@ RETURNING id::text, updated_at
 		input.ReviewRules,
 		input.SortWeights,
 		input.MessageRules,
+		input.CommercialRules,
 		input.DefaultValidDays,
 		input.Status,
 		updatedAt,

@@ -27,6 +27,16 @@ type ResourceAttributeItem struct {
 	Value string `json:"value"`
 }
 
+type ResourceContactAccess struct {
+	Mode             string `json:"mode"`
+	PriceCent        int64  `json:"priceCent"`
+	Currency         string `json:"currency"`
+	VIPFree          bool   `json:"vipFree"`
+	RepeatUnlockDays int64  `json:"repeatUnlockDays"`
+	Unlocked         bool   `json:"unlocked"`
+	ActionText       string `json:"actionText"`
+}
+
 type ResourceDetailResp struct {
 	ID             string                  `json:"id"`
 	Status         string                  `json:"status"`
@@ -43,6 +53,7 @@ type ResourceDetailResp struct {
 	Images         []string                `json:"images"`
 	Merchant       ResourceMerchantBrief   `json:"merchant"`
 	Contact        ResourceContactMasked   `json:"contact"`
+	ContactAccess  ResourceContactAccess   `json:"contactAccess"`
 	PublishedAt    string                  `json:"publishedAt,omitempty"`
 	ExpiresAt      string                  `json:"expiresAt,omitempty"`
 }
@@ -98,8 +109,55 @@ func resourceDetailRespFromModel(detail model.ResourceDetail) ResourceDetailResp
 			PhoneMasked:  detail.PhoneMasked,
 			WechatMasked: detail.WechatMasked,
 		},
-		PublishedAt: detail.PublishedAt,
-		ExpiresAt:   detail.ExpiresAt,
+		ContactAccess: contactAccessFromCommercialRules(detail.CommercialRules, false),
+		PublishedAt:   detail.PublishedAt,
+		ExpiresAt:     detail.ExpiresAt,
+	}
+}
+
+func contactAccessFromCommercialRules(values model.JSONMap, unlocked bool) ResourceContactAccess {
+	rules := model.ContactUnlockRulesFromCommercialRules(values)
+	currency := strings.TrimSpace(rules.Currency)
+	if currency == "" {
+		currency = model.DefaultContactUnlockCurrency
+	}
+	days := rules.RepeatUnlockDays
+	if days <= 0 {
+		days = model.DefaultContactRepeatUnlockDays
+	}
+	mode := strings.TrimSpace(rules.Mode)
+	if mode == "" {
+		mode = model.ContactUnlockModeLoginFree
+	}
+	return ResourceContactAccess{
+		Mode:             mode,
+		PriceCent:        rules.PriceCent,
+		Currency:         currency,
+		VIPFree:          rules.VIPFree,
+		RepeatUnlockDays: days,
+		Unlocked:         unlocked,
+		ActionText:       contactAccessActionText(mode, rules.PriceCent, rules.VIPFree),
+	}
+}
+
+func contactAccessActionText(mode string, priceCent int64, vipFree bool) string {
+	switch mode {
+	case model.ContactUnlockModeDisabled:
+		return "暂不开放查看"
+	case model.ContactUnlockModePaid:
+		if vipFree {
+			return "付费或 VIP 免费查看"
+		}
+		return "付费查看联系方式"
+	case model.ContactUnlockModePaidOrVIP:
+		return "付费或 VIP 免费查看"
+	case model.ContactUnlockModeVIPOnly:
+		return "VIP 免费查看"
+	default:
+		if priceCent > 0 {
+			return "查看联系方式"
+		}
+		return "登录后免费查看"
 	}
 }
 

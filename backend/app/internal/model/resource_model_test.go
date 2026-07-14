@@ -62,6 +62,7 @@ func TestPublishedResourceDetailSQLReturnsTypeDisplayConfigAndHidesInactiveMerch
 		"rtc.type_name",
 		"rtc.field_schema",
 		"rtc.display_template",
+		"rtc.commercial_rules",
 		"m.status = 'active'",
 	}
 	for _, snippet := range requiredSnippets {
@@ -143,5 +144,18 @@ func TestQuotaConsumeSQLGuardsOuterBalance(t *testing.T) {
 				t.Fatalf("%s quota consume sql should ignore future entitlements: %s", name, query)
 			}
 		})
+	}
+}
+
+func TestSubmitResourceForReviewLocksTypeCommercialRules(t *testing.T) {
+	requiredSnippets := []string{
+		"JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id",
+		"rtc.commercial_rules",
+		"FOR UPDATE",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(submitResourceForReviewLockSQL, snippet) {
+			t.Fatalf("submitResourceForReviewLockSQL missing %q:\n%s", snippet, submitResourceForReviewLockSQL)
+		}
 	}
 }

@@ -75,6 +75,20 @@ func TestSubmitResourceMapsPublishQuotaInsufficient(t *testing.T) {
 	}
 }
 
+func TestSubmitResourceMapsDisabledPublishCategory(t *testing.T) {
+	store := &fakeSubmitResourceStore{err: model.ErrPublishDisabled}
+	logic := NewSubmitResourceLogic(store)
+
+	_, err := logic.SubmitResource(context.Background(), "resource-1")
+
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "该分类暂不开放发布" {
+		t.Fatalf("message = %q, want disabled publish message", errx.PublicMessage(err))
+	}
+}
+
 type fakeSubmitResourceStore struct {
 	resourceID string
 	result     model.SubmitResourceResult

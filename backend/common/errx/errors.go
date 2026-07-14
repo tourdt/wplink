@@ -13,6 +13,7 @@ const (
 	CodeMerchantNotFound = "MERCHANT_NOT_FOUND"
 	CodeStateConflict    = "STATE_CONFLICT"
 	CodeQuotaNotEnough   = "QUOTA_NOT_ENOUGH"
+	CodePaymentRequired  = "PAYMENT_REQUIRED"
 	CodeReviewRequired   = "REVIEW_REQUIRED"
 	CodeRateLimited      = "RATE_LIMITED"
 	CodeInternalError    = "INTERNAL_ERROR"
@@ -67,6 +68,8 @@ func HTTPStatus(err error) int {
 		return http.StatusNotFound
 	case CodeStateConflict, CodeQuotaNotEnough:
 		return http.StatusConflict
+	case CodePaymentRequired:
+		return http.StatusPaymentRequired
 	case CodeReviewRequired:
 		return http.StatusUnprocessableEntity
 	case CodeRateLimited:

@@ -36,6 +36,7 @@ type ResourceTypeConfigItem struct {
 	ReviewRules      map[string]interface{} `json:"reviewRules"`
 	SortWeights      map[string]interface{} `json:"sortWeights"`
 	MessageRules     map[string]interface{} `json:"messageRules"`
+	CommercialRules  map[string]interface{} `json:"commercialRules"`
 	DefaultValidDays int64                  `json:"defaultValidDays"`
 	Status           string                 `json:"status"`
 }
@@ -59,6 +60,7 @@ type CreateResourceTypeConfigReq struct {
 	ReviewRules      map[string]interface{}
 	SortWeights      map[string]interface{}
 	MessageRules     map[string]interface{}
+	CommercialRules  map[string]interface{}
 	DefaultValidDays int64
 	Status           string
 }
@@ -76,6 +78,7 @@ type UpdateResourceTypeConfigReq struct {
 	ReviewRules      map[string]interface{}
 	SortWeights      map[string]interface{}
 	MessageRules     map[string]interface{}
+	CommercialRules  map[string]interface{}
 	DefaultValidDays int64
 	Status           string
 }
@@ -147,6 +150,7 @@ func (l *ResourceTypeConfigLogic) ListResourceTypeConfigs(ctx context.Context, r
 			ReviewRules:      map[string]interface{}(config.ReviewRules),
 			SortWeights:      map[string]interface{}(config.SortWeights),
 			MessageRules:     map[string]interface{}(config.MessageRules),
+			CommercialRules:  map[string]interface{}(config.CommercialRules),
 			DefaultValidDays: config.DefaultValidDays,
 			Status:           config.Status,
 		})
@@ -190,6 +194,10 @@ func (l *ResourceTypeConfigLogic) UpdateResourceTypeConfig(ctx context.Context, 
 	if err := validateResourceTypeConfigPatch(req); err != nil {
 		return UpdateResourceTypeConfigResp{}, err
 	}
+	commercialRules, err := normalizeCommercialRules(req.CommercialRules)
+	if err != nil {
+		return UpdateResourceTypeConfigResp{}, err
+	}
 
 	updatedAt, err := l.store.UpdateResourceTypeConfig(ctx, configID, model.ResourceTypeConfigPatch{
 		FieldSchema:      model.JSONMap(req.FieldSchema),
@@ -199,6 +207,7 @@ func (l *ResourceTypeConfigLogic) UpdateResourceTypeConfig(ctx context.Context, 
 		ReviewRules:      model.JSONMap(req.ReviewRules),
 		SortWeights:      model.JSONMap(req.SortWeights),
 		MessageRules:     model.JSONMap(req.MessageRules),
+		CommercialRules:  commercialRules,
 		DefaultValidDays: req.DefaultValidDays,
 		Status:           req.Status,
 	})
@@ -249,6 +258,10 @@ func buildCreateResourceTypeConfigInput(req CreateResourceTypeConfigReq) (model.
 	requiredFields := normalizeRequiredFieldsForCreate(req.RequiredFields)
 	filterFields := append([]string(nil), req.FilterFields...)
 	displayTemplate := cloneConfigMap(req.DisplayTemplate)
+	commercialRules, err := normalizeCommercialRules(req.CommercialRules)
+	if err != nil {
+		return model.CreateResourceTypeConfigInput{}, err
+	}
 	// 一级分类不是独立表，必须写入 display_template.group，供小程序和后台统一按该字段分组。
 	displayTemplate["group"] = map[string]interface{}{"code": groupCode, "name": groupName, "sort": req.GroupSort}
 	if displayTemplate["summary"] == nil {
@@ -269,6 +282,7 @@ func buildCreateResourceTypeConfigInput(req CreateResourceTypeConfigReq) (model.
 		ReviewRules:      cloneConfigMap(req.ReviewRules),
 		SortWeights:      cloneConfigMap(req.SortWeights),
 		MessageRules:     cloneConfigMap(req.MessageRules),
+		CommercialRules:  map[string]interface{}(commercialRules),
 		DefaultValidDays: defaultValidDays,
 		Status:           status,
 	}
@@ -288,6 +302,7 @@ func buildCreateResourceTypeConfigInput(req CreateResourceTypeConfigReq) (model.
 		ReviewRules:      model.JSONMap(patch.ReviewRules),
 		SortWeights:      model.JSONMap(patch.SortWeights),
 		MessageRules:     model.JSONMap(patch.MessageRules),
+		CommercialRules:  commercialRules,
 		DefaultValidDays: defaultValidDays,
 		Status:           status,
 	}, nil
@@ -330,6 +345,45 @@ func validateResourceTypeConfigPatch(req UpdateResourceTypeConfigReq) error {
 		return err
 	}
 	return nil
+}
+
+func normalizeCommercialRules(value map[string]interface{}) (model.JSONMap, error) {
+	if len(value) == 0 {
+		return model.DefaultCommercialRules(), nil
+	}
+	rules := model.CommercialRulesFromJSON(model.JSONMap(value))
+
+	switch strings.TrimSpace(rules.Publish.Mode) {
+	case model.ResourcePublishModeConsumeQuota, model.ResourcePublishModeFree, model.ResourcePublishModeDisabled:
+	default:
+		return nil, errx.New(errx.CodeValidationFailed, "发布策略不正确")
+	}
+
+	switch strings.TrimSpace(rules.ContactUnlock.Mode) {
+	case model.ContactUnlockModeLoginFree, model.ContactUnlockModePaid, model.ContactUnlockModePaidOrVIP, model.ContactUnlockModeVIPOnly, model.ContactUnlockModeDisabled:
+	default:
+		return nil, errx.New(errx.CodeValidationFailed, "联系方式查看策略不正确")
+	}
+	if rules.ContactUnlock.Currency != model.DefaultContactUnlockCurrency {
+		return nil, errx.New(errx.CodeValidationFailed, "联系方式查看暂只支持人民币")
+	}
+	if rules.ContactUnlock.RepeatUnlockDays < 1 || rules.ContactUnlock.RepeatUnlockDays > 365 {
+		return nil, errx.New(errx.CodeValidationFailed, "重复查看有效期必须在 1 到 365 天之间")
+	}
+	if contactUnlockRequiresPrice(rules.ContactUnlock.Mode) && rules.ContactUnlock.PriceCent <= 0 {
+		return nil, errx.New(errx.CodeValidationFailed, "请设置正确的联系方式查看价格")
+	}
+	if !contactUnlockRequiresPrice(rules.ContactUnlock.Mode) && rules.ContactUnlock.PriceCent < 0 {
+		return nil, errx.New(errx.CodeValidationFailed, "联系方式查看价格不能小于 0")
+	}
+	if rules.ContactUnlock.Mode == model.ContactUnlockModePaidOrVIP || rules.ContactUnlock.Mode == model.ContactUnlockModeVIPOnly {
+		rules.ContactUnlock.VIPFree = true
+	}
+	return rules.ToJSONMap(), nil
+}
+
+func contactUnlockRequiresPrice(mode string) bool {
+	return mode == model.ContactUnlockModePaid || mode == model.ContactUnlockModePaidOrVIP
 }
 
 func normalizeRequiredResourceDirection(direction string) (string, error) {

@@ -524,6 +524,38 @@ func TestResourceAPIRouterUsesTokenSubjectForContactEvents(t *testing.T) {
 	}
 }
 
+func TestResourceAPIRouterCreatesContactUnlockOrderAndPaymentWithTokenSubject(t *testing.T) {
+	store := &fakeResourceAPIStore{managedMerchants: map[string]bool{"merchant-2": true}}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}), WithWechatPayDevMock(true))
+
+	orderRec := httptest.NewRecorder()
+	orderReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-unlock-orders", strings.NewReader(`{"action":"phone","viewerMerchantId":"merchant-2"}`))
+	orderReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(orderRec, orderReq)
+	orderData := decodeEnvelopeData(t, orderRec, http.StatusOK)
+	if orderData["orderId"] != "order-1" || orderData["status"] != model.PaymentOrderStatusPending {
+		t.Fatalf("order data = %#v, want pending contact unlock order", orderData)
+	}
+	if store.contactUnlockOrderInput.UserID != "user-1" || store.contactUnlockOrderInput.ResourceID != "resource-1" || store.contactUnlockOrderInput.ViewerMerchantID != "merchant-2" {
+		t.Fatalf("contact unlock order input = %#v, want token user and viewer merchant", store.contactUnlockOrderInput)
+	}
+
+	paymentRec := httptest.NewRecorder()
+	paymentReq := httptest.NewRequest(http.MethodPost, "/api/v1/resources/resource-1/contact-unlock-orders/order-1/payment", strings.NewReader(`{"userId":"attacker"}`))
+	paymentReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(paymentRec, paymentReq)
+	paymentData := decodeEnvelopeData(t, paymentRec, http.StatusOK)
+	if paymentData["orderId"] != "order-1" || paymentData["status"] != model.PaymentOrderStatusPaid {
+		t.Fatalf("payment data = %#v, want paid contact unlock order", paymentData)
+	}
+	if store.contactUnlockPaymentContextInput.UserID != "user-1" || store.contactUnlockPaymentContextInput.OrderID != "order-1" {
+		t.Fatalf("payment context input = %#v, want token user and order", store.contactUnlockPaymentContextInput)
+	}
+	if store.contactUnlockMarkInput.OutTradeNo != "contact_unlock_1" {
+		t.Fatalf("mark input = %#v, want contact unlock out trade no", store.contactUnlockMarkInput)
+	}
+}
+
 func TestResourceAPIRouterUnlocksOwnResourceContactWithoutRecordingEvent(t *testing.T) {
 	store := &fakeResourceAPIStore{managedMerchants: map[string]bool{"merchant-1": true}}
 	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
@@ -613,26 +645,33 @@ func decodeEnvelopeData(t *testing.T, rec *httptest.ResponseRecorder, wantStatus
 type fakeResourceAPIStore struct {
 	fakeCityAPIStore
 
-	publishConfig       model.ResourcePublishConfig
-	merchantStatus      string
-	created             model.CreateResourceInput
-	pendingFilter       model.ListPendingResourcesFilter
-	reviewAction        string
-	reviewInput         model.ReviewResourceInput
-	listFilter          model.ListResourcesFilter
-	searchLog           model.SearchLogInput
-	contactInput        model.ResourceContactEventInput
-	metricDelta         model.ResourceMetricDelta
-	myFilter            model.ListMyResourcesFilter
-	editableDetail      model.EditableResourceDetail
-	ownDetail           model.ResourceDetail
-	ownDetailMerchantID string
-	ownDetailResourceID string
-	managedMerchants    map[string]bool
-	resourceMerchantIDs map[string]string
-	resourceStatuses    map[string]string
-	updatedResourceID   string
-	deletedResourceID   string
+	publishConfig                    model.ResourcePublishConfig
+	merchantStatus                   string
+	created                          model.CreateResourceInput
+	pendingFilter                    model.ListPendingResourcesFilter
+	reviewAction                     string
+	reviewInput                      model.ReviewResourceInput
+	listFilter                       model.ListResourcesFilter
+	searchLog                        model.SearchLogInput
+	contactInput                     model.ResourceContactEventInput
+	contactUnlockState               model.ContactUnlockState
+	contactUnlockInput               model.ContactUnlockInput
+	vipManagedMerchant               model.VIPManagedMerchant
+	contactUnlockOrderInput          model.CreateContactUnlockOrderInput
+	contactUnlockPaymentContextInput model.GetContactUnlockPaymentContextInput
+	contactUnlockPaymentOrderInput   model.CreateContactUnlockPaymentOrderInput
+	contactUnlockMarkInput           model.MarkContactUnlockOrderPaidInput
+	metricDelta                      model.ResourceMetricDelta
+	myFilter                         model.ListMyResourcesFilter
+	editableDetail                   model.EditableResourceDetail
+	ownDetail                        model.ResourceDetail
+	ownDetailMerchantID              string
+	ownDetailResourceID              string
+	managedMerchants                 map[string]bool
+	resourceMerchantIDs              map[string]string
+	resourceStatuses                 map[string]string
+	updatedResourceID                string
+	deletedResourceID                string
 }
 
 var _ ResourceAPIStore = (*fakeResourceAPIStore)(nil)
@@ -710,12 +749,70 @@ func (s *fakeResourceAPIStore) GetResourceContactUnlockInfo(ctx context.Context,
 		status = s.resourceStatuses[resourceID]
 	}
 	return model.ResourceContactUnlockInfo{
-		ResourceID: resourceID,
-		MerchantID: merchantID,
-		Status:     status,
-		Phone:      "18800000002",
-		Wechat:     "stock-demo",
+		ResourceID:      resourceID,
+		MerchantID:      merchantID,
+		Status:          status,
+		Phone:           "18800000002",
+		Wechat:          "stock-demo",
+		CommercialRules: model.DefaultCommercialRules(),
 	}, nil
+}
+
+func (s *fakeResourceAPIStore) HasActiveContactUnlock(ctx context.Context, resourceID string, userID string) (model.ContactUnlockState, error) {
+	return s.contactUnlockState, nil
+}
+
+func (s *fakeResourceAPIStore) FindActiveVIPManagedMerchant(ctx context.Context, userID string) (model.VIPManagedMerchant, error) {
+	return s.vipManagedMerchant, nil
+}
+
+func (s *fakeResourceAPIStore) UpsertContactUnlock(ctx context.Context, input model.ContactUnlockInput) (model.ContactUnlockResult, error) {
+	s.contactUnlockInput = input
+	return model.ContactUnlockResult{ID: "unlock-1", ResourceID: input.ResourceID, UserID: input.UserID, SourceType: input.SourceType, ExpiresAt: input.ExpiresAt}, nil
+}
+
+func (s *fakeResourceAPIStore) CreateContactUnlockOrder(ctx context.Context, input model.CreateContactUnlockOrderInput) (model.ContactUnlockOrderResult, error) {
+	s.contactUnlockOrderInput = input
+	return model.ContactUnlockOrderResult{
+		ID:         "order-1",
+		ResourceID: input.ResourceID,
+		Status:     model.PaymentOrderStatusPending,
+		PriceCent:  500,
+		Currency:   "CNY",
+	}, nil
+}
+
+func (s *fakeResourceAPIStore) GetContactUnlockPaymentContext(ctx context.Context, input model.GetContactUnlockPaymentContextInput) (model.ContactUnlockPaymentContext, error) {
+	s.contactUnlockPaymentContextInput = input
+	return model.ContactUnlockPaymentContext{
+		OrderID:       input.OrderID,
+		ResourceID:    input.ResourceID,
+		UserID:        input.UserID,
+		OpenID:        "openid-1",
+		Status:        model.PaymentOrderStatusPending,
+		OutTradeNo:    "contact_unlock_1",
+		AmountTotal:   500,
+		Currency:      "CNY",
+		ResourceTitle: "女童春款卫衣库存",
+	}, nil
+}
+
+func (s *fakeResourceAPIStore) CreateContactUnlockPaymentOrder(ctx context.Context, input model.CreateContactUnlockPaymentOrderInput) (model.ContactUnlockPaymentOrder, error) {
+	s.contactUnlockPaymentOrderInput = input
+	return model.ContactUnlockPaymentOrder{
+		ID:            input.OrderID,
+		ResourceID:    input.ResourceID,
+		OutTradeNo:    "contact_unlock_1",
+		AmountTotal:   500,
+		Currency:      "CNY",
+		Status:        model.PaymentOrderStatusPending,
+		ResourceTitle: "女童春款卫衣库存",
+	}, nil
+}
+
+func (s *fakeResourceAPIStore) MarkContactUnlockOrderPaid(ctx context.Context, input model.MarkContactUnlockOrderPaidInput) (model.ContactUnlockPaymentResult, error) {
+	s.contactUnlockMarkInput = input
+	return model.ContactUnlockPaymentResult{OrderID: "order-1", ResourceID: "resource-1", Status: model.PaymentOrderStatusPaid}, nil
 }
 
 func (s *fakeResourceAPIStore) GetPublishedResourceDetail(ctx context.Context, resourceID string) (model.ResourceDetail, error) {

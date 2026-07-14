@@ -1,6 +1,8 @@
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS banner_topics;
 DROP TABLE IF EXISTS resource_metrics_daily;
+DROP TABLE IF EXISTS resource_contact_unlocks;
+DROP TABLE IF EXISTS resource_contact_unlock_orders;
 DROP TABLE IF EXISTS resource_contact_events;
 DROP TABLE IF EXISTS merchant_entitlement_usage_records;
 DROP TABLE IF EXISTS merchant_entitlements;

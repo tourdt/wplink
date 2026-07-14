@@ -93,6 +93,13 @@ func TestCreateResourceTypeConfigPassesGroupAndDefaultsToStore(t *testing.T) {
 	if store.createInput.RequiredFields[0] != "title" || store.createInput.RequiredFields[1] != "contactPhone" {
 		t.Fatalf("required fields = %#v, want default title/contactPhone", store.createInput.RequiredFields)
 	}
+	createRules := model.CommercialRulesFromJSON(store.createInput.CommercialRules)
+	if createRules.Publish.Mode != model.ResourcePublishModeConsumeQuota {
+		t.Fatalf("commercial publish rules = %#v, want consume quota default", store.createInput.CommercialRules)
+	}
+	if createRules.ContactUnlock.Mode != model.ContactUnlockModeLoginFree || createRules.ContactUnlock.Currency != "CNY" {
+		t.Fatalf("commercial contact rules = %#v, want login free default", store.createInput.CommercialRules)
+	}
 	if resp.ID != "config-2" || resp.UpdatedAt != "2026-07-14T10:00:00+08:00" {
 		t.Fatalf("resp = %#v, want created id and updatedAt", resp)
 	}
@@ -135,8 +142,36 @@ func TestUpdateResourceTypeConfigPassesPatchToStore(t *testing.T) {
 	if store.patch.DefaultValidDays != 10 {
 		t.Fatalf("default valid days = %d, want 10", store.patch.DefaultValidDays)
 	}
+	patchRules := model.CommercialRulesFromJSON(store.patch.CommercialRules)
+	if patchRules.ContactUnlock.Mode != model.ContactUnlockModeLoginFree {
+		t.Fatalf("commercial rules = %#v, want login free default", store.patch.CommercialRules)
+	}
 	if resp.UpdatedAt != "2026-06-27T10:00:00+08:00" {
 		t.Fatalf("updatedAt = %q, want fixed time", resp.UpdatedAt)
+	}
+}
+
+func TestUpdateResourceTypeConfigRejectsPaidContactWithoutPrice(t *testing.T) {
+	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
+
+	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		DefaultValidDays: 15,
+		Status:           "active",
+		CommercialRules: map[string]interface{}{
+			"publish": map[string]interface{}{"mode": model.ResourcePublishModeFree},
+			"contactUnlock": map[string]interface{}{
+				"mode":             model.ContactUnlockModePaidOrVIP,
+				"priceCent":        float64(0),
+				"currency":         "CNY",
+				"repeatUnlockDays": float64(30),
+			},
+		},
+	})
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if !strings.Contains(err.Error(), "查看价格") {
+		t.Fatalf("error = %v, want contact price validation", err)
 	}
 }
 

@@ -148,6 +148,37 @@
         </el-form-item>
 
         <section v-if="editorMode === 'visual'" class="field-config-editor">
+          <section class="commercial-rules-editor">
+            <div class="field-config-head">
+              <h3>发布规则</h3>
+            </div>
+            <div class="basic-config-grid">
+              <el-form-item label="发布规则">
+                <el-select v-model="commercialRulesForm.publish.mode">
+                  <el-option v-for="item in publishModeOptions" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
+            </div>
+            <div class="field-config-head">
+              <h3>联系方式查看</h3>
+            </div>
+            <div class="basic-config-grid">
+              <el-form-item label="查看方式">
+                <el-select v-model="commercialRulesForm.contactUnlock.mode">
+                  <el-option v-for="item in contactUnlockModeOptions" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
+              <el-form-item v-if="contactUnlockRequiresPrice" label="查看价格（分）">
+                <el-input-number v-model="commercialRulesForm.contactUnlock.priceCent" :min="1" :max="999999" />
+              </el-form-item>
+              <el-form-item label="VIP 免费查看">
+                <el-checkbox v-model="commercialRulesForm.contactUnlock.vipFree">允许 VIP 用户免费查看</el-checkbox>
+              </el-form-item>
+              <el-form-item label="重复查看有效期">
+                <el-input-number v-model="commercialRulesForm.contactUnlock.repeatUnlockDays" :min="1" :max="365" />
+              </el-form-item>
+            </div>
+          </section>
           <div class="field-config-head">
             <h3>字段配置</h3>
             <el-button type="primary" plain @click="addField">新增字段</el-button>
@@ -305,6 +336,7 @@ const editorMode = ref('visual')
 const fieldRows = ref([])
 const baseRequiredFields = ref([])
 const advancedConfig = ref(createEmptyAdvancedConfig())
+const commercialRulesForm = reactive(createDefaultCommercialRules())
 const createMode = ref('group')
 const editingGroup = reactive({
   code: '',
@@ -341,6 +373,18 @@ const baseRequiredFieldOptions = [
   { value: 'contactWechat', label: '微信号' },
   { value: 'images', label: '供需信息图片' },
   { value: 'tags', label: '标签' },
+]
+const publishModeOptions = [
+  { value: 'consume_quota', label: '消耗发布次数' },
+  { value: 'free', label: '免费发布' },
+  { value: 'disabled', label: '暂停发布' },
+]
+const contactUnlockModeOptions = [
+  { value: 'login_free', label: '登录免费查看' },
+  { value: 'paid', label: '付费查看' },
+  { value: 'paid_or_vip', label: '付费或 VIP 免费' },
+  { value: 'vip_only', label: '仅 VIP 查看' },
+  { value: 'disabled', label: '暂停查看' },
 ]
 const summaryFieldValueSet = new Set(['category', 'quantityText', 'priceText'])
 const baseRequiredFieldValueSet = new Set(baseRequiredFieldOptions.map((field) => field.value))
@@ -400,6 +444,9 @@ const fieldDescriptionMap = {
 }
 const configGroups = computed(() => groupResourceTypeConfigs(configs.value))
 const createDrawerTitle = computed(() => createMode.value === 'type' ? '新增二级分类' : '新增一级分类')
+const contactUnlockRequiresPrice = computed(() => {
+  return ['paid', 'paid_or_vip'].includes(commercialRulesForm.contactUnlock.mode)
+})
 
 onMounted(loadConfigs)
 
@@ -434,6 +481,7 @@ function openEditor(row) {
     sortWeights: cloneConfig(row.sortWeights || {}),
     messageRules: cloneConfig(row.messageRules || {}),
   }
+  applyCommercialRulesToForm(row.commercialRules)
   syncConfigJsonFromEditor()
   jsonError.value = ''
   drawerVisible.value = true
@@ -567,6 +615,66 @@ function createEmptyAdvancedConfig() {
   }
 }
 
+function createDefaultCommercialRules() {
+  return {
+    publish: {
+      mode: 'consume_quota',
+    },
+    contactUnlock: {
+      mode: 'login_free',
+      priceCent: 0,
+      currency: 'CNY',
+      vipFree: false,
+      repeatUnlockDays: 30,
+    },
+  }
+}
+
+function normalizeCommercialRules(value = {}) {
+  const defaults = createDefaultCommercialRules()
+  const publishMode = String(value?.publish?.mode || defaults.publish.mode).trim()
+  const contactMode = String(value?.contactUnlock?.mode || defaults.contactUnlock.mode).trim()
+  const priceCent = Number(value?.contactUnlock?.priceCent)
+  const repeatUnlockDays = Number(value?.contactUnlock?.repeatUnlockDays)
+  const normalized = {
+    publish: {
+      mode: publishModeOptions.some((item) => item.value === publishMode) ? publishMode : defaults.publish.mode,
+    },
+    contactUnlock: {
+      mode: contactUnlockModeOptions.some((item) => item.value === contactMode) ? contactMode : defaults.contactUnlock.mode,
+      priceCent: Number.isFinite(priceCent) ? Math.max(0, Math.round(priceCent)) : defaults.contactUnlock.priceCent,
+      currency: 'CNY',
+      vipFree: value?.contactUnlock?.vipFree === true,
+      repeatUnlockDays: Number.isFinite(repeatUnlockDays) ? Math.min(365, Math.max(1, Math.round(repeatUnlockDays))) : defaults.contactUnlock.repeatUnlockDays,
+    },
+  }
+  if (normalized.contactUnlock.mode === 'paid_or_vip' || normalized.contactUnlock.mode === 'vip_only') {
+    normalized.contactUnlock.vipFree = true
+  }
+  if (!['paid', 'paid_or_vip'].includes(normalized.contactUnlock.mode)) {
+    normalized.contactUnlock.priceCent = 0
+  }
+  return normalized
+}
+
+function applyCommercialRulesToForm(value = {}) {
+  const normalized = normalizeCommercialRules(value)
+  commercialRulesForm.publish.mode = normalized.publish.mode
+  commercialRulesForm.contactUnlock.mode = normalized.contactUnlock.mode
+  commercialRulesForm.contactUnlock.priceCent = normalized.contactUnlock.priceCent
+  commercialRulesForm.contactUnlock.currency = normalized.contactUnlock.currency
+  commercialRulesForm.contactUnlock.vipFree = normalized.contactUnlock.vipFree
+  commercialRulesForm.contactUnlock.repeatUnlockDays = normalized.contactUnlock.repeatUnlockDays
+}
+
+function buildCommercialRulesPayload() {
+  const normalized = normalizeCommercialRules(commercialRulesForm)
+  if (contactUnlockRequiresPrice.value && normalized.contactUnlock.priceCent <= 0) {
+    normalized.contactUnlock.priceCent = 1
+  }
+  return normalized
+}
+
 function cloneConfig(value) {
   return JSON.parse(JSON.stringify(value || {}))
 }
@@ -637,6 +745,7 @@ function syncEditorFromConfigJson() {
     reviewRules: parsed.reviewRules || {},
     sortWeights: parsed.sortWeights || {},
     messageRules: parsed.messageRules || {},
+    commercialRules: parsed.commercialRules || {},
   }
   fieldRows.value = normalizeFieldRowsFromSchema(row)
   const dynamicKeys = new Set(fieldRows.value.map((field) => field.key))
@@ -649,6 +758,7 @@ function syncEditorFromConfigJson() {
     sortWeights: cloneConfig(row.sortWeights),
     messageRules: cloneConfig(row.messageRules),
   }
+  applyCommercialRulesToForm(row.commercialRules)
   jsonError.value = ''
   return true
 }
@@ -722,6 +832,7 @@ function buildConfigPayloadFromVisualEditor(options = {}) {
     reviewRules: cloneConfig(advancedConfig.value.reviewRules),
     sortWeights: cloneConfig(advancedConfig.value.sortWeights),
     messageRules: cloneConfig(advancedConfig.value.messageRules),
+    commercialRules: buildCommercialRulesPayload(),
   }
 }
 
@@ -748,6 +859,7 @@ function parseConfigJsonPayload() {
       reviewRules: parsed.reviewRules || {},
       sortWeights: parsed.sortWeights || {},
       messageRules: parsed.messageRules || {},
+      commercialRules: normalizeCommercialRules(parsed.commercialRules),
     }
   } catch {
     jsonError.value = '配置 JSON 格式不正确，请检查后再保存'
@@ -815,6 +927,7 @@ async function saveCreatedType() {
       groupSort: Number(createForm.groupSort) || 999,
       defaultValidDays: Number(createForm.defaultValidDays) || 15,
       status: 'active',
+      commercialRules: createDefaultCommercialRules(),
     })
     ElMessage.success('供需类型已新增')
     createDrawerVisible.value = false
@@ -1047,6 +1160,14 @@ async function saveConfig() {
 .field-config-editor,
 .advanced-config-json {
   margin-bottom: 18px;
+}
+
+.commercial-rules-editor {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #edf0f5;
 }
 
 .field-config-head,

@@ -35,11 +35,13 @@ type ResourceAPIStore interface {
 	resourcelogic.ListResourcesStore
 	resourcelogic.SearchResourceStore
 	resourcelogic.GetResourceStore
+	resourcelogic.ContactUnlockOrderStore
 	resourcelogic.MyResourceStore
 	adminlogic.PendingResourceStore
 	adminlogic.ReviewResourceStore
 	metricslogic.ContactStore
 	metricslogic.MetricUpsertStore
+	paymentlogic.ContactUnlockPaymentStore
 }
 
 type MerchantPermissionStore interface {
@@ -209,7 +211,7 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 	})
 	if resourceStore, ok := any(store).(ResourceAPIStore); ok {
 		permissionStore, _ := any(store).(MerchantPermissionStore)
-		registerResourceRoutes(mux, resourceStore, options.userTokenService, options.adminTokenService, permissionStore)
+		registerResourceRoutes(mux, resourceStore, options.userTokenService, options.adminTokenService, permissionStore, options.wechatPayGateway, options.wechatPayDevMock)
 	}
 	registerOptionalDomainRoutes(mux, store, options.userTokenService, options.adminTokenService, permissionStoreFromStore(store), options.smsVerifier, options.wechatPayGateway, options.wechatPayDevMock)
 	if options.adminTokenService != nil {
@@ -345,7 +347,7 @@ func registerAdminAuthRoutes(mux *http.ServeMux, service AdminLoginService) {
 	})
 }
 
-func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore) {
+func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool) {
 	mux.HandleFunc("POST /api/v1/resources", func(w http.ResponseWriter, r *http.Request) {
 		req, err := decodeCreateResourceRequest(r)
 		if err != nil {
@@ -476,6 +478,52 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			ResourceID: r.PathValue("resourceId"),
 			UserID:     userID,
 			Action:     body.Action,
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/resources/{resourceId}/contact-unlock-orders", func(w http.ResponseWriter, r *http.Request) {
+		subject, err := userSubjectFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, "请先登录后查看联系方式"))
+			return
+		}
+		var body struct {
+			Action           string `json:"action"`
+			ViewerMerchantID string `json:"viewerMerchantId"`
+		}
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if strings.TrimSpace(body.ViewerMerchantID) != "" && permissionStore != nil {
+			if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, body.ViewerMerchantID); err != nil {
+				response.JSON(w, nil, err)
+				return
+			}
+		}
+		resp, err := resourcelogic.NewCreateContactUnlockOrderLogic(store).CreateContactUnlockOrder(r.Context(), resourcelogic.CreateContactUnlockOrderReq{
+			ResourceID:       r.PathValue("resourceId"),
+			UserID:           subject.UserID,
+			ViewerMerchantID: body.ViewerMerchantID,
+			Action:           body.Action,
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/resources/{resourceId}/contact-unlock-orders/{orderId}/payment", func(w http.ResponseWriter, r *http.Request) {
+		subject, err := userSubjectFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, "请先登录后支付"))
+			return
+		}
+		var body paymentlogic.CreateContactUnlockPaymentReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := paymentlogic.NewCreateContactUnlockPaymentLogic(store, wechatPayGateway, wechatPayDevMock).CreateContactUnlockPayment(r.Context(), paymentlogic.CreateContactUnlockPaymentReq{
+			ResourceID: r.PathValue("resourceId"),
+			OrderID:    r.PathValue("orderId"),
+			UserID:     subject.UserID,
 		})
 		response.JSON(w, resp, err)
 	})
