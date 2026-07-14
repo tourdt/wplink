@@ -137,6 +137,16 @@ type ResourceContactMasked {
 	WechatMasked string `json:"wechatMasked,optional"`
 }
 
+type ResourceContactAccess {
+	Mode             string `json:"mode"`
+	PriceCent        int64  `json:"priceCent"`
+	Currency         string `json:"currency"`
+	VipFree          bool   `json:"vipFree"`
+	RepeatUnlockDays int64  `json:"repeatUnlockDays"`
+	Unlocked         bool   `json:"unlocked"`
+	ActionText       string `json:"actionText"`
+}
+
 type ResourceAttributeItem {
 	Key   string `json:"key"`
 	Label string `json:"label"`
@@ -186,6 +196,7 @@ type ResourceDetailResp {
 	Images         []string                `json:"images"`
 	Merchant       ResourceMerchantBrief   `json:"merchant"`
 	Contact        ResourceContactMasked   `json:"contact"`
+	ContactAccess  ResourceContactAccess   `json:"contactAccess"`
 	PublishedAt    string                  `json:"publishedAt,optional"`
 	ExpiresAt      string                  `json:"expiresAt,optional"`
 }
@@ -247,6 +258,30 @@ type ContactEventResp {
 	Wechat  string `json:"wechat,optional"`
 }
 
+type CreateContactUnlockOrderReq {
+	Action           string `json:"action,optional"`
+	ViewerMerchantId string `json:"viewerMerchantId,optional"`
+}
+
+type CreateContactUnlockOrderResp {
+	OrderId         string `json:"orderId,optional"`
+	Status          string `json:"status"`
+	AlreadyUnlocked bool   `json:"alreadyUnlocked"`
+	PriceCent       int64  `json:"priceCent"`
+	Currency        string `json:"currency"`
+	Message         string `json:"message"`
+}
+
+type CreateContactUnlockPaymentReq {
+	UserId string `json:"userId,optional"`
+}
+
+type CreateContactUnlockPaymentResp {
+	OrderId string          `json:"orderId"`
+	Status  string          `json:"status"`
+	Payment WechatPayParams `json:"payment"`
+}
+
 type DetailViewResp {
 	Message string `json:"message"`
 }
@@ -306,4 +341,10 @@ service wplink-api {
 
 	@handler CreateResourceContactEvent
 	post /resources/:resourceId/contact-events (ContactEventReq) returns (ContactEventResp)
+
+	@handler CreateContactUnlockOrder
+	post /resources/:resourceId/contact-unlock-orders (CreateContactUnlockOrderReq) returns (CreateContactUnlockOrderResp)
+
+	@handler CreateContactUnlockPayment
+	post /resources/:resourceId/contact-unlock-orders/:orderId/payment (CreateContactUnlockPaymentReq) returns (CreateContactUnlockPaymentResp)
 }

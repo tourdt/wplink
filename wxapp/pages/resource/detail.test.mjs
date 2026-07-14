@@ -82,6 +82,18 @@ test('resource detail unlocks contact through backend before copy or call', () =
   assert.equal(source.includes('已记录联系，完整电话由平台保护'), false)
 })
 
+test('resource detail handles paid contact unlock flow', () => {
+  const apiSource = fs.readFileSync(path.join(root, 'api/resource.js'), 'utf8')
+
+  assert.match(source, /contactAccess/)
+  assert.match(source, /createContactUnlockOrder/)
+  assert.match(source, /createContactUnlockPayment/)
+  assert.match(source, /PAYMENT_REQUIRED/)
+  assert.match(source, /requestPayment/)
+  assert.match(apiSource, /createContactUnlockOrder/)
+  assert.match(apiSource, /createContactUnlockPayment/)
+})
+
 test('resource detail supports WeChat group and timeline sharing with generated cover image', () => {
   assert.match(source, /import \{ onLoad, onReady, onShareAppMessage, onShareTimeline \} from '@dcloudio\/uni-app'/)
   assert.match(source, /buildResourceSharePayload/)

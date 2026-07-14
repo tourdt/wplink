@@ -135,3 +135,19 @@ export function recordResourceContact(resourceId, action) {
     data: { action },
   })
 }
+
+export function createContactUnlockOrder(resourceId, data = {}) {
+  return request({
+    url: `/api/v1/resources/${resourceId}/contact-unlock-orders`,
+    method: 'POST',
+    data,
+  })
+}
+
+export function createContactUnlockPayment(resourceId, orderId, data = {}) {
+  return request({
+    url: `/api/v1/resources/${resourceId}/contact-unlock-orders/${orderId}/payment`,
+    method: 'POST',
+    data,
+  })
+}

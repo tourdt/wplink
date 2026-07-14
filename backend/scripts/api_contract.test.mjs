@@ -176,6 +176,34 @@ test('admin api contract exposes vip config endpoints', () => {
   }
 })
 
+test('resource api exposes category commercial contact unlock contracts', () => {
+  const resourceApiSource = fs.readFileSync(path.join(apiDir, 'resource.api'), 'utf8')
+  const adminApiSource = fs.readFileSync(path.join(apiDir, 'admin.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
+
+  for (const snippet of [
+    'type ResourceContactAccess',
+    'type CreateContactUnlockOrderReq',
+    'type CreateContactUnlockPaymentReq',
+    'post /resources/:resourceId/contact-unlock-orders (CreateContactUnlockOrderReq) returns (CreateContactUnlockOrderResp)',
+    'post /resources/:resourceId/contact-unlock-orders/:orderId/payment (CreateContactUnlockPaymentReq) returns (CreateContactUnlockPaymentResp)',
+  ]) {
+    assert(resourceApiSource.includes(snippet), `resource.api should contain ${snippet}`)
+  }
+  assert.match(resourceApiSource, /ContactAccess\s+ResourceContactAccess\s+`json:"contactAccess"`/)
+
+  for (const snippet of [
+    'type ResourceContactAccess struct',
+    'type CreateContactUnlockOrderReq struct',
+    'type CreateContactUnlockPaymentReq struct',
+  ]) {
+    assert(typesSource.includes(snippet), `types.go should contain ${snippet}`)
+  }
+  assert.match(typesSource, /CommercialRules\s+map\[string\]interface\{\}\s+`json:"commercialRules"`/)
+
+  assert.match(adminApiSource, /CommercialRules\s+map\[string\]interface\{\}\s+`json:"commercialRules"`/, 'admin.api should expose commercialRules')
+})
+
 test('merchant detail contract exposes editable contact only as optional fields', () => {
   const merchantApiSource = fs.readFileSync(path.join(apiDir, 'merchant.api'), 'utf8')
   const typesSource = fs.readFileSync(typesFile, 'utf8')

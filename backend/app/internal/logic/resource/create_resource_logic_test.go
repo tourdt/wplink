@@ -241,6 +241,73 @@ func TestCreateResourceCreatesPendingResource(t *testing.T) {
 	}
 }
 
+func TestCreateResourceFreePublishDoesNotConsumePublishQuota(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-job-seeking",
+			TypeCode:       "job_seeking",
+			Direction:      model.ResourceDirectionDemand,
+			RequiredFields: []string{"title", "category", "contactPhone"},
+			CommercialRules: model.JSONMap{
+				"publish":       model.JSONMap{"mode": model.ResourcePublishModeFree},
+				"contactUnlock": model.JSONMap{"mode": model.ContactUnlockModePaidOrVIP, "priceCent": int64(500), "currency": "CNY", "repeatUnlockDays": int64(30)},
+			},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "job_seeking",
+		Title:       "本人找平车岗位",
+		Category:    "平车",
+		Description: "三年经验，可长期稳定做。",
+		Contact:     ResourceContactReq{Name: "李师傅", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+	if store.input.ConsumePublishQuota {
+		t.Fatalf("consumePublishQuota = true, want false for free publish category")
+	}
+}
+
+func TestCreateResourceRejectsDisabledPublishCategory(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-disabled",
+			TypeCode:       "job_seeking",
+			RequiredFields: []string{"title", "category", "contactPhone"},
+			CommercialRules: model.JSONMap{
+				"publish": model.JSONMap{"mode": model.ResourcePublishModeDisabled},
+			},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "job_seeking",
+		Title:       "本人找平车岗位",
+		Category:    "平车",
+		Description: "三年经验，可长期稳定做。",
+		Contact:     ResourceContactReq{Name: "李师傅", Phone: "13800000000"},
+	})
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "该分类暂不开放发布" {
+		t.Fatalf("message = %q, want disabled publish message", errx.PublicMessage(err))
+	}
+	if store.input.MerchantID != "" {
+		t.Fatalf("CreateResource was called for disabled publish category: %#v", store.input)
+	}
+}
+
 func TestCreateResourceDraftDoesNotConsumePublishQuota(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{

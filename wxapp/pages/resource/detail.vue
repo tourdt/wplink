@@ -117,7 +117,7 @@
 
       <view v-else class="contact-bar">
         <button @click="copyWechat">复制微信</button>
-        <button class="primary-button" @click="callPhone">联系商家</button>
+        <button class="primary-button" @click="callPhone">{{ contactButtonText }}</button>
         <button open-type="share" @click="shareResource">分享</button>
       </view>
 
@@ -141,6 +141,8 @@ import { listTopVouchers, redeemTopVoucher } from '../../api/entitlement'
 import { getResourceFavoriteState, setResourceFavorite } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
 import {
+  createContactUnlockOrder,
+  createContactUnlockPayment,
   deleteTakenDownResource,
   getOwnResource,
   getResource,
@@ -196,6 +198,8 @@ const statusText = {
   taken_down: '已下架',
 }
 const isVIPMerchant = computed(() => (resource.value.merchant || {}).vipStatus === 'active')
+const contactAccess = computed(() => resource.value.contactAccess || {})
+const contactButtonText = computed(() => contactAccess.value.actionText || '联系商家')
 const merchantInfo = computed(() => ({
   ...(resource.value.merchant || {}),
   ...(merchantProfile.value || {}),
@@ -397,12 +401,64 @@ async function recordContact(action) {
     return false
   }
   if (isContactUnlockAction(action) && !requireLogin()) return false
-  const resp = await recordResourceContact(resource.value.id, action)
-  return resp || {}
+  try {
+    const resp = await recordResourceContact(resource.value.id, action)
+    return resp || {}
+  } catch (err) {
+    if (err?.code === 'PAYMENT_REQUIRED' && isContactUnlockAction(action)) {
+      return unlockPaidContact(action)
+    }
+    return false
+  }
 }
 
 function isContactUnlockAction(action) {
   return action === 'phone' || action === 'wechat'
+}
+
+async function unlockPaidContact(action) {
+  if (!resource.value.id || !requireLogin()) return false
+  try {
+    // 订单价格和权限由后端按二级分类商业规则计算，前端只负责支付和支付后的再次解锁。
+    const order = await createContactUnlockOrder(resource.value.id, { action })
+    if (order.alreadyUnlocked) {
+      const unlocked = await recordResourceContact(resource.value.id, action)
+      return unlocked || {}
+    }
+    if (!order.orderId) {
+      uni.showToast({ title: order.message || '暂时无法创建查看订单', icon: 'none' })
+      return false
+    }
+    const payment = await createContactUnlockPayment(resource.value.id, order.orderId, {})
+    if (payment.payment?.package) {
+      await requestContactUnlockPayment(payment.payment)
+    }
+    const resp = await recordResourceContact(resource.value.id, action)
+    return resp || {}
+  } catch (err) {
+    if (err?.message) {
+      uni.showToast({ title: err.message, icon: 'none' })
+    }
+    return false
+  }
+}
+
+function requestContactUnlockPayment(payment) {
+  return new Promise((resolve, reject) => {
+    if (!payment?.package || typeof uni.requestPayment !== 'function') {
+      resolve()
+      return
+    }
+    uni.requestPayment({
+      timeStamp: payment.timeStamp,
+      nonceStr: payment.nonceStr,
+      package: payment.package,
+      signType: payment.signType,
+      paySign: payment.paySign,
+      success: resolve,
+      fail: reject,
+    })
+  })
 }
 
 async function openMerchant() {

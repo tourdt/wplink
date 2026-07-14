@@ -17,12 +17,13 @@ type ResourceContactEventResult struct {
 }
 
 type ResourceContactUnlockInfo struct {
-	ResourceID string
-	MerchantID string
-	Status     string
-	Phone      string
-	Wechat     string
-	ExpiresAt  sql.NullTime
+	ResourceID      string
+	MerchantID      string
+	Status          string
+	Phone           string
+	Wechat          string
+	ExpiresAt       sql.NullTime
+	CommercialRules JSONMap
 }
 
 type ResourceContactEventModel struct {
@@ -33,29 +34,34 @@ func NewResourceContactEventModel(db *sql.DB) *ResourceContactEventModel {
 	return &ResourceContactEventModel{db: db}
 }
 
-func (m *ResourceContactEventModel) GetResourceContactUnlockInfo(ctx context.Context, resourceID string) (ResourceContactUnlockInfo, error) {
-	var info ResourceContactUnlockInfo
-	err := m.db.QueryRowContext(ctx, `
+const resourceContactUnlockInfoSQL = `
 SELECT
   r.id::text,
   r.merchant_id::text,
   r.status,
   r.contact_phone,
   COALESCE(r.contact_wechat, ''),
-  r.expires_at
+  r.expires_at,
+  rtc.commercial_rules
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
+JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 WHERE r.id = $1
   AND r.deleted_at IS NULL
   AND m.deleted_at IS NULL
   AND m.status = 'active'
-`, resourceID).Scan(
+`
+
+func (m *ResourceContactEventModel) GetResourceContactUnlockInfo(ctx context.Context, resourceID string) (ResourceContactUnlockInfo, error) {
+	var info ResourceContactUnlockInfo
+	err := m.db.QueryRowContext(ctx, resourceContactUnlockInfoSQL, resourceID).Scan(
 		&info.ResourceID,
 		&info.MerchantID,
 		&info.Status,
 		&info.Phone,
 		&info.Wechat,
 		&info.ExpiresAt,
+		&info.CommercialRules,
 	)
 	return info, err
 }

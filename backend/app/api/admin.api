@@ -232,6 +232,7 @@ type AdminResourceTypeConfigItem {
 	ReviewRules      map[string]interface{} `json:"reviewRules"`
 	SortWeights      map[string]interface{} `json:"sortWeights"`
 	MessageRules     map[string]interface{} `json:"messageRules"`
+	CommercialRules  map[string]interface{} `json:"commercialRules"`
 	DefaultValidDays int64                  `json:"defaultValidDays"`
 	Status           string                 `json:"status"`
 }
@@ -260,6 +261,7 @@ type AdminCreateResourceTypeConfigReq {
 	ReviewRules      map[string]interface{} `json:"reviewRules,optional"`
 	SortWeights      map[string]interface{} `json:"sortWeights,optional"`
 	MessageRules     map[string]interface{} `json:"messageRules,optional"`
+	CommercialRules  map[string]interface{} `json:"commercialRules,optional"`
 	DefaultValidDays int64                  `json:"defaultValidDays,optional"`
 	Status           string                 `json:"status,optional"`
 }
@@ -360,6 +362,7 @@ type AdminUpdateResourceTypeConfigReq {
 	ReviewRules      map[string]interface{} `json:"reviewRules,optional"`
 	SortWeights      map[string]interface{} `json:"sortWeights,optional"`
 	MessageRules     map[string]interface{} `json:"messageRules,optional"`
+	CommercialRules  map[string]interface{} `json:"commercialRules,optional"`
 	DefaultValidDays int64                  `json:"defaultValidDays,optional"`
 	Status           string                 `json:"status,optional"`
 }

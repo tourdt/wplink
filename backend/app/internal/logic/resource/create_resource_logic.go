@@ -162,6 +162,11 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 	if err := validateResourceDynamicFieldValues(config.FieldSchema, req.Attributes); err != nil {
 		return model.CreateResourceInput{}, "", err
 	}
+	publishMode := model.PublishModeFromCommercialRules(config.CommercialRules)
+	if publishMode == model.ResourcePublishModeDisabled {
+		logx.Infof("创建资源被拦截: merchantId=%s typeCode=%s reason=publish_disabled", values["merchantId"], typeCode)
+		return model.CreateResourceInput{}, "", errx.New(errx.CodeValidationFailed, "该分类暂不开放发布")
+	}
 	merchantStatus, err := l.store.GetMerchantPublishStatus(ctx, values["merchantId"])
 	if err != nil {
 		return model.CreateResourceInput{}, "", err
@@ -195,7 +200,7 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		ContactPhone:         values["contactPhone"],
 		ContactWechat:        strings.TrimSpace(req.Contact.Wechat),
 		CreatedByUser:        strings.TrimSpace(req.CreatedByUser),
-		ConsumePublishQuota:  status != model.ResourceStatusDraft,
+		ConsumePublishQuota:  status != model.ResourceStatusDraft && publishMode != model.ResourcePublishModeFree,
 	}, typeCode, nil
 }
 

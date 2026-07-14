@@ -57,6 +57,10 @@ type VerificationPaymentAPIStore interface {
 	paymentlogic.VerificationPaymentStore
 }
 
+type ContactUnlockPaymentAPIStore interface {
+	paymentlogic.ContactUnlockPaymentStore
+}
+
 type EntitlementAPIStore interface {
 	entitlementlogic.EntitlementStore
 	adminlogic.EntitlementAdminStore
@@ -122,6 +126,9 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	if verificationStore, ok := store.(VerificationAPIStore); ok {
 		paymentStore, _ := store.(VerificationPaymentAPIStore)
 		registerVerificationRoutes(mux, verificationStore, paymentStore, userTokenService, adminTokenService, permissionStore, wechatPayGateway, wechatPayDevMock)
+	}
+	if contactUnlockPaymentStore, ok := store.(ContactUnlockPaymentAPIStore); ok {
+		registerContactUnlockPaymentRoutes(mux, contactUnlockPaymentStore, wechatPayGateway)
 	}
 	if billingStore, ok := store.(VerificationBillingAPIStore); ok {
 		registerVerificationBillingRoutes(mux, billingStore)
@@ -413,6 +420,28 @@ func registerVerificationBillingRoutes(mux *http.ServeMux, store VerificationBil
 		}
 		resp, err := adminlogic.NewVerificationBillingConfigLogic(store).UpdateVerificationBillingConfig(r.Context(), body)
 		response.JSON(w, resp, err)
+	})
+}
+
+func registerContactUnlockPaymentRoutes(mux *http.ServeMux, store ContactUnlockPaymentAPIStore, wechatPayGateway paymentlogic.WechatPayGateway) {
+	mux.HandleFunc("POST /api/v1/wechat-pay/contact-unlock/notify", func(w http.ResponseWriter, r *http.Request) {
+		body, err := readLimitedBody(r, 1<<20)
+		if err != nil {
+			writeWechatPayNotifyError(w)
+			return
+		}
+		headers := map[string]string{}
+		for key, values := range r.Header {
+			if len(values) > 0 {
+				headers[key] = values[0]
+			}
+		}
+		resp, err := paymentlogic.NewContactUnlockWechatPayNotifyLogic(store, wechatPayGateway).HandleNotify(r.Context(), paymentlogic.WechatPayNotifyReq{Headers: headers, Body: body})
+		if err != nil {
+			writeWechatPayNotifyError(w)
+			return
+		}
+		writeRawJSON(w, http.StatusOK, resp)
 	})
 }
 

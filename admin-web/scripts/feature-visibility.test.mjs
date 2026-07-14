@@ -925,3 +925,13 @@ test('verification review drawer shows submitted certification materials', () =>
   assert.match(source, /sceneUrl/)
   assert.match(source, /<el-image/)
 })
+
+test('resource type config edits category commercial rules', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/ResourceTypeConfigView.vue'), 'utf8')
+
+  assert.match(source, /commercialRules/)
+  assert.match(source, /发布规则/)
+  assert.match(source, /联系方式查看/)
+  assert.match(source, /付费或 VIP 免费/)
+  assert.match(source, /priceCent/)
+})

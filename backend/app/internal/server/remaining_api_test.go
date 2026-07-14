@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	paymentlogic "wplink/backend/app/internal/logic/payment"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
 )
@@ -383,6 +384,33 @@ func TestAPIRouterRegistersVIPMembershipRoutes(t *testing.T) {
 	}
 }
 
+func TestAPIRouterRegistersContactUnlockPaymentNotifyRoute(t *testing.T) {
+	store := newFakeFullAPIStore()
+	router := NewAPIRouter(store, WithWechatPayGateway(&fakeServerWechatPayGateway{
+		notify: paymentlogic.WechatPayNotification{
+			OutTradeNo:    "contact_unlock_1",
+			TransactionID: "wx-transaction-1",
+			AmountTotal:   500,
+			SuccessTime:   "2026-07-14T12:00:00Z",
+			RawPayload:    map[string]interface{}{"trade_state": "SUCCESS"},
+		},
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat-pay/contact-unlock/notify", strings.NewReader(`{"id":"notify-1"}`))
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"SUCCESS"`) {
+		t.Fatalf("body = %s, want SUCCESS notify response", rec.Body.String())
+	}
+	if store.contactUnlockMarkInput.OutTradeNo != "contact_unlock_1" {
+		t.Fatalf("contactUnlockMarkInput = %#v, want contact unlock notify", store.contactUnlockMarkInput)
+	}
+}
+
 func TestAPIRouterRegistersPublicGrowthCampaignRoute(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(store)
@@ -670,6 +698,21 @@ type fakeFullAPIStore struct {
 	saveVIPPlanInput             model.SaveAdminVIPPlanInput
 	saveQuotaPackInput           model.SaveAdminQuotaPackInput
 	saveVIPPromotionInput        model.SaveAdminVIPPromotionInput
+}
+
+type fakeServerWechatPayGateway struct {
+	prepayInput paymentlogic.WechatPrepayInput
+	prepay      paymentlogic.WechatPayParams
+	notify      paymentlogic.WechatPayNotification
+}
+
+func (g *fakeServerWechatPayGateway) CreatePrepay(ctx context.Context, input paymentlogic.WechatPrepayInput) (paymentlogic.WechatPayParams, error) {
+	g.prepayInput = input
+	return g.prepay, nil
+}
+
+func (g *fakeServerWechatPayGateway) DecodeNotify(ctx context.Context, req paymentlogic.WechatPayNotifyReq) (paymentlogic.WechatPayNotification, error) {
+	return g.notify, nil
 }
 
 type fakeAdminTokenService struct {
