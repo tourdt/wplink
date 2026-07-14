@@ -75,6 +75,7 @@ type CreateVIPOrderReq struct {
 	ProductType string `json:"productType,omitempty"`
 	ProductCode string `json:"productCode,omitempty"`
 	PlanCode    string `json:"planCode,omitempty"`
+	ResourceID  string `json:"resourceId,omitempty"`
 }
 
 type CreateVIPOrderResp struct {
@@ -244,20 +245,33 @@ func (l *CreateVIPOrderLogic) createQuotaPackOrder(ctx context.Context, merchant
 		MerchantID: merchantID,
 		UserID:     userID,
 		PackCode:   packCode,
+		ResourceID: strings.TrimSpace(req.ResourceID),
 	}
 	if input.PackCode == "" {
 		return CreateVIPOrderResp{}, errx.New(errx.CodeValidationFailed, "请选择有效的次数包")
 	}
 	order, err := l.store.CreateQuotaPackOrder(ctx, input)
 	if err != nil {
+		if errors.Is(err, model.ErrTopServiceResourceRequired) {
+			logx.Infof("创建置顶服务订单被拦截: merchantId=%s userId=%s packCode=%s reason=missing_resource", input.MerchantID, input.UserID, input.PackCode)
+			return CreateVIPOrderResp{}, errx.New(errx.CodeValidationFailed, "请选择要置顶的供需信息")
+		}
+		if errors.Is(err, model.ErrTopServiceResourceInvalid) {
+			logx.Infof("创建置顶服务订单被拦截: merchantId=%s userId=%s packCode=%s resourceId=%s reason=resource_not_topable", input.MerchantID, input.UserID, input.PackCode, input.ResourceID)
+			return CreateVIPOrderResp{}, errx.New(errx.CodeValidationFailed, "资源当前不可置顶，请刷新后重试")
+		}
+		if errors.Is(err, model.ErrTopServiceProductInvalid) {
+			logx.Infof("创建置顶服务订单被拦截: merchantId=%s userId=%s packCode=%s resourceId=%s reason=invalid_top_service_product", input.MerchantID, input.UserID, input.PackCode, input.ResourceID)
+			return CreateVIPOrderResp{}, errx.New(errx.CodeValidationFailed, "请选择单次置顶服务")
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			logx.Infof("创建次数包订单被拦截: merchantId=%s userId=%s packCode=%s reason=invalid_pack", input.MerchantID, input.UserID, input.PackCode)
 			return CreateVIPOrderResp{}, errx.New(errx.CodeValidationFailed, "请选择有效的次数包")
 		}
-		logx.Errorf("创建次数包订单失败: merchantId=%s userId=%s packCode=%s err=%+v", input.MerchantID, input.UserID, input.PackCode, err)
+		logx.Errorf("创建次数包订单失败: merchantId=%s userId=%s packCode=%s resourceId=%s err=%+v", input.MerchantID, input.UserID, input.PackCode, input.ResourceID, err)
 		return CreateVIPOrderResp{}, err
 	}
-	logx.Infof("创建次数包订单成功: merchantId=%s userId=%s packCode=%s orderId=%s actualPriceCent=%d", input.MerchantID, input.UserID, input.PackCode, order.ID, order.ActualPriceCent)
+	logx.Infof("创建次数包订单成功: merchantId=%s userId=%s packCode=%s resourceId=%s orderId=%s actualPriceCent=%d", input.MerchantID, input.UserID, input.PackCode, input.ResourceID, order.ID, order.ActualPriceCent)
 	return mapOrderResp(order), nil
 }
 

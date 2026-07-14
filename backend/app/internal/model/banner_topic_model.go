@@ -93,7 +93,8 @@ ORDER BY bt.sort_order DESC, bt.updated_at DESC
 	return scanBannerTopics(rows)
 }
 
-func (m *BannerTopicModel) ListActiveBannerTopics(ctx context.Context, filter BannerTopicFilter) ([]BannerTopicConfig, error) {
+func (m *BannerTopicModel) ListActiveHomeOperationConfigs(ctx context.Context, cityCode string) ([]BannerTopicConfig, error) {
+	// 首页运营位当前只包含 Banner 和推荐卡，一次查询后由业务层按 kind 拆分，避免首页首屏重复查同一张配置表。
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
   bt.id::text,
@@ -115,12 +116,12 @@ SELECT
 FROM banner_topics bt
 LEFT JOIN city_stations cs ON cs.id = bt.city_station_id
 WHERE ($1 = '' OR cs.code = $1)
-  AND bt.kind = $2
+  AND bt.kind IN ('banner', 'home_recommend_card')
   AND bt.status = 'active'
   AND (bt.start_at IS NULL OR bt.start_at <= now())
   AND (bt.end_at IS NULL OR bt.end_at >= now())
-ORDER BY bt.sort_order DESC, bt.updated_at DESC
-`, filter.CityCode, filter.Kind)
+ORDER BY bt.kind, bt.sort_order DESC, bt.updated_at DESC
+`, cityCode)
 	if err != nil {
 		return nil, err
 	}

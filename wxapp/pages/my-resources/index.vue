@@ -42,7 +42,9 @@
         <MetricStrip :items="metricItems(item)" />
         <view class="action-row">
           <button v-if="isActivePublished(item)" class="primary-action" @click="refresh(item)">刷新</button>
-          <button v-if="isActivePublished(item)" class="primary-action" @click="topResource(item)">置顶</button>
+          <button v-if="isActivePublished(item)" class="primary-action" :disabled="purchasingTopResourceId === item.id" @click="topResource(item)">
+            {{ purchasingTopResourceId === item.id ? '置顶中' : '置顶' }}
+          </button>
           <button v-if="isActivePublished(item)" @click="takeDown(item)">下架</button>
           <button v-if="item.status === 'draft'" class="primary-action" @click="openDraftEditor(item)">编辑</button>
           <button v-if="item.status === 'rejected'" class="primary-action" @click="openRejectedEditor(item)">编辑</button>
@@ -68,6 +70,7 @@ import { getMerchantId, saveMerchantId } from '../../store/session'
 import { getMe } from '../../api/auth'
 import { listTopVouchers, redeemTopVoucher } from '../../api/entitlement'
 import { deleteTakenDownResource, getOwnResource, listMyResources, refreshResource, takeDownResource } from '../../api/resource'
+import { createQuotaPackOrder, createVIPPayment, listQuotaPacks } from '../../api/vip'
 import { formatDateToDay } from '../../common/date'
 import { resourceTypeLabel } from '../../common/resourceCategories'
 
@@ -96,6 +99,16 @@ const pageSize = 20
 const total = ref(0)
 const hasMore = ref(true)
 const loading = ref(false)
+const topServicePacks = ref([])
+const purchasingTopResourceId = ref('')
+const fallbackTopServicePacks = [
+  { code: 'top_1d', name: '1天置顶服务', standardPriceCent: 10000, salePriceCent: 10000, description: '购买后可置顶 1 天', benefits: { topVoucherCount: 1, topDurationHours: 24 } },
+  { code: 'top_3d', name: '3天置顶服务', standardPriceCent: 20000, salePriceCent: 20000, description: '购买后可置顶 3 天', benefits: { topVoucherCount: 1, topDurationHours: 72 } },
+  { code: 'top_5d', name: '5天置顶服务', standardPriceCent: 30000, salePriceCent: 30000, description: '购买后可置顶 5 天', benefits: { topVoucherCount: 1, topDurationHours: 120 } },
+  { code: 'top_7d', name: '7天置顶服务', standardPriceCent: 40000, salePriceCent: 40000, description: '购买后可置顶 7 天', benefits: { topVoucherCount: 1, topDurationHours: 168 } },
+  { code: 'top_15d', name: '15天置顶服务', standardPriceCent: 60000, salePriceCent: 60000, description: '购买后可置顶 15 天', benefits: { topVoucherCount: 1, topDurationHours: 360 } },
+  { code: 'top_30d', name: '30天置顶服务', standardPriceCent: 90000, salePriceCent: 90000, description: '购买后可置顶 30 天', benefits: { topVoucherCount: 1, topDurationHours: 720 } },
+]
 
 onLoad((options) => {
   // 我的发布必须绑定当前商家；路由参数用于后台调试，正常用户流程使用我的页保存的商家 ID。
@@ -184,10 +197,10 @@ async function refresh(item) {
 }
 
 async function topResource(item) {
-  if (!isActivePublished(item)) return
+  if (!isActivePublished(item) || purchasingTopResourceId.value) return
   const voucher = await getAvailableTopVoucher()
   if (!voucher) {
-    await promptBuyTopVoucher()
+    await purchaseTopService(item)
     return
   }
   const confirmed = await confirmTopVoucherUse(voucher)
@@ -235,20 +248,105 @@ function topDurationText(voucher) {
   return `${hours || 24} 小时`
 }
 
-function promptBuyTopVoucher() {
+async function purchaseTopService(item) {
+  const pack = await chooseTopServicePack()
+  if (!pack) return
+  const confirmed = await confirmTopServicePurchase(pack)
+  if (!confirmed) return
+  purchasingTopResourceId.value = item.id
+  try {
+    const order = await createQuotaPackOrder(merchantId.value, pack.code, { resourceId: item.id })
+    await payTopServiceOrder(order)
+    uni.showToast({ title: '置顶服务已购买，置顶生效中', icon: 'none' })
+    await loadRows({ reset: true })
+  } catch (err) {
+    uni.showToast({ title: err?.message || '置顶服务购买失败，请稍后重试', icon: 'none' })
+  } finally {
+    purchasingTopResourceId.value = ''
+  }
+}
+
+async function chooseTopServicePack() {
+  const packs = await loadTopServicePacks()
+  if (!packs.length) {
+    uni.showToast({ title: '暂无可购买的置顶服务', icon: 'none' })
+    return null
+  }
+  if (packs.length === 1) return packs[0]
+  return new Promise((resolve) => {
+    uni.showActionSheet({
+      itemList: packs.map(topServiceOptionText),
+      success: (res) => resolve(packs[res.tapIndex] || null),
+      fail: () => resolve(null),
+    })
+  })
+}
+
+async function loadTopServicePacks() {
+  if (topServicePacks.value.length) return topServicePacks.value
+  try {
+    const resp = await listQuotaPacks()
+    topServicePacks.value = (resp.items || []).filter(isTopServicePack)
+  } catch (err) {
+    topServicePacks.value = []
+  }
+  if (!topServicePacks.value.length) {
+    topServicePacks.value = fallbackTopServicePacks
+  }
+  return topServicePacks.value
+}
+
+function isTopServicePack(item) {
+  const benefits = item.benefits || {}
+  return Number(benefits.topVoucherCount || 0) === 1 && Number(benefits.topDurationHours || 0) > 0
+}
+
+function topServiceOptionText(item) {
+  return `${topServiceName(item)} · ${formatTopServicePrice(item)}`
+}
+
+function topServiceName(item) {
+  return String(item.name || '置顶服务').replace(/置顶券/g, '置顶服务')
+}
+
+function formatTopServicePrice(item) {
+  const price = Number(item.salePriceCent || item.standardPriceCent || 0) / 100
+  return `¥${Number.isInteger(price) ? price.toFixed(0) : price.toFixed(1)}`
+}
+
+function confirmTopServicePurchase(pack) {
   return new Promise((resolve) => {
     uni.showModal({
-      title: '暂无可用置顶券，请先购买',
-      content: '购买置顶券后，可将已发布供需信息置顶 1 天。',
-      confirmText: '去购买',
+      title: '购买置顶服务',
+      content: `将购买 ${topServiceName(pack)}，支付成功后直接置顶当前发布，确认继续吗？`,
+      confirmText: '购买',
       cancelText: '取消',
-      success: (res) => {
-        if (res.confirm) {
-          uni.navigateTo({ url: `/pages/vip/index?merchantId=${merchantId.value}&tab=top` })
-        }
-        resolve(Boolean(res.confirm))
-      },
+      success: (res) => resolve(Boolean(res.confirm)),
       fail: () => resolve(false),
+    })
+  })
+}
+
+async function payTopServiceOrder(order) {
+  const resp = await createVIPPayment(merchantId.value, order.orderId)
+  if (resp.status === 'paid') return
+  const payment = resp.payment || {}
+  if (!payment.timeStamp || !payment.nonceStr || !payment.package || !payment.paySign) {
+    throw new Error('支付参数无效，请稍后重试')
+  }
+  await requestWechatPayment(payment)
+}
+
+function requestWechatPayment(payment) {
+  return new Promise((resolve, reject) => {
+    uni.requestPayment({
+      timeStamp: payment.timeStamp,
+      nonceStr: payment.nonceStr,
+      package: payment.package,
+      signType: payment.signType || 'RSA',
+      paySign: payment.paySign,
+      success: resolve,
+      fail: reject,
     })
   })
 }

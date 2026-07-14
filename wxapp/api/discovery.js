@@ -1,16 +1,8 @@
 import request from './request'
 
-export function listHomeBanners(params = {}) {
+export function listHomeOperationConfig(params = {}) {
   return request({
-    url: '/api/v1/home/banners',
-    method: 'GET',
-    data: params,
-  })
-}
-
-export function listHomeRecommendCards(params = {}) {
-  return request({
-    url: '/api/v1/home/recommend-cards',
+    url: '/api/v1/home/operation-config',
     method: 'GET',
     data: params,
     suppressErrorToast: true,

@@ -6,7 +6,7 @@ export const defaultFlowChecks = [
     file: 'pages/home/index.vue',
     description: '首页 Banner 和入口跳转',
     checks: [
-      'listHomeBanners',
+      'listHomeOperationConfig',
       'banners.value.length ? banners.value : defaultBanners',
       "item.jumpType === 'topic'",
       "item.jumpType === 'resource'",

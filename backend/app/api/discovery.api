@@ -1,6 +1,6 @@
 syntax = "v1"
 
-type HomeBannersReq {
+type HomeOperationConfigReq {
 	CityCode string `form:"cityCode,optional"`
 }
 
@@ -14,14 +14,6 @@ type HomeBannerItem {
 	Tags       []string `json:"tags"`
 }
 
-type HomeBannersResp {
-	Items []HomeBannerItem `json:"items"`
-}
-
-type HomeRecommendCardsReq {
-	CityCode string `form:"cityCode,optional"`
-}
-
 type HomeRecommendCardItem {
 	Id         string `json:"id"`
 	Tag        string `json:"tag,optional"`
@@ -31,8 +23,9 @@ type HomeRecommendCardItem {
 	JumpTarget string `json:"jumpTarget"`
 }
 
-type HomeRecommendCardsResp {
-	Items []HomeRecommendCardItem `json:"items"`
+type HomeOperationConfigResp {
+	Banners        []HomeBannerItem         `json:"banners"`
+	RecommendCards []HomeRecommendCardItem  `json:"recommendCards"`
 }
 
 type HomeResourcesReq {
@@ -127,11 +120,8 @@ type ValidateWebviewResp {
 	group: discovery
 )
 service wplink-api {
-	@handler ListHomeBanners
-	get /home/banners (HomeBannersReq) returns (HomeBannersResp)
-
-	@handler ListHomeRecommendCards
-	get /home/recommend-cards (HomeRecommendCardsReq) returns (HomeRecommendCardsResp)
+	@handler GetHomeOperationConfig
+	get /home/operation-config (HomeOperationConfigReq) returns (HomeOperationConfigResp)
 
 	@handler ListHomeResources
 	get /home/resources (HomeResourcesReq) returns (HomeResourcesResp)

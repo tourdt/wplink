@@ -119,10 +119,15 @@ test('my resources reconciles merchant id with current account before listing', 
 
 test('my resources restores top voucher actions for merchants', () => {
   assert.match(source, /import \{ listTopVouchers, redeemTopVoucher \} from '\.\.\/\.\.\/api\/entitlement'/)
-  assert.match(source, /@click="topResource\(item\)">置顶<\/button>/)
+  assert.match(source, /import \{ createQuotaPackOrder, createVIPPayment, listQuotaPacks \} from '\.\.\/\.\.\/api\/vip'/)
+  assert.match(source, /@click="topResource\(item\)"/)
   assert.match(source, /async function topResource\(item\)/)
   assert.match(source, /listTopVouchers\(merchantId\.value\)/)
   assert.match(source, /redeemTopVoucher\(voucher\.id, item\.id, merchantId\.value\)/)
-  assert.match(source, /暂无可用置顶券，请先购买/)
-  assert.match(source, /tab=top/)
+  assert.match(source, /async function purchaseTopService\(item\)/)
+  assert.match(source, /createQuotaPackOrder\(merchantId\.value, pack\.code, \{ resourceId: item\.id \}\)/)
+  assert.match(source, /createVIPPayment\(merchantId\.value, order\.orderId\)/)
+  assert.match(source, /购买置顶服务/)
+  assert.doesNotMatch(source, /暂无可用置顶券，请先购买/)
+  assert.doesNotMatch(source, /tab=top/)
 })

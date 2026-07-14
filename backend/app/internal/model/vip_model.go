@@ -23,6 +23,12 @@ const (
 	quotaPackValidityDays  = 180
 )
 
+var (
+	ErrTopServiceResourceRequired = errors.New("top service resource required")
+	ErrTopServiceResourceInvalid  = errors.New("top service resource invalid")
+	ErrTopServiceProductInvalid   = errors.New("top service product invalid")
+)
+
 type VIPBenefitSnapshot struct {
 	PublishPolicy      string
 	PublishQuota       int64
@@ -161,6 +167,7 @@ type CreateQuotaPackOrderInput struct {
 	MerchantID string
 	UserID     string
 	PackCode   string
+	ResourceID string
 }
 
 type VIPOrder struct {
@@ -1122,12 +1129,15 @@ func (m *VIPModel) CreateQuotaPackOrder(ctx context.Context, input CreateQuotaPa
 	merchantID := strings.TrimSpace(input.MerchantID)
 	userID := strings.TrimSpace(input.UserID)
 	packCode := strings.TrimSpace(input.PackCode)
+	resourceID := strings.TrimSpace(input.ResourceID)
 
 	var packID string
 	var benefitsJSON JSONMap
 	var salePrice sql.NullInt64
 	var saleLabel sql.NullString
 	var quotaSaleLabel string
+	var topResourceTitle string
+	var topResourceTypeCode string
 	var order VIPOrder
 	err := m.db.QueryRowContext(ctx, `
 SELECT
@@ -1167,6 +1177,40 @@ LIMIT 1
 		quotaSaleLabel = saleLabel.String
 	}
 
+	productSnapshot := JSONMap{
+		"packId":    packID,
+		"packCode":  order.ProductCode,
+		"packName":  order.ProductName,
+		"saleLabel": quotaSaleLabel,
+	}
+	if order.Benefits.TopVoucherCount > 0 {
+		if resourceID == "" {
+			return VIPOrder{}, ErrTopServiceResourceRequired
+		}
+		if order.Benefits.TopVoucherCount != 1 || order.Benefits.TopDurationHours <= 0 {
+			return VIPOrder{}, ErrTopServiceProductInvalid
+		}
+		// 单独购买置顶服务必须绑定一条当前可置顶资源，避免支付后产生可囤积的置顶券余额。
+		if err := m.db.QueryRowContext(ctx, `
+SELECT title, type_code
+FROM resources
+WHERE id = $1
+  AND merchant_id = $2
+  AND status = 'published'
+  AND deleted_at IS NULL
+LIMIT 1
+`, resourceID, merchantID).Scan(&topResourceTitle, &topResourceTypeCode); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return VIPOrder{}, ErrTopServiceResourceInvalid
+			}
+			return VIPOrder{}, err
+		}
+		productSnapshot["resourceId"] = resourceID
+		productSnapshot["resourceTitle"] = topResourceTitle
+		productSnapshot["resourceTypeCode"] = topResourceTypeCode
+		productSnapshot["fulfillment"] = "redeem_after_payment"
+	}
+
 	err = m.db.QueryRowContext(ctx, `
 INSERT INTO vip_orders (
   merchant_id,
@@ -1184,12 +1228,7 @@ INSERT INTO vip_orders (
 )
 VALUES ($1, $2, 'quota_pack', $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
 RETURNING id::text, out_trade_no, status
-`, merchantID, userID, order.ProductCode, order.ProductName, buildVIPOutTradeNo(merchantID+packCode), order.StandardPriceCent, order.ActualPriceCent, order.Currency, order.Benefits.ToJSONMap(), JSONMap{
-		"packId":    packID,
-		"packCode":  order.ProductCode,
-		"packName":  order.ProductName,
-		"saleLabel": quotaSaleLabel,
-	}).Scan(
+`, merchantID, userID, order.ProductCode, order.ProductName, buildVIPOutTradeNo(merchantID+packCode+resourceID), order.StandardPriceCent, order.ActualPriceCent, order.Currency, order.Benefits.ToJSONMap(), productSnapshot).Scan(
 		&order.ID,
 		&order.OutTradeNo,
 		&order.Status,
@@ -1281,8 +1320,9 @@ func (m *VIPModel) MarkVIPOrderPaid(ctx context.Context, input MarkVIPOrderPaidI
 		var currentStatus string
 		var actualPriceCent int64
 		var benefitsJSON JSONMap
+		var productSnapshot JSONMap
 		err := tx.QueryRowContext(ctx, `
-SELECT id::text, merchant_id::text, plan_id::text, promotion_id::text, product_type, status, actual_price_cent, benefits_snapshot
+SELECT id::text, merchant_id::text, plan_id::text, promotion_id::text, product_type, status, actual_price_cent, benefits_snapshot, product_snapshot
 FROM vip_orders
 WHERE out_trade_no = $1
 FOR UPDATE
@@ -1295,6 +1335,7 @@ FOR UPDATE
 			&currentStatus,
 			&actualPriceCent,
 			&benefitsJSON,
+			&productSnapshot,
 		)
 		if err != nil {
 			return err
@@ -1329,13 +1370,14 @@ WHERE id = $1
 
 		// 同一张订单表承载 VIP 套餐和次数包：支付状态先幂等落库，再按商品类型发放不同权益。
 		if strings.TrimSpace(productType) == VIPProductTypeQuotaPack {
-			if err := GrantQuotaPackBenefits(ctx, tx, result.MerchantID, result.OrderID, VIPBenefitSnapshotFromJSON(benefitsJSON), paidAt); err != nil {
+			if err := GrantQuotaPackBenefits(ctx, tx, result.MerchantID, result.OrderID, VIPBenefitSnapshotFromJSON(benefitsJSON), paidAt, productSnapshot); err != nil {
 				return err
 			}
+			messageTitle, messageContent, targetURL := quotaPackPaidMessage(result.MerchantID, productSnapshot)
 			if _, err := tx.ExecContext(ctx, `
 INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
-VALUES ($1, 'quota_pack', 'vip_order_paid', NULLIF($2, '')::bigint, '次数包已到账', '购买的发布、刷新或置顶权益已到账，可直接使用。', $3, 'unread')
-`, "merchant:"+result.MerchantID, result.OrderID, "/pages/vip/index?merchantId="+result.MerchantID); err != nil {
+VALUES ($1, 'quota_pack', 'vip_order_paid', NULLIF($2, '')::bigint, $3, $4, $5, 'unread')
+`, "merchant:"+result.MerchantID, result.OrderID, messageTitle, messageContent, targetURL); err != nil {
 				return err
 			}
 			return nil
@@ -1440,8 +1482,10 @@ func vipBenefitGrantEnd(periodStart time.Time, periodEnd time.Time) time.Time {
 	return grantEnd
 }
 
-func GrantQuotaPackBenefits(ctx context.Context, tx *sql.Tx, merchantID string, orderID string, snapshot VIPBenefitSnapshot, paidAt time.Time) error {
+func GrantQuotaPackBenefits(ctx context.Context, tx *sql.Tx, merchantID string, orderID string, snapshot VIPBenefitSnapshot, paidAt time.Time, productSnapshot JSONMap) error {
 	quotaPackExpiresAt := paidAt.AddDate(0, 0, quotaPackValidityDays)
+	topResourceID := strings.TrimSpace(stringFromJSON(productSnapshot["resourceId"]))
+	var topRedeemResult RedeemTopVoucherResult
 	for _, item := range []struct {
 		entitlementType string
 		totalAmount     int64
@@ -1460,11 +1504,31 @@ VALUES ($1, $2, 'quota_pack', $3, $3, $4, $5, 'active')
 		}
 	}
 	if snapshot.TopVoucherCount > 0 && snapshot.TopDurationHours > 0 {
-		if _, err := tx.ExecContext(ctx, `
+		if topResourceID != "" {
+			if snapshot.TopVoucherCount != 1 {
+				return ErrTopServiceProductInvalid
+			}
+			var entitlementID string
+			if err := tx.QueryRowContext(ctx, `
+INSERT INTO merchant_entitlements (merchant_id, entitlement_type, source_type, total_amount, remaining_amount, starts_at, expires_at, status, allowed_type_codes, top_duration_hours)
+VALUES ($1, $2, 'top_service', 1, 1, $3, $4, 'active', '[]'::jsonb, $5)
+RETURNING id::text
+`, merchantID, EntitlementTypeTopVoucher, paidAt, quotaPackExpiresAt, snapshot.TopDurationHours).Scan(&entitlementID); err != nil {
+				return err
+			}
+			// 单次置顶服务支付成功后立即核销，避免在商家账户里沉淀可提前购买的置顶券余额。
+			result, err := redeemTopVoucherTx(ctx, tx, entitlementID, topResourceID)
+			if err != nil {
+				return err
+			}
+			topRedeemResult = result
+		} else {
+			if _, err := tx.ExecContext(ctx, `
 INSERT INTO merchant_entitlements (merchant_id, entitlement_type, source_type, total_amount, remaining_amount, starts_at, expires_at, status, allowed_type_codes, top_duration_hours)
 VALUES ($1, $2, 'quota_pack', $3, $3, $4, $5, 'active', '[]'::jsonb, $6)
 `, merchantID, EntitlementTypeTopVoucher, snapshot.TopVoucherCount, paidAt, quotaPackExpiresAt, snapshot.TopDurationHours); err != nil {
-			return err
+				return err
+			}
 		}
 	}
 	return recordOperationLogTx(ctx, tx, OperationLogInput{
@@ -1479,10 +1543,19 @@ VALUES ($1, $2, 'quota_pack', $3, $3, $4, $5, 'active', '[]'::jsonb, $6)
 			"refreshQuota":     snapshot.RefreshQuota,
 			"topVoucherCount":  snapshot.TopVoucherCount,
 			"topDurationHours": snapshot.TopDurationHours,
+			"topResourceId":    topResourceID,
+			"topExpiresAt":     topRedeemResult.TopExpiresAt,
 			"paidAt":           paidAt.Format(time.RFC3339),
 			"expiresAt":        quotaPackExpiresAt.Format(time.RFC3339),
 		},
 	})
+}
+
+func quotaPackPaidMessage(merchantID string, productSnapshot JSONMap) (string, string, string) {
+	if strings.TrimSpace(stringFromJSON(productSnapshot["resourceId"])) != "" {
+		return "置顶服务已生效", "购买的置顶服务已作用到对应供需信息，可在我的发布查看。", "/pages/my-resources/index?merchantId=" + merchantID
+	}
+	return "次数包已到账", "购买的发布或刷新次数已到账，可直接使用。", "/pages/vip/index?merchantId=" + merchantID
 }
 
 func buildVIPOutTradeNo(orderID string) string {

@@ -55,6 +55,7 @@ type AdminCreateResourceTypeConfigReq struct {
 	ReviewRules      map[string]interface{} `json:"reviewRules,optional"`
 	SortWeights      map[string]interface{} `json:"sortWeights,optional"`
 	MessageRules     map[string]interface{} `json:"messageRules,optional"`
+	CommercialRules  map[string]interface{} `json:"commercialRules,optional"`
 	DefaultValidDays int64                  `json:"defaultValidDays,optional"`
 	Status           string                 `json:"status,optional"`
 }
@@ -327,6 +328,7 @@ type AdminResourceTypeConfigItem struct {
 	ReviewRules      map[string]interface{} `json:"reviewRules"`
 	SortWeights      map[string]interface{} `json:"sortWeights"`
 	MessageRules     map[string]interface{} `json:"messageRules"`
+	CommercialRules  map[string]interface{} `json:"commercialRules"`
 	DefaultValidDays int64                  `json:"defaultValidDays"`
 	Status           string                 `json:"status"`
 }
@@ -547,6 +549,7 @@ type AdminUpdateResourceTypeConfigReq struct {
 	ReviewRules      map[string]interface{} `json:"reviewRules,optional"`
 	SortWeights      map[string]interface{} `json:"sortWeights,optional"`
 	MessageRules     map[string]interface{} `json:"messageRules,optional"`
+	CommercialRules  map[string]interface{} `json:"commercialRules,optional"`
 	DefaultValidDays int64                  `json:"defaultValidDays,optional"`
 	Status           string                 `json:"status,optional"`
 }
@@ -654,6 +657,30 @@ type ContactEventResp struct {
 	Wechat  string `json:"wechat,optional"`
 }
 
+type CreateContactUnlockOrderReq struct {
+	Action           string `json:"action,optional"`
+	ViewerMerchantId string `json:"viewerMerchantId,optional"`
+}
+
+type CreateContactUnlockOrderResp struct {
+	OrderId         string `json:"orderId,optional"`
+	Status          string `json:"status"`
+	AlreadyUnlocked bool   `json:"alreadyUnlocked"`
+	PriceCent       int64  `json:"priceCent"`
+	Currency        string `json:"currency"`
+	Message         string `json:"message"`
+}
+
+type CreateContactUnlockPaymentReq struct {
+	UserId string `json:"userId,optional"`
+}
+
+type CreateContactUnlockPaymentResp struct {
+	OrderId string          `json:"orderId"`
+	Status  string          `json:"status"`
+	Payment WechatPayParams `json:"payment"`
+}
+
 type CreateMerchantReq struct {
 	CityCode       string   `json:"cityCode"`
 	Name           string   `json:"name"`
@@ -725,6 +752,7 @@ type CreateVIPOrderReq struct {
 	ProductType string `json:"productType,optional"`
 	ProductCode string `json:"productCode,optional"`
 	PlanCode    string `json:"planCode,optional"`
+	ResourceId  string `json:"resourceId,optional"`
 }
 
 type CreateVIPOrderResp struct {
@@ -854,12 +882,13 @@ type HomeBannerItem struct {
 	Tags       []string `json:"tags"`
 }
 
-type HomeBannersReq struct {
+type HomeOperationConfigReq struct {
 	CityCode string `form:"cityCode,optional"`
 }
 
-type HomeBannersResp struct {
-	Items []HomeBannerItem `json:"items"`
+type HomeOperationConfigResp struct {
+	Banners        []HomeBannerItem        `json:"banners"`
+	RecommendCards []HomeRecommendCardItem `json:"recommendCards"`
 }
 
 type HomeRecommendCardItem struct {
@@ -871,12 +900,37 @@ type HomeRecommendCardItem struct {
 	JumpTarget string `json:"jumpTarget"`
 }
 
-type HomeRecommendCardsReq struct {
+type HomeResourceItem struct {
+	Id           string                    `json:"id"`
+	Direction    string                    `json:"direction"`
+	TypeCode     string                    `json:"typeCode"`
+	TypeName     string                    `json:"typeName,optional"`
+	Title        string                    `json:"title"`
+	Category     string                    `json:"category"`
+	District     string                    `json:"district,optional"`
+	PriceText    string                    `json:"priceText,optional"`
+	QuantityText string                    `json:"quantityText,optional"`
+	Merchant     HomeResourceMerchantBrief `json:"merchant"`
+	CreditTags   []string                  `json:"creditTags"`
+	RefreshedAt  string                    `json:"refreshedAt,optional"`
+}
+
+type HomeResourceMerchantBrief struct {
+	Id                 string `json:"id"`
+	Name               string `json:"name"`
+	VerificationStatus string `json:"verificationStatus"`
+	VipStatus          string `json:"vipStatus"`
+}
+
+type HomeResourcesReq struct {
 	CityCode string `form:"cityCode,optional"`
 }
 
-type HomeRecommendCardsResp struct {
-	Items []HomeRecommendCardItem `json:"items"`
+type HomeResourcesResp struct {
+	Items    []HomeResourceItem `json:"items"`
+	Page     int64              `json:"page"`
+	PageSize int64              `json:"pageSize"`
+	Total    int64              `json:"total"`
 }
 
 type HotSearchKeywordItem struct {
@@ -1372,6 +1426,16 @@ type ResourceAttributeItem struct {
 	Value string `json:"value"`
 }
 
+type ResourceContactAccess struct {
+	Mode             string `json:"mode"`
+	PriceCent        int64  `json:"priceCent"`
+	Currency         string `json:"currency"`
+	VipFree          bool   `json:"vipFree"`
+	RepeatUnlockDays int64  `json:"repeatUnlockDays"`
+	Unlocked         bool   `json:"unlocked"`
+	ActionText       string `json:"actionText"`
+}
+
 type ResourceContactMasked struct {
 	Name         string `json:"name"`
 	PhoneMasked  string `json:"phoneMasked"`
@@ -1401,6 +1465,7 @@ type ResourceDetailResp struct {
 	Images         []string                `json:"images"`
 	Merchant       ResourceMerchantBrief   `json:"merchant"`
 	Contact        ResourceContactMasked   `json:"contact"`
+	ContactAccess  ResourceContactAccess   `json:"contactAccess"`
 	PublishedAt    string                  `json:"publishedAt,optional"`
 	ExpiresAt      string                  `json:"expiresAt,optional"`
 }

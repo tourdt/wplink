@@ -88,18 +88,22 @@ test('home banner keeps slide spacing and native autoplay smooth', () => {
   assert.match(source, /\.banner-card \{[\s\S]*box-sizing: border-box;/)
 })
 
-test('home recommend card is loaded from operation config instead of hardcoded copy', () => {
+test('home operation config loads banners and recommend cards together', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const homeSource = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
   const discoverySource = fs.readFileSync(path.join(root, 'api/discovery.js'), 'utf8')
 
-  assert.match(discoverySource, /listHomeRecommendCards/)
-  assert.match(discoverySource, /\/api\/v1\/home\/recommend-cards/)
+  assert.match(discoverySource, /listHomeOperationConfig/)
+  assert.match(discoverySource, /\/api\/v1\/home\/operation-config/)
   assert.match(homeSource, /const recommendCards = ref\(\[\]\)/)
-  assert.match(homeSource, /loadRecommendCards/)
+  assert.match(homeSource, /loadHomeOperationConfig/)
+  assert.match(homeSource, /banners\.value = resp\.banners \|\| \[\]/)
+  assert.match(homeSource, /recommendCards\.value = resp\.recommendCards \|\| \[\]/)
   assert.match(homeSource, /displayRecommendCard/)
   assert.match(homeSource, /openRecommendCard\(displayRecommendCard\)/)
   assert.match(homeSource, /recommend-card" v-if="displayRecommendCard"/)
+  assert.equal(discoverySource.includes('/api/v1/home/banners'), false)
+  assert.equal(discoverySource.includes('/api/v1/home/recommend-cards'), false)
   assert.equal(homeSource.includes("openSearch('小单快返')"), false)
   assert.equal(homeSource.includes('本周空档工厂：4 条针织生产线'), false)
 })
@@ -1666,12 +1670,12 @@ test('reports missing API call in required page flow', () => {
   const issues = validateFlows(root, [
     {
       file: 'pages/home/index.vue',
-      checks: ['listHomeBanners'],
-      description: '首页加载 Banner',
+      checks: ['listHomeOperationConfig'],
+      description: '首页加载运营配置',
     },
   ])
 
-  assert.deepEqual(issues, ['pages/home/index.vue 缺少 首页加载 Banner: listHomeBanners'])
+  assert.deepEqual(issues, ['pages/home/index.vue 缺少 首页加载运营配置: listHomeOperationConfig'])
 })
 
 function collectSourceFiles(dir, extensions) {

@@ -118,7 +118,7 @@ import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
-import { listHomeBanners, listHomeRecommendCards, listHomeResources } from '../../api/discovery'
+import { listHomeOperationConfig, listHomeResources } from '../../api/discovery'
 
 const banners = ref([])
 const recommendCards = ref([])
@@ -237,17 +237,19 @@ function updateHeaderMetrics() {
 }
 
 async function loadHomeData() {
-  await Promise.all([loadBanners(), loadRecommendCards(), loadHomeResources()])
+  await Promise.all([loadHomeOperationConfig(), loadHomeResources()])
 }
 
-async function loadBanners() {
-  // 首页首屏由运营配置驱动，失败时保留空列表，不阻断搜索和发布入口。
+async function loadHomeOperationConfig() {
+  // 首页 Banner 和推荐卡同属运营配置，一次加载后分别填充对应区块，失败时不阻断搜索和发布入口。
   try {
-    const resp = await listHomeBanners({ cityCode: DEFAULT_CITY_CODE })
-    banners.value = resp.items || []
+    const resp = await listHomeOperationConfig({ cityCode: DEFAULT_CITY_CODE })
+    banners.value = resp.banners || []
+    recommendCards.value = resp.recommendCards || []
     activeBannerIndex.value = 0
   } catch {
     banners.value = []
+    recommendCards.value = []
     activeBannerIndex.value = 0
   }
 }
@@ -259,16 +261,6 @@ async function loadHomeResources() {
     homeResources.value = resp.items || []
   } catch {
     homeResources.value = []
-  }
-}
-
-async function loadRecommendCards() {
-  // 首页推荐卡由后台运营位配置驱动；加载失败只隐藏该卡片，不影响下方供应列表。
-  try {
-    const resp = await listHomeRecommendCards({ cityCode: DEFAULT_CITY_CODE })
-    recommendCards.value = resp.items || []
-  } catch {
-    recommendCards.value = []
   }
 }
 

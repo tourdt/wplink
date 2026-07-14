@@ -30,11 +30,13 @@ export function createVIPOrder(merchantId, data) {
   })
 }
 
-export function createQuotaPackOrder(merchantId, packCode) {
-  return createVIPOrder(merchantId, {
+export function createQuotaPackOrder(merchantId, packCode, options = {}) {
+  const data = {
     productType: 'quota_pack',
     productCode: packCode,
-  })
+  }
+  if (options.resourceId) data.resourceId = options.resourceId
+  return createVIPOrder(merchantId, data)
 }
 
 export function createVIPPayment(merchantId, orderId, data = {}) {

@@ -137,11 +137,12 @@ func TestCreateVIPOrderCreatesQuotaPackOrderSnapshot(t *testing.T) {
 		UserID:      " user-1 ",
 		ProductType: " quota_pack ",
 		ProductCode: " publish_5 ",
+		ResourceID:  " resource-1 ",
 	})
 	if err != nil {
 		t.Fatalf("CreateVIPOrder() error = %v", err)
 	}
-	if store.createQuotaInput.MerchantID != "merchant-1" || store.createQuotaInput.UserID != "user-1" || store.createQuotaInput.PackCode != "publish_5" {
+	if store.createQuotaInput.MerchantID != "merchant-1" || store.createQuotaInput.UserID != "user-1" || store.createQuotaInput.PackCode != "publish_5" || store.createQuotaInput.ResourceID != "resource-1" {
 		t.Fatalf("createQuotaInput = %#v, want trimmed quota pack input", store.createQuotaInput)
 	}
 	if resp.ProductType != model.VIPProductTypeQuotaPack || resp.ProductCode != "publish_5" || resp.Benefits.PublishQuota != 5 {
@@ -153,6 +154,19 @@ func TestCreateVIPOrderCreatesQuotaPackOrderSnapshot(t *testing.T) {
 	})
 	if err == nil || errx.PublicMessage(err) != "请选择有效的次数包" {
 		t.Fatalf("error = %v, want friendly invalid quota pack message", err)
+	}
+}
+
+func TestCreateVIPOrderRejectsTopServiceWithoutResource(t *testing.T) {
+	store := &fakeVIPStore{quotaErr: model.ErrTopServiceResourceRequired}
+	_, err := NewCreateVIPOrderLogic(store).CreateVIPOrder(context.Background(), CreateVIPOrderReq{
+		MerchantID:  "merchant-1",
+		UserID:      "user-1",
+		ProductType: model.VIPProductTypeQuotaPack,
+		ProductCode: "top_1d",
+	})
+	if err == nil || errx.PublicMessage(err) != "请选择要置顶的供需信息" {
+		t.Fatalf("error = %v, want missing top service resource message", err)
 	}
 }
 
@@ -195,6 +209,7 @@ type fakeVIPStore struct {
 	quotaPacks       []model.QuotaPack
 	order            model.VIPOrder
 	quotaOrder       model.VIPOrder
+	quotaErr         error
 	summary          model.MerchantVIPSummary
 	createInput      model.CreateVIPOrderInput
 	createQuotaInput model.CreateQuotaPackOrderInput
@@ -215,6 +230,9 @@ func (s *fakeVIPStore) CreateVIPOrder(ctx context.Context, input model.CreateVIP
 
 func (s *fakeVIPStore) CreateQuotaPackOrder(ctx context.Context, input model.CreateQuotaPackOrderInput) (model.VIPOrder, error) {
 	s.createQuotaInput = input
+	if s.quotaErr != nil {
+		return model.VIPOrder{}, s.quotaErr
+	}
 	return s.quotaOrder, nil
 }
 

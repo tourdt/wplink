@@ -366,11 +366,11 @@ func TestAPIRouterRegistersVIPMembershipRoutes(t *testing.T) {
 	}
 
 	quotaOrderRec := httptest.NewRecorder()
-	quotaOrderReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1/vip/orders", strings.NewReader(`{"productType":"quota_pack","productCode":"publish_5"}`))
+	quotaOrderReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1/vip/orders", strings.NewReader(`{"productType":"quota_pack","productCode":"publish_5","resourceId":"resource-1"}`))
 	quotaOrderReq.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(quotaOrderRec, quotaOrderReq)
 	decodeEnvelopeData(t, quotaOrderRec, http.StatusOK)
-	if store.createQuotaPackOrderInput.UserID != "user-1" || store.createQuotaPackOrderInput.PackCode != "publish_5" {
+	if store.createQuotaPackOrderInput.UserID != "user-1" || store.createQuotaPackOrderInput.PackCode != "publish_5" || store.createQuotaPackOrderInput.ResourceID != "resource-1" {
 		t.Fatalf("createQuotaPackOrderInput = %#v, want token user and pack code", store.createQuotaPackOrderInput)
 	}
 
@@ -607,8 +607,7 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "create merchant", method: http.MethodPost, path: "/api/v1/merchants", body: `{"cityCode":"zhili","name":"织里云仓","merchantType":"stockist","mainCategories":["童装"],"contactName":"周经理","contactPhone":"18800000002"}`},
 		{name: "get merchant", method: http.MethodGet, path: "/api/v1/merchants/merchant-1"},
 		{name: "update merchant", method: http.MethodPost, path: "/api/v1/merchants/merchant-1", body: `{"name":"  织里晨星童装  ","mainCategories":["童装"],"merchantType":"service_provider","description":"更新简介","logoUrl":"https://example.com/logo.png","images":["https://example.com/a.jpg"],"addressText":"织里镇利济路88号","location":{"latitude":30.1,"longitude":120.2,"name":"织里童装城","address":"织里镇利济路88号"}}`},
-		{name: "home banners", method: http.MethodGet, path: "/api/v1/home/banners?cityCode=zhili"},
-		{name: "home recommend cards", method: http.MethodGet, path: "/api/v1/home/recommend-cards?cityCode=zhili"},
+		{name: "home operation config", method: http.MethodGet, path: "/api/v1/home/operation-config?cityCode=zhili"},
 		{name: "home resources", method: http.MethodGet, path: "/api/v1/home/resources?cityCode=zhili"},
 		{name: "hot search keywords", method: http.MethodGet, path: "/api/v1/search/hot-keywords?cityCode=zhili"},
 		{name: "topic resources", method: http.MethodGet, path: "/api/v1/topics/topic-1/resources?cityCode=zhili"},
@@ -749,8 +748,11 @@ func (s *fakeFullAPIStore) ListBannerTopics(ctx context.Context, filter model.Ba
 	return []model.BannerTopicConfig{{ID: "banner-1", CityCode: "zhili", Kind: "banner", Title: "现货活动", JumpType: "internal", JumpTarget: "/pages/search/index", Status: "active", UpdatedAt: "2026-06-28T10:00:00Z"}}, nil
 }
 
-func (s *fakeFullAPIStore) ListActiveBannerTopics(ctx context.Context, filter model.BannerTopicFilter) ([]model.BannerTopicConfig, error) {
-	return s.ListBannerTopics(ctx, filter)
+func (s *fakeFullAPIStore) ListActiveHomeOperationConfigs(ctx context.Context, cityCode string) ([]model.BannerTopicConfig, error) {
+	return []model.BannerTopicConfig{
+		{ID: "banner-1", CityCode: cityCode, Kind: "banner", Title: "现货活动", JumpType: "internal", JumpTarget: "/pages/search/index", Status: "active", UpdatedAt: "2026-06-28T10:00:00Z"},
+		{ID: "recommend-card-1", CityCode: cityCode, Kind: "home_recommend_card", Title: "本周空档工厂", JumpType: "search", JumpTarget: "小单快返", Tags: []string{"平台推荐"}, Status: "active", UpdatedAt: "2026-06-28T10:00:00Z"},
+	}, nil
 }
 
 func (s *fakeFullAPIStore) GetActiveTopic(ctx context.Context, topicID string, cityCode string) (model.BannerTopicConfig, error) {

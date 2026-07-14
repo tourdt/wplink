@@ -53,6 +53,7 @@ type CreateVIPOrderReq {
 	ProductType string `json:"productType,optional"`
 	ProductCode string `json:"productCode,optional"`
 	PlanCode    string `json:"planCode,optional"`
+	ResourceId  string `json:"resourceId,optional"`
 }
 
 type CreateVIPOrderResp {

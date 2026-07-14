@@ -16,16 +16,12 @@ import (
 const homeResourcesLimit int64 = 30
 
 type BannerTopicDiscoveryStore interface {
-	ListActiveBannerTopics(ctx context.Context, filter model.BannerTopicFilter) ([]model.BannerTopicConfig, error)
+	ListActiveHomeOperationConfigs(ctx context.Context, cityCode string) ([]model.BannerTopicConfig, error)
 	GetActiveTopic(ctx context.Context, topicID string, cityCode string) (model.BannerTopicConfig, error)
 	ListResources(ctx context.Context, filter model.ListResourcesFilter) (model.ListResourcesResult, error)
 }
 
-type ListHomeBannersReq struct {
-	CityCode string
-}
-
-type ListHomeRecommendCardsReq struct {
+type GetHomeOperationConfigReq struct {
 	CityCode string
 }
 
@@ -54,10 +50,6 @@ type DiscoveryBannerItem struct {
 	Tags       []string `json:"tags"`
 }
 
-type ListHomeBannersResp struct {
-	Items []DiscoveryBannerItem `json:"items"`
-}
-
 type HomeRecommendCardItem struct {
 	ID         string `json:"id"`
 	Tag        string `json:"tag,omitempty"`
@@ -67,8 +59,9 @@ type HomeRecommendCardItem struct {
 	JumpTarget string `json:"jumpTarget"`
 }
 
-type ListHomeRecommendCardsResp struct {
-	Items []HomeRecommendCardItem `json:"items"`
+type GetHomeOperationConfigResp struct {
+	Banners        []DiscoveryBannerItem   `json:"banners"`
+	RecommendCards []HomeRecommendCardItem `json:"recommendCards"`
 }
 
 type HomeResourceMerchantBrief struct {
@@ -140,59 +133,59 @@ func NewBannerTopicDiscoveryLogic(store BannerTopicDiscoveryStore) *BannerTopicD
 	return &BannerTopicDiscoveryLogic{store: store}
 }
 
-func (l *BannerTopicDiscoveryLogic) ListHomeBanners(ctx context.Context, req ListHomeBannersReq) (ListHomeBannersResp, error) {
-	configs, err := l.store.ListActiveBannerTopics(ctx, model.BannerTopicFilter{
-		CityCode: strings.TrimSpace(req.CityCode),
-		Kind:     "banner",
-		Status:   "active",
-	})
+func (l *BannerTopicDiscoveryLogic) GetHomeOperationConfig(ctx context.Context, req GetHomeOperationConfigReq) (GetHomeOperationConfigResp, error) {
+	cityCode := strings.TrimSpace(req.CityCode)
+	// Banner 和首页推荐卡同属首页运营位配置，一次读取后按 kind 拆分，减少首屏请求和数据库查询次数。
+	configs, err := l.store.ListActiveHomeOperationConfigs(ctx, cityCode)
 	if err != nil {
-		return ListHomeBannersResp{}, err
+		logx.Errorf("加载首页运营配置失败: cityCode=%s err=%+v", cityCode, err)
+		return GetHomeOperationConfigResp{}, errx.New(errx.CodeInternalError, "首页运营配置加载失败，请稍后重试")
 	}
-	items := make([]DiscoveryBannerItem, 0, len(configs))
+
+	resp := GetHomeOperationConfigResp{
+		Banners:        make([]DiscoveryBannerItem, 0),
+		RecommendCards: make([]HomeRecommendCardItem, 0),
+	}
 	for _, config := range configs {
-		jumpTarget := config.JumpTarget
-		if config.JumpType == "topic" && strings.TrimSpace(jumpTarget) == "" {
-			jumpTarget = config.ID
+		switch config.Kind {
+		case "banner":
+			resp.Banners = append(resp.Banners, discoveryBannerItem(config))
+		case "home_recommend_card":
+			resp.RecommendCards = append(resp.RecommendCards, homeRecommendCardItem(config))
 		}
-		items = append(items, DiscoveryBannerItem{
-			ID:         config.ID,
-			Title:      config.Title,
-			Subtitle:   config.Subtitle,
-			CoverURL:   config.CoverURL,
-			JumpType:   config.JumpType,
-			JumpTarget: jumpTarget,
-			Tags:       append([]string(nil), config.Tags...),
-		})
 	}
-	return ListHomeBannersResp{Items: items}, nil
+	return resp, nil
 }
 
-func (l *BannerTopicDiscoveryLogic) ListHomeRecommendCards(ctx context.Context, req ListHomeRecommendCardsReq) (ListHomeRecommendCardsResp, error) {
-	configs, err := l.store.ListActiveBannerTopics(ctx, model.BannerTopicFilter{
-		CityCode: strings.TrimSpace(req.CityCode),
-		Kind:     "home_recommend_card",
-		Status:   "active",
-	})
-	if err != nil {
-		return ListHomeRecommendCardsResp{}, err
+func discoveryBannerItem(config model.BannerTopicConfig) DiscoveryBannerItem {
+	jumpTarget := config.JumpTarget
+	if config.JumpType == "topic" && strings.TrimSpace(jumpTarget) == "" {
+		jumpTarget = config.ID
 	}
-	items := make([]HomeRecommendCardItem, 0, len(configs))
-	for _, config := range configs {
-		tag := ""
-		if len(config.Tags) > 0 {
-			tag = config.Tags[0]
-		}
-		items = append(items, HomeRecommendCardItem{
-			ID:         config.ID,
-			Tag:        tag,
-			Title:      config.Title,
-			Subtitle:   config.Subtitle,
-			JumpType:   config.JumpType,
-			JumpTarget: config.JumpTarget,
-		})
+	return DiscoveryBannerItem{
+		ID:         config.ID,
+		Title:      config.Title,
+		Subtitle:   config.Subtitle,
+		CoverURL:   config.CoverURL,
+		JumpType:   config.JumpType,
+		JumpTarget: jumpTarget,
+		Tags:       append([]string(nil), config.Tags...),
 	}
-	return ListHomeRecommendCardsResp{Items: items}, nil
+}
+
+func homeRecommendCardItem(config model.BannerTopicConfig) HomeRecommendCardItem {
+	tag := ""
+	if len(config.Tags) > 0 {
+		tag = config.Tags[0]
+	}
+	return HomeRecommendCardItem{
+		ID:         config.ID,
+		Tag:        tag,
+		Title:      config.Title,
+		Subtitle:   config.Subtitle,
+		JumpType:   config.JumpType,
+		JumpTarget: config.JumpTarget,
+	}
 }
 
 func (l *BannerTopicDiscoveryLogic) ListHomeResources(ctx context.Context, req ListHomeResourcesReq) (ListHomeResourcesResp, error) {

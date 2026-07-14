@@ -79,6 +79,8 @@ func TestQuotaPackBenefitsUse180DayExpiration(t *testing.T) {
 		"quotaPackExpiresAt := paidAt.AddDate(0, 0, quotaPackValidityDays)",
 		"VALUES ($1, $2, 'quota_pack', $3, $3, $4, $5, 'active')",
 		"VALUES ($1, $2, 'quota_pack', $3, $3, $4, $5, 'active', '[]'::jsonb, $6)",
+		"VALUES ($1, $2, 'top_service', 1, 1, $3, $4, 'active', '[]'::jsonb, $5)",
+		"redeemTopVoucherTx(ctx, tx, entitlementID, topResourceID)",
 		"EntitlementTypeTopVoucher",
 	} {
 		if !strings.Contains(text, snippet) {

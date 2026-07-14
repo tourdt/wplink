@@ -11,65 +11,62 @@ import (
 	"wplink/backend/common/errx"
 )
 
-func TestListHomeBannersUsesActiveBannerFilter(t *testing.T) {
+func TestGetHomeOperationConfigSplitsActiveOperationItems(t *testing.T) {
 	store := &fakeDiscoveryStore{
-		banners: []model.BannerTopicConfig{{ID: "banner-1", Kind: "banner", Title: "产业带精选", JumpType: "topic", JumpTarget: "topic-1"}},
+		operationConfigs: []model.BannerTopicConfig{
+			{ID: "banner-1", Kind: "banner", Title: "产业带精选", JumpType: "topic", JumpTarget: "topic-1"},
+			{
+				ID:         "recommend-card-1",
+				Kind:       "home_recommend_card",
+				Title:      "本周空档工厂",
+				Subtitle:   "认证工厂 · 适合小单快返",
+				JumpType:   "search",
+				JumpTarget: "小单快返",
+				Tags:       []string{"平台推荐"},
+			},
+		},
 	}
 	logic := NewBannerTopicDiscoveryLogic(store)
 
-	resp, err := logic.ListHomeBanners(context.Background(), ListHomeBannersReq{CityCode: " zhili "})
+	resp, err := logic.GetHomeOperationConfig(context.Background(), GetHomeOperationConfigReq{CityCode: " zhili "})
 	if err != nil {
-		t.Fatalf("ListHomeBanners() error = %v", err)
+		t.Fatalf("GetHomeOperationConfig() error = %v", err)
 	}
 
-	if store.bannerFilter.CityCode != "zhili" || store.bannerFilter.Kind != "banner" || store.bannerFilter.Status != "active" {
-		t.Fatalf("filter = %#v, want active banner filter", store.bannerFilter)
+	if store.operationCityCode != "zhili" {
+		t.Fatalf("cityCode = %q, want trimmed zhili", store.operationCityCode)
 	}
-	if len(resp.Items) != 1 || resp.Items[0].JumpTarget != "topic-1" {
-		t.Fatalf("items = %#v, want banner item", resp.Items)
+	if len(resp.Banners) != 1 || resp.Banners[0].JumpTarget != "topic-1" {
+		t.Fatalf("banners = %#v, want banner item", resp.Banners)
+	}
+	if len(resp.RecommendCards) != 1 || resp.RecommendCards[0].Tag != "平台推荐" || resp.RecommendCards[0].Title != "本周空档工厂" {
+		t.Fatalf("recommendCards = %#v, want recommend card item", resp.RecommendCards)
 	}
 }
 
-func TestListHomeBannersUsesBannerIDForTopicWithoutTarget(t *testing.T) {
+func TestGetHomeOperationConfigUsesBannerIDForTopicWithoutTarget(t *testing.T) {
 	store := &fakeDiscoveryStore{
-		banners: []model.BannerTopicConfig{{ID: "banner-topic-1", Kind: "banner", Title: "急清库存专题", JumpType: "topic"}},
+		operationConfigs: []model.BannerTopicConfig{{ID: "banner-topic-1", Kind: "banner", Title: "急清库存专题", JumpType: "topic"}},
 	}
 	logic := NewBannerTopicDiscoveryLogic(store)
 
-	resp, err := logic.ListHomeBanners(context.Background(), ListHomeBannersReq{CityCode: "zhili"})
+	resp, err := logic.GetHomeOperationConfig(context.Background(), GetHomeOperationConfigReq{CityCode: "zhili"})
 	if err != nil {
-		t.Fatalf("ListHomeBanners() error = %v", err)
+		t.Fatalf("GetHomeOperationConfig() error = %v", err)
 	}
 
-	if len(resp.Items) != 1 || resp.Items[0].JumpTarget != "banner-topic-1" {
-		t.Fatalf("items = %#v, want topic banner to target itself", resp.Items)
+	if len(resp.Banners) != 1 || resp.Banners[0].JumpTarget != "banner-topic-1" {
+		t.Fatalf("banners = %#v, want topic banner to target itself", resp.Banners)
 	}
 }
 
-func TestListHomeRecommendCardsUsesActiveRecommendCardFilter(t *testing.T) {
-	store := &fakeDiscoveryStore{
-		banners: []model.BannerTopicConfig{{
-			ID:         "recommend-card-1",
-			Kind:       "home_recommend_card",
-			Title:      "本周空档工厂",
-			Subtitle:   "认证工厂 · 适合小单快返",
-			JumpType:   "search",
-			JumpTarget: "小单快返",
-			Tags:       []string{"平台推荐"},
-		}},
-	}
+func TestGetHomeOperationConfigReturnsFriendlyError(t *testing.T) {
+	store := &fakeDiscoveryStore{operationErr: errors.New("db timeout")}
 	logic := NewBannerTopicDiscoveryLogic(store)
 
-	resp, err := logic.ListHomeRecommendCards(context.Background(), ListHomeRecommendCardsReq{CityCode: " zhili "})
-	if err != nil {
-		t.Fatalf("ListHomeRecommendCards() error = %v", err)
-	}
-
-	if store.bannerFilter.CityCode != "zhili" || store.bannerFilter.Kind != "home_recommend_card" || store.bannerFilter.Status != "active" {
-		t.Fatalf("filter = %#v, want active home recommend card filter", store.bannerFilter)
-	}
-	if len(resp.Items) != 1 || resp.Items[0].Tag != "平台推荐" || resp.Items[0].Title != "本周空档工厂" {
-		t.Fatalf("items = %#v, want recommend card item", resp.Items)
+	_, err := logic.GetHomeOperationConfig(context.Background(), GetHomeOperationConfigReq{CityCode: "zhili"})
+	if err == nil || errx.CodeOf(err) != errx.CodeInternalError || errx.PublicMessage(err) != "首页运营配置加载失败，请稍后重试" {
+		t.Fatalf("GetHomeOperationConfig() error = %v, want friendly internal error", err)
 	}
 }
 
@@ -170,17 +167,21 @@ func TestValidateWebviewURLAcceptsAllowedDomain(t *testing.T) {
 }
 
 type fakeDiscoveryStore struct {
-	bannerFilter   model.BannerTopicFilter
-	resourceFilter model.ListResourcesFilter
-	banners        []model.BannerTopicConfig
-	topic          model.BannerTopicConfig
-	resources      model.ListResourcesResult
-	resourceErr    error
+	operationCityCode string
+	resourceFilter    model.ListResourcesFilter
+	operationConfigs  []model.BannerTopicConfig
+	operationErr      error
+	topic             model.BannerTopicConfig
+	resources         model.ListResourcesResult
+	resourceErr       error
 }
 
-func (s *fakeDiscoveryStore) ListActiveBannerTopics(ctx context.Context, filter model.BannerTopicFilter) ([]model.BannerTopicConfig, error) {
-	s.bannerFilter = filter
-	return append([]model.BannerTopicConfig(nil), s.banners...), nil
+func (s *fakeDiscoveryStore) ListActiveHomeOperationConfigs(ctx context.Context, cityCode string) ([]model.BannerTopicConfig, error) {
+	s.operationCityCode = cityCode
+	if s.operationErr != nil {
+		return nil, s.operationErr
+	}
+	return append([]model.BannerTopicConfig(nil), s.operationConfigs...), nil
 }
 
 func (s *fakeDiscoveryStore) GetActiveTopic(ctx context.Context, topicID string, cityCode string) (model.BannerTopicConfig, error) {

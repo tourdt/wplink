@@ -218,12 +218,8 @@ func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore, tokenSer
 }
 
 func registerDiscoveryRoutes(mux *http.ServeMux, store DiscoveryAPIStore) {
-	mux.HandleFunc("GET /api/v1/home/banners", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := discoverylogic.NewBannerTopicDiscoveryLogic(store).ListHomeBanners(r.Context(), discoverylogic.ListHomeBannersReq{CityCode: r.URL.Query().Get("cityCode")})
-		response.JSON(w, resp, err)
-	})
-	mux.HandleFunc("GET /api/v1/home/recommend-cards", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := discoverylogic.NewBannerTopicDiscoveryLogic(store).ListHomeRecommendCards(r.Context(), discoverylogic.ListHomeRecommendCardsReq{CityCode: r.URL.Query().Get("cityCode")})
+	mux.HandleFunc("GET /api/v1/home/operation-config", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := discoverylogic.NewBannerTopicDiscoveryLogic(store).GetHomeOperationConfig(r.Context(), discoverylogic.GetHomeOperationConfigReq{CityCode: r.URL.Query().Get("cityCode")})
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/home/resources", func(w http.ResponseWriter, r *http.Request) {

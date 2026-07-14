@@ -171,14 +171,26 @@ WHERE id = $1
 func (m *MerchantEntitlementModel) RedeemTopVoucher(ctx context.Context, voucherID string, resourceID string) (RedeemTopVoucherResult, error) {
 	var result RedeemTopVoucherResult
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
-		var merchantID string
-		var topDurationHours int64
-		var beforeRemaining int64
-		var afterRemaining int64
-		var allowedTypeCodes JSONStringSlice
-		var resourceTypeCode string
-		var resourceTitle string
-		err := tx.QueryRowContext(ctx, `
+		redeemed, err := redeemTopVoucherTx(ctx, tx, voucherID, resourceID)
+		if err != nil {
+			return err
+		}
+		result = redeemed
+		return nil
+	})
+	return result, err
+}
+
+func redeemTopVoucherTx(ctx context.Context, tx *sql.Tx, voucherID string, resourceID string) (RedeemTopVoucherResult, error) {
+	var result RedeemTopVoucherResult
+	var merchantID string
+	var topDurationHours int64
+	var beforeRemaining int64
+	var afterRemaining int64
+	var allowedTypeCodes JSONStringSlice
+	var resourceTypeCode string
+	var resourceTitle string
+	err := tx.QueryRowContext(ctx, `
 UPDATE merchant_entitlements me
 SET used_amount = used_amount + 1,
     remaining_amount = remaining_amount - 1,
@@ -207,21 +219,21 @@ RETURNING
   r.type_code,
   r.title
 `, voucherID, resourceID, EntitlementTypeTopVoucher).Scan(
-			&result.VoucherID,
-			&merchantID,
-			&result.ResourceID,
-			&topDurationHours,
-			&beforeRemaining,
-			&afterRemaining,
-			&allowedTypeCodes,
-			&resourceTypeCode,
-			&resourceTitle,
-		)
-		if err != nil {
-			return err
-		}
-		var topExpiresAt time.Time
-		if err := tx.QueryRowContext(ctx, `
+		&result.VoucherID,
+		&merchantID,
+		&result.ResourceID,
+		&topDurationHours,
+		&beforeRemaining,
+		&afterRemaining,
+		&allowedTypeCodes,
+		&resourceTypeCode,
+		&resourceTitle,
+	)
+	if err != nil {
+		return RedeemTopVoucherResult{}, err
+	}
+	var topExpiresAt time.Time
+	if err := tx.QueryRowContext(ctx, `
 UPDATE resources
 SET top_started_at = now(),
     top_expires_at = now() + make_interval(hours => GREATEST($2, 1)::int),
@@ -233,29 +245,27 @@ WHERE id = $1
   AND deleted_at IS NULL
 RETURNING top_expires_at
 `, result.ResourceID, topDurationHours, merchantID).Scan(&topExpiresAt); err != nil {
-			return err
-		}
-		result.Status = "used"
-		result.TopExpiresAt = topExpiresAt.Format(time.RFC3339)
-		return recordEntitlementUsageTx(ctx, tx, entitlementUsageInput{
-			EntitlementID:         result.VoucherID,
-			MerchantID:            merchantID,
-			EntitlementType:       EntitlementTypeTopVoucher,
-			ActionType:            ActionTypeTopResource,
-			Amount:                1,
-			ResourceID:            result.ResourceID,
-			BeforeRemainingAmount: beforeRemaining,
-			AfterRemainingAmount:  afterRemaining,
-			Snapshot: JSONMap{
-				"allowedTypeCodes": []string(allowedTypeCodes),
-				"resourceTitle":    resourceTitle,
-				"resourceTypeCode": resourceTypeCode,
-				"topDurationHours": topDurationHours,
-				"topExpiresAt":     result.TopExpiresAt,
-			},
-		})
+		return RedeemTopVoucherResult{}, err
+	}
+	result.Status = "used"
+	result.TopExpiresAt = topExpiresAt.Format(time.RFC3339)
+	return result, recordEntitlementUsageTx(ctx, tx, entitlementUsageInput{
+		EntitlementID:         result.VoucherID,
+		MerchantID:            merchantID,
+		EntitlementType:       EntitlementTypeTopVoucher,
+		ActionType:            ActionTypeTopResource,
+		Amount:                1,
+		ResourceID:            result.ResourceID,
+		BeforeRemainingAmount: beforeRemaining,
+		AfterRemainingAmount:  afterRemaining,
+		Snapshot: JSONMap{
+			"allowedTypeCodes": []string(allowedTypeCodes),
+			"resourceTitle":    resourceTitle,
+			"resourceTypeCode": resourceTypeCode,
+			"topDurationHours": topDurationHours,
+			"topExpiresAt":     result.TopExpiresAt,
+		},
 	})
-	return result, err
 }
 
 func (m *MerchantEntitlementModel) ListMerchantEntitlementUsageRecords(ctx context.Context, merchantID string, entitlementID string) ([]EntitlementUsageRecord, error) {
