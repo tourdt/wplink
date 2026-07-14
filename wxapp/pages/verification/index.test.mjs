@@ -68,6 +68,18 @@ test('verification page does not ask users to choose applicant role', () => {
   assert.doesNotMatch(source, /applicantRoleLabel:/)
 })
 
+test('verification page lets backend derive applicant and payer from token', () => {
+  const source = fs.readFileSync(sourcePath, 'utf8')
+
+  assert.match(source, /import \{ isLoggedIn \} from '\.\.\/\.\.\/common\/auth'/)
+  assert.doesNotMatch(source, /getUserId/)
+  assert.doesNotMatch(source, /applicantUserId/)
+  assert.doesNotMatch(source, /\{ userId \}/)
+  assert.match(source, /if \(!isLoggedIn\(\)\) \{[\s\S]*请先登录[\s\S]*\}/)
+  assert.match(source, /await submitVerification\(form\.merchantId\.trim\(\), \{[\s\S]*verificationType: form\.verificationType/)
+  assert.match(source, /const resp = await createVerificationPayment\(form\.merchantId, latestVerification\.value\.id\)/)
+})
+
 test('verification page highlights limited free billing window', () => {
   const source = fs.readFileSync(sourcePath, 'utf8')
 

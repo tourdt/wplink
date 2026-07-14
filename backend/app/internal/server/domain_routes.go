@@ -26,6 +26,8 @@ import (
 	"wplink/backend/app/internal/task"
 	"wplink/backend/common/errx"
 	"wplink/backend/common/response"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type MerchantAPIStore interface {
@@ -910,6 +912,7 @@ func registerMessageRoutes(mux *http.ServeMux, store MessageAPIStore, tokenServi
 		query := r.URL.Query()
 		userID := query.Get("userId")
 		roleCode := query.Get("roleCode")
+		var roleCodes []string
 		if tokenService != nil {
 			subject, err := userSubjectFromBearerToken(r, tokenService)
 			if err != nil {
@@ -917,15 +920,14 @@ func registerMessageRoutes(mux *http.ServeMux, store MessageAPIStore, tokenServi
 				return
 			}
 			userID = subject.UserID
-			if merchantID, ok := merchantIDFromRoleCode(roleCode); ok {
-				if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
-					response.JSON(w, nil, err)
-					return
-				}
+			roleCodes, err = messageRoleCodesForTokenUser(r, store, tokenService, adminTokenService, permissionStore, userID, roleCode)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
 			}
 		}
 		resp, err := messagelogic.NewListMessagesLogic(store).ListMessages(r.Context(), messagelogic.ListMessagesReq{
-			UserID: userID, RoleCode: roleCode, Type: query.Get("type"), Status: query.Get("status"),
+			UserID: userID, RoleCode: roleCode, RoleCodes: roleCodes, Type: query.Get("type"), Status: query.Get("status"),
 			Page: int64FromQuery(r, "page"), PageSize: int64FromQuery(r, "pageSize"),
 		})
 		response.JSON(w, resp, err)
@@ -943,17 +945,47 @@ func registerMessageRoutes(mux *http.ServeMux, store MessageAPIStore, tokenServi
 				response.JSON(w, nil, err)
 				return
 			}
-			if merchantID, ok := merchantIDFromRoleCode(body.RoleCode); ok {
-				if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
-					response.JSON(w, nil, err)
-					return
-				}
+			body.RoleCodes, err = messageRoleCodesForTokenUser(r, store, tokenService, adminTokenService, permissionStore, body.UserID, body.RoleCode)
+			if err != nil {
+				response.JSON(w, nil, err)
+				return
 			}
 		}
 		body.MessageID = r.PathValue("messageId")
 		resp, err := messagelogic.NewReadMessageLogic(store).ReadMessage(r.Context(), body)
 		response.JSON(w, resp, err)
 	})
+}
+
+func messageRoleCodesForTokenUser(r *http.Request, store MessageAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, userID string, explicitRoleCode string) ([]string, error) {
+	explicitRoleCode = strings.TrimSpace(explicitRoleCode)
+	if explicitRoleCode != "" {
+		if merchantID, ok := merchantIDFromRoleCode(explicitRoleCode); ok {
+			if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
+				return nil, err
+			}
+		}
+		return []string{explicitRoleCode}, nil
+	}
+
+	managedStore, ok := any(store).(ManagedMerchantStore)
+	if !ok {
+		return nil, nil
+	}
+	merchantIDs, err := managedStore.ListManagedMerchantIDs(r.Context(), userID)
+	if err != nil {
+		logx.Errorf("推导消息收件商家角色失败: userId=%s err=%+v", userID, err)
+		return nil, err
+	}
+	roleCodes := make([]string, 0, len(merchantIDs))
+	for _, merchantID := range merchantIDs {
+		merchantID = strings.TrimSpace(merchantID)
+		if merchantID == "" {
+			continue
+		}
+		roleCodes = append(roleCodes, "merchant:"+merchantID)
+	}
+	return roleCodes, nil
 }
 
 func merchantIDFromRoleCode(roleCode string) (string, bool) {

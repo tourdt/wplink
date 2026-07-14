@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 
@@ -73,6 +74,34 @@ func TestAPIRouterRequiresMerchantPermissionForMerchantMessages(t *testing.T) {
 	decodeEnvelopeData(t, allowedRec, http.StatusOK)
 	if store.messageFilter.RoleCode != "merchant:merchant-1" {
 		t.Fatalf("message roleCode = %q, want merchant role", store.messageFilter.RoleCode)
+	}
+}
+
+func TestAPIRouterDerivesMessageRecipientsFromToken(t *testing.T) {
+	store := newFakeFullAPIStore()
+	store.managedMerchants = map[string]bool{"merchant-1": true, "merchant-2": true}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	listRec := httptest.NewRecorder()
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/messages?page=1&pageSize=20", nil)
+	listReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(listRec, listReq)
+	decodeEnvelopeData(t, listRec, http.StatusOK)
+	if store.messageFilter.UserID != "user-1" {
+		t.Fatalf("message userID = %q, want token user", store.messageFilter.UserID)
+	}
+	wantRoleCodes := []string{"merchant:merchant-1", "merchant:merchant-2"}
+	if strings.Join(store.messageFilter.RoleCodes, ",") != strings.Join(wantRoleCodes, ",") {
+		t.Fatalf("message roleCodes = %#v, want %#v", store.messageFilter.RoleCodes, wantRoleCodes)
+	}
+
+	readRec := httptest.NewRecorder()
+	readReq := httptest.NewRequest(http.MethodPost, "/api/v1/messages/message-1/read", strings.NewReader(`{}`))
+	readReq.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(readRec, readReq)
+	decodeEnvelopeData(t, readRec, http.StatusOK)
+	if store.readMessageUserID != "user-1" || strings.Join(store.readMessageRoleCodes, ",") != strings.Join(wantRoleCodes, ",") {
+		t.Fatalf("read identity userID=%q roleCodes=%#v, want token user and managed merchant roles", store.readMessageUserID, store.readMessageRoleCodes)
 	}
 }
 
@@ -629,6 +658,7 @@ type fakeFullAPIStore struct {
 	messageFilter                model.ListMessagesFilter
 	readMessageUserID            string
 	readMessageRoleCode          string
+	readMessageRoleCodes         []string
 	redeemVoucherID              string
 	redeemResourceID             string
 	topVoucherMerchantIDs        map[string]string
@@ -963,10 +993,26 @@ func (s *fakeFullAPIStore) ListMessages(ctx context.Context, filter model.ListMe
 	return model.ListMessagesResult{Items: []model.MessageItem{{ID: "message-1", MessageType: "resource_review", Title: "审核通过", Content: "资源已发布", Status: "unread", CreatedAt: "2026-06-28T10:00:00Z"}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
 }
 
-func (s *fakeFullAPIStore) ReadMessage(ctx context.Context, userID string, roleCode string, messageID string) (model.ReadMessageResult, error) {
+func (s *fakeFullAPIStore) ReadMessage(ctx context.Context, userID string, roleCodes []string, messageID string) (model.ReadMessageResult, error) {
 	s.readMessageUserID = userID
-	s.readMessageRoleCode = roleCode
+	s.readMessageRoleCodes = roleCodes
+	if len(roleCodes) == 1 {
+		s.readMessageRoleCode = roleCodes[0]
+	} else {
+		s.readMessageRoleCode = ""
+	}
 	return model.ReadMessageResult{ID: messageID, Status: "read"}, nil
+}
+
+func (s *fakeFullAPIStore) ListManagedMerchantIDs(ctx context.Context, userID string) ([]string, error) {
+	merchantIDs := make([]string, 0, len(s.managedMerchants))
+	for merchantID, managed := range s.managedMerchants {
+		if managed {
+			merchantIDs = append(merchantIDs, merchantID)
+		}
+	}
+	sort.Strings(merchantIDs)
+	return merchantIDs, nil
 }
 
 func (s *fakeFullAPIStore) GetAdminDashboardOverview(ctx context.Context, cityCode string) (model.AdminDashboardOverview, error) {

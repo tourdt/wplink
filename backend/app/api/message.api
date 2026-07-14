@@ -1,8 +1,6 @@
 syntax = "v1"
 
 type ListMessagesReq {
-	UserId   string `form:"userId,optional"`
-	RoleCode string `form:"roleCode,optional"`
 	Type     string `form:"type,optional"`
 	Status   string `form:"status,optional"`
 	Page     int64  `form:"page,optional"`
@@ -33,8 +31,6 @@ type ReadMessageResp {
 }
 
 type ReadMessageReq {
-	UserId   string `json:"userId,optional"`
-	RoleCode string `json:"roleCode,optional"`
 }
 
 @server(

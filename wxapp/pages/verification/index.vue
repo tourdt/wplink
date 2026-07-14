@@ -197,8 +197,9 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import { isLoggedIn } from '../../common/auth'
 import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
-import { getMerchantId, getUserId } from '../../store/session'
+import { getMerchantId } from '../../store/session'
 import { getMerchant } from '../../api/merchant'
 import { createVerificationPayment, getLatestVerification, getVerificationBillingConfig, submitVerification } from '../../api/verification'
 import { chooseImageFile, uploadSelectedImage } from '../../common/upload'
@@ -416,8 +417,7 @@ function applyVerificationFormDefaults(verification) {
 
 async function submit() {
   if (submitting.value) return
-  const userId = getUserId()
-  if (!userId) {
+  if (!isLoggedIn()) {
     uni.showToast({ title: '请先登录', icon: 'none' })
     return
   }
@@ -433,9 +433,8 @@ async function submit() {
   try {
     await uploadPendingVerificationImages()
     const verificationMaterials = buildVerificationMaterials()
-    // 认证申请需要记录提交人，便于后台审核留痕和后续消息通知。
+    // 认证申请的提交人以后端 token 为准，避免旧缓存 userId 造成审核留痕错乱。
     await submitVerification(form.merchantId.trim(), {
-      applicantUserId: userId,
       verificationType: form.verificationType,
       businessName: form.businessName.trim(),
       licenseUrl: form.licenseUrl.trim(),
@@ -506,15 +505,14 @@ function changeCommitment(event) {
 }
 
 async function payVerification() {
-  const userId = getUserId()
-  if (!userId) {
+  if (!isLoggedIn()) {
     uni.showToast({ title: '请先登录后支付', icon: 'none' })
     return
   }
   paying.value = true
   try {
     // 小程序端只负责调起收银台，认证生效必须以后端收到微信支付成功通知为准。
-    const resp = await createVerificationPayment(form.merchantId, latestVerification.value.id, { userId })
+    const resp = await createVerificationPayment(form.merchantId, latestVerification.value.id)
     if (resp.status === 'paid') {
       uni.showToast({ title: '支付成功，认证已生效', icon: 'none' })
       await loadLatestVerification()

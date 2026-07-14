@@ -46,6 +46,10 @@ type MerchantPermissionStore interface {
 	UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error)
 }
 
+type ManagedMerchantStore interface {
+	ListManagedMerchantIDs(ctx context.Context, userID string) ([]string, error)
+}
+
 type ResourceMerchantStore interface {
 	GetResourceMerchantID(ctx context.Context, resourceID string) (string, error)
 }

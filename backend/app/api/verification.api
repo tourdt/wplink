@@ -40,7 +40,6 @@ type VerificationBillingConfigResp {
 }
 
 type CreateVerificationPaymentReq {
-	UserId string `json:"userId,optional"`
 }
 
 type WechatPayParams {

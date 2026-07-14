@@ -137,6 +137,7 @@ import { computed, ref } from 'vue'
 import { onLoad, onReady, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import MerchantBadge from '../../components/MerchantBadge.vue'
 import ResourceList from '../../components/ResourceList.vue'
+import { listTopVouchers, redeemTopVoucher } from '../../api/entitlement'
 import { getResourceFavoriteState, setResourceFavorite } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
 import {
@@ -254,7 +255,7 @@ const managementNotice = computed(() => {
   if (isExpiredResource.value) return '供应已过期，建议再发类似供应后重新提交审核。'
   if (isDealtResource.value) return '供应已成交，不再公开展示，可再发类似供应。'
   if (resource.value.status === 'taken_down') return '供应已下架，不再公开展示。'
-  return '供应展示中，可按需刷新或下架。'
+  return '供应展示中，可按需刷新、置顶或下架。'
 })
 const managementActions = computed(() => {
   if (resource.value.status === 'pending') return []
@@ -273,6 +274,7 @@ const managementActions = computed(() => {
   if (resource.value.status === 'published') {
     return [
       { key: 'refresh', label: '刷新', primary: true },
+      { key: 'top', label: '置顶', primary: true },
       { key: 'take-down', label: '下架', danger: true },
     ]
   }
@@ -459,6 +461,10 @@ async function handleManagementAction(action) {
       await refreshOwnResource()
       return
     }
+    if (action === 'top') {
+      await topOwnResource()
+      return
+    }
     if (action === 'take-down') {
       await takeDownOwnResource()
       return
@@ -488,6 +494,20 @@ async function refreshOwnResource() {
   await reloadOwnResource()
 }
 
+async function topOwnResource() {
+  const voucher = await getAvailableTopVoucher()
+  if (!voucher) {
+    await promptBuyTopVoucher()
+    return
+  }
+  const confirmed = await confirmTopVoucherUse(voucher)
+  if (!confirmed) return
+  await redeemTopVoucher(voucher.id, resource.value.id, ownerMerchantId.value)
+  uni.showToast({ title: '已置顶', icon: 'none' })
+  closeManagementSheet()
+  await reloadOwnResource()
+}
+
 async function takeDownOwnResource() {
   const confirmed = await confirmManagementAction({
     title: '下架供应',
@@ -500,6 +520,57 @@ async function takeDownOwnResource() {
   uni.showToast({ title: '已下架', icon: 'none' })
   closeManagementSheet()
   await reloadOwnResource()
+}
+
+async function getAvailableTopVoucher() {
+  // 置顶券余额以服务端为准，避免用户在不同入口重复核销同一批次权益。
+  const resp = await listTopVouchers(ownerMerchantId.value)
+  return (resp.items || []).find(isAvailableTopVoucher)
+}
+
+function isAvailableTopVoucher(voucher) {
+  if (Number(voucher.remainingAmount || 0) <= 0) return false
+  if (!voucher.expiresAt) return true
+  const expiresAt = Date.parse(voucher.expiresAt)
+  return Number.isNaN(expiresAt) || expiresAt > Date.now()
+}
+
+function confirmTopVoucherUse(voucher) {
+  return new Promise((resolve) => {
+    uni.showModal({
+      title: '置顶供应',
+      content: `将消耗 1 张置顶券，置顶 ${topDurationText(voucher)}，确认使用吗？`,
+      confirmText: '置顶',
+      confirmColor: '#061625',
+      success: (res) => resolve(Boolean(res.confirm)),
+      fail: () => resolve(false),
+    })
+  })
+}
+
+function topDurationText(voucher) {
+  const hours = Number(voucher.topDurationHours || 24)
+  if (hours > 0 && hours % 24 === 0) return `${hours / 24} 天`
+  return `${hours || 24} 小时`
+}
+
+function promptBuyTopVoucher() {
+  return new Promise((resolve) => {
+    uni.showModal({
+      title: '暂无可用置顶券，请先购买',
+      content: '购买置顶券后，可将已发布供需信息置顶 1 天。',
+      confirmText: '去购买',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          closeManagementSheet()
+          uni.navigateTo({ url: `/pages/vip/index?merchantId=${ownerMerchantId.value}&tab=top` })
+        }
+        resolve(Boolean(res.confirm))
+      },
+      fail: () => resolve(false),
+    })
+  })
 }
 
 async function repostOwnResource() {

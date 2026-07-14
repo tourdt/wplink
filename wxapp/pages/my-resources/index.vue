@@ -52,6 +52,7 @@
         <MetricStrip :items="metricItems(item)" />
         <view class="action-row">
           <button v-if="isActivePublished(item)" class="primary-action" @click="refresh(item)">刷新</button>
+          <button v-if="isActivePublished(item)" class="primary-action" @click="topResource(item)">置顶</button>
           <button v-if="isActivePublished(item)" @click="takeDown(item)">下架</button>
           <button v-if="item.status === 'draft'" class="primary-action" @click="openDraftEditor(item)">编辑</button>
           <button v-if="item.status === 'rejected'" class="primary-action" @click="openRejectedEditor(item)">编辑</button>
@@ -73,6 +74,7 @@ import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import MetricStrip from '../../components/MetricStrip.vue'
 import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { getMerchantId } from '../../store/session'
+import { listTopVouchers, redeemTopVoucher } from '../../api/entitlement'
 import { deleteTakenDownResource, getOwnResource, listMyResources, refreshResource, takeDownResource } from '../../api/resource'
 import { formatDateToDay } from '../../common/date'
 import { resourceTypeLabel } from '../../common/resourceCategories'
@@ -170,10 +172,74 @@ async function refresh(item) {
   await loadRows({ reset: true })
 }
 
+async function topResource(item) {
+  if (!isActivePublished(item)) return
+  const voucher = await getAvailableTopVoucher()
+  if (!voucher) {
+    await promptBuyTopVoucher()
+    return
+  }
+  const confirmed = await confirmTopVoucherUse(voucher)
+  if (!confirmed) return
+  await redeemTopVoucher(voucher.id, item.id, merchantId.value)
+  uni.showToast({ title: '已置顶', icon: 'none' })
+  await loadRows({ reset: true })
+}
+
 async function takeDown(item) {
   await takeDownResource(item.id, merchantId.value, '商家主动下架')
   uni.showToast({ title: '已下架', icon: 'none' })
   await loadRows({ reset: true })
+}
+
+async function getAvailableTopVoucher() {
+  // 置顶必须先拿服务端实时余额，避免用户在多端同时使用同一批置顶券。
+  const resp = await listTopVouchers(merchantId.value)
+  return (resp.items || []).find(isAvailableTopVoucher)
+}
+
+function isAvailableTopVoucher(voucher) {
+  if (Number(voucher.remainingAmount || 0) <= 0) return false
+  if (!voucher.expiresAt) return true
+  const expiresAt = Date.parse(voucher.expiresAt)
+  return Number.isNaN(expiresAt) || expiresAt > Date.now()
+}
+
+function confirmTopVoucherUse(voucher) {
+  return new Promise((resolve) => {
+    uni.showModal({
+      title: '置顶发布',
+      content: `将消耗 1 张置顶券，置顶 ${topDurationText(voucher)}，确认使用吗？`,
+      confirmText: '置顶',
+      confirmColor: '#061625',
+      success: (res) => resolve(Boolean(res.confirm)),
+      fail: () => resolve(false),
+    })
+  })
+}
+
+function topDurationText(voucher) {
+  const hours = Number(voucher.topDurationHours || 24)
+  if (hours > 0 && hours % 24 === 0) return `${hours / 24} 天`
+  return `${hours || 24} 小时`
+}
+
+function promptBuyTopVoucher() {
+  return new Promise((resolve) => {
+    uni.showModal({
+      title: '暂无可用置顶券，请先购买',
+      content: '购买置顶券后，可将已发布供需信息置顶 1 天。',
+      confirmText: '去购买',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          uni.navigateTo({ url: `/pages/vip/index?merchantId=${merchantId.value}&tab=top` })
+        }
+        resolve(Boolean(res.confirm))
+      },
+      fail: () => resolve(false),
+    })
+  })
 }
 
 function openDraftEditor(item) {

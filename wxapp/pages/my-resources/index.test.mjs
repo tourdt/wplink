@@ -102,11 +102,12 @@ test('my resources prompts for merchant profile before list and publish actions'
   assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善发布者资料'/)
 })
 
-test('my resources soft-disables top voucher actions for merchants', () => {
-  assert.doesNotMatch(source, /import \{ redeemTopVoucher, listTopVouchers \} from '\.\.\/\.\.\/api\/entitlement'/)
-  assert.doesNotMatch(source, /class="top-tag">可置顶<\/text>/)
-  assert.doesNotMatch(source, /@click="topResource\(item\)">置顶<\/button>/)
-  assert.doesNotMatch(source, /async function topResource\(item\)/)
-  assert.doesNotMatch(source, /listTopVouchers\(merchantId\.value\)/)
-  assert.doesNotMatch(source, /redeemTopVoucher\(voucher\.id, item\.id, merchantId\.value\)/)
+test('my resources restores top voucher actions for merchants', () => {
+  assert.match(source, /import \{ listTopVouchers, redeemTopVoucher \} from '\.\.\/\.\.\/api\/entitlement'/)
+  assert.match(source, /@click="topResource\(item\)">置顶<\/button>/)
+  assert.match(source, /async function topResource\(item\)/)
+  assert.match(source, /listTopVouchers\(merchantId\.value\)/)
+  assert.match(source, /redeemTopVoucher\(voucher\.id, item\.id, merchantId\.value\)/)
+  assert.match(source, /暂无可用置顶券，请先购买/)
+  assert.match(source, /tab=top/)
 })

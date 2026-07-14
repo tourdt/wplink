@@ -213,7 +213,12 @@ INSERT INTO vip_quota_packs (
 VALUES
   ('publish_5', '发布次数包', '临时多发供需', 2500, 2500, '限时特价', '{"publishQuota":5}'::jsonb, 'active', 10),
   ('refresh_10', '刷新次数包', '让信息回到前面', 1900, 1900, '限时特价', '{"refreshQuota":10}'::jsonb, 'active', 20),
-  ('top_3', '置顶券包', '单张可置顶 24 小时', 2900, 2900, '限时特价', '{"topVoucherCount":3,"topDurationHours":24}'::jsonb, 'active', 30)
+  ('top_1d', '1天置顶券', '单张可置顶 1 天', 10000, 10000, '置顶 1 天', '{"topVoucherCount":1,"topDurationHours":24}'::jsonb, 'active', 30),
+  ('top_3d', '3天置顶券', '单张可置顶 3 天', 20000, 20000, '置顶 3 天', '{"topVoucherCount":1,"topDurationHours":72}'::jsonb, 'active', 40),
+  ('top_5d', '5天置顶券', '单张可置顶 5 天', 30000, 30000, '置顶 5 天', '{"topVoucherCount":1,"topDurationHours":120}'::jsonb, 'active', 50),
+  ('top_7d', '7天置顶券', '单张可置顶 7 天', 40000, 40000, '置顶 7 天', '{"topVoucherCount":1,"topDurationHours":168}'::jsonb, 'active', 60),
+  ('top_15d', '15天置顶券', '单张可置顶 15 天', 60000, 60000, '置顶 15 天', '{"topVoucherCount":1,"topDurationHours":360}'::jsonb, 'active', 70),
+  ('top_30d', '30天置顶券', '单张可置顶 30 天', 90000, 90000, '置顶 30 天', '{"topVoucherCount":1,"topDurationHours":720}'::jsonb, 'active', 80)
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,

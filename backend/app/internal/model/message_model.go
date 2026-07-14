@@ -3,7 +3,10 @@ package model
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type CreateMessageInput struct {
@@ -33,12 +36,13 @@ type MessageItem struct {
 }
 
 type ListMessagesFilter struct {
-	UserID   string
-	RoleCode string
-	Type     string
-	Status   string
-	Page     int64
-	PageSize int64
+	UserID    string
+	RoleCode  string
+	RoleCodes []string
+	Type      string
+	Status    string
+	Page      int64
+	PageSize  int64
 }
 
 type ListMessagesResult struct {
@@ -100,18 +104,19 @@ RETURNING id::text
 func (m *MessageModel) ListMessages(ctx context.Context, filter ListMessagesFilter) (ListMessagesResult, error) {
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize
+	roleCodes := normalizeMessageRoleCodes(filter.RoleCode, filter.RoleCodes)
 	rows, err := m.db.QueryContext(ctx, `
 SELECT id::text, message_type, COALESCE(trigger_id::text, ''), title, content, COALESCE(target_url, ''), status, created_at, COUNT(*) OVER() AS total
 FROM messages
 WHERE (
-    ($1 <> '' AND recipient_user_id = $1::bigint)
-    OR ($2 <> '' AND recipient_role_code = $2)
+    ($1 <> '' AND recipient_user_id = NULLIF($1, '')::bigint)
+    OR recipient_role_code = ANY($2::text[])
   )
   AND ($3 = '' OR message_type = $3)
   AND ($4 = '' OR status = $4)
 ORDER BY created_at DESC
 LIMIT $5 OFFSET $6
-`, filter.UserID, filter.RoleCode, filter.Type, filter.Status, pageSize, offset)
+`, filter.UserID, pq.Array(roleCodes), filter.Type, filter.Status, pageSize, offset)
 	if err != nil {
 		return ListMessagesResult{}, err
 	}
@@ -132,19 +137,37 @@ LIMIT $5 OFFSET $6
 	return result, nil
 }
 
-func (m *MessageModel) ReadMessage(ctx context.Context, userID string, roleCode string, messageID string) (ReadMessageResult, error) {
+func (m *MessageModel) ReadMessage(ctx context.Context, userID string, roleCodes []string, messageID string) (ReadMessageResult, error) {
 	var result ReadMessageResult
+	roleCodes = normalizeMessageRoleCodes("", roleCodes)
 	err := m.db.QueryRowContext(ctx, `
 UPDATE messages
 SET status = 'read', read_at = now()
 WHERE id = $1
   AND (
     ($2 <> '' AND recipient_user_id = NULLIF($2, '')::bigint)
-    OR ($3 <> '' AND recipient_role_code = $3)
+    OR recipient_role_code = ANY($3::text[])
   )
 RETURNING id::text, status
-`, messageID, userID, roleCode).Scan(&result.ID, &result.Status)
+`, messageID, userID, pq.Array(roleCodes)).Scan(&result.ID, &result.Status)
 	return result, err
+}
+
+func normalizeMessageRoleCodes(primary string, values []string) []string {
+	seen := map[string]struct{}{}
+	roleCodes := make([]string, 0, len(values)+1)
+	for _, value := range append([]string{primary}, values...) {
+		roleCode := strings.TrimSpace(value)
+		if roleCode == "" {
+			continue
+		}
+		if _, ok := seen[roleCode]; ok {
+			continue
+		}
+		seen[roleCode] = struct{}{}
+		roleCodes = append(roleCodes, roleCode)
+	}
+	return roleCodes
 }
 
 func (m *MessageModel) MarkExpiredResources(ctx context.Context) ([]LifecycleResource, error) {

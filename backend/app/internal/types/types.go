@@ -40,6 +40,30 @@ type AdminBatchGenerateMapObjectsResp struct {
 	Items []MapObjectItem `json:"items"`
 }
 
+type AdminCreateResourceTypeConfigReq struct {
+	CityCode         string                 `json:"cityCode"`
+	TypeCode         string                 `json:"typeCode"`
+	TypeName         string                 `json:"typeName"`
+	Direction        string                 `json:"direction"`
+	GroupCode        string                 `json:"groupCode"`
+	GroupName        string                 `json:"groupName"`
+	GroupSort        int64                  `json:"groupSort,optional"`
+	FieldSchema      map[string]interface{} `json:"fieldSchema,optional"`
+	RequiredFields   []string               `json:"requiredFields,optional"`
+	FilterFields     []string               `json:"filterFields,optional"`
+	DisplayTemplate  map[string]interface{} `json:"displayTemplate,optional"`
+	ReviewRules      map[string]interface{} `json:"reviewRules,optional"`
+	SortWeights      map[string]interface{} `json:"sortWeights,optional"`
+	MessageRules     map[string]interface{} `json:"messageRules,optional"`
+	DefaultValidDays int64                  `json:"defaultValidDays,optional"`
+	Status           string                 `json:"status,optional"`
+}
+
+type AdminCreateResourceTypeConfigResp struct {
+	Id        string `json:"id"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
 type AdminDashboardMetrics struct {
 	PendingResourceCount     int64 `json:"pendingResourceCount"`
 	PendingVerificationCount int64 `json:"pendingVerificationCount"`
@@ -169,30 +193,6 @@ type AdminListResourceTypeConfigsReq struct {
 
 type AdminListResourceTypeConfigsResp struct {
 	Items []AdminResourceTypeConfigItem `json:"items"`
-}
-
-type AdminCreateResourceTypeConfigReq struct {
-	CityCode         string                 `json:"cityCode"`
-	TypeCode         string                 `json:"typeCode"`
-	TypeName         string                 `json:"typeName"`
-	Direction        string                 `json:"direction"`
-	GroupCode        string                 `json:"groupCode"`
-	GroupName        string                 `json:"groupName"`
-	GroupSort        int64                  `json:"groupSort,optional"`
-	FieldSchema      map[string]interface{} `json:"fieldSchema,optional"`
-	RequiredFields   []string               `json:"requiredFields,optional"`
-	FilterFields     []string               `json:"filterFields,optional"`
-	DisplayTemplate  map[string]interface{} `json:"displayTemplate,optional"`
-	ReviewRules      map[string]interface{} `json:"reviewRules,optional"`
-	SortWeights      map[string]interface{} `json:"sortWeights,optional"`
-	MessageRules     map[string]interface{} `json:"messageRules,optional"`
-	DefaultValidDays int64                  `json:"defaultValidDays,optional"`
-	Status           string                 `json:"status,optional"`
-}
-
-type AdminCreateResourceTypeConfigResp struct {
-	Id        string `json:"id"`
-	UpdatedAt string `json:"updatedAt"`
 }
 
 type AdminListVIPPlansResp struct {
@@ -742,7 +742,6 @@ type CreateVIPOrderResp struct {
 }
 
 type CreateVIPPaymentReq struct {
-	UserId string `json:"userId,optional"`
 }
 
 type CreateVIPPaymentResp struct {
@@ -752,7 +751,6 @@ type CreateVIPPaymentResp struct {
 }
 
 type CreateVerificationPaymentReq struct {
-	UserId string `json:"userId,optional"`
 }
 
 type CreateVerificationPaymentResp struct {
@@ -979,8 +977,6 @@ type ListMerchantEntitlementsResp struct {
 }
 
 type ListMessagesReq struct {
-	UserId   string `form:"userId,optional"`
-	RoleCode string `form:"roleCode,optional"`
 	Type     string `form:"type,optional"`
 	Status   string `form:"status,optional"`
 	Page     int64  `form:"page,optional"`
@@ -1338,8 +1334,6 @@ type QuotaPackInfo struct {
 }
 
 type ReadMessageReq struct {
-	UserId   string `json:"userId,optional"`
-	RoleCode string `json:"roleCode,optional"`
 }
 
 type ReadMessageResp struct {

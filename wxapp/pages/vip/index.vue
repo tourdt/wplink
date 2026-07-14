@@ -3,6 +3,7 @@
     <view class="vip-tabs">
       <button :class="['vip-tab', activeTab === 'vip' ? 'active' : '']" @click="switchTab('vip')">VIP权益包</button>
       <button :class="['vip-tab', activeTab === 'addons' ? 'active' : '']" @click="switchTab('addons')">购买次数</button>
+      <button :class="['vip-tab', activeTab === 'top' ? 'active' : '']" @click="switchTab('top')">置顶券</button>
     </view>
 
     <view v-if="activeTab === 'vip'" class="tab-panel">
@@ -30,7 +31,7 @@
       </button>
     </view>
 
-    <view v-else class="tab-panel">
+    <view v-else-if="activeTab === 'addons'" class="tab-panel">
       <view class="quota-pack-list">
         <view v-for="item in displayAddOnPacks" :key="item.code" class="quota-pack-card">
           <view class="pack-main">
@@ -47,9 +48,27 @@
       </view>
     </view>
 
+    <view v-else class="tab-panel">
+      <view class="quota-pack-list">
+        <view v-for="item in displayTopVoucherPacks" :key="item.code" class="quota-pack-card">
+          <view class="pack-main">
+            <text class="pack-title">{{ item.name }}</text>
+            <text class="pack-meta">{{ packMetaText(item) }}</text>
+          </view>
+          <view class="pack-action">
+            <text class="pack-price">{{ packPriceText(item) }}</text>
+            <button class="pack-button" :disabled="payingPackCode === item.code" @click="openQuotaPack(item)">
+              {{ payingPackCode === item.code ? '购买中' : packActionText(item) }}
+            </button>
+          </view>
+        </view>
+      </view>
+    </view>
+
     <view class="rules-panel">
       <text class="rules-title">权益有效期说明</text>
-      <text class="rules-text">VIP 赠送的发布额度和刷新次数均在发放后 30 天内有效，未使用完不结转。</text>
+      <text class="rules-text">VIP 赠送的发布额度、刷新次数和置顶券均在发放后 30 天内有效，未使用完不结转。</text>
+      <text class="rules-text">每张置顶券可让 1 条已发布供需信息置顶 24 小时。</text>
       <text class="rules-text">单独购买的次数包有效期 180 天，到期未使用自动失效。</text>
     </view>
   </view>
@@ -70,9 +89,17 @@ const selectedPlanCode = ref('yearly')
 const activeTab = ref('vip')
 const paying = ref(false)
 const payingPackCode = ref('')
-const addOnPacks = [
+const fallbackQuotaPacks = [
   { code: 'publish_5', name: '发布次数包', standardPriceCent: 2500, salePriceCent: 2500, actionText: '¥25 购买', description: '临时多发供需', benefits: { publishQuota: 5 } },
   { code: 'refresh_10', name: '刷新次数包', standardPriceCent: 1900, salePriceCent: 1900, actionText: '¥19 购买', description: '让信息回到前面', benefits: { refreshQuota: 10 } },
+]
+const fallbackTopVoucherPacks = [
+  { code: 'top_1d', name: '1天置顶券', standardPriceCent: 10000, salePriceCent: 10000, actionText: '¥100 购买', description: '单张可置顶 1 天', benefits: { topVoucherCount: 1, topDurationHours: 24 } },
+  { code: 'top_3d', name: '3天置顶券', standardPriceCent: 20000, salePriceCent: 20000, actionText: '¥200 购买', description: '单张可置顶 3 天', benefits: { topVoucherCount: 1, topDurationHours: 72 } },
+  { code: 'top_5d', name: '5天置顶券', standardPriceCent: 30000, salePriceCent: 30000, actionText: '¥300 购买', description: '单张可置顶 5 天', benefits: { topVoucherCount: 1, topDurationHours: 120 } },
+  { code: 'top_7d', name: '7天置顶券', standardPriceCent: 40000, salePriceCent: 40000, actionText: '¥400 购买', description: '单张可置顶 7 天', benefits: { topVoucherCount: 1, topDurationHours: 168 } },
+  { code: 'top_15d', name: '15天置顶券', standardPriceCent: 60000, salePriceCent: 60000, actionText: '¥600 购买', description: '单张可置顶 15 天', benefits: { topVoucherCount: 1, topDurationHours: 360 } },
+  { code: 'top_30d', name: '30天置顶券', standardPriceCent: 90000, salePriceCent: 90000, actionText: '¥900 购买', description: '单张可置顶 30 天', benefits: { topVoucherCount: 1, topDurationHours: 720 } },
 ]
 
 const displayPlans = computed(() => {
@@ -85,12 +112,19 @@ const displayPlans = computed(() => {
 })
 
 const displayAddOnPacks = computed(() => {
-  if (quotaPacks.value.length > 0) return filterAvailableQuotaPacks(quotaPacks.value)
-  return filterAvailableQuotaPacks(addOnPacks)
+  const packs = quotaPacks.value.filter((item) => !isTopVoucherPack(item))
+  return packs.length > 0 ? packs : fallbackQuotaPacks
+})
+
+const displayTopVoucherPacks = computed(() => {
+  const packs = quotaPacks.value.filter(isTopVoucherPack)
+  return packs.length > 0 ? packs : fallbackTopVoucherPacks
 })
 
 onLoad((options = {}) => {
   merchantId.value = options.merchantId || getSession().merchantId || ''
+  if (options.tab === 'addons') activeTab.value = 'addons'
+  if (options.tab === 'top') activeTab.value = 'top'
   loadVIPData()
 })
 
@@ -118,7 +152,7 @@ async function loadPlans() {
 async function loadQuotaPacks() {
   try {
     const resp = await listQuotaPacks()
-    quotaPacks.value = filterAvailableQuotaPacks(resp.items || [])
+    quotaPacks.value = resp.items || []
   } catch (err) {
     quotaPacks.value = []
   }
@@ -158,7 +192,7 @@ async function openQuotaPack(item) {
   payingPackCode.value = item.code
   try {
     const order = await createQuotaPackOrder(merchantId.value, item.code)
-    await payOrder(order, '次数包已到账')
+    await payOrder(order, isTopVoucherPack(item) ? '置顶券已到账' : '次数包已到账')
   } catch (err) {
     uni.showToast({ title: err.message || '支付未完成，请稍后重试', icon: 'none' })
   } finally {
@@ -208,6 +242,11 @@ function packValueText(item) {
   return item.value || '权益次数包'
 }
 
+function isTopVoucherPack(item) {
+  const benefits = item.benefits || {}
+  return Boolean(benefits.topVoucherCount)
+}
+
 function packPriceText(item) {
   return formatPrice(item.salePriceCent || item.standardPriceCent)
 }
@@ -219,16 +258,12 @@ function packActionText(item) {
 function planBenefitText(plan) {
   const benefits = plan.benefits || {}
   const periodText = Number(plan.durationMonths || 1) > 1 ? '每 30 天到账' : '开通后到账'
-  return `${periodText}：${benefits.publishQuota || 80} 条发布额度 · ${benefits.refreshQuota || 30} 次刷新`
-}
-
-function filterAvailableQuotaPacks(items = []) {
-  return items.filter((item) => !isTopVoucherPack(item))
-}
-
-function isTopVoucherPack(item) {
-  const benefits = item.benefits || {}
-  return item.code === 'top_3' || Boolean(benefits.topVoucherCount)
+  const parts = [
+    `${benefits.publishQuota || 80} 条发布额度`,
+    `${benefits.refreshQuota || 30} 次刷新`,
+  ]
+  if (benefits.topVoucherCount) parts.push(`${benefits.topVoucherCount} 张置顶券`)
+  return `${periodText}：${parts.join(' · ')}`
 }
 
 function planDisplayName(plan) {
@@ -262,7 +297,7 @@ function fallbackPlan(code, name, durationMonths, standardPriceCent, salePriceCe
     standardPriceCent,
     salePriceCent,
     saleLabel,
-    benefits: { publishQuota: 80, refreshQuota: 30 },
+    benefits: { publishQuota: 80, refreshQuota: 30, topVoucherCount: 3, topDurationHours: 24 },
   }
 }
 </script>
@@ -302,7 +337,7 @@ function fallbackPlan(code, name, durationMonths, standardPriceCent, salePriceCe
 
 .vip-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8rpx;
   padding: 8rpx;
 }

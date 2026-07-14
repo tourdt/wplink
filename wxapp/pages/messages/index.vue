@@ -33,13 +33,10 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { onLoad, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
-import { getSession } from '../../store/session'
+import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import { listMessages, readMessage } from '../../api/message'
 
 const rows = ref([])
-const userId = ref('')
-const roleCode = ref('')
 const filters = reactive({ status: '' })
 const page = ref(1)
 const pageSize = 20
@@ -65,12 +62,6 @@ const emptyTitle = computed(() => {
   return '暂无消息'
 })
 
-onLoad((options) => {
-  const session = getSession()
-  userId.value = options.userId || session.userId
-  roleCode.value = options.roleCode || (session.merchantId ? `merchant:${session.merchantId}` : '')
-})
-
 onShow(() => {
   loadRows({ reset: true })
 })
@@ -94,8 +85,6 @@ async function loadRows({ reset = true } = {}) {
   try {
     const nextPage = reset ? 1 : page.value + 1
     const resp = await listMessages({
-      userId: userId.value,
-      roleCode: roleCode.value,
       status: filters.status,
       page: nextPage,
       pageSize,
@@ -128,8 +117,8 @@ function selectStatusFromTab(item) {
 }
 
 async function markRead(item) {
-  if (item.status === 'read' || !userId.value) return
-  await readMessage(item.id, userId.value, roleCode.value)
+  if (item.status === 'read') return
+  await readMessage(item.id)
   item.status = 'read'
 }
 
@@ -150,16 +139,11 @@ async function openMessageTarget(item) {
 
 function buildMessageTargetUrl(item) {
   if (resourceMessageTypes.has(item.messageType) && item.triggerId) {
-    const merchantId = getMessageMerchantId(item)
+    const merchantId = getQueryParam(item.targetUrl, 'merchantId')
     if (!merchantId) return item.targetUrl
     return `/pages/resource/detail?id=${encodeURIComponent(item.triggerId)}&merchantId=${encodeURIComponent(merchantId)}&from=my-resources`
   }
   return item.targetUrl
-}
-
-function getMessageMerchantId(item) {
-  if (roleCode.value.startsWith('merchant:')) return roleCode.value.slice('merchant:'.length)
-  return getQueryParam(item.targetUrl, 'merchantId')
 }
 
 function getQueryParam(targetUrl, key) {

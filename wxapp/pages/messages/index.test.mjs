@@ -5,6 +5,7 @@ import test from 'node:test'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'pages/messages/index.vue'), 'utf8')
+const apiSource = fs.readFileSync(path.join(root, 'api/message.js'), 'utf8')
 const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
 
 test('messages page removes top copy and keeps only effective status filters', () => {
@@ -69,6 +70,16 @@ test('messages page enables native pull down refresh in page config', () => {
 
 test('messages page builds resource detail target from resource message trigger id', () => {
   assert.match(source, /const resourceMessageTypes = new Set\(\[[\s\S]*'resource_review'[\s\S]*'resource_lifecycle'[\s\S]*'resource_expired'[\s\S]*'resource_expiring'[\s\S]*'effect_feedback'[\s\S]*\]\)/)
-  assert.match(source, /function buildMessageTargetUrl\(item\) \{[\s\S]*if \(resourceMessageTypes\.has\(item\.messageType\) && item\.triggerId\)[\s\S]*return `\/pages\/resource\/detail\?id=\$\{encodeURIComponent\(item\.triggerId\)\}&merchantId=\$\{encodeURIComponent\(merchantId\)\}&from=my-resources`[\s\S]*return item\.targetUrl[\s\S]*\}/)
+  assert.match(source, /function buildMessageTargetUrl\(item\) \{[\s\S]*if \(resourceMessageTypes\.has\(item\.messageType\) && item\.triggerId\)[\s\S]*const merchantId = getQueryParam\(item\.targetUrl, 'merchantId'\)[\s\S]*return `\/pages\/resource\/detail\?id=\$\{encodeURIComponent\(item\.triggerId\)\}&merchantId=\$\{encodeURIComponent\(merchantId\)\}&from=my-resources`[\s\S]*return item\.targetUrl[\s\S]*\}/)
   assert.match(source, /const targetUrl = normalizeTargetUrl\(buildMessageTargetUrl\(item\)\)/)
+})
+
+test('messages page relies on backend token identity instead of cached user or merchant role', () => {
+  assert.doesNotMatch(source, /getSession/)
+  assert.doesNotMatch(source, /const userId = ref/)
+  assert.doesNotMatch(source, /const roleCode = ref/)
+  assert.doesNotMatch(source, /userId:/)
+  assert.doesNotMatch(source, /roleCode:/)
+  assert.match(source, /await readMessage\(item\.id\)/)
+  assert.match(apiSource, /export function readMessage\(messageId\) \{[\s\S]*url: `\/api\/v1\/messages\/\$\{messageId\}\/read`[\s\S]*method: 'POST'[\s\S]*data: \{\}/)
 })

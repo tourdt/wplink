@@ -141,10 +141,27 @@ test('vip membership migration supports online quota pack purchase products', ()
     "chk_vip_orders_product_type CHECK (product_type IN ('vip_plan', 'quota_pack'))",
     "('publish_5', '发布次数包'",
     "('refresh_10', '刷新次数包'",
-    "('top_3', '置顶券包'",
+    "('top_1d', '1天置顶券'",
+    "('top_3d', '3天置顶券'",
+    "('top_5d', '5天置顶券'",
+    "('top_7d', '7天置顶券'",
+    "('top_15d', '15天置顶券'",
+    "('top_30d', '30天置顶券'",
     '"publishQuota":5',
     '"refreshQuota":10',
-    '"topVoucherCount":3',
+    '"topVoucherCount":1',
+    '"topDurationHours":24',
+    '"topDurationHours":72',
+    '"topDurationHours":120',
+    '"topDurationHours":168',
+    '"topDurationHours":360',
+    '"topDurationHours":720',
+    '10000',
+    '20000',
+    '30000',
+    '40000',
+    '60000',
+    '90000',
   ]) {
     assert(vipSql.includes(snippet), `vip migration should include quota pack snippet ${snippet}`)
   }
@@ -166,6 +183,36 @@ test('vip migration backfills product columns for databases that already applied
     "CREATE TABLE IF NOT EXISTS vip_quota_packs",
   ]) {
     assert(repairSql.includes(snippet), `repair migration should include snippet ${snippet}`)
+  }
+})
+
+test('vip top voucher pack migration updates existing databases to multiple top durations', () => {
+  const topPackSql = fs.readFileSync(path.resolve(migrationsDir, '000022_top_voucher_pack_100.up.sql'), 'utf8')
+
+  for (const snippet of [
+    "('top_1d', '1天置顶券'",
+    "('top_3d', '3天置顶券'",
+    "('top_5d', '5天置顶券'",
+    "('top_7d', '7天置顶券'",
+    "('top_15d', '15天置顶券'",
+    "('top_30d', '30天置顶券'",
+    '10000',
+    '20000',
+    '30000',
+    '40000',
+    '60000',
+    '90000',
+    '"topVoucherCount":1',
+    '"topDurationHours":24',
+    '"topDurationHours":72',
+    '"topDurationHours":120',
+    '"topDurationHours":168',
+    '"topDurationHours":360',
+    '"topDurationHours":720',
+    "code IN ('top_1', 'top_3')",
+    "status = 'inactive'",
+  ]) {
+    assert(topPackSql.includes(snippet), `top voucher pack migration should include snippet ${snippet}`)
   }
 })
 

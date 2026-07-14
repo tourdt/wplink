@@ -193,6 +193,36 @@ SELECT EXISTS (
 	return exists, nil
 }
 
+func (m *UserModel) ListManagedMerchantIDs(ctx context.Context, userID string) ([]string, error) {
+	rows, err := m.db.QueryContext(ctx, `
+SELECT m.id::text
+FROM merchant_admin_bindings mab
+JOIN merchants m ON m.id = mab.merchant_id
+WHERE mab.user_id = $1
+  AND mab.status = 'active'
+  AND m.deleted_at IS NULL
+  AND m.status = 'active'
+ORDER BY m.created_at DESC
+`, strings.TrimSpace(userID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var merchantIDs []string
+	for rows.Next() {
+		var merchantID string
+		if err := rows.Scan(&merchantID); err != nil {
+			return nil, err
+		}
+		merchantID = strings.TrimSpace(merchantID)
+		if merchantID != "" {
+			merchantIDs = append(merchantIDs, merchantID)
+		}
+	}
+	return merchantIDs, rows.Err()
+}
+
 func (m *UserModel) ensureNormalUserRole(ctx context.Context, userID string) error {
 	_, err := m.db.ExecContext(ctx, `
 INSERT INTO user_role_assignments (user_id, role_id)

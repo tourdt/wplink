@@ -113,13 +113,14 @@ test('resource detail renders configured attribute items as specs', () => {
   assert.equal(source.includes("{ label: '价格', value: resource.value.priceText || '面议' }"), false)
 })
 
-test('resource detail soft-disables top voucher management action', () => {
-  assert.doesNotMatch(source, /import \{ redeemTopVoucher, listTopVouchers \} from '\.\.\/\.\.\/api\/entitlement'/)
-  assert.doesNotMatch(source, /供应展示中，可按需刷新、置顶或下架。/)
-  assert.match(source, /供应展示中，可按需刷新或下架。/)
-  assert.doesNotMatch(source, /key: 'top'/)
-  assert.doesNotMatch(source, /label: '置顶'/)
-  assert.doesNotMatch(source, /async function topOwnResource\(\)/)
-  assert.doesNotMatch(source, /listTopVouchers\(ownerMerchantId\.value\)/)
-  assert.doesNotMatch(source, /redeemTopVoucher\(voucher\.id, resource\.value\.id, ownerMerchantId\.value\)/)
+test('resource detail restores top voucher management action', () => {
+  assert.match(source, /import \{ listTopVouchers, redeemTopVoucher \} from '\.\.\/\.\.\/api\/entitlement'/)
+  assert.match(source, /供应展示中，可按需刷新、置顶或下架。/)
+  assert.match(source, /key: 'top'/)
+  assert.match(source, /label: '置顶'/)
+  assert.match(source, /async function topOwnResource\(\)/)
+  assert.match(source, /listTopVouchers\(ownerMerchantId\.value\)/)
+  assert.match(source, /redeemTopVoucher\(voucher\.id, resource\.value\.id, ownerMerchantId\.value\)/)
+  assert.match(source, /暂无可用置顶券，请先购买/)
+  assert.match(source, /tab=top/)
 })
