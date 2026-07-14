@@ -175,6 +175,9 @@ func validateProductionAPIRouterDependencies(store CityAPIStore, options apiRout
 	if _, ok := any(store).(authlogic.UserStore); !ok {
 		missing = append(missing, "UserStore")
 	}
+	if _, ok := any(store).(ResourceAPIStore); !ok {
+		missing = append(missing, "ResourceAPIStore")
+	}
 	if permissionStoreFromStore(store) == nil {
 		missing = append(missing, "MerchantPermissionStore")
 	}

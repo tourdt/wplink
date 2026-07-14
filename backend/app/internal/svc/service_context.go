@@ -40,6 +40,7 @@ type APIStore struct {
 	*model.MessageModel
 	*model.SearchLogModel
 	*model.ResourceContactEventModel
+	*model.ResourceContactUnlockModel
 	*model.ResourceMetricDailyModel
 	*model.OperationLogModel
 	*model.GrowthCampaignModel
@@ -97,24 +98,25 @@ func enabledAdminMasterPassword(c config.Config) string {
 
 func newAPIStore(db *sql.DB) *APIStore {
 	return &APIStore{
-		CityStationModel:          model.NewCityStationModel(db),
-		ResourceTypeConfigModel:   model.NewResourceTypeConfigModel(db),
-		AdminDashboardModel:       model.NewAdminDashboardModel(db),
-		UserModel:                 model.NewUserModel(db),
-		MerchantModel:             model.NewMerchantModel(db),
-		ResourceModel:             model.NewResourceModel(db),
-		BannerTopicModel:          model.NewBannerTopicModel(db),
-		HotSearchKeywordModel:     model.NewHotSearchKeywordModel(db),
-		VerificationModel:         model.NewVerificationModel(db),
-		MerchantEntitlementModel:  model.NewMerchantEntitlementModel(db),
-		VIPModel:                  model.NewVIPModel(db),
-		MessageModel:              model.NewMessageModel(db),
-		SearchLogModel:            model.NewSearchLogModel(db),
-		ResourceContactEventModel: model.NewResourceContactEventModel(db),
-		ResourceMetricDailyModel:  model.NewResourceMetricDailyModel(db),
-		OperationLogModel:         model.NewOperationLogModel(db),
-		GrowthCampaignModel:       model.NewGrowthCampaignModel(db),
-		FavoriteModel:             model.NewFavoriteModel(db),
-		MapModel:                  model.NewMapModel(db),
+		CityStationModel:           model.NewCityStationModel(db),
+		ResourceTypeConfigModel:    model.NewResourceTypeConfigModel(db),
+		AdminDashboardModel:        model.NewAdminDashboardModel(db),
+		UserModel:                  model.NewUserModel(db),
+		MerchantModel:              model.NewMerchantModel(db),
+		ResourceModel:              model.NewResourceModel(db),
+		BannerTopicModel:           model.NewBannerTopicModel(db),
+		HotSearchKeywordModel:      model.NewHotSearchKeywordModel(db),
+		VerificationModel:          model.NewVerificationModel(db),
+		MerchantEntitlementModel:   model.NewMerchantEntitlementModel(db),
+		VIPModel:                   model.NewVIPModel(db),
+		MessageModel:               model.NewMessageModel(db),
+		SearchLogModel:             model.NewSearchLogModel(db),
+		ResourceContactEventModel:  model.NewResourceContactEventModel(db),
+		ResourceContactUnlockModel: model.NewResourceContactUnlockModel(db),
+		ResourceMetricDailyModel:   model.NewResourceMetricDailyModel(db),
+		OperationLogModel:          model.NewOperationLogModel(db),
+		GrowthCampaignModel:        model.NewGrowthCampaignModel(db),
+		FavoriteModel:              model.NewFavoriteModel(db),
+		MapModel:                   model.NewMapModel(db),
 	}
 }

@@ -1,16 +1,6 @@
 <template>
   <view class="my-resources-page">
     <view class="filter-panel">
-      <view class="direction-row">
-        <button
-          v-for="item in directionOptions"
-          :key="item.value"
-          :class="['direction-button', filters.direction === item.value ? 'active' : '']"
-          @click="selectDirection(item.value)"
-        >
-          {{ item.label }}
-        </button>
-      </view>
       <view class="filter-row">
         <button
           v-for="item in statusOptions"
@@ -80,13 +70,7 @@ import { formatDateToDay } from '../../common/date'
 import { resourceTypeLabel } from '../../common/resourceCategories'
 
 const DEFAULT_RESOURCE_COVER = '/static/resource/default-resource-cover.png'
-const RESOURCE_DIRECTION_DEMAND = 'demand'
 
-const directionOptions = [
-  { label: '全部发布', value: '' },
-  { label: '供应发布', value: 'supply' },
-  { label: '需求发布', value: RESOURCE_DIRECTION_DEMAND },
-]
 const statusOptions = [
   { label: '全部', value: '' },
   { label: '待跟进', value: 'needs_action' },
@@ -104,7 +88,7 @@ const statusText = {
 
 const rows = ref([])
 const merchantId = ref('')
-const filters = reactive({ status: '', direction: '' })
+const filters = reactive({ status: '' })
 const page = ref(1)
 const pageSize = 20
 const total = ref(0)
@@ -136,7 +120,7 @@ async function loadRows({ reset = true } = {}) {
   loading.value = true
   try {
     const nextPage = reset ? 1 : page.value + 1
-    const resp = await listMyResources({ merchantId: merchantId.value, status: filters.status, direction: filters.direction, page: nextPage, pageSize })
+    const resp = await listMyResources({ merchantId: merchantId.value, status: filters.status, page: nextPage, pageSize })
     const items = resp.items || []
     rows.value = reset ? items : [...rows.value, ...items]
     page.value = nextPage
@@ -154,11 +138,6 @@ async function ensurePageMerchantProfile() {
   total.value = 0
   hasMore.value = false
   return false
-}
-
-function selectDirection(direction) {
-  filters.direction = direction
-  loadRows({ reset: true })
 }
 
 function selectStatus(status) {
@@ -390,7 +369,7 @@ function metricItems(item) {
   flex-direction: column;
   min-height: 100vh;
   padding: 24rpx;
-  padding-top: 220rpx;
+  padding-top: 132rpx;
   padding-bottom: calc(128rpx + env(safe-area-inset-bottom));
   overflow-x: hidden;
   background: $wplink-bg;
@@ -408,13 +387,6 @@ function metricItems(item) {
   overflow: hidden;
   background: $wplink-card;
   box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.06);
-}
-
-.direction-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12rpx;
-  margin-bottom: 14rpx;
 }
 
 .filter-row {
@@ -438,7 +410,6 @@ function metricItems(item) {
   box-shadow: 0 12rpx 28rpx rgba(6, 22, 37, 0.18);
 }
 
-.direction-button,
 .filter-button {
   display: flex;
   align-items: center;
@@ -457,13 +428,6 @@ function metricItems(item) {
   transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.direction-button {
-  height: 70rpx;
-  font-size: 26rpx;
-  font-weight: 700;
-}
-
-.direction-button.active,
 .filter-button.active {
   border-color: $wplink-primary;
   background: $wplink-primary;

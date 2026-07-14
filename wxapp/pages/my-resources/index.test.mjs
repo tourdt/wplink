@@ -35,8 +35,9 @@ test('my resources page pins status filters and uses a compact publish action', 
   assert.match(source, /<button class="publish-fab" @click="openPublish">发布<\/button>/)
   assert.match(source, /\.my-resources-page \{[\s\S]*display: flex;[\s\S]*flex-direction: column;/)
   assert.match(source, /\.my-resources-page \{[\s\S]*overflow-x: hidden;/)
-  assert.match(source, /\.my-resources-page \{[\s\S]*padding-top: 220rpx;/)
-  assert.match(source, /<view class="filter-panel">[\s\S]*<view class="direction-row">[\s\S]*<view class="filter-row">/)
+  assert.match(source, /\.my-resources-page \{[\s\S]*padding-top: 132rpx;/)
+  assert.match(source, /<view class="filter-panel">[\s\S]*<view class="filter-row">/)
+  assert.doesNotMatch(source, /<view class="direction-row">/)
   assert.match(source, /\.filter-panel \{[\s\S]*position: fixed;[\s\S]*top: 0;[\s\S]*right: 0;[\s\S]*left: 0;[\s\S]*z-index: 10;[\s\S]*padding: 24rpx 24rpx 16rpx;[\s\S]*overflow: hidden;[\s\S]*background: \$wplink-card;[\s\S]*box-shadow: 0 8rpx 20rpx rgba\(15, 23, 42, 0\.06\);/)
   assert.match(source, /\.filter-button \{[\s\S]*background: #f4f7fd;/)
   assert.doesNotMatch(source, /position: sticky;/)
@@ -51,7 +52,7 @@ test('my resources empty state is centered in the list display area', () => {
   assert.doesNotMatch(source, /发布供应或需求后，可在这里查看审核进度、曝光数据和推广效果。/)
 })
 
-test('my resources supports supply and demand direction filters', () => {
+test('my resources removes supply and demand direction tabs from list filtering', () => {
   for (const token of [
     'directionOptions',
     '全部发布',
@@ -60,12 +61,14 @@ test('my resources supports supply and demand direction filters', () => {
     'selectDirection',
     'RESOURCE_DIRECTION_DEMAND',
     'direction: filters.direction',
+    'direction-row',
+    'direction-button',
   ]) {
-    assert.match(source, new RegExp(token))
+    assert.doesNotMatch(source, new RegExp(token))
   }
 
-  assert.match(source, /const filters = reactive\(\{ status: '', direction: '' \}\)/)
-  assert.match(source, /listMyResources\(\{ merchantId: merchantId\.value, status: filters\.status, direction: filters\.direction, page: nextPage, pageSize \}\)/)
+  assert.match(source, /const filters = reactive\(\{ status: '' \}\)/)
+  assert.match(source, /listMyResources\(\{ merchantId: merchantId\.value, status: filters\.status, page: nextPage, pageSize \}\)/)
 })
 
 test('my resources card actions avoid a visible toolbar frame', () => {
