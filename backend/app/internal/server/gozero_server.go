@@ -31,6 +31,7 @@ func NewGoZeroServer(cfg config.Config, svcCtx *svc.ServiceContext, adminHandler
 		Path:    "/readyz",
 		Handler: readyzHandler(svcCtx),
 	})
+	registerGoctlHandlers(srv, svcCtx)
 	return srv, nil
 }
 

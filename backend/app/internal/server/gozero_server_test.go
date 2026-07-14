@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,8 @@ import (
 	"testing"
 
 	"wplink/backend/app/internal/config"
+	adminauthlogic "wplink/backend/app/internal/logic/adminauth"
+	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/svc"
 
 	"github.com/zeromicro/go-zero/rest"
@@ -32,11 +35,14 @@ func TestNewGoZeroServerMountsHealthAPIAndAdmin(t *testing.T) {
 		t.Fatalf("NewGoZeroServer() error = %v", err)
 	}
 	defer srv.Stop()
-	if hasRoute(srv.Routes(), http.MethodGet, "/api/v1/city-stations") {
-		t.Fatalf("routes = %#v, city stations should use single api fallback instead of dedicated go-zero route", srv.Routes())
+	if !hasRoute(srv.Routes(), http.MethodGet, "/api/v1/city-stations") {
+		t.Fatalf("routes = %#v, city stations should be registered as go-zero route", srv.Routes())
+	}
+	if !hasRoute(srv.Routes(), http.MethodGet, "/api/v1/city-stations/:cityCode/resource-types") {
+		t.Fatalf("routes = %#v, city resource types should be registered as go-zero route", srv.Routes())
 	}
 	if hasRoute(srv.Routes(), http.MethodGet, "/api/v1/me/resources/:resourceId/detail") {
-		t.Fatalf("routes = %#v, API routes should use single api fallback instead of compat go-zero routes", srv.Routes())
+		t.Fatalf("routes = %#v, unmigrated API routes should still use the compatibility fallback", srv.Routes())
 	}
 
 	healthRec := httptest.NewRecorder()
@@ -117,6 +123,53 @@ func TestGoZeroAdminLoginRouteUsesSingleAPIHandler(t *testing.T) {
 
 	if rec.Code != http.StatusOK || rec.Body.String() != "api:/api/v1/admin/auth/login" {
 		t.Fatalf("admin login response = %d %q, want single api handler", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGoZeroAdminLoginRouteUsesGoctlHandlerWhenDependencyReady(t *testing.T) {
+	loginService := &goZeroAdminLoginService{
+		resp: adminauthlogic.LoginResponse{
+			Token:  "token-1",
+			UserID: "user-1",
+			Roles:  []string{adminauthlogic.RoleSuperAdmin},
+		},
+	}
+	srv, err := NewGoZeroServer(
+		config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000},
+		&svc.ServiceContext{AdminLoginService: loginService},
+		nil,
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Fatalf("admin login should use goctl handler, got fallback path %s", r.URL.Path)
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewGoZeroServer() error = %v", err)
+	}
+	defer srv.Stop()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/login", strings.NewReader(`{"loginName":"operator","password":"secret123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin login response code = %d body = %q, want 200", rec.Code, rec.Body.String())
+	}
+	if loginService.req.LoginName != "operator" || loginService.req.Password != "secret123" {
+		t.Fatalf("login req = %#v, want parsed request from goctl handler", loginService.req)
+	}
+	var body struct {
+		Data struct {
+			Token  string   `json:"token"`
+			UserID string   `json:"userId"`
+			Roles  []string `json:"roles"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode admin login response: %v", err)
+	}
+	if body.Data.Token != "token-1" || body.Data.UserID != "user-1" || len(body.Data.Roles) != 1 || body.Data.Roles[0] != adminauthlogic.RoleSuperAdmin {
+		t.Fatalf("admin login data = %#v, want fake service response", body.Data)
 	}
 }
 
@@ -242,12 +295,35 @@ func (c readyzTestConn) Ping(ctx context.Context) error {
 	return c.pingErr
 }
 
-func TestGoZeroCityRoutesUseSingleAPIHandler(t *testing.T) {
-	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("api:" + r.URL.Path))
-	})
-	svcCtx := &svc.ServiceContext{CityStore: &fakeCityAPIStore{}}
-	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, svcCtx, nil, apiHandler)
+func TestGoZeroCityRoutesUseGoctlHandlers(t *testing.T) {
+	store := &fakeCityAPIStore{
+		stations: []model.CityStation{{
+			ID:              "city-1",
+			Code:            "zhili",
+			Name:            "织里",
+			PrimaryCategory: "童装",
+			Status:          "active",
+		}},
+		resourceTypes: []model.ResourceTypeConfig{{
+			ID:               "type-1",
+			TypeCode:         "stock_clearance",
+			TypeName:         "库存出售",
+			Direction:        model.ResourceDirectionDemand,
+			DefaultValidDays: 30,
+			RequiredFields:   []string{"title", "category"},
+			FilterFields:     []string{"category"},
+			DisplayTemplate:  model.JSONMap{"title": "title"},
+		}},
+	}
+	svcCtx := &svc.ServiceContext{CityStore: store}
+	srv, err := NewGoZeroServer(
+		config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000},
+		svcCtx,
+		nil,
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Fatalf("city route should use goctl handler, got fallback path %s", r.URL.Path)
+		}),
+	)
 	if err != nil {
 		t.Fatalf("NewGoZeroServer() error = %v", err)
 	}
@@ -255,14 +331,27 @@ func TestGoZeroCityRoutesUseSingleAPIHandler(t *testing.T) {
 
 	stationsRec := httptest.NewRecorder()
 	srv.ServeHTTP(stationsRec, httptest.NewRequest(http.MethodGet, "/api/v1/city-stations", nil))
-	if stationsRec.Code != http.StatusOK || stationsRec.Body.String() != "api:/api/v1/city-stations" {
-		t.Fatalf("stations response = %d %q, want single api handler", stationsRec.Code, stationsRec.Body.String())
+	if stationsRec.Code != http.StatusOK {
+		t.Fatalf("stations response = %d %q, want 200", stationsRec.Code, stationsRec.Body.String())
+	}
+	var stationsBody map[string]interface{}
+	if err := json.Unmarshal(stationsRec.Body.Bytes(), &stationsBody); err != nil {
+		t.Fatalf("decode stations response: %v", err)
+	}
+	stationsData := stationsBody["data"].(map[string]interface{})
+	stationsItems := stationsData["items"].([]interface{})
+	firstStation := stationsItems[0].(map[string]interface{})
+	if firstStation["id"] != "city-1" || firstStation["code"] != "zhili" {
+		t.Fatalf("first station = %#v, want generated types response", firstStation)
 	}
 
 	typesRec := httptest.NewRecorder()
-	srv.ServeHTTP(typesRec, httptest.NewRequest(http.MethodGet, "/api/v1/city-stations/zhili/resource-types", nil))
-	if typesRec.Code != http.StatusOK || typesRec.Body.String() != "api:/api/v1/city-stations/zhili/resource-types" {
-		t.Fatalf("types response = %d %q, want single api handler", typesRec.Code, typesRec.Body.String())
+	srv.ServeHTTP(typesRec, httptest.NewRequest(http.MethodGet, "/api/v1/city-stations/zhili/resource-types?direction=demand", nil))
+	if typesRec.Code != http.StatusOK {
+		t.Fatalf("types response = %d %q, want 200", typesRec.Code, typesRec.Body.String())
+	}
+	if store.cityCode != "zhili" || store.direction != model.ResourceDirectionDemand {
+		t.Fatalf("cityCode = %q direction = %q, want zhili/demand", store.cityCode, store.direction)
 	}
 }
 
@@ -273,4 +362,15 @@ func hasRoute(routes []rest.Route, method string, path string) bool {
 		}
 	}
 	return false
+}
+
+type goZeroAdminLoginService struct {
+	req  adminauthlogic.LoginRequest
+	resp adminauthlogic.LoginResponse
+	err  error
+}
+
+func (s *goZeroAdminLoginService) Login(ctx context.Context, req adminauthlogic.LoginRequest) (adminauthlogic.LoginResponse, error) {
+	s.req = req
+	return s.resp, s.err
 }
