@@ -105,6 +105,18 @@ test('my resources prompts for merchant profile before list and publish actions'
   assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善发布者资料'/)
 })
 
+test('my resources reconciles merchant id with current account before listing', () => {
+  assert.match(source, /import \{ requireLogin \} from '\.\.\/\.\.\/common\/auth'/)
+  assert.match(source, /import \{ getMerchantId, saveMerchantId \} from '\.\.\/\.\.\/store\/session'/)
+  assert.match(source, /import \{ getMe \} from '\.\.\/\.\.\/api\/auth'/)
+  assert.match(source, /const resolvedMerchantId = await resolveManagedMerchantId\(\)/)
+  assert.match(source, /const me = await getMe\(\{ suppressErrorToast: true \}\)/)
+  assert.match(source, /const matchedMerchant = managedMerchants\.find\(\(item\) => normalizeMerchantId\(item\.id\) === candidateMerchantId\)/)
+  assert.match(source, /const selectedMerchant = matchedMerchant \|\| managedMerchants\[0\]/)
+  assert.match(source, /saveMerchantId\(resolvedMerchantId\)/)
+  assert.match(source, /路由或旧缓存不匹配时同步修正/)
+})
+
 test('my resources restores top voucher actions for merchants', () => {
   assert.match(source, /import \{ listTopVouchers, redeemTopVoucher \} from '\.\.\/\.\.\/api\/entitlement'/)
   assert.match(source, /@click="topResource\(item\)">置顶<\/button>/)

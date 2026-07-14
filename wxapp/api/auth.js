@@ -8,10 +8,11 @@ export function wechatLogin(data) {
   })
 }
 
-export function getMe() {
+export function getMe(options = {}) {
   return request({
     url: '/api/v1/me',
     method: 'GET',
+    ...options,
   })
 }
 

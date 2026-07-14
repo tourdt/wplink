@@ -1,19 +1,24 @@
-import { STORAGE_KEYS } from '../common/constants'
+import { STORAGE_KEYS } from '../common/constants.js'
 
 export function getSession() {
   return {
-    token: uni.getStorageSync(STORAGE_KEYS.token) || '',
-    userId: uni.getStorageSync(STORAGE_KEYS.userId) || '',
-    merchantId: uni.getStorageSync(STORAGE_KEYS.merchantId) || '',
+    token: normalizeSessionValue(uni.getStorageSync(STORAGE_KEYS.token)),
+    userId: normalizeSessionValue(uni.getStorageSync(STORAGE_KEYS.userId)),
+    merchantId: normalizeSessionValue(uni.getStorageSync(STORAGE_KEYS.merchantId)),
   }
 }
 
 export function saveMerchantId(merchantId) {
-  uni.setStorageSync(STORAGE_KEYS.merchantId, merchantId)
+  const value = normalizeSessionValue(merchantId)
+  if (!value) {
+    uni.removeStorageSync(STORAGE_KEYS.merchantId)
+    return
+  }
+  uni.setStorageSync(STORAGE_KEYS.merchantId, value)
 }
 
 export function saveToken(token) {
-  uni.setStorageSync(STORAGE_KEYS.token, token)
+  uni.setStorageSync(STORAGE_KEYS.token, normalizeSessionValue(token))
 }
 
 export function clearSession() {
@@ -23,13 +28,18 @@ export function clearSession() {
 }
 
 export function getMerchantId() {
-  return uni.getStorageSync(STORAGE_KEYS.merchantId) || ''
+  return normalizeSessionValue(uni.getStorageSync(STORAGE_KEYS.merchantId))
 }
 
 export function saveUserId(userId) {
-  uni.setStorageSync(STORAGE_KEYS.userId, userId)
+  uni.setStorageSync(STORAGE_KEYS.userId, normalizeSessionValue(userId))
 }
 
 export function getUserId() {
-  return uni.getStorageSync(STORAGE_KEYS.userId) || ''
+  return normalizeSessionValue(uni.getStorageSync(STORAGE_KEYS.userId))
+}
+
+function normalizeSessionValue(value) {
+  if (value === undefined || value === null) return ''
+  return String(value).trim()
 }

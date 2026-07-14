@@ -59,9 +59,13 @@ async function restoreManagedMerchantId(loginResp = {}) {
     const managedMerchant = managedMerchants[0]
     if (managedMerchant?.id) {
       saveMerchantId(managedMerchant.id)
+      return
     }
+    // 当前账号没有可管理商家时必须清理旧缓存，避免换号后继续用上一个账号的商家 ID 请求业务接口。
+    saveMerchantId('')
   } catch (err) {
     // 登录主链路已成功，商户身份恢复失败时保持未配置状态，避免阻断用户进入。
+    saveMerchantId('')
   }
 }
 

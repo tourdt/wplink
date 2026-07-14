@@ -62,8 +62,10 @@
 import { reactive, ref } from 'vue'
 import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import MetricStrip from '../../components/MetricStrip.vue'
+import { requireLogin } from '../../common/auth'
 import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
-import { getMerchantId } from '../../store/session'
+import { getMerchantId, saveMerchantId } from '../../store/session'
+import { getMe } from '../../api/auth'
 import { listTopVouchers, redeemTopVoucher } from '../../api/entitlement'
 import { deleteTakenDownResource, getOwnResource, listMyResources, refreshResource, takeDownResource } from '../../api/resource'
 import { formatDateToDay } from '../../common/date'
@@ -132,12 +134,42 @@ async function loadRows({ reset = true } = {}) {
 }
 
 async function ensurePageMerchantProfile() {
-  merchantId.value = merchantId.value || getMerchantId()
+  if (!requireLogin()) return false
+  const resolvedMerchantId = await resolveManagedMerchantId()
+  if (!requireLogin()) return false
+  if (resolvedMerchantId) {
+    merchantId.value = resolvedMerchantId
+  }
   if (await ensureMerchantProfileReady(merchantId.value)) return true
   rows.value = []
   total.value = 0
   hasMore.value = false
   return false
+}
+
+async function resolveManagedMerchantId() {
+  const candidateMerchantId = normalizeMerchantId(merchantId.value || getMerchantId())
+  try {
+    const me = await getMe({ suppressErrorToast: true })
+    const managedMerchants = Array.isArray(me.managedMerchants) ? me.managedMerchants : []
+    const matchedMerchant = managedMerchants.find((item) => normalizeMerchantId(item.id) === candidateMerchantId)
+    const selectedMerchant = matchedMerchant || managedMerchants[0]
+    const resolvedMerchantId = normalizeMerchantId(selectedMerchant?.id)
+    if (resolvedMerchantId) {
+      // 我的发布必须使用当前 token 可管理的商家 ID；路由或旧缓存不匹配时同步修正，避免被后端权限拦截。
+      saveMerchantId(resolvedMerchantId)
+      return resolvedMerchantId
+    }
+    saveMerchantId('')
+    return ''
+  } catch (err) {
+    // 身份接口异常时不清理候选值，保留后续业务接口给出更准确的登录或网络错误。
+    return candidateMerchantId
+  }
+}
+
+function normalizeMerchantId(value) {
+  return String(value || '').trim()
 }
 
 function selectStatus(status) {

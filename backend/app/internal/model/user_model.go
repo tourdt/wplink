@@ -33,6 +33,29 @@ type UserModel struct {
 	db *sql.DB
 }
 
+const listManagedMerchantsSQL = `
+SELECT m.id::text, m.name, mab.role, COALESCE(NULLIF(m.profile_status, ''), 'completed')
+FROM merchant_admin_bindings mab
+JOIN merchants m ON m.id = mab.merchant_id
+WHERE mab.user_id = $1
+  AND mab.status = 'active'
+  AND m.deleted_at IS NULL
+  AND m.status = 'active'
+ORDER BY m.created_at DESC
+`
+
+const getFirstManagedMerchantSQL = `
+SELECT m.id::text, m.name, mab.role, COALESCE(NULLIF(m.profile_status, ''), 'completed')
+FROM merchant_admin_bindings mab
+JOIN merchants m ON m.id = mab.merchant_id
+WHERE mab.user_id = $1
+  AND mab.status = 'active'
+  AND m.deleted_at IS NULL
+  AND m.status = 'active'
+ORDER BY m.created_at DESC
+LIMIT 1
+`
+
 func NewUserModel(db *sql.DB) *UserModel {
 	return &UserModel{db: db}
 }
@@ -266,15 +289,7 @@ ORDER BY r.code ASC
 }
 
 func (m *UserModel) listManagedMerchants(ctx context.Context, userID string) ([]ManagedMerchantInfo, error) {
-	rows, err := m.db.QueryContext(ctx, `
-SELECT m.id::text, m.name, mab.role, COALESCE(NULLIF(m.profile_status, ''), 'completed')
-FROM merchant_admin_bindings mab
-JOIN merchants m ON m.id = mab.merchant_id
-WHERE mab.user_id = $1
-  AND mab.status = 'active'
-  AND m.deleted_at IS NULL
-ORDER BY m.created_at DESC
-`, userID)
+	rows, err := m.db.QueryContext(ctx, listManagedMerchantsSQL, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -294,16 +309,7 @@ ORDER BY m.created_at DESC
 
 func getFirstManagedMerchant(ctx context.Context, tx *sql.Tx, userID string) (ManagedMerchantInfo, error) {
 	var merchant ManagedMerchantInfo
-	err := tx.QueryRowContext(ctx, `
-SELECT m.id::text, m.name, mab.role, COALESCE(NULLIF(m.profile_status, ''), 'completed')
-FROM merchant_admin_bindings mab
-JOIN merchants m ON m.id = mab.merchant_id
-WHERE mab.user_id = $1
-  AND mab.status = 'active'
-  AND m.deleted_at IS NULL
-ORDER BY m.created_at DESC
-LIMIT 1
-`, userID).Scan(&merchant.ID, &merchant.Name, &merchant.Role, &merchant.ProfileStatus)
+	err := tx.QueryRowContext(ctx, getFirstManagedMerchantSQL, userID).Scan(&merchant.ID, &merchant.Name, &merchant.Role, &merchant.ProfileStatus)
 	merchant.ProfileStatus = normalizeMerchantProfileStatus(merchant.ProfileStatus)
 	return merchant, err
 }

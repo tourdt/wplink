@@ -17,6 +17,8 @@ test('login restores merchant id from managed merchants after token is saved', (
   assert.match(source, /managedMerchants = me\.managedMerchants \|\| \[\]/)
   assert.match(source, /const managedMerchant = managedMerchants\[0\]/)
   assert.match(source, /if \(managedMerchant\?\.id\) \{[\s\S]*saveMerchantId\(managedMerchant\.id\)/)
+  assert.match(source, /当前账号没有可管理商家时必须清理旧缓存/)
+  assert.match(source, /saveMerchantId\(''\)/)
 })
 
 test('login uses stable local dev code when connected to local api', () => {
