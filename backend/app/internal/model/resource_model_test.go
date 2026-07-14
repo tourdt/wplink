@@ -10,7 +10,9 @@ func TestListResourcesSQLAllowsEmptyMerchantID(t *testing.T) {
 		"NULLIF($3, '')::bigint",
 		"r.merchant_id = NULLIF($3, '')::bigint",
 		"r.direction",
-		"($5 = '' OR r.direction = $5)",
+		"rtc.type_name",
+		"rtc.display_template #>> '{group,code}' = $4",
+		"($6 = '' OR r.direction = $6)",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(listResourcesSQL, snippet) {

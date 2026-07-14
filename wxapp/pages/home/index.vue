@@ -132,8 +132,6 @@ const headerMetrics = ref({
 })
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const PUBLISH_TYPE_KEY = 'wplink_pending_publish_type_code'
-const RESOURCE_DIRECTION_SUPPLY = 'supply'
-const RESOURCE_DIRECTION_DEMAND = 'demand'
 const SEARCH_BLOCK_RPX = 116
 const defaultBanners = [
   {
@@ -164,12 +162,11 @@ const defaultBanners = [
   },
   {
     id: 'default-demand',
-    kindText: '看需求 · 找供应',
+    kindText: '类目入口 · 找供应',
     title: '附近需求正在更新',
     jumpType: 'search',
-    jumpTarget: '找现货',
-    typeCode: 'buy_goods',
-    direction: RESOURCE_DIRECTION_DEMAND,
+    jumpTarget: '求购',
+    groupCode: 'kids_wholesale',
     tone: 'order',
   },
   {
@@ -178,15 +175,18 @@ const defaultBanners = [
     title: '库存和产能可直接上架',
     jumpType: 'publish',
     jumpTarget: '/pages/publish/index',
-    direction: RESOURCE_DIRECTION_SUPPLY,
     tone: 'publish',
   },
 ]
 const sceneEntries = [
-  { title: '现货货源', tone: 'navy', icon: 'market', direction: RESOURCE_DIRECTION_SUPPLY, typeCode: 'goods', keyword: '现货' },
-  { title: '库存清仓', tone: 'red', icon: 'clearance', direction: RESOURCE_DIRECTION_SUPPLY, typeCode: 'inventory', keyword: '库存' },
-  { title: '工厂接单', tone: 'teal', icon: 'factory', direction: RESOURCE_DIRECTION_SUPPLY, typeCode: 'factory', keyword: '小单快返' },
-  { title: '看需求', tone: 'amber', icon: 'orders', direction: RESOURCE_DIRECTION_DEMAND, typeCode: 'buy_goods', keyword: '找现货' },
+  { title: '童装批发', tone: 'navy', icon: 'market', groupCode: 'kids_wholesale', keyword: '童装' },
+  { title: '面料辅料', tone: 'red', icon: 'clearance', groupCode: 'materials', keyword: '面料辅料' },
+  { title: '加工生产', tone: 'teal', icon: 'factory', groupCode: 'production', keyword: '加工' },
+  { title: '招聘求职', tone: 'amber', icon: 'orders', groupCode: 'jobs', keyword: '招聘' },
+  { title: '商铺办公', tone: 'navy', icon: 'market', groupCode: 'shop_office', keyword: '商铺办公' },
+  { title: '住宅公寓', tone: 'red', icon: 'clearance', groupCode: 'housing', keyword: '住宅公寓' },
+  { title: '厂房仓库', tone: 'teal', icon: 'factory', groupCode: 'factory_warehouse', keyword: '厂房仓库' },
+  { title: '本地服务', tone: 'amber', icon: 'orders', groupCode: 'local_services', keyword: '本地服务' },
   { title: '拿货地图', tone: 'green', icon: 'map', action: 'sourcing-map' },
 ]
 const displayBanners = computed(() => {
@@ -275,11 +275,11 @@ function handleBannerChange(event) {
 
 function openBanner(item) {
   if (item.keyword) {
-    openSearch({ keyword: item.keyword, typeCode: item.typeCode, direction: item.direction })
+    openSearch({ keyword: item.keyword, groupCode: item.groupCode, typeCode: item.typeCode })
     return
   }
   if (item.jumpType === 'search') {
-    openSearch({ keyword: item.jumpTarget, typeCode: item.typeCode, direction: item.direction })
+    openSearch({ keyword: item.jumpTarget, groupCode: item.groupCode, typeCode: item.typeCode })
     return
   }
   if (item.jumpType === 'topic') {
@@ -299,7 +299,7 @@ function openBanner(item) {
     return
   }
   if (item.jumpType === 'publish') {
-    openPublish({ typeCode: item.typeCode || '', direction: item.direction || RESOURCE_DIRECTION_SUPPLY })
+    openPublish({ typeCode: item.typeCode || '' })
     return
   }
   if (item.jumpType === 'internal' && item.jumpTarget) {
@@ -314,7 +314,7 @@ function openScene(item) {
     openSourcingMap()
     return
   }
-  openSearch({ keyword: item.keyword, typeCode: item.typeCode, direction: item.direction })
+  openSearch({ keyword: item.keyword, groupCode: item.groupCode, typeCode: item.typeCode })
 }
 
 function openSourcingMap() {
@@ -327,8 +327,7 @@ function openRecommendCard(item) {
 
 function openSearch(options = {}) {
   const searchOptions = typeof options === 'string' ? { keyword: options } : { ...options }
-  searchOptions.direction = normalizeResourceDirection(searchOptions.direction) || RESOURCE_DIRECTION_SUPPLY
-  if (searchOptions.keyword || searchOptions.typeCode || searchOptions.cityCode || searchOptions.direction) {
+  if (searchOptions.keyword || searchOptions.groupCode || searchOptions.typeCode || searchOptions.cityCode) {
     uni.setStorageSync(SEARCH_KEY, searchOptions)
   } else {
     uni.removeStorageSync(SEARCH_KEY)
@@ -338,8 +337,7 @@ function openSearch(options = {}) {
 
 function openPublish(options = {}) {
   const publishOptions = typeof options === 'string' ? { typeCode: options } : { ...options }
-  publishOptions.direction = normalizeResourceDirection(publishOptions.direction) || RESOURCE_DIRECTION_SUPPLY
-  if (publishOptions.typeCode || publishOptions.direction) {
+  if (publishOptions.typeCode) {
     uni.setStorageSync(PUBLISH_TYPE_KEY, publishOptions)
   } else {
     uni.removeStorageSync(PUBLISH_TYPE_KEY)
@@ -358,11 +356,11 @@ function openInternal(url) {
     const query = url.split('?')[1] || ''
     const keywordPair = query.split('&').find((item) => item.startsWith('keyword=') || item.startsWith('q='))
     const typePair = query.split('&').find((item) => item.startsWith('typeCode='))
-    const directionPair = query.split('&').find((item) => item.startsWith('direction='))
+    const groupPair = query.split('&').find((item) => item.startsWith('groupCode='))
     const keyword = keywordPair ? decodeURIComponent(keywordPair.split('=')[1] || '') : ''
     const typeCode = typePair ? decodeURIComponent(typePair.split('=')[1] || '') : ''
-    const direction = directionPair ? decodeURIComponent(directionPair.split('=')[1] || '') : ''
-    openSearch({ keyword, typeCode, direction })
+    const groupCode = groupPair ? decodeURIComponent(groupPair.split('=')[1] || '') : ''
+    openSearch({ keyword, groupCode, typeCode })
     return
   }
   if (tabPages.includes(path)) {
@@ -370,10 +368,6 @@ function openInternal(url) {
     return
   }
   uni.navigateTo({ url })
-}
-
-function normalizeResourceDirection(value) {
-  return [RESOURCE_DIRECTION_SUPPLY, RESOURCE_DIRECTION_DEMAND].includes(value) ? value : ''
 }
 
 function normalizeBanner(item) {
@@ -654,7 +648,7 @@ function bannerTone(jumpType) {
 
 .quick-action-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12rpx;
   margin: 0 0 42rpx;
 }

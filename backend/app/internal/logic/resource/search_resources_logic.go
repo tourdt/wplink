@@ -17,6 +17,7 @@ type SearchResourceStore interface {
 type SearchResourcesReq struct {
 	UserID       string
 	CityCode     string
+	GroupCode    string
 	TypeCode     string
 	Direction    string
 	Keyword      string
@@ -37,7 +38,7 @@ func NewSearchResourcesLogic(store SearchResourceStore) *SearchResourcesLogic {
 
 func (l *SearchResourcesLogic) SearchResources(ctx context.Context, req SearchResourcesReq) (ListResourcesResp, error) {
 	resp, err := l.listLogic.ListResources(ctx, ListResourcesReq{
-		CityCode: req.CityCode, TypeCode: req.TypeCode, Keyword: req.Keyword, Category: req.Category,
+		CityCode: req.CityCode, GroupCode: req.GroupCode, TypeCode: req.TypeCode, Keyword: req.Keyword, Category: req.Category,
 		Direction: req.Direction, VerifiedOnly: req.VerifiedOnly, Page: req.Page, PageSize: req.PageSize,
 	})
 	if err != nil {
@@ -45,7 +46,7 @@ func (l *SearchResourcesLogic) SearchResources(ctx context.Context, req SearchRe
 	}
 	err = l.store.RecordSearchLog(ctx, model.SearchLogInput{
 		UserID: req.UserID, CityCode: req.CityCode, Keyword: req.Keyword,
-		Filters:     model.JSONMap{"typeCode": req.TypeCode, "direction": strings.TrimSpace(req.Direction), "category": req.Category, "verifiedOnly": req.VerifiedOnly},
+		Filters:     model.JSONMap{"groupCode": strings.TrimSpace(req.GroupCode), "typeCode": req.TypeCode, "direction": strings.TrimSpace(req.Direction), "category": req.Category, "verifiedOnly": req.VerifiedOnly},
 		ResultCount: resp.Total,
 	})
 	if err != nil {

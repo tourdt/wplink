@@ -11,7 +11,7 @@ func TestListResourcesRequestsPublishedOnly(t *testing.T) {
 	store := &fakeListResourcesStore{
 		result: model.ListResourcesResult{
 			Items: []model.ResourceListItem{{
-				ID: "resource-1", TypeCode: "inventory", Title: "库存资源",
+				ID: "resource-1", TypeCode: "stock_clearance", TypeName: "尾货/库存出售", Title: "库存资源",
 				Merchant: model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓", VIPStatus: model.VIPStatusActive},
 			}},
 			Page: 1, PageSize: 20, Total: 1,
@@ -32,6 +32,9 @@ func TestListResourcesRequestsPublishedOnly(t *testing.T) {
 	}
 	if len(resp.Items) != 1 || resp.Items[0].ID != "resource-1" {
 		t.Fatalf("items = %#v, want resource item", resp.Items)
+	}
+	if resp.Items[0].TypeName != "尾货/库存出售" {
+		t.Fatalf("typeName = %q, want dynamic category item name", resp.Items[0].TypeName)
 	}
 	if resp.Items[0].Merchant.VIPStatus != model.VIPStatusActive {
 		t.Fatalf("merchant vipStatus = %q, want active", resp.Items[0].Merchant.VIPStatus)
@@ -57,6 +60,34 @@ func TestListResourcesPassesDirectionFilter(t *testing.T) {
 	}
 	if len(resp.Items) != 1 || resp.Items[0].Direction != model.ResourceDirectionDemand {
 		t.Fatalf("items = %#v, want demand item with direction", resp.Items)
+	}
+}
+
+func TestListResourcesDoesNotDefaultToSupplyWhenDirectionOmitted(t *testing.T) {
+	store := &fakeListResourcesStore{}
+	logic := NewListResourcesLogic(store)
+
+	_, err := logic.ListResources(context.Background(), ListResourcesReq{CityCode: "zhili", Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("ListResources() error = %v", err)
+	}
+
+	if store.filter.Direction != "" {
+		t.Fatalf("direction = %q, want empty direction for category-driven mixed results", store.filter.Direction)
+	}
+}
+
+func TestListResourcesPassesGroupCodeFilter(t *testing.T) {
+	store := &fakeListResourcesStore{}
+	logic := NewListResourcesLogic(store)
+
+	_, err := logic.ListResources(context.Background(), ListResourcesReq{CityCode: "zhili", GroupCode: " factory_warehouse ", Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("ListResources() error = %v", err)
+	}
+
+	if store.filter.GroupCode != "factory_warehouse" {
+		t.Fatalf("groupCode = %q, want trimmed factory_warehouse", store.filter.GroupCode)
 	}
 }
 

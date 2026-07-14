@@ -5,12 +5,18 @@ import test from 'node:test'
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'components/ResourceCard.vue'), 'utf8')
+const demandSource = fs.readFileSync(path.join(root, 'components/DemandCard.vue'), 'utf8')
 
-test('resource card displays type code as Chinese resource type text', () => {
-  assert.match(source, /import \{ resourceTypeText \} from '\.\.\/common\/enums'/)
+test('resource and demand cards display dynamic resource type names', () => {
+  assert.match(source, /import \{ resourceTypeLabel as resolveResourceTypeLabel \} from '\.\.\/common\/resourceCategories'/)
   assert.match(source, /const resourceTypeLabel = computed/)
-  assert.match(source, /resourceTypeText\[props\.resource\.typeCode\]/)
+  assert.match(source, /resolveResourceTypeLabel\(props\.resource\)/)
   assert.match(source, /<text v-if="resourceTypeLabel" class="type-corner">\{\{ resourceTypeLabel \}\}<\/text>/)
+  assert.match(demandSource, /import \{ resourceTypeLabel as resolveResourceTypeLabel \} from '\.\.\/common\/resourceCategories'/)
+  assert.match(demandSource, /resolveResourceTypeLabel\(props\.resource\)/)
+  assert.match(demandSource, /<text v-if="resourceTypeLabel" class="type-badge">\{\{ resourceTypeLabel \}\}<\/text>/)
+  assert.equal(source.includes('resourceTypeText[props.resource.typeCode]'), false)
+  assert.equal(demandSource.includes('resourceTypeText[props.resource.typeCode]'), false)
   assert.equal(source.includes('{{ resource.typeCode }}'), false)
 })
 

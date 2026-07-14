@@ -24,8 +24,8 @@
     </view>
 
     <view v-if="!loading && rows.length === 0" class="empty-state">
-      <text class="empty-title">暂无供应发布</text>
-      <text class="empty-desc">发布供应后，可在这里查看审核进度、曝光数据和推广效果。</text>
+      <text class="empty-title">暂无发布内容</text>
+      <text class="empty-desc">发布供应或需求后，可在这里查看审核进度、曝光数据和推广效果。</text>
       <button class="empty-action" @click="openPublish">继续发布</button>
     </view>
 
@@ -75,14 +75,14 @@ import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { getMerchantId } from '../../store/session'
 import { deleteTakenDownResource, getOwnResource, listMyResources, refreshResource, takeDownResource } from '../../api/resource'
 import { formatDateToDay } from '../../common/date'
-import { resourceTypeText } from '../../common/enums'
+import { resourceTypeLabel } from '../../common/resourceCategories'
 
 const DEFAULT_RESOURCE_COVER = '/static/resource/default-resource-cover.png'
-const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
 
 const directionOptions = [
-  { label: '供应发布', value: RESOURCE_DIRECTION_SUPPLY },
+  { label: '全部发布', value: '' },
+  { label: '供应发布', value: 'supply' },
   { label: '需求发布', value: RESOURCE_DIRECTION_DEMAND },
 ]
 const statusOptions = [
@@ -102,7 +102,7 @@ const statusText = {
 
 const rows = ref([])
 const merchantId = ref('')
-const filters = reactive({ status: '', direction: RESOURCE_DIRECTION_SUPPLY })
+const filters = reactive({ status: '', direction: '' })
 const page = ref(1)
 const pageSize = 20
 const total = ref(0)
@@ -217,10 +217,10 @@ function buildRepostInitialForm(detail) {
 }
 
 async function deleteTakenDown(item) {
-  // 已下架供应删除后会从我的发布隐藏，保留后台统计和审计数据。
+  // 已下架发布删除后会从我的发布隐藏，保留后台统计和审计数据。
   const confirmed = await new Promise((resolve) => {
     uni.showModal({
-      title: '删除供应',
+      title: '删除发布',
       content: '删除后将不再显示在我的发布中，确认删除吗？',
       confirmText: '删除',
       confirmColor: '#c2410c',
@@ -274,7 +274,7 @@ function statusClass(item) {
 }
 
 function displayResourceTypeText(item) {
-  return resourceTypeText[item.typeCode] || item.typeCode || '供应'
+  return resourceTypeLabel(item) || item.typeCode || '发布'
 }
 
 function shouldShowResourceDates(item) {

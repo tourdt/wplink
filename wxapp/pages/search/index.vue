@@ -5,16 +5,7 @@
         <button class="nav-back-button" @click="goBack">
           <view class="nav-back-icon"></view>
         </button>
-        <view class="title-direction-tabs">
-          <button
-            v-for="item in directionTabs"
-            :key="item.value"
-            :class="['title-direction-tab', activeDirection === item.value ? 'active' : '']"
-            @click="selectDirection(item.value)"
-          >
-            {{ item.label }}
-          </button>
-        </view>
+        <text class="search-title">供需搜索</text>
       </view>
     </view>
 
@@ -25,6 +16,16 @@
       </view>
 
       <view class="filter-shell">
+        <scroll-view class="filter-row group-row" scroll-x scroll-with-animation>
+          <button
+            v-for="item in groupFilterOptions"
+            :key="item.code"
+            :class="['filter-button', item.code === filters.groupCode ? 'active' : '']"
+            @click="selectGroup(item.code)"
+          >
+            {{ item.name }}
+          </button>
+        </scroll-view>
         <scroll-view
           class="filter-row"
           scroll-x
@@ -61,11 +62,9 @@
     </view>
 
     <view v-if="rows.length" class="result-list">
-      <template v-if="activeDirection === RESOURCE_DIRECTION_DEMAND">
-        <DemandCard v-for="item in rows" :key="item.id" :resource="item" @open="openResource" />
-      </template>
-      <template v-else>
-        <ResourceCard v-for="item in rows" :key="item.id" :resource="item" @open="openResource" />
+      <template v-for="item in rows" :key="item.id">
+        <DemandCard v-if="item.direction === RESOURCE_DIRECTION_DEMAND" :resource="item" @open="openResource" />
+        <ResourceCard v-else :resource="item" @open="openResource" />
       </template>
       <text class="load-more-text">{{ loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了' }}</text>
     </view>
@@ -125,29 +124,21 @@ import DemandCard from '../../components/DemandCard.vue'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { loadHotSearchKeywords } from '../../common/hotSearchKeywords'
+import { groupResourceTypes } from '../../common/resourceCategories'
 import { listCityResourceTypes } from '../../api/city'
 import { searchResources } from '../../api/resource'
 
 const resourceTypes = ref([{ label: '全部', value: '' }])
+const categoryGroups = ref([])
 const hotKeywords = ref([])
 const SEARCH_KEY = 'wplink_pending_search_keyword'
-const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
 const NAV_BOTTOM_RPX = 12
-const directionTabs = [
-  { label: '供应', value: RESOURCE_DIRECTION_SUPPLY },
-  { label: '需求', value: RESOURCE_DIRECTION_DEMAND },
-]
-const directionStateCache = reactive({
-  [RESOURCE_DIRECTION_SUPPLY]: createDirectionResultState(),
-  [RESOURCE_DIRECTION_DEMAND]: createDirectionResultState(),
-})
 const headerMetrics = ref({
   statusBarHeight: 44,
   navBarHeight: 44,
   headerHeight: 94,
 })
-const activeDirection = ref(RESOURCE_DIRECTION_SUPPLY)
 const keyword = ref('')
 const rows = ref([])
 const searched = ref(false)
@@ -159,24 +150,22 @@ const loading = ref(false)
 const searchRequestSeq = ref(0)
 const filters = reactive({
   cityCode: DEFAULT_CITY_CODE,
+  groupCode: '',
   typeCode: '',
 })
 const showTypeDrawer = ref(false)
 const scrollIntoTypeId = ref('')
 const typeScrollLeft = ref(0)
 const pageScrollTop = ref(0)
+const groupFilterOptions = computed(() => [{ code: '', name: '全部类目' }, ...categoryGroups.value])
 const visibleResourceTypes = computed(() => resourceTypes.value)
 const trimmedKeyword = computed(() => keyword.value.trim())
 const searchNavStyle = computed(() => `padding-top: ${headerMetrics.value.statusBarHeight}px;`)
 const searchTitleBarStyle = computed(() => `height: ${headerMetrics.value.navBarHeight}px;`)
 const searchPageStyle = computed(() => `padding-top: calc(${headerMetrics.value.headerHeight}px + 24rpx);`)
 const searchToolbarStyle = computed(() => `top: ${headerMetrics.value.headerHeight}px;`)
-const searchPlaceholder = computed(() => (
-  activeDirection.value === RESOURCE_DIRECTION_DEMAND
-    ? '搜采购/找厂/服务'
-    : '搜现货/库存/工厂'
-))
-const emptyTitle = computed(() => activeDirection.value === RESOURCE_DIRECTION_DEMAND ? '暂无匹配需求' : '暂无匹配供应')
+const searchPlaceholder = '搜供应、需求、场地或服务'
+const emptyTitle = '暂无匹配内容'
 const emptyDesc = '换个关键词或分类试试。'
 const emptySuggestions = computed(() => hotKeywords.value
   .filter((item) => item !== trimmedKeyword.value)
@@ -229,15 +218,10 @@ function updateHeaderMetrics() {
 }
 
 async function loadResourceTypes() {
-  const resp = await listCityResourceTypes(filters.cityCode, { direction: activeDirection.value })
-  const items = (resp.items || []).map((item) => ({
-    label: item.typeName,
-    value: item.typeCode,
-  }))
-  resourceTypes.value = [{ label: '全部', value: '' }, ...items]
-  if (filters.typeCode) {
-    await scrollToSelectedType(filters.typeCode)
-  }
+  const resp = await listCityResourceTypes(filters.cityCode)
+  categoryGroups.value = groupResourceTypes(resp.items || [])
+  applyCurrentGroupTypes()
+  await scrollToSelectedType(filters.typeCode)
 }
 
 async function loadHotKeywordOptions() {
@@ -246,15 +230,14 @@ async function loadHotKeywordOptions() {
 
 async function applyRouteSearch(options = {}) {
   const routeKeyword = decodeSearchValue(options.keyword || options.q || '')
+  const routeGroupCode = decodeSearchValue(options.groupCode || '')
   const routeTypeCode = decodeSearchValue(options.typeCode || '')
-  const routeDirection = normalizeDirection(decodeSearchValue(options.direction || ''))
-  if (!routeKeyword && !routeTypeCode && !routeDirection) return false
+  const routeCityCode = decodeSearchValue(options.cityCode || '') || DEFAULT_CITY_CODE
+  if (!routeKeyword && !routeGroupCode && !routeTypeCode && routeCityCode === DEFAULT_CITY_CODE) return false
   keyword.value = routeKeyword
+  filters.groupCode = routeGroupCode
   filters.typeCode = routeTypeCode
-  filters.cityCode = decodeSearchValue(options.cityCode || '') || DEFAULT_CITY_CODE
-  if (routeDirection) {
-    activeDirection.value = routeDirection
-  }
+  filters.cityCode = routeCityCode
   await loadResourceTypes()
   await scrollToSelectedType(routeTypeCode)
   await search()
@@ -269,9 +252,9 @@ async function applyPendingKeyword() {
     keyword.value = pendingSearch
   } else {
     keyword.value = pendingSearch.keyword || ''
+    filters.groupCode = pendingSearch.groupCode || ''
     filters.typeCode = pendingSearch.typeCode || ''
     filters.cityCode = pendingSearch.cityCode || DEFAULT_CITY_CODE
-    activeDirection.value = normalizeDirection(pendingSearch.direction || '') || RESOURCE_DIRECTION_SUPPLY
   }
   await loadResourceTypes()
   await scrollToSelectedType(filters.typeCode)
@@ -292,7 +275,6 @@ async function search({ reset = true, force = false } = {}) {
     const nextPage = reset ? 1 : page.value + 1
     const resp = await searchResources({
       ...filters,
-      direction: activeDirection.value,
       keyword: keyword.value.trim(),
       page: nextPage,
       pageSize,
@@ -304,7 +286,6 @@ async function search({ reset = true, force = false } = {}) {
     total.value = resp.total || rows.value.length
     hasMore.value = rows.value.length < total.value
     searched.value = true
-    saveCurrentDirectionState()
   } finally {
     if (requestSeq === searchRequestSeq.value) {
       loading.value = false
@@ -319,30 +300,21 @@ function searchHotKeyword(value) {
 
 async function resetSearchConditions() {
   keyword.value = ''
+  filters.groupCode = ''
   filters.typeCode = ''
+  applyCurrentGroupTypes()
   await scrollToSelectedType('')
   await search()
 }
 
-async function selectDirection(direction) {
-  if (activeDirection.value === direction) return
-  const inheritedPageScrollTop = pageScrollTop.value
-  saveCurrentDirectionState(activeDirection.value)
-  cancelPendingSearchRequests()
-  activeDirection.value = direction
+async function selectGroup(groupCode) {
+  if (filters.groupCode === groupCode) return
+  filters.groupCode = groupCode
+  filters.typeCode = ''
   showTypeDrawer.value = false
-
-  if (applyDirectionState(direction)) {
-    await restorePageScroll()
-    return
-  }
-
-  prepareFreshDirectionSearchState()
-  await loadResourceTypes()
-  await scrollToSelectedType(filters.typeCode)
-  await search({ force: true })
-  await restorePageScroll(inheritedPageScrollTop)
-  saveCurrentDirectionState(direction)
+  applyCurrentGroupTypes()
+  await scrollToSelectedType('')
+  await search()
 }
 
 async function selectType(typeCode) {
@@ -355,6 +327,21 @@ async function selectType(typeCode) {
 function getTypeButtonId(typeCode) {
   const key = typeCode || 'all'
   return `search-type-${String(key).replace(/[^a-zA-Z0-9_-]/g, '-')}`
+}
+
+function applyCurrentGroupTypes() {
+  const selectedGroup = categoryGroups.value.find((item) => item.code === filters.groupCode)
+  const groupedItems = selectedGroup
+    ? selectedGroup.items
+    : categoryGroups.value.flatMap((item) => item.items || [])
+  const items = groupedItems.map((item) => ({
+    label: item.typeName,
+    value: item.typeCode,
+  }))
+  resourceTypes.value = [{ label: '全部', value: '' }, ...items]
+  if (filters.typeCode && !items.some((item) => item.value === filters.typeCode)) {
+    filters.typeCode = ''
+  }
 }
 
 async function scrollToSelectedType(typeCode = filters.typeCode) {
@@ -374,85 +361,14 @@ function closeTypeDrawer() {
   showTypeDrawer.value = false
 }
 
-function createDirectionResultState() {
-  return {
-    resourceTypes: [{ label: '全部', value: '' }],
-    keyword: '',
-    rows: [],
-    searched: false,
-    page: 1,
-    total: 0,
-    hasMore: true,
-    cityCode: DEFAULT_CITY_CODE,
-    typeCode: '',
-    scrollIntoTypeId: '',
-    typeScrollLeft: 0,
-    pageScrollTop: 0,
-    loaded: false,
-  }
-}
-
-function saveCurrentDirectionState(direction = activeDirection.value) {
-  const cachedState = directionStateCache[direction]
-  if (!cachedState) return
-  cachedState.resourceTypes = [...resourceTypes.value]
-  cachedState.keyword = keyword.value
-  cachedState.rows = [...rows.value]
-  cachedState.searched = searched.value
-  cachedState.page = page.value
-  cachedState.total = total.value
-  cachedState.hasMore = hasMore.value
-  cachedState.cityCode = filters.cityCode
-  cachedState.typeCode = filters.typeCode
-  cachedState.scrollIntoTypeId = scrollIntoTypeId.value
-  cachedState.typeScrollLeft = typeScrollLeft.value
-  cachedState.pageScrollTop = pageScrollTop.value
-  cachedState.loaded = searched.value || rows.value.length > 0 || resourceTypes.value.length > 1
-}
-
-function applyDirectionState(direction) {
-  const cachedState = directionStateCache[direction]
-  if (!cachedState?.loaded) return false
-  resourceTypes.value = [...cachedState.resourceTypes]
-  keyword.value = cachedState.keyword
-  rows.value = [...cachedState.rows]
-  searched.value = cachedState.searched
-  page.value = cachedState.page
-  total.value = cachedState.total
-  hasMore.value = cachedState.hasMore
-  filters.cityCode = cachedState.cityCode || DEFAULT_CITY_CODE
-  filters.typeCode = cachedState.typeCode
-  scrollIntoTypeId.value = cachedState.scrollIntoTypeId
-  typeScrollLeft.value = cachedState.typeScrollLeft
-  pageScrollTop.value = cachedState.pageScrollTop
-  return true
-}
-
-function prepareFreshDirectionSearchState() {
-  showTypeDrawer.value = false
-  resourceTypes.value = [{ label: '全部', value: '' }]
-  rows.value = []
-  searched.value = false
-  page.value = 1
-  total.value = 0
-  hasMore.value = true
-}
-
-function cancelPendingSearchRequests() {
-  searchRequestSeq.value += 1
-  loading.value = false
-}
-
 function handlePageScroll(event = {}) {
   const scrollTop = Number(event.scrollTop) || 0
   pageScrollTop.value = scrollTop
-  directionStateCache[activeDirection.value].pageScrollTop = scrollTop
 }
 
 function handleTypeScroll(event = {}) {
   const scrollLeft = Number(event.detail?.scrollLeft) || 0
   typeScrollLeft.value = scrollLeft
-  directionStateCache[activeDirection.value].typeScrollLeft = scrollLeft
 }
 
 async function restorePageScroll(scrollTop = pageScrollTop.value) {
@@ -474,10 +390,6 @@ function decodeSearchValue(value) {
   } catch (err) {
     return value
   }
-}
-
-function normalizeDirection(value) {
-  return [RESOURCE_DIRECTION_SUPPLY, RESOURCE_DIRECTION_DEMAND].includes(value) ? value : ''
 }
 
 function openResource(item) {
@@ -542,37 +454,10 @@ function openResource(item) {
   transform: rotate(45deg);
 }
 
-.title-direction-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6rpx;
-  width: 320rpx;
-  max-width: calc(100vw - 220rpx);
-  min-width: 0;
-  padding: 6rpx;
-  border-radius: 12rpx;
-  background: #e8edf5;
-}
-
-.title-direction-tab {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  height: 56rpx;
-  padding: 0 8rpx;
-  border-radius: 10rpx;
-  background: transparent;
-  color: #566174;
-  font-size: 24rpx;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.title-direction-tab.active {
-  background: $wplink-card;
+.search-title {
   color: $wplink-primary;
-  box-shadow: 0 6rpx 16rpx rgba(15, 23, 42, 0.08);
+  font-size: 30rpx;
+  font-weight: 800;
 }
 
 .search-toolbar {
@@ -621,7 +506,8 @@ function openResource(item) {
 }
 
 .filter-shell {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 156rpx;
   align-items: center;
   gap: 12rpx;
   margin-bottom: 0;
@@ -632,6 +518,10 @@ function openResource(item) {
   min-width: 0;
   white-space: nowrap;
   overflow-x: auto;
+}
+
+.group-row {
+  grid-column: 1 / -1;
 }
 
 .filter-button {

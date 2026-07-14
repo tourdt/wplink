@@ -131,14 +131,18 @@ test('home page keeps custom brand first screen structure', () => {
     '搜索供应、需求、工厂或服务',
     'factory-hero',
     '织里站 · 精选工厂',
-    '童装产业带供需服务平台',
-    'quick-action-grid',
-    '现货货源',
-    '库存清仓',
-    '工厂接单',
-    '看需求',
-    '拿货地图',
-  ]) {
+	    '童装产业带供需服务平台',
+	    'quick-action-grid',
+	    '童装批发',
+	    '面料辅料',
+	    '加工生产',
+	    '招聘求职',
+	    '商铺办公',
+	    '住宅公寓',
+	    '厂房仓库',
+	    '本地服务',
+	    '拿货地图',
+	  ]) {
     assert.match(source, new RegExp(token))
   }
   assert.equal(source.includes('发需求'), false)
@@ -167,16 +171,20 @@ test('resource tab separates recommendation discovery from keyword search page',
   assert.ok(pagesConfig.pages.some((item) => item.path === 'pages/search/index'))
   assert.equal(resourceTab?.text, '供需')
 
-  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectType', "label: '供应'", "label: '需求'", 'DemandCard']) {
+  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectGroup', 'selectType', 'groupResourceTypes', 'DemandCard']) {
     assert.match(resourceSource, new RegExp(token))
   }
+  assert.equal(resourceSource.includes("label: '供应'"), false)
+  assert.equal(resourceSource.includes("label: '需求'"), false)
+  assert.equal(resourceSource.includes('activeDirection'), false)
   for (const removedToken of ['createSavedSearch', 'applySavedSearch', 'saveCurrentSearch']) {
     assert.equal(resourceSource.includes(removedToken), false)
   }
 
-  for (const token of ['searchResources', '暂无匹配供应', '换个条件', 'activeDirection', 'DemandCard']) {
+  for (const token of ['searchResources', '暂无匹配内容', '换个条件', 'selectGroup', 'groupResourceTypes', 'DemandCard']) {
     assert.match(searchSource, new RegExp(token))
   }
+  assert.equal(searchSource.includes('activeDirection'), false)
   for (const removedToken of ['提交采购需求', 'openDemand', '/pages/demand/index']) {
     assert.equal(searchSource.includes(removedToken), false)
   }
@@ -214,18 +222,24 @@ test('publish custom select fields reveal manual input only after choosing custo
   )
 })
 
-test('publish tab supports supply and demand entry selection', () => {
+test('publish tab uses primary category entry and secondary type sheet', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const tabSource = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
   const formSource = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
 
   for (const token of [
-    'publishDirectionOptions',
-    '我能提供',
-    '我想寻找',
-    'startPublish',
-    'RESOURCE_DIRECTION_SUPPLY',
-    'RESOURCE_DIRECTION_DEMAND',
+    'listCityResourceTypes',
+    'groupResourceTypes',
+    'categoryGroups',
+    '童装批发',
+    '厂房仓库',
+    '本地服务',
+    'startPublishGroup',
+    'startPublishCategory',
+    'selectedCategoryGroup',
+    'selectedCategoryItems',
+    'showTypeSheet',
+    '选择具体发布类型',
     'navigateToPublishForm',
     'requireLogin',
   ]) {
@@ -234,13 +248,19 @@ test('publish tab supports supply and demand entry selection', () => {
 
   assert.equal(tabSource.includes('<ResourcePublishForm'), false)
   assert.equal(tabSource.includes('selectedDirection'), false)
-  assert.match(tabSource, /function startPublish\(direction\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*navigateToPublishForm\(\{ typeCode: '', direction: publishDirection \}\)[\s\S]*\}/)
-  assert.match(tabSource, /async function applyPendingPublishType\(\) \{[\s\S]*const pendingPublish = uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*uni\.removeStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode, direction: pendingDirection \}\)/)
+  assert.equal(tabSource.includes('我能提供'), false)
+  assert.equal(tabSource.includes('我想寻找'), false)
+  assert.match(tabSource, /v-for="group in categoryGroups"[\s\S]*@click="startPublishGroup\(group\)"/)
+  assert.match(tabSource, /v-for="item in selectedCategoryItems"[\s\S]*@click="startPublishCategory\(item\)"/)
+  assert.doesNotMatch(tabSource, /v-for="group in categoryGroups"[\s\S]*v-for="item in group\.items"[\s\S]*@click="startPublishCategory\(item\)"/)
+  assert.match(tabSource, /function startPublishGroup\(group\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*const items = group\?\.items \|\| \[\][\s\S]*if \(items\.length === 1\)[\s\S]*showTypeSheet\.value = true[\s\S]*\}/)
+  assert.match(tabSource, /function startPublishCategory\(item\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*navigateToPublishForm\(\{ typeCode: item\.typeCode \}\)[\s\S]*\}/)
+  assert.match(tabSource, /async function applyPendingPublishType\(\) \{[\s\S]*const pendingPublish = uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*uni\.removeStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode \}\)/)
   assert.match(tabSource, /function navigateToPublishForm\(options = \{\}\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?\$\{query\.join\('&'\)\}` \}\)/)
-  assert.match(tabSource, /initialPublishOptions\.direction && query\.push\(`direction=\$\{encodeURIComponent\(initialPublishOptions\.direction\)\}`\)/)
   assert.match(tabSource, /initialPublishOptions\.typeCode && query\.push\(`typeCode=\$\{encodeURIComponent\(initialPublishOptions\.typeCode\)\}`\)/)
   assert.match(formSource, /direction:\s*RESOURCE_DIRECTION_SUPPLY/)
-  assert.match(formSource, /listCityResourceTypes\(form\.cityCode,\s*\{ direction: form\.direction \}\)/)
+  assert.match(formSource, /listCityResourceTypes\(form\.cityCode\)/)
+  assert.match(formSource, /form\.direction = normalizePublishDirection\(current\.direction \|\| ''\) \|\| RESOURCE_DIRECTION_SUPPLY/)
   assert.match(formSource, /需求信息/)
   assert.match(formSource, /参考图片/)
   assert.equal(formSource.includes('采购要求'), false)
@@ -287,14 +307,15 @@ test('home quick actions map to supply and demand resource flows', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
 
-  assert.match(source, /const RESOURCE_DIRECTION_SUPPLY = 'supply'/)
-  assert.match(source, /const RESOURCE_DIRECTION_DEMAND = 'demand'/)
-  assert.match(source, /\{ title: '现货货源'[\s\S]*icon: 'market'[\s\S]*typeCode: 'goods'[\s\S]*keyword: '现货'/)
-  assert.match(source, /\{ title: '库存清仓'[\s\S]*icon: 'clearance'[\s\S]*typeCode: 'inventory'[\s\S]*keyword: '库存'/)
-  assert.match(source, /\{ title: '工厂接单'[\s\S]*icon: 'factory'[\s\S]*typeCode: 'factory'[\s\S]*keyword: '小单快返'/)
-  assert.match(source, /\{ title: '看需求'[\s\S]*icon: 'orders'[\s\S]*direction: RESOURCE_DIRECTION_DEMAND[\s\S]*typeCode: 'buy_goods'[\s\S]*keyword: '找现货'/)
+  assert.equal(source.includes("const RESOURCE_DIRECTION_SUPPLY = 'supply'"), false)
+  assert.equal(source.includes("const RESOURCE_DIRECTION_DEMAND = 'demand'"), false)
+  assert.match(source, /\{ title: '童装批发'[\s\S]*icon: 'market'[\s\S]*groupCode: 'kids_wholesale'/)
+  assert.match(source, /\{ title: '面料辅料'[\s\S]*icon: 'clearance'[\s\S]*groupCode: 'materials'/)
+  assert.match(source, /\{ title: '加工生产'[\s\S]*icon: 'factory'[\s\S]*groupCode: 'production'/)
+  assert.match(source, /\{ title: '招聘求职'[\s\S]*icon: 'orders'[\s\S]*groupCode: 'jobs'/)
+  assert.match(source, /\{ title: '厂房仓库'[\s\S]*groupCode: 'factory_warehouse'/)
   assert.match(source, /\{ title: '拿货地图'[\s\S]*icon: 'map'[\s\S]*action: 'sourcing-map'/)
-  assert.match(source, /\.quick-action-grid \{[\s\S]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/)
+  assert.match(source, /\.quick-action-grid \{[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/)
   assert.match(source, /item\.icon === 'market'/)
   assert.match(source, /item\.icon === 'clearance'/)
   assert.match(source, /item\.icon === 'orders'/)
@@ -302,7 +323,7 @@ test('home quick actions map to supply and demand resource flows', () => {
   assert.equal(source.includes("item.icon === 'demand'"), false)
   assert.equal(source.includes("action: 'publish-demand'"), false)
   assert.equal(source.includes("item.action === 'publish-demand'"), false)
-  assert.match(source, /function openSearch\(options = \{\}\) \{[\s\S]*typeof options === 'string'[\s\S]*searchOptions\.direction[\s\S]*uni\.setStorageSync\(SEARCH_KEY, searchOptions\)[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/search\/index' \}\)/)
+  assert.match(source, /function openSearch\(options = \{\}\) \{[\s\S]*typeof options === 'string'[\s\S]*uni\.setStorageSync\(SEARCH_KEY, searchOptions\)[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/search\/index' \}\)/)
   assert.match(source, /function openPublish\(options = \{\}\) \{[\s\S]*typeof options === 'string'[\s\S]*uni\.setStorageSync\(PUBLISH_TYPE_KEY, publishOptions\)[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)/)
 
   for (const removedToken of ["action: 'demand'", 'openDemand', "action: 'publish'"]) {
@@ -318,17 +339,14 @@ test('resource type display names use buyer-friendly wording', () => {
   const enumSource = fs.readFileSync(path.join(root, 'common/enums.js'), 'utf8')
 
   for (const token of [
-    "inventory: '库存清仓'",
-    "goods: '现货货源'",
-    "factory: '工厂接单'",
-    "job: '招工招聘'",
-    "rental: '出租转让'",
-    "service: '配套服务'",
-    "buy_goods: '找现货'",
-    "find_inventory: '找库存'",
-    "find_factory: '找工厂'",
-    "find_service: '找服务'",
-    "find_rental: '找场地'",
+    "stock_clearance: '库存出售'",
+    "factory_direct: '工厂直批'",
+    "buy_kids_goods: '求购尾货'",
+    "job_hiring: '招聘员工'",
+    "job_seeking: '我要求职'",
+    "factory_warehouse_rental: '厂房/仓库出租'",
+    "seek_factory_warehouse: '我要求租'",
+    "find_factory: '招加工厂'",
   ]) {
     assert.match(enumSource, new RegExp(token))
   }
@@ -469,10 +487,11 @@ test('my resources page keeps list concise and dates day-only', () => {
     'top: 0;',
     'padding-top: 220rpx;',
     'background: $wplink-card;',
-    'box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.06);',
-    'directionOptions',
-    '供应发布',
-    '需求发布',
+	    'box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.06);',
+	    'directionOptions',
+	    '全部发布',
+	    '供应发布',
+	    '需求发布',
     'direction: filters.direction',
     'displayStatusText(item)',
     'isActivePublished(item)',
@@ -486,10 +505,10 @@ test('my resources page keeps list concise and dates day-only', () => {
     'loadRows({ reset: false })',
     'page.value',
     'hasMore.value',
-    'loading.value',
-    'class="empty-state"',
-    '暂无供应发布',
-    '继续发布',
+	    'loading.value',
+	    'class="empty-state"',
+	    '暂无发布内容',
+	    '继续发布',
     'load-more-text',
     'padding-bottom: calc(128rpx + env(safe-area-inset-bottom));',
     'min-height: 360rpx;',
@@ -638,7 +657,7 @@ test('publish pages split tab creation and independent editing', () => {
   assert.equal(tabSource.includes('<ResourcePublishForm'), false)
   assert.match(tabSource, /PUBLISH_TYPE_KEY/)
   assert.match(tabSource, /onShow\(applyPendingPublishType\)/)
-  assert.match(tabSource, /async function applyPendingPublishType\(\) \{[\s\S]*uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode, direction: pendingDirection \}\)/)
+  assert.match(tabSource, /async function applyPendingPublishType\(\) \{[\s\S]*uni\.getStorageSync\(PUBLISH_TYPE_KEY\)[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*navigateToPublishForm\(\{ typeCode: pendingTypeCode \}\)/)
   assert.match(editSource, /import \{ requireLogin \} from '\.\.\/\.\.\/common\/auth'/)
   assert.match(editSource, /import \{ getMerchantId \} from '\.\.\/\.\.\/store\/session'/)
   assert.match(editSource, /onLoad\(\(options\)/)
@@ -822,15 +841,18 @@ test('publish page presents grouped fast publishing workflow', () => {
   const source = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
 
   for (const token of [
-    'basic-progress',
-    'completion-percent',
-    'completion-bar-fill',
+    'category-lock-card',
+    'category-lock-main',
+    'category-lock-sub',
+    'selectedGroupName',
+    'selectedTypeLabel',
     'form-section basic-section',
     'form-section supply-section',
     'form-section image-section',
     'form-section contact-section',
     'field-label',
-    'field-helper',
+    'category-lock-label',
+    'category-lock-badge',
     'UniGrid',
     'UniGridItem',
     'resourceImageGridItems',
@@ -858,7 +880,8 @@ test('publish page presents grouped fast publishing workflow', () => {
     'fixed-save-spacer',
     'fixed-save-bar',
     'fixed-save-actions',
-    '供应类型',
+    '发布类目',
+    '已选择',
     '基础信息',
     '供应说明',
     '类型字段',
@@ -880,6 +903,11 @@ test('publish page presents grouped fast publishing workflow', () => {
   assert.equal(source.includes('发布类型'), false)
   assert.equal(source.includes('publishTypeOptions'), false)
   assert.equal(source.includes('selectTypeByCode'), false)
+  assert.equal(source.includes('basic-progress'), false)
+  assert.equal(source.includes('completion-percent'), false)
+  assert.equal(source.includes('completion-bar-fill'), false)
+  assert.equal(source.includes('<picker :range="resourceTypeNames"'), false)
+  assert.equal(source.includes('function selectType(event)'), false)
   assert.equal(source.includes('publish-types-in-basic'), false)
   assert.equal(source.includes('image-upload-tile'), false)
   assert.equal(source.includes('image-preview-grid'), false)

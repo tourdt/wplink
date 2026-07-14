@@ -15,6 +15,7 @@ type ListResourcesStore interface {
 type ListResourcesReq struct {
 	CityCode     string
 	MerchantID   string
+	GroupCode    string
 	TypeCode     string
 	Direction    string
 	Keyword      string
@@ -35,6 +36,7 @@ type ResourceListItem struct {
 	ID           string                `json:"id"`
 	Direction    string                `json:"direction"`
 	TypeCode     string                `json:"typeCode"`
+	TypeName     string                `json:"typeName,omitempty"`
 	Title        string                `json:"title"`
 	Category     string                `json:"category"`
 	District     string                `json:"district,omitempty"`
@@ -68,6 +70,7 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 	result, err := l.store.ListResources(ctx, model.ListResourcesFilter{
 		CityCode:     strings.TrimSpace(req.CityCode),
 		MerchantID:   strings.TrimSpace(req.MerchantID),
+		GroupCode:    strings.TrimSpace(req.GroupCode),
 		TypeCode:     strings.TrimSpace(req.TypeCode),
 		Direction:    direction,
 		Keyword:      strings.TrimSpace(req.Keyword),
@@ -87,6 +90,7 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 			ID:           item.ID,
 			Direction:    item.Direction,
 			TypeCode:     item.TypeCode,
+			TypeName:     item.TypeName,
 			Title:        item.Title,
 			Category:     item.Category,
 			District:     item.District,
@@ -115,7 +119,7 @@ func normalizeVIPStatus(status string) string {
 func normalizeListDirection(direction string) (string, error) {
 	direction = strings.TrimSpace(direction)
 	if direction == "" {
-		return model.ResourceDirectionSupply, nil
+		return "", nil
 	}
 	if direction == model.ResourceDirectionSupply || direction == model.ResourceDirectionDemand {
 		return direction, nil

@@ -14,8 +14,8 @@ test('my resources list uses only a compact cover image for item recognition', (
 })
 
 test('my resources list displays Chinese resource type text instead of raw type code', () => {
-  assert.match(source, /import \{ resourceTypeText \} from '\.\.\/\.\.\/common\/enums'/)
-  assert.match(source, /function displayResourceTypeText\(item\) \{[\s\S]*return resourceTypeText\[item\.typeCode\] \|\| item\.typeCode \|\| '供应'[\s\S]*\}/)
+  assert.match(source, /import \{ resourceTypeLabel \} from '\.\.\/\.\.\/common\/resourceCategories'/)
+  assert.match(source, /function displayResourceTypeText\(item\) \{[\s\S]*return resourceTypeLabel\(item\) \|\| item\.typeCode \|\| '发布'[\s\S]*\}/)
   assert.match(source, /\{\{ item\.category \}\} · \{\{ displayResourceTypeText\(item\) \}\}/)
   assert.doesNotMatch(source, /\{\{ item\.category \}\} · \{\{ item\.typeCode \}\}/)
 })
@@ -45,17 +45,17 @@ test('my resources page pins status filters and uses a compact publish action', 
 test('my resources supports supply and demand direction filters', () => {
   for (const token of [
     'directionOptions',
+    '全部发布',
     '供应发布',
     '需求发布',
     'selectDirection',
-    'RESOURCE_DIRECTION_SUPPLY',
     'RESOURCE_DIRECTION_DEMAND',
     'direction: filters.direction',
   ]) {
     assert.match(source, new RegExp(token))
   }
 
-  assert.match(source, /const filters = reactive\(\{ status: '', direction: RESOURCE_DIRECTION_SUPPLY \}\)/)
+  assert.match(source, /const filters = reactive\(\{ status: '', direction: '' \}\)/)
   assert.match(source, /listMyResources\(\{ merchantId: merchantId\.value, status: filters\.status, direction: filters\.direction, page: nextPage, pageSize \}\)/)
 })
 

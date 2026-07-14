@@ -21,7 +21,7 @@
 import { computed } from 'vue'
 
 import { formatListFreshnessDate } from '../common/date'
-import { resourceTypeText } from '../common/enums'
+import { resourceTypeLabel as resolveResourceTypeLabel } from '../common/resourceCategories'
 
 const DEFAULT_RESOURCE_COVER = '/static/resource/default-resource-cover.png'
 
@@ -49,7 +49,7 @@ const coverUrl = computed(() => {
 })
 const isVIPMerchant = computed(() => (props.resource.merchant || {}).vipStatus === 'active')
 const merchantName = computed(() => (props.resource.merchant || {}).name || '商家待确认')
-const resourceTypeLabel = computed(() => resourceTypeText[props.resource.typeCode] || '')
+const resourceTypeLabel = computed(() => resolveResourceTypeLabel(props.resource))
 const resourceSummaryText = computed(() => buildResourceSummaryText(props.resource, resourceTypeLabel.value || '供应信息待完善'))
 
 function buildResourceSummaryText(resource, fallbackText) {

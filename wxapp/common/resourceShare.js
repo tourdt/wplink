@@ -1,23 +1,10 @@
-export const DEFAULT_RESOURCE_SHARE_IMAGE = '/static/resource/default-resource-cover.png'
+import { resourceTypeText } from './enums.js'
 
+export const DEFAULT_RESOURCE_SHARE_IMAGE = '/static/resource/default-resource-cover.png'
 export const RESOURCE_SHARE_COVER_CANVAS_ID = 'resourceShareCoverCanvas'
 export const RESOURCE_SHARE_COVER_SIZE = {
   width: 600,
   height: 480,
-}
-
-const resourceTypeText = {
-  inventory: '库存清仓',
-  goods: '现货货源',
-  factory: '工厂接单',
-  job: '招工招聘',
-  rental: '出租转让',
-  service: '配套服务',
-  buy_goods: '找现货',
-  find_inventory: '找库存',
-  find_factory: '找工厂',
-  find_service: '找服务',
-  find_rental: '找场地',
 }
 
 export function buildResourceSharePath(resource = {}) {
@@ -76,7 +63,7 @@ export function buildResourceShareTitle(resource = {}) {
 }
 
 export function getResourceTypeLabel(resource = {}) {
-  return resourceTypeText[resource.typeCode] || resourceTypeText[resource.resourceType] || '衣货通供应'
+  return normalizeText(resource.typeName) || resourceTypeText[resource.typeCode] || resourceTypeText[resource.resourceType] || '衣货通供需'
 }
 
 function buildSummaryLines(resource = {}) {

@@ -50,12 +50,12 @@ export const defaultFlowChecks = [
   {
     file: 'pages/market/index.vue',
     description: '供需 tab 推荐和类型筛选',
-    checks: ['供需市场', 'listCityResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'DemandCard', "label: '供应'", "label: '需求'", 'activeDirection', 'openSearchPage', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
+    checks: ['供需市场', 'listCityResourceTypes', 'groupResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'DemandCard', 'selectGroup', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
   },
   {
     file: 'pages/search/index.vue',
     description: '独立搜索和无结果换条件',
-    checks: ['listCityResourceTypes', 'searchResources', 'ResourceCard', 'DemandCard', 'activeDirection', '暂无匹配供应', 'hotKeywords', '换个条件'],
+    checks: ['listCityResourceTypes', 'groupResourceTypes', 'searchResources', 'ResourceCard', 'DemandCard', 'selectGroup', '暂无匹配内容', 'hotKeywords', '换个条件'],
   },
   {
     file: 'pages/resource/detail.vue',
@@ -88,7 +88,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/publish/index.vue',
     description: 'tab 发布页入口',
-    checks: ['publishDirectionOptions', 'navigateToPublishForm', '/pages/publish/edit?', 'PUBLISH_TYPE_KEY', 'applyPendingPublishType'],
+    checks: ['listCityResourceTypes', 'groupResourceTypes', 'categoryGroups', 'startPublishGroup', 'selectedCategoryItems', 'showTypeSheet', 'startPublishCategory', 'navigateToPublishForm', '/pages/publish/edit?', 'PUBLISH_TYPE_KEY', 'applyPendingPublishType'],
   },
   {
     file: 'pages/publish/edit.vue',
@@ -112,8 +112,8 @@ export const defaultFlowChecks = [
       '请填写标题',
       '请填写联系人',
       '请填写联系电话',
-      'basic-progress',
-      'completionPercent',
+      'category-lock-card',
+      'selectedGroupName',
       'safe-area-inset-bottom',
     ],
   },

@@ -44,8 +44,8 @@ func TestAPIRouterListsResourceTypesByCity(t *testing.T) {
 	router := NewAPIRouter(&fakeCityAPIStore{
 		resourceTypes: []model.ResourceTypeConfig{{
 			ID:               "type-1",
-			TypeCode:         "inventory",
-			TypeName:         "库存清仓",
+			TypeCode:         "stock_clearance",
+			TypeName:         "库存出售",
 			Direction:        model.ResourceDirectionSupply,
 			DefaultValidDays: 30,
 			RequiredFields:   []string{"title", "category"},
@@ -68,8 +68,8 @@ func TestAPIRouterListsResourceTypesByCity(t *testing.T) {
 	data := body["data"].(map[string]interface{})
 	items := data["items"].([]interface{})
 	first := items[0].(map[string]interface{})
-	if first["typeCode"] != "inventory" || first["typeName"] != "库存清仓" {
-		t.Fatalf("first type = %#v, want inventory with friendly display name", first)
+	if first["typeCode"] != "stock_clearance" || first["typeName"] != "库存出售" {
+		t.Fatalf("first type = %#v, want stock_clearance with friendly display name", first)
 	}
 	if first["direction"] != model.ResourceDirectionSupply {
 		t.Fatalf("direction = %#v, want supply", first["direction"])

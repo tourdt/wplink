@@ -488,6 +488,7 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 		resp, err := resourcelogic.NewListMyResourcesLogic(store).ListMyResources(r.Context(), resourcelogic.ListMyResourcesReq{
 			MerchantID: query.Get("merchantId"),
 			Status:     query.Get("status"),
+			Direction:  query.Get("direction"),
 			Page:       int64FromQuery(r, "page"),
 			PageSize:   int64FromQuery(r, "pageSize"),
 		})
@@ -759,6 +760,7 @@ func listResourcesReqFromQuery(r *http.Request) resourcelogic.ListResourcesReq {
 	return resourcelogic.ListResourcesReq{
 		CityCode:     query.Get("cityCode"),
 		MerchantID:   query.Get("merchantId"),
+		GroupCode:    query.Get("groupCode"),
 		TypeCode:     query.Get("typeCode"),
 		Direction:    query.Get("direction"),
 		Keyword:      query.Get("keyword"),
@@ -774,6 +776,7 @@ func searchResourcesReqFromQuery(r *http.Request) resourcelogic.SearchResourcesR
 	return resourcelogic.SearchResourcesReq{
 		UserID:       r.URL.Query().Get("userId"),
 		CityCode:     req.CityCode,
+		GroupCode:    req.GroupCode,
 		TypeCode:     req.TypeCode,
 		Direction:    req.Direction,
 		Keyword:      req.Keyword,

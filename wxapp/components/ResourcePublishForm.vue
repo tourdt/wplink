@@ -5,25 +5,13 @@
         <text class="section-title">{{ directionLabels.basicTitle }}</text>
         <text class="section-note">必填</text>
       </view>
-      <view class="basic-progress">
-        <view class="progress-copy">
-          <text class="progress-title">{{ publishReadyText }}</text>
-          <text class="progress-desc">{{ directionLabels.progressDesc }}</text>
+      <view class="category-lock-card">
+        <view class="category-lock-copy">
+          <text class="category-lock-label">发布类目</text>
+          <text class="category-lock-main">{{ selectedGroupName }}</text>
+          <text class="category-lock-sub">{{ selectedTypeLabel }}</text>
         </view>
-        <text class="completion-percent">{{ completionPercent }}%</text>
-      </view>
-      <view class="completion-bar">
-        <view class="completion-bar-fill" :style="completionBarStyle"></view>
-      </view>
-      <view class="field-group">
-        <text class="field-label">{{ directionLabels.typeLabel }}</text>
-        <picker :range="resourceTypeNames" :value="selectedTypeIndex" @change="selectType">
-          <view class="field picker-field">
-            <text>{{ selectedTypeLabel }}</text>
-            <text class="picker-arrow">›</text>
-          </view>
-        </picker>
-        <text class="field-helper">{{ directionLabels.typeHelper }}</text>
+        <text class="category-lock-badge">已选择</text>
       </view>
       <view class="field-group">
         <text class="field-label">标题</text>
@@ -178,6 +166,7 @@ import { listCityResourceTypes } from '../api/city'
 import { getMerchant } from '../api/merchant'
 import { createResource, createResourceDraft, getEditableResource, submitResource, updateResourceDraft } from '../api/resource'
 import { chooseImageFile, uploadSelectedImage } from '../common/upload'
+import { flattenGroupedResourceTypes, groupResourceTypes } from '../common/resourceCategories'
 
 const props = defineProps({
   initialOptions: {
@@ -206,6 +195,7 @@ const selectedTypeIndex = ref(0)
 const resourceImageMaxCount = 9
 const resourceImageEntries = ref([])
 const publishLocalDraftStorageKey = ref('')
+const initialRouteTypeCode = ref('')
 const autosaveReady = ref(false)
 const editingResourceId = ref('')
 const editingResourceStatus = ref('')
@@ -232,19 +222,17 @@ const form = reactive({
 })
 const customSelectFieldKeys = reactive({})
 
-const resourceTypeNames = computed(() => resourceTypes.value.map((item) => item.typeName))
 const currentResourceType = computed(() => resourceTypes.value[selectedTypeIndex.value] || {})
+const selectedGroupName = computed(() => currentResourceType.value.groupName || currentResourceType.value.group?.name || '发布大类')
 const isDemandDirection = computed(() => form.direction === RESOURCE_DIRECTION_DEMAND)
 const selectedTypeLabel = computed(() => {
-  return currentResourceType.value.typeName || `请选择${directionLabels.value.typeLabel}`
+  return currentResourceType.value.typeName || form.typeCode || `请选择${directionLabels.value.typeLabel}`
 })
 const directionLabels = computed(() => {
   if (isDemandDirection.value) {
     return {
       basicTitle: '需求信息',
-      progressDesc: '标题、联系人、联系电话和类型必填项需填写完整',
       typeLabel: '需求类型',
-      typeHelper: '需求类型会用于搜索筛选和分类展示。',
       titlePlaceholder: '例如：急找童装春款现货 3000 件',
       detailTitle: '需求说明',
       descriptionLabel: '需求描述',
@@ -258,9 +246,7 @@ const directionLabels = computed(() => {
   }
   return {
     basicTitle: '基础信息',
-    progressDesc: '标题、联系人、联系电话和类型必填项需填写完整',
     typeLabel: '供应类型',
-    typeHelper: '供应类型会用于搜索筛选和分类展示。',
     titlePlaceholder: '例如：童装春款现货 3000 件',
     detailTitle: '供应说明',
     descriptionLabel: '供应描述',
@@ -280,9 +266,6 @@ const requiredFields = computed(() => {
 })
 const requiredFieldStates = computed(() => requiredFields.value.map(isPublishFieldCompleted))
 const canSubmit = computed(() => requiredFieldStates.value.every(Boolean))
-const completedRequiredCount = computed(() => requiredFieldStates.value.filter(Boolean).length)
-const completionPercent = computed(() => Math.round((completedRequiredCount.value / requiredFields.value.length) * 100))
-const completionBarStyle = computed(() => `width: ${completionPercent.value}%;`)
 const resourceImageGridItems = computed(() => {
   const imageItems = resourceImageEntries.value.map((entry, index) => ({
     id: entry.id,
@@ -294,12 +277,6 @@ const resourceImageGridItems = computed(() => {
     imageItems.push({ id: 'resource-image-add', type: 'add' })
   }
   return imageItems
-})
-const publishReadyText = computed(() => {
-  if (canSubmit.value) {
-    return '必填项已完整，可提交审核'
-  }
-  return `还差 ${requiredFields.value.length - completedRequiredCount.value} 项必填信息`
 })
 
 watch(
@@ -346,6 +323,7 @@ async function initializePublishForm(options = {}) {
   }
   editingResourceStatus.value = ''
   editSavedAsDraft.value = true
+  initialRouteTypeCode.value = options.typeCode || ''
   Object.assign(form, createEmptyPublishForm())
   resetCustomSelectFieldKeys()
   resourceImageEntries.value = []
@@ -353,7 +331,7 @@ async function initializePublishForm(options = {}) {
   form.merchantId = options.merchantId || getMerchantId()
   form.direction = normalizePublishDirection(options.direction || '') || RESOURCE_DIRECTION_SUPPLY
   form.typeCode = options.typeCode || ''
-  publishLocalDraftStorageKey.value = buildPublishLocalDraftStorageKey(form.merchantId, editingResourceId.value)
+  publishLocalDraftStorageKey.value = buildPublishLocalDraftStorageKey(form.merchantId, editingResourceId.value, initialRouteTypeCode.value)
   if (editingResourceId.value) {
     await loadEditableResource()
   } else {
@@ -361,7 +339,7 @@ async function initializePublishForm(options = {}) {
   }
   if (options.repost) {
     restoreRepostInitialForm()
-    publishLocalDraftStorageKey.value = buildPublishLocalDraftStorageKey(form.merchantId, editingResourceId.value)
+    publishLocalDraftStorageKey.value = buildPublishLocalDraftStorageKey(form.merchantId, editingResourceId.value, initialRouteTypeCode.value || form.typeCode)
     await loadResourceTypes()
   } else if (!editingResourceId.value) {
     await loadMerchantContact()
@@ -371,22 +349,21 @@ async function initializePublishForm(options = {}) {
 }
 
 async function loadResourceTypes() {
-  const resp = await listCityResourceTypes(form.cityCode, { direction: form.direction })
-  resourceTypes.value = resp.items || []
+  const resp = await listCityResourceTypes(form.cityCode)
+  resourceTypes.value = flattenGroupedResourceTypes(groupResourceTypes(resp.items || []))
   if (!resourceTypes.value.length) {
     form.typeCode = ''
     return
   }
   const matchIndex = resourceTypes.value.findIndex((item) => item.typeCode === form.typeCode)
   selectedTypeIndex.value = matchIndex >= 0 ? matchIndex : 0
-  form.typeCode = resourceTypes.value[selectedTypeIndex.value].typeCode
-  syncAttributesWithSelectedType()
+  applySelectedResourceType()
 }
 
-function selectType(event) {
-  selectedTypeIndex.value = Number(event.detail.value)
+function applySelectedResourceType() {
   const current = resourceTypes.value[selectedTypeIndex.value] || {}
   form.typeCode = current.typeCode || ''
+  form.direction = normalizePublishDirection(current.direction || '') || RESOURCE_DIRECTION_SUPPLY
   syncAttributesWithSelectedType()
 }
 
@@ -529,8 +506,8 @@ async function saveResourceDraftPayload(images) {
   return resp
 }
 
-function buildPublishLocalDraftStorageKey(merchantId, resourceId = '') {
-  const draftScope = resourceId || `new-${form.direction || RESOURCE_DIRECTION_SUPPLY}`
+function buildPublishLocalDraftStorageKey(merchantId, resourceId = '', typeCode = '') {
+  const draftScope = resourceId || (typeCode ? `new-type-${typeCode}` : `new-${form.direction || RESOURCE_DIRECTION_SUPPLY}`)
   return `publish:local-draft:${merchantId || 'default'}:${draftScope}`
 }
 
@@ -547,7 +524,12 @@ function restorePublishLocalDraft() {
   resourceImageEntries.value = Array.isArray(draft.resourceImageEntries)
     ? draft.resourceImageEntries.filter((entry) => entry?.id && entry?.url)
     : []
-  syncSelectedTypeIndex()
+  if (initialRouteTypeCode.value) {
+    form.typeCode = initialRouteTypeCode.value
+    syncSelectedTypeIndex()
+  } else {
+    syncSelectedTypeIndex()
+  }
 }
 
 function scheduleSavePublishLocalDraft() {
@@ -593,6 +575,7 @@ function resetPublishForm() {
   editingResourceId.value = ''
   editingResourceStatus.value = ''
   editSavedAsDraft.value = true
+  initialRouteTypeCode.value = ''
   Object.assign(form, createEmptyPublishForm())
   resetCustomSelectFieldKeys()
   resourceImageEntries.value = []
@@ -673,8 +656,7 @@ function syncSelectedTypeIndex() {
   if (!resourceTypes.value.length) return
   const matchIndex = resourceTypes.value.findIndex((item) => item.typeCode === form.typeCode)
   selectedTypeIndex.value = matchIndex >= 0 ? matchIndex : 0
-  form.typeCode = resourceTypes.value[selectedTypeIndex.value]?.typeCode || ''
-  syncAttributesWithSelectedType()
+  applySelectedResourceType()
 }
 
 function normalizeDynamicFieldItems(fieldSchema = {}) {
@@ -979,21 +961,64 @@ function getPublishFieldLabel(field) {
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
 
-.section-note,
-.field-helper {
+.section-note {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.45;
 }
 
-.basic-progress {
+.category-lock-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16rpx;
-  padding: 18rpx;
+  min-width: 0;
+  padding: 20rpx;
+  border: 1rpx solid rgba(6, 22, 37, 0.08);
   border-radius: 10rpx;
   background: #f8fafc;
+}
+
+.category-lock-copy {
+  display: grid;
+  gap: 6rpx;
+  min-width: 0;
+}
+
+.category-lock-label {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.3;
+}
+
+.category-lock-main {
+  overflow: hidden;
+  color: $wplink-primary;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-lock-sub {
+  overflow: hidden;
+  color: $wplink-muted;
+  font-size: 25rpx;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-lock-badge {
+  flex: 0 0 auto;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(194, 58, 0, 0.1);
+  color: $wplink-warning;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .toggle-group {
@@ -1022,47 +1047,6 @@ function getPublishFieldLabel(field) {
 .select-with-custom {
   display: grid;
   gap: 12rpx;
-}
-
-.progress-copy {
-  display: grid;
-  gap: 4rpx;
-  min-width: 0;
-}
-
-.progress-title {
-  color: $wplink-primary;
-  font-size: 26rpx;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.progress-desc {
-  color: $wplink-muted;
-  font-size: 24rpx;
-  line-height: 1.4;
-}
-
-.completion-percent {
-  flex: 0 0 auto;
-  color: $wplink-primary;
-  font-size: 34rpx;
-  font-weight: 700;
-  line-height: 1.15;
-}
-
-.completion-bar {
-  width: 100%;
-  height: 12rpx;
-  overflow: hidden;
-  border-radius: 999rpx;
-  background: rgba(6, 22, 37, 0.1);
-}
-
-.completion-bar-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: $wplink-warning;
 }
 
 .section-head {
@@ -1096,10 +1080,6 @@ function getPublishFieldLabel(field) {
   color: $wplink-primary;
   font-size: 26rpx;
   font-weight: 700;
-}
-
-.field-helper {
-  display: block;
 }
 
 .field,

@@ -255,6 +255,8 @@ psql_run "$database_url" -v ON_ERROR_STOP=1 <<'SQL'
 DO $$
 DECLARE
   direction_column_count integer;
+  resource_type_count integer;
+  group_count integer;
   demand_type_count integer;
 BEGIN
   SELECT count(*)
@@ -269,18 +271,102 @@ BEGIN
   END IF;
 
   SELECT count(*)
+  INTO resource_type_count
+  FROM resource_type_configs
+  WHERE type_code IN (
+    'factory_direct',
+    'spot_wholesale',
+    'stock_clearance',
+    'buy_kids_goods',
+    'fabric_supply',
+    'accessory_supply',
+    'processing_accept',
+    'find_factory',
+    'production_support',
+    'job_hiring',
+    'job_seeking',
+    'sample_rental',
+    'shop_office_rental',
+    'shop_sale',
+    'seek_shop_office',
+    'apartment_rental',
+    'housing_sale',
+    'seek_housing',
+    'factory_warehouse_rental',
+    'workshop_rental',
+    'factory_sale',
+    'seek_factory_warehouse',
+    'secondhand_sale',
+    'secondhand_buy',
+    'education_training',
+    'appliance_repair',
+    'moving_cleaning',
+    'other_local_service'
+  );
+
+  IF resource_type_count <> 28 THEN
+    RAISE EXCEPTION 'expected 28 category item resource types, got %', resource_type_count;
+  END IF;
+
+  SELECT count(DISTINCT display_template #>> '{group,code}')
+  INTO group_count
+  FROM resource_type_configs
+  WHERE type_code IN (
+    'factory_direct',
+    'spot_wholesale',
+    'stock_clearance',
+    'buy_kids_goods',
+    'fabric_supply',
+    'accessory_supply',
+    'processing_accept',
+    'find_factory',
+    'production_support',
+    'job_hiring',
+    'job_seeking',
+    'sample_rental',
+    'shop_office_rental',
+    'shop_sale',
+    'seek_shop_office',
+    'apartment_rental',
+    'housing_sale',
+    'seek_housing',
+    'factory_warehouse_rental',
+    'workshop_rental',
+    'factory_sale',
+    'seek_factory_warehouse',
+    'secondhand_sale',
+    'secondhand_buy',
+    'education_training',
+    'appliance_repair',
+    'moving_cleaning',
+    'other_local_service'
+  );
+
+  IF group_count <> 8 THEN
+    RAISE EXCEPTION 'expected 8 primary resource groups, got %', group_count;
+  END IF;
+
+  SELECT count(*)
   INTO demand_type_count
   FROM resource_type_configs
   WHERE direction = 'demand'
-    AND type_code IN ('buy_goods', 'find_inventory', 'find_factory', 'find_service', 'find_rental');
+    AND type_code IN (
+      'buy_kids_goods',
+      'find_factory',
+      'job_seeking',
+      'seek_shop_office',
+      'seek_housing',
+      'seek_factory_warehouse',
+      'secondhand_buy'
+    );
 
-  IF demand_type_count < 5 THEN
-    RAISE EXCEPTION 'expected 5 demand resource types, got %', demand_type_count;
+  IF demand_type_count <> 7 THEN
+    RAISE EXCEPTION 'expected 7 demand category item resource types, got %', demand_type_count;
   END IF;
 END $$;
 SQL
 
-psql_run "$database_url" -v ON_ERROR_STOP=1 -c "SELECT type_code, type_name, direction FROM resource_type_configs WHERE type_code IN ('goods','inventory','factory','service','rental','buy_goods','find_inventory','find_factory','find_service','find_rental') ORDER BY direction, type_code;"
+psql_run "$database_url" -v ON_ERROR_STOP=1 -c "SELECT display_template #>> '{group,name}' AS group_name, type_code, type_name, direction FROM resource_type_configs WHERE type_code IN ('factory_direct','spot_wholesale','stock_clearance','buy_kids_goods','fabric_supply','accessory_supply','processing_accept','find_factory','production_support','job_hiring','job_seeking','sample_rental','shop_office_rental','shop_sale','seek_shop_office','apartment_rental','housing_sale','seek_housing','factory_warehouse_rental','workshop_rental','factory_sale','seek_factory_warehouse','secondhand_sale','secondhand_buy','education_training','appliance_repair','moving_cleaning','other_local_service') ORDER BY display_template #>> '{group,sort}', direction, type_code;"
 
 printf 'test database updated successfully. Backup: %s\n' "$backup_file"
 REMOTE_SCRIPT

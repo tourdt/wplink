@@ -14,6 +14,7 @@ func TestListMyResourcesPassesFiltersToStore(t *testing.T) {
 		listResult: model.ListMyResourcesResult{
 			Items: []model.MyResourceItem{{
 				ID: "resource-1", Title: "童装库存", Status: "rejected", RejectReason: "图片不清晰",
+				Direction: model.ResourceDirectionDemand, TypeCode: "buy_kids_goods", TypeName: "求购尾货",
 				CoverURL: "https://img.example.com/resource-cover.jpg",
 				Metrics:  model.MyResourceMetrics{ExposureCount: 10, DetailViewCount: 3, PhoneClickCount: 2, WechatCopyCount: 1},
 			}},
@@ -22,19 +23,43 @@ func TestListMyResourcesPassesFiltersToStore(t *testing.T) {
 	}
 	logic := NewListMyResourcesLogic(store)
 
-	resp, err := logic.ListMyResources(context.Background(), ListMyResourcesReq{MerchantID: " merchant-1 ", Status: "published", Page: 1, PageSize: 20})
+	resp, err := logic.ListMyResources(context.Background(), ListMyResourcesReq{MerchantID: " merchant-1 ", Status: "published", Direction: " demand ", Page: 1, PageSize: 20})
 	if err != nil {
 		t.Fatalf("ListMyResources() error = %v", err)
 	}
 
-	if store.listFilter.MerchantID != "merchant-1" || store.listFilter.Status != "published" {
-		t.Fatalf("filter = %#v, want trimmed merchant and status", store.listFilter)
+	if store.listFilter.MerchantID != "merchant-1" || store.listFilter.Status != "published" || store.listFilter.Direction != model.ResourceDirectionDemand {
+		t.Fatalf("filter = %#v, want trimmed merchant/status/direction", store.listFilter)
 	}
 	if len(resp.Items) != 1 || resp.Items[0].Metrics.DetailViewCount != 3 || resp.Items[0].RejectReason != "图片不清晰" {
 		t.Fatalf("resp = %#v, want metrics item with reject reason", resp)
 	}
+	if resp.Items[0].Direction != model.ResourceDirectionDemand || resp.Items[0].TypeName != "求购尾货" {
+		t.Fatalf("item = %#v, want direction and dynamic type name", resp.Items[0])
+	}
 	if resp.Items[0].CoverURL != "https://img.example.com/resource-cover.jpg" {
 		t.Fatalf("coverUrl = %q, want list cover image", resp.Items[0].CoverURL)
+	}
+}
+
+func TestGetEditableResourceReturnsDirection(t *testing.T) {
+	store := &fakeMyResourceStore{
+		editableDetail: model.EditableResourceDetail{
+			ID: "resource-1", MerchantID: "merchant-1", CityCode: "zhili", TypeCode: "buy_kids_goods", Direction: model.ResourceDirectionDemand,
+			Status: model.ResourceStatusDraft, Title: "求购尾货", Category: "童装", Description: "需要春款",
+			Attributes: model.JSONMap{"season": "春季"}, Tags: []string{"求购"}, Images: []string{"https://img.example.com/resource.jpg"},
+			ContactName: "周经理", ContactPhone: "18800000002",
+		},
+	}
+	logic := NewGetEditableResourceLogic(store)
+
+	resp, err := logic.Get(context.Background(), GetEditableResourceReq{MerchantID: " merchant-1 ", ResourceID: " resource-1 "})
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	if resp.Direction != model.ResourceDirectionDemand || resp.TypeCode != "buy_kids_goods" {
+		t.Fatalf("resp = %#v, want editable direction and type code", resp)
 	}
 }
 

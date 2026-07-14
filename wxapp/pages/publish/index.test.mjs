@@ -10,7 +10,8 @@ test('publish entry requires login but does not require merchant profile complet
   assert.match(source, /import \{ requireLogin \} from '\.\.\/\.\.\/common\/auth'/)
   assert.doesNotMatch(source, /ensureMerchantProfileReady/)
   assert.match(source, /async function applyPendingPublishType\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*navigateToPublishForm/)
-  assert.match(source, /function startPublish\(direction\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*navigateToPublishForm/)
+  assert.match(source, /function startPublishGroup\(group\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*selectedCategoryGroup\.value = group[\s\S]*showTypeSheet\.value = true/)
+  assert.match(source, /function startPublishCategory\(item\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*navigateToPublishForm\(\{ typeCode: item\.typeCode \}\)/)
 })
 
 test('publish entry shows pre-publish content rules and penalty notice', () => {
@@ -49,12 +50,48 @@ test('publish entry shows pre-publish content rules and penalty notice', () => {
   }
 })
 
-test('publish entry removes the old page title copy and uses understated list rows', () => {
+test('publish entry shows primary category groups and chooses secondary type in bottom sheet', () => {
   assert.doesNotMatch(source, /<view class="entry-head">/)
   assert.doesNotMatch(source, /选择本次要发布的内容类型，后续字段会按供给或需求自动切换。/)
   for (const token of [
-    'publish-direction-section',
+    'publish-category-section',
     'direction-section-title',
+    '选择发布大类',
+    'categoryGroups',
+    'publish-category-list',
+    'category-group-button',
+    'category-group-name',
+    'type-sheet-mask',
+    'type-sheet-panel',
+    'type-sheet-title',
+    'type-option-list',
+    'type-option-button',
+    'type-option-name',
+    '选择具体发布类型',
+    '童装批发、厂房仓库、本地服务',
+    '系统会自动匹配供应或需求表单',
+    '类目加载中...',
+    '暂无可发布类目，请稍后重试',
+  ]) {
+    assert.match(source, new RegExp(token))
+  }
+  assert.match(source, /import \{ groupResourceTypes \} from '\.\.\/\.\.\/common\/resourceCategories'/)
+  assert.match(source, /listCityResourceTypes\(DEFAULT_CITY_CODE\)/)
+  assert.match(source, /categoryGroups\.value = groupResourceTypes\(resp\.items \|\| \[\]\)/)
+  assert.match(source, /v-for="group in categoryGroups"[\s\S]*@click="startPublishGroup\(group\)"/)
+  assert.match(source, /v-for="item in selectedCategoryItems"[\s\S]*@click="startPublishCategory\(item\)"/)
+  assert.match(source, /const selectedCategoryItems = computed\(\(\) => selectedCategoryGroup\.value\?\.items \|\| \[\]\)/)
+  assert.match(source, /if \(items\.length === 1\) \{[\s\S]*navigateToPublishForm\(\{ typeCode: items\[0\]\.typeCode \}\)[\s\S]*return[\s\S]*\}/)
+  assert.match(source, /function navigateToPublishForm\(options = \{\}\) \{[\s\S]*typeCode: options\.typeCode \|\| '',[\s\S]*typeCode=\$\{encodeURIComponent\(initialPublishOptions\.typeCode\)\}/)
+  assert.match(source, /\.publish-category-list \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/)
+  assert.match(source, /\.type-sheet-mask \{[\s\S]*position: fixed;[\s\S]*align-items: flex-end;/)
+  assert.match(source, /\.type-option-button \{[\s\S]*text-align: left;/)
+  for (const token of [
+    'category-item-grid',
+    'category-item-button',
+    'category-item-direction',
+    "item.direction === RESOURCE_DIRECTION_DEMAND ? '需求' : '供应'",
+    'publish-direction-section',
     'publish-direction-list',
     'publish-direction-row',
     'direction-marker',
@@ -62,17 +99,6 @@ test('publish entry removes the old page title copy and uses understated list ro
     '<text class="direction-arrow">›</text>',
     '我能提供',
     '我想寻找',
-    '发布货源、库存、产能、服务等供需信息',
-    '发布找货、找工厂、找服务等需求',
-  ]) {
-    assert.match(source, new RegExp(token))
-  }
-  assert.match(source, /\.direction-copy \{[\s\S]*flex: 1 1 auto;[\s\S]*text-align: left;/)
-  assert.match(source, /\.publish-direction-list \{[\s\S]*overflow: hidden;[\s\S]*background: \$wplink-card;/)
-  assert.match(source, /\.publish-direction-row \+ \.publish-direction-row \{[\s\S]*border-top: 1rpx solid rgba\(\$wplink-line, 0\.72\);/)
-  assert.match(source, /\.publish-direction-row \{[\s\S]*background: transparent;[\s\S]*transition: background 160ms ease;/)
-  assert.match(source, /\.publish-direction-row:active \{[\s\S]*background: rgba\(\$wplink-primary, 0\.035\);/)
-  for (const token of [
     'publish-direction-card',
     'direction-card-body',
     'direction-icon',

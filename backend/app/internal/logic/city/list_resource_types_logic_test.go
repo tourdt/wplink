@@ -12,8 +12,8 @@ func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
 		configs: []model.ResourceTypeConfig{
 			{
 				ID:               "type-1",
-				TypeCode:         "inventory",
-				TypeName:         "库存清仓",
+				TypeCode:         "stock_clearance",
+				TypeName:         "库存出售",
 				Direction:        model.ResourceDirectionSupply,
 				DefaultValidDays: 7,
 				FieldSchema: model.JSONMap{
@@ -40,8 +40,8 @@ func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
 	if len(resp.Items) != 1 {
 		t.Fatalf("items length = %d, want 1", len(resp.Items))
 	}
-	if resp.Items[0].TypeCode != "inventory" {
-		t.Fatalf("typeCode = %q, want inventory", resp.Items[0].TypeCode)
+	if resp.Items[0].TypeCode != "stock_clearance" {
+		t.Fatalf("typeCode = %q, want stock_clearance", resp.Items[0].TypeCode)
 	}
 	if resp.Items[0].Direction != model.ResourceDirectionSupply {
 		t.Fatalf("direction = %q, want supply", resp.Items[0].Direction)
@@ -60,8 +60,8 @@ func TestListResourceTypesPassesDirectionFilter(t *testing.T) {
 		configs: []model.ResourceTypeConfig{
 			{
 				ID:               "type-demand-1",
-				TypeCode:         "buy_goods",
-				TypeName:         "找现货",
+				TypeCode:         "buy_kids_goods",
+				TypeName:         "求购尾货",
 				Direction:        model.ResourceDirectionDemand,
 				DefaultValidDays: 7,
 			},

@@ -50,6 +50,27 @@ func TestSearchResourcesPassesDirectionToListAndSearchLog(t *testing.T) {
 	}
 }
 
+func TestSearchResourcesPassesGroupCodeToListAndSearchLog(t *testing.T) {
+	store := &fakeSearchResourceStore{
+		result: model.ListResourcesResult{Items: []model.ResourceListItem{{ID: "resource-1"}}, Total: 1, Page: 1, PageSize: 20},
+	}
+	logic := NewSearchResourcesLogic(store)
+
+	_, err := logic.SearchResources(context.Background(), SearchResourcesReq{
+		UserID: "user-1", CityCode: "zhili", GroupCode: "factory_warehouse", Keyword: "仓库", Page: 1, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("SearchResources() error = %v", err)
+	}
+
+	if store.filter.GroupCode != "factory_warehouse" {
+		t.Fatalf("groupCode = %q, want factory_warehouse", store.filter.GroupCode)
+	}
+	if got := store.searchLog.Filters["groupCode"]; got != "factory_warehouse" {
+		t.Fatalf("search log groupCode = %#v, want factory_warehouse", got)
+	}
+}
+
 func TestSearchResourcesReturnsResultsWhenSearchLogFails(t *testing.T) {
 	store := &fakeSearchResourceStore{
 		result:    model.ListResourcesResult{Items: []model.ResourceListItem{{ID: "resource-1"}}, Total: 1, Page: 1, PageSize: 20},

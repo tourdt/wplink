@@ -127,6 +127,7 @@ type ResourceListItem struct {
 	ID           string
 	Direction    string
 	TypeCode     string
+	TypeName     string
 	Title        string
 	Category     string
 	District     string
@@ -140,6 +141,7 @@ type ResourceListItem struct {
 type ListResourcesFilter struct {
 	CityCode     string
 	MerchantID   string
+	GroupCode    string
 	TypeCode     string
 	Direction    string
 	Keyword      string
@@ -200,6 +202,7 @@ SELECT
   r.id::text,
   r.direction,
   r.type_code,
+  rtc.type_name,
   r.title,
   r.category,
   COALESCE(r.district, ''),
@@ -221,28 +224,30 @@ SELECT
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
 JOIN city_stations cs ON cs.id = r.city_station_id
+JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 WHERE r.deleted_at IS NULL
   AND m.status = 'active'
   AND r.status = $1
   AND ($2 = '' OR cs.code = $2)
   AND (NULLIF($3, '')::bigint IS NULL OR r.merchant_id = NULLIF($3, '')::bigint)
-  AND ($4 = '' OR r.type_code = $4)
-  AND ($5 = '' OR r.direction = $5)
-  AND ($6 = '' OR r.category = $6)
+  AND ($4 = '' OR rtc.display_template #>> '{group,code}' = $4)
+  AND ($5 = '' OR r.type_code = $5)
+  AND ($6 = '' OR r.direction = $6)
+  AND ($7 = '' OR r.category = $7)
   AND (
-    $7 = ''
-    OR r.title ILIKE '%' || $7 || '%'
-    OR r.description ILIKE '%' || $7 || '%'
-    OR r.category ILIKE '%' || $7 || '%'
-    OR m.name ILIKE '%' || $7 || '%'
-    OR r.attributes::text ILIKE '%' || $7 || '%'
+    $8 = ''
+    OR r.title ILIKE '%' || $8 || '%'
+    OR r.description ILIKE '%' || $8 || '%'
+    OR r.category ILIKE '%' || $8 || '%'
+    OR m.name ILIKE '%' || $8 || '%'
+    OR r.attributes::text ILIKE '%' || $8 || '%'
   )
-  AND ($8 = false OR r.is_verified = true OR m.verification_status = 'verified')
+  AND ($9 = false OR r.is_verified = true OR m.verification_status = 'verified')
   AND (r.expires_at IS NULL OR r.expires_at > now())
 ORDER BY
   CASE WHEN r.top_expires_at IS NOT NULL AND r.top_expires_at > now() THEN 1 ELSE 0 END DESC,
   COALESCE(r.refreshed_at, r.published_at, r.created_at) DESC
-LIMIT $9 OFFSET $10
+LIMIT $10 OFFSET $11
 `
 
 const reviewResourceSQL = `
@@ -370,7 +375,9 @@ type MyResourceMetrics struct {
 
 type MyResourceItem struct {
 	ID           string
+	Direction    string
 	TypeCode     string
+	TypeName     string
 	Title        string
 	Category     string
 	CoverURL     string
@@ -387,6 +394,7 @@ type EditableResourceDetail struct {
 	MerchantID    string
 	CityCode      string
 	TypeCode      string
+	Direction     string
 	Status        string
 	Title         string
 	Category      string
@@ -406,6 +414,7 @@ type EditableResourceDetail struct {
 type ListMyResourcesFilter struct {
 	MerchantID string
 	Status     string
+	Direction  string
 	Page       int64
 	PageSize   int64
 }
@@ -420,7 +429,9 @@ type ListMyResourcesResult struct {
 const listMyResourcesSQL = `
 SELECT
   r.id::text,
+  r.direction,
   r.type_code,
+  rtc.type_name,
   r.title,
   r.category,
   COALESCE(NULLIF(r.cover_url, ''), r.images ->> 0, ''),
@@ -435,6 +446,7 @@ SELECT
   COALESCE(SUM(rmd.wechat_copy_count), 0),
   COUNT(*) OVER() AS total
 FROM resources r
+JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 LEFT JOIN resource_metrics_daily rmd ON rmd.resource_id = r.id
 WHERE r.merchant_id = $1
   AND r.deleted_at IS NULL
@@ -448,9 +460,10 @@ WHERE r.merchant_id = $1
     OR ($2 = 'dealt' AND r.dealt_at IS NOT NULL)
     OR r.status = $2
   )
-GROUP BY r.id
+  AND ($3 = '' OR r.direction = $3)
+GROUP BY r.id, rtc.type_name
 ORDER BY r.updated_at DESC
-LIMIT $3 OFFSET $4
+LIMIT $4 OFFSET $5
 `
 
 type ResourceOwnershipStatus struct {
@@ -845,6 +858,7 @@ SELECT
   r.merchant_id::text,
   cs.code,
   r.type_code,
+  r.direction,
   r.status,
   r.title,
   r.category,
@@ -870,6 +884,7 @@ WHERE r.id = $1
 		&detail.MerchantID,
 		&detail.CityCode,
 		&detail.TypeCode,
+		&detail.Direction,
 		&detail.Status,
 		&detail.Title,
 		&detail.Category,
@@ -898,7 +913,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize
 
-	rows, err := m.db.QueryContext(ctx, listResourcesSQL, filter.Status, filter.CityCode, filter.MerchantID, filter.TypeCode, filter.Direction, filter.Category, filter.Keyword, filter.VerifiedOnly, pageSize, offset)
+	rows, err := m.db.QueryContext(ctx, listResourcesSQL, filter.Status, filter.CityCode, filter.MerchantID, filter.GroupCode, filter.TypeCode, filter.Direction, filter.Category, filter.Keyword, filter.VerifiedOnly, pageSize, offset)
 	if err != nil {
 		return ListResourcesResult{}, err
 	}
@@ -913,6 +928,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 			&item.ID,
 			&item.Direction,
 			&item.TypeCode,
+			&item.TypeName,
 			&item.Title,
 			&item.Category,
 			&item.District,
@@ -1133,7 +1149,7 @@ LIMIT $4 OFFSET $5
 func (m *ResourceModel) ListMyResources(ctx context.Context, filter ListMyResourcesFilter) (ListMyResourcesResult, error) {
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize
-	rows, err := m.db.QueryContext(ctx, listMyResourcesSQL, filter.MerchantID, filter.Status, pageSize, offset)
+	rows, err := m.db.QueryContext(ctx, listMyResourcesSQL, filter.MerchantID, filter.Status, filter.Direction, pageSize, offset)
 	if err != nil {
 		return ListMyResourcesResult{}, err
 	}
@@ -1145,7 +1161,7 @@ func (m *ResourceModel) ListMyResources(ctx context.Context, filter ListMyResour
 		var expiresAt sql.NullTime
 		var dealtAt sql.NullTime
 		if err := rows.Scan(
-			&item.ID, &item.TypeCode, &item.Title, &item.Category, &item.CoverURL, &item.Status,
+			&item.ID, &item.Direction, &item.TypeCode, &item.TypeName, &item.Title, &item.Category, &item.CoverURL, &item.Status,
 			&item.RejectReason, &publishedAt, &expiresAt, &dealtAt,
 			&item.Metrics.ExposureCount, &item.Metrics.DetailViewCount,
 			&item.Metrics.PhoneClickCount, &item.Metrics.WechatCopyCount,

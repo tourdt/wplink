@@ -27,6 +27,7 @@ type MyResourceStore interface {
 type ListMyResourcesReq struct {
 	MerchantID string
 	Status     string
+	Direction  string
 	Page       int64
 	PageSize   int64
 }
@@ -40,7 +41,9 @@ type MyResourceMetrics struct {
 
 type MyResourceItem struct {
 	ID           string            `json:"id"`
+	Direction    string            `json:"direction"`
 	TypeCode     string            `json:"typeCode"`
+	TypeName     string            `json:"typeName,omitempty"`
 	Title        string            `json:"title"`
 	Category     string            `json:"category"`
 	CoverURL     string            `json:"coverUrl,omitempty"`
@@ -80,6 +83,7 @@ type GetEditableResourceResp struct {
 	MerchantID   string                  `json:"merchantId"`
 	CityCode     string                  `json:"cityCode"`
 	TypeCode     string                  `json:"typeCode"`
+	Direction    string                  `json:"direction"`
 	Status       string                  `json:"status"`
 	Title        string                  `json:"title"`
 	Category     string                  `json:"category"`
@@ -171,6 +175,7 @@ func (l *ListMyResourcesLogic) ListMyResources(ctx context.Context, req ListMyRe
 	result, err := l.store.ListMyResources(ctx, model.ListMyResourcesFilter{
 		MerchantID: merchantID,
 		Status:     strings.TrimSpace(req.Status),
+		Direction:  strings.TrimSpace(req.Direction),
 		Page:       req.Page,
 		PageSize:   req.PageSize,
 	})
@@ -180,7 +185,7 @@ func (l *ListMyResourcesLogic) ListMyResources(ctx context.Context, req ListMyRe
 	items := make([]MyResourceItem, 0, len(result.Items))
 	for _, item := range result.Items {
 		items = append(items, MyResourceItem{
-			ID: item.ID, TypeCode: item.TypeCode, Title: item.Title, Category: item.Category, Status: item.Status,
+			ID: item.ID, Direction: item.Direction, TypeCode: item.TypeCode, TypeName: item.TypeName, Title: item.Title, Category: item.Category, Status: item.Status,
 			CoverURL: item.CoverURL, RejectReason: item.RejectReason, PublishedAt: item.PublishedAt, ExpiresAt: item.ExpiresAt, DealtAt: item.DealtAt,
 			Metrics: MyResourceMetrics{
 				ExposureCount: item.Metrics.ExposureCount, DetailViewCount: item.Metrics.DetailViewCount,
@@ -216,6 +221,7 @@ func (l *GetEditableResourceLogic) Get(ctx context.Context, req GetEditableResou
 		MerchantID:   detail.MerchantID,
 		CityCode:     detail.CityCode,
 		TypeCode:     detail.TypeCode,
+		Direction:    detail.Direction,
 		Status:       detail.Status,
 		Title:        detail.Title,
 		Category:     detail.Category,

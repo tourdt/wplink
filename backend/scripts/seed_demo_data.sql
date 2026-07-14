@@ -154,6 +154,7 @@ INSERT INTO resources (
   city_station_id,
   resource_type_config_id,
   type_code,
+  direction,
   status,
   title,
   category,
@@ -181,6 +182,7 @@ SELECT
   cs.id,
   rtc.id,
   r.type_code,
+  rtc.direction,
   r.status,
   r.title,
   r.category,
@@ -205,17 +207,17 @@ FROM city_stations cs
 JOIN resource_type_configs rtc ON rtc.city_station_id = cs.id
 CROSS JOIN (
   VALUES
-    (8030000000000000001, 8020000000000000002, 'inventory', 'published', '女童春款卫衣库存整包清', '童装卫衣', '织里', '18-26 元/件', '现货 3800 件', '', '春款卫衣库存，支持整包和直播拿样。', '{"season":"春季","sizeRange":"90-140","allowSample":true,"allowLiveSale":true}', '["库存","可拿样","直播货盘"]', '周经理', '18800000002', 'stock-demo', true, now() - interval '2 days', now() - interval '1 hours', now() + interval '5 days', NULL, 8010000000000000003),
-    (8030000000000000002, 8020000000000000001, 'goods', 'published', '童装套装一件代发货源', '童装套装', '织里', '32-45 元/套', '起批 20 套', '', '工厂直供套装货源，可一件代发。', '{"style":"韩版休闲","minOrderQuantity":"20套","spotAvailable":true,"dropshipping":true}', '["货源","一件代发"]', '陈厂长', '18800000001', 'factory-demo', true, now() - interval '3 days', now() - interval '2 hours', now() + interval '12 days', NULL, 8010000000000000002),
-    (8030000000000000003, 8020000000000000001, 'factory', 'published', '童装卫衣工厂空档期接单', '加工厂', '织里', '价格按工艺核算', '日产 1200 件', '', '认证工厂有空档期，可承接童装卫衣和套装快反。', '{"dailyCapacity":"1200件","minOrderQuantity":"300件","acceptSmallOrders":true,"availableSchedule":"本周可排单"}', '["认证工厂","快反"]', '陈厂长', '18800000001', 'factory-demo', true, now() - interval '1 days', now() - interval '30 minutes', now() + interval '14 days', NULL, 8010000000000000002),
-    (8030000000000000004, 8020000000000000004, 'order', 'published', '采购 5000 件女童防晒衣订单', '订单需求', '杭州', '面议', '5000 件', '', '采购商寻找织里工厂承接防晒衣订单，交期 20 天。', '{"orderQuantity":"5000件","deliveryDeadline":"20天","sampleRequired":true,"longTermCooperation":true}', '["订单","采购商"]', '王采购', '18800000004', 'buyer-demo', false, now() - interval '1 days', now() - interval '1 days', now() + interval '8 days', NULL, 8010000000000000005),
-    (8030000000000000005, 8020000000000000001, 'job', 'published', '童装平车熟练工招聘', '招聘', '织里', '计件 0.8-1.2 元', '招聘 8 人', '', '工厂招聘熟练平车工，订单稳定。', '{"position":"平车工","payText":"计件0.8-1.2元","headcount":8,"includeMealsHousing":true}', '["招聘","平车工"]', '陈厂长', '18800000001', 'factory-demo', true, now() - interval '4 days', now() - interval '2 days', now() + interval '10 days', NULL, 8010000000000000002),
-    (8030000000000000006, 8020000000000000003, 'rental', 'published', '织里童装城旁 120 平仓库出租', '厂房仓库', '织里', '6800 元/月', '120 平', '', '童装城附近仓库出租，可短租。', '{"areaText":"120平","rentText":"6800元/月","floor":"1楼","transferFee":"无"}', '["出租","仓库"]', '李经理', '18800000003', 'service-demo', true, now() - interval '5 days', now() - interval '3 days', now() + interval '25 days', NULL, 8010000000000000004),
-    (8030000000000000007, 8020000000000000003, 'service', 'published', '童装吊牌包装快印服务', '配套服务', '织里', '按量报价', '当天出样', '', '提供吊牌、洗标、包装袋和电商拍摄服务。', '{"serviceType":"包装快印","serviceArea":"织里及周边","leadTime":"当天出样","caseAvailable":true}', '["服务","包装"]', '李经理', '18800000003', 'service-demo', true, now() - interval '6 days', now() - interval '6 hours', now() + interval '28 days', NULL, 8010000000000000004),
-    (8030000000000000008, 8020000000000000002, 'inventory', 'pending', '待审核夏款短袖库存', '童装短袖', '织里', '12-18 元/件', '1800 件', '', '演示待审核供需信息。', '{"season":"夏季","sizeRange":"90-130","allowSample":true,"allowLiveSale":false}', '["待审核"]', '周经理', '18800000002', 'stock-demo', true, NULL, NULL, now() + interval '7 days', NULL, 8010000000000000003),
-    (8030000000000000009, 8020000000000000001, 'goods', 'rejected', '资料不完整的货源演示', '童装', '织里', '面议', '起批待确认', '', '演示已驳回供需信息。', '{"style":"基础款","spotAvailable":false}', '["已驳回"]', '陈厂长', '18800000001', 'factory-demo', true, NULL, NULL, now() + interval '7 days', '缺少清晰价格和联系方式确认材料', 8010000000000000002),
-    (8030000000000000010, 8020000000000000002, 'inventory', 'published', '即将过期的直播童裙库存', '童裙', '织里', '22 元/件', '900 件', '', '演示即将过期供需信息。', '{"season":"夏季","sizeRange":"100-140","allowSample":true,"allowLiveSale":true}', '["即将过期"]', '周经理', '18800000002', 'stock-demo', true, now() - interval '6 days', now() - interval '5 days', now() + interval '1 day', NULL, 8010000000000000003),
-    (8030000000000000011, 8020000000000000003, 'service', 'expired', '已过期的旧拍摄服务套餐', '电商拍摄', '织里', '套餐价 999 元', '限 10 套', '', '演示已过期供需信息。', '{"serviceType":"拍摄","serviceArea":"织里","leadTime":"3天","caseAvailable":true}', '["已过期"]', '李经理', '18800000003', 'service-demo', true, now() - interval '40 days', now() - interval '35 days', now() - interval '1 day', NULL, 8010000000000000004)
+    (8030000000000000001, 8020000000000000002, 'stock_clearance', 'published', '女童春款卫衣库存整包清', '童装卫衣', '织里', '18-26 元/件', '现货 3800 件', '', '春款卫衣库存，支持整包和直播拿样。', '{"season":"春季","sizeRange":"90-140","allowSample":true,"allowLiveSale":true}', '["库存","可拿样","直播货盘"]', '周经理', '18800000002', 'stock-demo', true, now() - interval '2 days', now() - interval '1 hours', now() + interval '5 days', NULL, 8010000000000000003),
+    (8030000000000000002, 8020000000000000001, 'factory_direct', 'published', '童装套装一件代发货源', '童装套装', '织里', '32-45 元/套', '起批 20 套', '', '工厂直供套装货源，可一件代发。', '{"style":"韩版休闲","minOrderQuantity":"20套","spotAvailable":true,"dropshipping":true}', '["货源","一件代发"]', '陈厂长', '18800000001', 'factory-demo', true, now() - interval '3 days', now() - interval '2 hours', now() + interval '12 days', NULL, 8010000000000000002),
+    (8030000000000000003, 8020000000000000001, 'processing_accept', 'published', '童装卫衣工厂空档期接单', '加工厂', '织里', '价格按工艺核算', '日产 1200 件', '', '认证工厂有空档期，可承接童装卫衣和套装快反。', '{"dailyCapacity":"1200件","minOrderQuantity":"300件","acceptSmallOrders":true,"availableSchedule":"本周可排单"}', '["认证工厂","快反"]', '陈厂长', '18800000001', 'factory-demo', true, now() - interval '1 days', now() - interval '30 minutes', now() + interval '14 days', NULL, 8010000000000000002),
+    (8030000000000000004, 8020000000000000004, 'find_factory', 'published', '采购 5000 件女童防晒衣订单', '订单需求', '杭州', '面议', '5000 件', '', '采购商寻找织里工厂承接防晒衣订单，交期 20 天。', '{"orderQuantity":"5000件","deliveryDeadline":"20天","sampleRequired":true,"longTermCooperation":true}', '["订单","采购商"]', '王采购', '18800000004', 'buyer-demo', false, now() - interval '1 days', now() - interval '1 days', now() + interval '8 days', NULL, 8010000000000000005),
+    (8030000000000000005, 8020000000000000001, 'job_hiring', 'published', '童装平车熟练工招聘', '招聘', '织里', '计件 0.8-1.2 元', '招聘 8 人', '', '工厂招聘熟练平车工，订单稳定。', '{"position":"平车工","payText":"计件0.8-1.2元","headcount":8,"includeMealsHousing":true}', '["招聘","平车工"]', '陈厂长', '18800000001', 'factory-demo', true, now() - interval '4 days', now() - interval '2 days', now() + interval '10 days', NULL, 8010000000000000002),
+    (8030000000000000006, 8020000000000000003, 'factory_warehouse_rental', 'published', '织里童装城旁 120 平仓库出租', '厂房仓库', '织里', '6800 元/月', '120 平', '', '童装城附近仓库出租，可短租。', '{"areaText":"120平","rentText":"6800元/月","floor":"1楼","transferFee":"无"}', '["出租","仓库"]', '李经理', '18800000003', 'service-demo', true, now() - interval '5 days', now() - interval '3 days', now() + interval '25 days', NULL, 8010000000000000004),
+    (8030000000000000007, 8020000000000000003, 'production_support', 'published', '童装吊牌包装快印服务', '配套服务', '织里', '按量报价', '当天出样', '', '提供吊牌、洗标、包装袋和电商拍摄服务。', '{"serviceType":"包装快印","serviceArea":"织里及周边","leadTime":"当天出样","caseAvailable":true}', '["服务","包装"]', '李经理', '18800000003', 'service-demo', true, now() - interval '6 days', now() - interval '6 hours', now() + interval '28 days', NULL, 8010000000000000004),
+    (8030000000000000008, 8020000000000000002, 'stock_clearance', 'pending', '待审核夏款短袖库存', '童装短袖', '织里', '12-18 元/件', '1800 件', '', '演示待审核供需信息。', '{"season":"夏季","sizeRange":"90-130","allowSample":true,"allowLiveSale":false}', '["待审核"]', '周经理', '18800000002', 'stock-demo', true, NULL, NULL, now() + interval '7 days', NULL, 8010000000000000003),
+    (8030000000000000009, 8020000000000000001, 'factory_direct', 'rejected', '资料不完整的货源演示', '童装', '织里', '面议', '起批待确认', '', '演示已驳回供需信息。', '{"style":"基础款","spotAvailable":false}', '["已驳回"]', '陈厂长', '18800000001', 'factory-demo', true, NULL, NULL, now() + interval '7 days', '缺少清晰价格和联系方式确认材料', 8010000000000000002),
+    (8030000000000000010, 8020000000000000002, 'stock_clearance', 'published', '即将过期的直播童裙库存', '童裙', '织里', '22 元/件', '900 件', '', '演示即将过期供需信息。', '{"season":"夏季","sizeRange":"100-140","allowSample":true,"allowLiveSale":true}', '["即将过期"]', '周经理', '18800000002', 'stock-demo', true, now() - interval '6 days', now() - interval '5 days', now() + interval '1 day', NULL, 8010000000000000003),
+    (8030000000000000011, 8020000000000000003, 'production_support', 'expired', '已过期的旧拍摄服务套餐', '电商拍摄', '织里', '套餐价 999 元', '限 10 套', '', '演示已过期供需信息。', '{"serviceType":"拍摄","serviceArea":"织里","leadTime":"3天","caseAvailable":true}', '["已过期"]', '李经理', '18800000003', 'service-demo', true, now() - interval '40 days', now() - interval '35 days', now() - interval '1 day', NULL, 8010000000000000004)
 ) AS r(id, merchant_id, type_code, status, title, category, district, price_text, quantity_text, cover_url, description, attributes, tags, contact_name, contact_phone, contact_wechat, is_verified, published_at, refreshed_at, expires_at, reject_reason, created_by)
 WHERE cs.code = 'zhili'
   AND rtc.type_code = r.type_code
@@ -224,6 +226,7 @@ ON CONFLICT (id) DO UPDATE SET
   city_station_id = EXCLUDED.city_station_id,
   resource_type_config_id = EXCLUDED.resource_type_config_id,
   type_code = EXCLUDED.type_code,
+  direction = EXCLUDED.direction,
   status = EXCLUDED.status,
   title = EXCLUDED.title,
   category = EXCLUDED.category,
@@ -257,16 +260,21 @@ VALUES
   (8041000000000000003, 8020000000000000003, 'verification', 'service_provider_verified', '认证服务商', '演示认证信用标签', 'public', 8010000000000000001)
 ON CONFLICT (id) DO UPDATE SET tag_label = EXCLUDED.tag_label, description = EXCLUDED.description, revoked_at = NULL;
 
-INSERT INTO merchant_entitlements (id, merchant_id, entitlement_type, source_type, total_amount, remaining_amount, expires_at, status)
+INSERT INTO merchant_entitlements (id, merchant_id, entitlement_type, source_type, total_amount, remaining_amount, allowed_type_codes, top_duration_hours, expires_at, status)
 VALUES
-  (8042000000000000001, 8020000000000000001, 'publish_quota', 'verification_bonus', 20, 18, now() + interval '30 days', 'active'),
-  (8042000000000000002, 8020000000000000002, 'refresh_quota', 'verification_bonus', 30, 27, now() + interval '30 days', 'active')
-ON CONFLICT (id) DO UPDATE SET remaining_amount = EXCLUDED.remaining_amount, expires_at = EXCLUDED.expires_at, status = EXCLUDED.status;
-
-INSERT INTO top_vouchers (id, merchant_id, entitlement_id, source_type, allowed_type_codes, top_duration_hours, expires_at, status)
-VALUES
-  (8043000000000000001, 8020000000000000002, 8042000000000000002, 'verification_bonus', '["inventory","goods"]'::jsonb, 24, now() + interval '20 days', 'unused')
-ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, expires_at = EXCLUDED.expires_at;
+  (8042000000000000001, 8020000000000000001, 'publish_quota', 'verification_bonus', 20, 18, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
+  (8042000000000000002, 8020000000000000002, 'refresh_quota', 'verification_bonus', 30, 27, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
+  (8043000000000000001, 8020000000000000002, 'top_voucher', 'verification_bonus', 1, 1, '["stock_clearance","factory_direct"]'::jsonb, 24, now() + interval '20 days', 'active')
+ON CONFLICT (id) DO UPDATE SET
+  entitlement_type = EXCLUDED.entitlement_type,
+  source_type = EXCLUDED.source_type,
+  total_amount = EXCLUDED.total_amount,
+  remaining_amount = EXCLUDED.remaining_amount,
+  allowed_type_codes = EXCLUDED.allowed_type_codes,
+  top_duration_hours = EXCLUDED.top_duration_hours,
+  expires_at = EXCLUDED.expires_at,
+  status = EXCLUDED.status,
+  updated_at = now();
 
 INSERT INTO resource_review_records (id, resource_id, reviewer_id, action, reason, snapshot)
 SELECT
@@ -856,7 +864,7 @@ SELECT
   '演示活动：童装现货上新周',
   '点击进入活动 web-view 验证页',
   '',
-  '["inventory","goods","factory"]'::jsonb,
+  '["factory_direct","stock_clearance","processing_accept"]'::jsonb,
   'webview',
   'https://example.com/wplink-demo',
   '["演示","活动"]'::jsonb,

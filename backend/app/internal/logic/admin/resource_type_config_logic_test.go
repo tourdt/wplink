@@ -15,8 +15,8 @@ func TestListResourceTypeConfigsReturnsStoreItems(t *testing.T) {
 			{
 				ID:               "config-1",
 				CityCode:         "zhili",
-				TypeCode:         "inventory",
-				TypeName:         "库存清仓",
+				TypeCode:         "buy_kids_goods",
+				TypeName:         "求购尾货",
 				Direction:        model.ResourceDirectionDemand,
 				DefaultValidDays: 7,
 				Status:           "active",
@@ -39,8 +39,8 @@ func TestListResourceTypeConfigsReturnsStoreItems(t *testing.T) {
 	if len(resp.Items) != 1 {
 		t.Fatalf("items length = %d, want 1", len(resp.Items))
 	}
-	if resp.Items[0].TypeCode != "inventory" {
-		t.Fatalf("typeCode = %q, want inventory", resp.Items[0].TypeCode)
+	if resp.Items[0].TypeCode != "buy_kids_goods" {
+		t.Fatalf("typeCode = %q, want buy_kids_goods", resp.Items[0].TypeCode)
 	}
 	if resp.Items[0].Direction != model.ResourceDirectionDemand {
 		t.Fatalf("direction = %q, want demand", resp.Items[0].Direction)

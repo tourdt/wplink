@@ -21,7 +21,7 @@
 import { computed } from 'vue'
 
 import { formatListFreshnessDate } from '../common/date'
-import { resourceTypeText } from '../common/enums'
+import { resourceTypeLabel as resolveResourceTypeLabel } from '../common/resourceCategories'
 
 const props = defineProps({
   resource: {
@@ -34,7 +34,7 @@ defineEmits(['open'])
 
 const isVerifiedMerchant = computed(() => (props.resource.merchant || {}).verificationStatus === 'verified')
 const merchantName = computed(() => (props.resource.merchant || {}).name || '采购方待确认')
-const resourceTypeLabel = computed(() => resourceTypeText[props.resource.typeCode] || '')
+const resourceTypeLabel = computed(() => resolveResourceTypeLabel(props.resource))
 const resourceSummaryText = computed(() => buildResourceSummaryText(props.resource, resourceTypeLabel.value || '需求信息待完善'))
 
 function buildResourceSummaryText(resource, fallbackText) {

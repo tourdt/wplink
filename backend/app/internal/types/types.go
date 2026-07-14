@@ -973,6 +973,7 @@ type ListMessagesResp struct {
 type ListMyResourcesReq struct {
 	MerchantId string `form:"merchantId"`
 	Status     string `form:"status,optional"`
+	Direction  string `form:"direction,optional"`
 	Page       int64  `form:"page,optional"`
 	PageSize   int64  `form:"pageSize,optional"`
 }
@@ -1008,6 +1009,7 @@ type ListResourceTypesResp struct {
 type ListResourcesReq struct {
 	CityCode     string `form:"cityCode,optional"`
 	MerchantId   string `form:"merchantId,optional"`
+	GroupCode    string `form:"groupCode,optional"`
 	TypeCode     string `form:"typeCode,optional"`
 	Direction    string `form:"direction,optional"`
 	Keyword      string `form:"keyword,optional"`
@@ -1273,6 +1275,7 @@ type MyResourceItem struct {
 	Id           string            `json:"id"`
 	Direction    string            `json:"direction"`
 	TypeCode     string            `json:"typeCode"`
+	TypeName     string            `json:"typeName,optional"`
 	Title        string            `json:"title"`
 	Category     string            `json:"category"`
 	CoverUrl     string            `json:"coverUrl,optional"`
@@ -1393,6 +1396,7 @@ type ResourceListItem struct {
 	Id           string                `json:"id"`
 	Direction    string                `json:"direction"`
 	TypeCode     string                `json:"typeCode"`
+	TypeName     string                `json:"typeName,optional"`
 	Title        string                `json:"title"`
 	Category     string                `json:"category"`
 	District     string                `json:"district,optional"`
@@ -1486,6 +1490,7 @@ type SearchMapObjectsResp struct {
 
 type SearchResourcesReq struct {
 	CityCode     string `form:"cityCode,optional"`
+	GroupCode    string `form:"groupCode,optional"`
 	TypeCode     string `form:"typeCode,optional"`
 	Direction    string `form:"direction,optional"`
 	Keyword      string `form:"keyword,optional"`

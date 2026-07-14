@@ -9,6 +9,46 @@ import { loadMigrationFiles, validateMigrationFiles } from './validate_migration
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const migrationsDir = path.resolve(scriptDir, '../migrations')
+const expectedResourceTypeCodes = [
+  'factory_direct',
+  'spot_wholesale',
+  'stock_clearance',
+  'buy_kids_goods',
+  'fabric_supply',
+  'accessory_supply',
+  'processing_accept',
+  'find_factory',
+  'production_support',
+  'job_hiring',
+  'job_seeking',
+  'sample_rental',
+  'shop_office_rental',
+  'shop_sale',
+  'seek_shop_office',
+  'apartment_rental',
+  'housing_sale',
+  'seek_housing',
+  'factory_warehouse_rental',
+  'workshop_rental',
+  'factory_sale',
+  'seek_factory_warehouse',
+  'secondhand_sale',
+  'secondhand_buy',
+  'education_training',
+  'appliance_repair',
+  'moving_cleaning',
+  'other_local_service',
+]
+const expectedResourceGroups = new Map([
+  ['kids_wholesale', '童装批发'],
+  ['materials', '面料辅料'],
+  ['production', '加工生产'],
+  ['jobs', '招聘求职'],
+  ['shop_office', '商铺办公'],
+  ['housing', '住宅公寓'],
+  ['factory_warehouse', '厂房仓库'],
+  ['local_services', '本地服务'],
+])
 
 test('current migrations pass static validation', () => {
   const issues = validateMigrationFiles(loadMigrationFiles(migrationsDir))
@@ -57,31 +97,24 @@ test('migrations do not create retired purchase demand or manual matching schema
   }
 })
 
-test('resource type migrations use user-facing display names and rental object type', () => {
+test('resource type seed uses category-item display names and primary groups', () => {
   const seedSql = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')
-  const displayNameSql = fs.readFileSync(path.resolve(migrationsDir, '000014_resource_type_display_names.up.sql'), 'utf8')
 
-  const findRentalSql = fs.readFileSync(path.resolve(migrationsDir, '000015_find_rental_resource_type.up.sql'), 'utf8')
-
-  for (const displayName of ['库存清仓', '现货货源', '工厂接单', '招工招聘', '出租转让', '配套服务', '找现货', '找库存', '找工厂', '找服务']) {
-    assert(seedSql.includes(`'${displayName}'`), `seed should contain resource type display name ${displayName}`)
-    assert(displayNameSql.includes(`'${displayName}'`), `display name migration should contain ${displayName}`)
+  for (const displayName of ['工厂直批', '尾货批发', '库存出售', '求购尾货', '最新面料', '辅料配饰', '承接加工', '招加工厂', '生产配套', '招聘员工', '我要求职', '厂房/仓库出租', '搬家保洁']) {
+    assert(seedSql.includes(`'${displayName}'`), `seed should contain category item display name ${displayName}`)
   }
-  assert(findRentalSql.includes("'找场地'"), 'find rental migration should contain buyer-friendly display name 找场地')
-  for (const oldDisplayName of ["'工厂产能'", "'订单需求'", "'出租/转让'"]) {
+  for (const [groupCode, groupName] of expectedResourceGroups) {
+    assert(seedSql.includes(`"code":"${groupCode}"`), `seed should contain primary group code ${groupCode}`)
+    assert(seedSql.includes(`"name":"${groupName}"`), `seed should contain primary group name ${groupName}`)
+  }
+  for (const oldDisplayName of ["'库存清仓'", "'现货货源'", "'工厂接单'", "'招工招聘'", "'出租转让'", "'配套服务'", "'找现货'", "'找库存'", "'找服务'", "'找场地'"]) {
     assert(!seedSql.includes(oldDisplayName), `seed should not keep old display name ${oldDisplayName}`)
   }
-
-  assert(seedSql.includes('"key":"rentalType"'), 'seed should include rentalType field')
-  assert(displayNameSql.includes('"key":"rentalType"'), 'display name migration should include rentalType field')
-  assert(displayNameSql.includes('"商品房"'), 'rentalType options should cover normal commodity housing')
 })
 
 test('core resource schema supports unified demand direction without retired demand tables', () => {
   const coreSql = fs.readFileSync(path.resolve(migrationsDir, '000002_core_domain.up.sql'), 'utf8')
   const seedSql = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')
-  const findRentalSql = fs.readFileSync(path.resolve(migrationsDir, '000015_find_rental_resource_type.up.sql'), 'utf8')
-
   for (const snippet of [
     'direction varchar(32) NOT NULL DEFAULT',
     'chk_resource_type_configs_direction',
@@ -91,11 +124,9 @@ test('core resource schema supports unified demand direction without retired dem
     assert(coreSql.includes(snippet), `core migration should include resource direction schema snippet ${snippet}`)
   }
 
-  for (const typeCode of ['buy_goods', 'find_inventory', 'find_factory', 'find_service']) {
+  for (const typeCode of ['buy_kids_goods', 'find_factory', 'job_seeking', 'seek_shop_office', 'seek_housing', 'seek_factory_warehouse', 'secondhand_buy']) {
     assert(seedSql.includes(`'${typeCode}'`), `seed should contain demand resource type ${typeCode}`)
   }
-  assert(findRentalSql.includes("'find_rental'"), 'find rental migration should contain demand resource type find_rental')
-  assert(findRentalSql.includes("'demand'"), 'find rental migration should mark find_rental with demand direction')
   assert(seedSql.includes("'demand'"), 'seed should mark demand resource types with demand direction')
   assert(seedSql.includes("'supply'"), 'seed should mark supply resource types with supply direction')
 })
@@ -141,6 +172,7 @@ test('vip migration backfills product columns for databases that already applied
 test('entitlement migrations store top vouchers as merchant entitlement batches with usage records', () => {
   const coreSql = fs.readFileSync(path.resolve(migrationsDir, '000002_core_domain.up.sql'), 'utf8')
   const upgradeSql = fs.readFileSync(path.resolve(migrationsDir, '000019_entitlement_usage_records.up.sql'), 'utf8')
+  const demoSeedSql = fs.readFileSync(path.resolve(scriptDir, 'seed_demo_data.sql'), 'utf8')
 
   for (const sql of [coreSql, upgradeSql]) {
     for (const snippet of [
@@ -159,6 +191,9 @@ test('entitlement migrations store top vouchers as merchant entitlement batches 
   }
 
   assert(upgradeSql.includes('DROP TABLE IF EXISTS top_vouchers'), 'upgrade migration should drop retired top_vouchers table')
+  assert(!demoSeedSql.includes('INSERT INTO top_vouchers'), 'demo seed should grant top vouchers through merchant_entitlements')
+  assert(demoSeedSql.includes("'top_voucher'"), 'demo seed should include a top voucher entitlement')
+  assert(demoSeedSql.includes('allowed_type_codes'), 'demo seed should preserve top voucher type limits on merchant_entitlements')
 })
 
 test('growth campaign migration supports configurable stoppable rewards', () => {
@@ -200,34 +235,30 @@ test('growth campaign migration supports configurable stoppable rewards', () => 
 
 test('resource type seed uses type-specific publish fields and summary mappings', () => {
   const seedSql = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')
-  const rentalDisplaySql = fs.readFileSync(path.resolve(migrationsDir, '000014_resource_type_display_names.up.sql'), 'utf8')
-  const findRentalSql = fs.readFileSync(path.resolve(migrationsDir, '000015_find_rental_resource_type.up.sql'), 'utf8')
 
   const expectedSeedSnippets = [
+    '"key":"productCategory"',
+    '"summary":{"category":"productCategory","quantityText":"minOrderText","priceText":"factoryPriceText"}',
     '"key":"stockCategory"',
-    '"summary":{"category":"stockCategory","quantityText":"stockQuantityText","priceText":"stockPriceText"}',
-    '"key":"goodsCategory"',
-    '"summary":{"category":"goodsCategory","quantityText":"minOrderQuantity","priceText":"supplyPriceText"}',
-    '"key":"factoryCategory"',
-    '"summary":{"category":"factoryCategory","quantityText":"dailyCapacity","priceText":"laborPriceText"}',
+    '"summary":{"category":"stockCategory","quantityText":"stockQuantityText","priceText":"wholesalePriceText"}',
+    '"key":"clearanceCategory"',
+    '"summary":{"category":"clearanceCategory","quantityText":"stockQuantityText","priceText":"packagePriceText"}',
+    '"key":"fabricType"',
+    '"key":"accessoryType"',
+    '"key":"processCategory"',
     '"key":"workLocation"',
     '"summary":{"category":"position","quantityText":"headcount","priceText":"payText"}',
-    '"summary":{"category":"rentalType","quantityText":"areaText","priceText":"rentText"}',
-    '"key":"servicePriceText"',
-    '"summary":{"category":"serviceType","quantityText":"serviceArea","priceText":"servicePriceText"}',
+    '"key":"desiredPosition"',
+    '"key":"desiredSpaceType"',
+    '"key":"desiredPlaceType"',
     '"key":"targetCategory"',
-    '"summary":{"category":"targetCategory","quantityText":"demandQuantityText","priceText":"budgetRange"}',
     '"summary":{"category":"targetCategory","quantityText":"orderQuantity","priceText":"budgetRange"}',
-    '"key":"serviceRequirement"',
-    '"summary":{"category":"serviceType","quantityText":"serviceArea","priceText":"budgetRange"}',
+    '"key":"wantedItemType"',
+    '"key":"applianceType"',
   ]
   for (const snippet of expectedSeedSnippets) {
     assert(seedSql.includes(snippet), `seed should contain publish field or summary snippet ${snippet}`)
   }
-
-  assert(rentalDisplaySql.includes('"summary":{"category":"rentalType","quantityText":"areaText","priceText":"rentText"}'), 'rental display migration should preserve rental summary mapping')
-  assert(findRentalSql.includes('"key":"supportRequirement"'), 'find rental migration should include supportRequirement field')
-  assert(findRentalSql.includes('"summary":{"category":"rentalNeedType","quantityText":"expectedAreaText","priceText":"budgetRentText"}'), 'find rental migration should include summary mapping')
 
   for (const fixedRequired of [
     '["title","category","quantityText","contactPhone"]',
@@ -235,28 +266,14 @@ test('resource type seed uses type-specific publish fields and summary mappings'
     '["title","category","contactPhone"]',
   ]) {
     assert(!seedSql.includes(fixedRequired), `seed should not require fixed summary fields ${fixedRequired}`)
-    assert(!findRentalSql.includes(fixedRequired), `find rental migration should not require fixed summary fields ${fixedRequired}`)
   }
 })
 
 test('resource type migrations resolve to a self-contained final publish config', () => {
   const configs = finalResourceTypeConfigsFromMigrations(migrationsDir)
-  const expectedTypeCodes = [
-    'inventory',
-    'goods',
-    'factory',
-    'job',
-    'rental',
-    'service',
-    'buy_goods',
-    'find_inventory',
-    'find_factory',
-    'find_service',
-    'find_rental',
-  ]
   const issues = []
 
-  for (const typeCode of expectedTypeCodes) {
+  for (const typeCode of expectedResourceTypeCodes) {
     if (!configs.has(typeCode)) {
       issues.push(`缺少供需类型配置 ${typeCode}`)
     }
@@ -299,6 +316,11 @@ test('resource type migrations resolve to a self-contained final publish config'
         }
       }
     }
+    if (!config.displayTemplate.group || typeof config.displayTemplate.group !== 'object') {
+      issues.push(`${config.typeCode} ${config.typeName}: 缺少 display_template.group`)
+    } else if (expectedResourceGroups.get(config.displayTemplate.group.code) !== config.displayTemplate.group.name) {
+      issues.push(`${config.typeCode} ${config.typeName}: display_template.group 无效 ${JSON.stringify(config.displayTemplate.group)}`)
+    }
 
     for (const summaryField of resourceSummaryTargetFields) {
       if (config.requiredFields.includes(summaryField)) {
@@ -314,21 +336,14 @@ test('resource type migrations resolve to a self-contained final publish config'
   assert.deepEqual(issues, [])
 })
 
-test('find rental migration backfills direction schema for existing databases', () => {
+test('legacy follow-up resource type migrations are no-op after category item seed rewrite', () => {
+  const displayNameSql = fs.readFileSync(path.resolve(migrationsDir, '000014_resource_type_display_names.up.sql'), 'utf8')
   const findRentalSql = fs.readFileSync(path.resolve(migrationsDir, '000015_find_rental_resource_type.up.sql'), 'utf8')
 
-  for (const snippet of [
-    'ALTER TABLE IF EXISTS resource_type_configs',
-    'ADD COLUMN IF NOT EXISTS direction',
-    'ALTER TABLE IF EXISTS resources',
-    "WHERE type_code IN ('buy_goods', 'find_inventory', 'find_factory', 'find_service', 'find_rental')",
-    'chk_resource_type_configs_direction',
-    'chk_resources_direction',
-    'idx_resource_type_configs_direction',
-    'idx_resources_city_direction_type_status',
-  ]) {
-    assert(findRentalSql.includes(snippet), `find rental migration should backfill direction schema snippet ${snippet}`)
-  }
+  assert(displayNameSql.includes('SELECT 1;'), 'display name migration should be a no-op after seed rewrite')
+  assert(findRentalSql.includes('SELECT 1;'), 'find rental migration should be a no-op after seed rewrite')
+  assert(!displayNameSql.includes("'inventory'"), 'display name migration should not reintroduce old type codes')
+  assert(!findRentalSql.includes("'find_rental'"), 'find rental migration should not reintroduce old demand type code')
 })
 
 const resourceConfigBaseFields = new Set([
@@ -354,8 +369,6 @@ function finalResourceTypeConfigsFromMigrations(migrationsRoot) {
   const configs = new Map()
   applySeedResourceTypeConfigs(configs, readMigrationSql(migrationsRoot, '000003_seed_zhili.up.sql'))
   applyFieldSchemaOverride(configs, readMigrationSql(migrationsRoot, '000013_resource_field_schema_options.up.sql'))
-  applyRentalDisplayOverride(configs, readMigrationSql(migrationsRoot, '000014_resource_type_display_names.up.sql'))
-  applyFindRentalConfig(configs, readMigrationSql(migrationsRoot, '000015_find_rental_resource_type.up.sql'))
   return configs
 }
 
@@ -389,31 +402,6 @@ function applyFieldSchemaOverride(configs, sql) {
       config.fieldSchema = parseJsonLiteral(values[1])
     }
   }
-}
-
-function applyRentalDisplayOverride(configs, sql) {
-  const config = configs.get('rental')
-  if (!config || !sql.includes("rtc.type_code = 'rental'")) return
-  config.fieldSchema = extractJsonAssignment(sql, 'field_schema') || config.fieldSchema
-  config.requiredFields = extractJsonAssignment(sql, 'required_fields') || config.requiredFields
-  config.filterFields = extractJsonAssignment(sql, 'filter_fields') || config.filterFields
-  config.displayTemplate = extractJsonAssignment(sql, 'display_template') || config.displayTemplate
-}
-
-function applyFindRentalConfig(configs, sql) {
-  const match = sql.match(
-    /'find_rental',\s*'找场地',\s*'demand',\s*'((?:''|[^'])*)'::jsonb,\s*'((?:''|[^'])*)'::jsonb,\s*'((?:''|[^'])*)'::jsonb,\s*'((?:''|[^'])*)'::jsonb/s,
-  )
-  if (!match) return
-  upsertResourceTypeConfig(configs, {
-    typeCode: 'find_rental',
-    typeName: '找场地',
-    direction: 'demand',
-    fieldSchema: parseJsonLiteral(match[1]),
-    requiredFields: parseJsonLiteral(match[2]),
-    filterFields: parseJsonLiteral(match[3]),
-    displayTemplate: parseJsonLiteral(match[4]),
-  })
 }
 
 function upsertResourceTypeConfig(configs, config) {
@@ -468,11 +456,6 @@ function extractSqlTuples(valuesBlock) {
 
 function extractSqlStringLiterals(sql) {
   return [...sql.matchAll(/'((?:''|[^'])*)'/g)].map((match) => match[1].replace(/''/g, "'"))
-}
-
-function extractJsonAssignment(sql, fieldName) {
-  const match = sql.match(new RegExp(`${fieldName}\\s*=\\s*'((?:''|[^'])*)'::jsonb`, 's'))
-  return match ? parseJsonLiteral(match[1]) : null
 }
 
 function parseJsonLiteral(value) {

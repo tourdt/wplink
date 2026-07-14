@@ -973,7 +973,7 @@ func (s *fakeFullAPIStore) GetAdminDashboardOverview(ctx context.Context, cityCo
 }
 
 func (s *fakeFullAPIStore) ListResourceTypeConfigs(ctx context.Context, cityCode string, status string) ([]model.AdminResourceTypeConfig, error) {
-	return []model.AdminResourceTypeConfig{{ID: "config-1", CityCode: "zhili", TypeCode: "inventory", TypeName: "库存清仓", RequiredFields: []string{"title"}, DefaultValidDays: 7, Status: "active"}}, nil
+	return []model.AdminResourceTypeConfig{{ID: "config-1", CityCode: "zhili", TypeCode: "stock_clearance", TypeName: "库存出售", RequiredFields: []string{"title"}, DefaultValidDays: 7, Status: "active"}}, nil
 }
 
 func (s *fakeFullAPIStore) UpdateResourceTypeConfig(ctx context.Context, configID string, patch model.ResourceTypeConfigPatch) (string, error) {
