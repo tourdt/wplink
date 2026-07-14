@@ -2,7 +2,10 @@
   <section>
     <div class="page-title">
       <h2>供需类型配置</h2>
-      <el-button :loading="loading" plain @click="loadConfigs">刷新</el-button>
+      <div class="page-actions">
+        <el-button type="primary" @click="openCreateGroup">新增一级分类</el-button>
+        <el-button :loading="loading" plain @click="loadConfigs">刷新</el-button>
+      </div>
     </div>
 
     <section class="panel">
@@ -35,62 +38,87 @@
         <span>{{ errorText }}</span>
         <el-button type="danger" plain @click="loadConfigs">重试</el-button>
       </div>
-      <el-table v-loading="loading" :data="configs" stripe empty-text="暂无供需类型配置">
-        <el-table-column prop="typeName" label="类型名称" width="140" />
-        <el-table-column prop="typeCode" label="编码" width="140" />
-        <el-table-column label="类型归属" width="110">
-          <template #default="{ row }">
-            <el-tag :type="directionTagType(row.direction)" effect="plain">
-              {{ directionLabel(row.direction) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="defaultValidDays" label="有效期" width="100">
-          <template #default="{ row }">{{ row.defaultValidDays }} 天</template>
-        </el-table-column>
-        <el-table-column label="必填字段" min-width="220">
-          <template #default="{ row }">
-            <template v-if="row.requiredFields?.length">
-              <el-tooltip
-                v-for="field in row.requiredFields"
-                :key="field"
-                :content="fieldDescription(field)"
-                placement="top"
-              >
-                <el-tag class="field-tag" size="small">
-                  {{ fieldLabel(field) }}
-                </el-tag>
-              </el-tooltip>
-            </template>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'">
-              {{ row.status === 'active' ? '启用' : '停用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link @click="openEditor(row)">配置</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div v-loading="loading" class="config-group-list">
+        <el-empty v-if="!configGroups.length && !loading" description="暂无供需类型配置" :image-size="80" />
+        <section v-for="group in configGroups" :key="group.code" class="config-group">
+          <div class="config-group-head">
+            <div>
+              <div class="group-title-row">
+                <span class="group-name">{{ group.name }}</span>
+                <el-tag size="small" effect="plain">一级分类</el-tag>
+              </div>
+              <div class="group-meta">{{ group.code }} · 排序 {{ group.sort }} · {{ group.items.length }} 个二级类型</div>
+            </div>
+            <el-button type="primary" plain @click="openCreateType(group)">新增二级分类</el-button>
+          </div>
+          <div class="type-row-list">
+            <article v-for="row in group.items" :key="row.id" class="type-row">
+              <div class="type-main">
+                <div class="type-title-row">
+                  <span class="type-name">{{ row.typeName }}</span>
+                  <el-tag :type="directionTagType(row.direction)" effect="plain">
+                    {{ directionLabel(row.direction) }}
+                  </el-tag>
+                  <el-tag :type="row.status === 'active' ? 'success' : 'info'" effect="plain">
+                    {{ row.status === 'active' ? '启用' : '停用' }}
+                  </el-tag>
+                </div>
+                <div class="type-meta">
+                  <span>二级类型：{{ row.typeCode }}</span>
+                  <span label="类型归属">类型归属：{{ directionLabel(row.direction) }}</span>
+                  <span>有效期：{{ row.defaultValidDays }} 天</span>
+                </div>
+                <div class="field-tag-list">
+                  <template v-if="row.requiredFields?.length">
+                    <el-tooltip
+                      v-for="field in row.requiredFields"
+                      :key="field"
+                      :content="fieldDescription(field)"
+                      placement="top"
+                    >
+                      <el-tag class="field-tag" size="small">
+                        {{ fieldLabel(field) }}
+                      </el-tag>
+                    </el-tooltip>
+                  </template>
+                  <span v-else class="empty-field-text">未配置必填字段</span>
+                </div>
+              </div>
+              <el-button type="primary" link @click="openEditor(row)">配置</el-button>
+            </article>
+          </div>
+        </section>
+      </div>
     </section>
 
     <el-drawer v-model="drawerVisible" title="编辑供需类型配置" size="820px">
       <el-form v-if="editing" label-position="top">
-        <el-form-item label="类型">
-          <div class="type-summary">
-            <el-input :model-value="`${editing.typeName}（${editing.typeCode}）`" disabled />
+        <section class="hierarchy-summary">
+          <div>
+            <span>一级分类</span>
+            <strong>{{ editingGroup.name || '未分组' }}</strong>
+          </div>
+          <div>
+            <span>二级类型</span>
+            <strong>{{ editing.typeName }}（{{ editing.typeCode }}）</strong>
+          </div>
+          <div>
+            <span>类型归属</span>
             <el-tag :type="directionTagType(editing.direction)" effect="plain">
               {{ directionLabel(editing.direction) }}
             </el-tag>
           </div>
-        </el-form-item>
+        </section>
         <div class="basic-config-grid">
+          <el-form-item label="一级分类名称">
+            <el-input v-model.trim="editingGroup.name" placeholder="例如：童装批发" />
+          </el-form-item>
+          <el-form-item label="一级分类编码">
+            <el-input v-model.trim="editingGroup.code" placeholder="例如：kids_wholesale" />
+          </el-form-item>
+          <el-form-item label="一级分类排序">
+            <el-input-number v-model="editingGroup.sort" :min="0" :max="9999" />
+          </el-form-item>
           <el-form-item label="默认有效期">
             <el-input-number v-model="editing.defaultValidDays" :min="1" :max="365" />
           </el-form-item>
@@ -200,13 +228,63 @@
         </div>
       </el-form>
     </el-drawer>
+
+    <el-drawer v-model="createDrawerVisible" :title="createDrawerTitle" size="640px">
+      <el-form label-position="top">
+        <section class="create-section">
+          <h3>一级分类</h3>
+          <div class="basic-config-grid">
+            <el-form-item label="一级分类名称">
+              <el-input v-model.trim="createForm.groupName" :disabled="createMode === 'type'" placeholder="例如：童装批发" />
+            </el-form-item>
+            <el-form-item label="一级分类编码">
+              <el-input v-model.trim="createForm.groupCode" :disabled="createMode === 'type'" placeholder="例如：kids_wholesale" />
+            </el-form-item>
+            <el-form-item label="一级分类排序">
+              <el-input-number v-model="createForm.groupSort" :disabled="createMode === 'type'" :min="0" :max="9999" />
+            </el-form-item>
+          </div>
+        </section>
+        <section class="create-section">
+          <h3>二级类型</h3>
+          <div class="basic-config-grid">
+            <el-form-item label="二级类型名称">
+              <el-input v-model.trim="createForm.typeName" placeholder="例如：品牌库存" />
+            </el-form-item>
+            <el-form-item label="二级类型编码">
+              <el-input v-model.trim="createForm.typeCode" placeholder="例如：kids_brand_stock" />
+            </el-form-item>
+            <el-form-item label="类型归属">
+              <el-select v-model="createForm.direction">
+                <el-option label="供应类型" value="supply" />
+                <el-option label="需求类型" value="demand" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="默认有效期">
+              <el-input-number v-model="createForm.defaultValidDays" :min="1" :max="365" />
+            </el-form-item>
+          </div>
+        </section>
+        <el-alert
+          title="新增后会生成最小可发布配置，可继续点击“配置”补充字段、筛选项和展示模板。"
+          type="info"
+          :closable="false"
+          show-icon
+          class="json-alert"
+        />
+        <div class="drawer-actions">
+          <el-button @click="createDrawerVisible = false">取消</el-button>
+          <el-button type="primary" :loading="createSaving" @click="saveCreatedType">保存</el-button>
+        </div>
+      </el-form>
+    </el-drawer>
   </section>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from '../plugins/elementPlus'
-import { listResourceTypeConfigs, updateResourceTypeConfig } from '../api/city'
+import { createResourceTypeConfig, listResourceTypeConfigs, updateResourceTypeConfig } from '../api/city'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 
 const filters = reactive({
@@ -217,7 +295,9 @@ const configs = ref([])
 const loading = ref(false)
 const errorText = ref('')
 const saving = ref(false)
+const createSaving = ref(false)
 const drawerVisible = ref(false)
+const createDrawerVisible = ref(false)
 const editing = ref(null)
 const configJson = ref('')
 const jsonError = ref('')
@@ -225,6 +305,21 @@ const editorMode = ref('visual')
 const fieldRows = ref([])
 const baseRequiredFields = ref([])
 const advancedConfig = ref(createEmptyAdvancedConfig())
+const createMode = ref('group')
+const editingGroup = reactive({
+  code: '',
+  name: '',
+  sort: 999,
+})
+const createForm = reactive({
+  groupCode: '',
+  groupName: '',
+  groupSort: 10,
+  typeCode: '',
+  typeName: '',
+  direction: 'supply',
+  defaultValidDays: 15,
+})
 let nextFieldRowId = 1
 
 const fieldTypeOptions = [
@@ -303,6 +398,8 @@ const fieldDescriptionMap = {
     description: '标签用于补充供需信息特征，方便运营归类和买家快速识别。',
   },
 }
+const configGroups = computed(() => groupResourceTypeConfigs(configs.value))
+const createDrawerTitle = computed(() => createMode.value === 'type' ? '新增二级分类' : '新增一级分类')
 
 onMounted(loadConfigs)
 
@@ -321,6 +418,10 @@ async function loadConfigs() {
 
 function openEditor(row) {
   editing.value = { ...row }
+  const group = groupInfoFromConfig(row)
+  editingGroup.code = group.code
+  editingGroup.name = group.name
+  editingGroup.sort = group.sort
   editorMode.value = 'visual'
   fieldRows.value = normalizeFieldRowsFromSchema(row)
   const dynamicKeys = new Set(fieldRows.value.map((field) => field.key))
@@ -338,6 +439,32 @@ function openEditor(row) {
   drawerVisible.value = true
 }
 
+function openCreateGroup() {
+  createMode.value = 'group'
+  resetCreateForm({
+    code: '',
+    name: '',
+    sort: nextGroupSort(),
+  })
+  createDrawerVisible.value = true
+}
+
+function openCreateType(group) {
+  createMode.value = 'type'
+  resetCreateForm(group)
+  createDrawerVisible.value = true
+}
+
+function resetCreateForm(group = {}) {
+  createForm.groupCode = group.code || ''
+  createForm.groupName = group.name || ''
+  createForm.groupSort = Number.isFinite(Number(group.sort)) ? Number(group.sort) : nextGroupSort()
+  createForm.typeCode = ''
+  createForm.typeName = ''
+  createForm.direction = 'supply'
+  createForm.defaultValidDays = 15
+}
+
 function fieldLabel(field) {
   return fieldDescriptionMap[field]?.label || field
 }
@@ -352,6 +479,45 @@ function directionLabel(direction) {
 
 function directionTagType(direction) {
   return direction === 'demand' ? 'warning' : 'success'
+}
+
+function groupResourceTypeConfigs(items = []) {
+  const groupMap = new Map()
+  items.forEach((item, index) => {
+    const group = groupInfoFromConfig(item)
+    if (!groupMap.has(group.code)) {
+      groupMap.set(group.code, {
+        ...group,
+        items: [],
+      })
+    }
+    groupMap.get(group.code).items.push({ ...item, sortIndex: index })
+  })
+  return Array.from(groupMap.values())
+    .map((group) => ({
+      ...group,
+      items: group.items.sort((left, right) => left.sortIndex - right.sortIndex),
+    }))
+    .sort((left, right) => left.sort - right.sort)
+}
+
+function groupInfoFromConfig(row = {}) {
+  const group = row.displayTemplate?.group || {}
+  const sort = Number(group.sort)
+  return {
+    code: String(group.code || 'other').trim() || 'other',
+    name: groupNameFromConfig(row),
+    sort: Number.isFinite(sort) ? sort : 999,
+  }
+}
+
+function groupNameFromConfig(row = {}) {
+  return String(row.displayTemplate?.group?.name || '其他类目').trim() || '其他类目'
+}
+
+function nextGroupSort() {
+  if (!configGroups.value.length) return 10
+  return Math.max(...configGroups.value.map((group) => Number(group.sort) || 0)) + 10
 }
 
 function normalizeFieldRowsFromSchema(row) {
@@ -589,10 +755,83 @@ function parseConfigJsonPayload() {
   }
 }
 
+function validateCreateForm() {
+  if (!createForm.groupName || !createForm.groupCode) {
+    ElMessage.warning('请填写一级分类名称和编码')
+    return false
+  }
+  if (!validConfigCode(createForm.groupCode)) {
+    ElMessage.warning('一级分类编码只能使用英文字母、数字和下划线，并且必须以字母开头')
+    return false
+  }
+  if (!createForm.typeName || !createForm.typeCode) {
+    ElMessage.warning('请填写二级类型名称和编码')
+    return false
+  }
+  if (!validConfigCode(createForm.typeCode)) {
+    ElMessage.warning('二级类型编码只能使用英文字母、数字和下划线，并且必须以字母开头')
+    return false
+  }
+  return true
+}
+
+function validConfigCode(value) {
+  return /^[A-Za-z][A-Za-z0-9_]*$/.test(String(value || '').trim())
+}
+
+function applyEditingGroupToPayload(payload) {
+  if (!validConfigCode(editingGroup.code)) {
+    ElMessage.warning('一级分类编码只能使用英文字母、数字和下划线，并且必须以字母开头')
+    return null
+  }
+  if (!editingGroup.name) {
+    ElMessage.warning('请填写一级分类名称')
+    return null
+  }
+  return {
+    ...payload,
+    displayTemplate: {
+      ...(payload.displayTemplate || {}),
+      group: {
+        code: editingGroup.code,
+        name: editingGroup.name,
+        sort: Number(editingGroup.sort) || 999,
+      },
+    },
+  }
+}
+
+async function saveCreatedType() {
+  if (!validateCreateForm()) return
+  createSaving.value = true
+  try {
+    await createResourceTypeConfig({
+      cityCode: filters.cityCode,
+      typeCode: createForm.typeCode,
+      typeName: createForm.typeName,
+      direction: createForm.direction,
+      groupCode: createForm.groupCode,
+      groupName: createForm.groupName,
+      groupSort: Number(createForm.groupSort) || 999,
+      defaultValidDays: Number(createForm.defaultValidDays) || 15,
+      status: 'active',
+    })
+    ElMessage.success('供需类型已新增')
+    createDrawerVisible.value = false
+    await loadConfigs()
+  } finally {
+    createSaving.value = false
+  }
+}
+
 async function saveConfig() {
   jsonError.value = ''
   const parsed = editorMode.value === 'visual' ? buildConfigPayloadFromVisualEditor() : parseConfigJsonPayload()
   if (!parsed) {
+    return
+  }
+  const payload = applyEditingGroupToPayload(parsed)
+  if (!payload) {
     return
   }
   try {
@@ -608,7 +847,7 @@ async function saveConfig() {
   saving.value = true
   try {
     await updateResourceTypeConfig(editing.value.id, {
-      ...parsed,
+      ...payload,
       defaultValidDays: editing.value.defaultValidDays,
       status: editing.value.status,
     })
@@ -624,6 +863,133 @@ async function saveConfig() {
 <style scoped>
 .config-note {
   margin-bottom: 12px;
+}
+
+.page-actions,
+.group-title-row,
+.type-title-row,
+.type-meta,
+.field-tag-list {
+  display: flex;
+  align-items: center;
+}
+
+.page-actions {
+  gap: 10px;
+}
+
+.config-group-list {
+  display: grid;
+  min-height: 120px;
+  gap: 14px;
+}
+
+.config-group {
+  overflow: hidden;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.config-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf0f5;
+  background: #f8fafc;
+}
+
+.group-title-row,
+.type-title-row {
+  gap: 8px;
+}
+
+.group-name,
+.type-name {
+  color: #1f2933;
+  font-weight: 700;
+}
+
+.group-meta,
+.type-meta {
+  margin-top: 4px;
+  color: #697586;
+  font-size: 13px;
+}
+
+.type-row-list {
+  display: grid;
+}
+
+.type-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.type-row:last-child {
+  border-bottom: 0;
+}
+
+.type-main {
+  min-width: 0;
+}
+
+.type-meta {
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.field-tag-list {
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.empty-field-text {
+  color: #97a3b6;
+  font-size: 13px;
+}
+
+.hierarchy-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.hierarchy-summary > div {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.hierarchy-summary span {
+  color: #697586;
+  font-size: 12px;
+}
+
+.hierarchy-summary strong {
+  color: #1f2933;
+  font-size: 14px;
+}
+
+.create-section {
+  margin-bottom: 16px;
+}
+
+.create-section h3 {
+  margin: 0 0 12px;
+  color: #1f2933;
+  font-size: 15px;
 }
 
 .basic-config-grid {
@@ -737,8 +1103,15 @@ async function saveConfig() {
 
 @media (max-width: 720px) {
   .basic-config-grid,
-  .field-grid {
+  .field-grid,
+  .hierarchy-summary {
     grid-template-columns: 1fr;
+  }
+
+  .config-group-head,
+  .type-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

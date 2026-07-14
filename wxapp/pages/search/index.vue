@@ -5,7 +5,10 @@
         <button class="nav-back-button" @click="goBack">
           <view class="nav-back-icon"></view>
         </button>
-        <text class="search-title">供需搜索</text>
+        <button class="channel-title-button" @click="openGroupDrawer">
+          <text class="channel-title-text">{{ channelTitle }}</text>
+          <text class="channel-title-arrow"></text>
+        </button>
       </view>
     </view>
 
@@ -16,16 +19,6 @@
       </view>
 
       <view class="filter-shell">
-        <scroll-view class="filter-row group-row" scroll-x scroll-with-animation>
-          <button
-            v-for="item in groupFilterOptions"
-            :key="item.code"
-            :class="['filter-button', item.code === filters.groupCode ? 'active' : '']"
-            @click="selectGroup(item.code)"
-          >
-            {{ item.name }}
-          </button>
-        </scroll-view>
         <scroll-view
           class="filter-row"
           scroll-x
@@ -51,6 +44,25 @@
         >
           全部分类
         </button>
+      </view>
+    </view>
+
+    <view v-if="showGroupDrawer" class="group-drawer-mask" @click="closeGroupDrawer">
+      <view class="group-drawer-panel" @click.stop>
+        <view class="type-drawer-head">
+          <text class="type-drawer-title">选择类目</text>
+          <button class="type-drawer-close" @click="closeGroupDrawer">关闭</button>
+        </view>
+        <view class="drawer-group-list">
+          <button
+            v-for="item in groupFilterOptions"
+            :key="item.code"
+            :class="['drawer-group-button', item.code === filters.groupCode ? 'active' : '']"
+            @click="selectGroup(item.code)"
+          >
+            {{ item.name }}
+          </button>
+        </view>
       </view>
     </view>
 
@@ -153,18 +165,26 @@ const filters = reactive({
   groupCode: '',
   typeCode: '',
 })
+const showGroupDrawer = ref(false)
 const showTypeDrawer = ref(false)
 const scrollIntoTypeId = ref('')
 const typeScrollLeft = ref(0)
 const pageScrollTop = ref(0)
 const groupFilterOptions = computed(() => [{ code: '', name: '全部类目' }, ...categoryGroups.value])
+const selectedGroupName = computed(() => {
+  const selectedGroup = groupFilterOptions.value.find((item) => item.code === filters.groupCode)
+  return selectedGroup?.name || '全部类目'
+})
+const channelTitle = computed(() => filters.groupCode ? selectedGroupName.value : '供需搜索')
 const visibleResourceTypes = computed(() => resourceTypes.value)
 const trimmedKeyword = computed(() => keyword.value.trim())
 const searchNavStyle = computed(() => `padding-top: ${headerMetrics.value.statusBarHeight}px;`)
 const searchTitleBarStyle = computed(() => `height: ${headerMetrics.value.navBarHeight}px;`)
 const searchPageStyle = computed(() => `padding-top: calc(${headerMetrics.value.headerHeight}px + 24rpx);`)
 const searchToolbarStyle = computed(() => `top: ${headerMetrics.value.headerHeight}px;`)
-const searchPlaceholder = '搜供应、需求、场地或服务'
+const searchPlaceholder = computed(() => filters.groupCode
+  ? `在${selectedGroupName.value}中搜索`
+  : '搜供应、需求、场地或服务')
 const emptyTitle = '暂无匹配内容'
 const emptyDesc = '换个关键词或分类试试。'
 const emptySuggestions = computed(() => hotKeywords.value
@@ -300,14 +320,16 @@ function searchHotKeyword(value) {
 
 async function resetSearchConditions() {
   keyword.value = ''
-  filters.groupCode = ''
   filters.typeCode = ''
+  showGroupDrawer.value = false
+  showTypeDrawer.value = false
   applyCurrentGroupTypes()
   await scrollToSelectedType('')
   await search()
 }
 
 async function selectGroup(groupCode) {
+  showGroupDrawer.value = false
   if (filters.groupCode === groupCode) return
   filters.groupCode = groupCode
   filters.typeCode = ''
@@ -319,6 +341,7 @@ async function selectGroup(groupCode) {
 
 async function selectType(typeCode) {
   filters.typeCode = typeCode
+  showGroupDrawer.value = false
   showTypeDrawer.value = false
   await scrollToSelectedType(typeCode)
   await search()
@@ -353,7 +376,17 @@ async function scrollToSelectedType(typeCode = filters.typeCode) {
   scrollIntoTypeId.value = nextId
 }
 
+function openGroupDrawer() {
+  showTypeDrawer.value = false
+  showGroupDrawer.value = true
+}
+
+function closeGroupDrawer() {
+  showGroupDrawer.value = false
+}
+
 function openTypeDrawer() {
+  showGroupDrawer.value = false
   showTypeDrawer.value = true
 }
 
@@ -460,6 +493,42 @@ function openResource(item) {
   font-weight: 800;
 }
 
+.channel-title-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 420rpx;
+  height: 64rpx;
+  margin: 0;
+  padding: 0 18rpx;
+  background: transparent;
+  color: $wplink-primary;
+  line-height: 1;
+}
+
+.channel-title-button::after {
+  border: 0;
+}
+
+.channel-title-text {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 30rpx;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-title-arrow {
+  box-sizing: border-box;
+  width: 14rpx;
+  height: 14rpx;
+  margin-left: 10rpx;
+  border-right: 3rpx solid currentColor;
+  border-bottom: 3rpx solid currentColor;
+  transform: rotate(45deg) translateY(-2rpx);
+}
+
 .search-toolbar {
   position: sticky;
   position: -webkit-sticky;
@@ -518,10 +587,6 @@ function openResource(item) {
   min-width: 0;
   white-space: nowrap;
   overflow-x: auto;
-}
-
-.group-row {
-  grid-column: 1 / -1;
 }
 
 .filter-button {
@@ -722,6 +787,7 @@ function openResource(item) {
   box-shadow: inset 0 0 0 1rpx $wplink-line;
 }
 
+.group-drawer-mask,
 .type-drawer-mask {
   position: fixed;
   top: 0;
@@ -734,12 +800,34 @@ function openResource(item) {
   background: rgba(15, 23, 42, 0.38);
 }
 
+.group-drawer-panel,
 .type-drawer-panel {
   width: 100%;
   max-height: 72vh;
   padding: 26rpx 24rpx calc(30rpx + env(safe-area-inset-bottom));
   border-radius: 16rpx 16rpx 0 0;
   background: $wplink-bg;
+}
+
+.drawer-group-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.drawer-group-button {
+  height: 76rpx;
+  padding: 0 16rpx;
+  border-radius: 10rpx;
+  background: $wplink-card;
+  color: #364152;
+  font-size: 25rpx;
+}
+
+.drawer-group-button.active {
+  background: $wplink-warning-soft;
+  color: $wplink-primary;
+  font-weight: 700;
 }
 
 .type-drawer-head {

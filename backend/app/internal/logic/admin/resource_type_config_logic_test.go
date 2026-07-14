@@ -56,6 +56,66 @@ func TestUpdateResourceTypeConfigRejectsEmptyID(t *testing.T) {
 	}
 }
 
+func TestCreateResourceTypeConfigPassesGroupAndDefaultsToStore(t *testing.T) {
+	store := &fakeResourceTypeConfigStore{createdID: "config-2", updatedAt: "2026-07-14T10:00:00+08:00"}
+	logic := NewResourceTypeConfigLogic(store)
+
+	resp, err := logic.CreateResourceTypeConfig(context.Background(), CreateResourceTypeConfigReq{
+		CityCode:         " zhili ",
+		TypeCode:         " kids_brand_stock ",
+		TypeName:         " 品牌库存 ",
+		Direction:        model.ResourceDirectionSupply,
+		GroupCode:        " kids_wholesale ",
+		GroupName:        " 童装批发 ",
+		GroupSort:        10,
+		DefaultValidDays: 15,
+	})
+	if err != nil {
+		t.Fatalf("CreateResourceTypeConfig() error = %v", err)
+	}
+
+	if store.createInput.CityCode != "zhili" {
+		t.Fatalf("cityCode = %q, want zhili", store.createInput.CityCode)
+	}
+	if store.createInput.TypeCode != "kids_brand_stock" {
+		t.Fatalf("typeCode = %q, want kids_brand_stock", store.createInput.TypeCode)
+	}
+	if store.createInput.TypeName != "品牌库存" {
+		t.Fatalf("typeName = %q, want 品牌库存", store.createInput.TypeName)
+	}
+	if store.createInput.Direction != model.ResourceDirectionSupply {
+		t.Fatalf("direction = %q, want supply", store.createInput.Direction)
+	}
+	group, _ := store.createInput.DisplayTemplate["group"].(map[string]interface{})
+	if group["code"] != "kids_wholesale" || group["name"] != "童装批发" {
+		t.Fatalf("group = %#v, want kids_wholesale/童装批发", group)
+	}
+	if store.createInput.RequiredFields[0] != "title" || store.createInput.RequiredFields[1] != "contactPhone" {
+		t.Fatalf("required fields = %#v, want default title/contactPhone", store.createInput.RequiredFields)
+	}
+	if resp.ID != "config-2" || resp.UpdatedAt != "2026-07-14T10:00:00+08:00" {
+		t.Fatalf("resp = %#v, want created id and updatedAt", resp)
+	}
+}
+
+func TestCreateResourceTypeConfigRejectsMissingGroup(t *testing.T) {
+	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
+
+	_, err := logic.CreateResourceTypeConfig(context.Background(), CreateResourceTypeConfigReq{
+		CityCode:         "zhili",
+		TypeCode:         "kids_brand_stock",
+		TypeName:         "品牌库存",
+		Direction:        model.ResourceDirectionSupply,
+		DefaultValidDays: 15,
+	})
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if !strings.Contains(err.Error(), "请选择一级分类") {
+		t.Fatalf("error = %v, want missing group message", err)
+	}
+}
+
 func TestUpdateResourceTypeConfigPassesPatchToStore(t *testing.T) {
 	store := &fakeResourceTypeConfigStore{updatedAt: "2026-06-27T10:00:00+08:00"}
 	logic := NewResourceTypeConfigLogic(store)
@@ -194,12 +254,14 @@ func TestUpdateResourceTypeConfigRejectsInvalidSummarySource(t *testing.T) {
 }
 
 type fakeResourceTypeConfigStore struct {
-	cityCode  string
-	status    string
-	configID  string
-	patch     model.ResourceTypeConfigPatch
-	updatedAt string
-	items     []model.AdminResourceTypeConfig
+	cityCode    string
+	status      string
+	configID    string
+	patch       model.ResourceTypeConfigPatch
+	updatedAt   string
+	createdID   string
+	createInput model.CreateResourceTypeConfigInput
+	items       []model.AdminResourceTypeConfig
 }
 
 func (s *fakeResourceTypeConfigStore) ListResourceTypeConfigs(ctx context.Context, cityCode string, status string) ([]model.AdminResourceTypeConfig, error) {
@@ -212,4 +274,9 @@ func (s *fakeResourceTypeConfigStore) UpdateResourceTypeConfig(ctx context.Conte
 	s.configID = configID
 	s.patch = patch
 	return s.updatedAt, nil
+}
+
+func (s *fakeResourceTypeConfigStore) CreateResourceTypeConfig(ctx context.Context, input model.CreateResourceTypeConfigInput) (model.CreateResourceTypeConfigResult, error) {
+	s.createInput = input
+	return model.CreateResourceTypeConfigResult{ID: s.createdID, UpdatedAt: s.updatedAt}, nil
 }

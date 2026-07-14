@@ -49,6 +49,27 @@ type ResourceTypeConfigPatch struct {
 	Status           string
 }
 
+type CreateResourceTypeConfigInput struct {
+	CityCode         string
+	TypeCode         string
+	TypeName         string
+	Direction        string
+	FieldSchema      JSONMap
+	RequiredFields   []string
+	FilterFields     []string
+	DisplayTemplate  JSONMap
+	ReviewRules      JSONMap
+	SortWeights      JSONMap
+	MessageRules     JSONMap
+	DefaultValidDays int64
+	Status           string
+}
+
+type CreateResourceTypeConfigResult struct {
+	ID        string
+	UpdatedAt string
+}
+
 type resourceTypeConfigRow struct {
 	ID               string          `db:"id"`
 	TypeCode         string          `db:"type_code"`
@@ -213,4 +234,67 @@ WHERE id = $1
 		return "", err
 	}
 	return updatedAt.Format(time.RFC3339), nil
+}
+
+func (m *ResourceTypeConfigModel) CreateResourceTypeConfig(ctx context.Context, input CreateResourceTypeConfigInput) (CreateResourceTypeConfigResult, error) {
+	updatedAt := time.Now().UTC()
+	var row struct {
+		ID        string    `db:"id"`
+		UpdatedAt time.Time `db:"updated_at"`
+	}
+	err := m.conn.QueryRowCtx(ctx, &row, `
+INSERT INTO resource_type_configs (
+  city_station_id,
+  type_code,
+  type_name,
+  direction,
+  field_schema,
+  required_fields,
+  filter_fields,
+  display_template,
+  review_rules,
+  sort_weights,
+  message_rules,
+  default_valid_days,
+  status,
+  updated_at
+)
+SELECT
+  cs.id,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
+  $7,
+  $8,
+  $9,
+  $10,
+  $11,
+  $12,
+  $13,
+  $14
+FROM city_stations cs
+WHERE cs.code = $1
+RETURNING id::text, updated_at
+`,
+		input.CityCode,
+		input.TypeCode,
+		input.TypeName,
+		input.Direction,
+		input.FieldSchema,
+		JSONStringSlice(input.RequiredFields),
+		JSONStringSlice(input.FilterFields),
+		input.DisplayTemplate,
+		input.ReviewRules,
+		input.SortWeights,
+		input.MessageRules,
+		input.DefaultValidDays,
+		input.Status,
+		updatedAt,
+	)
+	if err != nil {
+		return CreateResourceTypeConfigResult{}, err
+	}
+	return CreateResourceTypeConfigResult{ID: row.ID, UpdatedAt: row.UpdatedAt.Format(time.RFC3339)}, nil
 }

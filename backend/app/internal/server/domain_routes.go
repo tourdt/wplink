@@ -1025,6 +1025,15 @@ func registerAdminUtilityRoutes(mux *http.ServeMux, store AdminUtilityAPIStore, 
 		resp, err := adminlogic.NewResourceTypeConfigLogic(store).ListResourceTypeConfigs(r.Context(), adminlogic.ListResourceTypeConfigsReq{CityCode: r.URL.Query().Get("cityCode"), Status: r.URL.Query().Get("status")})
 		response.JSON(w, resp, err)
 	})
+	mux.HandleFunc("POST /api/v1/admin/resource-type-configs", func(w http.ResponseWriter, r *http.Request) {
+		var body adminlogic.CreateResourceTypeConfigReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminlogic.NewResourceTypeConfigLogic(store).CreateResourceTypeConfig(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
 	mux.HandleFunc("POST /api/v1/admin/resource-type-configs/{configId}", func(w http.ResponseWriter, r *http.Request) {
 		var body adminlogic.UpdateResourceTypeConfigReq
 		if err := decodeJSONBody(r, &body); err != nil {

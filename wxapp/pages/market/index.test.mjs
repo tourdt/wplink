@@ -40,6 +40,8 @@ test('market page uses category groups instead of direction tabs', () => {
     'groupResourceTypes',
     'categoryGroups',
     'groupFilterOptions',
+    'channelTitle',
+    'selectedGroupName',
     'filters.groupCode',
     'selectGroup',
     'applyCurrentGroupTypes',
@@ -51,12 +53,16 @@ test('market page uses category groups instead of direction tabs', () => {
   }
 
   assert.match(source, /const filters = reactive\(\{[\s\S]*cityCode: DEFAULT_CITY_CODE,[\s\S]*groupCode: '',[\s\S]*typeCode: '',[\s\S]*\}\)/)
+  assert.match(source, /const selectedGroupName = computed\(\(\) =>/)
+  assert.match(source, /const channelTitle = computed\(\(\) => filters\.groupCode \? selectedGroupName\.value : PAGE_TITLE\)/)
   assert.match(source, /listCityResourceTypes\(filters\.cityCode\)/)
   assert.match(source, /categoryGroups\.value = groupResourceTypes\(resp\.items \|\| \[\]\)/)
   assert.match(source, /const selectedGroup = categoryGroups\.value\.find\(\(item\) => item\.code === filters\.groupCode\)/)
   assert.match(source, /groupCode: filters\.groupCode/)
   assert.match(source, /typeCode: filters\.typeCode/)
-  assert.match(source, /async function selectGroup\(groupCode\) \{[\s\S]*filters\.groupCode = groupCode[\s\S]*filters\.typeCode = ''[\s\S]*applyCurrentGroupTypes\(\)[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
+  assert.match(source, /async function selectGroup\(groupCode\) \{[\s\S]*showGroupDrawer\.value = false[\s\S]*filters\.groupCode = groupCode[\s\S]*filters\.typeCode = ''[\s\S]*applyCurrentGroupTypes\(\)[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
+  assert.doesNotMatch(source, /class="filter-row group-row"/)
+  assert.doesNotMatch(source, /class="group-select-button"/)
 
   for (const removedToken of [
     'directionTabs',
@@ -84,21 +90,31 @@ test('market page renders mixed supply and demand result cards from item directi
   }
 })
 
-test('market page keeps the custom title bar without a direction switch', () => {
+test('market page uses the custom title bar as the primary category channel switcher', () => {
   const page = pagesConfig.pages.find((item) => item.path === 'pages/market/index')
 
   assert.equal(page?.style?.navigationStyle, 'custom')
   assert.match(source, /const PAGE_TITLE = '供需市场'/)
   assert.match(source, /<view class="resource-nav" :style="resourceNavStyle">/)
   assert.match(source, /<view class="resource-title-bar" :style="resourceTitleBarStyle">/)
-  assert.match(source, /<text class="resource-title">供需市场<\/text>/)
+  assert.match(source, /<button class="channel-title-button" @click="openGroupDrawer">/)
+  assert.match(source, /<text class="channel-title-text">\{\{ channelTitle \}\}<\/text>/)
+  assert.match(source, /<text class="channel-title-arrow"><\/text>/)
   assert.match(cssBlock('.resource-title-bar'), /justify-content:\s*center;/)
+  assert.match(cssBlock('.channel-title-button'), /background:\s*transparent;/)
+  assert.match(cssBlock('.channel-title-button::after'), /border:\s*0;/)
   assert.match(source, /const resourceNavStyle = computed/)
   assert.match(source, /getMenuButtonBoundingClientRect/)
 })
 
 test('market page shows all secondary categories and scrolls selected category into view', () => {
   for (const token of [
+    'class="channel-title-button"',
+    'showGroupDrawer',
+    'openGroupDrawer',
+    'closeGroupDrawer',
+    'group-drawer-mask',
+    'drawer-group-list',
     'visibleResourceTypes',
     'scrollIntoTypeId',
     'scrollToSelectedType',
@@ -121,7 +137,7 @@ test('market page shows all secondary categories and scrolls selected category i
 })
 
 test('market page opens search with category filters and concise placeholder copy', () => {
-  assert.match(source, /const searchPlaceholder = '搜供应、需求、场地或服务'/)
+  assert.match(source, /const searchPlaceholder = computed\(\(\) => filters\.groupCode[\s\S]*`在\$\{selectedGroupName\.value\}中搜索`[\s\S]*'搜供应、需求、场地或服务'[\s\S]*\)/)
   assert.match(source, /const searchOptions = \{[\s\S]*keyword,[\s\S]*groupCode: filters\.groupCode,[\s\S]*typeCode: filters\.typeCode,[\s\S]*cityCode: filters\.cityCode,[\s\S]*\}/)
   assert.match(source, /uni\.setStorageSync\(SEARCH_KEY, searchOptions\)/)
   assert.doesNotMatch(source, /搜索找现货、找库存、找工厂、找服务/)

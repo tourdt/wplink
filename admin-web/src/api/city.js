@@ -12,6 +12,10 @@ export function listResourceTypeConfigs(params = {}) {
   return http.get('/api/v1/admin/resource-type-configs', { params })
 }
 
+export function createResourceTypeConfig(payload) {
+  return http.post('/api/v1/admin/resource-type-configs', payload)
+}
+
 export function updateResourceTypeConfig(configId, payload) {
   return http.post(`/api/v1/admin/resource-type-configs/${configId}`, payload)
 }

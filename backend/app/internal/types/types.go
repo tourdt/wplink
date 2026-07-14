@@ -171,6 +171,30 @@ type AdminListResourceTypeConfigsResp struct {
 	Items []AdminResourceTypeConfigItem `json:"items"`
 }
 
+type AdminCreateResourceTypeConfigReq struct {
+	CityCode         string                 `json:"cityCode"`
+	TypeCode         string                 `json:"typeCode"`
+	TypeName         string                 `json:"typeName"`
+	Direction        string                 `json:"direction"`
+	GroupCode        string                 `json:"groupCode"`
+	GroupName        string                 `json:"groupName"`
+	GroupSort        int64                  `json:"groupSort,optional"`
+	FieldSchema      map[string]interface{} `json:"fieldSchema,optional"`
+	RequiredFields   []string               `json:"requiredFields,optional"`
+	FilterFields     []string               `json:"filterFields,optional"`
+	DisplayTemplate  map[string]interface{} `json:"displayTemplate,optional"`
+	ReviewRules      map[string]interface{} `json:"reviewRules,optional"`
+	SortWeights      map[string]interface{} `json:"sortWeights,optional"`
+	MessageRules     map[string]interface{} `json:"messageRules,optional"`
+	DefaultValidDays int64                  `json:"defaultValidDays,optional"`
+	Status           string                 `json:"status,optional"`
+}
+
+type AdminCreateResourceTypeConfigResp struct {
+	Id        string `json:"id"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
 type AdminListVIPPlansResp struct {
 	Items []AdminVIPPlanConfigItem `json:"items"`
 }

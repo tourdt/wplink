@@ -2,15 +2,19 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type ResourceTypeConfigStore interface {
 	ListResourceTypeConfigs(ctx context.Context, cityCode string, status string) ([]model.AdminResourceTypeConfig, error)
+	CreateResourceTypeConfig(ctx context.Context, input model.CreateResourceTypeConfigInput) (model.CreateResourceTypeConfigResult, error)
 	UpdateResourceTypeConfig(ctx context.Context, configID string, patch model.ResourceTypeConfigPatch) (string, error)
 }
 
@@ -38,6 +42,30 @@ type ResourceTypeConfigItem struct {
 
 type ListResourceTypeConfigsResp struct {
 	Items []ResourceTypeConfigItem `json:"items"`
+}
+
+type CreateResourceTypeConfigReq struct {
+	CityCode         string
+	TypeCode         string
+	TypeName         string
+	Direction        string
+	GroupCode        string
+	GroupName        string
+	GroupSort        int64
+	FieldSchema      map[string]interface{}
+	RequiredFields   []string
+	FilterFields     []string
+	DisplayTemplate  map[string]interface{}
+	ReviewRules      map[string]interface{}
+	SortWeights      map[string]interface{}
+	MessageRules     map[string]interface{}
+	DefaultValidDays int64
+	Status           string
+}
+
+type CreateResourceTypeConfigResp struct {
+	ID        string `json:"id"`
+	UpdatedAt string `json:"updatedAt"`
 }
 
 type UpdateResourceTypeConfigReq struct {
@@ -92,6 +120,8 @@ var resourceSummaryTargetFields = map[string]struct{}{
 	"priceText":    {},
 }
 
+const defaultResourceTypeStatus = "active"
+
 func NewResourceTypeConfigLogic(store ResourceTypeConfigStore) *ResourceTypeConfigLogic {
 	return &ResourceTypeConfigLogic{store: store}
 }
@@ -124,6 +154,28 @@ func (l *ResourceTypeConfigLogic) ListResourceTypeConfigs(ctx context.Context, r
 	return ListResourceTypeConfigsResp{Items: items}, nil
 }
 
+func (l *ResourceTypeConfigLogic) CreateResourceTypeConfig(ctx context.Context, req CreateResourceTypeConfigReq) (CreateResourceTypeConfigResp, error) {
+	input, err := buildCreateResourceTypeConfigInput(req)
+	if err != nil {
+		return CreateResourceTypeConfigResp{}, err
+	}
+	result, err := l.store.CreateResourceTypeConfig(ctx, input)
+	if err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			logx.Infof("创建供需二级类型被拦截: cityCode=%s typeCode=%s reason=city_not_found", input.CityCode, input.TypeCode)
+			return CreateResourceTypeConfigResp{}, errx.New(errx.CodeValidationFailed, "城市站不存在或未启用")
+		}
+		if isDuplicateResourceTypeConfigError(err) {
+			logx.Infof("创建供需二级类型被拦截: cityCode=%s typeCode=%s reason=duplicate_type_code", input.CityCode, input.TypeCode)
+			return CreateResourceTypeConfigResp{}, errx.New(errx.CodeValidationFailed, "二级分类编码已存在，请更换编码")
+		}
+		logx.Errorf("创建供需二级类型失败: cityCode=%s typeCode=%s groupCode=%s err=%+v", input.CityCode, input.TypeCode, groupCodeFromDisplayTemplate(input.DisplayTemplate), err)
+		return CreateResourceTypeConfigResp{}, errx.New(errx.CodeInternalError, "新增供需类型失败，请稍后重试")
+	}
+	logx.Infof("创建供需二级类型成功: cityCode=%s typeCode=%s groupCode=%s configId=%s", input.CityCode, input.TypeCode, groupCodeFromDisplayTemplate(input.DisplayTemplate), result.ID)
+	return CreateResourceTypeConfigResp{ID: result.ID, UpdatedAt: result.UpdatedAt}, nil
+}
+
 func (l *ResourceTypeConfigLogic) UpdateResourceTypeConfig(ctx context.Context, configID string, req UpdateResourceTypeConfigReq) (UpdateResourceTypeConfigResp, error) {
 	configID = strings.TrimSpace(configID)
 	if configID == "" {
@@ -154,6 +206,91 @@ func (l *ResourceTypeConfigLogic) UpdateResourceTypeConfig(ctx context.Context, 
 		return UpdateResourceTypeConfigResp{}, err
 	}
 	return UpdateResourceTypeConfigResp{ID: configID, UpdatedAt: updatedAt}, nil
+}
+
+func buildCreateResourceTypeConfigInput(req CreateResourceTypeConfigReq) (model.CreateResourceTypeConfigInput, error) {
+	cityCode := strings.TrimSpace(req.CityCode)
+	typeCode := strings.TrimSpace(req.TypeCode)
+	typeName := strings.TrimSpace(req.TypeName)
+	groupCode := strings.TrimSpace(req.GroupCode)
+	groupName := strings.TrimSpace(req.GroupName)
+	if cityCode == "" {
+		return model.CreateResourceTypeConfigInput{}, errx.New(errx.CodeValidationFailed, "请选择城市站")
+	}
+	if typeCode == "" || !validResourceConfigFieldKey(typeCode) {
+		return model.CreateResourceTypeConfigInput{}, errx.New(errx.CodeValidationFailed, "请填写正确的二级分类编码，只能使用英文字母、数字和下划线，并且必须以字母开头")
+	}
+	if typeName == "" {
+		return model.CreateResourceTypeConfigInput{}, errx.New(errx.CodeValidationFailed, "请填写二级分类名称")
+	}
+	if groupCode == "" || groupName == "" {
+		return model.CreateResourceTypeConfigInput{}, errx.New(errx.CodeValidationFailed, "请选择一级分类")
+	}
+	if !validResourceConfigFieldKey(groupCode) {
+		return model.CreateResourceTypeConfigInput{}, errx.New(errx.CodeValidationFailed, "请填写正确的一级分类编码，只能使用英文字母、数字和下划线，并且必须以字母开头")
+	}
+	direction, err := normalizeRequiredResourceDirection(req.Direction)
+	if err != nil {
+		return model.CreateResourceTypeConfigInput{}, err
+	}
+	defaultValidDays := req.DefaultValidDays
+	if defaultValidDays <= 0 {
+		defaultValidDays = 15
+	}
+	status := strings.TrimSpace(req.Status)
+	if status == "" {
+		status = defaultResourceTypeStatus
+	}
+	if status != "active" && status != "disabled" {
+		return model.CreateResourceTypeConfigInput{}, errx.New(errx.CodeValidationFailed, "资源类型状态不正确")
+	}
+
+	fieldSchema := cloneConfigMap(req.FieldSchema)
+	requiredFields := normalizeRequiredFieldsForCreate(req.RequiredFields)
+	filterFields := append([]string(nil), req.FilterFields...)
+	displayTemplate := cloneConfigMap(req.DisplayTemplate)
+	// 一级分类不是独立表，必须写入 display_template.group，供小程序和后台统一按该字段分组。
+	displayTemplate["group"] = map[string]interface{}{"code": groupCode, "name": groupName, "sort": req.GroupSort}
+	if displayTemplate["summary"] == nil {
+		displayTemplate["summary"] = map[string]interface{}{"category": "category", "quantityText": "quantityText", "priceText": "priceText"}
+	}
+	if displayTemplate["list"] == nil {
+		displayTemplate["list"] = []interface{}{"priceText", "quantityText", "district"}
+	}
+	if displayTemplate["detail"] == nil {
+		displayTemplate["detail"] = []interface{}{}
+	}
+
+	patch := UpdateResourceTypeConfigReq{
+		FieldSchema:      fieldSchema,
+		RequiredFields:   requiredFields,
+		FilterFields:     filterFields,
+		DisplayTemplate:  displayTemplate,
+		ReviewRules:      cloneConfigMap(req.ReviewRules),
+		SortWeights:      cloneConfigMap(req.SortWeights),
+		MessageRules:     cloneConfigMap(req.MessageRules),
+		DefaultValidDays: defaultValidDays,
+		Status:           status,
+	}
+	if err := validateResourceTypeConfigPatch(patch); err != nil {
+		return model.CreateResourceTypeConfigInput{}, err
+	}
+
+	return model.CreateResourceTypeConfigInput{
+		CityCode:         cityCode,
+		TypeCode:         typeCode,
+		TypeName:         typeName,
+		Direction:        direction,
+		FieldSchema:      model.JSONMap(fieldSchema),
+		RequiredFields:   requiredFields,
+		FilterFields:     filterFields,
+		DisplayTemplate:  model.JSONMap(displayTemplate),
+		ReviewRules:      model.JSONMap(patch.ReviewRules),
+		SortWeights:      model.JSONMap(patch.SortWeights),
+		MessageRules:     model.JSONMap(patch.MessageRules),
+		DefaultValidDays: defaultValidDays,
+		Status:           status,
+	}, nil
 }
 
 func validateResourceTypeConfigPatch(req UpdateResourceTypeConfigReq) error {
@@ -193,6 +330,46 @@ func validateResourceTypeConfigPatch(req UpdateResourceTypeConfigReq) error {
 		return err
 	}
 	return nil
+}
+
+func normalizeRequiredResourceDirection(direction string) (string, error) {
+	direction = strings.TrimSpace(direction)
+	if direction == model.ResourceDirectionSupply || direction == model.ResourceDirectionDemand {
+		return direction, nil
+	}
+	return "", errx.New(errx.CodeValidationFailed, "请选择正确的供需方向")
+}
+
+func normalizeRequiredFieldsForCreate(fields []string) []string {
+	normalized := stringsFromConfigValue(fields)
+	if len(normalized) == 0 {
+		return []string{"title", "contactPhone"}
+	}
+	return normalized
+}
+
+func cloneConfigMap(value map[string]interface{}) map[string]interface{} {
+	if value == nil {
+		return map[string]interface{}{}
+	}
+	cloned := make(map[string]interface{}, len(value))
+	for key, item := range value {
+		cloned[key] = item
+	}
+	return cloned
+}
+
+func groupCodeFromDisplayTemplate(displayTemplate model.JSONMap) string {
+	group, ok := configMap(displayTemplate["group"])
+	if !ok {
+		return ""
+	}
+	code, _ := group["code"].(string)
+	return strings.TrimSpace(code)
+}
+
+func isDuplicateResourceTypeConfigError(err error) bool {
+	return strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "23505")
 }
 
 func validateDisplaySummaryTemplate(value interface{}, allowedFields map[string]struct{}) error {

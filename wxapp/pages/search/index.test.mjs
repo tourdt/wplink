@@ -13,15 +13,23 @@ function cssBlock(selector) {
   return match?.[1] || ''
 }
 
+function functionBlock(name) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = source.match(new RegExp(`(?:async\\s+)?function ${escapedName}\\([^)]*\\) \\{([\\s\\S]*?)\\n\\}`))
+  return match?.[1] || ''
+}
+
 test('search page keeps the main tools and removes explanatory copy', () => {
   for (const token of [
     'class="search-bar"',
-    'class="filter-row group-row"',
+    'class="channel-title-button"',
     'class="hot-row"',
     'ResourceCard',
     'DemandCard',
     'groupResourceTypes',
     'groupFilterOptions',
+    'channelTitle',
+    'selectedGroupName',
     'selectGroup',
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
@@ -52,6 +60,11 @@ test('search page keeps the main tools and removes explanatory copy', () => {
 
 test('search page matches market category browsing controls', () => {
   for (const token of [
+    'showGroupDrawer',
+    'openGroupDrawer',
+    'closeGroupDrawer',
+    'group-drawer-mask',
+    'drawer-group-list',
     'visibleResourceTypes',
     'scrollIntoTypeId',
     'scrollToSelectedType',
@@ -71,25 +84,33 @@ test('search page matches market category browsing controls', () => {
   }
 
   assert.match(source, /const filters = reactive\(\{[\s\S]*cityCode: DEFAULT_CITY_CODE,[\s\S]*groupCode: '',[\s\S]*typeCode: '',[\s\S]*\}\)/)
+  assert.match(source, /const selectedGroupName = computed\(\(\) =>/)
+  assert.match(source, /const channelTitle = computed\(\(\) => filters\.groupCode \? selectedGroupName\.value : '供需搜索'\)/)
   assert.match(source, /visibleResourceTypes = computed\(\(\) => resourceTypes\.value\)/)
   assert.match(source, /listCityResourceTypes\(filters\.cityCode\)/)
   assert.match(source, /categoryGroups\.value = groupResourceTypes\(resp\.items \|\| \[\]\)/)
   assert.match(source, /const selectedGroup = categoryGroups\.value\.find\(\(item\) => item\.code === filters\.groupCode\)/)
   assert.match(source, /v-for="item in visibleResourceTypes"[\s\S]*:id="getTypeButtonId\(item\.value\)"/)
-  assert.match(source, /async function selectGroup\(groupCode\) \{[\s\S]*filters\.groupCode = groupCode[\s\S]*filters\.typeCode = ''[\s\S]*applyCurrentGroupTypes\(\)[\s\S]*await search\(\)[\s\S]*\}/)
+  assert.match(source, /async function selectGroup\(groupCode\) \{[\s\S]*showGroupDrawer\.value = false[\s\S]*filters\.groupCode = groupCode[\s\S]*filters\.typeCode = ''[\s\S]*applyCurrentGroupTypes\(\)[\s\S]*await search\(\)[\s\S]*\}/)
   assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypeDrawer\.value = false[\s\S]*scrollToSelectedType\(typeCode\)[\s\S]*await search\(\)[\s\S]*\}/)
+  assert.doesNotMatch(source, /class="filter-row group-row"/)
+  assert.doesNotMatch(source, /class="group-select-button"/)
 })
 
-test('search page moves only the title and back button into the custom title bar', () => {
+test('search page uses the custom title bar as the primary category channel switcher', () => {
   const page = pagesConfig.pages.find((item) => item.path === 'pages/search/index')
 
   assert.equal(page?.style?.navigationStyle, 'custom')
   assert.match(source, /<view class="search-nav" :style="searchNavStyle">/)
   assert.match(source, /<view class="search-title-bar" :style="searchTitleBarStyle">/)
   assert.match(source, /<button class="nav-back-button" @click="goBack">/)
-  assert.match(source, /<text class="search-title">供需搜索<\/text>/)
+  assert.match(source, /<button class="channel-title-button" @click="openGroupDrawer">/)
+  assert.match(source, /<text class="channel-title-text">\{\{ channelTitle \}\}<\/text>/)
+  assert.match(source, /<text class="channel-title-arrow"><\/text>/)
   assert.match(cssBlock('.search-title-bar'), /justify-content:\s*center;/)
   assert.match(cssBlock('.search-title-bar'), /position:\s*relative;/)
+  assert.match(cssBlock('.channel-title-button'), /background:\s*transparent;/)
+  assert.match(cssBlock('.channel-title-button::after'), /border:\s*0;/)
   assert.match(cssBlock('.nav-back-button'), /position:\s*absolute;/)
   assert.match(cssBlock('.nav-back-button'), /background:\s*transparent;/)
   assert.match(cssBlock('.nav-back-button'), /width:\s*64rpx;/)
@@ -129,6 +150,11 @@ test('search page applies route and pending category filters without direction s
   assert.match(source, /function hasPendingSearch\(\) \{[\s\S]*return Boolean\(uni\.getStorageSync\(SEARCH_KEY\)\)[\s\S]*\}/)
   assert.doesNotMatch(source, /routeDirection/)
   assert.doesNotMatch(source, /directionStateCache/)
+})
+
+test('search placeholder follows the active primary channel', () => {
+  assert.match(source, /const searchPlaceholder = computed\(\(\) => filters\.groupCode[\s\S]*`在\$\{selectedGroupName\.value\}中搜索`[\s\S]*'搜供应、需求、场地或服务'[\s\S]*\)/)
+  assert.match(source, /<input v-model="keyword" class="search-input" :placeholder="searchPlaceholder" @confirm="search" \/>/)
 })
 
 test('search page submits group and type filters to search API', () => {
@@ -179,14 +205,23 @@ test('search page tracks scroll progress without per-direction cache', () => {
 })
 
 test('search page uses concise placeholder and empty state copy', () => {
-  assert.match(source, /const searchPlaceholder = '搜供应、需求、场地或服务'/)
+  assert.match(source, /const searchPlaceholder = computed/)
   assert.match(source, /const emptyTitle = '暂无匹配内容'/)
   assert.match(source, /const emptyDesc = '换个关键词或分类试试。'/)
-  assert.match(source, /async function resetSearchConditions\(\) \{[\s\S]*keyword\.value = ''[\s\S]*filters\.groupCode = ''[\s\S]*filters\.typeCode = ''[\s\S]*applyCurrentGroupTypes\(\)[\s\S]*await search\(\)[\s\S]*\}/)
   assert.doesNotMatch(source, /暂无匹配供应/)
   assert.doesNotMatch(source, /暂无匹配需求/)
   assert.doesNotMatch(source, /搜索找现货、找库存、找工厂、找服务/)
   assert.doesNotMatch(source, /搜索库存清仓、现货货源、工厂接单、配套服务/)
+})
+
+test('search reset keeps the active primary category channel', () => {
+  const resetBlock = functionBlock('resetSearchConditions')
+
+  assert.match(resetBlock, /keyword\.value = ''/)
+  assert.match(resetBlock, /filters\.typeCode = ''/)
+  assert.doesNotMatch(resetBlock, /filters\.groupCode = ''/)
+  assert.match(resetBlock, /applyCurrentGroupTypes\(\)/)
+  assert.match(resetBlock, /await search\(\)/)
 })
 
 test('search page keeps compact control sizing and subdued empty state', () => {

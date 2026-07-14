@@ -223,6 +223,23 @@ test('resource type config shows read-only resource direction labels', () => {
   assert.doesNotMatch(source, /direction:\s*editing\.value\.direction/)
 })
 
+test('resource type config exposes category hierarchy maintenance actions', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/ResourceTypeConfigView.vue'), 'utf8')
+  const apiSource = fs.readFileSync(path.join(root, 'src/api/city.js'), 'utf8')
+
+  assert.match(source, /新增一级分类/)
+  assert.match(source, /新增二级分类/)
+  assert.match(source, /configGroups/)
+  assert.match(source, /groupNameFromConfig/)
+  assert.match(source, /openCreateGroup/)
+  assert.match(source, /openCreateType/)
+  assert.match(source, /createResourceTypeConfig/)
+  assert.match(source, /一级分类/)
+  assert.match(source, /二级类型/)
+  assert.match(apiSource, /createResourceTypeConfig/)
+  assert.match(apiSource, /\/api\/v1\/admin\/resource-type-configs/)
+})
+
 test('admin navigation uses supply demand information wording for resource sections', () => {
   const layoutSource = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.vue'), 'utf8')
   const reviewSource = fs.readFileSync(path.join(root, 'src/views/ResourceReviewView.vue'), 'utf8')

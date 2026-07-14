@@ -574,6 +574,7 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "create admin hot keyword", method: http.MethodPost, path: "/api/v1/admin/hot-search-keywords", body: `{"cityCode":"zhili","keyword":"夏款现货","status":"active","sortOrder":20}`},
 		{name: "update admin hot keyword", method: http.MethodPost, path: "/api/v1/admin/hot-search-keywords/keyword-1", body: `{"cityCode":"zhili","keyword":"夏款现货","status":"active","sortOrder":20}`},
 		{name: "list resource configs", method: http.MethodGet, path: "/api/v1/admin/resource-type-configs?cityCode=zhili"},
+		{name: "create resource config", method: http.MethodPost, path: "/api/v1/admin/resource-type-configs", body: `{"cityCode":"zhili","typeCode":"kids_brand_stock","typeName":"品牌库存","direction":"supply","groupCode":"kids_wholesale","groupName":"童装批发","defaultValidDays":15}`},
 		{name: "update resource config", method: http.MethodPost, path: "/api/v1/admin/resource-type-configs/config-1", body: `{"fieldSchema":{},"requiredFields":["title"],"filterFields":["category"],"displayTemplate":{},"reviewRules":{},"sortWeights":{},"messageRules":{},"defaultValidDays":7,"status":"active"}`},
 		{name: "list pending verifications", method: http.MethodGet, path: "/api/v1/admin/verifications/pending"},
 		{name: "review verification", method: http.MethodPost, path: "/api/v1/admin/verifications/verification-1/review", body: `{"reviewerId":"user-1","action":"approve"}`},
@@ -974,6 +975,10 @@ func (s *fakeFullAPIStore) GetAdminDashboardOverview(ctx context.Context, cityCo
 
 func (s *fakeFullAPIStore) ListResourceTypeConfigs(ctx context.Context, cityCode string, status string) ([]model.AdminResourceTypeConfig, error) {
 	return []model.AdminResourceTypeConfig{{ID: "config-1", CityCode: "zhili", TypeCode: "stock_clearance", TypeName: "库存出售", RequiredFields: []string{"title"}, DefaultValidDays: 7, Status: "active"}}, nil
+}
+
+func (s *fakeFullAPIStore) CreateResourceTypeConfig(ctx context.Context, input model.CreateResourceTypeConfigInput) (model.CreateResourceTypeConfigResult, error) {
+	return model.CreateResourceTypeConfigResult{ID: "config-2", UpdatedAt: "2026-07-14T10:00:00Z"}, nil
 }
 
 func (s *fakeFullAPIStore) UpdateResourceTypeConfig(ctx context.Context, configID string, patch model.ResourceTypeConfigPatch) (string, error) {
