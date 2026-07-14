@@ -25,7 +25,7 @@
 
     <view v-if="!loading && rows.length === 0" class="empty-state">
       <text class="empty-title">暂无发布内容</text>
-      <text class="empty-desc">发布供应或需求后，可在这里查看审核进度、曝光数据和推广效果。</text>
+      <text class="empty-desc">发布后可查看审核和数据。</text>
       <button class="empty-action" @click="openPublish">继续发布</button>
     </view>
 
@@ -320,6 +320,8 @@ function metricItems(item) {
 
 <style lang="scss" scoped>
 .my-resources-page {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   padding: 24rpx;
   padding-top: 220rpx;
@@ -411,11 +413,13 @@ function metricItems(item) {
 
 .empty-state {
   display: grid;
+  flex: 1;
   align-content: center;
   justify-items: center;
   gap: 16rpx;
-  min-height: 360rpx;
+  min-height: 420rpx;
   padding: 40rpx 28rpx;
+  padding-bottom: 88rpx;
   border-radius: 12rpx;
   background: $wplink-card;
   text-align: center;

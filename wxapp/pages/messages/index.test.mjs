@@ -57,7 +57,7 @@ test('messages page shows empty placeholder when current list has no rows', () =
   assert.match(source, /v-if="!loading && !rows\.length" class="empty-placeholder"/)
   assert.match(source, /<text class="empty-title">\{\{ emptyTitle \}\}<\/text>/)
   assert.match(source, /const emptyTitle = computed\(\(\) => \{[\s\S]*if \(filters\.status === 'unread'\) return '暂无未读消息'[\s\S]*if \(filters\.status === 'read'\) return '暂无已读消息'[\s\S]*return '暂无消息'[\s\S]*\}\)/)
-  assert.match(source, /\.empty-placeholder \{[\s\S]*min-height: 360rpx;[\s\S]*align-items: center;[\s\S]*justify-content: center;[\s\S]*background: \$wplink-card;/)
+  assert.match(source, /\.empty-placeholder \{[\s\S]*min-height: 360rpx;[\s\S]*padding-bottom: 64rpx;[\s\S]*align-items: center;[\s\S]*justify-content: center;[\s\S]*background: \$wplink-card;/)
   assert.match(source, /\.empty-title \{[\s\S]*color: \$wplink-muted;[\s\S]*font-size: 28rpx;/)
 })
 

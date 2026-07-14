@@ -102,8 +102,10 @@
           {{ item }}
         </button>
       </view>
-      <view class="empty-actions">
-        <button class="secondary-button" @click="resetSearchConditions">换个条件</button>
+      <view v-if="emptyPrimaryActionLabel" class="empty-actions">
+        <button v-if="emptyPrimaryActionLabel" class="primary-empty-button" @click="handleEmptyPrimaryAction">
+          {{ emptyPrimaryActionLabel }}
+        </button>
       </view>
     </view>
 
@@ -186,10 +188,27 @@ const searchPlaceholder = computed(() => filters.groupCode
   ? `在${selectedGroupName.value}中搜索`
   : '搜供应、需求、场地或服务')
 const emptyTitle = '暂无匹配内容'
-const emptyDesc = '换个关键词或分类试试。'
-const emptySuggestions = computed(() => hotKeywords.value
-  .filter((item) => item !== trimmedKeyword.value)
-  .slice(0, 3))
+const emptyDesc = computed(() => {
+  if (trimmedKeyword.value) return '当前关键词暂无匹配。'
+  if (filters.groupCode && filters.typeCode) {
+    return '当前分类暂无结果。'
+  }
+  if (filters.groupCode) return '该频道暂无内容。'
+  return '换个关键词或分类试试。'
+})
+const emptyPrimaryActionLabel = computed(() => {
+  if (trimmedKeyword.value) return '清空关键词'
+  if (filters.groupCode && filters.typeCode) {
+    return `查看${selectedGroupName.value}全部`
+  }
+  return ''
+})
+const emptySuggestions = computed(() => {
+  if (filters.groupCode && !filters.typeCode && !trimmedKeyword.value) return []
+  return hotKeywords.value
+    .filter((item) => item !== trimmedKeyword.value)
+    .slice(0, 3)
+})
 
 onLoad(async (options = {}) => {
   updateHeaderMetrics()
@@ -328,6 +347,21 @@ async function resetSearchConditions() {
   await search()
 }
 
+async function clearSearchKeyword() {
+  keyword.value = ''
+  await search()
+}
+
+async function handleEmptyPrimaryAction() {
+  if (trimmedKeyword.value) {
+    await clearSearchKeyword()
+    return
+  }
+  if (filters.groupCode && filters.typeCode) {
+    await resetSearchConditions()
+  }
+}
+
 async function selectGroup(groupCode) {
   showGroupDrawer.value = false
   if (filters.groupCode === groupCode) return
@@ -432,6 +466,8 @@ function openResource(item) {
 
 <style lang="scss" scoped>
 .search-page {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   padding: 24rpx;
   background: $wplink-bg;
@@ -654,9 +690,13 @@ function openResource(item) {
 
 .empty-card {
   display: grid;
+  flex: 1;
+  align-content: center;
   justify-items: center;
   gap: 12rpx;
+  min-height: 420rpx;
   padding: 32rpx 24rpx;
+  padding-bottom: 88rpx;
   border-radius: 12rpx;
   background: $wplink-card;
   text-align: center;
@@ -768,11 +808,13 @@ function openResource(item) {
 .empty-actions {
   display: flex;
   justify-content: center;
+  gap: 12rpx;
+  flex-wrap: wrap;
   width: 100%;
   margin-top: 4rpx;
 }
 
-.secondary-button {
+.primary-empty-button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -780,11 +822,11 @@ function openResource(item) {
   max-width: 300rpx;
   height: 72rpx;
   border-radius: 12rpx;
-  background: $wplink-card;
-  color: $wplink-primary;
+  background: $wplink-primary;
+  color: $wplink-card;
   font-size: 26rpx;
   font-weight: 700;
-  box-shadow: inset 0 0 0 1rpx $wplink-line;
+  box-shadow: none;
 }
 
 .group-drawer-mask,

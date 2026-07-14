@@ -66,7 +66,11 @@ const emit = defineEmits(['open', 'load-more'])
 }
 
 .empty-text {
-  padding: 28rpx 0;
+  display: grid;
+  place-items: center;
+  min-height: 360rpx;
+  padding: 32rpx 0;
+  padding-bottom: 80rpx;
   color: $wplink-muted;
   font-size: 26rpx;
   text-align: center;

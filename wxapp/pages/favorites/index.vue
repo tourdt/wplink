@@ -73,8 +73,8 @@ const merchantTypeText = {
 const currentRows = computed(() => (activeTab.value === 'resources' ? favoriteResources.value : followedMerchants.value))
 const emptyTitle = computed(() => (activeTab.value === 'resources' ? '暂无收藏供应' : '暂无关注商家'))
 const emptyDesc = computed(() => {
-  if (activeTab.value === 'resources') return '看到合适的工厂直批、库存出售或加工生产信息后点收藏，后续可在这里快速回看。'
-  return '关注常合作或感兴趣的发布者，后续可从这里快速进入发布者资料。'
+  if (activeTab.value === 'resources') return '收藏后可在这里快速回看。'
+  return '关注后可快速进入商家主页。'
 })
 const emptyActionText = computed(() => (activeTab.value === 'resources' ? '去找供应' : '去找商家'))
 
@@ -164,6 +164,8 @@ function merchantBusinessText(item) {
 
 <style lang="scss" scoped>
 .favorites-page {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   padding: 24rpx;
   padding-top: 132rpx;
@@ -276,11 +278,13 @@ function merchantBusinessText(item) {
 
 .empty-state {
   display: grid;
+  flex: 1;
   align-content: center;
   justify-items: center;
   gap: 16rpx;
   min-height: 420rpx;
   padding: 48rpx 28rpx;
+  padding-bottom: 88rpx;
   border-radius: 12rpx;
   background: $wplink-card;
   text-align: center;

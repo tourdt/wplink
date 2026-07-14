@@ -259,6 +259,7 @@ function stripQuery(targetUrl) {
 .empty-placeholder {
   display: flex;
   min-height: 360rpx;
+  padding-bottom: 64rpx;
   align-items: center;
   justify-content: center;
   border-radius: 12rpx;

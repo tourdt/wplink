@@ -207,7 +207,8 @@ test('search page tracks scroll progress without per-direction cache', () => {
 test('search page uses concise placeholder and empty state copy', () => {
   assert.match(source, /const searchPlaceholder = computed/)
   assert.match(source, /const emptyTitle = '暂无匹配内容'/)
-  assert.match(source, /const emptyDesc = '换个关键词或分类试试。'/)
+  assert.match(source, /const emptyDesc = computed/)
+  assert.match(source, /return '换个关键词或分类试试。'/)
   assert.doesNotMatch(source, /暂无匹配供应/)
   assert.doesNotMatch(source, /暂无匹配需求/)
   assert.doesNotMatch(source, /搜索找现货、找库存、找工厂、找服务/)
@@ -224,12 +225,42 @@ test('search reset keeps the active primary category channel', () => {
   assert.match(resetBlock, /await search\(\)/)
 })
 
+test('search empty state actions keep the primary channel while relaxing narrow filters', () => {
+  const clearKeywordBlock = functionBlock('clearSearchKeyword')
+  const primaryActionBlock = functionBlock('handleEmptyPrimaryAction')
+  const resetBlock = functionBlock('resetSearchConditions')
+
+  assert.match(source, /const emptyDesc = computed\(\(\) => \{[\s\S]*if \(trimmedKeyword\.value\)[\s\S]*当前关键词暂无匹配。[\s\S]*if \(filters\.groupCode && filters\.typeCode\)[\s\S]*当前分类暂无结果。[\s\S]*if \(filters\.groupCode\) return '该频道暂无内容。'[\s\S]*换个关键词或分类试试。[\s\S]*\}\)/)
+  assert.match(source, /const emptyPrimaryActionLabel = computed\(\(\) => \{[\s\S]*if \(trimmedKeyword\.value\) return '清空关键词'[\s\S]*if \(filters\.groupCode && filters\.typeCode\)[\s\S]*`查看\$\{selectedGroupName\.value\}全部`[\s\S]*return ''[\s\S]*\}\)/)
+  assert.match(source, /<view v-if="emptyPrimaryActionLabel" class="empty-actions">/)
+  assert.match(source, /<button v-if="emptyPrimaryActionLabel" class="primary-empty-button" @click="handleEmptyPrimaryAction">/)
+  assert.doesNotMatch(source, /emptySecondaryActionLabel/)
+  assert.doesNotMatch(source, /class="secondary-button"/)
+  assert.doesNotMatch(source, /换个条件<\/button>/)
+
+  assert.match(clearKeywordBlock, /keyword\.value = ''/)
+  assert.doesNotMatch(clearKeywordBlock, /filters\.groupCode = ''/)
+  assert.doesNotMatch(clearKeywordBlock, /filters\.typeCode = ''/)
+  assert.match(clearKeywordBlock, /await search\(\)/)
+
+  assert.match(primaryActionBlock, /if \(trimmedKeyword\.value\)[\s\S]*await clearSearchKeyword\(\)[\s\S]*return/)
+  assert.match(primaryActionBlock, /if \(filters\.groupCode && filters\.typeCode\)[\s\S]*await resetSearchConditions\(\)/)
+  assert.match(resetBlock, /filters\.typeCode = ''/)
+  assert.doesNotMatch(resetBlock, /filters\.groupCode = ''/)
+})
+
 test('search page keeps compact control sizing and subdued empty state', () => {
+  assert.match(cssBlock('.search-page'), /display:\s*flex;/)
+  assert.match(cssBlock('.search-page'), /flex-direction:\s*column;/)
   assert.match(cssBlock('.filter-button'), /font-size:\s*26rpx;/)
   assert.match(cssBlock('.search-bar'), /grid-template-columns:\s*1fr 116rpx;/)
   assert.match(cssBlock('.search-button'), /height:\s*76rpx;/)
   assert.match(cssBlock('.search-button'), /font-weight:\s*700;/)
+  assert.match(cssBlock('.empty-card'), /flex:\s*1;/)
+  assert.match(cssBlock('.empty-card'), /align-content:\s*center;/)
+  assert.match(cssBlock('.empty-card'), /min-height:\s*420rpx;/)
   assert.match(cssBlock('.empty-card'), /padding:\s*32rpx 24rpx;/)
+  assert.match(cssBlock('.empty-card'), /padding-bottom:\s*88rpx;/)
   assert.doesNotMatch(cssBlock('.empty-card'), /box-shadow/)
   assert.match(cssBlock('.empty-visual'), /width:\s*168rpx;/)
   assert.match(cssBlock('.empty-title'), /font-size:\s*28rpx;/)

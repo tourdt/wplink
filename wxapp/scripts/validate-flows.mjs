@@ -54,8 +54,8 @@ export const defaultFlowChecks = [
   },
   {
     file: 'pages/search/index.vue',
-    description: '独立搜索和无结果换条件',
-    checks: ['listCityResourceTypes', 'groupResourceTypes', 'searchResources', 'ResourceCard', 'DemandCard', 'selectGroup', '暂无匹配内容', 'hotKeywords', '换个条件'],
+    description: '独立搜索和频道化无结果动作',
+    checks: ['listCityResourceTypes', 'groupResourceTypes', 'searchResources', 'ResourceCard', 'DemandCard', 'selectGroup', '暂无匹配内容', 'hotKeywords', 'emptyPrimaryActionLabel'],
   },
   {
     file: 'pages/resource/detail.vue',

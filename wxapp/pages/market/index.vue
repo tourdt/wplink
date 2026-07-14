@@ -341,6 +341,8 @@ function openResource(item) {
 
 <style lang="scss" scoped>
 .resource-page {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   padding: 24rpx;
   background: $wplink-bg;
@@ -507,9 +509,13 @@ function openResource(item) {
 
 .empty-card {
   display: grid;
+  flex: 1;
+  align-content: center;
   justify-items: center;
   gap: 12rpx;
+  min-height: 420rpx;
   padding: 32rpx 24rpx;
+  padding-bottom: 88rpx;
   border-radius: 12rpx;
   background: $wplink-card;
   text-align: center;

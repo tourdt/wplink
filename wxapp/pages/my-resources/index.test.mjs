@@ -33,6 +33,7 @@ test('my resources page pins status filters and uses a compact publish action', 
   assert.doesNotMatch(source, /manager-title/)
   assert.doesNotMatch(source, /manager-desc/)
   assert.match(source, /<button class="publish-fab" @click="openPublish">发布<\/button>/)
+  assert.match(source, /\.my-resources-page \{[\s\S]*display: flex;[\s\S]*flex-direction: column;/)
   assert.match(source, /\.my-resources-page \{[\s\S]*overflow-x: hidden;/)
   assert.match(source, /\.my-resources-page \{[\s\S]*padding-top: 220rpx;/)
   assert.match(source, /<view class="filter-panel">[\s\S]*<view class="direction-row">[\s\S]*<view class="filter-row">/)
@@ -40,6 +41,14 @@ test('my resources page pins status filters and uses a compact publish action', 
   assert.match(source, /\.filter-button \{[\s\S]*background: #f4f7fd;/)
   assert.doesNotMatch(source, /position: sticky;/)
   assert.match(source, /\.publish-fab \{[\s\S]*position: fixed;[\s\S]*right: 24rpx;[\s\S]*bottom: calc\(32rpx \+ env\(safe-area-inset-bottom\)\);/)
+})
+
+test('my resources empty state is centered in the list display area', () => {
+  assert.match(source, /<view v-if="!loading && rows\.length === 0" class="empty-state">/)
+  assert.match(source, /\.empty-state \{[\s\S]*flex: 1;[\s\S]*align-content: center;[\s\S]*min-height: 420rpx;/)
+  assert.match(source, /<text class="empty-desc">发布后可查看审核和数据。<\/text>/)
+  assert.match(source, /\.empty-state \{[\s\S]*padding-bottom: 88rpx;/)
+  assert.doesNotMatch(source, /发布供应或需求后，可在这里查看审核进度、曝光数据和推广效果。/)
 })
 
 test('my resources supports supply and demand direction filters', () => {

@@ -220,6 +220,18 @@ input {
   color: #b42318;
 }
 
+.panel .el-table__empty-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: clamp(180px, 32vh, 320px);
+  padding-bottom: 24px;
+}
+
+.panel .el-table--small .el-table__empty-block {
+  min-height: 160px;
+}
+
 .pagination-row {
   display: flex;
   justify-content: flex-end;

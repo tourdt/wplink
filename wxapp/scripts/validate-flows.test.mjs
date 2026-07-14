@@ -181,7 +181,7 @@ test('resource tab separates recommendation discovery from keyword search page',
     assert.equal(resourceSource.includes(removedToken), false)
   }
 
-  for (const token of ['searchResources', '暂无匹配内容', '换个条件', 'selectGroup', 'groupResourceTypes', 'DemandCard']) {
+  for (const token of ['searchResources', '暂无匹配内容', 'emptyPrimaryActionLabel', 'selectGroup', 'groupResourceTypes', 'DemandCard']) {
     assert.match(searchSource, new RegExp(token))
   }
   assert.equal(searchSource.includes('activeDirection'), false)
@@ -511,7 +511,8 @@ test('my resources page keeps list concise and dates day-only', () => {
 	    '继续发布',
     'load-more-text',
     'padding-bottom: calc(128rpx + env(safe-area-inset-bottom));',
-    'min-height: 360rpx;',
+    'flex: 1;',
+    'min-height: 420rpx;',
     "{ label: '待跟进', value: 'needs_action' }",
     "{ label: '展示中', value: 'showing' }",
     "{ label: '已结束', value: 'ended' }",

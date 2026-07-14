@@ -30,7 +30,7 @@
 
     <view v-else class="empty-card">
       <text class="empty-title">{{ emptyTitle }}</text>
-      <text class="empty-desc">可以先去供需页按类型继续浏览，平台会持续更新专题供应。</text>
+      <text class="empty-desc">专题供应更新中，可先浏览供需页。</text>
       <button class="primary-button" @click="openSearch">继续浏览供应</button>
     </view>
   </view>
@@ -70,6 +70,8 @@ function openSearch() {
 
 <style lang="scss" scoped>
 .topic-page {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   padding: 24rpx;
   background: $wplink-bg;
@@ -180,10 +182,16 @@ function openSearch() {
 
 .empty-card {
   display: grid;
+  flex: 1;
+  align-content: center;
+  justify-items: center;
   gap: 12rpx;
+  min-height: 420rpx;
   padding: 24rpx;
+  padding-bottom: 80rpx;
   border-radius: 12rpx;
   background: $wplink-card;
+  text-align: center;
 }
 
 .empty-desc {

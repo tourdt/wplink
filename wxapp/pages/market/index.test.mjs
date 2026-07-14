@@ -159,7 +159,13 @@ test('market empty state uses concise copy without direction-specific text', () 
 })
 
 test('market empty state is visually subdued', () => {
+  assert.match(cssBlock('.resource-page'), /display:\s*flex;/)
+  assert.match(cssBlock('.resource-page'), /flex-direction:\s*column;/)
+  assert.match(cssBlock('.empty-card'), /flex:\s*1;/)
+  assert.match(cssBlock('.empty-card'), /align-content:\s*center;/)
+  assert.match(cssBlock('.empty-card'), /min-height:\s*420rpx;/)
   assert.match(cssBlock('.empty-card'), /padding:\s*32rpx 24rpx;/)
+  assert.match(cssBlock('.empty-card'), /padding-bottom:\s*88rpx;/)
   assert.match(cssBlock('.empty-visual'), /width:\s*148rpx;/)
   assert.match(cssBlock('.empty-visual'), /height:\s*104rpx;/)
   assert.match(cssBlock('.empty-title'), /font-size:\s*28rpx;/)
