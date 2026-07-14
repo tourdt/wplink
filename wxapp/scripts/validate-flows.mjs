@@ -20,7 +20,7 @@ export const defaultFlowChecks = [
       '织里站 · 精选工厂',
       '平台精选',
       'ResourceCard',
-      'listResources',
+      'listHomeResources',
       'homeResources',
       '拿货地图',
       'openSourcingMap',

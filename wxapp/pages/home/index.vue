@@ -118,8 +118,7 @@ import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
-import { listHomeBanners, listHomeRecommendCards } from '../../api/discovery'
-import { listResources } from '../../api/resource'
+import { listHomeBanners, listHomeRecommendCards, listHomeResources } from '../../api/discovery'
 
 const banners = ref([])
 const recommendCards = ref([])
@@ -254,8 +253,13 @@ async function loadBanners() {
 }
 
 async function loadHomeResources() {
-  const resp = await listResources({ cityCode: DEFAULT_CITY_CODE, page: 1, pageSize: 2 })
-  homeResources.value = resp.items || []
+  // 首页资源位由后端统一控制排序和数量，前端只传城市，避免和通用资源列表页规则耦合。
+  try {
+    const resp = await listHomeResources({ cityCode: DEFAULT_CITY_CODE })
+    homeResources.value = resp.items || []
+  } catch {
+    homeResources.value = []
+  }
 }
 
 async function loadRecommendCards() {

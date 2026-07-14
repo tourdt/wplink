@@ -9,7 +9,11 @@ import (
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/webview"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
+
+const homeResourcesLimit int64 = 30
 
 type BannerTopicDiscoveryStore interface {
 	ListActiveBannerTopics(ctx context.Context, filter model.BannerTopicFilter) ([]model.BannerTopicConfig, error)
@@ -22,6 +26,10 @@ type ListHomeBannersReq struct {
 }
 
 type ListHomeRecommendCardsReq struct {
+	CityCode string
+}
+
+type ListHomeResourcesReq struct {
 	CityCode string
 }
 
@@ -61,6 +69,35 @@ type HomeRecommendCardItem struct {
 
 type ListHomeRecommendCardsResp struct {
 	Items []HomeRecommendCardItem `json:"items"`
+}
+
+type HomeResourceMerchantBrief struct {
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	VerificationStatus string `json:"verificationStatus"`
+	VIPStatus          string `json:"vipStatus"`
+}
+
+type HomeResourceItem struct {
+	ID           string                    `json:"id"`
+	Direction    string                    `json:"direction"`
+	TypeCode     string                    `json:"typeCode"`
+	TypeName     string                    `json:"typeName,omitempty"`
+	Title        string                    `json:"title"`
+	Category     string                    `json:"category"`
+	District     string                    `json:"district,omitempty"`
+	PriceText    string                    `json:"priceText,omitempty"`
+	QuantityText string                    `json:"quantityText,omitempty"`
+	Merchant     HomeResourceMerchantBrief `json:"merchant"`
+	CreditTags   []string                  `json:"creditTags"`
+	RefreshedAt  string                    `json:"refreshedAt,omitempty"`
+}
+
+type ListHomeResourcesResp struct {
+	Items    []HomeResourceItem `json:"items"`
+	Page     int64              `json:"page"`
+	PageSize int64              `json:"pageSize"`
+	Total    int64              `json:"total"`
 }
 
 type TopicInfo struct {
@@ -158,6 +195,45 @@ func (l *BannerTopicDiscoveryLogic) ListHomeRecommendCards(ctx context.Context, 
 	return ListHomeRecommendCardsResp{Items: items}, nil
 }
 
+func (l *BannerTopicDiscoveryLogic) ListHomeResources(ctx context.Context, req ListHomeResourcesReq) (ListHomeResourcesResp, error) {
+	cityCode := strings.TrimSpace(req.CityCode)
+	// 首页资源位只暴露一个稳定入口：置顶资源优先，其余按刷新/发布时间倒序，数量上限固定为 30 条。
+	result, err := l.store.ListResources(ctx, model.ListResourcesFilter{
+		CityCode: cityCode,
+		Status:   model.ResourceStatusPublished,
+		Page:     1,
+		PageSize: homeResourcesLimit,
+	})
+	if err != nil {
+		logx.Errorf("加载首页资源失败: cityCode=%s pageSize=%d err=%+v", cityCode, homeResourcesLimit, err)
+		return ListHomeResourcesResp{}, errx.New(errx.CodeInternalError, "首页资源加载失败，请稍后重试")
+	}
+
+	items := make([]HomeResourceItem, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, HomeResourceItem{
+			ID:           item.ID,
+			Direction:    item.Direction,
+			TypeCode:     item.TypeCode,
+			TypeName:     item.TypeName,
+			Title:        item.Title,
+			Category:     item.Category,
+			District:     item.District,
+			PriceText:    item.PriceText,
+			QuantityText: item.QuantityText,
+			Merchant: HomeResourceMerchantBrief{
+				ID:                 item.Merchant.ID,
+				Name:               item.Merchant.Name,
+				VerificationStatus: item.Merchant.VerificationStatus,
+				VIPStatus:          normalizeHomeVIPStatus(item.Merchant.VIPStatus),
+			},
+			CreditTags:  append([]string(nil), item.CreditTags...),
+			RefreshedAt: item.RefreshedAt,
+		})
+	}
+	return ListHomeResourcesResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil
+}
+
 func (l *BannerTopicDiscoveryLogic) GetTopicResources(ctx context.Context, req TopicResourcesReq) (TopicResourcesResp, error) {
 	topicID := strings.TrimSpace(req.TopicID)
 	if topicID == "" {
@@ -213,6 +289,13 @@ func (l *BannerTopicDiscoveryLogic) GetTopicResources(ctx context.Context, req T
 		Total:    result.Total,
 	}
 	return resp, nil
+}
+
+func normalizeHomeVIPStatus(status string) string {
+	if strings.TrimSpace(status) == model.VIPStatusActive {
+		return model.VIPStatusActive
+	}
+	return model.VIPStatusNone
 }
 
 func (l *BannerTopicDiscoveryLogic) ValidateWebviewURL(ctx context.Context, req ValidateWebviewURLReq) (ValidateWebviewURLResp, error) {

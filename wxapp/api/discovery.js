@@ -17,6 +17,15 @@ export function listHomeRecommendCards(params = {}) {
   })
 }
 
+export function listHomeResources(params = {}) {
+  return request({
+    url: '/api/v1/home/resources',
+    method: 'GET',
+    data: params,
+    suppressErrorToast: true,
+  })
+}
+
 export function listHotSearchKeywords(params = {}) {
   return request({
     url: '/api/v1/search/hot-keywords',

@@ -609,6 +609,7 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "update merchant", method: http.MethodPost, path: "/api/v1/merchants/merchant-1", body: `{"name":"  织里晨星童装  ","mainCategories":["童装"],"merchantType":"service_provider","description":"更新简介","logoUrl":"https://example.com/logo.png","images":["https://example.com/a.jpg"],"addressText":"织里镇利济路88号","location":{"latitude":30.1,"longitude":120.2,"name":"织里童装城","address":"织里镇利济路88号"}}`},
 		{name: "home banners", method: http.MethodGet, path: "/api/v1/home/banners?cityCode=zhili"},
 		{name: "home recommend cards", method: http.MethodGet, path: "/api/v1/home/recommend-cards?cityCode=zhili"},
+		{name: "home resources", method: http.MethodGet, path: "/api/v1/home/resources?cityCode=zhili"},
 		{name: "hot search keywords", method: http.MethodGet, path: "/api/v1/search/hot-keywords?cityCode=zhili"},
 		{name: "topic resources", method: http.MethodGet, path: "/api/v1/topics/topic-1/resources?cityCode=zhili"},
 		{name: "validate webview", method: http.MethodPost, path: "/api/v1/webview/validate", body: `{"url":"https://www.wplink.cn/activity"}`},

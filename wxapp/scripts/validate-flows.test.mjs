@@ -104,6 +104,18 @@ test('home recommend card is loaded from operation config instead of hardcoded c
   assert.equal(homeSource.includes('本周空档工厂：4 条针织生产线'), false)
 })
 
+test('home resources use dedicated discovery endpoint', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const homeSource = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const discoverySource = fs.readFileSync(path.join(root, 'api/discovery.js'), 'utf8')
+
+  assert.match(discoverySource, /listHomeResources/)
+  assert.match(discoverySource, /\/api\/v1\/home\/resources/)
+  assert.match(homeSource, /listHomeResources\(\{ cityCode: DEFAULT_CITY_CODE \}\)/)
+  assert.equal(homeSource.includes("from '../../api/resource'"), false)
+  assert.equal(homeSource.includes('pageSize: 2'), false)
+})
+
 test('home page keeps custom brand first screen structure', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')

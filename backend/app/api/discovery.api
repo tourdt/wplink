@@ -35,6 +35,39 @@ type HomeRecommendCardsResp {
 	Items []HomeRecommendCardItem `json:"items"`
 }
 
+type HomeResourcesReq {
+	CityCode string `form:"cityCode,optional"`
+}
+
+type HomeResourceMerchantBrief {
+	Id                 string `json:"id"`
+	Name               string `json:"name"`
+	VerificationStatus string `json:"verificationStatus"`
+	VipStatus          string `json:"vipStatus"`
+}
+
+type HomeResourceItem {
+	Id           string                    `json:"id"`
+	Direction    string                    `json:"direction"`
+	TypeCode     string                    `json:"typeCode"`
+	TypeName     string                    `json:"typeName,optional"`
+	Title        string                    `json:"title"`
+	Category     string                    `json:"category"`
+	District     string                    `json:"district,optional"`
+	PriceText    string                    `json:"priceText,optional"`
+	QuantityText string                    `json:"quantityText,optional"`
+	Merchant     HomeResourceMerchantBrief `json:"merchant"`
+	CreditTags   []string                  `json:"creditTags"`
+	RefreshedAt  string                    `json:"refreshedAt,optional"`
+}
+
+type HomeResourcesResp {
+	Items    []HomeResourceItem `json:"items"`
+	Page     int64              `json:"page"`
+	PageSize int64              `json:"pageSize"`
+	Total    int64              `json:"total"`
+}
+
 type HotSearchKeywordsReq {
 	CityCode string `form:"cityCode,optional"`
 }
@@ -99,6 +132,9 @@ service wplink-api {
 
 	@handler ListHomeRecommendCards
 	get /home/recommend-cards (HomeRecommendCardsReq) returns (HomeRecommendCardsResp)
+
+	@handler ListHomeResources
+	get /home/resources (HomeResourcesReq) returns (HomeResourcesResp)
 
 	@handler ListHotSearchKeywords
 	get /search/hot-keywords (HotSearchKeywordsReq) returns (HotSearchKeywordsResp)

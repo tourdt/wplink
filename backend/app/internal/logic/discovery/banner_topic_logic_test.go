@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -72,6 +73,50 @@ func TestListHomeRecommendCardsUsesActiveRecommendCardFilter(t *testing.T) {
 	}
 }
 
+func TestListHomeResourcesUsesHomepageRule(t *testing.T) {
+	store := &fakeDiscoveryStore{
+		resources: model.ListResourcesResult{
+			Items: []model.ResourceListItem{{
+				ID: "resource-1", Direction: model.ResourceDirectionSupply, TypeCode: "stock_clearance", TypeName: "库存清仓", Title: "女童卫衣库存",
+				Category: "童装卫衣", PriceText: "18元/件", QuantityText: "3000件",
+				Merchant:    model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓", VerificationStatus: "verified", VIPStatus: model.VIPStatusActive},
+				CreditTags:  []string{"认证商家"},
+				RefreshedAt: "2026-07-14T10:00:00Z",
+			}},
+			Page: 1, PageSize: homeResourcesLimit, Total: 1,
+		},
+	}
+	logic := NewBannerTopicDiscoveryLogic(store)
+
+	resp, err := logic.ListHomeResources(context.Background(), ListHomeResourcesReq{CityCode: " zhili "})
+	if err != nil {
+		t.Fatalf("ListHomeResources() error = %v", err)
+	}
+
+	if store.resourceFilter.CityCode != "zhili" || store.resourceFilter.Status != model.ResourceStatusPublished {
+		t.Fatalf("resource filter = %#v, want zhili published resources", store.resourceFilter)
+	}
+	if store.resourceFilter.Page != 1 || store.resourceFilter.PageSize != homeResourcesLimit {
+		t.Fatalf("page filter = page %d pageSize %d, want 1/%d", store.resourceFilter.Page, store.resourceFilter.PageSize, homeResourcesLimit)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].ID != "resource-1" || resp.Items[0].Merchant.VIPStatus != model.VIPStatusActive {
+		t.Fatalf("items = %#v, want home resource item with merchant state", resp.Items)
+	}
+	if resp.PageSize != homeResourcesLimit || resp.Total != 1 {
+		t.Fatalf("pagination = %#v, want homepage limit and total", resp)
+	}
+}
+
+func TestListHomeResourcesReturnsFriendlyError(t *testing.T) {
+	store := &fakeDiscoveryStore{resourceErr: errors.New("db timeout")}
+	logic := NewBannerTopicDiscoveryLogic(store)
+
+	_, err := logic.ListHomeResources(context.Background(), ListHomeResourcesReq{CityCode: "zhili"})
+	if err == nil || errx.CodeOf(err) != errx.CodeInternalError || errx.PublicMessage(err) != "首页资源加载失败，请稍后重试" {
+		t.Fatalf("ListHomeResources() error = %v, want friendly internal error", err)
+	}
+}
+
 func TestGetTopicResourcesDoesNotReturnDemandEntryWhenEmpty(t *testing.T) {
 	store := &fakeDiscoveryStore{
 		topic: model.BannerTopicConfig{ID: "topic-1", Kind: "topic", Title: "夏季童装", TypeScope: []string{"inventory"}},
@@ -130,6 +175,7 @@ type fakeDiscoveryStore struct {
 	banners        []model.BannerTopicConfig
 	topic          model.BannerTopicConfig
 	resources      model.ListResourcesResult
+	resourceErr    error
 }
 
 func (s *fakeDiscoveryStore) ListActiveBannerTopics(ctx context.Context, filter model.BannerTopicFilter) ([]model.BannerTopicConfig, error) {
@@ -143,5 +189,8 @@ func (s *fakeDiscoveryStore) GetActiveTopic(ctx context.Context, topicID string,
 
 func (s *fakeDiscoveryStore) ListResources(ctx context.Context, filter model.ListResourcesFilter) (model.ListResourcesResult, error) {
 	s.resourceFilter = filter
+	if s.resourceErr != nil {
+		return model.ListResourcesResult{}, s.resourceErr
+	}
 	return s.resources, nil
 }
