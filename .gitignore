@@ -15,6 +15,7 @@ backend/app/internal/adminweb/dist/*
 !backend/app/internal/adminweb/dist/assets/**
 .DS_Store
 .superpowers/
+.worktrees/
 app.yaml
 backend/app/__debug*
 backend/etc/AppleRootCA-G3.cer
