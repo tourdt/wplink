@@ -5,14 +5,6 @@
         <text class="section-title">{{ directionLabels.basicTitle }}</text>
         <text class="section-note">必填</text>
       </view>
-      <view class="category-lock-card">
-        <view class="category-lock-copy">
-          <text class="category-lock-label">发布类目</text>
-          <text class="category-lock-main">{{ selectedGroupName }}</text>
-          <text class="category-lock-sub">{{ selectedTypeLabel }}</text>
-        </view>
-        <text class="category-lock-badge">已选择</text>
-      </view>
       <view class="field-group">
         <text class="field-label">标题</text>
         <input v-model="form.title" class="field" :placeholder="directionLabels.titlePlaceholder" />
@@ -144,6 +136,16 @@
         <text class="field-label">联系电话</text>
         <input v-model="form.contact.phone" class="field" :placeholder="directionLabels.contactPhonePlaceholder" />
       </view>
+      <view class="field-group">
+        <text class="field-label">微信号</text>
+        <input
+          v-model="form.contact.wechat"
+          class="field"
+          maxlength="32"
+          :placeholder="directionLabels.contactWechatPlaceholder"
+          @input="sanitizeContactWechat"
+        />
+      </view>
     </view>
 
     <view :class="['fixed-save-spacer', { 'no-safe-area': !reserveBottomSafeArea }]" />
@@ -223,11 +225,7 @@ const form = reactive({
 const customSelectFieldKeys = reactive({})
 
 const currentResourceType = computed(() => resourceTypes.value[selectedTypeIndex.value] || {})
-const selectedGroupName = computed(() => currentResourceType.value.groupName || currentResourceType.value.group?.name || '发布大类')
 const isDemandDirection = computed(() => form.direction === RESOURCE_DIRECTION_DEMAND)
-const selectedTypeLabel = computed(() => {
-  return currentResourceType.value.typeName || form.typeCode || `请选择${directionLabels.value.typeLabel}`
-})
 const directionLabels = computed(() => {
   if (isDemandDirection.value) {
     return {
@@ -242,6 +240,7 @@ const directionLabels = computed(() => {
       imageTitle: '参考图片',
       contactNamePlaceholder: '供应商看到的联系人',
       contactPhonePlaceholder: '用于供应商发起联系',
+      contactWechatPlaceholder: '选填，供应商可复制联系',
     }
   }
   return {
@@ -256,6 +255,7 @@ const directionLabels = computed(() => {
     imageTitle: '供应图片',
     contactNamePlaceholder: '买家看到的联系人',
     contactPhonePlaceholder: '用于买家发起联系',
+    contactWechatPlaceholder: '选填，买家可复制联系',
   }
 })
 const dynamicFieldItems = computed(() => normalizeDynamicFieldItems(currentResourceType.value.fieldSchema))
@@ -365,6 +365,18 @@ function applySelectedResourceType() {
   form.typeCode = current.typeCode || ''
   form.direction = normalizePublishDirection(current.direction || '') || RESOURCE_DIRECTION_SUPPLY
   syncAttributesWithSelectedType()
+  syncPublishNavigationTitle()
+}
+
+function syncPublishNavigationTitle() {
+  const typeTitle = normalizeSummaryText(currentResourceType.value.typeName)
+  if (typeTitle) {
+    uni.setNavigationBarTitle({ title: typeTitle })
+    return
+  }
+  if (!editingResourceId.value) {
+    uni.setNavigationBarTitle({ title: isDemandDirection.value ? '发布需求' : '发布供应' })
+  }
 }
 
 async function loadMerchantContact() {
@@ -448,6 +460,10 @@ function applyMerchantContactDefaults(contact) {
   }
   if (!form.contact.phone.trim() && (contact.phone || contact.phoneMasked)) {
     form.contact.phone = contact.phone || contact.phoneMasked
+  }
+  if (!form.contact.wechat.trim() && contact.wechat) {
+    // 微信号会被用户复制使用，不能把脱敏值写入发布内容。
+    form.contact.wechat = sanitizeContactWechatValue(contact.wechat)
   }
 }
 
@@ -617,6 +633,7 @@ function buildResourcePublishPayload(images) {
     ...clonePublishForm(),
     images,
   }
+  payload.contact.wechat = sanitizeContactWechatValue(payload.contact.wechat)
   applySummaryFieldsToPayload(payload, currentResourceType.value)
   return payload
 }
@@ -780,6 +797,14 @@ function resetCustomSelectFieldKeys() {
   Object.keys(customSelectFieldKeys).forEach((key) => {
     delete customSelectFieldKeys[key]
   })
+}
+
+function sanitizeContactWechat(event) {
+  form.contact.wechat = sanitizeContactWechatValue(event?.detail?.value ?? form.contact.wechat)
+}
+
+function sanitizeContactWechatValue(value) {
+  return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32)
 }
 
 function isPublishFieldCompleted(field) {
@@ -965,60 +990,6 @@ function getPublishFieldLabel(field) {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.45;
-}
-
-.category-lock-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  min-width: 0;
-  padding: 20rpx;
-  border: 1rpx solid rgba(6, 22, 37, 0.08);
-  border-radius: 10rpx;
-  background: #f8fafc;
-}
-
-.category-lock-copy {
-  display: grid;
-  gap: 6rpx;
-  min-width: 0;
-}
-
-.category-lock-label {
-  color: $wplink-muted;
-  font-size: 24rpx;
-  line-height: 1.3;
-}
-
-.category-lock-main {
-  overflow: hidden;
-  color: $wplink-primary;
-  font-size: 30rpx;
-  font-weight: 700;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.category-lock-sub {
-  overflow: hidden;
-  color: $wplink-muted;
-  font-size: 25rpx;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.category-lock-badge {
-  flex: 0 0 auto;
-  padding: 6rpx 14rpx;
-  border-radius: 999rpx;
-  background: rgba(194, 58, 0, 0.1);
-  color: $wplink-warning;
-  font-size: 24rpx;
-  font-weight: 700;
-  line-height: 1.2;
 }
 
 .toggle-group {

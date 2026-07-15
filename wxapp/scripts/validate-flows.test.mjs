@@ -861,18 +861,11 @@ test('publish page presents grouped fast publishing workflow', () => {
   const source = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
 
   for (const token of [
-    'category-lock-card',
-    'category-lock-main',
-    'category-lock-sub',
-    'selectedGroupName',
-    'selectedTypeLabel',
     'form-section basic-section',
     'form-section supply-section',
     'form-section image-section',
     'form-section contact-section',
     'field-label',
-    'category-lock-label',
-    'category-lock-badge',
     'UniGrid',
     'UniGridItem',
     'resourceImageGridItems',
@@ -897,11 +890,11 @@ test('publish page presents grouped fast publishing workflow', () => {
     'contact.name',
     'contact.phone',
     'contact.phoneMasked',
+    'contact.wechat',
+    'sanitizeContactWechat',
     'fixed-save-spacer',
     'fixed-save-bar',
     'fixed-save-actions',
-    '发布类目',
-    '已选择',
     '基础信息',
     '供应说明',
     '类型字段',
@@ -923,6 +916,15 @@ test('publish page presents grouped fast publishing workflow', () => {
   assert.equal(source.includes('发布类型'), false)
   assert.equal(source.includes('publishTypeOptions'), false)
   assert.equal(source.includes('selectTypeByCode'), false)
+  assert.equal(source.includes('category-lock-card'), false)
+  assert.equal(source.includes('category-lock-main'), false)
+  assert.equal(source.includes('category-lock-sub'), false)
+  assert.equal(source.includes('category-lock-label'), false)
+  assert.equal(source.includes('category-lock-badge'), false)
+  assert.equal(source.includes('selectedGroupName'), false)
+  assert.equal(source.includes('selectedTypeLabel'), false)
+  assert.equal(source.includes('发布类目'), false)
+  assert.equal(source.includes('已选择'), false)
   assert.equal(source.includes('basic-progress'), false)
   assert.equal(source.includes('completion-percent'), false)
   assert.equal(source.includes('completion-bar-fill'), false)

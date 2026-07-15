@@ -2,9 +2,11 @@ package city
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"wplink/backend/app/internal/model"
+	"wplink/backend/common/errx"
 )
 
 func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
@@ -91,14 +93,32 @@ func TestListResourceTypesRejectsEmptyCityCode(t *testing.T) {
 	}
 }
 
+func TestListResourceTypesReturnsFriendlyStoreError(t *testing.T) {
+	logic := NewListResourceTypesLogic(&fakeResourceTypeStore{
+		err: errors.New("pq: column rtc.commercial_rules does not exist"),
+	})
+
+	_, err := logic.ListResourceTypes(context.Background(), ListResourceTypesReq{CityCode: "zhili"})
+	if err == nil {
+		t.Fatal("ListResourceTypes() error = nil, want friendly internal error")
+	}
+	if errx.CodeOf(err) != errx.CodeInternalError || errx.PublicMessage(err) != "供需分类加载失败，请稍后重试" {
+		t.Fatalf("error code=%q message=%q, want friendly category load failure", errx.CodeOf(err), errx.PublicMessage(err))
+	}
+}
+
 type fakeResourceTypeStore struct {
 	cityCode  string
 	direction string
 	configs   []model.ResourceTypeConfig
+	err       error
 }
 
 func (s *fakeResourceTypeStore) ListActiveResourceTypesByCityCode(_ context.Context, cityCode string, direction string) ([]model.ResourceTypeConfig, error) {
 	s.cityCode = cityCode
 	s.direction = direction
+	if s.err != nil {
+		return nil, s.err
+	}
 	return append([]model.ResourceTypeConfig(nil), s.configs...), nil
 }

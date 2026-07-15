@@ -84,7 +84,6 @@ type resourceTypeConfigRow struct {
 	RequiredFields   JSONStringSlice `db:"required_fields"`
 	FilterFields     JSONStringSlice `db:"filter_fields"`
 	DisplayTemplate  JSONMap         `db:"display_template"`
-	CommercialRules  JSONMap         `db:"commercial_rules"`
 }
 
 type adminResourceTypeConfigRow struct {
@@ -130,8 +129,7 @@ SELECT
   rtc.field_schema,
   rtc.required_fields,
   rtc.filter_fields,
-  rtc.display_template,
-  rtc.commercial_rules
+  rtc.display_template
 FROM resource_type_configs rtc
 JOIN city_stations cs ON cs.id = rtc.city_station_id
 WHERE cs.code = $1
@@ -155,7 +153,6 @@ ORDER BY rtc.created_at ASC
 			RequiredFields:   []string(row.RequiredFields),
 			FilterFields:     []string(row.FilterFields),
 			DisplayTemplate:  row.DisplayTemplate,
-			CommercialRules:  row.CommercialRules,
 		})
 	}
 	return configs, nil

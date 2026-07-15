@@ -6,6 +6,8 @@ import (
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type ResourceTypeStore interface {
@@ -53,7 +55,8 @@ func (l *ListResourceTypesLogic) ListResourceTypes(ctx context.Context, req List
 
 	configs, err := l.store.ListActiveResourceTypesByCityCode(ctx, cityCode, direction)
 	if err != nil {
-		return ListResourceTypesResp{}, err
+		logx.Errorf("加载城市站供需分类失败: cityCode=%s direction=%s err=%+v", cityCode, direction, err)
+		return ListResourceTypesResp{}, errx.New(errx.CodeInternalError, "供需分类加载失败，请稍后重试")
 	}
 
 	items := make([]ResourceTypeConfigInfo, 0, len(configs))

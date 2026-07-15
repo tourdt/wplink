@@ -47,7 +47,6 @@ test('market page uses category groups instead of direction tabs', () => {
     'applyCurrentGroupTypes',
     '全部类目',
     '全部分类',
-    '常用分类',
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
@@ -63,6 +62,7 @@ test('market page uses category groups instead of direction tabs', () => {
   assert.match(source, /async function selectGroup\(groupCode\) \{[\s\S]*showGroupDrawer\.value = false[\s\S]*filters\.groupCode = groupCode[\s\S]*filters\.typeCode = ''[\s\S]*applyCurrentGroupTypes\(\)[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
   assert.doesNotMatch(source, /class="filter-row group-row"/)
   assert.doesNotMatch(source, /class="group-select-button"/)
+  assert.doesNotMatch(source, />常用分类<\/text>/)
 
   for (const removedToken of [
     'directionTabs',
@@ -121,6 +121,8 @@ test('market page shows all secondary categories and scrolls selected category i
     'getTypeButtonId',
     'scroll-into-view',
     'scroll-with-animation',
+    'enhanced',
+    ':show-scrollbar="false"',
     'showTypeDrawer',
     'openTypeDrawer',
     'closeTypeDrawer',
@@ -134,6 +136,12 @@ test('market page shows all secondary categories and scrolls selected category i
   assert.match(source, /visibleResourceTypes = computed\(\(\) => resourceTypes\.value\)/)
   assert.match(source, /v-for="item in visibleResourceTypes"[\s\S]*:id="getTypeButtonId\(item\.value\)"/)
   assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypeDrawer\.value = false[\s\S]*scrollToSelectedType\(typeCode\)[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
+  assert.doesNotMatch(source, /:scroll-left="typeScrollLeft"/)
+  assert.doesNotMatch(source, /@scroll="handleTypeScroll"/)
+  assert.doesNotMatch(source, /const typeScrollLeft = ref\(0\)/)
+  assert.doesNotMatch(source, /function handleTypeScroll/)
+  assert.match(cssBlock('.filter-row'), /overflow-x:\s*auto;/)
+  assert.match(cssBlock('.filter-row'), /-webkit-overflow-scrolling:\s*touch;/)
 })
 
 test('market page opens search with category filters and concise placeholder copy', () => {

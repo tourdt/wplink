@@ -35,6 +35,7 @@
 import { computed, reactive, ref } from 'vue'
 import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import { listMessages, readMessage } from '../../api/message'
+import { requireLogin } from '../../common/auth'
 
 const rows = ref([])
 const filters = reactive({ status: '' })
@@ -80,6 +81,7 @@ onReachBottom(() => {
 
 async function loadRows({ reset = true } = {}) {
   if (loading.value) return
+  if (!ensureMessagesLogin()) return
   if (!reset && !hasMore.value) return
   loading.value = true
   try {
@@ -97,6 +99,16 @@ async function loadRows({ reset = true } = {}) {
   } finally {
     loading.value = false
   }
+}
+
+function ensureMessagesLogin() {
+  if (requireLogin()) return true
+  // 消息接口必须由后端从 token 推导收件人；未登录时先清空页面状态，避免进入 tab 时发起必然 401 的请求。
+  rows.value = []
+  page.value = 1
+  total.value = 0
+  hasMore.value = false
+  return false
 }
 
 function selectStatus(status) {

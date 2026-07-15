@@ -23,9 +23,9 @@
           class="filter-row"
           scroll-x
           scroll-with-animation
+          enhanced
+          :show-scrollbar="false"
           :scroll-into-view="scrollIntoTypeId"
-          :scroll-left="typeScrollLeft"
-          @scroll="handleTypeScroll"
         >
           <button
             v-for="item in visibleResourceTypes"
@@ -115,7 +115,6 @@
           <text class="type-drawer-title">全部分类</text>
           <button class="type-drawer-close" @click="closeTypeDrawer">关闭</button>
         </view>
-        <text class="type-drawer-subtitle">常用分类</text>
         <view class="drawer-type-grid">
           <button
             v-for="item in resourceTypes"
@@ -170,7 +169,6 @@ const filters = reactive({
 const showGroupDrawer = ref(false)
 const showTypeDrawer = ref(false)
 const scrollIntoTypeId = ref('')
-const typeScrollLeft = ref(0)
 const pageScrollTop = ref(0)
 const groupFilterOptions = computed(() => [{ code: '', name: '全部类目' }, ...categoryGroups.value])
 const selectedGroupName = computed(() => {
@@ -402,6 +400,7 @@ function applyCurrentGroupTypes() {
 }
 
 async function scrollToSelectedType(typeCode = filters.typeCode) {
+  // 横滑分类不回写 scroll-left，避免滚动中重新渲染抢占用户手势；只在选择分类后定位选中项。
   const nextId = getTypeButtonId(typeCode)
   if (scrollIntoTypeId.value === nextId) {
     scrollIntoTypeId.value = ''
@@ -431,11 +430,6 @@ function closeTypeDrawer() {
 function handlePageScroll(event = {}) {
   const scrollTop = Number(event.scrollTop) || 0
   pageScrollTop.value = scrollTop
-}
-
-function handleTypeScroll(event = {}) {
-  const scrollLeft = Number(event.detail?.scrollLeft) || 0
-  typeScrollLeft.value = scrollLeft
 }
 
 async function restorePageScroll(scrollTop = pageScrollTop.value) {
@@ -621,8 +615,11 @@ function openResource(item) {
 .filter-row {
   flex: 1;
   min-width: 0;
+  width: 100%;
   white-space: nowrap;
   overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .filter-button {
@@ -890,13 +887,6 @@ function openResource(item) {
   height: 58rpx;
   border-radius: 10rpx;
   background: $wplink-card;
-  color: $wplink-muted;
-  font-size: 24rpx;
-}
-
-.type-drawer-subtitle {
-  display: block;
-  margin-bottom: 16rpx;
   color: $wplink-muted;
   font-size: 24rpx;
 }

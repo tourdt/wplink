@@ -54,6 +54,12 @@ test('messages page supports pull refresh and load more pagination', () => {
   assert.match(source, /function selectStatus\(status\) \{[\s\S]*loadRows\(\{ reset: true \}\)[\s\S]*\}/)
 })
 
+test('messages page guards API requests with login state', () => {
+  assert.match(source, /import \{ requireLogin \} from '\.\.\/\.\.\/common\/auth'/)
+  assert.match(source, /async function loadRows\(\{ reset = true \} = \{\}\) \{[\s\S]*if \(loading\.value\) return[\s\S]*if \(!ensureMessagesLogin\(\)\) return[\s\S]*const resp = await listMessages/)
+  assert.match(source, /function ensureMessagesLogin\(\) \{[\s\S]*if \(requireLogin\(\)\) return true[\s\S]*rows\.value = \[\][\s\S]*page\.value = 1[\s\S]*total\.value = 0[\s\S]*hasMore\.value = false[\s\S]*return false[\s\S]*\}/)
+})
+
 test('messages page shows empty placeholder when current list has no rows', () => {
   assert.match(source, /v-if="!loading && !rows\.length" class="empty-placeholder"/)
   assert.match(source, /<text class="empty-title">\{\{ emptyTitle \}\}<\/text>/)

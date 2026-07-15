@@ -77,7 +77,6 @@ test('search page matches market category browsing controls', () => {
     'type-drawer-mask',
     'type-drawer-panel',
     '全部分类',
-    '常用分类',
     'drawer-type-grid',
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
@@ -95,6 +94,7 @@ test('search page matches market category browsing controls', () => {
   assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypeDrawer\.value = false[\s\S]*scrollToSelectedType\(typeCode\)[\s\S]*await search\(\)[\s\S]*\}/)
   assert.doesNotMatch(source, /class="filter-row group-row"/)
   assert.doesNotMatch(source, /class="group-select-button"/)
+  assert.doesNotMatch(source, />常用分类<\/text>/)
 })
 
 test('search page uses the custom title bar as the primary category channel switcher', () => {
@@ -192,15 +192,19 @@ test('search page supports load more pagination', () => {
   assert.match(source, /async function search\(\{ reset = true, force = false \} = \{\}\) \{[\s\S]*if \(loading\.value && !force\) return[\s\S]*if \(!reset && !hasMore\.value\) return[\s\S]*const nextPage = reset \? 1 : page\.value \+ 1[\s\S]*page\.value = nextPage[\s\S]*total\.value = resp\.total \|\| rows\.value\.length[\s\S]*hasMore\.value = rows\.value\.length < total\.value[\s\S]*\}/)
 })
 
-test('search page tracks scroll progress without per-direction cache', () => {
+test('search page keeps horizontal category scroll uncontrolled during gestures', () => {
   assert.match(source, /const searchRequestSeq = ref\(0\)/)
   assert.match(source, /import \{ onLoad, onPageScroll, onReachBottom, onShow \} from '@dcloudio\/uni-app'/)
-  assert.match(source, /<scroll-view[\s\S]*:scroll-left="typeScrollLeft"[\s\S]*@scroll="handleTypeScroll"/)
-  assert.match(source, /const typeScrollLeft = ref\(0\)/)
+  assert.match(source, /<scroll-view[\s\S]*scroll-x[\s\S]*scroll-with-animation[\s\S]*enhanced[\s\S]*:show-scrollbar="false"[\s\S]*:scroll-into-view="scrollIntoTypeId"/)
   assert.match(source, /const pageScrollTop = ref\(0\)/)
   assert.match(source, /onPageScroll\(handlePageScroll\)/)
   assert.match(source, /function handlePageScroll\(event = \{\}\) \{[\s\S]*pageScrollTop\.value = scrollTop[\s\S]*\}/)
-  assert.match(source, /function handleTypeScroll\(event = \{\}\) \{[\s\S]*typeScrollLeft\.value = scrollLeft[\s\S]*\}/)
+  assert.doesNotMatch(source, /:scroll-left="typeScrollLeft"/)
+  assert.doesNotMatch(source, /@scroll="handleTypeScroll"/)
+  assert.doesNotMatch(source, /const typeScrollLeft = ref\(0\)/)
+  assert.doesNotMatch(source, /function handleTypeScroll/)
+  assert.match(cssBlock('.filter-row'), /overflow-x:\s*auto;/)
+  assert.match(cssBlock('.filter-row'), /-webkit-overflow-scrolling:\s*touch;/)
   assert.match(source, /async function restorePageScroll\(scrollTop = pageScrollTop\.value\) \{[\s\S]*uni\.pageScrollTo\(\{ scrollTop, duration: 0 \}\)[\s\S]*\}/)
 })
 
