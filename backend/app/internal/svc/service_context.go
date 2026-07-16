@@ -10,7 +10,9 @@ import (
 	"wplink/backend/app/internal/logic/adminauth"
 	authlogic "wplink/backend/app/internal/logic/auth"
 	citylogic "wplink/backend/app/internal/logic/city"
+	"wplink/backend/app/internal/logic/contentaudit"
 	paymentlogic "wplink/backend/app/internal/logic/payment"
+	resourcelogic "wplink/backend/app/internal/logic/resource"
 	uploadlogic "wplink/backend/app/internal/logic/upload"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
@@ -60,6 +62,7 @@ type ServiceContext struct {
 	WechatSessionClient authlogic.WechatSessionClient
 	SMSVerifier         authlogic.SMSVerifier
 	WechatPayGateway    paymentlogic.WechatPayGateway
+	ContentAuditor      resourcelogic.ContentAuditor
 }
 
 func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
@@ -74,6 +77,10 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf("初始化微信支付网关失败: %w", err)
 	}
+	var contentAuditor resourcelogic.ContentAuditor
+	if auditor := contentaudit.NewWechatAuditor(c.Wechat, c.ContentAudit, c.Storage.PublicBaseURL, nil); auditor != nil {
+		contentAuditor = auditor
+	}
 	return &ServiceContext{
 		Config:              c,
 		DB:                  db,
@@ -86,6 +93,7 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		WechatSessionClient: authlogic.NewWechatSessionClient(c.Wechat, "", nil),
 		SMSVerifier:         authlogic.NewConfiguredSMSVerifier(c.SMS),
 		WechatPayGateway:    wechatPayGateway,
+		ContentAuditor:      contentAuditor,
 	}, nil
 }
 

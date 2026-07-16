@@ -14,7 +14,7 @@ test('publish success page prompts for merchant profile before opening my resour
 test('publish success page switches copy for demand submissions', () => {
   assert.match(source, /import \{ onLoad \} from '@dcloudio\/uni-app'/)
   assert.match(source, /const RESOURCE_DIRECTION_DEMAND = 'demand'/)
-  assert.match(source, /onLoad\(\(options = \{\}\) => \{[\s\S]*publishDirection\.value = normalizePublishDirection\(options\.direction\)[\s\S]*\}\)/)
+  assert.match(source, /onLoad\(\(options = \{\}\) => \{[\s\S]*publishDirection\.value = normalizePublishDirection\(options\.direction\)[\s\S]*resultStatus\.value = normalizeResultStatus\(options\.status\)[\s\S]*\}\)/)
   assert.match(source, /<text class="success-title">\{\{ successCopy\.title \}\}<\/text>/)
   assert.match(source, /需求已提交审核/)
   assert.match(source, /需求会进入搜索、推荐和需求列表/)
@@ -30,7 +30,13 @@ test('publish success page uses supply copy instead of resource copy', () => {
 test('resource publish form passes direction to success page', () => {
   const formSource = fs.readFileSync(path.join(root, 'components/ResourcePublishForm.vue'), 'utf8')
 
-  assert.match(formSource, /function openPublishSuccess\(\) \{[\s\S]*const publishDirection = normalizePublishDirection\(form\.direction\) \|\| RESOURCE_DIRECTION_SUPPLY[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish-success\/index\?direction=\$\{encodeURIComponent\(publishDirection\)\}` \}\)[\s\S]*\}/)
-  assert.match(formSource, /await submitResource\(editingResourceId\.value, form\.merchantId\)[\s\S]*openPublishSuccess\(\)/)
-  assert.match(formSource, /const images = await uploadPendingResourceImages\(\)[\s\S]*await createResource\(buildResourcePublishPayload\(images\)\)[\s\S]*openPublishSuccess\(\)/)
+  assert.match(formSource, /function openPublishSuccess\(result = \{\}\) \{[\s\S]*const publishDirection = normalizePublishDirection\(form\.direction\) \|\| RESOURCE_DIRECTION_SUPPLY[\s\S]*`status=\$\{encodeURIComponent\(result\.status \|\| 'pending'\)\}`[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish-success\/index\?\$\{query\}` \}\)[\s\S]*\}/)
+  assert.match(formSource, /const resp = await submitResource\(editingResourceId\.value, form\.merchantId\)[\s\S]*openPublishSuccess\(resp\)/)
+  assert.match(formSource, /const images = await uploadPendingResourceImages\(\)[\s\S]*const resp = await createResource\(buildResourcePublishPayload\(images\)\)[\s\S]*openPublishSuccess\(resp\)/)
+})
+
+test('publish success page normalizes internal audit states for users', () => {
+  assert.match(source, /const contentAuditStatuses = new Set\(\['pending', 'manual_review', 'audit_retry'\]\)/)
+  assert.match(source, /<text class="result-value">\{\{ auditResultText \}\}<\/text>/)
+  assert.match(source, /if \(contentAuditStatuses\.has\(resultStatus\.value\)\) return '内容审核中'/)
 })

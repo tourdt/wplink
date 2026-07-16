@@ -42,6 +42,14 @@ Wechat:
   AppSecret: "${WECHAT_APP_SECRET}"
   AllowDevCode: true
 
+ContentAudit:
+  Enabled: true
+  TextScene: 3
+  MediaEnabled: true
+  MediaScene: 3
+  RequestTimeout: 6s
+  MaxTextChars: 1200
+
 SMS:
   Provider: "http"
   SendURL: "https://sms.example.test/send"
@@ -114,6 +122,9 @@ Storage:
 	}
 	if cfg.Wechat.AppID != "wx-local" || cfg.Wechat.AppSecret != "wechat-secret" || !cfg.Wechat.AllowDevCode {
 		t.Fatalf("wechat = %#v, want env app config", cfg.Wechat)
+	}
+	if !cfg.ContentAudit.Enabled || cfg.ContentAudit.TextScene != 3 || !cfg.ContentAudit.MediaEnabled || cfg.ContentAudit.RequestTimeout != 6*time.Second || cfg.ContentAudit.MaxTextChars != 1200 {
+		t.Fatalf("content audit = %#v, want configured content audit", cfg.ContentAudit)
 	}
 	if cfg.SMS.Provider != "http" || cfg.SMS.SendMinInterval != 45*time.Second || cfg.SMS.DailySendLimit != 8 {
 		t.Fatalf("sms = %#v, want http rate limit config", cfg.SMS)

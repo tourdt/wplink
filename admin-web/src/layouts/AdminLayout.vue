@@ -14,6 +14,10 @@
           <el-icon><Tickets /></el-icon>
           <span>供需信息审核</span>
         </el-menu-item>
+        <el-menu-item index="/resource-reports">
+          <el-icon><Warning /></el-icon>
+          <span>举报审核</span>
+        </el-menu-item>
         <el-menu-item index="/merchants">
           <el-icon><Shop /></el-icon>
           <span>商家管理</span>
@@ -89,7 +93,7 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { CircleCheck, DataLine, Document, MapLocation, Medal, Picture, Search, Setting, Shop, Ticket, Tickets, User } from '@element-plus/icons-vue'
+import { CircleCheck, DataLine, Document, MapLocation, Medal, Picture, Search, Setting, Shop, Ticket, Tickets, User, Warning } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()

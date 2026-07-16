@@ -54,12 +54,23 @@ type CreateResourceResp struct {
 	Message string `json:"message"`
 }
 
-type CreateResourceLogic struct {
-	store CreateResourceStore
+type autoAuditOutcome struct {
+	ID      string
+	Status  string
+	Message string
 }
 
-func NewCreateResourceLogic(store CreateResourceStore) *CreateResourceLogic {
-	return &CreateResourceLogic{store: store}
+type CreateResourceLogic struct {
+	store   CreateResourceStore
+	auditor ContentAuditor
+}
+
+func NewCreateResourceLogic(store CreateResourceStore, auditors ...ContentAuditor) *CreateResourceLogic {
+	var auditor ContentAuditor
+	if len(auditors) > 0 {
+		auditor = auditors[0]
+	}
+	return &CreateResourceLogic{store: store, auditor: auditor}
 }
 
 func (l *CreateResourceLogic) CreateResource(ctx context.Context, req CreateResourceReq) (CreateResourceResp, error) {
@@ -98,9 +109,131 @@ func (l *CreateResourceLogic) create(ctx context.Context, req CreateResourceReq,
 			return CreateResourceResp{}, err
 		}
 	}
+	if status != model.ResourceStatusDraft {
+		return l.auditCreatedResource(ctx, result, input, req)
+	}
 	// 新建资源可能直接进入审核队列，也可能只是草稿；日志记录目标状态，避免排查时只看到写入成功但不知道用户路径。
 	logx.Infof("创建资源成功: merchantId=%s resourceId=%s typeCode=%s status=%s createdByRole=%s", strings.TrimSpace(req.MerchantID), result.ID, typeCode, result.Status, strings.TrimSpace(req.CreatedByRole))
 	return CreateResourceResp{ID: result.ID, Status: result.Status, Message: message}, nil
+}
+
+func (l *CreateResourceLogic) auditCreatedResource(ctx context.Context, created model.CreateResourceResult, input model.CreateResourceInput, req CreateResourceReq) (CreateResourceResp, error) {
+	if l.auditor == nil {
+		return CreateResourceResp{ID: created.ID, Status: created.Status, Message: "已提交审核，审核通过后将展示给买家"}, nil
+	}
+	auditStore, ok := l.store.(ResourceAutoAuditStore)
+	if !ok {
+		logx.Errorf("创建资源自动审核缺少状态更新能力: merchantId=%s resourceId=%s typeCode=%s", input.MerchantID, created.ID, input.TypeCode)
+		return CreateResourceResp{}, errx.New(errx.CodeInternalError, "内容审核服务暂不可用，请稍后重试")
+	}
+	userID := strings.TrimSpace(req.CreatedByUser)
+	if isOperatorProxy(req.CreatedByRole) {
+		reason := "后台代发布缺少微信用户信息，无法完成内容审核，请由商家在小程序提交"
+		return rejectCreatedResourceForAuditBlock(ctx, auditStore, created.ID, reason, "operator_proxy", input)
+	}
+	if userID == "" {
+		reason := "内容审核需要微信登录信息，请重新登录后编辑提交"
+		return rejectCreatedResourceForAuditBlock(ctx, auditStore, created.ID, reason, "missing_user", input)
+	}
+	userStore, ok := l.store.(ResourceAuditUserStore)
+	if !ok {
+		logx.Errorf("创建资源内容预审核缺少用户 openid 查询能力: merchantId=%s typeCode=%s userId=%s", input.MerchantID, input.TypeCode, userID)
+		return CreateResourceResp{}, errx.New(errx.CodeInternalError, "内容审核服务暂不可用，请稍后重试")
+	}
+	openID, err := userStore.GetUserWechatOpenID(ctx, userID)
+	if err != nil {
+		reason := "内容审核服务暂不可用，请稍后重新提交"
+		if _, rejectErr := auditStore.RejectResourceAfterAudit(ctx, created.ID, reason); rejectErr != nil {
+			logx.Errorf("创建资源获取 openid 失败后自动驳回失败: merchantId=%s resourceId=%s typeCode=%s userId=%s err=%+v rejectErr=%+v", input.MerchantID, created.ID, input.TypeCode, userID, err, rejectErr)
+			return CreateResourceResp{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
+		}
+		logx.Errorf("创建资源获取 openid 失败并已驳回: merchantId=%s resourceId=%s typeCode=%s userId=%s err=%+v", input.MerchantID, created.ID, input.TypeCode, userID, err)
+		return CreateResourceResp{ID: created.ID, Status: model.ResourceStatusRejected, Message: reason}, nil
+	}
+	if strings.TrimSpace(openID) == "" {
+		reason := "内容审核需要微信登录信息，请重新登录后编辑提交"
+		return rejectCreatedResourceForAuditBlock(ctx, auditStore, created.ID, reason, "empty_openid", input)
+	}
+	auditInput := contentAuditInputFromCreate(input, openID)
+	auditInput.ResourceID = created.ID
+	result, err := l.auditor.AuditResource(ctx, auditInput)
+	return l.applyAutoAuditResult(ctx, auditStore, "create_resource", created.ID, auditInput, result, err)
+}
+
+func rejectCreatedResourceForAuditBlock(ctx context.Context, auditStore ResourceAutoAuditStore, resourceID string, reason string, blockReason string, input model.CreateResourceInput) (CreateResourceResp, error) {
+	if _, err := auditStore.RejectResourceAfterAudit(ctx, resourceID, reason); err != nil {
+		logx.Errorf("创建资源因无法内容审核自动驳回失败: merchantId=%s resourceId=%s typeCode=%s blockReason=%s err=%+v", input.MerchantID, resourceID, input.TypeCode, blockReason, err)
+		return CreateResourceResp{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
+	}
+	logx.Infof("创建资源因无法内容审核已驳回: merchantId=%s resourceId=%s typeCode=%s blockReason=%s", input.MerchantID, resourceID, input.TypeCode, blockReason)
+	return CreateResourceResp{ID: resourceID, Status: model.ResourceStatusRejected, Message: reason}, nil
+}
+
+func (l *CreateResourceLogic) applyAutoAuditResult(ctx context.Context, auditStore ResourceAutoAuditStore, action string, resourceID string, input ContentAuditInput, result ContentAuditResult, err error) (CreateResourceResp, error) {
+	outcome, err := applyResourceAutoAuditResult(ctx, auditStore, action, resourceID, input, result, err)
+	if err != nil {
+		return CreateResourceResp{}, err
+	}
+	return CreateResourceResp{ID: outcome.ID, Status: outcome.Status, Message: outcome.Message}, nil
+}
+
+func applyResourceAutoAuditResult(ctx context.Context, auditStore ResourceAutoAuditStore, action string, resourceID string, input ContentAuditInput, result ContentAuditResult, err error) (autoAuditOutcome, error) {
+	if err != nil {
+		reason := "内容审核服务暂不可用，请稍后重新提交"
+		if _, rejectErr := auditStore.RejectResourceAfterAudit(ctx, resourceID, reason); rejectErr != nil {
+			logx.Errorf("内容审核失败后自动驳回资源失败: action=%s resourceId=%s err=%+v rejectErr=%+v", action, resourceID, err, rejectErr)
+			return autoAuditOutcome{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
+		}
+		logx.Errorf("资源内容审核失败并已驳回: action=%s merchantId=%s resourceId=%s typeCode=%s err=%+v", action, input.MerchantID, resourceID, input.TypeCode, err)
+		return autoAuditOutcome{ID: resourceID, Status: model.ResourceStatusRejected, Message: reason}, nil
+	}
+	if normalizeContentAuditDecision(result.Decision) == ContentAuditDecisionRisky {
+		reason := ResourceAuditRejectReason(result, "内容可能含有违规信息，请调整文字或图片后重新提交")
+		if _, err := auditStore.RejectResourceAfterAudit(ctx, resourceID, reason); err != nil {
+			logx.Errorf("资源内容审核命中风险后自动驳回失败: action=%s resourceId=%s labels=%s err=%+v", action, resourceID, strings.Join(result.Labels, ","), err)
+			return autoAuditOutcome{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
+		}
+		logx.Infof("资源内容审核拒绝发布: action=%s merchantId=%s resourceId=%s typeCode=%s labels=%s reason=%s", action, input.MerchantID, resourceID, input.TypeCode, strings.Join(result.Labels, ","), reason)
+		return autoAuditOutcome{ID: resourceID, Status: model.ResourceStatusRejected, Message: reason}, nil
+	}
+	if len(result.MediaTasks) > 0 {
+		tasks := make([]model.ResourceContentAuditTaskInput, 0, len(result.MediaTasks))
+		for _, task := range result.MediaTasks {
+			tasks = append(tasks, model.ResourceContentAuditTaskInput{
+				TraceID:   task.TraceID,
+				AuditType: "image",
+				MediaURL:  task.MediaURL,
+			})
+		}
+		if err := auditStore.CreateResourceContentAuditTasks(ctx, resourceID, tasks); err != nil {
+			logx.Errorf("保存资源图片审核任务失败: action=%s resourceId=%s taskCount=%d err=%+v", action, resourceID, len(tasks), err)
+			return autoAuditOutcome{}, errx.New(errx.CodeInternalError, "内容审核任务创建失败，请稍后重试")
+		}
+		logx.Infof("资源图片审核任务已创建: action=%s merchantId=%s resourceId=%s typeCode=%s taskCount=%d", action, input.MerchantID, resourceID, input.TypeCode, len(tasks))
+		return autoAuditOutcome{ID: resourceID, Status: model.ResourceStatusPending, Message: "内容审核中，审核通过后将自动发布"}, nil
+	}
+	published, err := auditStore.PublishResourceAfterAudit(ctx, resourceID)
+	if err != nil {
+		logx.Errorf("资源内容审核通过后自动发布失败: action=%s merchantId=%s resourceId=%s typeCode=%s err=%+v", action, input.MerchantID, resourceID, input.TypeCode, err)
+		return autoAuditOutcome{}, mapAutoPublishError(ctx, auditStore, resourceID, err)
+	}
+	logx.Infof("资源内容审核通过并自动发布: action=%s merchantId=%s resourceId=%s typeCode=%s", action, input.MerchantID, resourceID, input.TypeCode)
+	return autoAuditOutcome{ID: published.ID, Status: published.Status, Message: "已发布"}, nil
+}
+
+func mapAutoPublishError(ctx context.Context, auditStore ResourceAutoAuditStore, resourceID string, err error) error {
+	switch {
+	case errors.Is(err, model.ErrPublishQuotaInsufficient):
+		reason := "本月发布次数已用完，可开通 VIP 或购买发布包后重新提交"
+		_, _ = auditStore.RejectResourceAfterAudit(ctx, resourceID, reason)
+		return errx.New(errx.CodeQuotaNotEnough, reason)
+	case errors.Is(err, model.ErrPublishDisabled):
+		reason := "该分类暂不开放发布"
+		_, _ = auditStore.RejectResourceAfterAudit(ctx, resourceID, reason)
+		return errx.New(errx.CodeValidationFailed, reason)
+	default:
+		return errx.New(errx.CodeInternalError, "发布失败，请稍后重试")
+	}
 }
 
 func (l *CreateResourceLogic) UpdateResourceDraft(ctx context.Context, resourceID string, req CreateResourceReq) (CreateResourceResp, error) {
@@ -200,7 +333,7 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		ContactPhone:         values["contactPhone"],
 		ContactWechat:        strings.TrimSpace(req.Contact.Wechat),
 		CreatedByUser:        strings.TrimSpace(req.CreatedByUser),
-		ConsumePublishQuota:  status != model.ResourceStatusDraft && publishMode != model.ResourcePublishModeFree,
+		ConsumePublishQuota:  false,
 	}, typeCode, nil
 }
 

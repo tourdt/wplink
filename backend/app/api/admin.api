@@ -66,6 +66,50 @@ type AdminReviewResourceResp {
 	Message string `json:"message"`
 }
 
+type AdminResourceReportItem {
+	Id               string `json:"id"`
+	Status           string `json:"status"`
+	ResourceId       string `json:"resourceId"`
+	ResourceTitle    string `json:"resourceTitle"`
+	ResourceStatus   string `json:"resourceStatus"`
+	MerchantId       string `json:"merchantId"`
+	MerchantName     string `json:"merchantName"`
+	ReportCount      int64  `json:"reportCount"`
+	ReasonCode       string `json:"reasonCode"`
+	ReasonText       string `json:"reasonText,optional"`
+	LatestReportedAt string `json:"latestReportedAt"`
+}
+
+type AdminResourceReportsReq {
+	Status   string `form:"status,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminResourceReportsResp {
+	Items    []AdminResourceReportItem `json:"items"`
+	Page     int64                     `json:"page"`
+	PageSize int64                     `json:"pageSize"`
+	Total    int64                     `json:"total"`
+}
+
+type AdminReviewResourceReportReq {
+	Action             string `json:"action"`
+	ResourceAction     string `json:"resourceAction,optional"`
+	Reason             string `json:"reason,optional"`
+	RefundPublishQuota bool   `json:"refundPublishQuota,optional"`
+}
+
+type AdminReviewResourceReportResp {
+	Id                  string `json:"id"`
+	Status              string `json:"status"`
+	ResourceId          string `json:"resourceId"`
+	ResourceStatus      string `json:"resourceStatus"`
+	ResolvedReportCount int64  `json:"resolvedReportCount"`
+	RefundPublishQuota  bool   `json:"refundPublishQuota"`
+	Message             string `json:"message"`
+}
+
 type AdminPendingVerificationItem {
 	Id               string `json:"id"`
 	MerchantId       string `json:"merchantId"`
@@ -497,6 +541,12 @@ service wplink-api {
 
 	@handler AdminReviewResource
 	post /resources/:resourceId/review (AdminReviewResourceReq) returns (AdminReviewResourceResp)
+
+	@handler AdminListResourceReports
+	get /resource-reports (AdminResourceReportsReq) returns (AdminResourceReportsResp)
+
+	@handler AdminReviewResourceReport
+	post /resource-reports/:reportId/review (AdminReviewResourceReportReq) returns (AdminReviewResourceReportResp)
 }
 
 @server(

@@ -13,6 +13,7 @@ import (
 	"wplink/backend/app/internal/logic/adminauth"
 	authlogic "wplink/backend/app/internal/logic/auth"
 	citylogic "wplink/backend/app/internal/logic/city"
+	contentauditlogic "wplink/backend/app/internal/logic/contentaudit"
 	metricslogic "wplink/backend/app/internal/logic/metrics"
 	paymentlogic "wplink/backend/app/internal/logic/payment"
 	resourcelogic "wplink/backend/app/internal/logic/resource"
@@ -77,6 +78,7 @@ type apiRouterOptions struct {
 	smsVerifier         authlogic.SMSVerifier
 	wechatPayGateway    paymentlogic.WechatPayGateway
 	wechatPayDevMock    bool
+	contentAuditor      resourcelogic.ContentAuditor
 }
 
 type APIRouterOption func(*apiRouterOptions)
@@ -126,6 +128,12 @@ func WithWechatPayGateway(gateway paymentlogic.WechatPayGateway) APIRouterOption
 func WithWechatPayDevMock(enabled bool) APIRouterOption {
 	return func(options *apiRouterOptions) {
 		options.wechatPayDevMock = enabled
+	}
+}
+
+func WithContentAuditor(auditor resourcelogic.ContentAuditor) APIRouterOption {
+	return func(options *apiRouterOptions) {
+		options.contentAuditor = auditor
 	}
 }
 
@@ -218,7 +226,7 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 	})
 	if resourceStore, ok := any(store).(ResourceAPIStore); ok {
 		permissionStore, _ := any(store).(MerchantPermissionStore)
-		registerResourceRoutes(mux, resourceStore, options.userTokenService, options.adminTokenService, permissionStore, options.wechatPayGateway, options.wechatPayDevMock)
+		registerResourceRoutes(mux, resourceStore, options.userTokenService, options.adminTokenService, permissionStore, options.wechatPayGateway, options.wechatPayDevMock, options.contentAuditor)
 	}
 	registerOptionalDomainRoutes(mux, store, options.userTokenService, options.adminTokenService, permissionStoreFromStore(store), options.smsVerifier, options.wechatPayGateway, options.wechatPayDevMock)
 	if options.adminTokenService != nil {
@@ -354,7 +362,24 @@ func registerAdminAuthRoutes(mux *http.ServeMux, service AdminLoginService) {
 	})
 }
 
-func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool) {
+func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool, contentAuditor resourcelogic.ContentAuditor) {
+	mux.HandleFunc("POST /api/v1/wechat/content-audit/media-callback", func(w http.ResponseWriter, r *http.Request) {
+		callbackStore, ok := any(store).(contentauditlogic.MediaCheckCallbackStore)
+		if !ok {
+			response.JSON(w, nil, errx.New(errx.CodeInternalError, "图片审核回调服务暂不可用"))
+			return
+		}
+		var payload model.JSONMap
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "请求参数格式不正确"))
+			return
+		}
+		if payload == nil {
+			payload = model.JSONMap{}
+		}
+		resp, err := contentauditlogic.NewMediaCheckCallbackLogic(callbackStore).Handle(r.Context(), payload)
+		response.JSON(w, resp, err)
+	})
 	mux.HandleFunc("POST /api/v1/resources", func(w http.ResponseWriter, r *http.Request) {
 		req, err := decodeCreateResourceRequest(r)
 		if err != nil {
@@ -369,7 +394,7 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := resourcelogic.NewCreateResourceLogic(store).CreateResource(r.Context(), req)
+		resp, err := resourcelogic.NewCreateResourceLogic(store, contentAuditor).CreateResource(r.Context(), req)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/resources/drafts", func(w http.ResponseWriter, r *http.Request) {
@@ -386,7 +411,7 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := resourcelogic.NewCreateResourceLogic(store).CreateResourceDraft(r.Context(), req)
+		resp, err := resourcelogic.NewCreateResourceLogic(store, contentAuditor).CreateResourceDraft(r.Context(), req)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("PUT /api/v1/resources/{resourceId}/draft", func(w http.ResponseWriter, r *http.Request) {
@@ -407,7 +432,7 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := resourcelogic.NewCreateResourceLogic(store).UpdateResourceDraft(r.Context(), resourceID, req)
+		resp, err := resourcelogic.NewCreateResourceLogic(store, contentAuditor).UpdateResourceDraft(r.Context(), resourceID, req)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/resources/{resourceId}/submit", func(w http.ResponseWriter, r *http.Request) {
@@ -430,7 +455,7 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 				return
 			}
 		}
-		resp, err := resourcelogic.NewSubmitResourceLogic(store).SubmitResource(r.Context(), resourceID)
+		resp, err := resourcelogic.NewSubmitResourceLogic(store, contentAuditor).SubmitResource(r.Context(), resourceID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/resources", func(w http.ResponseWriter, r *http.Request) {
@@ -450,6 +475,40 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 	})
 	mux.HandleFunc("GET /api/v1/resources/{resourceId}", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := resourcelogic.NewGetResourceLogic(store).GetResource(r.Context(), r.PathValue("resourceId"))
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/resources/{resourceId}/reports", func(w http.ResponseWriter, r *http.Request) {
+		reportStore, ok := any(store).(resourcelogic.ResourceReportStore)
+		if !ok {
+			response.JSON(w, nil, errx.New(errx.CodeInternalError, "举报服务暂不可用"))
+			return
+		}
+		var body struct {
+			UserID     string        `json:"userId"`
+			ReasonCode string        `json:"reasonCode"`
+			ReasonText string        `json:"reasonText"`
+			Evidence   model.JSONMap `json:"evidence"`
+		}
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		reporterUserID := strings.TrimSpace(body.UserID)
+		if tokenService != nil {
+			subject, err := userSubjectFromBearerToken(r, tokenService)
+			if err != nil {
+				response.JSON(w, nil, errx.New(errx.CodeUnauthorized, "请先登录后举报"))
+				return
+			}
+			reporterUserID = subject.UserID
+		}
+		resp, err := resourcelogic.NewReportResourceLogic(reportStore).ReportResource(r.Context(), resourcelogic.ReportResourceReq{
+			ResourceID:     r.PathValue("resourceId"),
+			ReporterUserID: reporterUserID,
+			ReasonCode:     body.ReasonCode,
+			ReasonText:     body.ReasonText,
+			Evidence:       body.Evidence,
+		})
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/resources/{resourceId}/detail-view", func(w http.ResponseWriter, r *http.Request) {
@@ -738,6 +797,63 @@ func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenSer
 			TypeCode: query.Get("typeCode"),
 			Page:     int64FromQuery(r, "page"),
 			PageSize: int64FromQuery(r, "pageSize"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/resources", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		resp, err := adminlogic.NewListPendingResourcesLogic(store).ListAdminResources(r.Context(), adminlogic.ListPendingResourcesReq{
+			CityCode: query.Get("cityCode"),
+			TypeCode: query.Get("typeCode"),
+			Status:   query.Get("status"),
+			Page:     int64FromQuery(r, "page"),
+			PageSize: int64FromQuery(r, "pageSize"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/resource-reports", func(w http.ResponseWriter, r *http.Request) {
+		reportStore, ok := any(store).(adminlogic.ResourceReportAdminStore)
+		if !ok {
+			response.JSON(w, nil, errx.New(errx.CodeInternalError, "举报审核服务暂不可用"))
+			return
+		}
+		query := r.URL.Query()
+		resp, err := adminlogic.NewResourceReportLogic(reportStore).ListResourceReports(r.Context(), adminlogic.ListResourceReportsReq{
+			Status:   query.Get("status"),
+			Page:     int64FromQuery(r, "page"),
+			PageSize: int64FromQuery(r, "pageSize"),
+		})
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/resource-reports/{reportId}/review", func(w http.ResponseWriter, r *http.Request) {
+		reportStore, ok := any(store).(adminlogic.ResourceReportAdminStore)
+		if !ok {
+			response.JSON(w, nil, errx.New(errx.CodeInternalError, "举报审核服务暂不可用"))
+			return
+		}
+		var body struct {
+			Action             string `json:"action"`
+			ResourceAction     string `json:"resourceAction"`
+			Reason             string `json:"reason"`
+			ReviewerID         string `json:"reviewerId"`
+			RefundPublishQuota bool   `json:"refundPublishQuota"`
+		}
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		if reviewerID, err := adminOperatorIDFromRequest(r, adminTokenService, body.ReviewerID); err != nil {
+			response.JSON(w, nil, err)
+			return
+		} else {
+			body.ReviewerID = reviewerID
+		}
+		resp, err := adminlogic.NewResourceReportLogic(reportStore).ReviewResourceReport(r.Context(), r.PathValue("reportId"), adminlogic.ReviewResourceReportReq{
+			Action:             body.Action,
+			ResourceAction:     body.ResourceAction,
+			Reason:             body.Reason,
+			ReviewerID:         body.ReviewerID,
+			RefundPublishQuota: body.RefundPublishQuota,
 		})
 		response.JSON(w, resp, err)
 	})

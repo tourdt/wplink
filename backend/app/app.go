@@ -81,6 +81,7 @@ func main() {
 		server.WithSMSVerifier(svcCtx.SMSVerifier),
 		server.WithWechatPayGateway(svcCtx.WechatPayGateway),
 		server.WithWechatPayDevMock(cfg.WechatPay.DevMockEnabled && !config.IsProductionMode(cfg.RuntimeMode)),
+		server.WithContentAuditor(svcCtx.ContentAuditor),
 	)
 	if err != nil {
 		fatalf("初始化 API 路由失败: err=%v", err)

@@ -84,12 +84,15 @@ const statusOptions = [
 ]
 const statusText = {
   draft: '草稿',
-  pending: '待审核',
+  pending: '内容审核中',
+  manual_review: '内容审核中',
+  audit_retry: '内容审核中',
   published: '已发布',
   rejected: '已驳回',
   taken_down: '已下架',
   expired: '已过期',
 }
+const contentAuditStatuses = new Set(['pending', 'manual_review', 'audit_retry'])
 
 const rows = ref([])
 const merchantId = ref('')
@@ -102,12 +105,12 @@ const loading = ref(false)
 const topServicePacks = ref([])
 const purchasingTopResourceId = ref('')
 const fallbackTopServicePacks = [
-  { code: 'top_1d', name: '1天置顶服务', standardPriceCent: 10000, salePriceCent: 10000, description: '购买后可置顶 1 天', benefits: { topVoucherCount: 1, topDurationHours: 24 } },
-  { code: 'top_3d', name: '3天置顶服务', standardPriceCent: 20000, salePriceCent: 20000, description: '购买后可置顶 3 天', benefits: { topVoucherCount: 1, topDurationHours: 72 } },
-  { code: 'top_5d', name: '5天置顶服务', standardPriceCent: 30000, salePriceCent: 30000, description: '购买后可置顶 5 天', benefits: { topVoucherCount: 1, topDurationHours: 120 } },
-  { code: 'top_7d', name: '7天置顶服务', standardPriceCent: 40000, salePriceCent: 40000, description: '购买后可置顶 7 天', benefits: { topVoucherCount: 1, topDurationHours: 168 } },
-  { code: 'top_15d', name: '15天置顶服务', standardPriceCent: 60000, salePriceCent: 60000, description: '购买后可置顶 15 天', benefits: { topVoucherCount: 1, topDurationHours: 360 } },
-  { code: 'top_30d', name: '30天置顶服务', standardPriceCent: 90000, salePriceCent: 90000, description: '购买后可置顶 30 天', benefits: { topVoucherCount: 1, topDurationHours: 720 } },
+  { code: 'top_1d', name: '1天置顶服务', standardPriceCent: 10000, salePriceCent: 10000, description: '购买后可置顶 1 天', saleLabel: '置顶 1 天', benefits: { topVoucherCount: 1, topDurationHours: 24 } },
+  { code: 'top_3d', name: '3天置顶服务', standardPriceCent: 20000, salePriceCent: 20000, description: '购买后可置顶 3 天', saleLabel: '置顶 3 天', benefits: { topVoucherCount: 1, topDurationHours: 72 } },
+  { code: 'top_5d', name: '5天置顶服务', standardPriceCent: 30000, salePriceCent: 30000, description: '购买后可置顶 5 天', saleLabel: '置顶 5 天', benefits: { topVoucherCount: 1, topDurationHours: 120 } },
+  { code: 'top_7d', name: '7天置顶服务', standardPriceCent: 40000, salePriceCent: 40000, description: '购买后可置顶 7 天', saleLabel: '置顶 7 天', benefits: { topVoucherCount: 1, topDurationHours: 168 } },
+  { code: 'top_15d', name: '15天置顶服务', standardPriceCent: 60000, salePriceCent: 60000, description: '购买后可置顶 15 天', saleLabel: '置顶 15 天', benefits: { topVoucherCount: 1, topDurationHours: 360 } },
+  { code: 'top_30d', name: '30天置顶服务', standardPriceCent: 90000, salePriceCent: 90000, description: '购买后可置顶 30 天', saleLabel: '置顶 30 天', benefits: { topVoucherCount: 1, topDurationHours: 720 } },
 ]
 
 onLoad((options) => {
@@ -302,15 +305,40 @@ function isTopServicePack(item) {
 }
 
 function topServiceOptionText(item) {
-  return `${topServiceName(item)} · ${formatTopServicePrice(item)}`
+  return topServicePurchaseText(item).join(' · ')
 }
 
 function topServiceName(item) {
   return String(item.name || '置顶服务').replace(/置顶券/g, '置顶服务')
 }
 
+function topServiceSaleLabel(item) {
+  return String(item.saleLabel || '').trim()
+}
+
+function topServicePurchaseText(item) {
+  const parts = [topServiceName(item)]
+  const saleLabel = topServiceSaleLabel(item)
+  if (saleLabel) parts.push(saleLabel)
+  parts.push(formatTopServicePrice(item))
+  if (isTopServiceDiscounted(item)) {
+    parts.push(`原价${formatTopServiceCent(item.standardPriceCent)}`)
+  }
+  return parts
+}
+
+function isTopServiceDiscounted(item) {
+  const salePriceCent = Number(item.salePriceCent || 0)
+  const standardPriceCent = Number(item.standardPriceCent || 0)
+  return salePriceCent > 0 && standardPriceCent > 0 && salePriceCent < standardPriceCent
+}
+
 function formatTopServicePrice(item) {
-  const price = Number(item.salePriceCent || item.standardPriceCent || 0) / 100
+  return formatTopServiceCent(item.salePriceCent || item.standardPriceCent)
+}
+
+function formatTopServiceCent(value) {
+  const price = Number(value || 0) / 100
   return `¥${Number.isInteger(price) ? price.toFixed(0) : price.toFixed(1)}`
 }
 
@@ -318,7 +346,7 @@ function confirmTopServicePurchase(pack) {
   return new Promise((resolve) => {
     uni.showModal({
       title: '购买置顶服务',
-      content: `将购买 ${topServiceName(pack)}，支付成功后直接置顶当前发布，确认继续吗？`,
+      content: `将购买 ${topServicePurchaseText(pack).join('，')}，支付成功后直接置顶当前发布，确认继续吗？`,
       confirmText: '购买',
       cancelText: '取消',
       success: (res) => resolve(Boolean(res.confirm)),
@@ -445,7 +473,12 @@ function displayStatusText(item) {
 function statusClass(item) {
   if (item.dealtAt) return 'dealt'
   if (isExpiredResource(item)) return 'expired'
+  if (isContentAuditStatus(item.status)) return 'pending'
   return item.status
+}
+
+function isContentAuditStatus(status) {
+  return contentAuditStatuses.has(status)
 }
 
 function displayResourceTypeText(item) {
@@ -465,7 +498,7 @@ function handleResourceCoverError(item) {
 }
 
 function expireText(item) {
-  if (item.status === 'pending') return '审核中'
+  if (isContentAuditStatus(item.status)) return '内容审核中'
   if (item.dealtAt) return `成交 ${formatDateToDay(item.dealtAt)}`
   if (isExpiredResource(item)) return '已过期'
   if (item.expiresAt) return `到期 ${formatDateToDay(item.expiresAt)}`

@@ -7,19 +7,20 @@ import (
 )
 
 type Config struct {
-	Name        string
-	RuntimeMode string
-	Host        string
-	Port        int
-	Log         LogConfig
-	Postgres    PostgresConfig
-	AdminAuth   AdminAuthConfig
-	UserAuth    UserAuthConfig
-	Wechat      WechatConfig
-	WechatPay   WechatPayConfig
-	SMS         SMSConfig
-	Tasks       TasksConfig
-	Storage     StorageConfig
+	Name         string
+	RuntimeMode  string
+	Host         string
+	Port         int
+	Log          LogConfig
+	Postgres     PostgresConfig
+	AdminAuth    AdminAuthConfig
+	UserAuth     UserAuthConfig
+	Wechat       WechatConfig
+	ContentAudit ContentAuditConfig
+	WechatPay    WechatPayConfig
+	SMS          SMSConfig
+	Tasks        TasksConfig
+	Storage      StorageConfig
 }
 
 type LogConfig = logx.LogConf
@@ -47,6 +48,15 @@ type WechatConfig struct {
 	AppID        string `yaml:"AppID"`
 	AppSecret    string `yaml:"AppSecret"`
 	AllowDevCode bool   `yaml:"AllowDevCode"`
+}
+
+type ContentAuditConfig struct {
+	Enabled        bool
+	TextScene      int
+	MediaEnabled   bool
+	MediaScene     int
+	RequestTimeout time.Duration
+	MaxTextChars   int
 }
 
 type WechatPayConfig struct {

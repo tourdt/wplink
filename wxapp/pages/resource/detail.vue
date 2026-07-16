@@ -40,7 +40,7 @@
       <view class="resource-card">
         <view class="tag-row">
           <text v-if="isVIPMerchant" class="tag vip">VIP</text>
-          <text v-if="resource.status" class="tag">{{ statusText[resource.status] || resource.status }}</text>
+          <text v-if="isOwnResource && resource.status" class="tag">{{ statusText[resource.status] || resource.status }}</text>
           <text v-if="resource.refreshedAt" class="tag">{{ resource.refreshedAt }}</text>
         </view>
         <view class="title-row">
@@ -110,6 +110,22 @@
         </view>
       </view>
 
+      <view v-if="showContactMoreSheet" class="sheet-mask" @click="closeContactMoreSheet">
+        <view class="management-sheet contact-more-sheet" @click.stop>
+          <view class="sheet-head">
+            <view class="sheet-copy">
+              <text class="sheet-title">更多操作</text>
+              <text class="sheet-desc">分享给同行或反馈问题资源。</text>
+            </view>
+            <button class="sheet-close" @click="closeContactMoreSheet">关闭</button>
+          </view>
+          <view class="management-actions">
+            <button class="management-action primary" open-type="share" @click="shareResourceFromMore">分享给朋友</button>
+            <button class="management-action danger" @click="reportResourceFromMore">举报</button>
+          </view>
+        </view>
+      </view>
+
       <view v-if="isOwnResource" class="owner-action-bar">
         <button class="share-button" @click="shareOwnResource" :open-type="canShareOwnResource ? 'share' : ''">分享</button>
         <button class="primary-button" @click="openManagementSheet">管理</button>
@@ -118,7 +134,7 @@
       <view v-else class="contact-bar">
         <button @click="copyWechat">复制微信</button>
         <button class="primary-button" @click="callPhone">{{ contactButtonText }}</button>
-        <button open-type="share" @click="shareResource">分享</button>
+        <button class="more-button" @click="openContactMoreSheet">更多</button>
       </view>
 
       <canvas
@@ -177,14 +193,16 @@ const managementBusy = ref(false)
 const topServicePacks = ref([])
 const shareImageUrl = ref('')
 const shareCoverCanvasSize = RESOURCE_SHARE_COVER_SIZE
+// 底部只保留高频联系动作，分享和举报收进更多操作，减少供需详情主路径干扰。
+const showContactMoreSheet = ref(false)
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const fallbackTopServicePacks = [
-  { code: 'top_1d', name: '1天置顶服务', standardPriceCent: 10000, salePriceCent: 10000, description: '购买后可置顶 1 天', benefits: { topVoucherCount: 1, topDurationHours: 24 } },
-  { code: 'top_3d', name: '3天置顶服务', standardPriceCent: 20000, salePriceCent: 20000, description: '购买后可置顶 3 天', benefits: { topVoucherCount: 1, topDurationHours: 72 } },
-  { code: 'top_5d', name: '5天置顶服务', standardPriceCent: 30000, salePriceCent: 30000, description: '购买后可置顶 5 天', benefits: { topVoucherCount: 1, topDurationHours: 120 } },
-  { code: 'top_7d', name: '7天置顶服务', standardPriceCent: 40000, salePriceCent: 40000, description: '购买后可置顶 7 天', benefits: { topVoucherCount: 1, topDurationHours: 168 } },
-  { code: 'top_15d', name: '15天置顶服务', standardPriceCent: 60000, salePriceCent: 60000, description: '购买后可置顶 15 天', benefits: { topVoucherCount: 1, topDurationHours: 360 } },
-  { code: 'top_30d', name: '30天置顶服务', standardPriceCent: 90000, salePriceCent: 90000, description: '购买后可置顶 30 天', benefits: { topVoucherCount: 1, topDurationHours: 720 } },
+  { code: 'top_1d', name: '1天置顶服务', standardPriceCent: 10000, salePriceCent: 10000, description: '购买后可置顶 1 天', saleLabel: '置顶 1 天', benefits: { topVoucherCount: 1, topDurationHours: 24 } },
+  { code: 'top_3d', name: '3天置顶服务', standardPriceCent: 20000, salePriceCent: 20000, description: '购买后可置顶 3 天', saleLabel: '置顶 3 天', benefits: { topVoucherCount: 1, topDurationHours: 72 } },
+  { code: 'top_5d', name: '5天置顶服务', standardPriceCent: 30000, salePriceCent: 30000, description: '购买后可置顶 5 天', saleLabel: '置顶 5 天', benefits: { topVoucherCount: 1, topDurationHours: 120 } },
+  { code: 'top_7d', name: '7天置顶服务', standardPriceCent: 40000, salePriceCent: 40000, description: '购买后可置顶 7 天', saleLabel: '置顶 7 天', benefits: { topVoucherCount: 1, topDurationHours: 168 } },
+  { code: 'top_15d', name: '15天置顶服务', standardPriceCent: 60000, salePriceCent: 60000, description: '购买后可置顶 15 天', saleLabel: '置顶 15 天', benefits: { topVoucherCount: 1, topDurationHours: 360 } },
+  { code: 'top_30d', name: '30天置顶服务', standardPriceCent: 90000, salePriceCent: 90000, description: '购买后可置顶 30 天', saleLabel: '置顶 30 天', benefits: { topVoucherCount: 1, topDurationHours: 720 } },
 ]
 let shareCanvasReady = false
 let shareCoverRenderTimer = null
@@ -202,14 +220,18 @@ const statusText = {
   draft: '草稿',
   rejected: '已驳回',
   published: '已发布',
-  pending: '待审核',
+  pending: '内容审核中',
+  manual_review: '内容审核中',
+  audit_retry: '内容审核中',
   expired: '已过期',
   dealt: '已成交',
   taken_down: '已下架',
 }
+const contentAuditStatuses = new Set(['pending', 'manual_review', 'audit_retry'])
 const isVIPMerchant = computed(() => (resource.value.merchant || {}).vipStatus === 'active')
 const contactAccess = computed(() => resource.value.contactAccess || {})
-const contactButtonText = computed(() => contactAccess.value.actionText || '联系商家')
+// 底部主按钮执行的是电话解锁和拨号，按钮文案保持动作导向，避免展示“登录后免费查看”等规则说明。
+const contactButtonText = computed(() => '拨打电话')
 const merchantInfo = computed(() => ({
   ...(resource.value.merchant || {}),
   ...(merchantProfile.value || {}),
@@ -261,8 +283,8 @@ const isDealtResource = computed(() => resource.value.status === 'dealt' || Bool
 const canShareOwnResource = computed(() => resource.value.status === 'published' && !isExpiredResource.value && !resource.value.dealtAt)
 const managementTitle = computed(() => statusText[resource.value.status] || '供应管理')
 const managementNotice = computed(() => {
-  if (resource.value.status === 'pending') {
-    return '供应正在审核，审核通过后会公开展示。当前暂不能刷新、下架或分享。'
+  if (isContentAuditStatus(resource.value.status)) {
+    return '供应正在内容审核中，审核通过后会公开展示。当前暂不能刷新、下架或分享。'
   }
   if (resource.value.status === 'draft') return '草稿可继续编辑，完善后再提交审核。'
   if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : '供应已被驳回，可编辑后重新提交审核。'
@@ -272,7 +294,7 @@ const managementNotice = computed(() => {
   return '供应展示中，可按需刷新、置顶或下架。'
 })
 const managementActions = computed(() => {
-  if (resource.value.status === 'pending') return []
+  if (isContentAuditStatus(resource.value.status)) return []
   if (resource.value.status === 'draft' || resource.value.status === 'rejected') {
     return [{ key: 'edit', label: '编辑', primary: true }]
   }
@@ -294,6 +316,10 @@ const managementActions = computed(() => {
   }
   return []
 })
+
+function isContentAuditStatus(status) {
+  return contentAuditStatuses.has(status)
+}
 
 onLoad(async (options) => {
   if (!options.id) return
@@ -510,6 +536,14 @@ function closeManagementSheet() {
   showManagementSheet.value = false
 }
 
+function openContactMoreSheet() {
+  showContactMoreSheet.value = true
+}
+
+function closeContactMoreSheet() {
+  showContactMoreSheet.value = false
+}
+
 function shareOwnResource() {
   if (canShareOwnResource.value) return
   uni.showToast({ title: '供应审核通过后可分享', icon: 'none' })
@@ -672,15 +706,40 @@ function isTopServicePack(item) {
 }
 
 function topServiceOptionText(item) {
-  return `${topServiceName(item)} · ${formatTopServicePrice(item)}`
+  return topServicePurchaseText(item).join(' · ')
 }
 
 function topServiceName(item) {
   return String(item.name || '置顶服务').replace(/置顶券/g, '置顶服务')
 }
 
+function topServiceSaleLabel(item) {
+  return String(item.saleLabel || '').trim()
+}
+
+function topServicePurchaseText(item) {
+  const parts = [topServiceName(item)]
+  const saleLabel = topServiceSaleLabel(item)
+  if (saleLabel) parts.push(saleLabel)
+  parts.push(formatTopServicePrice(item))
+  if (isTopServiceDiscounted(item)) {
+    parts.push(`原价${formatTopServiceCent(item.standardPriceCent)}`)
+  }
+  return parts
+}
+
+function isTopServiceDiscounted(item) {
+  const salePriceCent = Number(item.salePriceCent || 0)
+  const standardPriceCent = Number(item.standardPriceCent || 0)
+  return salePriceCent > 0 && standardPriceCent > 0 && salePriceCent < standardPriceCent
+}
+
 function formatTopServicePrice(item) {
-  const price = Number(item.salePriceCent || item.standardPriceCent || 0) / 100
+  return formatTopServiceCent(item.salePriceCent || item.standardPriceCent)
+}
+
+function formatTopServiceCent(value) {
+  const price = Number(value || 0) / 100
   return `¥${Number.isInteger(price) ? price.toFixed(0) : price.toFixed(1)}`
 }
 
@@ -688,7 +747,7 @@ function confirmTopServicePurchase(pack) {
   return new Promise((resolve) => {
     uni.showModal({
       title: '购买置顶服务',
-      content: `将购买 ${topServiceName(pack)}，支付成功后直接置顶当前供应，确认继续吗？`,
+      content: `将购买 ${topServicePurchaseText(pack).join('，')}，支付成功后直接置顶当前供应，确认继续吗？`,
       confirmText: '购买',
       cancelText: '取消',
       success: (res) => resolve(Boolean(res.confirm)),
@@ -800,6 +859,26 @@ async function copyWechat() {
 async function shareResource() {
   if (isOwnResource.value) return
   await recordContact('share')
+}
+
+async function shareResourceFromMore() {
+  await shareResource()
+  closeContactMoreSheet()
+}
+
+async function reportResourceFromMore() {
+  closeContactMoreSheet()
+  openResourceReportPage()
+}
+
+function openResourceReportPage() {
+  if (!resource.value.id || isOwnResource.value) return
+  if (!requireLogin()) return
+  const params = [`resourceId=${encodeURIComponent(resource.value.id)}`]
+  if (resource.value.title) {
+    params.push(`title=${encodeURIComponent(resource.value.title)}`)
+  }
+  uni.navigateTo({ url: `/pages/resource/report?${params.join('&')}` })
 }
 
 function enableShareMenu() {
@@ -1275,13 +1354,16 @@ onShareTimeline(() => {
   bottom: 0;
   left: 0;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
   gap: 16rpx;
   box-sizing: border-box;
   padding: 18rpx 24rpx calc(18rpx + env(safe-area-inset-bottom));
   border-top: 1rpx solid $wplink-line;
   background: rgba(255, 255, 255, 0.96);
   z-index: 20;
+}
+
+.contact-bar {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) 104rpx;
 }
 
 .owner-action-bar {
@@ -1323,6 +1405,13 @@ onShareTimeline(() => {
   background: $wplink-primary;
   color: $wplink-card;
   box-shadow: 0 10rpx 24rpx rgba(6, 22, 37, 0.14);
+}
+
+.contact-bar .more-button {
+  padding: 0;
+  background: $wplink-card;
+  color: $wplink-primary;
+  font-weight: 700;
 }
 
 .owner-action-bar .primary-button {

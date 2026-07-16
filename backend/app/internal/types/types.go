@@ -272,6 +272,33 @@ type AdminPendingResourcesResp struct {
 	Total    int64                      `json:"total"`
 }
 
+type AdminResourceReportItem struct {
+	Id               string `json:"id"`
+	Status           string `json:"status"`
+	ResourceId       string `json:"resourceId"`
+	ResourceTitle    string `json:"resourceTitle"`
+	ResourceStatus   string `json:"resourceStatus"`
+	MerchantId       string `json:"merchantId"`
+	MerchantName     string `json:"merchantName"`
+	ReportCount      int64  `json:"reportCount"`
+	ReasonCode       string `json:"reasonCode"`
+	ReasonText       string `json:"reasonText,optional"`
+	LatestReportedAt string `json:"latestReportedAt"`
+}
+
+type AdminResourceReportsReq struct {
+	Status   string `form:"status,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminResourceReportsResp struct {
+	Items    []AdminResourceReportItem `json:"items"`
+	Page     int64                     `json:"page"`
+	PageSize int64                     `json:"pageSize"`
+	Total    int64                     `json:"total"`
+}
+
 type AdminPendingVerificationItem struct {
 	Id               string                 `json:"id"`
 	MerchantId       string                 `json:"merchantId"`
@@ -345,6 +372,23 @@ type AdminReviewMapBindRequestResp struct {
 type AdminReviewResourceReq struct {
 	Action string `json:"action"`
 	Reason string `json:"reason,optional"`
+}
+
+type AdminReviewResourceReportReq struct {
+	Action             string `json:"action"`
+	ResourceAction     string `json:"resourceAction,optional"`
+	Reason             string `json:"reason,optional"`
+	RefundPublishQuota bool   `json:"refundPublishQuota,optional"`
+}
+
+type AdminReviewResourceReportResp struct {
+	Id                  string `json:"id"`
+	Status              string `json:"status"`
+	ResourceId          string `json:"resourceId"`
+	ResourceStatus      string `json:"resourceStatus"`
+	ResolvedReportCount int64  `json:"resolvedReportCount"`
+	RefundPublishQuota  bool   `json:"refundPublishQuota"`
+	Message             string `json:"message"`
 }
 
 type AdminReviewResourceResp struct {
@@ -679,6 +723,18 @@ type CreateContactUnlockPaymentResp struct {
 	OrderId string          `json:"orderId"`
 	Status  string          `json:"status"`
 	Payment WechatPayParams `json:"payment"`
+}
+
+type ReportResourceReq struct {
+	ReasonCode string                 `json:"reasonCode"`
+	ReasonText string                 `json:"reasonText,optional"`
+	Evidence   map[string]interface{} `json:"evidence,optional"`
+}
+
+type ReportResourceResp struct {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type CreateMerchantReq struct {

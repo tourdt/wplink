@@ -62,6 +62,12 @@ func ValidateForProduction(cfg Config) error {
 	if strings.TrimSpace(cfg.AdminAuth.MasterPassword) != "" {
 		return fmt.Errorf("生产配置不允许启用 AdminAuth.MasterPassword")
 	}
+	if !cfg.ContentAudit.Enabled {
+		return fmt.Errorf("生产配置必须启用 ContentAudit.Enabled")
+	}
+	if !cfg.ContentAudit.MediaEnabled {
+		return fmt.Errorf("生产配置必须启用 ContentAudit.MediaEnabled")
+	}
 	if cfg.WechatPay.DevMockEnabled {
 		return fmt.Errorf("生产配置不允许启用 WechatPay.DevMockEnabled")
 	}

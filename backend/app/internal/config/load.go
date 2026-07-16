@@ -30,19 +30,20 @@ func Load(path string) (Config, error) {
 }
 
 type fileConfig struct {
-	Name        string              `yaml:"Name"`
-	RuntimeMode string              `yaml:"RuntimeMode"`
-	Host        string              `yaml:"Host"`
-	Port        int                 `yaml:"Port"`
-	Log         fileLogConfig       `yaml:"Log"`
-	Postgres    filePostgresConfig  `yaml:"Postgres"`
-	AdminAuth   fileAdminAuthConfig `yaml:"AdminAuth"`
-	UserAuth    fileUserAuthConfig  `yaml:"UserAuth"`
-	Wechat      WechatConfig        `yaml:"Wechat"`
-	WechatPay   fileWechatPayConfig `yaml:"WechatPay"`
-	SMS         fileSMSConfig       `yaml:"SMS"`
-	Tasks       fileTasksConfig     `yaml:"Tasks"`
-	Storage     fileStorageConfig   `yaml:"Storage"`
+	Name         string                 `yaml:"Name"`
+	RuntimeMode  string                 `yaml:"RuntimeMode"`
+	Host         string                 `yaml:"Host"`
+	Port         int                    `yaml:"Port"`
+	Log          fileLogConfig          `yaml:"Log"`
+	Postgres     filePostgresConfig     `yaml:"Postgres"`
+	AdminAuth    fileAdminAuthConfig    `yaml:"AdminAuth"`
+	UserAuth     fileUserAuthConfig     `yaml:"UserAuth"`
+	Wechat       WechatConfig           `yaml:"Wechat"`
+	ContentAudit fileContentAuditConfig `yaml:"ContentAudit"`
+	WechatPay    fileWechatPayConfig    `yaml:"WechatPay"`
+	SMS          fileSMSConfig          `yaml:"SMS"`
+	Tasks        fileTasksConfig        `yaml:"Tasks"`
+	Storage      fileStorageConfig      `yaml:"Storage"`
 }
 
 type filePostgresConfig struct {
@@ -80,6 +81,15 @@ type fileAdminAuthConfig struct {
 type fileUserAuthConfig struct {
 	TokenSecret string         `yaml:"TokenSecret"`
 	TokenTTL    configDuration `yaml:"TokenTTL"`
+}
+
+type fileContentAuditConfig struct {
+	Enabled        bool           `yaml:"Enabled"`
+	TextScene      int            `yaml:"TextScene"`
+	MediaEnabled   bool           `yaml:"MediaEnabled"`
+	MediaScene     int            `yaml:"MediaScene"`
+	RequestTimeout configDuration `yaml:"RequestTimeout"`
+	MaxTextChars   int            `yaml:"MaxTextChars"`
 }
 
 type fileWechatPayConfig struct {
@@ -170,6 +180,7 @@ func (c fileConfig) toConfig() Config {
 		// 用户 token 使用独立开发密钥，避免本地也形成后台/用户 token 共用密钥的坏习惯。
 		userAuth.TokenSecret = defaultDevelopmentUserTokenSecret
 	}
+	contentAudit := c.ContentAudit.toConfig()
 
 	return Config{
 		Name:        c.Name,
@@ -184,9 +195,10 @@ func (c fileConfig) toConfig() Config {
 			ConnMaxLifetime: c.Postgres.ConnMaxLifetime.Duration(),
 			ConnMaxIdleTime: c.Postgres.ConnMaxIdleTime.Duration(),
 		},
-		AdminAuth: adminAuth,
-		UserAuth:  userAuth,
-		Wechat:    c.Wechat,
+		AdminAuth:    adminAuth,
+		UserAuth:     userAuth,
+		Wechat:       c.Wechat,
+		ContentAudit: contentAudit,
 		WechatPay: WechatPayConfig{
 			Enabled:                c.WechatPay.Enabled,
 			DevMockEnabled:         c.WechatPay.DevMockEnabled,
@@ -227,6 +239,30 @@ func (c fileConfig) toConfig() Config {
 			AllowedContentTypes: c.Storage.AllowedContentTypes,
 		},
 	}
+}
+
+func (c fileContentAuditConfig) toConfig() ContentAuditConfig {
+	cfg := ContentAuditConfig{
+		Enabled:        c.Enabled,
+		TextScene:      c.TextScene,
+		MediaEnabled:   c.MediaEnabled,
+		MediaScene:     c.MediaScene,
+		RequestTimeout: c.RequestTimeout.Duration(),
+		MaxTextChars:   c.MaxTextChars,
+	}
+	if cfg.TextScene == 0 {
+		cfg.TextScene = 3
+	}
+	if cfg.MediaScene == 0 {
+		cfg.MediaScene = cfg.TextScene
+	}
+	if cfg.RequestTimeout == 0 {
+		cfg.RequestTimeout = 5 * time.Second
+	}
+	if cfg.MaxTextChars == 0 {
+		cfg.MaxTextChars = 2500
+	}
+	return cfg
 }
 
 func defaultLogConfig() LogConfig {

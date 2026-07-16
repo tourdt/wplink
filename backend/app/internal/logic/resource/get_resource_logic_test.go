@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -106,6 +107,21 @@ func TestGetResourceMapsMissingPublishedResourceToNotFound(t *testing.T) {
 
 	if errx.CodeOf(err) != errx.CodeResourceNotFound {
 		t.Fatalf("error code = %q, want resource not found", errx.CodeOf(err))
+	}
+}
+
+func TestGetResourceReturnsFriendlyStoreError(t *testing.T) {
+	logic := NewGetResourceLogic(&fakeGetResourceStore{
+		err: errors.New("pq: column rtc.commercial_rules does not exist"),
+	})
+
+	_, err := logic.GetResource(context.Background(), "8030000000000000003")
+
+	if err == nil {
+		t.Fatal("GetResource() error = nil, want friendly internal error")
+	}
+	if errx.CodeOf(err) != errx.CodeInternalError || errx.PublicMessage(err) != "资源详情加载失败，请稍后重试" {
+		t.Fatalf("error code=%q message=%q, want friendly resource detail load failure", errx.CodeOf(err), errx.PublicMessage(err))
 	}
 }
 

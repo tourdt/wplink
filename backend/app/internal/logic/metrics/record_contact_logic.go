@@ -10,6 +10,7 @@ import (
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
 
+	"github.com/lib/pq"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -69,10 +70,10 @@ func (l *RecordContactLogic) RecordContact(ctx context.Context, req RecordContac
 	}
 	eventResult, err := l.store.RecordResourceContactEvent(ctx, input)
 	if err != nil {
-		return RecordContactResp{}, err
+		return RecordContactResp{}, contactWriteError(err, "记录联系事件", input.ResourceID, input.UserID, input.Action)
 	}
 	if err := l.store.UpsertResourceMetric(ctx, contactMetricDelta(input.ResourceID, input.Action)); err != nil {
-		return RecordContactResp{}, err
+		return RecordContactResp{}, contactWriteError(err, "更新联系指标", input.ResourceID, input.UserID, input.Action)
 	}
 	l.triggerContactGrowthReward(ctx, input, eventResult)
 	if contactResp.Message != "" {
@@ -119,14 +120,16 @@ func (l *RecordContactLogic) validateContactUnlock(ctx context.Context, input mo
 		if errors.Is(err, sql.ErrNoRows) {
 			return RecordContactResp{}, false, errx.New(errx.CodeResourceNotFound, "资源不存在或已下架")
 		}
-		return RecordContactResp{}, false, err
+		logx.Errorf("加载联系方式解锁资源失败: resourceId=%s userId=%s action=%s err=%+v", input.ResourceID, input.UserID, input.Action, err)
+		return RecordContactResp{}, false, errx.New(errx.CodeInternalError, "联系方式加载失败，请稍后重试")
 	}
 	if info.Status != model.ResourceStatusPublished || isExpired(info.ExpiresAt) {
 		return RecordContactResp{}, false, errx.New(errx.CodeResourceNotFound, "资源不存在或已下架")
 	}
 	canManage, err := l.store.UserCanManageMerchant(ctx, input.UserID, info.MerchantID)
 	if err != nil {
-		return RecordContactResp{}, false, err
+		logx.Errorf("校验联系方式查看者商家权限失败: resourceId=%s userId=%s merchantId=%s action=%s err=%+v", input.ResourceID, input.UserID, info.MerchantID, input.Action, err)
+		return RecordContactResp{}, false, errx.New(errx.CodeInternalError, "联系方式加载失败，请稍后重试")
 	}
 	contactResp, err := unlockedContactResp(input.Action, info)
 	if err != nil {
@@ -142,7 +145,7 @@ func (l *RecordContactLogic) validateContactUnlock(ctx context.Context, input mo
 	unlockState, err := l.store.HasActiveContactUnlock(ctx, input.ResourceID, input.UserID)
 	if err != nil {
 		logx.Errorf("查询联系方式解锁状态失败: resourceId=%s userId=%s err=%+v", input.ResourceID, input.UserID, err)
-		return RecordContactResp{}, false, err
+		return RecordContactResp{}, false, errx.New(errx.CodeInternalError, "联系方式加载失败，请稍后重试")
 	}
 	if unlockState.Unlocked {
 		return contactResp, false, nil
@@ -160,7 +163,7 @@ func (l *RecordContactLogic) validateContactUnlock(ctx context.Context, input mo
 		vipMerchant, err := l.store.FindActiveVIPManagedMerchant(ctx, input.UserID)
 		if err != nil {
 			logx.Errorf("查询用户可用 VIP 商家失败: resourceId=%s userId=%s err=%+v", input.ResourceID, input.UserID, err)
-			return RecordContactResp{}, false, err
+			return RecordContactResp{}, false, errx.New(errx.CodeInternalError, "联系方式加载失败，请稍后重试")
 		}
 		if vipMerchant.MerchantID != "" && (rules.VIPFree || rules.Mode == model.ContactUnlockModePaidOrVIP || rules.Mode == model.ContactUnlockModeVIPOnly) {
 			if err := l.persistContactUnlock(ctx, input, vipMerchant.MerchantID, model.ContactUnlockSourceVIP, rules); err != nil {
@@ -191,8 +194,7 @@ func (l *RecordContactLogic) persistContactUnlock(ctx context.Context, input mod
 		StartsAt:         now,
 		ExpiresAt:        now.AddDate(0, 0, int(days)),
 	}); err != nil {
-		logx.Errorf("写入联系方式解锁记录失败: resourceId=%s userId=%s viewerMerchantId=%s source=%s err=%+v", input.ResourceID, input.UserID, viewerMerchantID, sourceType, err)
-		return err
+		return contactWriteError(err, "写入联系方式解锁记录", input.ResourceID, input.UserID, input.Action)
 	}
 	return nil
 }
@@ -229,6 +231,24 @@ func isSupportedContactAction(action string) bool {
 
 func isContactUnlockAction(action string) bool {
 	return action == "phone" || action == "wechat"
+}
+
+func contactWriteError(err error, operation string, resourceID string, userID string, action string) error {
+	if isUserForeignKeyViolation(err) {
+		logx.Errorf("%s失败，用户登录态已失效: resourceId=%s userId=%s action=%s err=%+v", operation, resourceID, userID, action, err)
+		return errx.New(errx.CodeUnauthorized, "登录状态无效，请重新登录")
+	}
+	logx.Errorf("%s失败: resourceId=%s userId=%s action=%s err=%+v", operation, resourceID, userID, action, err)
+	return errx.New(errx.CodeInternalError, "联系行为记录失败，请稍后重试")
+}
+
+func isUserForeignKeyViolation(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return string(pqErr.Code) == "23503" && strings.Contains(pqErr.Constraint, "user_id")
+	}
+	message := err.Error()
+	return strings.Contains(message, "violates foreign key constraint") && strings.Contains(message, "user_id")
 }
 
 func contactMetricDelta(resourceID string, action string) model.ResourceMetricDelta {

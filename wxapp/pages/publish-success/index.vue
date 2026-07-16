@@ -8,7 +8,7 @@
       <view class="success-result-list">
         <view class="success-result-item">
           <text class="result-label">审核结果</text>
-          <text class="result-value">消息中心通知</text>
+          <text class="result-value">{{ auditResultText }}</text>
         </view>
         <view class="success-result-item">
           <text class="result-label">{{ successCopy.exposureLabel }}</text>
@@ -32,7 +32,10 @@ import { getMerchantId } from '../../store/session'
 
 const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
+const contentAuditStatuses = new Set(['pending', 'manual_review', 'audit_retry'])
 const publishDirection = ref(RESOURCE_DIRECTION_SUPPLY)
+const resultStatus = ref('pending')
+const resultMessage = ref('')
 const successCopy = computed(() => {
   if (publishDirection.value === RESOURCE_DIRECTION_DEMAND) {
     return {
@@ -49,9 +52,17 @@ const successCopy = computed(() => {
     exposureValue: '搜索、推荐和供应方资料',
   }
 })
+const auditResultText = computed(() => {
+  if (contentAuditStatuses.has(resultStatus.value)) return '内容审核中'
+  if (resultStatus.value === 'published') return '已发布'
+  if (resultStatus.value === 'rejected') return resultMessage.value || '审核未通过'
+  return '内容审核中'
+})
 
 onLoad((options = {}) => {
   publishDirection.value = normalizePublishDirection(options.direction)
+  resultStatus.value = normalizeResultStatus(options.status)
+  resultMessage.value = decodeRouteText(options.message)
 })
 
 function openMessages() {
@@ -66,6 +77,20 @@ async function openMyResources() {
 
 function normalizePublishDirection(direction) {
   return direction === RESOURCE_DIRECTION_DEMAND ? RESOURCE_DIRECTION_DEMAND : RESOURCE_DIRECTION_SUPPLY
+}
+
+function normalizeResultStatus(status) {
+  const value = String(status || '').trim()
+  return value || 'pending'
+}
+
+function decodeRouteText(value) {
+  if (!value) return ''
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return String(value)
+  }
 }
 </script>
 

@@ -27,3 +27,11 @@ export function listPendingResources(params = {}) {
 export function reviewResource(resourceId, payload) {
   return http.post(`/api/v1/admin/resources/${resourceId}/review`, payload)
 }
+
+export function listResourceReports(params = {}) {
+  return http.get('/api/v1/admin/resource-reports', { params })
+}
+
+export function reviewResourceReport(reportId, payload) {
+  return http.post(`/api/v1/admin/resource-reports/${reportId}/review`, payload)
+}

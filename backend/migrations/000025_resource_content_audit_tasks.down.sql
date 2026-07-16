@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS idx_resource_content_audit_tasks_trace;
+DROP INDEX IF EXISTS idx_resource_content_audit_tasks_resource_status;
+DROP TABLE IF EXISTS resource_content_audit_tasks;

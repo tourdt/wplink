@@ -477,24 +477,35 @@ async function submit() {
       uni.showToast({ title: '请先保存草稿后再提交审核', icon: 'none' })
       return
     }
-    await submitResource(editingResourceId.value, form.merchantId)
-    openPublishSuccess()
+    const resp = await submitResource(editingResourceId.value, form.merchantId)
+    openPublishSuccess(resp)
     clearPublishLocalDraft()
     resetPublishForm()
-    uni.showToast({ title: '已提交审核', icon: 'none' })
+    uni.showToast({ title: publishSubmitToast(resp), icon: 'none' })
     return
   }
   const images = await uploadPendingResourceImages()
-  await createResource(buildResourcePublishPayload(images))
-  openPublishSuccess()
+  const resp = await createResource(buildResourcePublishPayload(images))
+  openPublishSuccess(resp)
   clearPublishLocalDraft()
   resetPublishForm()
-  uni.showToast({ title: '已提交审核', icon: 'none' })
+  uni.showToast({ title: publishSubmitToast(resp), icon: 'none' })
 }
 
-function openPublishSuccess() {
+function openPublishSuccess(result = {}) {
   const publishDirection = normalizePublishDirection(form.direction) || RESOURCE_DIRECTION_SUPPLY
-  uni.navigateTo({ url: `/pages/publish-success/index?direction=${encodeURIComponent(publishDirection)}` })
+  const query = [
+    `direction=${encodeURIComponent(publishDirection)}`,
+    `status=${encodeURIComponent(result.status || 'pending')}`,
+    `message=${encodeURIComponent(result.message || '')}`,
+  ].join('&')
+  uni.navigateTo({ url: `/pages/publish-success/index?${query}` })
+}
+
+function publishSubmitToast(result = {}) {
+  if (result.status === 'published') return '已发布'
+  if (result.status === 'rejected') return '审核未通过'
+  return '已提交审核'
 }
 
 async function saveDraft() {

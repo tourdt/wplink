@@ -20,6 +20,15 @@ test('my resources list displays Chinese resource type text instead of raw type 
   assert.doesNotMatch(source, /\{\{ item\.category \}\} · \{\{ item\.typeCode \}\}/)
 })
 
+test('my resources list shows internal audit states as content auditing', () => {
+  assert.match(source, /const contentAuditStatuses = new Set\(\['pending', 'manual_review', 'audit_retry'\]\)/)
+  assert.match(source, /pending: '内容审核中'/)
+  assert.match(source, /manual_review: '内容审核中'/)
+  assert.match(source, /audit_retry: '内容审核中'/)
+  assert.match(source, /if \(isContentAuditStatus\(item\.status\)\) return 'pending'/)
+  assert.match(source, /if \(isContentAuditStatus\(item\.status\)\) return '内容审核中'/)
+})
+
 test('my resources list falls back to a default resource image', () => {
   assert.match(source, /const DEFAULT_RESOURCE_COVER = '\/static\/resource\/default-resource-cover\.png'/)
   assert.match(source, /function handleResourceCoverError\(item\) \{[\s\S]*item\.coverUrl = ''[\s\S]*\}/)
@@ -128,6 +137,12 @@ test('my resources restores top voucher actions for merchants', () => {
   assert.match(source, /createQuotaPackOrder\(merchantId\.value, pack\.code, \{ resourceId: item\.id \}\)/)
   assert.match(source, /createVIPPayment\(merchantId\.value, order\.orderId\)/)
   assert.match(source, /购买置顶服务/)
+  assert.match(source, /saleLabel: '置顶 1 天'/)
+  assert.match(source, /function topServiceSaleLabel\(item\)/)
+  assert.match(source, /function topServicePurchaseText\(item\)/)
+  assert.match(source, /function isTopServiceDiscounted\(item\)/)
+  assert.match(source, /topServicePurchaseText\(item\)\.join\(' · '\)/)
+  assert.match(source, /topServicePurchaseText\(pack\)\.join\('，'\)/)
   assert.doesNotMatch(source, /暂无可用置顶券，请先购买/)
   assert.doesNotMatch(source, /tab=top/)
 })

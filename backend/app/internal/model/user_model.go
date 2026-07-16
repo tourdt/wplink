@@ -118,6 +118,17 @@ WHERE u.id = $1 AND u.deleted_at IS NULL
 	return profile, nil
 }
 
+func (m *UserModel) GetUserWechatOpenID(ctx context.Context, userID string) (string, error) {
+	var openID string
+	err := m.db.QueryRowContext(ctx, `
+SELECT COALESCE(wechat_openid, '')
+FROM users
+WHERE id = $1
+  AND deleted_at IS NULL
+`, strings.TrimSpace(userID)).Scan(&openID)
+	return openID, err
+}
+
 func (m *UserModel) BindUserPhone(ctx context.Context, userID string, phone string) (UserProfile, error) {
 	var updatedID string
 	if err := m.db.QueryRowContext(ctx, `

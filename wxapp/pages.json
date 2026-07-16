@@ -97,6 +97,12 @@
       }
     },
     {
+      "path": "pages/resource/report",
+      "style": {
+        "navigationBarTitleText": "举报供需"
+      }
+    },
+    {
       "path": "pages/merchant/detail",
       "style": {
         "navigationBarTitleText": "商家资料"

@@ -1071,7 +1071,7 @@ test('success pages explain the result and next step consistently', () => {
     assert.match(publishSource, new RegExp(token))
   }
 
-  for (const token of ['审核结果', '消息中心通知', '通过后曝光', '搜索、推荐和供应方资料']) {
+  for (const token of ['审核结果', '内容审核中', '通过后曝光', '搜索、推荐和供应方资料']) {
     assert.match(publishSource, new RegExp(token))
   }
 })

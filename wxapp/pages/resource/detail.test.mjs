@@ -41,6 +41,11 @@ test('resource detail shows vip merchant tag without certification endorsement c
   assert.doesNotMatch(source, /认证商家/)
 })
 
+test('resource detail only shows publish status for own resource', () => {
+  assert.match(source, /<text v-if="isOwnResource && resource\.status" class="tag">\{\{ statusText\[resource\.status\] \|\| resource\.status \}\}<\/text>/)
+  assert.doesNotMatch(source, /<text v-if="resource\.status" class="tag">/)
+})
+
 test('own resource detail keeps share and management actions in the bottom bar', () => {
   assert.match(source, /<view v-if="isOwnResource" class="owner-action-bar">/)
   assert.match(source, /<button class="share-button" @click="shareOwnResource" :open-type="canShareOwnResource \? 'share' : ''">分享<\/button>/)
@@ -51,7 +56,9 @@ test('own resource detail keeps share and management actions in the bottom bar',
 })
 
 test('pending own resource management sheet only explains review state', () => {
-  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*resource\.value\.status === 'pending'[\s\S]*供应正在审核，审核通过后会公开展示。当前暂不能刷新、下架或分享。[\s\S]*\}\)/)
+  assert.match(source, /const contentAuditStatuses = new Set\(\['pending', 'manual_review', 'audit_retry'\]\)/)
+  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*isContentAuditStatus\(resource\.value\.status\)[\s\S]*供应正在内容审核中，审核通过后会公开展示。当前暂不能刷新、下架或分享。[\s\S]*\}\)/)
+  assert.match(source, /const managementActions = computed\(\(\) => \{[\s\S]*if \(isContentAuditStatus\(resource\.value\.status\)\) return \[\][\s\S]*\}\)/)
   assert.match(source, /<view v-if="showManagementSheet" class="sheet-mask" @click="closeManagementSheet">/)
   assert.match(source, /<text class="sheet-title">\{\{ managementTitle \}\}<\/text>/)
   assert.match(source, /<text v-if="!managementActions\.length" class="sheet-desc">\{\{ managementNotice \}\}<\/text>/)
@@ -80,6 +87,38 @@ test('resource detail unlocks contact through backend before copy or call', () =
   assert.match(source, /微信号已复制/)
   assert.equal(source.includes('已记录联系，完整微信由平台保护'), false)
   assert.equal(source.includes('已记录联系，完整电话由平台保护'), false)
+})
+
+test('resource detail uses short phone action text in bottom bar', () => {
+  assert.match(source, /const contactButtonText = computed\(\(\) => '拨打电话'\)/)
+  assert.doesNotMatch(source, /contactAccess\.value\.actionText \|\| '联系商家'/)
+  assert.doesNotMatch(source, />登录后免费查看</)
+  assert.doesNotMatch(source, />查看联系方式</)
+})
+
+test('resource detail groups low-frequency contact actions behind more sheet', () => {
+  const contactBar = source.match(/<view v-else class="contact-bar">[\s\S]*?<\/view>/)?.[0] || ''
+
+  assert.match(source, /const showContactMoreSheet = ref\(false\)/)
+  assert.match(source, /<view v-if="showContactMoreSheet" class="sheet-mask" @click="closeContactMoreSheet">/)
+  assert.match(source, /<button class="management-action primary" open-type="share" @click="shareResourceFromMore">分享给朋友<\/button>/)
+  assert.match(source, /<button class="management-action danger" @click="reportResourceFromMore">举报<\/button>/)
+  assert.match(source, /async function shareResourceFromMore\(\) \{[\s\S]*await shareResource\(\)[\s\S]*closeContactMoreSheet\(\)[\s\S]*\}/)
+  assert.match(source, /async function reportResourceFromMore\(\) \{[\s\S]*closeContactMoreSheet\(\)[\s\S]*openResourceReportPage\(\)[\s\S]*\}/)
+  assert.match(contactBar, /@click="copyWechat"/)
+  assert.match(contactBar, /@click="callPhone"/)
+  assert.match(contactBar, /@click="openContactMoreSheet"/)
+  assert.equal(contactBar.includes('open-type="share"'), false)
+  assert.equal(contactBar.includes('reportCurrentResource'), false)
+  assert.match(source, /grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1\.35fr\) 104rpx;/)
+  assert.equal(source.includes('grid-template-columns: repeat(4, 1fr);'), false)
+})
+
+test('resource detail opens dedicated report page from more sheet', () => {
+  assert.match(source, /function openResourceReportPage\(\) \{[\s\S]*if \(!resource\.value\.id \|\| isOwnResource\.value\) return[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*resourceId=\$\{encodeURIComponent\(resource\.value\.id\)\}[\s\S]*\/pages\/resource\/report\?\$\{params\.join\('&'\)\}[\s\S]*\}/)
+  assert.doesNotMatch(source, /reportResource\(resource\.value\.id/)
+  assert.doesNotMatch(source, /chooseResourceReportReason/)
+  assert.doesNotMatch(source, /collectResourceReportContact/)
 })
 
 test('resource detail handles paid contact unlock flow', () => {
@@ -138,6 +177,12 @@ test('resource detail restores top voucher management action', () => {
   assert.match(source, /createQuotaPackOrder\(ownerMerchantId\.value, pack\.code, \{ resourceId: resource\.value\.id \}\)/)
   assert.match(source, /createVIPPayment\(ownerMerchantId\.value, order\.orderId\)/)
   assert.match(source, /购买置顶服务/)
+  assert.match(source, /saleLabel: '置顶 1 天'/)
+  assert.match(source, /function topServiceSaleLabel\(item\)/)
+  assert.match(source, /function topServicePurchaseText\(item\)/)
+  assert.match(source, /function isTopServiceDiscounted\(item\)/)
+  assert.match(source, /topServicePurchaseText\(item\)\.join\(' · '\)/)
+  assert.match(source, /topServicePurchaseText\(pack\)\.join\('，'\)/)
   assert.doesNotMatch(source, /暂无可用置顶券，请先购买/)
   assert.doesNotMatch(source, /tab=top/)
 })

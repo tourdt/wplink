@@ -31,7 +31,9 @@ export const resourceTypeText = {
 
 export const resourceStatusText = {
   draft: '草稿',
-  pending: '待审核',
+  pending: '内容审核中',
+  manual_review: '内容审核中',
+  audit_retry: '内容审核中',
   published: '已发布',
   rejected: '已驳回',
   taken_down: '已下架',

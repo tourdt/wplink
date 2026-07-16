@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -230,8 +231,8 @@ func TestCreateResourceCreatesPendingResource(t *testing.T) {
 	if store.input.Status != "pending" {
 		t.Fatalf("status = %q, want pending", store.input.Status)
 	}
-	if !store.input.ConsumePublishQuota {
-		t.Fatalf("consumePublishQuota = false, want true for pending resource")
+	if store.input.ConsumePublishQuota {
+		t.Fatalf("consumePublishQuota = true, want false before auto audit publish")
 	}
 	if store.input.CoverURL != "https://example.com/a.jpg" {
 		t.Fatalf("coverURL = %q, want first resource image", store.input.CoverURL)
@@ -271,6 +272,82 @@ func TestCreateResourceFreePublishDoesNotConsumePublishQuota(t *testing.T) {
 	}
 	if store.input.ConsumePublishQuota {
 		t.Fatalf("consumePublishQuota = true, want false for free publish category")
+	}
+}
+
+func TestCreateResourceBlocksRiskyContentAudit(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
+		},
+		result:     model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
+		userOpenID: "openid-1",
+	}
+	auditor := &fakeContentAuditor{result: ContentAuditResult{Decision: ContentAuditDecisionRisky, Labels: []string{"20006"}}}
+	logic := NewCreateResourceLogic(store, auditor)
+
+	resp, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:    "merchant-1",
+		CityCode:      "zhili",
+		TypeCode:      "inventory",
+		Title:         "女童春款卫衣库存整包清",
+		Category:      "童装",
+		QuantityText:  "3200 件",
+		Description:   "整包优先，可现场看货。",
+		Contact:       ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+		CreatedByUser: "user-1",
+		CreatedByRole: "merchant_admin",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+	if resp.Status != model.ResourceStatusRejected || store.rejectedResourceID != "resource-1" {
+		t.Fatalf("resp = %#v rejectedResourceID = %q, want rejected resource", resp, store.rejectedResourceID)
+	}
+	if auditor.input.OpenID != "openid-1" || auditor.input.Title != "女童春款卫衣库存整包清" {
+		t.Fatalf("audit input = %#v, want openid and title", auditor.input)
+	}
+	if store.rejectReason != "内容疑似包含违法违规信息，请修改后重新提交" {
+		t.Fatalf("rejectReason = %q, want mapped WeChat label reason", store.rejectReason)
+	}
+}
+
+func TestCreateResourceRejectsWhenAuditFails(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
+		},
+		result:     model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
+		userOpenID: "openid-1",
+	}
+	auditor := &fakeContentAuditor{err: errors.New("wechat unavailable")}
+	logic := NewCreateResourceLogic(store, auditor)
+
+	resp, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:    "merchant-1",
+		CityCode:      "zhili",
+		TypeCode:      "inventory",
+		Title:         "女童春款卫衣库存整包清",
+		Category:      "童装",
+		QuantityText:  "3200 件",
+		Description:   "整包优先，可现场看货。",
+		Contact:       ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+		CreatedByUser: "user-1",
+		CreatedByRole: "merchant_admin",
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+	if resp.Status != model.ResourceStatusRejected || store.rejectedResourceID != "resource-1" {
+		t.Fatalf("resp = %#v rejectedResourceID = %q, want rejected resource after audit dependency failure", resp, store.rejectedResourceID)
+	}
+	if store.rejectReason != "内容审核服务暂不可用，请稍后重新提交" {
+		t.Fatalf("rejectReason = %q, want audit service unavailable reason", store.rejectReason)
 	}
 }
 
@@ -632,7 +709,15 @@ type fakeCreateResourceStore struct {
 	operationLog         model.OperationLogInput
 	merchantContactPhone string
 	contactMerchantID    string
+	userOpenID           string
+	openIDUserID         string
 	createErr            error
+	auditTasks           []model.ResourceContentAuditTaskInput
+	publishedResourceID  string
+	rejectedResourceID   string
+	rejectReason         string
+	publishErr           error
+	rejectErr            error
 }
 
 func (s *fakeCreateResourceStore) GetMerchantPublishStatus(ctx context.Context, merchantID string) (string, error) {
@@ -649,6 +734,11 @@ func (s *fakeCreateResourceStore) GetResourcePublishConfig(ctx context.Context, 
 func (s *fakeCreateResourceStore) GetMerchantContactPhone(ctx context.Context, merchantID string) (string, error) {
 	s.contactMerchantID = merchantID
 	return s.merchantContactPhone, nil
+}
+
+func (s *fakeCreateResourceStore) GetUserWechatOpenID(ctx context.Context, userID string) (string, error) {
+	s.openIDUserID = userID
+	return s.userOpenID, nil
 }
 
 func (s *fakeCreateResourceStore) CreateResource(ctx context.Context, input model.CreateResourceInput) (model.CreateResourceResult, error) {
@@ -670,6 +760,39 @@ func (s *fakeCreateResourceStore) RecordOperationLog(ctx context.Context, input 
 	return nil
 }
 
+func (s *fakeCreateResourceStore) CreateResourceContentAuditTasks(ctx context.Context, resourceID string, tasks []model.ResourceContentAuditTaskInput) error {
+	s.auditTasks = append([]model.ResourceContentAuditTaskInput(nil), tasks...)
+	return nil
+}
+
+func (s *fakeCreateResourceStore) PublishResourceAfterAudit(ctx context.Context, resourceID string) (model.ReviewResourceResult, error) {
+	s.publishedResourceID = resourceID
+	if s.publishErr != nil {
+		return model.ReviewResourceResult{}, s.publishErr
+	}
+	return model.ReviewResourceResult{ID: resourceID, Status: model.ResourceStatusPublished}, nil
+}
+
+func (s *fakeCreateResourceStore) RejectResourceAfterAudit(ctx context.Context, resourceID string, reason string) (model.ReviewResourceResult, error) {
+	s.rejectedResourceID = resourceID
+	s.rejectReason = reason
+	if s.rejectErr != nil {
+		return model.ReviewResourceResult{}, s.rejectErr
+	}
+	return model.ReviewResourceResult{ID: resourceID, Status: model.ResourceStatusRejected}, nil
+}
+
 func (s *fakeCreateResourceStore) SubmitResourceForReview(ctx context.Context, resourceID string) (model.SubmitResourceResult, error) {
 	return model.SubmitResourceResult{ID: resourceID, Status: "pending"}, nil
+}
+
+type fakeContentAuditor struct {
+	input  ContentAuditInput
+	result ContentAuditResult
+	err    error
+}
+
+func (a *fakeContentAuditor) AuditResource(ctx context.Context, input ContentAuditInput) (ContentAuditResult, error) {
+	a.input = input
+	return a.result, a.err
 }

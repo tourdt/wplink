@@ -79,8 +79,8 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 	if store.created.Title != "女童春款卫衣库存" || store.created.ContactName != "周经理" {
 		t.Fatalf("created input = %#v, want mapped publish fields", store.created)
 	}
-	if !store.created.ConsumePublishQuota {
-		t.Fatalf("consumePublishQuota = false, want pending resource to consume publish quota")
+	if store.created.ConsumePublishQuota {
+		t.Fatalf("consumePublishQuota = true, want publish quota consumed only after auto audit publish")
 	}
 
 	submitRec := httptest.NewRecorder()
@@ -100,6 +100,14 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 	}
 	if len(pendingData["items"].([]interface{})) != 1 {
 		t.Fatalf("pending items = %#v, want one item", pendingData["items"])
+	}
+
+	adminListRec := httptest.NewRecorder()
+	adminListReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/resources?cityCode=zhili&status=published&page=2&pageSize=5", nil)
+	router.ServeHTTP(adminListRec, adminListReq)
+	_ = decodeEnvelopeData(t, adminListRec, http.StatusOK)
+	if store.pendingFilter.CityCode != "zhili" || store.pendingFilter.Status != model.ResourceStatusPublished || store.pendingFilter.Page != 2 || store.pendingFilter.PageSize != 5 {
+		t.Fatalf("admin resource filter = %#v, want published resources", store.pendingFilter)
 	}
 
 	reviewRec := httptest.NewRecorder()
@@ -198,6 +206,29 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 	}
 	if myItem["coverUrl"] != "https://img.example.com/resource-cover.jpg" {
 		t.Fatalf("my coverUrl = %#v, want compact list cover", myItem["coverUrl"])
+	}
+}
+
+func TestResourceAPIRouterHandlesWechatContentAuditMediaCallback(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		auditCompletion: model.ResourceContentAuditTaskCompletion{ResourceID: "resource-1"},
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat/content-audit/media-callback", strings.NewReader(`{
+		"trace_id":"trace-media",
+		"errcode":0,
+		"result":{"suggest":"pass","label":100}
+	}`))
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	if data["status"] != model.ResourceStatusPublished {
+		t.Fatalf("callback data = %#v, want published", data)
+	}
+	if store.completedAuditInput.TraceID != "trace-media" || store.publishedAuditResourceID != "resource-1" {
+		t.Fatalf("completedAuditInput = %#v publishedAuditResourceID = %q, want completed and published", store.completedAuditInput, store.publishedAuditResourceID)
 	}
 }
 
@@ -672,6 +703,11 @@ type fakeResourceAPIStore struct {
 	resourceStatuses                 map[string]string
 	updatedResourceID                string
 	deletedResourceID                string
+	completedAuditInput              model.ResourceContentAuditTaskResultInput
+	auditCompletion                  model.ResourceContentAuditTaskCompletion
+	publishedAuditResourceID         string
+	rejectedAuditResourceID          string
+	auditRejectReason                string
 }
 
 var _ ResourceAPIStore = (*fakeResourceAPIStore)(nil)
@@ -704,6 +740,25 @@ func (s *fakeResourceAPIStore) UpdateResourceDraft(ctx context.Context, resource
 
 func (s *fakeResourceAPIStore) SubmitResourceForReview(ctx context.Context, resourceID string) (model.SubmitResourceResult, error) {
 	return model.SubmitResourceResult{ID: resourceID, Status: model.ResourceStatusPending}, nil
+}
+
+func (s *fakeResourceAPIStore) CompleteResourceContentAuditTask(ctx context.Context, input model.ResourceContentAuditTaskResultInput) (model.ResourceContentAuditTaskCompletion, error) {
+	s.completedAuditInput = input
+	if s.auditCompletion.ResourceID == "" {
+		return model.ResourceContentAuditTaskCompletion{ResourceID: "resource-1"}, nil
+	}
+	return s.auditCompletion, nil
+}
+
+func (s *fakeResourceAPIStore) PublishResourceAfterAudit(ctx context.Context, resourceID string) (model.ReviewResourceResult, error) {
+	s.publishedAuditResourceID = resourceID
+	return model.ReviewResourceResult{ID: resourceID, Status: model.ResourceStatusPublished}, nil
+}
+
+func (s *fakeResourceAPIStore) RejectResourceAfterAudit(ctx context.Context, resourceID string, reason string) (model.ReviewResourceResult, error) {
+	s.rejectedAuditResourceID = resourceID
+	s.auditRejectReason = reason
+	return model.ReviewResourceResult{ID: resourceID, Status: model.ResourceStatusRejected}, nil
 }
 
 func (s *fakeResourceAPIStore) ListPendingResources(ctx context.Context, filter model.ListPendingResourcesFilter) (model.ListPendingResourcesResult, error) {

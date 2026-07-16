@@ -5,6 +5,7 @@ import AdminLayout from '../layouts/AdminLayout.vue'
 const LoginView = () => import('../views/LoginView.vue')
 const DashboardView = () => import('../views/DashboardView.vue')
 const ResourceReviewView = () => import('../views/ResourceReviewView.vue')
+const ResourceReportView = () => import('../views/ResourceReportView.vue')
 const MerchantView = () => import('../views/MerchantView.vue')
 const VerificationView = () => import('../views/VerificationView.vue')
 const EntitlementView = () => import('../views/EntitlementView.vue')
@@ -31,6 +32,7 @@ const routes = [
     children: [
       { path: 'dashboard', name: 'dashboard', component: DashboardView },
       { path: 'resources/pending', name: 'resourceReview', component: ResourceReviewView },
+      { path: 'resource-reports', name: 'resourceReports', component: ResourceReportView },
       { path: 'merchants', name: 'merchants', component: MerchantView },
       { path: 'verifications', name: 'verifications', component: VerificationView },
       { path: 'entitlements', name: 'entitlements', component: EntitlementView },

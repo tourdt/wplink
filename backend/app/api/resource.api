@@ -258,6 +258,18 @@ type ContactEventResp {
 	Wechat  string `json:"wechat,optional"`
 }
 
+type ReportResourceReq {
+	ReasonCode string                 `json:"reasonCode"`
+	ReasonText string                 `json:"reasonText,optional"`
+	Evidence   map[string]interface{} `json:"evidence,optional"`
+}
+
+type ReportResourceResp {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
 type CreateContactUnlockOrderReq {
 	Action           string `json:"action,optional"`
 	ViewerMerchantId string `json:"viewerMerchantId,optional"`
@@ -320,6 +332,9 @@ service wplink-api {
 
 	@handler GetResource
 	get /resources/:resourceId returns (ResourceDetailResp)
+
+	@handler ReportResource
+	post /resources/:resourceId/reports (ReportResourceReq) returns (ReportResourceResp)
 
 	@handler RecordResourceDetailView
 	post /resources/:resourceId/detail-view returns (DetailViewResp)

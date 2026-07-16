@@ -32,8 +32,12 @@ func TestValidateForProductionAcceptsRequiredConfig(t *testing.T) {
 		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
 		UserAuth:    UserAuthConfig{TokenSecret: "user-secret", TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
-		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
-		Log:         defaultProductionLogConfig(),
+		ContentAudit: ContentAuditConfig{
+			Enabled:      true,
+			MediaEnabled: true,
+		},
+		SMS: SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
+		Log: defaultProductionLogConfig(),
 		Storage: StorageConfig{
 			Provider:            "qiniu-kodo",
 			Endpoint:            "https://upload-z2.qiniup.com",
@@ -101,6 +105,16 @@ func TestValidateForProductionRejectsWechatPayDevMock(t *testing.T) {
 	}
 }
 
+func TestValidateForProductionRequiresContentAudit(t *testing.T) {
+	cfg := requiredProductionConfig()
+	cfg.ContentAudit.MediaEnabled = false
+
+	err := ValidateForProduction(cfg)
+	if err == nil || !strings.Contains(err.Error(), "ContentAudit.MediaEnabled") {
+		t.Fatalf("ValidateForProduction() error = %v, want require media content audit", err)
+	}
+}
+
 func TestValidateForProductionRejectsAdminMasterPassword(t *testing.T) {
 	cfg := requiredProductionConfig()
 	cfg.AdminAuth.MasterPassword = "a123456"
@@ -164,8 +178,12 @@ func requiredProductionConfig() Config {
 		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
 		UserAuth:    UserAuthConfig{TokenSecret: "user-secret", TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
-		SMS:         SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
-		Log:         defaultProductionLogConfig(),
+		ContentAudit: ContentAuditConfig{
+			Enabled:      true,
+			MediaEnabled: true,
+		},
+		SMS: SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
+		Log: defaultProductionLogConfig(),
 		Storage: StorageConfig{
 			Provider:            "qiniu-kodo",
 			Endpoint:            "https://upload-z2.qiniup.com",

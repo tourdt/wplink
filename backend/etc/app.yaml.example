@@ -33,6 +33,15 @@ Wechat:
   AppSecret: "${WECHAT_APP_SECRET}"
   AllowDevCode: true
 
+ContentAudit:
+  Enabled: false
+  TextScene: 3
+  # 图片审核是微信异步回调能力，生产需配置回调到 /api/v1/wechat/content-audit/media-callback。
+  MediaEnabled: false
+  MediaScene: 3
+  RequestTimeout: 5s
+  MaxTextChars: 2500
+
 WechatPay:
   Enabled: false
   DevMockEnabled: true

@@ -136,6 +136,14 @@ export function recordResourceContact(resourceId, action) {
   })
 }
 
+export function reportResource(resourceId, data) {
+  return request({
+    url: `/api/v1/resources/${resourceId}/reports`,
+    method: 'POST',
+    data,
+  })
+}
+
 export function createContactUnlockOrder(resourceId, data = {}) {
   return request({
     url: `/api/v1/resources/${resourceId}/contact-unlock-orders`,

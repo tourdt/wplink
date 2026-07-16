@@ -14,12 +14,14 @@ type PendingResourceStore interface {
 type ListPendingResourcesReq struct {
 	CityCode string
 	TypeCode string
+	Status   string
 	Page     int64
 	PageSize int64
 }
 
 type PendingResourceItem struct {
 	ID           string `json:"id"`
+	Status       string `json:"status"`
 	Title        string `json:"title"`
 	TypeCode     string `json:"typeCode"`
 	MerchantName string `json:"merchantName"`
@@ -42,10 +44,19 @@ func NewListPendingResourcesLogic(store PendingResourceStore) *ListPendingResour
 }
 
 func (l *ListPendingResourcesLogic) ListPendingResources(ctx context.Context, req ListPendingResourcesReq) (ListPendingResourcesResp, error) {
+	req.Status = model.ResourceStatusPending
+	return l.listResources(ctx, req)
+}
+
+func (l *ListPendingResourcesLogic) ListAdminResources(ctx context.Context, req ListPendingResourcesReq) (ListPendingResourcesResp, error) {
+	return l.listResources(ctx, req)
+}
+
+func (l *ListPendingResourcesLogic) listResources(ctx context.Context, req ListPendingResourcesReq) (ListPendingResourcesResp, error) {
 	result, err := l.store.ListPendingResources(ctx, model.ListPendingResourcesFilter{
 		CityCode: strings.TrimSpace(req.CityCode),
 		TypeCode: strings.TrimSpace(req.TypeCode),
-		Status:   model.ResourceStatusPending,
+		Status:   strings.TrimSpace(req.Status),
 		Page:     req.Page,
 		PageSize: req.PageSize,
 	})
@@ -57,6 +68,7 @@ func (l *ListPendingResourcesLogic) ListPendingResources(ctx context.Context, re
 	for _, item := range result.Items {
 		items = append(items, PendingResourceItem{
 			ID:           item.ID,
+			Status:       item.Status,
 			Title:        item.Title,
 			TypeCode:     item.TypeCode,
 			MerchantName: item.MerchantName,

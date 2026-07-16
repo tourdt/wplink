@@ -10,7 +10,7 @@ import (
 func TestListPendingResourcesPassesPendingStatus(t *testing.T) {
 	store := &fakePendingResourceStore{
 		result: model.ListPendingResourcesResult{
-			Items: []model.PendingResourceItem{{ID: "resource-1", Title: "待审核库存", TypeCode: "inventory", MerchantName: "织里样板童装厂"}},
+			Items: []model.PendingResourceItem{{ID: "resource-1", Status: model.ResourceStatusPending, Title: "待审核库存", TypeCode: "inventory", MerchantName: "织里样板童装厂"}},
 			Page:  1, PageSize: 20, Total: 1,
 		},
 	}
@@ -26,6 +26,28 @@ func TestListPendingResourcesPassesPendingStatus(t *testing.T) {
 	}
 	if len(resp.Items) != 1 || resp.Items[0].Title != "待审核库存" {
 		t.Fatalf("items = %#v, want pending resource", resp.Items)
+	}
+}
+
+func TestListAdminResourcesAllowsAllStatuses(t *testing.T) {
+	store := &fakePendingResourceStore{
+		result: model.ListPendingResourcesResult{
+			Items: []model.PendingResourceItem{{ID: "resource-1", Status: model.ResourceStatusPublished, Title: "已发布库存", TypeCode: "inventory", MerchantName: "织里样板童装厂"}},
+			Page:  1, PageSize: 20, Total: 1,
+		},
+	}
+	logic := NewListPendingResourcesLogic(store)
+
+	resp, err := logic.ListAdminResources(context.Background(), ListPendingResourcesReq{CityCode: "zhili"})
+	if err != nil {
+		t.Fatalf("ListAdminResources() error = %v", err)
+	}
+
+	if store.filter.Status != "" {
+		t.Fatalf("filter status = %q, want all statuses", store.filter.Status)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Status != model.ResourceStatusPublished {
+		t.Fatalf("items = %#v, want published resource", resp.Items)
 	}
 }
 

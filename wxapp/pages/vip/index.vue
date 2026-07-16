@@ -38,7 +38,11 @@
             <text class="pack-meta">{{ packMetaText(item) }}</text>
           </view>
           <view class="pack-action">
-            <text class="pack-price">{{ packPriceText(item) }}</text>
+            <view class="pack-price-line">
+              <text v-if="packSaleLabel(item)" class="sale-label pack-sale-label">{{ packSaleLabel(item) }}</text>
+              <text class="pack-price">{{ packPriceText(item) }}</text>
+            </view>
+            <text v-if="isPackDiscounted(item)" class="standard-price pack-standard-price">{{ formatPrice(item.standardPriceCent) }}</text>
             <button class="pack-button" :disabled="payingPackCode === item.code" @click="openQuotaPack(item)">
               {{ payingPackCode === item.code ? '购买中' : packActionText(item) }}
             </button>
@@ -72,8 +76,8 @@ const activeTab = ref('vip')
 const paying = ref(false)
 const payingPackCode = ref('')
 const fallbackQuotaPacks = [
-  { code: 'publish_5', name: '发布次数包', standardPriceCent: 2500, salePriceCent: 2500, actionText: '¥25 购买', description: '临时多发供需', benefits: { publishQuota: 5 } },
-  { code: 'refresh_10', name: '刷新次数包', standardPriceCent: 1900, salePriceCent: 1900, actionText: '¥19 购买', description: '让信息回到前面', benefits: { refreshQuota: 10 } },
+  { code: 'publish_5', name: '发布次数包', standardPriceCent: 2500, salePriceCent: 2500, actionText: '¥25 购买', description: '临时多发供需', saleLabel: '限时特价', benefits: { publishQuota: 5 } },
+  { code: 'refresh_10', name: '刷新次数包', standardPriceCent: 1900, salePriceCent: 1900, actionText: '¥19 购买', description: '让信息回到前面', saleLabel: '限时特价', benefits: { refreshQuota: 10 } },
 ]
 
 const displayPlans = computed(() => {
@@ -217,6 +221,16 @@ function isTopVoucherPack(item) {
 
 function packPriceText(item) {
   return formatPrice(item.salePriceCent || item.standardPriceCent)
+}
+
+function packSaleLabel(item) {
+  return item.saleLabel || ''
+}
+
+function isPackDiscounted(item) {
+  const salePriceCent = Number(item.salePriceCent || 0)
+  const standardPriceCent = Number(item.standardPriceCent || 0)
+  return salePriceCent > 0 && standardPriceCent > 0 && salePriceCent < standardPriceCent
 }
 
 function packActionText(item) {
@@ -410,6 +424,23 @@ function fallbackPlan(code, name, durationMonths, standardPriceCent, salePriceCe
   color: $wplink-primary;
   font-size: 32rpx;
   font-weight: 700;
+  text-align: right;
+}
+
+.pack-price-line {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8rpx;
+  min-width: 0;
+}
+
+.pack-sale-label {
+  padding: 4rpx 10rpx;
+  font-size: 22rpx;
+}
+
+.pack-standard-price {
   text-align: right;
 }
 

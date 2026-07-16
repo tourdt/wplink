@@ -9,6 +9,8 @@ import (
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type GetResourceStore interface {
@@ -78,7 +80,8 @@ func (l *GetResourceLogic) GetResource(ctx context.Context, resourceID string) (
 			// 详情页只展示已发布且未过期资源，查不到时统一按下架/不存在处理，避免把数据库空结果暴露成 500。
 			return ResourceDetailResp{}, errx.New(errx.CodeResourceNotFound, "资源不存在或已下架")
 		}
-		return ResourceDetailResp{}, err
+		logx.Errorf("加载公开资源详情失败: resourceId=%s err=%+v", resourceID, err)
+		return ResourceDetailResp{}, errx.New(errx.CodeInternalError, "资源详情加载失败，请稍后重试")
 	}
 	return resourceDetailRespFromModel(detail), nil
 }

@@ -8,12 +8,14 @@ import (
 )
 
 const (
-	ResourceStatusDraft     = "draft"
-	ResourceStatusPending   = "pending"
-	ResourceStatusPublished = "published"
-	ResourceStatusRejected  = "rejected"
-	ResourceStatusTakenDown = "taken_down"
-	ResourceStatusExpired   = "expired"
+	ResourceStatusDraft        = "draft"
+	ResourceStatusPending      = "pending"
+	ResourceStatusManualReview = "manual_review"
+	ResourceStatusAuditRetry   = "audit_retry"
+	ResourceStatusPublished    = "published"
+	ResourceStatusRejected     = "rejected"
+	ResourceStatusTakenDown    = "taken_down"
+	ResourceStatusExpired      = "expired"
 
 	ResourceDirectionSupply = "supply"
 	ResourceDirectionDemand = "demand"
@@ -118,6 +120,46 @@ type CreateResourceResult struct {
 type SubmitResourceResult struct {
 	ID     string
 	Status string
+}
+
+type ResourceAuditSnapshot struct {
+	ID            string
+	MerchantID    string
+	TypeCode      string
+	OpenID        string
+	Title         string
+	Category      string
+	District      string
+	PriceText     string
+	QuantityText  string
+	Description   string
+	Attributes    JSONMap
+	Tags          []string
+	Images        []string
+	ContactName   string
+	ContactWechat string
+}
+
+type ResourceContentAuditTaskInput struct {
+	TraceID   string
+	AuditType string
+	MediaURL  string
+}
+
+type ResourceContentAuditTaskResultInput struct {
+	TraceID    string
+	Status     string
+	Suggest    string
+	Label      int64
+	Reason     string
+	RawPayload JSONMap
+}
+
+type ResourceContentAuditTaskCompletion struct {
+	ResourceID    string
+	PendingCount  int64
+	RejectedCount int64
+	FailedCount   int64
 }
 
 type ResourceMerchantBrief struct {
@@ -359,6 +401,7 @@ type ListPendingResourcesFilter struct {
 
 type PendingResourceItem struct {
 	ID           string
+	Status       string
 	Title        string
 	TypeCode     string
 	MerchantName string
@@ -458,7 +501,7 @@ WHERE r.merchant_id = $1
   AND r.deleted_at IS NULL
   AND (
     $2 = ''
-    OR ($2 = 'needs_action' AND r.status IN ('draft', 'pending', 'rejected'))
+    OR ($2 = 'needs_action' AND r.status IN ('draft', 'pending', 'manual_review', 'audit_retry', 'rejected'))
     OR ($2 = 'showing' AND r.status = 'published' AND r.dealt_at IS NULL AND (r.expires_at IS NULL OR r.expires_at > now()))
     OR ($2 = 'ended' AND (r.status IN ('expired', 'taken_down') OR r.dealt_at IS NOT NULL OR (r.expires_at IS NOT NULL AND r.expires_at <= now())))
     OR ($2 = 'expiring_soon' AND r.status = 'published' AND r.expires_at IS NOT NULL AND r.expires_at <= now() + interval '3 days' AND r.expires_at > now())
@@ -673,23 +716,190 @@ RETURNING id::text, status
 func (m *ResourceModel) SubmitResourceForReview(ctx context.Context, resourceID string) (SubmitResourceResult, error) {
 	var result SubmitResourceResult
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
-		var merchantID string
 		var commercialRules JSONMap
-		// 草稿提交会进入审核队列，发布策略和状态变更必须在同一事务内判断，避免分类暂停或额度不足时资源进入审核。
+		// 草稿提交只进入自动内容审核等待态；发布额度在自动审核通过并真正上架时扣减，避免图片异步审核失败后误扣额度。
+		var merchantID string
 		if err := tx.QueryRowContext(ctx, submitResourceForReviewLockSQL, resourceID).Scan(&merchantID, &commercialRules); err != nil {
 			return err
 		}
 		switch PublishModeFromCommercialRules(commercialRules) {
 		case ResourcePublishModeDisabled:
 			return ErrPublishDisabled
+		}
+		return tx.QueryRowContext(ctx, submitResourceForReviewUpdateSQL, resourceID).Scan(&result.ID, &result.Status)
+	})
+	return result, err
+}
+
+func (m *ResourceModel) GetResourceAuditSnapshot(ctx context.Context, resourceID string) (ResourceAuditSnapshot, error) {
+	var snapshot ResourceAuditSnapshot
+	var tags JSONStringSlice
+	var images JSONStringSlice
+	err := m.db.QueryRowContext(ctx, `
+SELECT
+  r.id::text,
+  r.merchant_id::text,
+  r.type_code,
+  COALESCE(u.wechat_openid, ''),
+  r.title,
+  r.category,
+  COALESCE(r.district, ''),
+  COALESCE(r.price_text, ''),
+  COALESCE(r.quantity_text, ''),
+  COALESCE(r.description, ''),
+  r.attributes,
+  r.tags,
+  r.images,
+  COALESCE(r.contact_name, ''),
+  COALESCE(r.contact_wechat, '')
+FROM resources r
+LEFT JOIN users u ON u.id = r.created_by AND u.deleted_at IS NULL
+WHERE r.id = $1
+  AND r.status IN ('draft', 'pending')
+  AND r.deleted_at IS NULL
+`, resourceID).Scan(
+		&snapshot.ID,
+		&snapshot.MerchantID,
+		&snapshot.TypeCode,
+		&snapshot.OpenID,
+		&snapshot.Title,
+		&snapshot.Category,
+		&snapshot.District,
+		&snapshot.PriceText,
+		&snapshot.QuantityText,
+		&snapshot.Description,
+		&snapshot.Attributes,
+		&tags,
+		&images,
+		&snapshot.ContactName,
+		&snapshot.ContactWechat,
+	)
+	snapshot.Tags = []string(tags)
+	snapshot.Images = []string(images)
+	return snapshot, err
+}
+
+func (m *ResourceModel) CreateResourceContentAuditTasks(ctx context.Context, resourceID string, tasks []ResourceContentAuditTaskInput) error {
+	return WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM resource_content_audit_tasks WHERE resource_id = $1`, resourceID); err != nil {
+			return err
+		}
+		for _, task := range tasks {
+			if _, err := tx.ExecContext(ctx, `
+INSERT INTO resource_content_audit_tasks (resource_id, trace_id, audit_type, media_url, status)
+VALUES ($1, $2, $3, $4, 'pending')
+`, resourceID, task.TraceID, task.AuditType, task.MediaURL); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (m *ResourceModel) CompleteResourceContentAuditTask(ctx context.Context, input ResourceContentAuditTaskResultInput) (ResourceContentAuditTaskCompletion, error) {
+	var completion ResourceContentAuditTaskCompletion
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		if err := tx.QueryRowContext(ctx, `
+UPDATE resource_content_audit_tasks
+SET
+  status = $2,
+  suggest = $3,
+  label = NULLIF($4, 0),
+  reason = $5,
+  raw_payload = $6,
+  completed_at = now(),
+  updated_at = now()
+WHERE trace_id = $1
+RETURNING resource_id::text
+`, input.TraceID, input.Status, input.Suggest, input.Label, input.Reason, input.RawPayload).Scan(&completion.ResourceID); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, `
+SELECT
+  COUNT(*) FILTER (WHERE status = 'pending'),
+  COUNT(*) FILTER (WHERE status = 'rejected'),
+  COUNT(*) FILTER (WHERE status = 'failed')
+FROM resource_content_audit_tasks
+WHERE resource_id = $1
+`, completion.ResourceID).Scan(&completion.PendingCount, &completion.RejectedCount, &completion.FailedCount)
+	})
+	return completion, err
+}
+
+func (m *ResourceModel) PublishResourceAfterAudit(ctx context.Context, resourceID string) (ReviewResourceResult, error) {
+	now := time.Now().UTC()
+	var result ReviewResourceResult
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		var merchantID string
+		var title string
+		var commercialRules JSONMap
+		if err := tx.QueryRowContext(ctx, `
+SELECT r.merchant_id::text, r.title, rtc.commercial_rules
+FROM resources r
+JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
+WHERE r.id = $1
+  AND r.status = 'pending'
+  AND r.deleted_at IS NULL
+FOR UPDATE
+`, resourceID).Scan(&merchantID, &title, &commercialRules); err != nil {
+			return err
+		}
+		switch PublishModeFromCommercialRules(commercialRules) {
+		case ResourcePublishModeDisabled:
+			return ErrPublishDisabled
 		case ResourcePublishModeFree:
-			// 免费发布分类不消耗商家的发布额度，后台配置变更后提交草稿立即按新策略生效。
+			// 免费发布分类通过自动审核后直接上架，不消耗发布额度。
 		default:
 			if err := consumePublishQuotaTx(ctx, tx, merchantID, resourceID); err != nil {
 				return err
 			}
 		}
-		return tx.QueryRowContext(ctx, submitResourceForReviewUpdateSQL, resourceID).Scan(&result.ID, &result.Status)
+		if err := tx.QueryRowContext(ctx, `
+UPDATE resources
+SET
+  status = 'published',
+  published_at = $2,
+  refreshed_at = $2,
+  expires_at = $2 + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int),
+  reject_reason = NULL,
+  updated_at = $2
+FROM resource_type_configs rtc
+WHERE resources.id = $1
+  AND resources.status = 'pending'
+  AND rtc.id = resources.resource_type_config_id
+RETURNING resources.id::text, resources.status
+`, resourceID, now).Scan(&result.ID, &result.Status); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `
+INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
+VALUES ($1, 'resource_review', 'resource_auto_approve', $2, '资源已自动发布', $3, $4, 'unread')
+`, "merchant:"+merchantID, resourceID, title+" 已通过内容审核并公开展示", MerchantMyResourcesTargetURL(merchantID))
+		return err
+	})
+	return result, err
+}
+
+func (m *ResourceModel) RejectResourceAfterAudit(ctx context.Context, resourceID string, reason string) (ReviewResourceResult, error) {
+	var result ReviewResourceResult
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		var merchantID string
+		var title string
+		if err := tx.QueryRowContext(ctx, `
+UPDATE resources
+SET status = 'rejected', reject_reason = $2, updated_at = now()
+WHERE id = $1
+  AND status = 'pending'
+  AND deleted_at IS NULL
+RETURNING id::text, merchant_id::text, title, status
+`, resourceID, reason).Scan(&result.ID, &merchantID, &title, &result.Status); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `
+INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
+VALUES ($1, 'resource_review', 'resource_auto_reject', $2, '资源审核未通过', $3, $4, 'unread')
+`, "merchant:"+merchantID, resourceID, title+" "+reason, MerchantMyResourcesTargetURL(merchantID))
+		return err
 	})
 	return result, err
 }
@@ -1129,6 +1339,7 @@ func (m *ResourceModel) ListPendingResources(ctx context.Context, filter ListPen
 	rows, err := m.db.QueryContext(ctx, `
 SELECT
   r.id::text,
+  r.status,
   r.title,
   r.type_code,
   m.name,
@@ -1138,7 +1349,7 @@ FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
 JOIN city_stations cs ON cs.id = r.city_station_id
 WHERE r.deleted_at IS NULL
-  AND r.status = $1
+  AND ($1 = '' OR r.status = $1)
   AND ($2 = '' OR cs.code = $2)
   AND ($3 = '' OR r.type_code = $3)
 ORDER BY r.created_at DESC
@@ -1154,7 +1365,7 @@ LIMIT $4 OFFSET $5
 	for rows.Next() {
 		var item PendingResourceItem
 		var createdAt time.Time
-		if err := rows.Scan(&item.ID, &item.Title, &item.TypeCode, &item.MerchantName, &createdAt, &total); err != nil {
+		if err := rows.Scan(&item.ID, &item.Status, &item.Title, &item.TypeCode, &item.MerchantName, &createdAt, &total); err != nil {
 			return ListPendingResourcesResult{}, err
 		}
 		item.CreatedAt = createdAt.Format(time.RFC3339)
