@@ -6,9 +6,79 @@ type AdminLoginReq {
 }
 
 type AdminLoginResp {
-	Token string   `json:"token"`
-	UserId string   `json:"userId"`
-	Roles []string `json:"roles"`
+	Token   string   `json:"token"`
+	UserId  string   `json:"userId"`
+	Roles   []string `json:"roles"`
+	Modules []string `json:"modules"`
+}
+
+type AdminOperatorItem {
+	UserId      string   `json:"userId"`
+	LoginName   string   `json:"loginName"`
+	RealName    string   `json:"realName"`
+	Status      string   `json:"status"`
+	Roles       []string `json:"roles"`
+	CreatedAt   string   `json:"createdAt"`
+	LastLoginAt string   `json:"lastLoginAt,optional"`
+}
+
+type AdminListOperatorsReq {
+	Keyword  string `form:"keyword,optional"`
+	Role     string `form:"role,optional"`
+	Status   string `form:"status,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminListOperatorsResp {
+	Items    []AdminOperatorItem `json:"items"`
+	Page     int64               `json:"page"`
+	PageSize int64               `json:"pageSize"`
+	Total    int64               `json:"total"`
+}
+
+type AdminSaveOperatorReq {
+	LoginName string   `json:"loginName"`
+	RealName  string   `json:"realName"`
+	Password  string   `json:"password,optional"`
+	Roles     []string `json:"roles"`
+	Status    string   `json:"status,optional"`
+}
+
+type AdminUpdateOperatorStatusReq {
+	Status string `json:"status"`
+}
+
+type AdminSaveOperatorResp {
+	UserId  string `json:"userId"`
+	Message string `json:"message"`
+}
+
+type AdminModuleItem {
+	Code  string `json:"code"`
+	Label string `json:"label"`
+	Group string `json:"group"`
+}
+
+type AdminRoleModulePermissionItem {
+	RoleCode string   `json:"roleCode"`
+	RoleName string   `json:"roleName"`
+	Modules  []string `json:"modules"`
+}
+
+type AdminModulePermissionsResp {
+	Modules []AdminModuleItem               `json:"modules"`
+	Roles   []AdminRoleModulePermissionItem `json:"roles"`
+}
+
+type AdminUpdateRoleModulePermissionsReq {
+	Modules []string `json:"modules"`
+}
+
+type AdminUpdateRoleModulePermissionsResp {
+	RoleCode string   `json:"roleCode"`
+	Modules  []string `json:"modules"`
+	Message  string   `json:"message"`
 }
 
 type AdminDashboardOverviewReq {
@@ -520,6 +590,30 @@ type AdminSaveVIPConfigResp {
 service wplink-api {
 	@handler AdminLogin
 	post /auth/login (AdminLoginReq) returns (AdminLoginResp)
+}
+
+@server(
+	prefix: /api/v1/admin
+	group: adminpermission
+)
+service wplink-api {
+	@handler AdminListOperators
+	get /operators (AdminListOperatorsReq) returns (AdminListOperatorsResp)
+
+	@handler AdminCreateOperator
+	post /operators (AdminSaveOperatorReq) returns (AdminSaveOperatorResp)
+
+	@handler AdminUpdateOperator
+	post /operators/:userId (AdminSaveOperatorReq) returns (AdminSaveOperatorResp)
+
+	@handler AdminUpdateOperatorStatus
+	post /operators/:userId/status (AdminUpdateOperatorStatusReq) returns (AdminSaveOperatorResp)
+
+	@handler AdminListModulePermissions
+	get /module-permissions returns (AdminModulePermissionsResp)
+
+	@handler AdminUpdateRoleModulePermissions
+	post /module-permissions/:roleCode (AdminUpdateRoleModulePermissionsReq) returns (AdminUpdateRoleModulePermissionsResp)
 }
 
 @server(

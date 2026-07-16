@@ -17,6 +17,7 @@ const HotSearchKeywordView = () => import('../views/HotSearchKeywordView.vue')
 const SourcingMapView = () => import('../views/SourcingMapView.vue')
 const VIPConfigView = () => import('../views/VIPConfigView.vue')
 const GrowthCampaignView = () => import('../views/GrowthCampaignView.vue')
+const AdminPermissionView = () => import('../views/AdminPermissionView.vue')
 
 const routes = [
   {
@@ -30,20 +31,21 @@ const routes = [
     component: AdminLayout,
     redirect: '/dashboard',
     children: [
-      { path: 'dashboard', name: 'dashboard', component: DashboardView },
-      { path: 'resources/pending', name: 'resourceReview', component: ResourceReviewView },
-      { path: 'resource-reports', name: 'resourceReports', component: ResourceReportView },
-      { path: 'merchants', name: 'merchants', component: MerchantView },
-      { path: 'verifications', name: 'verifications', component: VerificationView },
-      { path: 'entitlements', name: 'entitlements', component: EntitlementView },
-      { path: 'banner-topics', name: 'bannerTopics', component: BannerTopicView },
-      { path: 'hot-search-keywords', name: 'hotSearchKeywords', component: HotSearchKeywordView },
-      { path: 'vip-configs', name: 'vipConfigs', component: VIPConfigView },
-      { path: 'growth-campaigns', name: 'growthCampaigns', component: GrowthCampaignView },
-      { path: 'sourcing-map', name: 'sourcingMap', component: SourcingMapView },
-      { path: 'resource-type-configs', name: 'resourceTypeConfigs', component: ResourceTypeConfigView },
-      { path: 'operation-logs', name: 'operationLogs', component: OperationLogView },
-      { path: 'search-logs', name: 'searchLogs', component: SearchLogView },
+      { path: 'dashboard', name: 'dashboard', component: DashboardView, meta: { moduleCode: 'dashboard' } },
+      { path: 'resources/pending', name: 'resourceReview', component: ResourceReviewView, meta: { moduleCode: 'resource_review' } },
+      { path: 'resource-reports', name: 'resourceReports', component: ResourceReportView, meta: { moduleCode: 'resource_reports' } },
+      { path: 'merchants', name: 'merchants', component: MerchantView, meta: { moduleCode: 'merchants' } },
+      { path: 'verifications', name: 'verifications', component: VerificationView, meta: { moduleCode: 'verification_review' } },
+      { path: 'entitlements', name: 'entitlements', component: EntitlementView, meta: { moduleCode: 'entitlements' } },
+      { path: 'banner-topics', name: 'bannerTopics', component: BannerTopicView, meta: { moduleCode: 'banner_topics' } },
+      { path: 'hot-search-keywords', name: 'hotSearchKeywords', component: HotSearchKeywordView, meta: { moduleCode: 'hot_search_keywords' } },
+      { path: 'vip-configs', name: 'vipConfigs', component: VIPConfigView, meta: { moduleCode: 'vip_configs' } },
+      { path: 'growth-campaigns', name: 'growthCampaigns', component: GrowthCampaignView, meta: { moduleCode: 'growth_campaigns' } },
+      { path: 'sourcing-map', name: 'sourcingMap', component: SourcingMapView, meta: { moduleCode: 'sourcing_map' } },
+      { path: 'resource-type-configs', name: 'resourceTypeConfigs', component: ResourceTypeConfigView, meta: { moduleCode: 'resource_type_configs' } },
+      { path: 'admin-permissions', name: 'adminPermissions', component: AdminPermissionView, meta: { moduleCode: 'admin_permissions', requiresSuperAdmin: true } },
+      { path: 'operation-logs', name: 'operationLogs', component: OperationLogView, meta: { moduleCode: 'operation_logs' } },
+      { path: 'search-logs', name: 'searchLogs', component: SearchLogView, meta: { moduleCode: 'search_logs' } },
     ],
   },
 ]
@@ -58,10 +60,19 @@ router.beforeEach((to) => {
   if (!to.meta.public && !auth.isLoggedIn) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
+  if ((to.meta.requiresSuperAdmin && !auth.isSuperAdmin) || !auth.canAccessModule(to.meta.moduleCode)) {
+    return { name: firstAccessibleRouteName(auth) }
+  }
   if (to.name === 'login' && auth.isLoggedIn) {
-    return { name: 'dashboard' }
+    return { name: firstAccessibleRouteName(auth) }
   }
   return true
 })
+
+function firstAccessibleRouteName(auth) {
+  const adminChildren = routes.find((route) => route.path === '/')?.children || []
+  const route = adminChildren.find((item) => !item.meta?.requiresSuperAdmin && auth.canAccessModule(item.meta?.moduleCode))
+  return route?.name || 'dashboard'
+}
 
 export default router

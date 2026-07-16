@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	adminlogic "wplink/backend/app/internal/logic/admin"
+	"wplink/backend/app/internal/logic/adminauth"
 	authlogic "wplink/backend/app/internal/logic/auth"
 	discoverylogic "wplink/backend/app/internal/logic/discovery"
 	entitlementlogic "wplink/backend/app/internal/logic/entitlement"
@@ -109,6 +110,10 @@ type AdminUtilityAPIStore interface {
 	task.ResourceLifecycleStore
 }
 
+type AdminPermissionAPIStore interface {
+	adminlogic.AdminPermissionStore
+}
+
 type MapAPIStore interface {
 	maplogic.PublicStore
 	maplogic.AdminStore
@@ -160,9 +165,110 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	if adminStore, ok := store.(AdminUtilityAPIStore); ok {
 		registerAdminUtilityRoutes(mux, adminStore, adminTokenService)
 	}
+	if adminPermissionStore, ok := store.(AdminPermissionAPIStore); ok {
+		registerAdminPermissionRoutes(mux, adminPermissionStore, adminTokenService)
+	}
 	if mapStore, ok := store.(MapAPIStore); ok {
 		registerMapRoutes(mux, mapStore, userTokenService, adminTokenService, permissionStore)
 	}
+}
+
+func registerAdminPermissionRoutes(mux *http.ServeMux, store AdminPermissionAPIStore, adminTokenService AdminTokenService) {
+	newLogic := func() *adminlogic.AdminPermissionLogic {
+		return adminlogic.NewAdminPermissionLogic(store, adminauth.BcryptPasswordHasher{})
+	}
+	mux.HandleFunc("GET /api/v1/admin/operators", func(w http.ResponseWriter, r *http.Request) {
+		actor, err := adminPermissionActorFromRequest(r, adminTokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		query := r.URL.Query()
+		resp, err := newLogic().ListOperators(r.Context(), adminlogic.ListAdminOperatorsReq{
+			Keyword:  query.Get("keyword"),
+			Role:     query.Get("role"),
+			Status:   query.Get("status"),
+			Page:     int64FromQuery(r, "page"),
+			PageSize: int64FromQuery(r, "pageSize"),
+		}, actor)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/operators", func(w http.ResponseWriter, r *http.Request) {
+		actor, err := adminPermissionActorFromRequest(r, adminTokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		var body adminlogic.SaveAdminOperatorReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := newLogic().CreateOperator(r.Context(), body, actor)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/operators/{userId}", func(w http.ResponseWriter, r *http.Request) {
+		actor, err := adminPermissionActorFromRequest(r, adminTokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		var body adminlogic.SaveAdminOperatorReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := newLogic().UpdateOperator(r.Context(), r.PathValue("userId"), body, actor)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/operators/{userId}/status", func(w http.ResponseWriter, r *http.Request) {
+		actor, err := adminPermissionActorFromRequest(r, adminTokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		var body adminlogic.UpdateAdminOperatorStatusReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := newLogic().UpdateOperatorStatus(r.Context(), r.PathValue("userId"), body, actor)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/admin/module-permissions", func(w http.ResponseWriter, r *http.Request) {
+		actor, err := adminPermissionActorFromRequest(r, adminTokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := newLogic().ListModulePermissions(r.Context(), actor)
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/admin/module-permissions/{roleCode}", func(w http.ResponseWriter, r *http.Request) {
+		actor, err := adminPermissionActorFromRequest(r, adminTokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		var body adminlogic.UpdateAdminRoleModulePermissionsReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := newLogic().UpdateRoleModulePermissions(r.Context(), r.PathValue("roleCode"), body, actor)
+		response.JSON(w, resp, err)
+	})
+}
+
+func adminPermissionActorFromRequest(r *http.Request, adminTokenService AdminTokenService) (adminlogic.AdminPermissionActor, error) {
+	subject, ok := adminSubjectFromBearerToken(r, adminTokenService)
+	if !ok {
+		return adminlogic.AdminPermissionActor{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
+	return adminlogic.AdminPermissionActor{
+		OperatorID: strings.TrimSpace(subject.UserID),
+		Roles:      append([]string(nil), subject.Roles...),
+	}, nil
 }
 
 func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, smsVerifier authlogic.SMSVerifier) {

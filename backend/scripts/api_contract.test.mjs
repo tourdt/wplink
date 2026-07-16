@@ -176,6 +176,42 @@ test('admin api contract exposes vip config endpoints', () => {
   }
 })
 
+test('admin api contract exposes admin permission endpoints', () => {
+  const adminApiSource = fs.readFileSync(path.join(apiDir, 'admin.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
+
+  for (const snippet of [
+    'type AdminOperatorItem',
+    'type AdminListOperatorsReq',
+    'type AdminSaveOperatorReq',
+    'type AdminModuleItem',
+    'type AdminModulePermissionsResp',
+    'type AdminUpdateRoleModulePermissionsReq',
+    'get /operators (AdminListOperatorsReq) returns (AdminListOperatorsResp)',
+    'post /operators (AdminSaveOperatorReq) returns (AdminSaveOperatorResp)',
+    'post /operators/:userId (AdminSaveOperatorReq) returns (AdminSaveOperatorResp)',
+    'post /operators/:userId/status (AdminUpdateOperatorStatusReq) returns (AdminSaveOperatorResp)',
+    'get /module-permissions returns (AdminModulePermissionsResp)',
+    'post /module-permissions/:roleCode (AdminUpdateRoleModulePermissionsReq) returns (AdminUpdateRoleModulePermissionsResp)',
+  ]) {
+    assert(adminApiSource.includes(snippet), `admin.api should contain ${snippet}`)
+  }
+
+  for (const snippet of [
+    'type AdminOperatorItem struct',
+    'type AdminListOperatorsReq struct',
+    'type AdminSaveOperatorReq struct',
+    'type AdminUpdateOperatorStatusReq struct',
+    'type AdminModuleItem struct',
+    'type AdminModulePermissionsResp struct',
+    'type AdminUpdateRoleModulePermissionsReq struct',
+  ]) {
+    assert(typesSource.includes(snippet), `types.go should contain ${snippet}`)
+  }
+  assert.match(adminApiSource, /Modules \[\]string `json:"modules"`/)
+  assert.match(typesSource, /Modules \[\]string `json:"modules"`/)
+})
+
 test('resource api exposes category commercial contact unlock contracts', () => {
   const resourceApiSource = fs.readFileSync(path.join(apiDir, 'resource.api'), 'utf8')
   const adminApiSource = fs.readFileSync(path.join(apiDir, 'admin.api'), 'utf8')

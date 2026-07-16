@@ -40,11 +40,47 @@ test('admin ui exposes vip config management entry', () => {
 
   assert.match(routeSource, /const VIPConfigView = \(\) => import\('\.\.\/views\/VIPConfigView\.vue'\)/)
   assert.match(routeSource, /path: 'vip-configs'/)
-  assert.match(layoutSource, /index="\/vip-configs"/)
-  assert.match(layoutSource, /<span>VIP 配置<\/span>/)
+  assert.match(layoutSource, /index: '\/vip-configs'[\s\S]*label: 'VIP 配置'[\s\S]*moduleCode: 'vip_configs'/)
   assert.match(apiSource, /\/api\/v1\/admin\/vip\/plans/)
   assert.match(apiSource, /\/api\/v1\/admin\/vip\/quota-packs/)
   assert.match(apiSource, /\/api\/v1\/admin\/vip\/promotions/)
+})
+
+test('admin ui exposes super admin permission management entry', () => {
+  const routeSource = fs.readFileSync(path.join(root, 'src/router/index.js'), 'utf8')
+  const layoutSource = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.vue'), 'utf8')
+  const apiSource = fs.readFileSync(path.join(root, 'src/api/adminPermission.js'), 'utf8')
+  const viewSource = fs.readFileSync(path.join(root, 'src/views/AdminPermissionView.vue'), 'utf8')
+  const authSource = fs.readFileSync(path.join(root, 'src/stores/auth.js'), 'utf8')
+
+  assert.match(routeSource, /const AdminPermissionView = \(\) => import\('\.\.\/views\/AdminPermissionView\.vue'\)/)
+  assert.match(routeSource, /path: 'admin-permissions'/)
+  assert.match(routeSource, /requiresSuperAdmin: true/)
+  assert.match(routeSource, /moduleCode: 'admin_permissions'/)
+  assert.match(layoutSource, /moduleCode: 'admin_permissions'/)
+  assert.match(layoutSource, /visibleMenuItems/)
+  assert.match(layoutSource, /index: '\/admin-permissions'[\s\S]*label: '管理员权限'[\s\S]*moduleCode: 'admin_permissions'/)
+  assert.match(apiSource, /\/api\/v1\/admin\/operators/)
+  assert.match(apiSource, /\/api\/v1\/admin\/module-permissions/)
+  assert.match(viewSource, /<h2>管理员权限<\/h2>/)
+  assert.match(viewSource, /updateAdminOperatorStatus/)
+  assert.match(viewSource, /平台运营可见模块/)
+  assert.match(viewSource, /updateAdminRoleModulePermissions/)
+  assert.match(authSource, /isSuperAdmin/)
+})
+
+test('admin navigation filters pages by configured module permissions', () => {
+  const routeSource = fs.readFileSync(path.join(root, 'src/router/index.js'), 'utf8')
+  const layoutSource = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.vue'), 'utf8')
+  const authSource = fs.readFileSync(path.join(root, 'src/stores/auth.js'), 'utf8')
+  const moduleSource = fs.readFileSync(path.join(root, 'src/common/adminModulePermissions.js'), 'utf8')
+
+  assert.match(routeSource, /auth\.canAccessModule\(to\.meta\.moduleCode\)/)
+  assert.match(routeSource, /firstAccessibleRouteName/)
+  assert.match(layoutSource, /auth\.canAccessModule\(item\.moduleCode\)/)
+  assert.match(authSource, /modules: data\.modules \|\| \[\]/)
+  assert.match(moduleSource, /defaultPlatformOperatorModules = \['resource_review', 'resource_reports', 'verification_review'\]/)
+  assert.match(moduleSource, /canAccessAdminModule/)
 })
 
 test('vip config page provides plan quota pack and promotion tabs', () => {
@@ -127,7 +163,7 @@ test('banner config unifies topic entry and uses selectable non-web targets', ()
   const layoutSource = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.vue'), 'utf8')
 
   assert.match(source, /<h2>首页运营位<\/h2>/)
-  assert.match(layoutSource, /<span>首页运营位<\/span>/)
+  assert.match(layoutSource, /index: '\/banner-topics'[\s\S]*label: '首页运营位'[\s\S]*moduleCode: 'banner_topics'/)
   assert.match(source, /v-if="form\.jumpType === 'webview'"/)
   assert.match(source, /v-else-if="form\.jumpType === 'internal'"/)
   assert.match(source, /internalPageOptions/)
@@ -273,7 +309,7 @@ test('hot search keywords are configurable from admin web', () => {
 
   assert.match(routeSource, /HotSearchKeywordView/)
   assert.match(routeSource, /hot-search-keywords/)
-  assert.match(layoutSource, /<span>热门搜索词<\/span>/)
+  assert.match(layoutSource, /index: '\/hot-search-keywords'[\s\S]*label: '热门搜索词'[\s\S]*moduleCode: 'hot_search_keywords'/)
   assert.match(apiSource, /\/api\/v1\/admin\/hot-search-keywords/)
   assert.match(viewSource, /<h2>热门搜索词<\/h2>/)
   assert.match(viewSource, /v-model="form\.keyword"/)
@@ -288,7 +324,7 @@ test('sourcing map admin is configurable from admin web', () => {
 
   assert.match(routeSource, /SourcingMapView/)
   assert.match(routeSource, /sourcing-map/)
-  assert.match(layoutSource, /<span>拿货地图<\/span>/)
+  assert.match(layoutSource, /index: '\/sourcing-map'[\s\S]*label: '拿货地图'[\s\S]*moduleCode: 'sourcing_map'/)
   assert.match(apiSource, /\/api\/v1\/admin\/map\/scenes/)
   assert.match(viewSource, /<h2>拿货地图<\/h2>/)
   assert.match(viewSource, /添加档口/)

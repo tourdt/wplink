@@ -11,8 +11,9 @@ func TestHMACAdminTokenIssuerIssuesSignedToken(t *testing.T) {
 	issuer := NewHMACAdminTokenIssuer("secret", time.Hour)
 
 	token, err := issuer.IssueAdminToken(context.Background(), AdminTokenSubject{
-		UserID: "user-1",
-		Roles:  []string{"platform_operator"},
+		UserID:  "user-1",
+		Roles:   []string{"platform_operator"},
+		Modules: []string{"resource_review"},
 	})
 	if err != nil {
 		t.Fatalf("IssueAdminToken() error = %v", err)
@@ -27,8 +28,9 @@ func TestHMACAdminTokenIssuerIssuesSignedToken(t *testing.T) {
 func TestHMACAdminTokenIssuerParsesSignedToken(t *testing.T) {
 	issuer := NewHMACAdminTokenIssuer("secret", time.Hour)
 	token, err := issuer.IssueAdminToken(context.Background(), AdminTokenSubject{
-		UserID: "user-1",
-		Roles:  []string{"platform_operator"},
+		UserID:  "user-1",
+		Roles:   []string{"platform_operator"},
+		Modules: []string{"resource_review"},
 	})
 	if err != nil {
 		t.Fatalf("IssueAdminToken() error = %v", err)
@@ -41,6 +43,9 @@ func TestHMACAdminTokenIssuerParsesSignedToken(t *testing.T) {
 
 	if subject.UserID != "user-1" || len(subject.Roles) != 1 || subject.Roles[0] != "platform_operator" {
 		t.Fatalf("subject = %#v, want issued subject", subject)
+	}
+	if len(subject.Modules) != 1 || subject.Modules[0] != "resource_review" {
+		t.Fatalf("modules = %#v, want issued modules", subject.Modules)
 	}
 }
 

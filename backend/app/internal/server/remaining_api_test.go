@@ -11,11 +11,16 @@ import (
 
 	paymentlogic "wplink/backend/app/internal/logic/payment"
 	"wplink/backend/app/internal/model"
+	"wplink/backend/app/internal/permission"
 	"wplink/backend/app/internal/session"
 )
 
 func TestAPIRouterRequiresAdminTokenWhenConfigured(t *testing.T) {
-	tokenService := &fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}
+	tokenService := &fakeAdminTokenService{subject: session.AdminTokenSubject{
+		UserID:  "admin-1",
+		Roles:   []string{permission.RolePlatformOperator},
+		Modules: []string{permission.AdminModuleDashboard},
+	}}
 	router := NewAPIRouter(newFakeFullAPIStore(), WithAdminTokenService(tokenService))
 
 	unauthorizedRec := httptest.NewRecorder()
@@ -30,6 +35,23 @@ func TestAPIRouterRequiresAdminTokenWhenConfigured(t *testing.T) {
 	authorizedReq.Header.Set("Authorization", "Bearer admin-token")
 	router.ServeHTTP(authorizedRec, authorizedReq)
 	decodeEnvelopeData(t, authorizedRec, http.StatusOK)
+}
+
+func TestAPIRouterRejectsAdminModuleOutsideTokenPermissions(t *testing.T) {
+	router := NewAPIRouter(newFakeFullAPIStore(), WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{
+		UserID:  "admin-1",
+		Roles:   []string{permission.RolePlatformOperator},
+		Modules: []string{permission.AdminModuleResourceReview},
+	}}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/dashboard/overview", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", rec.Code, rec.Body.String())
+	}
 }
 
 func TestAPIRouterUsesTokenSubjectForPrivateUserRoutes(t *testing.T) {
@@ -191,6 +213,67 @@ func TestAPIRouterDoesNotExposeManualMatchingRoutes(t *testing.T) {
 				t.Fatalf("status = %d body = %s, want not found", rec.Code, rec.Body.String())
 			}
 		})
+	}
+}
+
+func TestAPIRouterAdminPermissionRoutesRequireSuperAdmin(t *testing.T) {
+	store := newFakeFullAPIStore()
+	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/operators", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s, want forbidden", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAPIRouterAdminPermissionRoutesUseTokenActor(t *testing.T) {
+	store := newFakeFullAPIStore()
+	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "super-1", Roles: []string{permission.RoleSuperAdmin}}}))
+
+	listRec := httptest.NewRecorder()
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/operators?keyword=%E8%BF%90%E8%90%A5&role=platform_operator&status=enabled&page=2&pageSize=5", nil)
+	listReq.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(listRec, listReq)
+	decodeEnvelopeData(t, listRec, http.StatusOK)
+	if store.adminOperatorFilter.Keyword != "运营" || store.adminOperatorFilter.Role != "platform_operator" || store.adminOperatorFilter.Page != 2 {
+		t.Fatalf("admin operator filter = %#v, want query filter from request", store.adminOperatorFilter)
+	}
+
+	createRec := httptest.NewRecorder()
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/admin/operators", strings.NewReader(`{
+		"loginName":"18800000001",
+		"realName":"运营一号",
+		"password":"secret123",
+		"roles":["platform_operator"],
+		"status":"enabled"
+	}`))
+	createReq.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(createRec, createReq)
+	decodeEnvelopeData(t, createRec, http.StatusOK)
+	if store.createAdminOperatorInput.OperatorID != "super-1" {
+		t.Fatalf("create admin operator id = %q, want token user", store.createAdminOperatorInput.OperatorID)
+	}
+
+	moduleListRec := httptest.NewRecorder()
+	moduleListReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/module-permissions", nil)
+	moduleListReq.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(moduleListRec, moduleListReq)
+	moduleData := decodeEnvelopeData(t, moduleListRec, http.StatusOK)
+	if _, ok := moduleData["modules"].([]interface{}); !ok {
+		t.Fatalf("module permissions data = %#v, want modules array", moduleData)
+	}
+
+	moduleSaveRec := httptest.NewRecorder()
+	moduleSaveReq := httptest.NewRequest(http.MethodPost, "/api/v1/admin/module-permissions/platform_operator", strings.NewReader(`{"modules":["merchants","resource_review"]}`))
+	moduleSaveReq.Header.Set("Authorization", "Bearer admin-token")
+	router.ServeHTTP(moduleSaveRec, moduleSaveReq)
+	decodeEnvelopeData(t, moduleSaveRec, http.StatusOK)
+	if store.adminRoleModuleInput.OperatorID != "super-1" {
+		t.Fatalf("module permission operatorID = %q, want token user", store.adminRoleModuleInput.OperatorID)
 	}
 }
 
@@ -436,7 +519,7 @@ func TestAPIRouterRegistersPublicGrowthCampaignRoute(t *testing.T) {
 
 func TestAPIRouterServesAdminVIPConfigRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
-	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}))
+	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{permission.RoleSuperAdmin}}}))
 
 	listRec := httptest.NewRecorder()
 	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/vip/plans", nil)
@@ -574,7 +657,7 @@ func TestAPIRouterUsesAdminTokenOperatorForAdminActions(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(
 		store,
-		WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}),
+		WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{permission.RoleSuperAdmin}}}),
 	)
 
 	entitlementRec := httptest.NewRecorder()
@@ -698,6 +781,12 @@ type fakeFullAPIStore struct {
 	saveVIPPlanInput             model.SaveAdminVIPPlanInput
 	saveQuotaPackInput           model.SaveAdminQuotaPackInput
 	saveVIPPromotionInput        model.SaveAdminVIPPromotionInput
+	adminOperatorFilter          model.AdminOperatorFilter
+	createAdminOperatorInput     model.AdminOperatorInput
+	updateAdminOperatorInput     model.AdminOperatorInput
+	statusAdminOperatorInput     model.AdminOperatorStatusInput
+	adminRoleModules             []string
+	adminRoleModuleInput         model.AdminRoleModulePermissionInput
 }
 
 type fakeServerWechatPayGateway struct {
@@ -1079,6 +1168,36 @@ func (s *fakeFullAPIStore) UpdateResourceTypeConfig(ctx context.Context, configI
 
 func (s *fakeFullAPIStore) ListOperationLogs(ctx context.Context, filter model.OperationLogFilter) (model.ListOperationLogsResult, error) {
 	return model.ListOperationLogsResult{Items: []model.OperationLogItem{{ID: "log-1", OperatorID: "user-1", OperatorRole: "platform_operator", ObjectType: "resource", ObjectID: "resource-1", Action: "resource_approve", CreatedAt: "2026-06-28T10:00:00Z"}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
+}
+
+func (s *fakeFullAPIStore) ListAdminOperators(ctx context.Context, filter model.AdminOperatorFilter) (model.ListAdminOperatorsResult, error) {
+	s.adminOperatorFilter = filter
+	return model.ListAdminOperatorsResult{Items: []model.AdminOperatorItem{{UserID: "admin-1", LoginName: "operator", RealName: "运营", Status: "enabled", Roles: []string{"platform_operator"}, CreatedAt: "2026-07-16T10:00:00Z"}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
+}
+
+func (s *fakeFullAPIStore) CreateAdminOperator(ctx context.Context, input model.AdminOperatorInput) (model.AdminOperatorItem, error) {
+	s.createAdminOperatorInput = input
+	return model.AdminOperatorItem{UserID: "admin-created", LoginName: input.LoginName, RealName: input.RealName, Status: input.Status, Roles: input.Roles, CreatedAt: "2026-07-16T10:00:00Z"}, nil
+}
+
+func (s *fakeFullAPIStore) UpdateAdminOperator(ctx context.Context, input model.AdminOperatorInput) (model.AdminOperatorItem, error) {
+	s.updateAdminOperatorInput = input
+	return model.AdminOperatorItem{UserID: input.UserID, LoginName: input.LoginName, RealName: input.RealName, Status: input.Status, Roles: input.Roles, CreatedAt: "2026-07-16T10:00:00Z"}, nil
+}
+
+func (s *fakeFullAPIStore) UpdateAdminOperatorStatus(ctx context.Context, input model.AdminOperatorStatusInput) (model.AdminOperatorItem, error) {
+	s.statusAdminOperatorInput = input
+	return model.AdminOperatorItem{UserID: input.UserID, Status: input.Status, CreatedAt: "2026-07-16T10:00:00Z"}, nil
+}
+
+func (s *fakeFullAPIStore) GetAdminRoleModulePermissions(ctx context.Context, roleCode string) (model.AdminRoleModulePermission, error) {
+	return model.AdminRoleModulePermission{RoleCode: roleCode, Modules: append([]string(nil), s.adminRoleModules...)}, nil
+}
+
+func (s *fakeFullAPIStore) UpdateAdminRoleModulePermissions(ctx context.Context, input model.AdminRoleModulePermissionInput) (model.AdminRoleModulePermission, error) {
+	s.adminRoleModuleInput = input
+	s.adminRoleModules = append([]string(nil), input.Modules...)
+	return model.AdminRoleModulePermission{RoleCode: input.RoleCode, Modules: append([]string(nil), input.Modules...)}, nil
 }
 
 func (s *fakeFullAPIStore) ListSearchLogs(ctx context.Context, filter model.SearchLogFilter) (model.ListSearchLogsResult, error) {

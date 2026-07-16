@@ -45,6 +45,7 @@ type APIStore struct {
 	*model.ResourceContactUnlockModel
 	*model.ResourceMetricDailyModel
 	*model.OperationLogModel
+	*model.AdminPermissionModel
 	*model.GrowthCampaignModel
 	*model.FavoriteModel
 	*model.MapModel
@@ -123,6 +124,7 @@ func newAPIStore(db *sql.DB) *APIStore {
 		ResourceContactUnlockModel: model.NewResourceContactUnlockModel(db),
 		ResourceMetricDailyModel:   model.NewResourceMetricDailyModel(db),
 		OperationLogModel:          model.NewOperationLogModel(db),
+		AdminPermissionModel:       model.NewAdminPermissionModel(db),
 		GrowthCampaignModel:        model.NewGrowthCampaignModel(db),
 		FavoriteModel:              model.NewFavoriteModel(db),
 		MapModel:                   model.NewMapModel(db),

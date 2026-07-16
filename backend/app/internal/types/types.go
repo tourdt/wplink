@@ -183,6 +183,21 @@ type AdminListMerchantsResp struct {
 	Total    int64                   `json:"total"`
 }
 
+type AdminListOperatorsReq struct {
+	Keyword  string `form:"keyword,optional"`
+	Role     string `form:"role,optional"`
+	Status   string `form:"status,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminListOperatorsResp struct {
+	Items    []AdminOperatorItem `json:"items"`
+	Page     int64               `json:"page"`
+	PageSize int64               `json:"pageSize"`
+	Total    int64               `json:"total"`
+}
+
 type AdminListQuotaPacksResp struct {
 	Items []AdminQuotaPackConfigItem `json:"items"`
 }
@@ -210,9 +225,10 @@ type AdminLoginReq struct {
 }
 
 type AdminLoginResp struct {
-	Token  string   `json:"token"`
-	UserId string   `json:"userId"`
-	Roles  []string `json:"roles"`
+	Token   string   `json:"token"`
+	UserId  string   `json:"userId"`
+	Roles   []string `json:"roles"`
+	Modules []string `json:"modules"`
 }
 
 type AdminMerchantListItem struct {
@@ -222,6 +238,17 @@ type AdminMerchantListItem struct {
 	VerificationStatus string `json:"verificationStatus"`
 	Status             string `json:"status"`
 	LastActiveAt       string `json:"lastActiveAt,optional"`
+}
+
+type AdminModuleItem struct {
+	Code  string `json:"code"`
+	Label string `json:"label"`
+	Group string `json:"group"`
+}
+
+type AdminModulePermissionsResp struct {
+	Modules []AdminModuleItem               `json:"modules"`
+	Roles   []AdminRoleModulePermissionItem `json:"roles"`
 }
 
 type AdminOperationLogItem struct {
@@ -250,6 +277,16 @@ type AdminOperationLogsResp struct {
 	Total    int64                   `json:"total"`
 }
 
+type AdminOperatorItem struct {
+	UserId      string   `json:"userId"`
+	LoginName   string   `json:"loginName"`
+	RealName    string   `json:"realName"`
+	Status      string   `json:"status"`
+	Roles       []string `json:"roles"`
+	CreatedAt   string   `json:"createdAt"`
+	LastLoginAt string   `json:"lastLoginAt,optional"`
+}
+
 type AdminPendingResourceItem struct {
 	Id           string `json:"id"`
 	Title        string `json:"title"`
@@ -270,33 +307,6 @@ type AdminPendingResourcesResp struct {
 	Page     int64                      `json:"page"`
 	PageSize int64                      `json:"pageSize"`
 	Total    int64                      `json:"total"`
-}
-
-type AdminResourceReportItem struct {
-	Id               string `json:"id"`
-	Status           string `json:"status"`
-	ResourceId       string `json:"resourceId"`
-	ResourceTitle    string `json:"resourceTitle"`
-	ResourceStatus   string `json:"resourceStatus"`
-	MerchantId       string `json:"merchantId"`
-	MerchantName     string `json:"merchantName"`
-	ReportCount      int64  `json:"reportCount"`
-	ReasonCode       string `json:"reasonCode"`
-	ReasonText       string `json:"reasonText,optional"`
-	LatestReportedAt string `json:"latestReportedAt"`
-}
-
-type AdminResourceReportsReq struct {
-	Status   string `form:"status,optional"`
-	Page     int64  `form:"page,optional"`
-	PageSize int64  `form:"pageSize,optional"`
-}
-
-type AdminResourceReportsResp struct {
-	Items    []AdminResourceReportItem `json:"items"`
-	Page     int64                     `json:"page"`
-	PageSize int64                     `json:"pageSize"`
-	Total    int64                     `json:"total"`
 }
 
 type AdminPendingVerificationItem struct {
@@ -342,6 +352,33 @@ type AdminQuotaPackConfigItem struct {
 	UpdatedAt         string                `json:"updatedAt,optional"`
 }
 
+type AdminResourceReportItem struct {
+	Id               string `json:"id"`
+	Status           string `json:"status"`
+	ResourceId       string `json:"resourceId"`
+	ResourceTitle    string `json:"resourceTitle"`
+	ResourceStatus   string `json:"resourceStatus"`
+	MerchantId       string `json:"merchantId"`
+	MerchantName     string `json:"merchantName"`
+	ReportCount      int64  `json:"reportCount"`
+	ReasonCode       string `json:"reasonCode"`
+	ReasonText       string `json:"reasonText,optional"`
+	LatestReportedAt string `json:"latestReportedAt"`
+}
+
+type AdminResourceReportsReq struct {
+	Status   string `form:"status,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminResourceReportsResp struct {
+	Items    []AdminResourceReportItem `json:"items"`
+	Page     int64                     `json:"page"`
+	PageSize int64                     `json:"pageSize"`
+	Total    int64                     `json:"total"`
+}
+
 type AdminResourceTypeConfigItem struct {
 	Id               string                 `json:"id"`
 	CityCode         string                 `json:"cityCode,optional"`
@@ -369,11 +406,6 @@ type AdminReviewMapBindRequestResp struct {
 	Item MapBindRequestItem `json:"item"`
 }
 
-type AdminReviewResourceReq struct {
-	Action string `json:"action"`
-	Reason string `json:"reason,optional"`
-}
-
 type AdminReviewResourceReportReq struct {
 	Action             string `json:"action"`
 	ResourceAction     string `json:"resourceAction,optional"`
@@ -391,6 +423,11 @@ type AdminReviewResourceReportResp struct {
 	Message             string `json:"message"`
 }
 
+type AdminReviewResourceReq struct {
+	Action string `json:"action"`
+	Reason string `json:"reason,optional"`
+}
+
 type AdminReviewResourceResp struct {
 	Id      string `json:"id"`
 	Status  string `json:"status"`
@@ -406,6 +443,12 @@ type AdminReviewVerificationResp struct {
 	Id      string `json:"id"`
 	Status  string `json:"status"`
 	Message string `json:"message"`
+}
+
+type AdminRoleModulePermissionItem struct {
+	RoleCode string   `json:"roleCode"`
+	RoleName string   `json:"roleName"`
+	Modules  []string `json:"modules"`
 }
 
 type AdminRunResourceLifecycleResp struct {
@@ -514,6 +557,19 @@ type AdminSaveMapSceneResp struct {
 	Item MapSceneItem `json:"item"`
 }
 
+type AdminSaveOperatorReq struct {
+	LoginName string   `json:"loginName"`
+	RealName  string   `json:"realName"`
+	Password  string   `json:"password,optional"`
+	Roles     []string `json:"roles"`
+	Status    string   `json:"status,optional"`
+}
+
+type AdminSaveOperatorResp struct {
+	UserId  string `json:"userId"`
+	Message string `json:"message"`
+}
+
 type AdminSaveQuotaPackConfigReq struct {
 	Code              string                `json:"code,optional"`
 	Name              string                `json:"name"`
@@ -585,6 +641,10 @@ type AdminUpdateMapObjectStatusResp struct {
 	Item MapObjectItem `json:"item"`
 }
 
+type AdminUpdateOperatorStatusReq struct {
+	Status string `json:"status"`
+}
+
 type AdminUpdateResourceTypeConfigReq struct {
 	FieldSchema      map[string]interface{} `json:"fieldSchema,optional"`
 	RequiredFields   []string               `json:"requiredFields,optional"`
@@ -601,6 +661,16 @@ type AdminUpdateResourceTypeConfigReq struct {
 type AdminUpdateResourceTypeConfigResp struct {
 	Id        string `json:"id"`
 	UpdatedAt string `json:"updatedAt"`
+}
+
+type AdminUpdateRoleModulePermissionsReq struct {
+	Modules []string `json:"modules"`
+}
+
+type AdminUpdateRoleModulePermissionsResp struct {
+	RoleCode string   `json:"roleCode"`
+	Modules  []string `json:"modules"`
+	Message  string   `json:"message"`
 }
 
 type AdminVIPBenefitConfig struct {
@@ -723,18 +793,6 @@ type CreateContactUnlockPaymentResp struct {
 	OrderId string          `json:"orderId"`
 	Status  string          `json:"status"`
 	Payment WechatPayParams `json:"payment"`
-}
-
-type ReportResourceReq struct {
-	ReasonCode string                 `json:"reasonCode"`
-	ReasonText string                 `json:"reasonText,optional"`
-	Evidence   map[string]interface{} `json:"evidence,optional"`
-}
-
-type ReportResourceResp struct {
-	Id      string `json:"id"`
-	Status  string `json:"status"`
-	Message string `json:"message"`
 }
 
 type CreateMerchantReq struct {
@@ -1468,6 +1526,18 @@ type RefreshResourceResp struct {
 	Id                    string `json:"id"`
 	RefreshedAt           string `json:"refreshedAt"`
 	RemainingRefreshQuota int64  `json:"remainingRefreshQuota"`
+}
+
+type ReportResourceReq struct {
+	ReasonCode string                 `json:"reasonCode"`
+	ReasonText string                 `json:"reasonText,optional"`
+	Evidence   map[string]interface{} `json:"evidence,optional"`
+}
+
+type ReportResourceResp struct {
+	Id      string `json:"id"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type RepostSimilarResp struct {

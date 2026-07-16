@@ -186,6 +186,9 @@ func validateProductionAPIRouterDependencies(store CityAPIStore, options apiRout
 	if _, ok := any(store).(ResourceAPIStore); !ok {
 		missing = append(missing, "ResourceAPIStore")
 	}
+	if _, ok := any(store).(AdminPermissionAPIStore); !ok {
+		missing = append(missing, "AdminPermissionAPIStore")
+	}
 	if permissionStoreFromStore(store) == nil {
 		missing = append(missing, "MerchantPermissionStore")
 	}
@@ -293,8 +296,56 @@ func requireAdminToken(next http.Handler, tokenService AdminTokenService) http.H
 			response.JSON(w, nil, errx.New(errx.CodeForbidden, "您没有权限访问管理后台"))
 			return
 		}
+		module := adminModuleFromPath(r.URL.Path)
+		modules := append([]string(nil), subject.Modules...)
+		if len(modules) == 0 {
+			modules = permission.ResolveAdminModules(subject.Roles, nil)
+		}
+		if !permission.CanAccessAdminModule(subject.Roles, modules, module) {
+			response.JSON(w, nil, errx.New(errx.CodeForbidden, "您没有权限访问该后台功能"))
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func adminModuleFromPath(path string) string {
+	switch {
+	case strings.HasPrefix(path, "/api/v1/admin/auth/"):
+		return ""
+	case strings.HasPrefix(path, "/api/v1/admin/dashboard/"):
+		return permission.AdminModuleDashboard
+	case path == "/api/v1/admin/resources", strings.HasPrefix(path, "/api/v1/admin/resources/pending"), strings.HasPrefix(path, "/api/v1/admin/resources/"):
+		return permission.AdminModuleResourceReview
+	case strings.HasPrefix(path, "/api/v1/admin/resource-reports"):
+		return permission.AdminModuleResourceReports
+	case strings.HasPrefix(path, "/api/v1/admin/merchants/") && strings.Contains(path, "/entitlements"):
+		return permission.AdminModuleEntitlements
+	case strings.HasPrefix(path, "/api/v1/admin/merchants"):
+		return permission.AdminModuleMerchants
+	case strings.HasPrefix(path, "/api/v1/admin/verifications"), strings.HasPrefix(path, "/api/v1/admin/verification-billing"):
+		return permission.AdminModuleVerificationReview
+	case strings.HasPrefix(path, "/api/v1/admin/banner-topics"):
+		return permission.AdminModuleBannerTopics
+	case strings.HasPrefix(path, "/api/v1/admin/hot-search-keywords"):
+		return permission.AdminModuleHotSearchKeywords
+	case strings.HasPrefix(path, "/api/v1/admin/vip/"):
+		return permission.AdminModuleVIPConfigs
+	case strings.HasPrefix(path, "/api/v1/admin/growth-campaigns"):
+		return permission.AdminModuleGrowthCampaigns
+	case strings.HasPrefix(path, "/api/v1/admin/map/"):
+		return permission.AdminModuleSourcingMap
+	case strings.HasPrefix(path, "/api/v1/admin/resource-type-configs"):
+		return permission.AdminModuleResourceTypeConfigs
+	case strings.HasPrefix(path, "/api/v1/admin/operators"), strings.HasPrefix(path, "/api/v1/admin/module-permissions"):
+		return permission.AdminModuleAdminPermissions
+	case strings.HasPrefix(path, "/api/v1/admin/operation-logs"), strings.HasPrefix(path, "/api/v1/admin/tasks/resource-lifecycle"):
+		return permission.AdminModuleOperationLogs
+	case strings.HasPrefix(path, "/api/v1/admin/search-logs"):
+		return permission.AdminModuleSearchLogs
+	default:
+		return ""
+	}
 }
 
 func requireMerchantPermission(r *http.Request, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, merchantID string) error {

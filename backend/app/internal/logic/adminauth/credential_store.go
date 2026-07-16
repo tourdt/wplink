@@ -3,6 +3,7 @@ package adminauth
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	"github.com/lib/pq"
 )
@@ -38,6 +39,10 @@ GROUP BY alc.user_id, alc.login_name, alc.password_hash, alc.status
 		return AdminCredential{}, err
 	}
 	credential.Roles = []string(roles)
+	credential.RoleModules, err = s.listRoleAdminModules(ctx, credential.Roles)
+	if err != nil {
+		return AdminCredential{}, err
+	}
 	return credential, nil
 }
 
@@ -70,5 +75,47 @@ GROUP BY u.id, u.phone, u.status, alc.id, alc.login_name, alc.password_hash, alc
 		return AdminCredential{}, err
 	}
 	credential.Roles = []string(roles)
+	credential.RoleModules, err = s.listRoleAdminModules(ctx, credential.Roles)
+	if err != nil {
+		return AdminCredential{}, err
+	}
 	return credential, nil
+}
+
+func (s *SQLAdminStore) listRoleAdminModules(ctx context.Context, roles []string) (map[string][]string, error) {
+	if len(roles) == 0 {
+		return nil, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT
+  code,
+  CASE
+    WHEN jsonb_typeof(permissions) = 'object' AND jsonb_typeof(permissions->'adminModules') = 'array'
+      THEN permissions->'adminModules'
+    ELSE '[]'::jsonb
+  END
+FROM roles
+WHERE code = ANY($1)
+`, pq.Array(roles))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := map[string][]string{}
+	for rows.Next() {
+		var role string
+		var raw json.RawMessage
+		if err := rows.Scan(&role, &raw); err != nil {
+			return nil, err
+		}
+		var modules []string
+		if len(raw) > 0 {
+			if err := json.Unmarshal(raw, &modules); err != nil {
+				return nil, err
+			}
+		}
+		result[role] = modules
+	}
+	return result, rows.Err()
 }

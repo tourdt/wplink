@@ -12,13 +12,15 @@ import (
 )
 
 type AdminTokenSubject struct {
-	UserID string
-	Roles  []string
+	UserID  string
+	Roles   []string
+	Modules []string
 }
 
 type adminTokenPayload struct {
 	Subject string   `json:"sub"`
 	Roles   []string `json:"roles"`
+	Modules []string `json:"modules,omitempty"`
 	Type    string   `json:"typ"`
 	Issued  int64    `json:"iat"`
 	Expires int64    `json:"exp"`
@@ -46,11 +48,12 @@ func (i *HMACAdminTokenIssuer) IssueAdminToken(_ context.Context, subject AdminT
 
 	now := time.Now()
 	payload := map[string]interface{}{
-		"sub":   subject.UserID,
-		"roles": subject.Roles,
-		"typ":   "admin",
-		"iat":   now.Unix(),
-		"exp":   now.Add(i.ttl).Unix(),
+		"sub":     subject.UserID,
+		"roles":   subject.Roles,
+		"modules": subject.Modules,
+		"typ":     "admin",
+		"iat":     now.Unix(),
+		"exp":     now.Add(i.ttl).Unix(),
 	}
 	header := map[string]string{
 		"alg": "HS256",
@@ -105,7 +108,11 @@ func (i *HMACAdminTokenIssuer) ParseAdminToken(_ context.Context, token string) 
 	if payload.Expires > 0 && time.Now().Unix() > payload.Expires {
 		return AdminTokenSubject{}, errors.New("登录已过期，请重新登录")
 	}
-	return AdminTokenSubject{UserID: payload.Subject, Roles: append([]string(nil), payload.Roles...)}, nil
+	return AdminTokenSubject{
+		UserID:  payload.Subject,
+		Roles:   append([]string(nil), payload.Roles...),
+		Modules: append([]string(nil), payload.Modules...),
+	}, nil
 }
 
 func encodeTokenPart(value interface{}) (string, error) {

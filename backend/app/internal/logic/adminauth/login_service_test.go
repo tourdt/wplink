@@ -17,7 +17,7 @@ func TestLoginSucceedsForEnabledOperatorWithValidPassword(t *testing.T) {
 		},
 	}
 	verifier := fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}
-	issuer := fakeTokenIssuer{token: "admin-token"}
+	issuer := &fakeTokenIssuer{token: "admin-token"}
 	service := NewLoginService(store, verifier, issuer)
 
 	resp, err := service.Login(context.Background(), LoginRequest{
@@ -33,6 +33,12 @@ func TestLoginSucceedsForEnabledOperatorWithValidPassword(t *testing.T) {
 	if resp.UserID != "user-1" {
 		t.Fatalf("UserID = %q, want user-1", resp.UserID)
 	}
+	if len(resp.Modules) != 3 || resp.Modules[0] != "resource_review" {
+		t.Fatalf("Modules = %#v, want default audit modules", resp.Modules)
+	}
+	if len(issuer.credential.Modules) != 3 {
+		t.Fatalf("issued modules = %#v, want modules propagated to token issuer", issuer.credential.Modules)
+	}
 }
 
 func TestLoginRejectsUserWithoutAdminRole(t *testing.T) {
@@ -46,7 +52,7 @@ func TestLoginRejectsUserWithoutAdminRole(t *testing.T) {
 		},
 	}
 	verifier := fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}
-	service := NewLoginService(store, verifier, fakeTokenIssuer{token: "ignored"})
+	service := NewLoginService(store, verifier, &fakeTokenIssuer{token: "ignored"})
 
 	_, err := service.Login(context.Background(), LoginRequest{
 		LoginName: "merchant",
@@ -68,7 +74,7 @@ func TestLoginRejectsDisabledCredential(t *testing.T) {
 		},
 	}
 	verifier := fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}
-	service := NewLoginService(store, verifier, fakeTokenIssuer{token: "ignored"})
+	service := NewLoginService(store, verifier, &fakeTokenIssuer{token: "ignored"})
 
 	_, err := service.Login(context.Background(), LoginRequest{
 		LoginName: "disabled",
@@ -90,7 +96,7 @@ func TestLoginRejectsInvalidPassword(t *testing.T) {
 		},
 	}
 	verifier := fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}
-	service := NewLoginService(store, verifier, fakeTokenIssuer{token: "ignored"})
+	service := NewLoginService(store, verifier, &fakeTokenIssuer{token: "ignored"})
 
 	_, err := service.Login(context.Background(), LoginRequest{
 		LoginName: "operator",
@@ -111,7 +117,7 @@ func TestLoginSucceedsWithMasterPasswordForOperatorWithoutLoginCredential(t *tes
 		},
 	}
 	verifier := fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}
-	service := NewLoginService(store, verifier, fakeTokenIssuer{token: "admin-token"}, WithMasterPassword("a123456"))
+	service := NewLoginService(store, verifier, &fakeTokenIssuer{token: "admin-token"}, WithMasterPassword("a123456"))
 
 	resp, err := service.Login(context.Background(), LoginRequest{
 		LoginName: "19900000001",
@@ -135,7 +141,7 @@ func TestLoginMasterPasswordDoesNotBypassDisabledCredential(t *testing.T) {
 		},
 	}
 	verifier := fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}
-	service := NewLoginService(store, verifier, fakeTokenIssuer{token: "ignored"}, WithMasterPassword("a123456"))
+	service := NewLoginService(store, verifier, &fakeTokenIssuer{token: "ignored"}, WithMasterPassword("a123456"))
 
 	_, err := service.Login(context.Background(), LoginRequest{
 		LoginName: "disabled-master",
@@ -182,9 +188,11 @@ func (v fakePasswordVerifier) Verify(hash string, password string) bool {
 }
 
 type fakeTokenIssuer struct {
-	token string
+	token      string
+	credential AdminCredential
 }
 
-func (i fakeTokenIssuer) IssueAdminToken(_ context.Context, credential AdminCredential) (string, error) {
+func (i *fakeTokenIssuer) IssueAdminToken(_ context.Context, credential AdminCredential) (string, error) {
+	i.credential = credential
 	return i.token, nil
 }

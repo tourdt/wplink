@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { loginAdmin } from '../api/auth'
+import { canAccessAdminModule, userModules } from '../common/adminModulePermissions'
 import { clearAdminSession, readAdminToken, readAdminUser, writeAdminSession } from './adminSession'
 
 export const useAuthStore = defineStore('auth', {
@@ -9,6 +10,10 @@ export const useAuthStore = defineStore('auth', {
   }),
   getters: {
     isLoggedIn: (state) => Boolean(state.token),
+    roles: (state) => state.user?.roles || [],
+    modules: (state) => userModules(state.user),
+    isSuperAdmin: (state) => (state.user?.roles || []).includes('super_admin'),
+    canAccessModule: (state) => (moduleCode) => canAccessAdminModule(state.user, moduleCode),
     displayName: (state) => state.user?.loginName || state.user?.userId || '运营人员',
   },
   actions: {
@@ -18,6 +23,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = {
         userId: data.userId,
         roles: data.roles || [],
+        modules: data.modules || [],
         loginName: form.loginName,
       }
       writeAdminSession(this.token, this.user)
