@@ -243,7 +243,7 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 			return
 		}
 		if subject, ok := adminSubjectFromBearerToken(r, adminTokenService); ok {
-			body.ReviewerID = subject.UserID
+			body.ReviewerID = subject.OperatorID
 		}
 		resp, err := bindingLogic.ReviewRequest(r.Context(), r.PathValue("requestId"), body)
 		response.JSON(w, resp, err)

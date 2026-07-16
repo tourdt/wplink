@@ -12,9 +12,9 @@ import (
 )
 
 type AdminTokenSubject struct {
-	UserID  string
-	Roles   []string
-	Modules []string
+	OperatorID string
+	Roles      []string
+	Modules    []string
 }
 
 type adminTokenPayload struct {
@@ -42,13 +42,13 @@ func (i *HMACAdminTokenIssuer) IssueAdminToken(_ context.Context, subject AdminT
 	if len(i.secret) == 0 {
 		return "", errors.New("后台 token 密钥未配置")
 	}
-	if strings.TrimSpace(subject.UserID) == "" {
-		return "", errors.New("后台 token 用户不能为空")
+	if strings.TrimSpace(subject.OperatorID) == "" {
+		return "", errors.New("后台 token 操作人不能为空")
 	}
 
 	now := time.Now()
 	payload := map[string]interface{}{
-		"sub":     subject.UserID,
+		"sub":     subject.OperatorID,
 		"roles":   subject.Roles,
 		"modules": subject.Modules,
 		"typ":     "admin",
@@ -109,9 +109,9 @@ func (i *HMACAdminTokenIssuer) ParseAdminToken(_ context.Context, token string) 
 		return AdminTokenSubject{}, errors.New("登录已过期，请重新登录")
 	}
 	return AdminTokenSubject{
-		UserID:  payload.Subject,
-		Roles:   append([]string(nil), payload.Roles...),
-		Modules: append([]string(nil), payload.Modules...),
+		OperatorID: payload.Subject,
+		Roles:      append([]string(nil), payload.Roles...),
+		Modules:    append([]string(nil), payload.Modules...),
 	}, nil
 }
 

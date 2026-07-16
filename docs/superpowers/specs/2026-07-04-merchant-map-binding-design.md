@@ -70,7 +70,7 @@
 - `note text not null default ''`
 - `status varchar(20) not null default 'pending'`
 - `review_note text not null default ''`
-- `reviewed_by bigint references admin_operator_profiles(id)`
+- `reviewed_by bigint references admin_operators(id)`
 - `reviewed_at timestamptz`
 - `created_at timestamptz not null default now()`
 - `updated_at timestamptz not null default now()`

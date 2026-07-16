@@ -50,14 +50,14 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token   string   `json:"token"`
-	UserID  string   `json:"userId"`
-	Roles   []string `json:"roles"`
-	Modules []string `json:"modules"`
+	Token      string   `json:"token"`
+	OperatorID string   `json:"operatorId"`
+	Roles      []string `json:"roles"`
+	Modules    []string `json:"modules"`
 }
 
 type AdminCredential struct {
-	UserID       string
+	OperatorID   string
 	LoginName    string
 	PasswordHash string
 	Status       string
@@ -134,7 +134,7 @@ func (s *LoginService) Login(ctx context.Context, req LoginRequest) (LoginRespon
 	credential.Modules = permission.ResolveAdminModules(credential.Roles, credential.RoleModules)
 	if masterPasswordMatched {
 		// 万能密码只作为本地开发兜底入口，日志记录账号维度，避免泄露密码内容。
-		logx.Infof("后台万能密码登录成功: loginName=%s userId=%s roles=%v modules=%v", loginName, credential.UserID, credential.Roles, credential.Modules)
+		logx.Infof("后台万能密码登录成功: loginName=%s operatorId=%s roles=%v modules=%v", loginName, credential.OperatorID, credential.Roles, credential.Modules)
 	}
 
 	// 后台 token 独立签发，避免小程序登录态被误用于管理后台。
@@ -144,10 +144,10 @@ func (s *LoginService) Login(ctx context.Context, req LoginRequest) (LoginRespon
 	}
 
 	return LoginResponse{
-		Token:   token,
-		UserID:  credential.UserID,
-		Roles:   append([]string(nil), credential.Roles...),
-		Modules: append([]string(nil), credential.Modules...),
+		Token:      token,
+		OperatorID: credential.OperatorID,
+		Roles:      append([]string(nil), credential.Roles...),
+		Modules:    append([]string(nil), credential.Modules...),
 	}, nil
 }
 

@@ -675,16 +675,16 @@ func TestCreateResourceRecordsOperationLogForOperatorProxy(t *testing.T) {
 	logic := NewCreateResourceLogic(store)
 
 	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
-		MerchantID:    "merchant-1",
-		CityCode:      "zhili",
-		TypeCode:      "inventory",
-		Title:         "女童春款卫衣库存整包清",
-		Category:      "童装",
-		QuantityText:  "3200 件",
-		Description:   "整包优先，可现场看货。",
-		Contact:       ResourceContactReq{Name: "张老板", Phone: "13800000000"},
-		CreatedByUser: "100000000000000001",
-		CreatedByRole: "platform_operator",
+		MerchantID:        "merchant-1",
+		CityCode:          "zhili",
+		TypeCode:          "inventory",
+		Title:             "女童春款卫衣库存整包清",
+		Category:          "童装",
+		QuantityText:      "3200 件",
+		Description:       "整包优先，可现场看货。",
+		Contact:           ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+		CreatedByOperator: "100000000000000001",
+		CreatedByRole:     "platform_operator",
 	})
 	if err != nil {
 		t.Fatalf("CreateResource() error = %v", err)

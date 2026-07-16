@@ -225,10 +225,10 @@ type AdminLoginReq struct {
 }
 
 type AdminLoginResp struct {
-	Token   string   `json:"token"`
-	UserId  string   `json:"userId"`
-	Roles   []string `json:"roles"`
-	Modules []string `json:"modules"`
+	Token      string   `json:"token"`
+	OperatorId string   `json:"operatorId"`
+	Roles      []string `json:"roles"`
+	Modules    []string `json:"modules"`
 }
 
 type AdminMerchantListItem struct {
@@ -278,7 +278,7 @@ type AdminOperationLogsResp struct {
 }
 
 type AdminOperatorItem struct {
-	UserId      string   `json:"userId"`
+	OperatorId  string   `json:"operatorId"`
 	LoginName   string   `json:"loginName"`
 	RealName    string   `json:"realName"`
 	Status      string   `json:"status"`
@@ -566,8 +566,8 @@ type AdminSaveOperatorReq struct {
 }
 
 type AdminSaveOperatorResp struct {
-	UserId  string `json:"userId"`
-	Message string `json:"message"`
+	OperatorId string `json:"operatorId"`
+	Message    string `json:"message"`
 }
 
 type AdminSaveQuotaPackConfigReq struct {

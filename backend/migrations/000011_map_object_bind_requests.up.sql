@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS map_object_bind_request (
   note text NOT NULL DEFAULT '',
   status varchar(20) NOT NULL DEFAULT 'pending',
   review_note text NOT NULL DEFAULT '',
-  reviewed_by bigint REFERENCES admin_operator_profiles(id),
+  reviewed_by bigint REFERENCES admin_operators(id),
   reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()

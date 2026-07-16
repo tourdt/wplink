@@ -55,7 +55,7 @@ type UpdateAdminRoleModulePermissionsReq struct {
 }
 
 type AdminOperatorItem struct {
-	UserID      string   `json:"userId"`
+	OperatorID  string   `json:"operatorId"`
 	LoginName   string   `json:"loginName"`
 	RealName    string   `json:"realName"`
 	Status      string   `json:"status"`
@@ -89,8 +89,8 @@ type AdminModulePermissionsResp struct {
 }
 
 type SaveAdminOperatorResp struct {
-	UserID  string `json:"userId"`
-	Message string `json:"message"`
+	OperatorID string `json:"operatorId"`
+	Message    string `json:"message"`
 }
 
 type SaveAdminRoleModulePermissionsResp struct {
@@ -147,36 +147,36 @@ func (l *AdminPermissionLogic) CreateOperator(ctx context.Context, req SaveAdmin
 	if err != nil {
 		return SaveAdminOperatorResp{}, l.mapSaveError("创建后台管理员账号", actor.OperatorID, input.LoginName, err)
 	}
-	logx.Infof("创建后台管理员账号成功: operatorId=%s targetUserId=%s loginName=%s roles=%v", actor.OperatorID, item.UserID, item.LoginName, item.Roles)
-	return SaveAdminOperatorResp{UserID: item.UserID, Message: "管理员账号已创建"}, nil
+	logx.Infof("创建后台管理员账号成功: operatorId=%s targetOperatorId=%s loginName=%s roles=%v", actor.OperatorID, item.OperatorID, item.LoginName, item.Roles)
+	return SaveAdminOperatorResp{OperatorID: item.OperatorID, Message: "管理员账号已创建"}, nil
 }
 
-func (l *AdminPermissionLogic) UpdateOperator(ctx context.Context, userID string, req SaveAdminOperatorReq, actor AdminPermissionActor) (SaveAdminOperatorResp, error) {
+func (l *AdminPermissionLogic) UpdateOperator(ctx context.Context, operatorID string, req SaveAdminOperatorReq, actor AdminPermissionActor) (SaveAdminOperatorResp, error) {
 	if err := requireSuperAdminActor(actor); err != nil {
 		return SaveAdminOperatorResp{}, err
 	}
-	input, err := l.buildOperatorInput(userID, req, actor, false)
+	input, err := l.buildOperatorInput(operatorID, req, actor, false)
 	if err != nil {
 		return SaveAdminOperatorResp{}, err
 	}
 	// 防止超级管理员误操作移除自己的最高权限，导致后台无人可继续管理管理员账号。
-	if strings.TrimSpace(input.UserID) == strings.TrimSpace(actor.OperatorID) && !containsRole(input.Roles, permission.RoleSuperAdmin) {
+	if strings.TrimSpace(input.OperatorID) == strings.TrimSpace(actor.OperatorID) && !containsRole(input.Roles, permission.RoleSuperAdmin) {
 		return SaveAdminOperatorResp{}, errx.New(errx.CodeForbidden, "不能移除当前登录账号的超级管理员权限")
 	}
 	item, err := l.store.UpdateAdminOperator(ctx, input)
 	if err != nil {
 		return SaveAdminOperatorResp{}, l.mapSaveError("更新后台管理员账号", actor.OperatorID, input.LoginName, err)
 	}
-	logx.Infof("更新后台管理员账号成功: operatorId=%s targetUserId=%s loginName=%s roles=%v status=%s", actor.OperatorID, item.UserID, item.LoginName, item.Roles, item.Status)
-	return SaveAdminOperatorResp{UserID: item.UserID, Message: "管理员账号已更新"}, nil
+	logx.Infof("更新后台管理员账号成功: operatorId=%s targetOperatorId=%s loginName=%s roles=%v status=%s", actor.OperatorID, item.OperatorID, item.LoginName, item.Roles, item.Status)
+	return SaveAdminOperatorResp{OperatorID: item.OperatorID, Message: "管理员账号已更新"}, nil
 }
 
-func (l *AdminPermissionLogic) UpdateOperatorStatus(ctx context.Context, userID string, req UpdateAdminOperatorStatusReq, actor AdminPermissionActor) (SaveAdminOperatorResp, error) {
+func (l *AdminPermissionLogic) UpdateOperatorStatus(ctx context.Context, operatorID string, req UpdateAdminOperatorStatusReq, actor AdminPermissionActor) (SaveAdminOperatorResp, error) {
 	if err := requireSuperAdminActor(actor); err != nil {
 		return SaveAdminOperatorResp{}, err
 	}
-	userID = strings.TrimSpace(userID)
-	if userID == "" {
+	operatorID = strings.TrimSpace(operatorID)
+	if operatorID == "" {
 		return SaveAdminOperatorResp{}, errx.New(errx.CodeValidationFailed, "管理员账号不存在")
 	}
 	status := normalizeAdminOperatorStatus(req.Status)
@@ -184,19 +184,19 @@ func (l *AdminPermissionLogic) UpdateOperatorStatus(ctx context.Context, userID 
 		return SaveAdminOperatorResp{}, errx.New(errx.CodeValidationFailed, "账号状态不正确")
 	}
 	// 当前登录账号不能停用自己，否则 token 过期后会造成超级管理员无法恢复账号。
-	if userID == strings.TrimSpace(actor.OperatorID) && status == model.AdminCredentialStatusDisabled {
+	if operatorID == strings.TrimSpace(actor.OperatorID) && status == model.AdminCredentialStatusDisabled {
 		return SaveAdminOperatorResp{}, errx.New(errx.CodeForbidden, "不能停用当前登录账号")
 	}
 	item, err := l.store.UpdateAdminOperatorStatus(ctx, model.AdminOperatorStatusInput{
-		UserID:     userID,
+		OperatorID: operatorID,
 		Status:     status,
-		OperatorID: strings.TrimSpace(actor.OperatorID),
+		ActorID:    strings.TrimSpace(actor.OperatorID),
 	})
 	if err != nil {
-		return SaveAdminOperatorResp{}, l.mapSaveError("更新后台管理员账号状态", actor.OperatorID, userID, err)
+		return SaveAdminOperatorResp{}, l.mapSaveError("更新后台管理员账号状态", actor.OperatorID, operatorID, err)
 	}
-	logx.Infof("更新后台管理员账号状态成功: operatorId=%s targetUserId=%s status=%s", actor.OperatorID, item.UserID, item.Status)
-	return SaveAdminOperatorResp{UserID: item.UserID, Message: "管理员账号状态已更新"}, nil
+	logx.Infof("更新后台管理员账号状态成功: operatorId=%s targetOperatorId=%s status=%s", actor.OperatorID, item.OperatorID, item.Status)
+	return SaveAdminOperatorResp{OperatorID: item.OperatorID, Message: "管理员账号状态已更新"}, nil
 }
 
 func (l *AdminPermissionLogic) ListModulePermissions(ctx context.Context, actor AdminPermissionActor) (AdminModulePermissionsResp, error) {
@@ -254,7 +254,7 @@ func (l *AdminPermissionLogic) UpdateRoleModulePermissions(ctx context.Context, 
 	}, nil
 }
 
-func (l *AdminPermissionLogic) buildOperatorInput(userID string, req SaveAdminOperatorReq, actor AdminPermissionActor, passwordRequired bool) (model.AdminOperatorInput, error) {
+func (l *AdminPermissionLogic) buildOperatorInput(operatorID string, req SaveAdminOperatorReq, actor AdminPermissionActor, passwordRequired bool) (model.AdminOperatorInput, error) {
 	loginName := strings.TrimSpace(req.LoginName)
 	realName := strings.TrimSpace(req.RealName)
 	if loginName == "" {
@@ -290,13 +290,13 @@ func (l *AdminPermissionLogic) buildOperatorInput(userID string, req SaveAdminOp
 	}
 
 	return model.AdminOperatorInput{
-		UserID:       strings.TrimSpace(userID),
+		OperatorID:   strings.TrimSpace(operatorID),
 		LoginName:    loginName,
 		RealName:     realName,
 		PasswordHash: passwordHash,
 		Status:       status,
 		Roles:        roles,
-		OperatorID:   strings.TrimSpace(actor.OperatorID),
+		ActorID:      strings.TrimSpace(actor.OperatorID),
 	}, nil
 }
 
@@ -373,7 +373,7 @@ func mapAdminOperatorsResult(result model.ListAdminOperatorsResult) ListAdminOpe
 	items := make([]AdminOperatorItem, 0, len(result.Items))
 	for _, item := range result.Items {
 		items = append(items, AdminOperatorItem{
-			UserID:      item.UserID,
+			OperatorID:  item.OperatorID,
 			LoginName:   item.LoginName,
 			RealName:    item.RealName,
 			Status:      item.Status,

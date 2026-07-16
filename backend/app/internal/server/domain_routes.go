@@ -207,7 +207,7 @@ func registerAdminPermissionRoutes(mux *http.ServeMux, store AdminPermissionAPIS
 		resp, err := newLogic().CreateOperator(r.Context(), body, actor)
 		response.JSON(w, resp, err)
 	})
-	mux.HandleFunc("POST /api/v1/admin/operators/{userId}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/admin/operators/{operatorId}", func(w http.ResponseWriter, r *http.Request) {
 		actor, err := adminPermissionActorFromRequest(r, adminTokenService)
 		if err != nil {
 			response.JSON(w, nil, err)
@@ -218,10 +218,10 @@ func registerAdminPermissionRoutes(mux *http.ServeMux, store AdminPermissionAPIS
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := newLogic().UpdateOperator(r.Context(), r.PathValue("userId"), body, actor)
+		resp, err := newLogic().UpdateOperator(r.Context(), r.PathValue("operatorId"), body, actor)
 		response.JSON(w, resp, err)
 	})
-	mux.HandleFunc("POST /api/v1/admin/operators/{userId}/status", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/admin/operators/{operatorId}/status", func(w http.ResponseWriter, r *http.Request) {
 		actor, err := adminPermissionActorFromRequest(r, adminTokenService)
 		if err != nil {
 			response.JSON(w, nil, err)
@@ -232,7 +232,7 @@ func registerAdminPermissionRoutes(mux *http.ServeMux, store AdminPermissionAPIS
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := newLogic().UpdateOperatorStatus(r.Context(), r.PathValue("userId"), body, actor)
+		resp, err := newLogic().UpdateOperatorStatus(r.Context(), r.PathValue("operatorId"), body, actor)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/admin/module-permissions", func(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +266,7 @@ func adminPermissionActorFromRequest(r *http.Request, adminTokenService AdminTok
 		return adminlogic.AdminPermissionActor{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
 	}
 	return adminlogic.AdminPermissionActor{
-		OperatorID: strings.TrimSpace(subject.UserID),
+		OperatorID: strings.TrimSpace(subject.OperatorID),
 		Roles:      append([]string(nil), subject.Roles...),
 	}, nil
 }

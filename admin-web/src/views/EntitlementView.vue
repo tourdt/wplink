@@ -110,7 +110,7 @@ async function submitGrant() {
   saving.value = true
   try {
     await grantMerchantEntitlement(form.merchantId, {
-      operatorId: auth.user?.userId || '',
+      operatorId: auth.user?.operatorId || '',
       entitlementType: form.entitlementType,
       sourceType: form.sourceType,
       totalAmount: form.totalAmount,

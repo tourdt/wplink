@@ -30,22 +30,23 @@ type ResourceContactReq struct {
 }
 
 type CreateResourceReq struct {
-	MerchantID    string
-	CityCode      string
-	TypeCode      string
-	Direction     string
-	Title         string
-	Category      string
-	District      string
-	PriceText     string
-	QuantityText  string
-	Description   string
-	Attributes    model.JSONMap
-	Tags          []string
-	Images        []string
-	Contact       ResourceContactReq
-	CreatedByUser string
-	CreatedByRole string
+	MerchantID        string
+	CityCode          string
+	TypeCode          string
+	Direction         string
+	Title             string
+	Category          string
+	District          string
+	PriceText         string
+	QuantityText      string
+	Description       string
+	Attributes        model.JSONMap
+	Tags              []string
+	Images            []string
+	Contact           ResourceContactReq
+	CreatedByUser     string
+	CreatedByOperator string
+	CreatedByRole     string
 }
 
 type CreateResourceResp struct {
@@ -95,9 +96,9 @@ func (l *CreateResourceLogic) create(ctx context.Context, req CreateResourceReq,
 		logx.Errorf("创建资源失败: merchantId=%s typeCode=%s targetStatus=%s err=%+v", strings.TrimSpace(req.MerchantID), typeCode, status, err)
 		return CreateResourceResp{}, err
 	}
-	if isOperatorProxy(req.CreatedByRole) && strings.TrimSpace(req.CreatedByUser) != "" {
+	if isOperatorProxy(req.CreatedByRole) && strings.TrimSpace(req.CreatedByOperator) != "" {
 		if err := l.store.RecordOperationLog(ctx, model.OperationLogInput{
-			OperatorID:     strings.TrimSpace(req.CreatedByUser),
+			OperatorID:     strings.TrimSpace(req.CreatedByOperator),
 			OperatorRole:   strings.TrimSpace(req.CreatedByRole),
 			Action:         "proxy_create_resource",
 			ObjectType:     "resource",
@@ -105,7 +106,7 @@ func (l *CreateResourceLogic) create(ctx context.Context, req CreateResourceReq,
 			BeforeSnapshot: model.JSONMap{},
 			AfterSnapshot:  model.JSONMap{"status": result.Status, "typeCode": typeCode},
 		}); err != nil {
-			logx.Errorf("记录代发布资源操作日志失败: operatorId=%s resourceId=%s status=%s err=%+v", strings.TrimSpace(req.CreatedByUser), result.ID, result.Status, err)
+			logx.Errorf("记录代发布资源操作日志失败: operatorId=%s resourceId=%s status=%s err=%+v", strings.TrimSpace(req.CreatedByOperator), result.ID, result.Status, err)
 			return CreateResourceResp{}, err
 		}
 	}
@@ -333,6 +334,7 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		ContactPhone:         values["contactPhone"],
 		ContactWechat:        strings.TrimSpace(req.Contact.Wechat),
 		CreatedByUser:        strings.TrimSpace(req.CreatedByUser),
+		CreatedByOperator:    strings.TrimSpace(req.CreatedByOperator),
 		ConsumePublishQuota:  false,
 	}, typeCode, nil
 }

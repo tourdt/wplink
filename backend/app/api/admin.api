@@ -6,14 +6,14 @@ type AdminLoginReq {
 }
 
 type AdminLoginResp {
-	Token   string   `json:"token"`
-	UserId  string   `json:"userId"`
-	Roles   []string `json:"roles"`
-	Modules []string `json:"modules"`
+	Token      string   `json:"token"`
+	OperatorId string   `json:"operatorId"`
+	Roles      []string `json:"roles"`
+	Modules    []string `json:"modules"`
 }
 
 type AdminOperatorItem {
-	UserId      string   `json:"userId"`
+	OperatorId  string   `json:"operatorId"`
 	LoginName   string   `json:"loginName"`
 	RealName    string   `json:"realName"`
 	Status      string   `json:"status"`
@@ -50,8 +50,8 @@ type AdminUpdateOperatorStatusReq {
 }
 
 type AdminSaveOperatorResp {
-	UserId  string `json:"userId"`
-	Message string `json:"message"`
+	OperatorId string `json:"operatorId"`
+	Message    string `json:"message"`
 }
 
 type AdminModuleItem {
@@ -604,10 +604,10 @@ service wplink-api {
 	post /operators (AdminSaveOperatorReq) returns (AdminSaveOperatorResp)
 
 	@handler AdminUpdateOperator
-	post /operators/:userId (AdminSaveOperatorReq) returns (AdminSaveOperatorResp)
+	post /operators/:operatorId (AdminSaveOperatorReq) returns (AdminSaveOperatorResp)
 
 	@handler AdminUpdateOperatorStatus
-	post /operators/:userId/status (AdminUpdateOperatorStatusReq) returns (AdminSaveOperatorResp)
+	post /operators/:operatorId/status (AdminUpdateOperatorStatusReq) returns (AdminSaveOperatorResp)
 
 	@handler AdminListModulePermissions
 	get /module-permissions returns (AdminModulePermissionsResp)

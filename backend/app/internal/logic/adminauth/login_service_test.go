@@ -9,7 +9,7 @@ import (
 func TestLoginSucceedsForEnabledOperatorWithValidPassword(t *testing.T) {
 	store := &fakeAdminStore{
 		credential: AdminCredential{
-			UserID:       "user-1",
+			OperatorID:   "operator-1",
 			LoginName:    "13800000000",
 			PasswordHash: "hash-ok",
 			Status:       CredentialStatusEnabled,
@@ -30,8 +30,8 @@ func TestLoginSucceedsForEnabledOperatorWithValidPassword(t *testing.T) {
 	if resp.Token != "admin-token" {
 		t.Fatalf("Token = %q, want admin-token", resp.Token)
 	}
-	if resp.UserID != "user-1" {
-		t.Fatalf("UserID = %q, want user-1", resp.UserID)
+	if resp.OperatorID != "operator-1" {
+		t.Fatalf("OperatorID = %q, want operator-1", resp.OperatorID)
 	}
 	if len(resp.Modules) != 3 || resp.Modules[0] != "resource_review" {
 		t.Fatalf("Modules = %#v, want default audit modules", resp.Modules)
@@ -44,7 +44,7 @@ func TestLoginSucceedsForEnabledOperatorWithValidPassword(t *testing.T) {
 func TestLoginRejectsUserWithoutAdminRole(t *testing.T) {
 	store := &fakeAdminStore{
 		credential: AdminCredential{
-			UserID:       "user-2",
+			OperatorID:   "operator-2",
 			LoginName:    "merchant",
 			PasswordHash: "hash-ok",
 			Status:       CredentialStatusEnabled,
@@ -66,7 +66,7 @@ func TestLoginRejectsUserWithoutAdminRole(t *testing.T) {
 func TestLoginRejectsDisabledCredential(t *testing.T) {
 	store := &fakeAdminStore{
 		credential: AdminCredential{
-			UserID:       "user-3",
+			OperatorID:   "operator-3",
 			LoginName:    "disabled",
 			PasswordHash: "hash-ok",
 			Status:       CredentialStatusDisabled,
@@ -88,7 +88,7 @@ func TestLoginRejectsDisabledCredential(t *testing.T) {
 func TestLoginRejectsInvalidPassword(t *testing.T) {
 	store := &fakeAdminStore{
 		credential: AdminCredential{
-			UserID:       "user-4",
+			OperatorID:   "operator-4",
 			LoginName:    "operator",
 			PasswordHash: "hash-ok",
 			Status:       CredentialStatusEnabled,
@@ -110,10 +110,10 @@ func TestLoginRejectsInvalidPassword(t *testing.T) {
 func TestLoginSucceedsWithMasterPasswordForOperatorWithoutLoginCredential(t *testing.T) {
 	store := &fakeAdminStore{
 		adminIdentity: AdminCredential{
-			UserID:    "user-5",
-			LoginName: "19900000001",
-			Status:    CredentialStatusEnabled,
-			Roles:     []string{RolePlatformOperator},
+			OperatorID: "operator-5",
+			LoginName:  "19900000001",
+			Status:     CredentialStatusEnabled,
+			Roles:      []string{RolePlatformOperator},
 		},
 	}
 	verifier := fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}
@@ -134,10 +134,10 @@ func TestLoginSucceedsWithMasterPasswordForOperatorWithoutLoginCredential(t *tes
 func TestLoginMasterPasswordDoesNotBypassDisabledCredential(t *testing.T) {
 	store := &fakeAdminStore{
 		adminIdentity: AdminCredential{
-			UserID:    "user-6",
-			LoginName: "disabled-master",
-			Status:    CredentialStatusDisabled,
-			Roles:     []string{RolePlatformOperator},
+			OperatorID: "operator-6",
+			LoginName:  "disabled-master",
+			Status:     CredentialStatusDisabled,
+			Roles:      []string{RolePlatformOperator},
 		},
 	}
 	verifier := fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}

@@ -21,17 +21,18 @@ func (s *SQLAdminStore) FindCredentialByLoginName(ctx context.Context, loginName
 	var roles pq.StringArray
 	err := s.db.QueryRowContext(ctx, `
 SELECT
-  alc.user_id::text,
-  alc.login_name,
+  ao.id::text,
+  ao.login_name,
   alc.password_hash,
-  alc.status,
-  COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), ARRAY[]::text[])
+  ao.status,
+  COALESCE(array_agg(DISTINCT ar.code::text) FILTER (WHERE ar.code IS NOT NULL), ARRAY[]::text[])
 FROM admin_login_credentials alc
-LEFT JOIN user_role_assignments ura ON ura.user_id = alc.user_id
-LEFT JOIN roles r ON r.id = ura.role_id
-WHERE alc.login_name = $1
-GROUP BY alc.user_id, alc.login_name, alc.password_hash, alc.status
-`, loginName).Scan(&credential.UserID, &credential.LoginName, &credential.PasswordHash, &credential.Status, &roles)
+JOIN admin_operators ao ON ao.id = alc.operator_id
+LEFT JOIN admin_operator_role_assignments aora ON aora.operator_id = ao.id
+LEFT JOIN admin_roles ar ON ar.id = aora.role_id
+WHERE ao.login_name = $1
+GROUP BY ao.id, ao.login_name, alc.password_hash, ao.status
+	`, loginName).Scan(&credential.OperatorID, &credential.LoginName, &credential.PasswordHash, &credential.Status, &roles)
 	if err == sql.ErrNoRows {
 		return AdminCredential{}, ErrCredentialNotFound
 	}
@@ -51,23 +52,18 @@ func (s *SQLAdminStore) FindAdminIdentityByLoginName(ctx context.Context, loginN
 	var roles pq.StringArray
 	err := s.db.QueryRowContext(ctx, `
 SELECT
-  u.id::text,
-  COALESCE(alc.login_name, u.phone, ''),
+  ao.id::text,
+  ao.login_name,
   COALESCE(alc.password_hash, ''),
-  CASE
-    WHEN u.status <> 'active' THEN 'disabled'
-    WHEN alc.id IS NOT NULL AND alc.status <> 'enabled' THEN 'disabled'
-    ELSE 'enabled'
-  END,
-  COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), ARRAY[]::text[])
-FROM users u
-LEFT JOIN admin_login_credentials alc ON alc.user_id = u.id
-LEFT JOIN user_role_assignments ura ON ura.user_id = u.id
-LEFT JOIN roles r ON r.id = ura.role_id
-WHERE (u.phone = $1 OR alc.login_name = $1)
-  AND u.deleted_at IS NULL
-GROUP BY u.id, u.phone, u.status, alc.id, alc.login_name, alc.password_hash, alc.status
-`, loginName).Scan(&credential.UserID, &credential.LoginName, &credential.PasswordHash, &credential.Status, &roles)
+  ao.status,
+  COALESCE(array_agg(DISTINCT ar.code::text) FILTER (WHERE ar.code IS NOT NULL), ARRAY[]::text[])
+FROM admin_operators ao
+LEFT JOIN admin_login_credentials alc ON alc.operator_id = ao.id
+LEFT JOIN admin_operator_role_assignments aora ON aora.operator_id = ao.id
+LEFT JOIN admin_roles ar ON ar.id = aora.role_id
+WHERE ao.login_name = $1
+GROUP BY ao.id, ao.login_name, ao.status, alc.password_hash
+	`, loginName).Scan(&credential.OperatorID, &credential.LoginName, &credential.PasswordHash, &credential.Status, &roles)
 	if err == sql.ErrNoRows {
 		return AdminCredential{}, ErrCredentialNotFound
 	}
@@ -94,9 +90,9 @@ SELECT
       THEN permissions->'adminModules'
     ELSE '[]'::jsonb
   END
-FROM roles
+FROM admin_roles
 WHERE code = ANY($1)
-`, pq.Array(roles))
+	`, pq.Array(roles))
 	if err != nil {
 		return nil, err
 	}

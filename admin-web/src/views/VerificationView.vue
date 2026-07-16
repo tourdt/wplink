@@ -293,7 +293,7 @@ function displayValue(value) {
 }
 
 function currentOperatorId() {
-  return auth.user?.userId || ''
+  return auth.user?.operatorId || ''
 }
 
 function normalizeBillingConfig(config = {}) {

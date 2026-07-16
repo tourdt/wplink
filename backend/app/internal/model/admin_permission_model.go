@@ -30,19 +30,19 @@ type AdminOperatorFilter struct {
 }
 
 type AdminOperatorInput struct {
-	UserID       string
+	OperatorID   string
 	LoginName    string
 	RealName     string
 	PasswordHash string
 	Status       string
 	Roles        []string
-	OperatorID   string
+	ActorID      string
 }
 
 type AdminOperatorStatusInput struct {
-	UserID     string
-	Status     string
 	OperatorID string
+	Status     string
+	ActorID    string
 }
 
 type AdminRoleModulePermissionInput struct {
@@ -52,7 +52,7 @@ type AdminRoleModulePermissionInput struct {
 }
 
 type AdminOperatorItem struct {
-	UserID      string
+	OperatorID  string
 	LoginName   string
 	RealName    string
 	Status      string
@@ -84,9 +84,9 @@ SELECT
       THEN permissions->'adminModules'
     ELSE '[]'::jsonb
   END
-FROM roles
-WHERE code = $1
-`, strings.TrimSpace(roleCode)).Scan(&rolePermission.RoleCode, &rawModules)
+	FROM admin_roles
+	WHERE code = $1
+	`, strings.TrimSpace(roleCode)).Scan(&rolePermission.RoleCode, &rawModules)
 	if errors.Is(err, sql.ErrNoRows) {
 		return AdminRoleModulePermission{}, ErrAdminRoleNotFound
 	}
@@ -105,9 +105,9 @@ func (m *AdminPermissionModel) UpdateAdminRoleModulePermissions(ctx context.Cont
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `
-UPDATE roles
-SET
-  permissions = jsonb_set(
+	UPDATE admin_roles
+	SET
+	  permissions = jsonb_set(
     CASE WHEN jsonb_typeof(permissions) = 'object' THEN permissions ELSE '{}'::jsonb END,
     '{adminModules}',
     $2::jsonb,
@@ -156,44 +156,41 @@ func (m *AdminPermissionModel) ListAdminOperators(ctx context.Context, filter Ad
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize
 	rows, err := m.db.QueryContext(ctx, `
-WITH filtered AS (
-  SELECT
-    u.id::text AS user_id,
-    alc.login_name,
-    COALESCE(NULLIF(aop.real_name, ''), NULLIF(u.nickname, ''), alc.login_name) AS real_name,
-    alc.status,
-    COALESCE(array_remove(array_agg(DISTINCT r.code), NULL), ARRAY[]::text[]) AS roles,
-    alc.created_at,
-    alc.last_login_at
-  FROM admin_login_credentials alc
-  JOIN users u ON u.id = alc.user_id
-  LEFT JOIN admin_operator_profiles aop ON aop.user_id = u.id
-  LEFT JOIN user_role_assignments ura ON ura.user_id = u.id
-  LEFT JOIN roles r ON r.id = ura.role_id AND r.code IN ('platform_operator', 'super_admin')
-  WHERE u.deleted_at IS NULL
-    AND (
-      $1 = ''
-      OR alc.login_name ILIKE '%' || $1 || '%'
-      OR COALESCE(aop.real_name, '') ILIKE '%' || $1 || '%'
-      OR COALESCE(u.nickname, '') ILIKE '%' || $1 || '%'
-      OR COALESCE(u.phone, '') ILIKE '%' || $1 || '%'
-    )
-    AND (
-      $2 = ''
-      OR EXISTS (
-        SELECT 1
-        FROM user_role_assignments ura2
-        JOIN roles r2 ON r2.id = ura2.role_id
-        WHERE ura2.user_id = u.id AND r2.code = $2
-      )
-    )
-    AND ($3 = '' OR alc.status = $3)
-  GROUP BY u.id, alc.login_name, aop.real_name, u.nickname, alc.status, alc.created_at, alc.last_login_at
-)
-SELECT
-  user_id,
-  login_name,
-  real_name,
+	WITH filtered AS (
+	  SELECT
+	    ao.id::text AS operator_id,
+	    ao.login_name,
+	    ao.real_name,
+	    ao.status,
+	    COALESCE(array_remove(array_agg(DISTINCT ar.code::text), NULL), ARRAY[]::text[]) AS roles,
+	    ao.created_at,
+	    COALESCE(ao.last_login_at, alc.last_login_at) AS last_login_at
+	  FROM admin_operators ao
+	  LEFT JOIN admin_login_credentials alc ON alc.operator_id = ao.id
+	  LEFT JOIN admin_operator_role_assignments aora ON aora.operator_id = ao.id
+	  LEFT JOIN admin_roles ar ON ar.id = aora.role_id AND ar.code IN ('platform_operator', 'super_admin')
+	  WHERE 1 = 1
+	    AND (
+	      $1 = ''
+	      OR ao.login_name ILIKE '%' || $1 || '%'
+	      OR ao.real_name ILIKE '%' || $1 || '%'
+	    )
+	    AND (
+	      $2 = ''
+	      OR EXISTS (
+	        SELECT 1
+	        FROM admin_operator_role_assignments aora2
+	        JOIN admin_roles ar2 ON ar2.id = aora2.role_id
+	        WHERE aora2.operator_id = ao.id AND ar2.code = $2
+	      )
+	    )
+	    AND ($3 = '' OR ao.status = $3)
+	  GROUP BY ao.id, ao.login_name, ao.real_name, ao.status, ao.created_at, ao.last_login_at, alc.last_login_at
+	)
+	SELECT
+	  operator_id,
+	  login_name,
+	  real_name,
   status,
   roles,
   created_at,
@@ -236,41 +233,39 @@ func (m *AdminPermissionModel) CreateAdminOperator(ctx context.Context, input Ad
 			return ErrAdminOperatorLoginNameExists
 		}
 
-		userID, err := upsertAdminUserTx(ctx, tx, loginName, strings.TrimSpace(input.RealName))
-		if err != nil {
+		var operatorID string
+		if err := tx.QueryRowContext(ctx, `
+	INSERT INTO admin_operators (
+	  login_name,
+	  real_name,
+	  status,
+	  created_by
+	)
+	VALUES ($1, $2, $3, NULLIF($4, '')::bigint)
+	RETURNING id::text
+	`, loginName, strings.TrimSpace(input.RealName), input.Status, strings.TrimSpace(input.ActorID)).Scan(&operatorID); err != nil {
 			return err
-		}
-		if exists, err := adminCredentialExistsForUser(ctx, tx, userID); err != nil {
-			return err
-		} else if exists {
-			return ErrAdminOperatorLoginNameExists
 		}
 
 		if _, err := tx.ExecContext(ctx, `
-INSERT INTO admin_login_credentials (
-  user_id,
-  login_name,
-  password_hash,
-  status,
-  password_changed_at,
-  created_by
-)
-VALUES ($1, $2, $3, $4, now(), NULLIF($5, '')::bigint)
-`, userID, loginName, input.PasswordHash, input.Status, strings.TrimSpace(input.OperatorID)); err != nil {
+	INSERT INTO admin_login_credentials (
+	  operator_id,
+	  password_hash,
+	  password_changed_at
+	)
+	VALUES ($1, $2, now())
+	`, operatorID, input.PasswordHash); err != nil {
 			return err
 		}
-		if err := upsertAdminProfileTx(ctx, tx, userID, strings.TrimSpace(input.RealName), "active"); err != nil {
-			return err
-		}
-		if err := assignAdminRolesTx(ctx, tx, userID, input.Roles); err != nil {
+		if err := assignAdminRolesTx(ctx, tx, operatorID, input.Roles); err != nil {
 			return err
 		}
 		if err := recordOperationLogTx(ctx, tx, OperationLogInput{
-			OperatorID:   strings.TrimSpace(input.OperatorID),
+			OperatorID:   strings.TrimSpace(input.ActorID),
 			OperatorRole: "super_admin",
 			Action:       "admin_operator_create",
 			ObjectType:   "admin_operator",
-			ObjectID:     userID,
+			ObjectID:     operatorID,
 			AfterSnapshot: JSONMap{
 				"loginName": loginName,
 				"realName":  strings.TrimSpace(input.RealName),
@@ -280,7 +275,7 @@ VALUES ($1, $2, $3, $4, now(), NULLIF($5, '')::bigint)
 		}); err != nil {
 			return err
 		}
-		item, err = getAdminOperatorByUserIDTx(ctx, tx, userID)
+		item, err = getAdminOperatorByOperatorIDTx(ctx, tx, operatorID)
 		return err
 	})
 	if err != nil {
@@ -292,8 +287,8 @@ VALUES ($1, $2, $3, $4, now(), NULLIF($5, '')::bigint)
 func (m *AdminPermissionModel) UpdateAdminOperator(ctx context.Context, input AdminOperatorInput) (AdminOperatorItem, error) {
 	var item AdminOperatorItem
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
-		userID := strings.TrimSpace(input.UserID)
-		before, err := getAdminOperatorByUserIDTx(ctx, tx, userID)
+		operatorID := strings.TrimSpace(input.OperatorID)
+		before, err := getAdminOperatorByOperatorIDTx(ctx, tx, operatorID)
 		if err != nil {
 			return err
 		}
@@ -301,14 +296,7 @@ func (m *AdminPermissionModel) UpdateAdminOperator(ctx context.Context, input Ad
 		if loginName == "" {
 			loginName = before.LoginName
 		}
-		exists, err := adminLoginNameExists(ctx, tx, loginName, userID)
-		if err != nil {
-			return err
-		}
-		if exists {
-			return ErrAdminOperatorLoginNameExists
-		}
-		exists, err = userLoginNameExists(ctx, tx, loginName, userID)
+		exists, err := adminLoginNameExists(ctx, tx, loginName, operatorID)
 		if err != nil {
 			return err
 		}
@@ -317,36 +305,35 @@ func (m *AdminPermissionModel) UpdateAdminOperator(ctx context.Context, input Ad
 		}
 
 		if _, err := tx.ExecContext(ctx, `
-UPDATE users
-SET phone = $2, nickname = $3, updated_at = now()
-WHERE id = $1
-`, userID, loginName, strings.TrimSpace(input.RealName)); err != nil {
+	UPDATE admin_operators
+	SET
+	  login_name = $2,
+	  real_name = $3,
+	  status = $4,
+	  updated_at = now()
+	WHERE id = $1
+	`, operatorID, loginName, strings.TrimSpace(input.RealName), input.Status); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `
-UPDATE admin_login_credentials
-SET
-  login_name = $2,
-  status = $3,
-  password_hash = CASE WHEN $4 = '' THEN password_hash ELSE $4 END,
-  password_changed_at = CASE WHEN $4 = '' THEN password_changed_at ELSE now() END,
-  updated_at = now()
-WHERE user_id = $1
-`, userID, loginName, input.Status, strings.TrimSpace(input.PasswordHash)); err != nil {
+	UPDATE admin_login_credentials
+	SET
+	  password_hash = CASE WHEN $2 = '' THEN password_hash ELSE $2 END,
+	  password_changed_at = CASE WHEN $2 = '' THEN password_changed_at ELSE now() END,
+	  updated_at = now()
+	WHERE operator_id = $1
+	`, operatorID, strings.TrimSpace(input.PasswordHash)); err != nil {
 			return err
 		}
-		if err := upsertAdminProfileTx(ctx, tx, userID, strings.TrimSpace(input.RealName), "active"); err != nil {
-			return err
-		}
-		if err := assignAdminRolesTx(ctx, tx, userID, input.Roles); err != nil {
+		if err := assignAdminRolesTx(ctx, tx, operatorID, input.Roles); err != nil {
 			return err
 		}
 		if err := recordOperationLogTx(ctx, tx, OperationLogInput{
-			OperatorID:   strings.TrimSpace(input.OperatorID),
+			OperatorID:   strings.TrimSpace(input.ActorID),
 			OperatorRole: "super_admin",
 			Action:       "admin_operator_update",
 			ObjectType:   "admin_operator",
-			ObjectID:     userID,
+			ObjectID:     operatorID,
 			BeforeSnapshot: JSONMap{
 				"loginName": before.LoginName,
 				"realName":  before.RealName,
@@ -362,7 +349,7 @@ WHERE user_id = $1
 		}); err != nil {
 			return err
 		}
-		item, err = getAdminOperatorByUserIDTx(ctx, tx, userID)
+		item, err = getAdminOperatorByOperatorIDTx(ctx, tx, operatorID)
 		return err
 	})
 	if err != nil {
@@ -374,24 +361,24 @@ WHERE user_id = $1
 func (m *AdminPermissionModel) UpdateAdminOperatorStatus(ctx context.Context, input AdminOperatorStatusInput) (AdminOperatorItem, error) {
 	var item AdminOperatorItem
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
-		userID := strings.TrimSpace(input.UserID)
-		before, err := getAdminOperatorByUserIDTx(ctx, tx, userID)
+		operatorID := strings.TrimSpace(input.OperatorID)
+		before, err := getAdminOperatorByOperatorIDTx(ctx, tx, operatorID)
 		if err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `
-UPDATE admin_login_credentials
-SET status = $2, updated_at = now()
-WHERE user_id = $1
-`, userID, input.Status); err != nil {
+	UPDATE admin_operators
+	SET status = $2, updated_at = now()
+	WHERE id = $1
+	`, operatorID, input.Status); err != nil {
 			return err
 		}
 		if err := recordOperationLogTx(ctx, tx, OperationLogInput{
-			OperatorID:   strings.TrimSpace(input.OperatorID),
+			OperatorID:   strings.TrimSpace(input.ActorID),
 			OperatorRole: "super_admin",
 			Action:       "admin_operator_status_update",
 			ObjectType:   "admin_operator",
-			ObjectID:     userID,
+			ObjectID:     operatorID,
 			BeforeSnapshot: JSONMap{
 				"status": before.Status,
 			},
@@ -401,7 +388,7 @@ WHERE user_id = $1
 		}); err != nil {
 			return err
 		}
-		item, err = getAdminOperatorByUserIDTx(ctx, tx, userID)
+		item, err = getAdminOperatorByOperatorIDTx(ctx, tx, operatorID)
 		return err
 	})
 	if err != nil {
@@ -410,42 +397,16 @@ WHERE user_id = $1
 	return item, nil
 }
 
-func adminLoginNameExists(ctx context.Context, tx *sql.Tx, loginName string, excludedUserID string) (bool, error) {
+func adminLoginNameExists(ctx context.Context, tx *sql.Tx, loginName string, excludedOperatorID string) (bool, error) {
 	var exists bool
 	err := tx.QueryRowContext(ctx, `
-SELECT EXISTS (
-  SELECT 1
-  FROM admin_login_credentials
-  WHERE login_name = $1
-    AND ($2 = '' OR user_id <> $2::bigint)
-)
-`, strings.TrimSpace(loginName), strings.TrimSpace(excludedUserID)).Scan(&exists)
-	return exists, err
-}
-
-func adminCredentialExistsForUser(ctx context.Context, tx *sql.Tx, userID string) (bool, error) {
-	var exists bool
-	err := tx.QueryRowContext(ctx, `
-SELECT EXISTS (
-  SELECT 1
-  FROM admin_login_credentials
-  WHERE user_id = $1
-)
-`, strings.TrimSpace(userID)).Scan(&exists)
-	return exists, err
-}
-
-func userLoginNameExists(ctx context.Context, tx *sql.Tx, loginName string, excludedUserID string) (bool, error) {
-	var exists bool
-	err := tx.QueryRowContext(ctx, `
-SELECT EXISTS (
-  SELECT 1
-  FROM users
-  WHERE phone = $1
-    AND id <> $2::bigint
-    AND deleted_at IS NULL
-)
-`, strings.TrimSpace(loginName), strings.TrimSpace(excludedUserID)).Scan(&exists)
+	SELECT EXISTS (
+	  SELECT 1
+	  FROM admin_operators
+	  WHERE login_name = $1
+	    AND ($2 = '' OR id <> $2::bigint)
+	)
+	`, strings.TrimSpace(loginName), strings.TrimSpace(excludedOperatorID)).Scan(&exists)
 	return exists, err
 }
 
@@ -462,9 +423,9 @@ SELECT
       THEN permissions->'adminModules'
     ELSE '[]'::jsonb
   END
-FROM roles
-WHERE code = $1
-`, strings.TrimSpace(roleCode)).Scan(&roleID, &rolePermission.RoleCode, &rawModules)
+	FROM admin_roles
+	WHERE code = $1
+	`, strings.TrimSpace(roleCode)).Scan(&roleID, &rolePermission.RoleCode, &rawModules)
 	if errors.Is(err, sql.ErrNoRows) {
 		return AdminRoleModulePermission{}, "", ErrAdminRoleNotFound
 	}
@@ -475,40 +436,11 @@ WHERE code = $1
 	return rolePermission, roleID, nil
 }
 
-func upsertAdminUserTx(ctx context.Context, tx *sql.Tx, loginName string, realName string) (string, error) {
-	var userID string
-	err := tx.QueryRowContext(ctx, `
-INSERT INTO users (phone, nickname, status)
-VALUES ($1, $2, 'active')
-ON CONFLICT (phone) DO UPDATE SET
-  nickname = CASE WHEN EXCLUDED.nickname = '' THEN users.nickname ELSE EXCLUDED.nickname END,
-  status = 'active',
-  updated_at = now()
-RETURNING id::text
-`, strings.TrimSpace(loginName), strings.TrimSpace(realName)).Scan(&userID)
-	return userID, err
-}
-
-func upsertAdminProfileTx(ctx context.Context, tx *sql.Tx, userID string, realName string, status string) error {
-	_, err := tx.ExecContext(ctx, `
-INSERT INTO admin_operator_profiles (user_id, real_name, status)
-VALUES ($1, $2, $3)
-ON CONFLICT (user_id) DO UPDATE SET
-  real_name = EXCLUDED.real_name,
-  status = EXCLUDED.status,
-  updated_at = now()
-`, strings.TrimSpace(userID), strings.TrimSpace(realName), strings.TrimSpace(status))
-	return err
-}
-
-func assignAdminRolesTx(ctx context.Context, tx *sql.Tx, userID string, roles []string) error {
+func assignAdminRolesTx(ctx context.Context, tx *sql.Tx, operatorID string, roles []string) error {
 	if _, err := tx.ExecContext(ctx, `
-DELETE FROM user_role_assignments ura
-USING roles r
-WHERE ura.role_id = r.id
-  AND ura.user_id = $1
-  AND r.code IN ('platform_operator', 'super_admin')
-`, strings.TrimSpace(userID)); err != nil {
+	DELETE FROM admin_operator_role_assignments
+	WHERE operator_id = $1
+	`, strings.TrimSpace(operatorID)); err != nil {
 		return err
 	}
 	for _, role := range roles {
@@ -517,45 +449,41 @@ WHERE ura.role_id = r.id
 			continue
 		}
 		if _, err := tx.ExecContext(ctx, `
-INSERT INTO user_role_assignments (user_id, role_id)
-SELECT $1, r.id
-FROM roles r
-WHERE r.code = $2
-  AND NOT EXISTS (
-    SELECT 1
-    FROM user_role_assignments ura
-    WHERE ura.user_id = $1
-      AND ura.role_id = r.id
-      AND ura.city_station_id IS NULL
-      AND ura.merchant_id IS NULL
-  )
-`, strings.TrimSpace(userID), role); err != nil {
+	INSERT INTO admin_operator_role_assignments (operator_id, role_id)
+	SELECT $1, r.id
+	FROM admin_roles r
+	WHERE r.code = $2
+	  AND NOT EXISTS (
+	    SELECT 1
+	    FROM admin_operator_role_assignments aora
+	    WHERE aora.operator_id = $1
+		      AND aora.role_id = r.id
+	  )
+	`, strings.TrimSpace(operatorID), role); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func getAdminOperatorByUserIDTx(ctx context.Context, tx *sql.Tx, userID string) (AdminOperatorItem, error) {
+func getAdminOperatorByOperatorIDTx(ctx context.Context, tx *sql.Tx, operatorID string) (AdminOperatorItem, error) {
 	item, _, err := scanAdminOperator(tx.QueryRowContext(ctx, `
-SELECT
-  u.id::text,
-  alc.login_name,
-  COALESCE(NULLIF(aop.real_name, ''), NULLIF(u.nickname, ''), alc.login_name) AS real_name,
-  alc.status,
-  COALESCE(array_remove(array_agg(DISTINCT r.code), NULL), ARRAY[]::text[]) AS roles,
-  alc.created_at,
-  alc.last_login_at,
-  1::bigint AS total
-FROM admin_login_credentials alc
-JOIN users u ON u.id = alc.user_id
-LEFT JOIN admin_operator_profiles aop ON aop.user_id = u.id
-LEFT JOIN user_role_assignments ura ON ura.user_id = u.id
-LEFT JOIN roles r ON r.id = ura.role_id AND r.code IN ('platform_operator', 'super_admin')
-WHERE u.id = $1
-  AND u.deleted_at IS NULL
-GROUP BY u.id, alc.login_name, aop.real_name, u.nickname, alc.status, alc.created_at, alc.last_login_at
-`, strings.TrimSpace(userID)))
+	SELECT
+	  ao.id::text,
+	  ao.login_name,
+	  ao.real_name,
+	  ao.status,
+	  COALESCE(array_remove(array_agg(DISTINCT ar.code::text), NULL), ARRAY[]::text[]) AS roles,
+	  ao.created_at,
+	  COALESCE(ao.last_login_at, alc.last_login_at) AS last_login_at,
+	  1::bigint AS total
+	FROM admin_operators ao
+	LEFT JOIN admin_login_credentials alc ON alc.operator_id = ao.id
+	LEFT JOIN admin_operator_role_assignments aora ON aora.operator_id = ao.id
+	LEFT JOIN admin_roles ar ON ar.id = aora.role_id AND ar.code IN ('platform_operator', 'super_admin')
+	WHERE ao.id = $1
+	GROUP BY ao.id, ao.login_name, ao.real_name, ao.status, ao.created_at, ao.last_login_at, alc.last_login_at
+	`, strings.TrimSpace(operatorID)))
 	if errors.Is(err, sql.ErrNoRows) {
 		return AdminOperatorItem{}, ErrAdminOperatorNotFound
 	}
@@ -572,7 +500,7 @@ func scanAdminOperator(scanner adminOperatorScanner) (AdminOperatorItem, int64, 
 	var createdAt time.Time
 	var lastLoginAt sql.NullTime
 	var total int64
-	if err := scanner.Scan(&item.UserID, &item.LoginName, &item.RealName, &item.Status, &roles, &createdAt, &lastLoginAt, &total); err != nil {
+	if err := scanner.Scan(&item.OperatorID, &item.LoginName, &item.RealName, &item.Status, &roles, &createdAt, &lastLoginAt, &total); err != nil {
 		return AdminOperatorItem{}, 0, err
 	}
 	item.Roles = append([]string(nil), []string(roles)...)

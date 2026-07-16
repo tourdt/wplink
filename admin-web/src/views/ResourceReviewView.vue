@@ -259,6 +259,6 @@ function defaultProxyForm() {
 }
 
 function currentOperatorId() {
-  return auth.user?.userId || ''
+  return auth.user?.operatorId || ''
 }
 </script>

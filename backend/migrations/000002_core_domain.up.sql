@@ -133,7 +133,8 @@ CREATE TABLE IF NOT EXISTS resources (
   archived_at timestamptz,
   reject_reason text,
   take_down_reason text,
-  created_by bigint REFERENCES users(id),
+  created_by_user_id bigint REFERENCES users(id),
+  created_by_operator_id bigint REFERENCES admin_operators(id),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz,
@@ -152,7 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_resources_attributes_gin ON resources USING gin(a
 CREATE TABLE IF NOT EXISTS resource_review_records (
   id bigint PRIMARY KEY DEFAULT next_tsid(),
   resource_id bigint NOT NULL REFERENCES resources(id),
-  reviewer_id bigint NOT NULL REFERENCES users(id),
+  reviewer_id bigint NOT NULL REFERENCES admin_operators(id),
   action varchar(32) NOT NULL,
   reason text,
   snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -174,7 +175,7 @@ CREATE TABLE IF NOT EXISTS verifications (
   storefront_url text,
   materials jsonb NOT NULL DEFAULT '{}'::jsonb,
   review_note text,
-  reviewed_by bigint REFERENCES users(id),
+  reviewed_by bigint REFERENCES admin_operators(id),
   submitted_at timestamptz NOT NULL DEFAULT now(),
   reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -193,7 +194,7 @@ CREATE TABLE IF NOT EXISTS credit_records (
   tag_label varchar(64) NOT NULL,
   description text,
   visibility varchar(32) NOT NULL DEFAULT 'public',
-  created_by bigint REFERENCES users(id),
+  created_by bigint REFERENCES admin_operators(id),
   created_at timestamptz NOT NULL DEFAULT now(),
   revoked_at timestamptz
 );

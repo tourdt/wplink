@@ -22,8 +22,8 @@ func TestAPIRouterLogsInAdmin(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	if data["token"] != "admin-token" || data["userId"] != "user-1" {
-		t.Fatalf("login data = %#v, want token and userId", data)
+	if data["token"] != "admin-token" || data["operatorId"] != "operator-1" {
+		t.Fatalf("login data = %#v, want token and operatorId", data)
 	}
 }
 
@@ -497,7 +497,7 @@ func TestResourceAPIRouterAllowsAdminTokenForMerchantActions(t *testing.T) {
 	router := NewAPIRouter(
 		store,
 		WithUserTokenService(&fakeUserTokenService{}),
-		WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}),
+		WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{OperatorID: "admin-1", Roles: []string{"platform_operator"}}}),
 	)
 
 	createRec := httptest.NewRecorder()
@@ -512,8 +512,8 @@ func TestResourceAPIRouterAllowsAdminTokenForMerchantActions(t *testing.T) {
 	createReq.Header.Set("Authorization", "Bearer admin-token")
 	router.ServeHTTP(createRec, createReq)
 	decodeEnvelopeData(t, createRec, http.StatusOK)
-	if store.created.CreatedByUser != "admin-1" {
-		t.Fatalf("admin createdByUser = %q, want admin token user", store.created.CreatedByUser)
+	if store.created.CreatedByOperator != "admin-1" || store.created.CreatedByUser != "" {
+		t.Fatalf("admin creator = user:%q operator:%q, want admin operator only", store.created.CreatedByUser, store.created.CreatedByOperator)
 	}
 
 	submitRec := httptest.NewRecorder()
@@ -631,7 +631,7 @@ func TestResourceAPIRouterUsesAdminTokenReviewerForReview(t *testing.T) {
 	store := &fakeResourceAPIStore{}
 	router := NewAPIRouter(
 		store,
-		WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}),
+		WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{OperatorID: "admin-1", Roles: []string{"platform_operator"}}}),
 	)
 
 	rec := httptest.NewRecorder()
@@ -648,7 +648,7 @@ func TestResourceAPIRouterUsesAdminTokenReviewerForReview(t *testing.T) {
 type fakeAdminLoginService struct{}
 
 func (fakeAdminLoginService) Login(ctx context.Context, req adminauth.LoginRequest) (adminauth.LoginResponse, error) {
-	return adminauth.LoginResponse{Token: "admin-token", UserID: "user-1", Roles: []string{adminauth.RolePlatformOperator}}, nil
+	return adminauth.LoginResponse{Token: "admin-token", OperatorID: "operator-1", Roles: []string{adminauth.RolePlatformOperator}}, nil
 }
 
 type rawErrorAdminLoginService struct{}

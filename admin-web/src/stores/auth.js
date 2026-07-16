@@ -14,14 +14,14 @@ export const useAuthStore = defineStore('auth', {
     modules: (state) => userModules(state.user),
     isSuperAdmin: (state) => (state.user?.roles || []).includes('super_admin'),
     canAccessModule: (state) => (moduleCode) => canAccessAdminModule(state.user, moduleCode),
-    displayName: (state) => state.user?.loginName || state.user?.userId || '运营人员',
+    displayName: (state) => state.user?.loginName || state.user?.operatorId || '运营人员',
   },
   actions: {
     async login(form) {
       const data = await loginAdmin(form)
       this.token = data.token
       this.user = {
-        userId: data.userId,
+        operatorId: data.operatorId,
         roles: data.roles || [],
         modules: data.modules || [],
         loginName: form.loginName,

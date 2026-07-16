@@ -189,8 +189,8 @@ test('admin api contract exposes admin permission endpoints', () => {
     'type AdminUpdateRoleModulePermissionsReq',
     'get /operators (AdminListOperatorsReq) returns (AdminListOperatorsResp)',
     'post /operators (AdminSaveOperatorReq) returns (AdminSaveOperatorResp)',
-    'post /operators/:userId (AdminSaveOperatorReq) returns (AdminSaveOperatorResp)',
-    'post /operators/:userId/status (AdminUpdateOperatorStatusReq) returns (AdminSaveOperatorResp)',
+    'post /operators/:operatorId (AdminSaveOperatorReq) returns (AdminSaveOperatorResp)',
+    'post /operators/:operatorId/status (AdminUpdateOperatorStatusReq) returns (AdminSaveOperatorResp)',
     'get /module-permissions returns (AdminModulePermissionsResp)',
     'post /module-permissions/:roleCode (AdminUpdateRoleModulePermissionsReq) returns (AdminUpdateRoleModulePermissionsResp)',
   ]) {

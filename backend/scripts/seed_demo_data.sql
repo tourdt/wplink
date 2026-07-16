@@ -8,7 +8,6 @@ SELECT u.id, u.phone, u.openid, u.nickname, cs.id, 'active', now()
 FROM city_stations cs
 CROSS JOIN (
   VALUES
-    (8010000000000000001, '19900000001', 'demo_operator_openid', '演示运营'),
     (8010000000000000002, '19900000002', 'demo_factory_admin_openid', '认证工厂管理员'),
     (8010000000000000003, '19900000003', 'demo_stockist_admin_openid', '认证库存商管理员'),
     (8010000000000000004, '19900000004', 'demo_service_admin_openid', '服务商管理员'),
@@ -23,18 +22,23 @@ ON CONFLICT (id) DO UPDATE SET
   status = 'active',
   updated_at = now();
 
-INSERT INTO user_role_assignments (user_id, role_id, city_station_id, merchant_id)
-SELECT 8010000000000000001, r.id, cs.id, NULL::bigint
-FROM roles r
-JOIN city_stations cs ON cs.code = 'zhili'
-WHERE r.code = 'platform_operator'
+INSERT INTO admin_operators (id, login_name, real_name, status)
+VALUES (8009000000000000001, '19900000001', '演示超级管理员', 'enabled')
+ON CONFLICT (id) DO UPDATE SET
+  login_name = EXCLUDED.login_name,
+  real_name = EXCLUDED.real_name,
+  status = EXCLUDED.status,
+  updated_at = now();
+
+INSERT INTO admin_operator_role_assignments (operator_id, role_id)
+SELECT 8009000000000000001, ar.id
+FROM admin_roles ar
+WHERE ar.code = 'super_admin'
   AND NOT EXISTS (
     SELECT 1
-    FROM user_role_assignments ura
-    WHERE ura.user_id = 8010000000000000001
-      AND ura.role_id = r.id
-      AND ura.city_station_id = cs.id
-      AND ura.merchant_id IS NULL
+    FROM admin_operator_role_assignments aora
+    WHERE aora.operator_id = 8009000000000000001
+      AND aora.role_id = ar.id
   );
 
 INSERT INTO merchants (
@@ -143,9 +147,9 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO merchant_admin_bindings (id, merchant_id, user_id, role, status, created_by)
 VALUES
-  (8021000000000000001, 8020000000000000001, 8010000000000000002, 'owner', 'active', 8010000000000000001),
-  (8021000000000000002, 8020000000000000002, 8010000000000000003, 'owner', 'active', 8010000000000000001),
-  (8021000000000000003, 8020000000000000003, 8010000000000000004, 'owner', 'active', 8010000000000000001)
+  (8021000000000000001, 8020000000000000001, 8010000000000000002, 'owner', 'active', 8010000000000000002),
+  (8021000000000000002, 8020000000000000002, 8010000000000000003, 'owner', 'active', 8010000000000000003),
+  (8021000000000000003, 8020000000000000003, 8010000000000000004, 'owner', 'active', 8010000000000000004)
 ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, revoked_at = NULL;
 
 INSERT INTO resources (
@@ -174,7 +178,7 @@ INSERT INTO resources (
   refreshed_at,
   expires_at,
   reject_reason,
-  created_by
+  created_by_user_id
 )
 SELECT
   r.id,
@@ -202,7 +206,7 @@ SELECT
   r.refreshed_at,
   r.expires_at,
   r.reject_reason,
-  r.created_by
+  r.created_by_user_id
 FROM city_stations cs
 JOIN resource_type_configs rtc ON rtc.city_station_id = cs.id
 CROSS JOIN (
@@ -218,7 +222,7 @@ CROSS JOIN (
     (8030000000000000009, 8020000000000000001, 'factory_direct', 'rejected', '资料不完整的货源演示', '童装', '织里', '面议', '起批待确认', '', '演示已驳回供需信息。', '{"style":"基础款","spotAvailable":false}', '["已驳回"]', '陈厂长', '18800000001', 'factory-demo', true, NULL, NULL, now() + interval '7 days', '缺少清晰价格和联系方式确认材料', 8010000000000000002),
     (8030000000000000010, 8020000000000000002, 'stock_clearance', 'published', '即将过期的直播童裙库存', '童裙', '织里', '22 元/件', '900 件', '', '演示即将过期供需信息。', '{"season":"夏季","sizeRange":"100-140","allowSample":true,"allowLiveSale":true}', '["即将过期"]', '周经理', '18800000002', 'stock-demo', true, now() - interval '6 days', now() - interval '5 days', now() + interval '1 day', NULL, 8010000000000000003),
     (8030000000000000011, 8020000000000000003, 'production_support', 'expired', '已过期的旧拍摄服务套餐', '电商拍摄', '织里', '套餐价 999 元', '限 10 套', '', '演示已过期供需信息。', '{"serviceType":"拍摄","serviceArea":"织里","leadTime":"3天","caseAvailable":true}', '["已过期"]', '李经理', '18800000003', 'service-demo', true, now() - interval '40 days', now() - interval '35 days', now() - interval '1 day', NULL, 8010000000000000004)
-) AS r(id, merchant_id, type_code, status, title, category, district, price_text, quantity_text, cover_url, description, attributes, tags, contact_name, contact_phone, contact_wechat, is_verified, published_at, refreshed_at, expires_at, reject_reason, created_by)
+) AS r(id, merchant_id, type_code, status, title, category, district, price_text, quantity_text, cover_url, description, attributes, tags, contact_name, contact_phone, contact_wechat, is_verified, published_at, refreshed_at, expires_at, reject_reason, created_by_user_id)
 WHERE cs.code = 'zhili'
   AND rtc.type_code = r.type_code
 ON CONFLICT (id) DO UPDATE SET
@@ -248,16 +252,16 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO verifications (id, merchant_id, verification_type, status, applicant_user_id, business_name, license_url, storefront_url, materials, review_note, reviewed_by, reviewed_at)
 VALUES
-  (8040000000000000001, 8020000000000000001, 'factory', 'verified', 8010000000000000002, '湖州织里晨星童装厂', 'https://example.com/demo/factory-license.jpg', 'https://example.com/demo/factory-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8010000000000000001, now() - interval '5 days'),
-  (8040000000000000002, 8020000000000000002, 'stockist', 'verified', 8010000000000000003, '织里云仓尾货', 'https://example.com/demo/stock-license.jpg', 'https://example.com/demo/stock-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8010000000000000001, now() - interval '5 days'),
-  (8040000000000000003, 8020000000000000003, 'service_provider', 'verified', 8010000000000000004, '织里快印包装服务商', 'https://example.com/demo/service-license.jpg', 'https://example.com/demo/service-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8010000000000000001, now() - interval '5 days')
+  (8040000000000000001, 8020000000000000001, 'factory', 'verified', 8010000000000000002, '湖州织里晨星童装厂', 'https://example.com/demo/factory-license.jpg', 'https://example.com/demo/factory-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days'),
+  (8040000000000000002, 8020000000000000002, 'stockist', 'verified', 8010000000000000003, '织里云仓尾货', 'https://example.com/demo/stock-license.jpg', 'https://example.com/demo/stock-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days'),
+  (8040000000000000003, 8020000000000000003, 'service_provider', 'verified', 8010000000000000004, '织里快印包装服务商', 'https://example.com/demo/service-license.jpg', 'https://example.com/demo/service-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days')
 ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, review_note = EXCLUDED.review_note, reviewed_at = EXCLUDED.reviewed_at;
 
 INSERT INTO credit_records (id, merchant_id, source_type, tag_code, tag_label, description, visibility, created_by)
 VALUES
-  (8041000000000000001, 8020000000000000001, 'verification', 'factory_verified', '认证工厂', '演示认证信用标签', 'public', 8010000000000000001),
-  (8041000000000000002, 8020000000000000002, 'verification', 'stockist_verified', '认证库存商', '演示认证信用标签', 'public', 8010000000000000001),
-  (8041000000000000003, 8020000000000000003, 'verification', 'service_provider_verified', '认证服务商', '演示认证信用标签', 'public', 8010000000000000001)
+  (8041000000000000001, 8020000000000000001, 'verification', 'factory_verified', '认证工厂', '演示认证信用标签', 'public', 8009000000000000001),
+  (8041000000000000002, 8020000000000000002, 'verification', 'stockist_verified', '认证库存商', '演示认证信用标签', 'public', 8009000000000000001),
+  (8041000000000000003, 8020000000000000003, 'verification', 'service_provider_verified', '认证服务商', '演示认证信用标签', 'public', 8009000000000000001)
 ON CONFLICT (id) DO UPDATE SET tag_label = EXCLUDED.tag_label, description = EXCLUDED.description, revoked_at = NULL;
 
 INSERT INTO merchant_entitlements (id, merchant_id, entitlement_type, source_type, total_amount, remaining_amount, allowed_type_codes, top_duration_hours, expires_at, status)
@@ -280,7 +284,7 @@ INSERT INTO resource_review_records (id, resource_id, reviewer_id, action, reaso
 SELECT
   rr.id,
   r.id,
-  8010000000000000001,
+  8009000000000000001,
   CASE WHEN r.status = 'rejected' THEN 'reject' ELSE 'approve' END,
   CASE WHEN r.status = 'rejected' THEN r.reject_reason ELSE '演示审核通过' END,
   jsonb_build_object('title', r.title, 'status', r.status)
@@ -878,8 +882,8 @@ ON CONFLICT (id) DO UPDATE SET subtitle = EXCLUDED.subtitle, jump_target = EXCLU
 
 INSERT INTO operation_logs (id, operator_id, operator_role, action, object_type, object_id, after_snapshot)
 VALUES
-  (8054000000000000001, 8010000000000000001, 'platform_operator', 'merchant_verify', 'merchant', 8020000000000000001, '{"demo":true}'::jsonb),
-  (8054000000000000002, 8010000000000000001, 'platform_operator', 'resource_approve', 'resource', 8030000000000000001, '{"demo":true}'::jsonb)
+  (8054000000000000001, 8009000000000000001, 'super_admin', 'merchant_verify', 'merchant', 8020000000000000001, '{"demo":true}'::jsonb),
+  (8054000000000000002, 8009000000000000001, 'super_admin', 'resource_approve', 'resource', 8030000000000000001, '{"demo":true}'::jsonb)
 ON CONFLICT (id) DO UPDATE SET
   operator_id = EXCLUDED.operator_id,
   operator_role = EXCLUDED.operator_role,

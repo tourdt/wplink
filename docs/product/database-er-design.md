@@ -29,8 +29,9 @@
 erDiagram
   users ||--o{ user_role_assignments : has
   roles ||--o{ user_role_assignments : assigned
-  users ||--o| admin_operator_profiles : may_have
-  users ||--o| admin_login_credentials : may_have
+  admin_operators ||--o{ admin_operator_role_assignments : has
+  admin_roles ||--o{ admin_operator_role_assignments : assigned
+  admin_operators ||--o| admin_login_credentials : signs_in
   users ||--o{ merchant_admin_bindings : manages
   merchants ||--o{ merchant_admin_bindings : has
   city_stations ||--o{ merchants : hosts
@@ -49,7 +50,7 @@ erDiagram
   merchants ||--o{ merchant_entitlement_usage_records : uses
   users ||--o{ search_logs : searches
   users ||--o{ messages : receives
-  users ||--o{ operation_logs : operates
+  admin_operators ||--o{ operation_logs : operates
 ```
 
 ## 3. 核心建模策略
@@ -153,7 +154,7 @@ erDiagram
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
 | id | bigint | PK | 角色 ID |
-| code | varchar(64) | UNIQUE NOT NULL | normal_user, merchant_admin, platform_operator, super_admin |
+| code | varchar(64) | UNIQUE NOT NULL | normal_user, merchant_admin |
 | name | varchar(64) | NOT NULL | 角色名称 |
 | description | text | NULL | 描述 |
 | permissions | jsonb | NOT NULL DEFAULT '[]' | 权限编码 |
@@ -177,44 +178,68 @@ erDiagram
 
 - `uniq_user_role_scope(user_id, role_id, city_station_id, merchant_id)`
 
-### 4.3.1 admin_operator_profiles
+### 4.3.1 admin_operators
 
-后台运营人员资料表。后台不单独建立一套用户主体，仍然关联 `users`。
+后台运营人员主体表。后台账号和小程序用户隔离，运营人员不写入 `users`。
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
-| id | bigint | PK | 运营资料 ID |
-| user_id | bigint | FK -> users.id UNIQUE NOT NULL | 用户 |
+| id | bigint | PK | 后台操作员 ID |
+| login_name | varchar(64) | UNIQUE NOT NULL | 后台登录账号，可为手机号 |
 | real_name | varchar(64) | NOT NULL | 运营人员姓名 |
 | managed_city_station_ids | jsonb | NOT NULL DEFAULT '[]' | 可管理城市站 |
-| status | varchar(32) | NOT NULL | active, disabled |
+| status | varchar(32) | NOT NULL | enabled, disabled |
 | last_login_at | timestamptz | NULL | 最近后台登录 |
+| created_by | bigint | FK -> admin_operators.id NULL | 创建人 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 | updated_at | timestamptz | NOT NULL | 更新时间 |
 
-### 4.3.2 admin_login_credentials
+### 4.3.2 admin_roles
+
+后台角色表。后台角色独立于小程序角色，权限配置保存在 `permissions.adminModules`。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| id | bigint | PK | 后台角色 ID |
+| code | varchar(64) | UNIQUE NOT NULL | platform_operator, super_admin |
+| name | varchar(64) | NOT NULL | 角色名称 |
+| description | text | NULL | 描述 |
+| permissions | jsonb | NOT NULL DEFAULT '{}' | 后台权限配置 |
+| created_at | timestamptz | NOT NULL | 创建时间 |
+| updated_at | timestamptz | NOT NULL | 更新时间 |
+
+### 4.3.3 admin_operator_role_assignments
+
+后台操作员角色绑定表。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| id | bigint | PK | 绑定 ID |
+| operator_id | bigint | FK -> admin_operators.id NOT NULL | 后台操作员 |
+| role_id | bigint | FK -> admin_roles.id NOT NULL | 后台角色 |
+| created_at | timestamptz | NOT NULL | 创建时间 |
+
+### 4.3.4 admin_login_credentials
 
 管理后台登录凭证表。小程序前期只做微信登录，后台使用账号/手机号 + 密码登录。
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
 | id | bigint | PK | 凭证 ID |
-| user_id | bigint | FK -> users.id UNIQUE NOT NULL | 用户 |
-| login_name | varchar(64) | UNIQUE NOT NULL | 后台登录账号，可为手机号 |
+| operator_id | bigint | FK -> admin_operators.id UNIQUE NOT NULL | 后台操作员 |
 | password_hash | text | NOT NULL | bcrypt 密码哈希 |
-| status | varchar(32) | NOT NULL | enabled, disabled |
 | failed_attempts | int | NOT NULL DEFAULT 0 | 连续失败次数 |
 | locked_until | timestamptz | NULL | 临时锁定截止时间 |
 | password_changed_at | timestamptz | NULL | 密码修改时间 |
 | last_login_at | timestamptz | NULL | 最近登录时间 |
-| created_by | bigint | FK -> users.id NULL | 创建人 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 | updated_at | timestamptz | NOT NULL | 更新时间 |
 
 索引：
 
-- `idx_admin_login_credentials_login_name`
-- `idx_admin_login_credentials_status`
+- `idx_admin_operators_login_name`
+- `idx_admin_operators_status`
+- `idx_admin_login_credentials_operator`
 
 ### 4.4 city_stations
 
@@ -279,7 +304,8 @@ erDiagram
 | user_id | bigint | FK -> users.id NOT NULL | 用户 |
 | role | varchar(32) | NOT NULL | owner, admin, operator_proxy |
 | status | varchar(32) | NOT NULL | active, revoked |
-| created_by | bigint | FK -> users.id NULL | 创建人 |
+| created_by_user_id | bigint | FK -> users.id NULL | 小程序/商家侧创建人 |
+| created_by_operator_id | bigint | FK -> admin_operators.id NULL | 后台代发布创建人 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 | revoked_at | timestamptz | NULL | 取消时间 |
 
@@ -354,7 +380,8 @@ erDiagram
 | archived_at | timestamptz | NULL | 归档时间 |
 | reject_reason | text | NULL | 驳回原因 |
 | take_down_reason | text | NULL | 下架原因 |
-| created_by | bigint | FK -> users.id NULL | 创建人 |
+| created_by_user_id | bigint | FK -> users.id NULL | 小程序/商家侧创建人 |
+| created_by_operator_id | bigint | FK -> admin_operators.id NULL | 后台代发布创建人 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 | updated_at | timestamptz | NOT NULL | 更新时间 |
 | deleted_at | timestamptz | NULL | 软删除 |
@@ -378,7 +405,7 @@ erDiagram
 |---|---|---|---|
 | id | bigint | PK | 审核记录 ID |
 | resource_id | bigint | FK -> resources.id NOT NULL | 供需信息 |
-| reviewer_id | bigint | FK -> users.id NOT NULL | 审核人 |
+| reviewer_id | bigint | FK -> admin_operators.id NOT NULL | 后台审核人 |
 | action | varchar(32) | NOT NULL | approve, reject, take_down |
 | reason | text | NULL | 原因 |
 | snapshot | jsonb | NOT NULL DEFAULT '{}' | 审核时供需信息快照 |
@@ -406,7 +433,7 @@ erDiagram
 | storefront_url | text | NULL | 门头或工厂照片 |
 | materials | jsonb | NOT NULL DEFAULT '{}' | 其他材料 |
 | review_note | text | NULL | 审核说明 |
-| reviewed_by | bigint | FK -> users.id NULL | 审核人 |
+| reviewed_by | bigint | FK -> admin_operators.id NULL | 后台审核人 |
 | submitted_at | timestamptz | NOT NULL | 提交时间 |
 | reviewed_at | timestamptz | NULL | 审核时间 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
@@ -431,7 +458,7 @@ erDiagram
 | tag_label | varchar(64) | NOT NULL | 展示标签 |
 | description | text | NULL | 说明 |
 | visibility | varchar(32) | NOT NULL | public, internal |
-| created_by | bigint | FK -> users.id NULL | 创建人 |
+| created_by | bigint | FK -> admin_operators.id NULL | 后台创建人 |
 | created_at | timestamptz | NOT NULL | 创建时间 |
 | revoked_at | timestamptz | NULL | 撤销时间 |
 
@@ -593,7 +620,7 @@ erDiagram
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|
 | id | bigint | PK | 日志 ID |
-| operator_id | bigint | FK -> users.id NOT NULL | 操作人 |
+| operator_id | bigint | FK -> admin_operators.id NOT NULL | 后台操作人 |
 | operator_role | varchar(64) | NOT NULL | 操作角色 |
 | object_type | varchar(64) | NOT NULL | resource, merchant, credit, entitlement |
 | object_id | bigint | NOT NULL | 对象 ID |
@@ -742,6 +769,10 @@ MVP 必建：
 - users
 - roles
 - user_role_assignments
+- admin_operators
+- admin_roles
+- admin_operator_role_assignments
+- admin_login_credentials
 - city_stations
 - merchants
 - merchant_admin_bindings

@@ -822,7 +822,7 @@ API 设计目标：
 ```json
 {
   "token": "admin_jwt",
-  "userId": "tsid",
+  "operatorId": "tsid",
   "roles": ["platform_operator"]
 }
 ```
@@ -830,8 +830,8 @@ API 设计目标：
 规则：
 
 - 后台不开放注册，只能由超级管理员创建账号。
-- 登录账号关联统一 `users` 用户主体。
-- 只有 `platform_operator` 或 `super_admin` 角色允许登录后台。
+- 登录账号关联独立 `admin_operators` 后台操作员主体，不复用小程序侧 `users`。
+- 只有 `admin_roles` 中的 `platform_operator` 或 `super_admin` 角色允许登录后台。
 - 密码只保存 bcrypt 哈希，不保存明文。
 - 账号停用、密码错误、无后台权限都必须返回中文友好错误，不暴露内部表结构。
 

@@ -32,7 +32,7 @@ func TestAPIRouterRequiresUploadTokenAuthenticationWhenTokenServicesConfigured(t
 		WithUploadTokenService(fakeUploadTokenService{}),
 		WithUserTokenService(&strictUploadUserTokenService{}),
 		WithAdminTokenService(&strictUploadAdminTokenService{
-			subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}},
+			subject: session.AdminTokenSubject{OperatorID: "admin-1", Roles: []string{"platform_operator"}},
 		}),
 	)
 

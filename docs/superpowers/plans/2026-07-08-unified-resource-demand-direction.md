@@ -20,7 +20,7 @@
 - Modify: `backend/app/api/city.api`
 - Modify: `backend/app/internal/model/resource_model.go`
 - Modify: `backend/app/internal/model/resource_type_config_model.go`
-- Modify: `backend/app/internal/model/resources_model_gen.go`
+- Modify: `backend/app/internal/model/resource_model.go`
 - Modify: `backend/app/internal/model/resource_type_configs_model_gen.go`
 - Test: `backend/app/internal/logic/resource/create_resource_logic_test.go`
 - Test: `backend/app/internal/logic/resource/list_resources_logic_test.go`

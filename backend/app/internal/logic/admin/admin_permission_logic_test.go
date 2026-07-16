@@ -37,8 +37,11 @@ func TestAdminPermissionCreateOperatorPassesSanitizedInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateOperator() error = %v", err)
 	}
-	if resp.UserID != "user-created" {
-		t.Fatalf("UserID = %q, want user-created", resp.UserID)
+	if resp.OperatorID != "operator-created" {
+		t.Fatalf("OperatorID = %q, want operator-created", resp.OperatorID)
+	}
+	if store.createInput.ActorID != "super-1" {
+		t.Fatalf("ActorID = %q, want super-1", store.createInput.ActorID)
 	}
 	if store.createInput.LoginName != "18800000001" || store.createInput.RealName != "张运营" {
 		t.Fatalf("create input = %#v, want trimmed login and real name", store.createInput)
@@ -151,7 +154,7 @@ func (s *fakeAdminPermissionStore) ListAdminOperators(ctx context.Context, filte
 		return model.ListAdminOperatorsResult{}, s.listErr
 	}
 	return model.ListAdminOperatorsResult{
-		Items: []model.AdminOperatorItem{{UserID: "user-1", LoginName: "operator", RealName: "运营", Status: model.AdminCredentialStatusEnabled, Roles: []string{permission.RolePlatformOperator}}},
+		Items: []model.AdminOperatorItem{{OperatorID: "operator-1", LoginName: "operator", RealName: "运营", Status: model.AdminCredentialStatusEnabled, Roles: []string{permission.RolePlatformOperator}}},
 		Page:  filter.Page, PageSize: filter.PageSize, Total: 1,
 	}, nil
 }
@@ -161,7 +164,7 @@ func (s *fakeAdminPermissionStore) CreateAdminOperator(ctx context.Context, inpu
 	if s.createErr != nil {
 		return model.AdminOperatorItem{}, s.createErr
 	}
-	return model.AdminOperatorItem{UserID: "user-created", LoginName: input.LoginName, RealName: input.RealName, Status: input.Status, Roles: input.Roles}, nil
+	return model.AdminOperatorItem{OperatorID: "operator-created", LoginName: input.LoginName, RealName: input.RealName, Status: input.Status, Roles: input.Roles}, nil
 }
 
 func (s *fakeAdminPermissionStore) UpdateAdminOperator(ctx context.Context, input model.AdminOperatorInput) (model.AdminOperatorItem, error) {
@@ -169,7 +172,7 @@ func (s *fakeAdminPermissionStore) UpdateAdminOperator(ctx context.Context, inpu
 	if s.updateErr != nil {
 		return model.AdminOperatorItem{}, s.updateErr
 	}
-	return model.AdminOperatorItem{UserID: input.UserID, LoginName: input.LoginName, RealName: input.RealName, Status: input.Status, Roles: input.Roles}, nil
+	return model.AdminOperatorItem{OperatorID: input.OperatorID, LoginName: input.LoginName, RealName: input.RealName, Status: input.Status, Roles: input.Roles}, nil
 }
 
 func (s *fakeAdminPermissionStore) UpdateAdminOperatorStatus(ctx context.Context, input model.AdminOperatorStatusInput) (model.AdminOperatorItem, error) {
@@ -177,7 +180,7 @@ func (s *fakeAdminPermissionStore) UpdateAdminOperatorStatus(ctx context.Context
 	if s.statusErr != nil {
 		return model.AdminOperatorItem{}, s.statusErr
 	}
-	return model.AdminOperatorItem{UserID: input.UserID, Status: input.Status}, nil
+	return model.AdminOperatorItem{OperatorID: input.OperatorID, Status: input.Status}, nil
 }
 
 func (s *fakeAdminPermissionStore) GetAdminRoleModulePermissions(ctx context.Context, roleCode string) (model.AdminRoleModulePermission, error) {

@@ -109,6 +109,7 @@ type CreateResourceInput struct {
 	ContactPhone         string
 	ContactWechat        string
 	CreatedByUser        string
+	CreatedByOperator    string
 	ConsumePublishQuota  bool
 }
 
@@ -640,11 +641,12 @@ INSERT INTO resources (
   attributes,
   tags,
   images,
-  contact_name,
-  contact_phone,
-  contact_wechat,
-  created_by
-)
+	  contact_name,
+	  contact_phone,
+	  contact_wechat,
+	  created_by_user_id,
+	  created_by_operator_id
+	)
 SELECT
   $1,
   cs.id,
@@ -665,10 +667,11 @@ SELECT
   $17,
   $18,
   $19,
-  NULLIF($20, '')::bigint
-FROM city_stations cs
-WHERE cs.code = $2 AND cs.status = 'active'
-RETURNING id::text, status
+	  NULLIF($20, '')::bigint,
+	  NULLIF($21, '')::bigint
+	FROM city_stations cs
+	WHERE cs.code = $2 AND cs.status = 'active'
+	RETURNING id::text, status
 `,
 		input.MerchantID,
 		input.CityCode,
@@ -690,6 +693,7 @@ RETURNING id::text, status
 		input.ContactPhone,
 		input.ContactWechat,
 		input.CreatedByUser,
+		input.CreatedByOperator,
 	).Scan(&result.ID, &result.Status)
 	return result, err
 }
@@ -753,7 +757,7 @@ SELECT
   COALESCE(r.contact_name, ''),
   COALESCE(r.contact_wechat, '')
 FROM resources r
-LEFT JOIN users u ON u.id = r.created_by AND u.deleted_at IS NULL
+	LEFT JOIN users u ON u.id = r.created_by_user_id AND u.deleted_at IS NULL
 WHERE r.id = $1
   AND r.status IN ('draft', 'pending')
   AND r.deleted_at IS NULL
@@ -1573,11 +1577,12 @@ INSERT INTO resources (
   attributes,
   tags,
   images,
-  contact_name,
-  contact_phone,
-  contact_wechat,
-  created_by
-)
+	  contact_name,
+	  contact_phone,
+	  contact_wechat,
+	  created_by_user_id,
+	  created_by_operator_id
+	)
 SELECT
   merchant_id,
   city_station_id,
@@ -1596,8 +1601,9 @@ SELECT
   contact_name,
   contact_phone,
   contact_wechat,
-  created_by
-FROM resources
+	  created_by_user_id,
+	  created_by_operator_id
+	FROM resources
 WHERE id = $1
   AND merchant_id = $2
   AND deleted_at IS NULL

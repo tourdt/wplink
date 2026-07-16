@@ -20,8 +20,8 @@ func NewSessionTokenIssuer(issuer subjectTokenIssuer) *SessionTokenIssuer {
 
 func (i *SessionTokenIssuer) IssueAdminToken(ctx context.Context, credential AdminCredential) (string, error) {
 	return i.issuer.IssueAdminToken(ctx, session.AdminTokenSubject{
-		UserID:  credential.UserID,
-		Roles:   append([]string(nil), credential.Roles...),
-		Modules: append([]string(nil), credential.Modules...),
+		OperatorID: credential.OperatorID,
+		Roles:      append([]string(nil), credential.Roles...),
+		Modules:    append([]string(nil), credential.Modules...),
 	})
 }

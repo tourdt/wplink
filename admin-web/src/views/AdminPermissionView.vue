@@ -103,7 +103,7 @@
       </div>
     </section>
 
-    <el-drawer v-model="drawerVisible" :title="editingUserId ? '编辑管理员' : '新增管理员'" size="520px">
+    <el-drawer v-model="drawerVisible" :title="editingOperatorId ? '编辑管理员' : '新增管理员'" size="520px">
       <el-form label-position="top">
         <el-form-item label="登录账号">
           <el-input v-model="form.loginName" autocomplete="off" />
@@ -111,8 +111,8 @@
         <el-form-item label="姓名">
           <el-input v-model="form.realName" autocomplete="off" />
         </el-form-item>
-        <el-form-item :label="editingUserId ? '登录密码' : '初始密码'">
-          <el-input v-model="form.password" type="password" show-password autocomplete="new-password" :placeholder="editingUserId ? '留空不修改' : ''" />
+        <el-form-item :label="editingOperatorId ? '登录密码' : '初始密码'">
+          <el-input v-model="form.password" type="password" show-password autocomplete="new-password" :placeholder="editingOperatorId ? '留空不修改' : ''" />
         </el-form-item>
         <el-form-item label="角色">
           <el-select v-model="form.roles" multiple>
@@ -173,7 +173,7 @@ const moduleSaving = ref(false)
 const errorText = ref('')
 const moduleErrorText = ref('')
 const drawerVisible = ref(false)
-const editingUserId = ref('')
+const editingOperatorId = ref('')
 const moduleGroups = computed(() => {
   const grouped = new Map()
   for (const module of availableModules.value) {
@@ -249,13 +249,13 @@ async function savePlatformModules() {
 }
 
 function openCreate() {
-  editingUserId.value = ''
+  editingOperatorId.value = ''
   Object.assign(form, defaultForm())
   drawerVisible.value = true
 }
 
 function openEdit(row) {
-  editingUserId.value = row.userId
+  editingOperatorId.value = row.operatorId
   Object.assign(form, {
     loginName: row.loginName || '',
     realName: row.realName || '',
@@ -276,15 +276,15 @@ async function submitOperator() {
       roles: [...form.roles],
       status: form.status,
     }
-    if (editingUserId.value) {
-      await updateAdminOperator(editingUserId.value, payload)
+    if (editingOperatorId.value) {
+      await updateAdminOperator(editingOperatorId.value, payload)
       ElMessage.success('管理员账号已更新')
     } else {
       await createAdminOperator(payload)
       ElMessage.success('管理员账号已创建')
     }
     drawerVisible.value = false
-    await loadRows(editingUserId.value ? pagination.page : 1)
+    await loadRows(editingOperatorId.value ? pagination.page : 1)
   } finally {
     saving.value = false
   }
@@ -300,7 +300,7 @@ async function toggleStatus(row) {
   } catch {
     return
   }
-  await updateAdminOperatorStatus(row.userId, { status: nextStatus })
+  await updateAdminOperatorStatus(row.operatorId, { status: nextStatus })
   ElMessage.success(`管理员账号已${actionText}`)
   await loadRows(pagination.page)
 }

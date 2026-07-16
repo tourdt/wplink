@@ -166,7 +166,7 @@ go-zero 的 API group 和 Logic 包应按领域对象组织，而不是按页面
 | 发布效果 | `metrics` | `metrics` | 曝光、浏览、联系、成交反馈统计 |
 | 运营后台 | `admin` | `admin` | 审核、配置、代发、供需信息管理、操作日志 |
 
-后台登录单独使用 `/api/v1/admin/auth/login`，但不单独建立后台用户主体。后台账号通过 `admin_login_credentials` 关联 `users`，并通过 `roles` / `user_role_assignments` 判断是否具备 `platform_operator` 或 `super_admin` 权限。
+后台登录单独使用 `/api/v1/admin/auth/login`。后台账号使用独立的 `admin_operators` 主体、`admin_roles` 角色和 `admin_operator_role_assignments` 绑定，不复用小程序侧 `users` / `roles` / `user_role_assignments`。接口、token 和操作日志均使用 `operatorId` 表示后台操作人。
 
 ### 4.3 数据访问策略
 

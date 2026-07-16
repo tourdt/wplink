@@ -38,7 +38,7 @@ func TestNewProductionAPIRouterRequiresResourceAPIStore(t *testing.T) {
 		&fakeProductionDependencyStore{},
 		WithAdminLoginService(fakeAdminLoginService{}),
 		WithAdminTokenService(&strictUploadAdminTokenService{
-			subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}},
+			subject: session.AdminTokenSubject{OperatorID: "admin-1", Roles: []string{"platform_operator"}},
 		}),
 		WithUserTokenService(&strictUploadUserTokenService{}),
 		WithUploadTokenService(fakeUploadTokenService{}),
@@ -59,7 +59,7 @@ func TestNewProductionAPIRouterAcceptsCompleteAuthorizationDependencies(t *testi
 		store,
 		WithAdminLoginService(fakeAdminLoginService{}),
 		WithAdminTokenService(&strictUploadAdminTokenService{
-			subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}},
+			subject: session.AdminTokenSubject{OperatorID: "admin-1", Roles: []string{"platform_operator"}},
 		}),
 		WithUserTokenService(&strictUploadUserTokenService{}),
 		WithUploadTokenService(fakeUploadTokenService{}),

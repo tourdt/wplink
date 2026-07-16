@@ -129,9 +129,9 @@ func TestGoZeroAdminLoginRouteUsesSingleAPIHandler(t *testing.T) {
 func TestGoZeroAdminLoginRouteUsesGoctlHandlerWhenDependencyReady(t *testing.T) {
 	loginService := &goZeroAdminLoginService{
 		resp: adminauthlogic.LoginResponse{
-			Token:  "token-1",
-			UserID: "user-1",
-			Roles:  []string{adminauthlogic.RoleSuperAdmin},
+			Token:      "token-1",
+			OperatorID: "operator-1",
+			Roles:      []string{adminauthlogic.RoleSuperAdmin},
 		},
 	}
 	srv, err := NewGoZeroServer(
@@ -160,15 +160,15 @@ func TestGoZeroAdminLoginRouteUsesGoctlHandlerWhenDependencyReady(t *testing.T) 
 	}
 	var body struct {
 		Data struct {
-			Token  string   `json:"token"`
-			UserID string   `json:"userId"`
-			Roles  []string `json:"roles"`
+			Token      string   `json:"token"`
+			OperatorID string   `json:"operatorId"`
+			Roles      []string `json:"roles"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode admin login response: %v", err)
 	}
-	if body.Data.Token != "token-1" || body.Data.UserID != "user-1" || len(body.Data.Roles) != 1 || body.Data.Roles[0] != adminauthlogic.RoleSuperAdmin {
+	if body.Data.Token != "token-1" || body.Data.OperatorID != "operator-1" || len(body.Data.Roles) != 1 || body.Data.Roles[0] != adminauthlogic.RoleSuperAdmin {
 		t.Fatalf("admin login data = %#v, want fake service response", body.Data)
 	}
 }

@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS resource_reports (
   reason_text text,
   evidence jsonb NOT NULL DEFAULT '{}'::jsonb,
   status varchar(32) NOT NULL DEFAULT 'pending',
-  reviewed_by bigint REFERENCES users(id),
+  reviewed_by bigint REFERENCES admin_operators(id),
   reviewed_at timestamptz,
   review_action varchar(32),
   review_reason text,

@@ -17,9 +17,9 @@ import (
 
 func TestAPIRouterRequiresAdminTokenWhenConfigured(t *testing.T) {
 	tokenService := &fakeAdminTokenService{subject: session.AdminTokenSubject{
-		UserID:  "admin-1",
-		Roles:   []string{permission.RolePlatformOperator},
-		Modules: []string{permission.AdminModuleDashboard},
+		OperatorID: "admin-1",
+		Roles:      []string{permission.RolePlatformOperator},
+		Modules:    []string{permission.AdminModuleDashboard},
 	}}
 	router := NewAPIRouter(newFakeFullAPIStore(), WithAdminTokenService(tokenService))
 
@@ -39,9 +39,9 @@ func TestAPIRouterRequiresAdminTokenWhenConfigured(t *testing.T) {
 
 func TestAPIRouterRejectsAdminModuleOutsideTokenPermissions(t *testing.T) {
 	router := NewAPIRouter(newFakeFullAPIStore(), WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{
-		UserID:  "admin-1",
-		Roles:   []string{permission.RolePlatformOperator},
-		Modules: []string{permission.AdminModuleResourceReview},
+		OperatorID: "admin-1",
+		Roles:      []string{permission.RolePlatformOperator},
+		Modules:    []string{permission.AdminModuleResourceReview},
 	}}))
 
 	rec := httptest.NewRecorder()
@@ -188,7 +188,7 @@ func TestAPIRouterDoesNotExposePurchaseDemandRoutes(t *testing.T) {
 
 func TestAPIRouterDoesNotExposeManualMatchingRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
-	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}))
+	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{OperatorID: "admin-1", Roles: []string{"platform_operator"}}}))
 
 	cases := []struct {
 		name   string
@@ -218,7 +218,7 @@ func TestAPIRouterDoesNotExposeManualMatchingRoutes(t *testing.T) {
 
 func TestAPIRouterAdminPermissionRoutesRequireSuperAdmin(t *testing.T) {
 	store := newFakeFullAPIStore()
-	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}))
+	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{OperatorID: "admin-1", Roles: []string{"platform_operator"}}}))
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/operators", nil)
@@ -232,7 +232,7 @@ func TestAPIRouterAdminPermissionRoutesRequireSuperAdmin(t *testing.T) {
 
 func TestAPIRouterAdminPermissionRoutesUseTokenActor(t *testing.T) {
 	store := newFakeFullAPIStore()
-	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "super-1", Roles: []string{permission.RoleSuperAdmin}}}))
+	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{OperatorID: "super-1", Roles: []string{permission.RoleSuperAdmin}}}))
 
 	listRec := httptest.NewRecorder()
 	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/operators?keyword=%E8%BF%90%E8%90%A5&role=platform_operator&status=enabled&page=2&pageSize=5", nil)
@@ -254,8 +254,8 @@ func TestAPIRouterAdminPermissionRoutesUseTokenActor(t *testing.T) {
 	createReq.Header.Set("Authorization", "Bearer admin-token")
 	router.ServeHTTP(createRec, createReq)
 	decodeEnvelopeData(t, createRec, http.StatusOK)
-	if store.createAdminOperatorInput.OperatorID != "super-1" {
-		t.Fatalf("create admin operator id = %q, want token user", store.createAdminOperatorInput.OperatorID)
+	if store.createAdminOperatorInput.ActorID != "super-1" {
+		t.Fatalf("create admin operator actor id = %q, want token operator", store.createAdminOperatorInput.ActorID)
 	}
 
 	moduleListRec := httptest.NewRecorder()
@@ -519,7 +519,7 @@ func TestAPIRouterRegistersPublicGrowthCampaignRoute(t *testing.T) {
 
 func TestAPIRouterServesAdminVIPConfigRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
-	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{permission.RoleSuperAdmin}}}))
+	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{OperatorID: "admin-1", Roles: []string{permission.RoleSuperAdmin}}}))
 
 	listRec := httptest.NewRecorder()
 	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/vip/plans", nil)
@@ -657,7 +657,7 @@ func TestAPIRouterUsesAdminTokenOperatorForAdminActions(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(
 		store,
-		WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{permission.RoleSuperAdmin}}}),
+		WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{OperatorID: "admin-1", Roles: []string{permission.RoleSuperAdmin}}}),
 	)
 
 	entitlementRec := httptest.NewRecorder()
@@ -1172,22 +1172,22 @@ func (s *fakeFullAPIStore) ListOperationLogs(ctx context.Context, filter model.O
 
 func (s *fakeFullAPIStore) ListAdminOperators(ctx context.Context, filter model.AdminOperatorFilter) (model.ListAdminOperatorsResult, error) {
 	s.adminOperatorFilter = filter
-	return model.ListAdminOperatorsResult{Items: []model.AdminOperatorItem{{UserID: "admin-1", LoginName: "operator", RealName: "运营", Status: "enabled", Roles: []string{"platform_operator"}, CreatedAt: "2026-07-16T10:00:00Z"}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
+	return model.ListAdminOperatorsResult{Items: []model.AdminOperatorItem{{OperatorID: "admin-1", LoginName: "operator", RealName: "运营", Status: "enabled", Roles: []string{"platform_operator"}, CreatedAt: "2026-07-16T10:00:00Z"}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
 }
 
 func (s *fakeFullAPIStore) CreateAdminOperator(ctx context.Context, input model.AdminOperatorInput) (model.AdminOperatorItem, error) {
 	s.createAdminOperatorInput = input
-	return model.AdminOperatorItem{UserID: "admin-created", LoginName: input.LoginName, RealName: input.RealName, Status: input.Status, Roles: input.Roles, CreatedAt: "2026-07-16T10:00:00Z"}, nil
+	return model.AdminOperatorItem{OperatorID: "admin-created", LoginName: input.LoginName, RealName: input.RealName, Status: input.Status, Roles: input.Roles, CreatedAt: "2026-07-16T10:00:00Z"}, nil
 }
 
 func (s *fakeFullAPIStore) UpdateAdminOperator(ctx context.Context, input model.AdminOperatorInput) (model.AdminOperatorItem, error) {
 	s.updateAdminOperatorInput = input
-	return model.AdminOperatorItem{UserID: input.UserID, LoginName: input.LoginName, RealName: input.RealName, Status: input.Status, Roles: input.Roles, CreatedAt: "2026-07-16T10:00:00Z"}, nil
+	return model.AdminOperatorItem{OperatorID: input.OperatorID, LoginName: input.LoginName, RealName: input.RealName, Status: input.Status, Roles: input.Roles, CreatedAt: "2026-07-16T10:00:00Z"}, nil
 }
 
 func (s *fakeFullAPIStore) UpdateAdminOperatorStatus(ctx context.Context, input model.AdminOperatorStatusInput) (model.AdminOperatorItem, error) {
 	s.statusAdminOperatorInput = input
-	return model.AdminOperatorItem{UserID: input.UserID, Status: input.Status, CreatedAt: "2026-07-16T10:00:00Z"}, nil
+	return model.AdminOperatorItem{OperatorID: input.OperatorID, Status: input.Status, CreatedAt: "2026-07-16T10:00:00Z"}, nil
 }
 
 func (s *fakeFullAPIStore) GetAdminRoleModulePermissions(ctx context.Context, roleCode string) (model.AdminRoleModulePermission, error) {

@@ -1041,10 +1041,10 @@ func adminOperatorIDFromRequest(r *http.Request, tokenService AdminTokenService,
 		return strings.TrimSpace(fallback), nil
 	}
 	subject, ok := adminSubjectFromBearerToken(r, tokenService)
-	if !ok || strings.TrimSpace(subject.UserID) == "" {
+	if !ok || strings.TrimSpace(subject.OperatorID) == "" {
 		return "", errx.New(errx.CodeUnauthorized, "请先登录管理后台")
 	}
-	return strings.TrimSpace(subject.UserID), nil
+	return strings.TrimSpace(subject.OperatorID), nil
 }
 
 func resourceMerchantIDFromStore(ctx context.Context, store ResourceAPIStore, resourceID string) (string, error) {
@@ -1068,7 +1068,7 @@ func resourceMerchantIDFromStore(ctx context.Context, store ResourceAPIStore, re
 
 func bindResourceCreatorFromRequest(r *http.Request, req *resourcelogic.CreateResourceReq, tokenService authlogic.TokenService, adminTokenService AdminTokenService) error {
 	if subject, ok := adminSubjectFromBearerToken(r, adminTokenService); ok && permission.CanAccessAdmin(subject.Roles) {
-		req.CreatedByUser = strings.TrimSpace(subject.UserID)
+		req.CreatedByOperator = strings.TrimSpace(subject.OperatorID)
 		req.CreatedByRole = primaryRole(subject.Roles, "platform_operator")
 		return nil
 	}

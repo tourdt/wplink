@@ -742,7 +742,7 @@ In `backend/app/internal/server/remaining_api_test.go`, add:
 ```go
 func TestAPIRouterServesAdminVIPConfigRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
-	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{UserID: "admin-1", Roles: []string{"platform_operator"}}}))
+	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{OperatorID: "admin-1", Roles: []string{"platform_operator"}}}))
 
 	listRec := httptest.NewRecorder()
 	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/vip/plans", nil)

@@ -357,7 +357,7 @@ function resourceStatusTagType(status) {
 }
 
 function currentOperatorId() {
-  return auth.userId || '1'
+  return auth.user?.operatorId || ''
 }
 </script>
 
