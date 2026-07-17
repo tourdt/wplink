@@ -80,6 +80,13 @@ test('resource detail only shows publish status for own resource', () => {
   assert.doesNotMatch(source, /<text v-if="resource\.status" class="tag">/)
 })
 
+test('resource detail displays publish tags in the top tag row', () => {
+  assert.match(source, /const resourceFeatureTags = computed\(\(\) => normalizeResourceFeatureTags\(resource\.value\.tags\)\)/)
+  assert.match(source, /<text v-for="tag in resourceFeatureTags" :key="tag" class="tag feature">\{\{ tag \}\}<\/text>/)
+  assert.match(source, /function normalizeResourceFeatureTags\(tags = \[\]\)/)
+  assert.match(source, /\.tag\.feature \{[\s\S]*background: #f8fafc;[\s\S]*color: \$wplink-muted;/)
+})
+
 test('own resource detail keeps share and management actions in the bottom bar', () => {
   assert.match(source, /<view v-if="isOwnResource" class="owner-action-bar">/)
   assert.match(source, /<button class="share-button" @click="shareOwnResource" :open-type="canShareOwnResource \? 'share' : ''">分享<\/button>/)

@@ -292,6 +292,10 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		values["contactPhone"] = strings.TrimSpace(merchantPhone)
 	}
 	deriveResourceSummaryFields(config, values, req.Attributes)
+	normalizedTags, err := normalizeResourceTags(config, req.Tags)
+	if err != nil {
+		return model.CreateResourceInput{}, "", err
+	}
 	if values["description"] == "" {
 		return model.CreateResourceInput{}, "", errx.New(errx.CodeValidationFailed, resourceDescriptionRequiredMessage(config.Direction))
 	}
@@ -299,7 +303,7 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		// 小程序发布页减少用户填写项，不再要求手动标题；后端兜底生成标题，保证列表、分享和审核消息仍有稳定展示文本。
 		values["title"] = buildGeneratedResourceTitle(values)
 	}
-	if err := validateResourceRequiredFields(config, values, req.Attributes, req.Tags, req.Images); err != nil {
+	if err := validateResourceRequiredFields(config, values, req.Attributes, normalizedTags, req.Images); err != nil {
 		return model.CreateResourceInput{}, "", err
 	}
 	if err := validateResourceDynamicFieldValues(config.FieldSchema, req.Attributes); err != nil {
@@ -337,7 +341,7 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		CoverURL:             firstResourceImage(req.Images),
 		Description:          values["description"],
 		Attributes:           req.Attributes,
-		Tags:                 append([]string(nil), req.Tags...),
+		Tags:                 normalizedTags,
 		Images:               append([]string(nil), req.Images...),
 		ContactName:          values["contactName"],
 		ContactPhone:         values["contactPhone"],
@@ -473,6 +477,8 @@ var resourceBaseFieldLabels = map[string]string{
 const maxCustomSelectAttributeLength = 32
 const maxAddressAttributeLength = 160
 const maxAddressNameLength = 80
+const maxResourceTagCount = 8
+const maxResourceTagLength = 12
 
 type resourceFieldSpec struct {
 	Key         string
@@ -480,6 +486,67 @@ type resourceFieldSpec struct {
 	Type        string
 	Options     []string
 	AllowCustom bool
+}
+
+func normalizeResourceTags(config model.ResourcePublishConfig, tags []string) ([]string, error) {
+	allowedOptions := resourceTagOptionSet(config.FieldSchema)
+	normalized := make([]string, 0, len(tags))
+	seen := make(map[string]struct{}, len(tags))
+	label := resourceTagValidationLabel(config.Direction)
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		if !validResourceTagText(tag) {
+			return nil, errx.New(errx.CodeValidationFailed, fmt.Sprintf("请正确填写%s", label))
+		}
+		if len(allowedOptions) > 0 {
+			if _, ok := allowedOptions[tag]; !ok {
+				return nil, errx.New(errx.CodeValidationFailed, fmt.Sprintf("请选择正确的%s", label))
+			}
+		}
+		if _, ok := seen[tag]; ok {
+			continue
+		}
+		if len(normalized) >= maxResourceTagCount {
+			return nil, errx.New(errx.CodeValidationFailed, fmt.Sprintf("最多选择 %d 个%s", maxResourceTagCount, label))
+		}
+		seen[tag] = struct{}{}
+		normalized = append(normalized, tag)
+	}
+	return normalized, nil
+}
+
+func resourceTagValidationLabel(direction string) string {
+	if normalizeConfigDirection(direction) == model.ResourceDirectionDemand {
+		return "需求标签"
+	}
+	return "供应标签"
+}
+
+func resourceTagOptionSet(fieldSchema model.JSONMap) map[string]struct{} {
+	options := stringOptionsFromInterface(fieldSchema["tagOptions"])
+	if len(options) == 0 {
+		return nil
+	}
+	optionSet := make(map[string]struct{}, len(options))
+	for _, option := range options {
+		if validResourceTagText(option) {
+			optionSet[option] = struct{}{}
+		}
+	}
+	return optionSet
+}
+
+func validResourceTagText(value string) bool {
+	if len([]rune(value)) > maxResourceTagLength {
+		return false
+	}
+	// 标签会进入列表卡片、详情和内容审核文本，拦截控制字符，避免不可见内容污染公开展示。
+	return !strings.ContainsFunc(value, func(r rune) bool {
+		return r < 32 || r == 127
+	})
 }
 
 func validateResourceRequiredFields(config model.ResourcePublishConfig, values map[string]string, attributes model.JSONMap, tags []string, images []string) error {

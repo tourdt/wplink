@@ -111,6 +111,27 @@ DO UPDATE SET
   direction = EXCLUDED.direction,
   updated_at = now();
 
+-- 发布标签使用 resources.tags 持久化；可选项挂在类型 field_schema 顶层，供小程序发布页渲染多选标签。
+UPDATE resource_type_configs rtc
+SET field_schema = rtc.field_schema || cfg.tag_config::jsonb,
+    updated_at = now()
+FROM (
+  VALUES
+    ('sample_rental', '{"tagOptions":["交通便利","带车位","靠近商圈","可短租","随时入驻","拎包可用"],"maxTags":8}'),
+    ('shop_office_rental', '{"tagOptions":["交通便利","带车位","靠近商圈","电梯房","一楼临街","可短租","随时入驻"],"maxTags":8}'),
+    ('seek_shop_office', '{"tagOptions":["交通便利","带车位","靠近商圈","电梯房","一楼临街","急租","可长期租"],"maxTags":8}'),
+    ('apartment_rental', '{"tagOptions":["交通便利","带车位","靠近商圈","电梯房","家具家电齐全","拎包入住","可短租"],"maxTags":8}'),
+    ('housing_sale', '{"tagOptions":["交通便利","带车位","靠近商圈","电梯房","采光好","南北通透","产权清晰"],"maxTags":8}'),
+    ('seek_housing', '{"tagOptions":["交通便利","带车位","靠近商圈","电梯房","拎包入住","急租","可长期租"],"maxTags":8}'),
+    ('factory_warehouse_rental', '{"tagOptions":["交通便利","带车位","货车可进","近高速","可分租","层高充足","有三相电"],"maxTags":8}'),
+    ('workshop_rental', '{"tagOptions":["交通便利","带设备","货车可进","可短租","拎包开工","有三相电"],"maxTags":8}'),
+    ('factory_sale', '{"tagOptions":["交通便利","带车位","货车可进","近高速","有三相电","产权清晰"],"maxTags":8}'),
+    ('seek_factory_warehouse', '{"tagOptions":["交通便利","带车位","货车可进","近高速","需要三相电","急租","可长期租"],"maxTags":8}')
+) AS cfg(type_code, tag_config)
+JOIN city_stations cs ON cs.id = rtc.city_station_id
+WHERE cs.code = 'zhili'
+  AND rtc.type_code = cfg.type_code;
+
 WITH zhili AS (
   SELECT id FROM city_stations WHERE code = 'zhili'
 ),

@@ -74,3 +74,13 @@ test('resource card uses short freshness date in resource list', () => {
   assert.equal(source.includes("value.slice(0, 10)"), false)
   assert.equal(source.includes("'近期更新'"), false)
 })
+
+test('resource card displays selected publish tags without changing the type corner', () => {
+  assert.match(source, /const resourceLabels = computed\(\(\) => normalizeResourceLabels\(props\.resource\.tags\)\.slice\(0, 3\)\)/)
+  assert.match(source, /<view v-if="resourceLabels\.length" class="resource-labels">/)
+  assert.match(source, /v-for="label in resourceLabels"/)
+  assert.match(source, /class="resource-label"/)
+  assert.match(source, /function normalizeResourceLabels\(tags = \[\]\)/)
+  assert.match(source, /\.resource-labels \{[\s\S]*max-height: 52rpx;[\s\S]*overflow: hidden;/)
+  assert.match(source, /\.resource-label \{[\s\S]*text-overflow: ellipsis;/)
+})

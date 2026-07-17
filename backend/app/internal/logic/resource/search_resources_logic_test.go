@@ -71,6 +71,28 @@ func TestSearchResourcesPassesGroupCodeToListAndSearchLog(t *testing.T) {
 	}
 }
 
+func TestSearchResourcesPassesTagsToListAndSearchLog(t *testing.T) {
+	store := &fakeSearchResourceStore{
+		result: model.ListResourcesResult{Items: []model.ResourceListItem{{ID: "resource-1"}}, Total: 1, Page: 1, PageSize: 20},
+	}
+	logic := NewSearchResourcesLogic(store)
+
+	_, err := logic.SearchResources(context.Background(), SearchResourcesReq{
+		UserID: "user-1", CityCode: "zhili", Tags: []string{"交通便利", "带车位"}, Keyword: "出租", Page: 1, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("SearchResources() error = %v", err)
+	}
+
+	if len(store.filter.Tags) != 2 || store.filter.Tags[0] != "交通便利" || store.filter.Tags[1] != "带车位" {
+		t.Fatalf("filter tags = %#v, want selected tags", store.filter.Tags)
+	}
+	tags, ok := store.searchLog.Filters["tags"].([]string)
+	if !ok || len(tags) != 2 || tags[0] != "交通便利" || tags[1] != "带车位" {
+		t.Fatalf("search log tags = %#v, want selected tags", store.searchLog.Filters["tags"])
+	}
+}
+
 func TestSearchResourcesReturnsResultsWhenSearchLogFails(t *testing.T) {
 	store := &fakeSearchResourceStore{
 		result:    model.ListResourcesResult{Items: []model.ResourceListItem{{ID: "resource-1"}}, Total: 1, Page: 1, PageSize: 20},

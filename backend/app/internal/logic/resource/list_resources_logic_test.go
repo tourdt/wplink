@@ -12,6 +12,7 @@ func TestListResourcesRequestsPublishedOnly(t *testing.T) {
 		result: model.ListResourcesResult{
 			Items: []model.ResourceListItem{{
 				ID: "resource-1", TypeCode: "stock_clearance", TypeName: "尾货/库存出售", Title: "库存资源",
+				Tags:     []string{"急清", "支持看货"},
 				Merchant: model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓", VIPStatus: model.VIPStatusActive},
 			}},
 			Page: 1, PageSize: 20, Total: 1,
@@ -38,6 +39,9 @@ func TestListResourcesRequestsPublishedOnly(t *testing.T) {
 	}
 	if resp.Items[0].Merchant.VIPStatus != model.VIPStatusActive {
 		t.Fatalf("merchant vipStatus = %q, want active", resp.Items[0].Merchant.VIPStatus)
+	}
+	if len(resp.Items[0].Tags) != 2 || resp.Items[0].Tags[0] != "急清" || resp.Items[0].Tags[1] != "支持看货" {
+		t.Fatalf("tags = %#v, want resource tags copied to response", resp.Items[0].Tags)
 	}
 }
 
@@ -88,6 +92,33 @@ func TestListResourcesPassesGroupCodeFilter(t *testing.T) {
 
 	if store.filter.GroupCode != "factory_warehouse" {
 		t.Fatalf("groupCode = %q, want trimmed factory_warehouse", store.filter.GroupCode)
+	}
+}
+
+func TestListResourcesPassesNormalizedTagFilters(t *testing.T) {
+	store := &fakeListResourcesStore{}
+	logic := NewListResourcesLogic(store)
+
+	_, err := logic.ListResources(context.Background(), ListResourcesReq{CityCode: "zhili", Tags: []string{" 交通便利 ", "带车位", "交通便利"}, Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("ListResources() error = %v", err)
+	}
+
+	if len(store.filter.Tags) != 2 || store.filter.Tags[0] != "交通便利" || store.filter.Tags[1] != "带车位" {
+		t.Fatalf("tags = %#v, want trimmed and de-duplicated tag filters", store.filter.Tags)
+	}
+}
+
+func TestListResourcesRejectsInvalidTagFilter(t *testing.T) {
+	store := &fakeListResourcesStore{}
+	logic := NewListResourcesLogic(store)
+
+	_, err := logic.ListResources(context.Background(), ListResourcesReq{CityCode: "zhili", Tags: []string{"交通\n便利"}, Page: 1, PageSize: 20})
+	if err == nil {
+		t.Fatal("ListResources() error = nil, want tag validation error")
+	}
+	if store.filter.Status != "" {
+		t.Fatalf("store filter = %#v, want query blocked before store call", store.filter)
 	}
 }
 

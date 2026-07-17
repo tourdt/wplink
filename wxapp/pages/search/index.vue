@@ -45,6 +45,28 @@
           全部分类
         </button>
       </view>
+      <scroll-view
+        v-if="searchTagOptions.length"
+        class="tag-filter-row"
+        scroll-x
+        enhanced
+        :show-scrollbar="false"
+      >
+        <button
+          :class="['tag-filter-button', !filters.tags.length ? 'active' : '']"
+          @click="clearSearchTags"
+        >
+          不限标签
+        </button>
+        <button
+          v-for="tag in searchTagOptions"
+          :key="tag"
+          :class="['tag-filter-button', isSearchTagSelected(tag) ? 'active' : '']"
+          @click="toggleSearchTag(tag)"
+        >
+          {{ tag }}
+        </button>
+      </scroll-view>
     </view>
 
     <view v-if="showGroupDrawer" class="group-drawer-mask" @click="closeGroupDrawer">
@@ -147,6 +169,7 @@ const hotKeywords = ref([])
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
 const NAV_BOTTOM_RPX = 12
+const MAX_SEARCH_TAGS = 8
 const headerMetrics = ref({
   statusBarHeight: 44,
   navBarHeight: 44,
@@ -165,12 +188,24 @@ const filters = reactive({
   cityCode: DEFAULT_CITY_CODE,
   groupCode: '',
   typeCode: '',
+  tags: [],
 })
 const showGroupDrawer = ref(false)
 const showTypeDrawer = ref(false)
 const scrollIntoTypeId = ref('')
 const pageScrollTop = ref(0)
 const groupFilterOptions = computed(() => [{ code: '', name: '全部类目' }, ...categoryGroups.value])
+const currentGroupResourceTypeItems = computed(() => {
+  const selectedGroup = categoryGroups.value.find((item) => item.code === filters.groupCode)
+  return selectedGroup
+    ? selectedGroup.items || []
+    : categoryGroups.value.flatMap((item) => item.items || [])
+})
+const selectedResourceType = computed(() => currentGroupResourceTypeItems.value.find((item) => item.typeCode === filters.typeCode))
+const searchTagOptions = computed(() => {
+  const sourceItems = selectedResourceType.value ? [selectedResourceType.value] : currentGroupResourceTypeItems.value
+  return normalizeSearchTagOptions(sourceItems.flatMap((item) => item.fieldSchema?.tagOptions || []))
+})
 const selectedGroupName = computed(() => {
   const selectedGroup = groupFilterOptions.value.find((item) => item.code === filters.groupCode)
   return selectedGroup?.name || '全部类目'
@@ -188,6 +223,7 @@ const searchPlaceholder = computed(() => filters.groupCode
 const emptyTitle = '暂无匹配内容'
 const emptyDesc = computed(() => {
   if (trimmedKeyword.value) return '当前关键词暂无匹配。'
+  if (filters.tags.length) return '当前标签暂无结果。'
   if (filters.groupCode && filters.typeCode) {
     return '当前分类暂无结果。'
   }
@@ -196,6 +232,7 @@ const emptyDesc = computed(() => {
 })
 const emptyPrimaryActionLabel = computed(() => {
   if (trimmedKeyword.value) return '清空关键词'
+  if (filters.tags.length) return '清空标签'
   if (filters.groupCode && filters.typeCode) {
     return `查看${selectedGroupName.value}全部`
   }
@@ -269,11 +306,13 @@ async function applyRouteSearch(options = {}) {
   const routeKeyword = decodeSearchValue(options.keyword || options.q || '')
   const routeGroupCode = decodeSearchValue(options.groupCode || '')
   const routeTypeCode = decodeSearchValue(options.typeCode || '')
+  const routeTags = parseSearchTags(options.tags || '')
   const routeCityCode = decodeSearchValue(options.cityCode || '') || DEFAULT_CITY_CODE
-  if (!routeKeyword && !routeGroupCode && !routeTypeCode && routeCityCode === DEFAULT_CITY_CODE) return false
+  if (!routeKeyword && !routeGroupCode && !routeTypeCode && !routeTags.length && routeCityCode === DEFAULT_CITY_CODE) return false
   keyword.value = routeKeyword
   filters.groupCode = routeGroupCode
   filters.typeCode = routeTypeCode
+  filters.tags = routeTags
   filters.cityCode = routeCityCode
   await loadResourceTypes()
   await scrollToSelectedType(routeTypeCode)
@@ -291,6 +330,7 @@ async function applyPendingKeyword() {
     keyword.value = pendingSearch.keyword || ''
     filters.groupCode = pendingSearch.groupCode || ''
     filters.typeCode = pendingSearch.typeCode || ''
+    filters.tags = parseSearchTags(pendingSearch.tags || [])
     filters.cityCode = pendingSearch.cityCode || DEFAULT_CITY_CODE
   }
   await loadResourceTypes()
@@ -312,6 +352,7 @@ async function search({ reset = true, force = false } = {}) {
     const nextPage = reset ? 1 : page.value + 1
     const resp = await searchResources({
       ...filters,
+      tags: filters.tags.join(','),
       keyword: keyword.value.trim(),
       page: nextPage,
       pageSize,
@@ -338,6 +379,7 @@ function searchHotKeyword(value) {
 async function resetSearchConditions() {
   keyword.value = ''
   filters.typeCode = ''
+  filters.tags = []
   showGroupDrawer.value = false
   showTypeDrawer.value = false
   applyCurrentGroupTypes()
@@ -353,6 +395,10 @@ async function clearSearchKeyword() {
 async function handleEmptyPrimaryAction() {
   if (trimmedKeyword.value) {
     await clearSearchKeyword()
+    return
+  }
+  if (filters.tags.length) {
+    await clearSearchTags()
     return
   }
   if (filters.groupCode && filters.typeCode) {
@@ -375,6 +421,7 @@ async function selectType(typeCode) {
   filters.typeCode = typeCode
   showGroupDrawer.value = false
   showTypeDrawer.value = false
+  syncSelectedTagsWithOptions()
   await scrollToSelectedType(typeCode)
   await search()
 }
@@ -385,11 +432,7 @@ function getTypeButtonId(typeCode) {
 }
 
 function applyCurrentGroupTypes() {
-  const selectedGroup = categoryGroups.value.find((item) => item.code === filters.groupCode)
-  const groupedItems = selectedGroup
-    ? selectedGroup.items
-    : categoryGroups.value.flatMap((item) => item.items || [])
-  const items = groupedItems.map((item) => ({
+  const items = currentGroupResourceTypeItems.value.map((item) => ({
     label: item.typeName,
     value: item.typeCode,
   }))
@@ -397,6 +440,78 @@ function applyCurrentGroupTypes() {
   if (filters.typeCode && !items.some((item) => item.value === filters.typeCode)) {
     filters.typeCode = ''
   }
+  syncSelectedTagsWithOptions()
+}
+
+function normalizeSearchTagOptions(options = []) {
+  const normalized = []
+  const seen = new Set()
+  for (const option of options) {
+    const tag = normalizeSearchTagText(option)
+    if (!tag || seen.has(tag)) continue
+    seen.add(tag)
+    normalized.push(tag)
+  }
+  return normalized
+}
+
+function normalizeSearchTags(tags = [], options = searchTagOptions.value) {
+  const values = Array.isArray(tags) ? tags : [tags]
+  const optionSet = new Set(options)
+  const normalized = []
+  const seen = new Set()
+  for (const value of values) {
+    const tag = normalizeSearchTagText(value)
+    if (!tag || seen.has(tag) || (optionSet.size && !optionSet.has(tag))) continue
+    if (normalized.length >= MAX_SEARCH_TAGS) break
+    seen.add(tag)
+    normalized.push(tag)
+  }
+  return normalized
+}
+
+function normalizeSearchTagText(value) {
+  return String(value || '').trim()
+}
+
+function parseSearchTags(value) {
+  if (Array.isArray(value)) {
+    return value.flatMap(parseSearchTags)
+  }
+  return String(decodeSearchValue(value) || '')
+    .split(/[,，]/)
+    .map(normalizeSearchTagText)
+    .filter(Boolean)
+}
+
+function syncSelectedTagsWithOptions() {
+  filters.tags = normalizeSearchTags(filters.tags, searchTagOptions.value)
+}
+
+function isSearchTagSelected(tag) {
+  return filters.tags.includes(tag)
+}
+
+async function toggleSearchTag(tag) {
+  tag = normalizeSearchTagText(tag)
+  if (!tag) return
+  const currentTags = normalizeSearchTags(filters.tags, searchTagOptions.value)
+  if (currentTags.includes(tag)) {
+    filters.tags = currentTags.filter((item) => item !== tag)
+  } else {
+    if (currentTags.length >= MAX_SEARCH_TAGS) {
+      uni.showToast({ title: `最多选择${MAX_SEARCH_TAGS}个标签`, icon: 'none' })
+      return
+    }
+    filters.tags = normalizeSearchTags([...currentTags, tag], searchTagOptions.value)
+  }
+  await search()
+}
+
+async function clearSearchTags() {
+  if (!filters.tags.length) return
+  filters.tags = []
+  await search()
 }
 
 async function scrollToSelectedType(typeCode = filters.typeCode) {
@@ -645,6 +760,37 @@ function openResource(item) {
   background: $wplink-primary-soft;
   color: $wplink-primary;
   font-size: 24rpx;
+  font-weight: 700;
+}
+
+.tag-filter-row {
+  width: 100%;
+  margin-top: 14rpx;
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tag-filter-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120rpx;
+  height: 60rpx;
+  margin-right: 12rpx;
+  padding: 0 18rpx;
+  border: 1rpx solid $wplink-line;
+  border-radius: 10rpx;
+  background: $wplink-card;
+  color: #475569;
+  font-size: 24rpx;
+}
+
+.tag-filter-button.active {
+  border-color: rgba($wplink-primary, 0.28);
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
   font-weight: 700;
 }
 

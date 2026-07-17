@@ -97,6 +97,38 @@ test('search page matches market category browsing controls', () => {
   assert.doesNotMatch(source, />常用分类<\/text>/)
 })
 
+test('search page supports configured resource tag filters', () => {
+  for (const token of [
+    'tags: []',
+    'currentGroupResourceTypeItems',
+    'selectedResourceType',
+    'searchTagOptions',
+    'fieldSchema?.tagOptions',
+    'normalizeSearchTagOptions',
+    'normalizeSearchTags',
+    'parseSearchTags',
+    'syncSelectedTagsWithOptions',
+    'toggleSearchTag',
+    'clearSearchTags',
+    'isSearchTagSelected',
+    'MAX_SEARCH_TAGS = 8',
+    'class="tag-filter-row"',
+    '@click="toggleSearchTag(tag)"',
+    '@click="clearSearchTags"',
+    '不限标签',
+  ]) {
+    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(source, /<scroll-view[\s\S]*v-if="searchTagOptions\.length"[\s\S]*class="tag-filter-row"/)
+  assert.match(source, /:class="\['tag-filter-button', isSearchTagSelected\(tag\) \? 'active' : ''\]"/)
+  assert.match(source, /filters\.tags = normalizeSearchTags\(filters\.tags, searchTagOptions\.value\)/)
+  assert.match(source, /uni\.showToast\(\{ title: `最多选择\$\{MAX_SEARCH_TAGS\}个标签`, icon: 'none' \}\)/)
+  assert.match(cssBlock('.tag-filter-row'), /overflow-x:\s*auto;/)
+  assert.match(cssBlock('.tag-filter-button'), /height:\s*60rpx;/)
+  assert.match(cssBlock('.tag-filter-button.active'), /background:\s*\$wplink-primary-soft;/)
+})
+
 test('search page uses the custom title bar as the primary category channel switcher', () => {
   const page = pagesConfig.pages.find((item) => item.path === 'pages/search/index')
 
@@ -142,11 +174,14 @@ test('search hot keywords come from server config', () => {
 test('search page applies route and pending category filters without direction state', () => {
   assert.match(source, /const routeGroupCode = decodeSearchValue\(options\.groupCode \|\| ''\)/)
   assert.match(source, /const routeTypeCode = decodeSearchValue\(options\.typeCode \|\| ''\)/)
-  assert.match(source, /if \(!routeKeyword && !routeGroupCode && !routeTypeCode && routeCityCode === DEFAULT_CITY_CODE\) return false/)
+  assert.match(source, /const routeTags = parseSearchTags\(options\.tags \|\| ''\)/)
+  assert.match(source, /if \(!routeKeyword && !routeGroupCode && !routeTypeCode && !routeTags\.length && routeCityCode === DEFAULT_CITY_CODE\) return false/)
   assert.match(source, /filters\.groupCode = routeGroupCode/)
   assert.match(source, /filters\.typeCode = routeTypeCode/)
+  assert.match(source, /filters\.tags = routeTags/)
   assert.match(source, /filters\.groupCode = pendingSearch\.groupCode \|\| ''/)
   assert.match(source, /filters\.typeCode = pendingSearch\.typeCode \|\| ''/)
+  assert.match(source, /filters\.tags = parseSearchTags\(pendingSearch\.tags \|\| \[\]\)/)
   assert.match(source, /function hasPendingSearch\(\) \{[\s\S]*return Boolean\(uni\.getStorageSync\(SEARCH_KEY\)\)[\s\S]*\}/)
   assert.doesNotMatch(source, /routeDirection/)
   assert.doesNotMatch(source, /directionStateCache/)
@@ -158,7 +193,7 @@ test('search placeholder follows the active primary channel', () => {
 })
 
 test('search page submits group and type filters to search API', () => {
-  assert.match(source, /searchResources\(\{[\s\S]*\.\.\.filters,[\s\S]*keyword: keyword\.value\.trim\(\),[\s\S]*page: nextPage,[\s\S]*pageSize,[\s\S]*\}\)/)
+  assert.match(source, /searchResources\(\{[\s\S]*\.\.\.filters,[\s\S]*tags: filters\.tags\.join\(','\),[\s\S]*keyword: keyword\.value\.trim\(\),[\s\S]*page: nextPage,[\s\S]*pageSize,[\s\S]*\}\)/)
   assert.match(source, /rows\.value = reset \? items : \[\.\.\.rows\.value, \.\.\.items\]/)
   assert.match(source, /searched\.value = true/)
   assert.doesNotMatch(source, /direction: activeDirection\.value/)
@@ -224,6 +259,7 @@ test('search reset keeps the active primary category channel', () => {
 
   assert.match(resetBlock, /keyword\.value = ''/)
   assert.match(resetBlock, /filters\.typeCode = ''/)
+  assert.match(resetBlock, /filters\.tags = \[\]/)
   assert.doesNotMatch(resetBlock, /filters\.groupCode = ''/)
   assert.match(resetBlock, /applyCurrentGroupTypes\(\)/)
   assert.match(resetBlock, /await search\(\)/)
@@ -234,8 +270,8 @@ test('search empty state actions keep the primary channel while relaxing narrow 
   const primaryActionBlock = functionBlock('handleEmptyPrimaryAction')
   const resetBlock = functionBlock('resetSearchConditions')
 
-  assert.match(source, /const emptyDesc = computed\(\(\) => \{[\s\S]*if \(trimmedKeyword\.value\)[\s\S]*当前关键词暂无匹配。[\s\S]*if \(filters\.groupCode && filters\.typeCode\)[\s\S]*当前分类暂无结果。[\s\S]*if \(filters\.groupCode\) return '该频道暂无内容。'[\s\S]*换个关键词或分类试试。[\s\S]*\}\)/)
-  assert.match(source, /const emptyPrimaryActionLabel = computed\(\(\) => \{[\s\S]*if \(trimmedKeyword\.value\) return '清空关键词'[\s\S]*if \(filters\.groupCode && filters\.typeCode\)[\s\S]*`查看\$\{selectedGroupName\.value\}全部`[\s\S]*return ''[\s\S]*\}\)/)
+  assert.match(source, /const emptyDesc = computed\(\(\) => \{[\s\S]*if \(trimmedKeyword\.value\)[\s\S]*当前关键词暂无匹配。[\s\S]*if \(filters\.tags\.length\) return '当前标签暂无结果。'[\s\S]*if \(filters\.groupCode && filters\.typeCode\)[\s\S]*当前分类暂无结果。[\s\S]*if \(filters\.groupCode\) return '该频道暂无内容。'[\s\S]*换个关键词或分类试试。[\s\S]*\}\)/)
+  assert.match(source, /const emptyPrimaryActionLabel = computed\(\(\) => \{[\s\S]*if \(trimmedKeyword\.value\) return '清空关键词'[\s\S]*if \(filters\.tags\.length\) return '清空标签'[\s\S]*if \(filters\.groupCode && filters\.typeCode\)[\s\S]*`查看\$\{selectedGroupName\.value\}全部`[\s\S]*return ''[\s\S]*\}\)/)
   assert.match(source, /<view v-if="emptyPrimaryActionLabel" class="empty-actions">/)
   assert.match(source, /<button v-if="emptyPrimaryActionLabel" class="primary-empty-button" @click="handleEmptyPrimaryAction">/)
   assert.doesNotMatch(source, /emptySecondaryActionLabel/)
@@ -248,8 +284,10 @@ test('search empty state actions keep the primary channel while relaxing narrow 
   assert.match(clearKeywordBlock, /await search\(\)/)
 
   assert.match(primaryActionBlock, /if \(trimmedKeyword\.value\)[\s\S]*await clearSearchKeyword\(\)[\s\S]*return/)
+  assert.match(primaryActionBlock, /if \(filters\.tags\.length\)[\s\S]*await clearSearchTags\(\)[\s\S]*return/)
   assert.match(primaryActionBlock, /if \(filters\.groupCode && filters\.typeCode\)[\s\S]*await resetSearchConditions\(\)/)
   assert.match(resetBlock, /filters\.typeCode = ''/)
+  assert.match(resetBlock, /filters\.tags = \[\]/)
   assert.doesNotMatch(resetBlock, /filters\.groupCode = ''/)
 })
 

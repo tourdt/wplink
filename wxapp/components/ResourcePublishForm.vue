@@ -6,7 +6,6 @@
         <text class="section-note">必填</text>
       </view>
       <view class="field-group">
-        <text class="field-label">{{ directionLabels.descriptionLabel }}</text>
         <textarea v-model="form.description" class="textarea" :placeholder="directionLabels.descriptionPlaceholder" />
       </view>
     </view>
@@ -99,6 +98,23 @@
       </view>
     </view>
 
+    <view v-if="resourceTagOptions.length" class="form-section tag-section">
+      <view class="section-head">
+        <text class="section-title">{{ resourceTagTitle }}</text>
+        <text class="section-note">{{ resourceTagSectionNote }}</text>
+      </view>
+      <view class="tag-option-grid">
+        <button
+          v-for="tag in resourceTagOptions"
+          :key="tag"
+          :class="['tag-option', isResourceTagSelected(tag) ? 'active' : '']"
+          @click="toggleResourceTag(tag)"
+        >
+          {{ tag }}
+        </button>
+      </view>
+    </view>
+
     <view class="form-section image-section">
       <view class="section-head">
         <text class="section-title">{{ directionLabels.imageTitle }}</text>
@@ -126,18 +142,27 @@
     <view class="form-section contact-section">
       <view class="section-head">
         <text class="section-title">联系信息</text>
-        <text class="section-note">必填</text>
+        <text class="section-note">2项必填</text>
       </view>
       <view class="field-group">
-        <text class="field-label">联系人</text>
+        <view class="field-label-row">
+          <text class="field-label">联系人</text>
+          <text class="field-tag required">必填</text>
+        </view>
         <input v-model="form.contact.name" class="field" :placeholder="directionLabels.contactNamePlaceholder" />
       </view>
       <view class="field-group">
-        <text class="field-label">联系电话</text>
+        <view class="field-label-row">
+          <text class="field-label">联系电话</text>
+          <text class="field-tag required">必填</text>
+        </view>
         <input v-model="form.contact.phone" class="field" :placeholder="directionLabels.contactPhonePlaceholder" />
       </view>
       <view class="field-group">
-        <text class="field-label">微信号</text>
+        <view class="field-label-row">
+          <text class="field-label">微信号</text>
+          <text class="field-tag optional">选填</text>
+        </view>
         <input
           v-model="form.contact.wechat"
           class="field"
@@ -189,6 +214,7 @@ const props = defineProps({
 const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
 const CUSTOM_SELECT_OPTION_LABEL = '其他'
+const DEFAULT_MAX_RESOURCE_TAGS = 8
 const summaryFieldNames = new Set(['category', 'quantityText', 'priceText'])
 const customSelectOptionLabels = new Set(['其他', '其它', '自定义', '其他/自定义'])
 
@@ -231,7 +257,7 @@ const directionLabels = computed(() => {
   if (isDemandDirection.value) {
     return {
       typeLabel: '需求类型',
-      detailTitle: '需求说明',
+      detailTitle: '需求描述',
       descriptionLabel: '需求描述',
       descriptionPlaceholder: '说明款式、尺码颜色、交期、验货和交付要求',
       attributeTitle: '需求字段',
@@ -244,7 +270,7 @@ const directionLabels = computed(() => {
   }
   return {
     typeLabel: '供应类型',
-    detailTitle: '供应说明',
+    detailTitle: '供应描述',
     descriptionLabel: '供应描述',
     descriptionPlaceholder: '说明货品状态、尺码颜色、交期、看样方式等关键信息',
     attributeTitle: '类型字段',
@@ -263,6 +289,18 @@ const requiredFields = computed(() => {
 })
 const requiredFieldStates = computed(() => requiredFields.value.map(isPublishFieldCompleted))
 const canSubmit = computed(() => requiredFieldStates.value.every(Boolean))
+const resourceTagOptions = computed(() => normalizeResourceTagOptions(currentResourceType.value.fieldSchema))
+const resourceTagMaxCount = computed(() => normalizeResourceTagMaxCount(currentResourceType.value.fieldSchema))
+const resourceTagsRequired = computed(() => requiredFields.value.includes('tags'))
+const resourceTagTitle = computed(() => {
+  const configuredTitle = normalizeSummaryText(currentResourceType.value.fieldSchema?.tagLabel)
+  if (configuredTitle) return configuredTitle
+  return isDemandDirection.value ? '需求标签' : '供应标签'
+})
+const resourceTagSectionNote = computed(() => {
+  const prefix = resourceTagsRequired.value ? '必填' : '选填'
+  return `${prefix}，最多${resourceTagMaxCount.value}个`
+})
 const resourceImageGridItems = computed(() => {
   const imageItems = resourceImageEntries.value.map((entry, index) => ({
     id: entry.id,
@@ -362,6 +400,7 @@ function applySelectedResourceType() {
   form.typeCode = current.typeCode || ''
   form.direction = normalizePublishDirection(current.direction || '') || RESOURCE_DIRECTION_SUPPLY
   syncAttributesWithSelectedType()
+  syncTagsWithSelectedType()
   syncPublishNavigationTitle()
 }
 
@@ -642,6 +681,7 @@ function buildResourcePublishPayload(images) {
     ...clonePublishForm(),
     images,
   }
+  payload.tags = normalizeSelectedResourceTags(payload.tags, resourceTagOptions.value).slice(0, resourceTagMaxCount.value)
   payload.contact.wechat = sanitizeContactWechatValue(payload.contact.wechat)
   applySummaryFieldsToPayload(payload, currentResourceType.value)
   // 发布页不再让用户单独填写标题，提交前用类型摘要和描述生成稳定标题，兼容列表、分享和审核消息。
@@ -747,6 +787,63 @@ function syncAttributesWithSelectedType() {
       delete customSelectFieldKeys[key]
     }
   })
+}
+
+function syncTagsWithSelectedType() {
+  form.tags = normalizeSelectedResourceTags(form.tags, resourceTagOptions.value).slice(0, resourceTagMaxCount.value)
+}
+
+function normalizeResourceTagOptions(fieldSchema = {}) {
+  return normalizeTagTextList(fieldSchema?.tagOptions || [])
+}
+
+function normalizeResourceTagMaxCount(fieldSchema = {}) {
+  const configuredMax = Number(fieldSchema?.maxTags || fieldSchema?.tagMaxCount)
+  if (!Number.isFinite(configuredMax) || configuredMax <= 0) {
+    return DEFAULT_MAX_RESOURCE_TAGS
+  }
+  return Math.min(Math.floor(configuredMax), DEFAULT_MAX_RESOURCE_TAGS)
+}
+
+function normalizeSelectedResourceTags(tags = [], options = []) {
+  const allowedTags = new Set(options)
+  return normalizeTagTextList(tags).filter((tag) => !allowedTags.size || allowedTags.has(tag))
+}
+
+function normalizeTagTextList(items = []) {
+  if (!Array.isArray(items)) return []
+  const seen = new Set()
+  const normalized = []
+  for (const item of items) {
+    const tag = normalizeTagText(item)
+    if (!tag || seen.has(tag)) continue
+    seen.add(tag)
+    normalized.push(tag)
+  }
+  return normalized
+}
+
+function normalizeTagText(value) {
+  return String(value || '').trim()
+}
+
+function isResourceTagSelected(tag) {
+  return form.tags.includes(tag)
+}
+
+function toggleResourceTag(tag) {
+  tag = normalizeTagText(tag)
+  if (!tag) return
+  const currentTags = normalizeSelectedResourceTags(form.tags, resourceTagOptions.value)
+  if (currentTags.includes(tag)) {
+    form.tags = currentTags.filter((item) => item !== tag)
+    return
+  }
+  if (currentTags.length >= resourceTagMaxCount.value) {
+    uni.showToast({ title: `最多选择${resourceTagMaxCount.value}个标签`, icon: 'none' })
+    return
+  }
+  form.tags = [...currentTags, tag]
 }
 
 function getDynamicFieldValue(key) {
@@ -1272,6 +1369,36 @@ function getPublishFieldLabel(field) {
   font-weight: 700;
 }
 
+.tag-option-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+}
+
+.tag-option {
+  box-sizing: border-box;
+  min-width: 132rpx;
+  height: 64rpx;
+  padding: 0 18rpx;
+  border: 1rpx solid $wplink-line;
+  border-radius: 10rpx;
+  background: #fff;
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 64rpx;
+}
+
+.tag-option::after {
+  border: 0;
+}
+
+.tag-option.active {
+  border-color: $wplink-warning;
+  background: rgba(194, 58, 0, 0.08);
+  color: $wplink-warning;
+  font-weight: 700;
+}
+
 .select-with-custom {
   display: grid;
   gap: 12rpx;
@@ -1335,6 +1462,32 @@ function getPublishFieldLabel(field) {
   color: $wplink-primary;
   font-size: 26rpx;
   font-weight: 700;
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  min-width: 0;
+}
+
+.field-tag {
+  flex: 0 0 auto;
+  padding: 2rpx 10rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.field-tag.required {
+  background: rgba(194, 58, 0, 0.1);
+  color: $wplink-primary;
+}
+
+.field-tag.optional {
+  background: #f8fafc;
+  color: $wplink-muted;
 }
 
 .field,

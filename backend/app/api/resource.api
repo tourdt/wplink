@@ -47,6 +47,7 @@ type ListResourcesReq {
 	Direction    string `form:"direction,optional"`
 	Keyword      string `form:"keyword,optional"`
 	Category     string `form:"category,optional"`
+	Tags         string `form:"tags,optional"`
 	VerifiedOnly bool   `form:"verifiedOnly,optional"`
 	Page         int64  `form:"page,optional"`
 	PageSize     int64  `form:"pageSize,optional"`
@@ -69,6 +70,7 @@ type ResourceListItem {
 	District     string                `json:"district,optional"`
 	PriceText    string                `json:"priceText,optional"`
 	QuantityText string                `json:"quantityText,optional"`
+	Tags         []string              `json:"tags"`
 	Merchant     ResourceMerchantBrief `json:"merchant"`
 	CreditTags   []string              `json:"creditTags"`
 	RefreshedAt  string                `json:"refreshedAt,optional"`
@@ -88,6 +90,7 @@ type SearchResourcesReq {
 	Direction    string `form:"direction,optional"`
 	Keyword      string `form:"keyword,optional"`
 	Category     string `form:"category,optional"`
+	Tags         string `form:"tags,optional"`
 	VerifiedOnly bool   `form:"verifiedOnly,optional"`
 	Page         int64  `form:"page,optional"`
 	PageSize     int64  `form:"pageSize,optional"`

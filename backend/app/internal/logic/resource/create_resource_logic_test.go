@@ -425,6 +425,74 @@ func TestCreateResourceCreatesPendingResource(t *testing.T) {
 	}
 }
 
+func TestCreateResourceNormalizesConfiguredTags(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-rental",
+			TypeCode:       "apartment_rental",
+			RequiredFields: []string{"title", "category", "contactPhone"},
+			FieldSchema: model.JSONMap{
+				"tagOptions": []interface{}{"交通便利", "带车位", "靠近商圈", "电梯房"},
+			},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "apartment_rental",
+		Title:       "套房出租",
+		Category:    "套房",
+		Description: "交通方便，可随时看房。",
+		Tags:        []string{" 交通便利 ", "", "带车位", "交通便利"},
+		Contact:     ResourceContactReq{Name: "李经理", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+
+	if len(store.input.Tags) != 2 || store.input.Tags[0] != "交通便利" || store.input.Tags[1] != "带车位" {
+		t.Fatalf("tags = %#v, want trimmed and de-duplicated configured tags", store.input.Tags)
+	}
+}
+
+func TestCreateResourceRejectsTagOutsideConfiguredOptions(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-rental",
+			TypeCode:       "apartment_rental",
+			RequiredFields: []string{"title", "category", "contactPhone"},
+			FieldSchema: model.JSONMap{
+				"tagOptions": []interface{}{"交通便利", "带车位"},
+			},
+		},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "apartment_rental",
+		Title:       "套房出租",
+		Category:    "套房",
+		Description: "交通方便，可随时看房。",
+		Tags:        []string{"靠近商圈"},
+		Contact:     ResourceContactReq{Name: "李经理", Phone: "13800000000"},
+	})
+
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "请选择正确的供应标签" {
+		t.Fatalf("message = %q, want configured tag message", errx.PublicMessage(err))
+	}
+	if store.input.MerchantID != "" {
+		t.Fatalf("CreateResource was called despite invalid tag: %#v", store.input)
+	}
+}
+
 func TestCreateResourceFreePublishDoesNotConsumePublishQuota(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{

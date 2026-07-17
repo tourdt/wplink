@@ -8,6 +8,9 @@
       <text class="resource-title">{{ resource.title || '供应标题待完善' }}</text>
       <text class="resource-meta">{{ resourceSummaryText }}</text>
       <text v-if="resource.priceText" class="resource-price">{{ resource.priceText }}</text>
+      <view v-if="resourceLabels.length" class="resource-labels">
+        <text v-for="label in resourceLabels" :key="label" class="resource-label">{{ label }}</text>
+      </view>
       <view class="merchant-line">
         <text v-if="isVIPMerchant" class="vip-badge">VIP</text>
         <text class="merchant-name">{{ merchantName }}</text>
@@ -51,6 +54,7 @@ const isVIPMerchant = computed(() => (props.resource.merchant || {}).vipStatus =
 const merchantName = computed(() => (props.resource.merchant || {}).name || '商家待确认')
 const resourceTypeLabel = computed(() => resolveResourceTypeLabel(props.resource))
 const resourceSummaryText = computed(() => buildResourceSummaryText(props.resource, resourceTypeLabel.value || '供应信息待完善'))
+const resourceLabels = computed(() => normalizeResourceLabels(props.resource.tags).slice(0, 3))
 
 function buildResourceSummaryText(resource, fallbackText) {
   const parts = [resource.category, resource.quantityText]
@@ -61,6 +65,13 @@ function buildResourceSummaryText(resource, fallbackText) {
 
 function formatRefreshedAt(value) {
   return formatListFreshnessDate(value)
+}
+
+function normalizeResourceLabels(tags = []) {
+  if (!Array.isArray(tags)) return []
+  return tags
+    .map((tag) => String(tag || '').trim())
+    .filter(Boolean)
 }
 </script>
 
@@ -179,6 +190,28 @@ function formatRefreshedAt(value) {
   color: $wplink-warning;
   font-size: 30rpx;
   font-weight: 700;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  min-width: 0;
+  max-height: 52rpx;
+  overflow: hidden;
+}
+
+.resource-label {
+  max-width: 160rpx;
+  padding: 4rpx 10rpx;
+  border-radius: 7rpx;
+  background: #f8fafc;
+  color: $wplink-muted;
+  font-size: 22rpx;
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;

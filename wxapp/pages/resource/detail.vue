@@ -50,6 +50,7 @@
           <text v-if="isVIPMerchant" class="tag vip">VIP</text>
           <text v-if="isOwnResource && resource.status" class="tag">{{ statusText[resource.status] || resource.status }}</text>
           <text v-if="resource.refreshedAt" class="tag">{{ resource.refreshedAt }}</text>
+          <text v-for="tag in resourceFeatureTags" :key="tag" class="tag feature">{{ tag }}</text>
         </view>
         <view class="title-row">
           <text class="title">{{ resource.title }}</text>
@@ -255,6 +256,7 @@ const statusText = {
 }
 const contentAuditStatuses = new Set(['pending', 'manual_review', 'audit_retry'])
 const isVIPMerchant = computed(() => (resource.value.merchant || {}).vipStatus === 'active')
+const resourceFeatureTags = computed(() => normalizeResourceFeatureTags(resource.value.tags))
 const contactAccess = computed(() => resource.value.contactAccess || {})
 // 底部主按钮执行的是电话解锁和拨号，按钮文案保持动作导向，避免展示“登录后免费查看”等规则说明。
 const contactButtonText = computed(() => '拨打电话')
@@ -381,6 +383,13 @@ function updateNavigationTitle() {
   uni.setNavigationBarTitle({
     title: isDemandResource.value ? '需求详情' : '供应详情',
   })
+}
+
+function normalizeResourceFeatureTags(tags = []) {
+  if (!Array.isArray(tags)) return []
+  return tags
+    .map((tag) => String(tag || '').trim())
+    .filter(Boolean)
 }
 
 onLoad(async (options) => {
@@ -1390,6 +1399,11 @@ onShareTimeline(() => {
 .tag.vip {
   background: rgba(194, 58, 0, 0.1);
   color: $wplink-warning;
+}
+
+.tag.feature {
+  background: #f8fafc;
+  color: $wplink-muted;
 }
 
 .title-row {

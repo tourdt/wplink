@@ -20,6 +20,7 @@ type ListResourcesReq struct {
 	Direction    string
 	Keyword      string
 	Category     string
+	Tags         []string
 	VerifiedOnly bool
 	Page         int64
 	PageSize     int64
@@ -42,6 +43,7 @@ type ResourceListItem struct {
 	District     string                `json:"district,omitempty"`
 	PriceText    string                `json:"priceText,omitempty"`
 	QuantityText string                `json:"quantityText,omitempty"`
+	Tags         []string              `json:"tags"`
 	Merchant     ResourceMerchantBrief `json:"merchant"`
 	CreditTags   []string              `json:"creditTags"`
 	RefreshedAt  string                `json:"refreshedAt,omitempty"`
@@ -67,6 +69,10 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 	if err != nil {
 		return ListResourcesResp{}, err
 	}
+	tags, err := normalizeListResourceTags(req.Tags)
+	if err != nil {
+		return ListResourcesResp{}, err
+	}
 	result, err := l.store.ListResources(ctx, model.ListResourcesFilter{
 		CityCode:     strings.TrimSpace(req.CityCode),
 		MerchantID:   strings.TrimSpace(req.MerchantID),
@@ -75,6 +81,7 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 		Direction:    direction,
 		Keyword:      strings.TrimSpace(req.Keyword),
 		Category:     strings.TrimSpace(req.Category),
+		Tags:         tags,
 		VerifiedOnly: req.VerifiedOnly,
 		Status:       model.ResourceStatusPublished,
 		Page:         req.Page,
@@ -96,6 +103,7 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 			District:     item.District,
 			PriceText:    item.PriceText,
 			QuantityText: item.QuantityText,
+			Tags:         append([]string(nil), item.Tags...),
 			Merchant: ResourceMerchantBrief{
 				ID:                 item.Merchant.ID,
 				Name:               item.Merchant.Name,
@@ -125,4 +133,27 @@ func normalizeListDirection(direction string) (string, error) {
 		return direction, nil
 	}
 	return "", errx.New(errx.CodeValidationFailed, "请选择正确的供需方向")
+}
+
+func normalizeListResourceTags(tags []string) ([]string, error) {
+	normalized := make([]string, 0, len(tags))
+	seen := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		if !validResourceTagText(tag) {
+			return nil, errx.New(errx.CodeValidationFailed, "请选择正确的筛选标签")
+		}
+		if _, ok := seen[tag]; ok {
+			continue
+		}
+		if len(normalized) >= maxResourceTagCount {
+			return nil, errx.New(errx.CodeValidationFailed, "筛选标签最多选择 8 个")
+		}
+		seen[tag] = struct{}{}
+		normalized = append(normalized, tag)
+	}
+	return normalized, nil
 }

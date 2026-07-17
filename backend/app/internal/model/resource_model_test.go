@@ -13,6 +13,7 @@ func TestListResourcesSQLAllowsEmptyMerchantID(t *testing.T) {
 		"rtc.type_name",
 		"rtc.display_template #>> '{group,code}' = $4",
 		"($6 = '' OR r.direction = $6)",
+		"r.tags ?& $12::text[]",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(listResourcesSQL, snippet) {
@@ -38,6 +39,21 @@ func TestListResourcesSQLPrioritizesActiveTopResources(t *testing.T) {
 		if !strings.Contains(listResourcesSQL, snippet) {
 			t.Fatalf("listResourcesSQL missing top priority snippet %q:\n%s", snippet, listResourcesSQL)
 		}
+	}
+}
+
+func TestListResourcesSQLUsesJSONBTagFilter(t *testing.T) {
+	requiredSnippets := []string{
+		"cardinality($12::text[]) = 0",
+		"r.tags ?& $12::text[]",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(listResourcesSQL, snippet) {
+			t.Fatalf("listResourcesSQL missing tag filter snippet %q:\n%s", snippet, listResourcesSQL)
+		}
+	}
+	if strings.Contains(listResourcesSQL, "tags::text ILIKE") {
+		t.Fatalf("listResourcesSQL should not scan tags as text:\n%s", listResourcesSQL)
 	}
 }
 

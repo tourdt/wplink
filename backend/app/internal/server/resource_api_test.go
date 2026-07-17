@@ -68,6 +68,7 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 		"quantityText":"3800件",
 		"priceText":"18元/件",
 		"description":"可拿样",
+		"tags":["急清","支持看货"],
 		"contact":{"name":"周经理","phone":"18800000002","wechat":"stock-demo"}
 	}`))
 	router.ServeHTTP(createRec, createReq)
@@ -81,6 +82,9 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 	}
 	if store.created.ConsumePublishQuota {
 		t.Fatalf("consumePublishQuota = true, want publish quota consumed only after auto audit publish")
+	}
+	if len(store.created.Tags) != 2 || store.created.Tags[0] != "急清" || store.created.Tags[1] != "支持看货" {
+		t.Fatalf("created tags = %#v, want mapped publish tags", store.created.Tags)
 	}
 
 	submitRec := httptest.NewRecorder()
@@ -122,17 +126,28 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 	}
 
 	searchRec := httptest.NewRecorder()
-	searchReq := httptest.NewRequest(http.MethodGet, "/api/v1/resource-search?cityCode=zhili&typeCode=inventory&keyword=卫衣&page=2&pageSize=5", nil)
+	searchReq := httptest.NewRequest(http.MethodGet, "/api/v1/resource-search?cityCode=zhili&typeCode=inventory&keyword=卫衣&tags=急清,支持看货&page=2&pageSize=5", nil)
 	router.ServeHTTP(searchRec, searchReq)
 	searchData := decodeEnvelopeData(t, searchRec, http.StatusOK)
 	if store.listFilter.Keyword != "卫衣" || store.listFilter.Page != 2 || store.listFilter.PageSize != 5 {
 		t.Fatalf("list filter = %#v, want query values", store.listFilter)
 	}
+	if len(store.listFilter.Tags) != 2 || store.listFilter.Tags[0] != "急清" || store.listFilter.Tags[1] != "支持看货" {
+		t.Fatalf("list filter tags = %#v, want query tag filters", store.listFilter.Tags)
+	}
 	if store.searchLog.Keyword != "卫衣" || store.searchLog.ResultCount != 1 {
 		t.Fatalf("search log = %#v, want keyword and result count", store.searchLog)
 	}
+	logTags, ok := store.searchLog.Filters["tags"].([]string)
+	if !ok || len(logTags) != 2 || logTags[0] != "急清" || logTags[1] != "支持看货" {
+		t.Fatalf("search log tags = %#v, want query tag filters", store.searchLog.Filters["tags"])
+	}
 	if len(searchData["items"].([]interface{})) != 1 {
 		t.Fatalf("search items = %#v, want one item", searchData["items"])
+	}
+	searchItem := searchData["items"].([]interface{})[0].(map[string]interface{})
+	if tags := searchItem["tags"].([]interface{}); len(tags) != 2 || tags[0] != "急清" || tags[1] != "支持看货" {
+		t.Fatalf("search item tags = %#v, want resource tags in list response", searchItem["tags"])
 	}
 
 	detailRec := httptest.NewRecorder()
@@ -252,6 +267,7 @@ func TestResourceAPIRouterRequiresManagedMerchantWhenTokenConfigured(t *testing.
 		"typeCode":"inventory",
 		"title":"女童春款卫衣库存",
 		"category":"童装卫衣",
+		"description":"库存充足，可现场看货。",
 		"contact":{"name":"周经理","phone":"18800000002"}
 	}`))
 	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
@@ -267,6 +283,7 @@ func TestResourceAPIRouterRequiresManagedMerchantWhenTokenConfigured(t *testing.
 		"typeCode":"inventory",
 		"title":"女童春款卫衣库存",
 		"category":"童装卫衣",
+		"description":"库存充足，可现场看货。",
 		"contact":{"name":"周经理","phone":"18800000002"}
 	}`))
 	allowedReq.Header.Set("Authorization", "Bearer user-token")
@@ -303,6 +320,7 @@ func TestResourceAPIRouterBindsTokenSubjectWhenCreatingResource(t *testing.T) {
 		"typeCode":"inventory",
 		"title":"女童春款卫衣库存",
 		"category":"童装卫衣",
+		"description":"库存充足，可现场看货。",
 		"contact":{"name":"周经理","phone":"18800000002"}
 	}`))
 	createReq.Header.Set("Authorization", "Bearer user-token")
@@ -319,6 +337,7 @@ func TestResourceAPIRouterBindsTokenSubjectWhenCreatingResource(t *testing.T) {
 		"typeCode":"inventory",
 		"title":"女童春款卫衣草稿",
 		"category":"童装卫衣",
+		"description":"草稿先保存，稍后补图。",
 		"contact":{"name":"周经理","phone":"18800000002"}
 	}`))
 	draftReq.Header.Set("Authorization", "Bearer user-token")
@@ -507,6 +526,7 @@ func TestResourceAPIRouterAllowsAdminTokenForMerchantActions(t *testing.T) {
 		"typeCode":"inventory",
 		"title":"运营代发童装库存",
 		"category":"童装",
+		"description":"运营代发库存信息，可联系确认。",
 		"contact":{"name":"周经理","phone":"18800000002"}
 	}`))
 	createReq.Header.Set("Authorization", "Bearer admin-token")
@@ -783,7 +803,7 @@ func (s *fakeResourceAPIStore) ListResources(ctx context.Context, filter model.L
 		Items: []model.ResourceListItem{{
 			ID: "resource-1", TypeCode: "inventory", Title: "女童春款卫衣库存", Category: "童装卫衣",
 			PriceText: "18元/件", QuantityText: "3800件", Merchant: model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓", VerificationStatus: "verified"},
-			RefreshedAt: "2026-06-27T10:00:00Z",
+			Tags: []string{"急清", "支持看货"}, RefreshedAt: "2026-06-27T10:00:00Z",
 		}},
 		Page: filter.Page, PageSize: filter.PageSize, Total: 1,
 	}, nil

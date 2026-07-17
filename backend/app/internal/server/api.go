@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -1008,6 +1009,7 @@ func listResourcesReqFromQuery(r *http.Request) resourcelogic.ListResourcesReq {
 		Direction:    query.Get("direction"),
 		Keyword:      query.Get("keyword"),
 		Category:     query.Get("category"),
+		Tags:         resourceTagsFromQuery(query),
 		VerifiedOnly: boolFromQuery(r, "verifiedOnly"),
 		Page:         int64FromQuery(r, "page"),
 		PageSize:     int64FromQuery(r, "pageSize"),
@@ -1024,10 +1026,29 @@ func searchResourcesReqFromQuery(r *http.Request) resourcelogic.SearchResourcesR
 		Direction:    req.Direction,
 		Keyword:      req.Keyword,
 		Category:     req.Category,
+		Tags:         append([]string(nil), req.Tags...),
 		VerifiedOnly: req.VerifiedOnly,
 		Page:         req.Page,
 		PageSize:     req.PageSize,
 	}
+}
+
+func resourceTagsFromQuery(query url.Values) []string {
+	rawValues := query["tags"]
+	if len(rawValues) == 0 {
+		return nil
+	}
+	tags := make([]string, 0, len(rawValues))
+	for _, rawValue := range rawValues {
+		for _, item := range strings.FieldsFunc(rawValue, func(r rune) bool {
+			return r == ',' || r == '，'
+		}) {
+			if tag := strings.TrimSpace(item); tag != "" {
+				tags = append(tags, tag)
+			}
+		}
+	}
+	return tags
 }
 
 func merchantIDFromActionRequest(r *http.Request) (string, error) {

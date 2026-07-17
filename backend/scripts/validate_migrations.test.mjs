@@ -177,6 +177,14 @@ test('category commercial rules migration defines contact unlock commerce schema
   assert.match(source, /idx_contact_unlocks_resource_user/i)
 })
 
+test('resource tags migration adds gin index for structured tag filtering', () => {
+  const upSql = fs.readFileSync(path.resolve(migrationsDir, '000027_resource_tags_gin_index.up.sql'), 'utf8')
+  const downSql = fs.readFileSync(path.resolve(migrationsDir, '000027_resource_tags_gin_index.down.sql'), 'utf8')
+
+  assert.match(upSql, /CREATE INDEX IF NOT EXISTS idx_resources_tags_gin\s+ON resources USING gin \(tags\)/i)
+  assert.match(downSql, /DROP INDEX IF EXISTS idx_resources_tags_gin/i)
+})
+
 test('vip migration backfills product columns for databases that already applied old 000017', () => {
   const repairSql = fs.readFileSync(path.resolve(migrationsDir, '000018_vip_order_product_backfill.up.sql'), 'utf8')
 
@@ -308,6 +316,8 @@ test('resource type seed uses type-specific publish fields and summary mappings'
     '"key":"desiredPosition"',
     '"key":"desiredSpaceType"',
     '"key":"desiredPlaceType"',
+    '"tagOptions":["交通便利","带车位","靠近商圈","电梯房"',
+    '"tagOptions":["交通便利","带车位","货车可进","近高速"',
     '"key":"targetCategory"',
     '"summary":{"category":"targetCategory","quantityText":"orderQuantity","priceText":"budgetRange"}',
     '"key":"wantedItemType"',

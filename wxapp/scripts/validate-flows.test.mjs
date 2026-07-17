@@ -297,7 +297,8 @@ test('publish tab uses primary category entry and secondary type sheet', () => {
   assert.match(formSource, /direction:\s*RESOURCE_DIRECTION_SUPPLY/)
   assert.match(formSource, /listCityResourceTypes\(form\.cityCode\)/)
   assert.match(formSource, /form\.direction = normalizePublishDirection\(current\.direction \|\| ''\) \|\| RESOURCE_DIRECTION_SUPPLY/)
-  assert.match(formSource, /需求说明/)
+  assert.match(formSource, /需求描述/)
+  assert.equal(formSource.includes('需求说明'), false)
   assert.match(formSource, /参考图片/)
   assert.equal(formSource.includes('采购要求'), false)
 })
@@ -893,7 +894,7 @@ test('publish page presents grouped fast publishing workflow', () => {
     'fixed-save-spacer',
     'fixed-save-bar',
     'fixed-save-actions',
-    '供应说明',
+    '供应描述',
     '类型字段',
     '供应图片',
     '联系信息',
@@ -904,6 +905,7 @@ test('publish page presents grouped fast publishing workflow', () => {
   }
 
   assert.equal(source.includes('class="form-card"'), false)
+  assert.equal(source.includes('供应说明'), false)
   assert.equal(source.includes('class="image-url"'), false)
   assert.equal(source.includes('type-section section-card'), false)
   assert.equal(source.includes('publish-hero'), false)

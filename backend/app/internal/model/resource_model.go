@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 const (
@@ -180,6 +182,7 @@ type ResourceListItem struct {
 	District     string
 	PriceText    string
 	QuantityText string
+	Tags         []string
 	Merchant     ResourceMerchantBrief
 	CreditTags   []string
 	RefreshedAt  string
@@ -193,6 +196,7 @@ type ListResourcesFilter struct {
 	Direction    string
 	Keyword      string
 	Category     string
+	Tags         []string
 	VerifiedOnly bool
 	Status       string
 	Page         int64
@@ -256,6 +260,7 @@ SELECT
   COALESCE(r.district, ''),
   COALESCE(r.price_text, ''),
   COALESCE(r.quantity_text, ''),
+  r.tags,
   m.id::text,
   m.name,
   m.verification_status,
@@ -292,6 +297,7 @@ WHERE r.deleted_at IS NULL
   )
   AND ($9 = false OR r.is_verified = true OR m.verification_status = 'verified')
   AND (r.expires_at IS NULL OR r.expires_at > now())
+  AND (cardinality($12::text[]) = 0 OR r.tags ?& $12::text[])
 ORDER BY
   CASE WHEN r.top_expires_at IS NOT NULL AND r.top_expires_at > now() THEN 1 ELSE 0 END DESC,
   COALESCE(r.refreshed_at, r.published_at, r.created_at) DESC
@@ -1146,7 +1152,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize
 
-	rows, err := m.db.QueryContext(ctx, listResourcesSQL, filter.Status, filter.CityCode, filter.MerchantID, filter.GroupCode, filter.TypeCode, filter.Direction, filter.Category, filter.Keyword, filter.VerifiedOnly, pageSize, offset)
+	rows, err := m.db.QueryContext(ctx, listResourcesSQL, filter.Status, filter.CityCode, filter.MerchantID, filter.GroupCode, filter.TypeCode, filter.Direction, filter.Category, filter.Keyword, filter.VerifiedOnly, pageSize, offset, pq.Array(filter.Tags))
 	if err != nil {
 		return ListResourcesResult{}, err
 	}
@@ -1156,6 +1162,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 	var total int64
 	for rows.Next() {
 		var item ResourceListItem
+		var tags JSONStringSlice
 		var refreshedAt time.Time
 		if err := rows.Scan(
 			&item.ID,
@@ -1167,6 +1174,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 			&item.District,
 			&item.PriceText,
 			&item.QuantityText,
+			&tags,
 			&item.Merchant.ID,
 			&item.Merchant.Name,
 			&item.Merchant.VerificationStatus,
@@ -1176,6 +1184,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 		); err != nil {
 			return ListResourcesResult{}, err
 		}
+		item.Tags = []string(tags)
 		item.RefreshedAt = refreshedAt.Format(time.RFC3339)
 		items = append(items, item)
 	}

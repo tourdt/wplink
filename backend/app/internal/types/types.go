@@ -1202,6 +1202,7 @@ type ListResourcesReq struct {
 	Direction    string `form:"direction,optional"`
 	Keyword      string `form:"keyword,optional"`
 	Category     string `form:"category,optional"`
+	Tags         string `form:"tags,optional"`
 	VerifiedOnly bool   `form:"verifiedOnly,optional"`
 	Page         int64  `form:"page,optional"`
 	PageSize     int64  `form:"pageSize,optional"`
@@ -1611,6 +1612,7 @@ type ResourceListItem struct {
 	District     string                `json:"district,optional"`
 	PriceText    string                `json:"priceText,optional"`
 	QuantityText string                `json:"quantityText,optional"`
+	Tags         []string              `json:"tags"`
 	Merchant     ResourceMerchantBrief `json:"merchant"`
 	CreditTags   []string              `json:"creditTags"`
 	RefreshedAt  string                `json:"refreshedAt,optional"`
@@ -1662,6 +1664,17 @@ type ResourceTypeConfigInfo struct {
 	DisplayTemplate  map[string]interface{} `json:"displayTemplate"`
 }
 
+type ReverseGeocodeReq struct {
+	Latitude  string `form:"latitude"`
+	Longitude string `form:"longitude"`
+}
+
+type ReverseGeocodeResp struct {
+	Address  string `json:"address"`
+	Name     string `json:"name,optional"`
+	Province string `json:"province,optional"`
+}
+
 type SavedSearchItem struct {
 	Id           string `json:"id"`
 	Name         string `json:"name"`
@@ -1704,6 +1717,7 @@ type SearchResourcesReq struct {
 	Direction    string `form:"direction,optional"`
 	Keyword      string `form:"keyword,optional"`
 	Category     string `form:"category,optional"`
+	Tags         string `form:"tags,optional"`
 	VerifiedOnly bool   `form:"verifiedOnly,optional"`
 	Page         int64  `form:"page,optional"`
 	PageSize     int64  `form:"pageSize,optional"`
