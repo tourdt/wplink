@@ -2,11 +2,13 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	locationlogic "wplink/backend/app/internal/logic/location"
+	"wplink/backend/common/errx"
 )
 
 func TestAPIRouterReverseGeocodesLocation(t *testing.T) {
@@ -28,8 +30,31 @@ func TestAPIRouterReverseGeocodesLocation(t *testing.T) {
 	}
 }
 
+func TestAPIRouterReverseGeocodeReturnsRateLimitedForMapQuota(t *testing.T) {
+	geocoder := &fakeLocationGeocoder{
+		err: errx.New(errx.CodeRateLimited, "地址解析今日额度已用完，请手动填写详细地址"),
+	}
+	router := NewAPIRouter(&fakeCityAPIStore{}, WithLocationGeocoder(geocoder))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/locations/reverse-geocode?latitude=30.8732&longitude=120.2255", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d body = %s, want 429", rec.Code, rec.Body.String())
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["errorCode"] != errx.CodeRateLimited || body["msg"] != "地址解析今日额度已用完，请手动填写详细地址" {
+		t.Fatalf("body = %#v, want rate limited response", body)
+	}
+}
+
 type fakeLocationGeocoder struct {
 	resp      locationlogic.ReverseGeocodeResp
+	err       error
 	latitude  float64
 	longitude float64
 }
@@ -37,5 +62,8 @@ type fakeLocationGeocoder struct {
 func (g *fakeLocationGeocoder) ReverseGeocode(ctx context.Context, latitude float64, longitude float64) (locationlogic.ReverseGeocodeResp, error) {
 	g.latitude = latitude
 	g.longitude = longitude
+	if g.err != nil {
+		return locationlogic.ReverseGeocodeResp{}, g.err
+	}
 	return g.resp, nil
 }

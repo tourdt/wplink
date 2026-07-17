@@ -60,7 +60,8 @@ func TestListResourcesSQLUsesJSONBTagFilter(t *testing.T) {
 func TestReviewResourceSQLUsesConfiguredValidDays(t *testing.T) {
 	requiredSnippets := []string{
 		"rtc.default_valid_days",
-		"make_interval(days => GREATEST(rtc.default_valid_days, 1)::int)",
+		"$4::timestamptz + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int)",
+		"updated_at = $4::timestamptz",
 		"rtc.id = resources.resource_type_config_id",
 	}
 	for _, snippet := range requiredSnippets {
@@ -70,6 +71,21 @@ func TestReviewResourceSQLUsesConfiguredValidDays(t *testing.T) {
 	}
 	if strings.Contains(reviewResourceSQL, "interval '7 days'") {
 		t.Fatalf("reviewResourceSQL still hard-codes 7 days:\n%s", reviewResourceSQL)
+	}
+}
+
+func TestPublishResourceAfterAuditSQLCastsPublishTime(t *testing.T) {
+	requiredSnippets := []string{
+		"published_at = $2::timestamptz",
+		"refreshed_at = $2::timestamptz",
+		"expires_at = $2::timestamptz + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int)",
+		"updated_at = $2::timestamptz",
+		"rtc.id = resources.resource_type_config_id",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(publishResourceAfterAuditSQL, snippet) {
+			t.Fatalf("publishResourceAfterAuditSQL missing %q:\n%s", snippet, publishResourceAfterAuditSQL)
+		}
 	}
 }
 

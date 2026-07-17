@@ -80,11 +80,27 @@ test('resource detail only shows publish status for own resource', () => {
   assert.doesNotMatch(source, /<text v-if="resource\.status" class="tag">/)
 })
 
-test('resource detail displays publish tags in the top tag row', () => {
+test('resource detail displays publish tags below the description', () => {
   assert.match(source, /const resourceFeatureTags = computed\(\(\) => normalizeResourceFeatureTags\(resource\.value\.tags\)\)/)
+  assert.match(source, /const hasDetailTags = computed\(\(\) => \([\s\S]*resourceFeatureTags\.value\.length > 0[\s\S]*\)\)/)
+  assert.match(source, /<text class="desc">\{\{ resource\.description \|\| '商家暂未填写详细描述，建议联系前确认数量、尺码、看样方式和交付时间。' \}\}<\/text>[\s\S]*<view v-if="hasDetailTags" class="tag-row">/)
   assert.match(source, /<text v-for="tag in resourceFeatureTags" :key="tag" class="tag feature">\{\{ tag \}\}<\/text>/)
   assert.match(source, /function normalizeResourceFeatureTags\(tags = \[\]\)/)
-  assert.match(source, /\.tag\.feature \{[\s\S]*background: #f8fafc;[\s\S]*color: \$wplink-muted;/)
+  assert.match(source, /\.tag \{[\s\S]*border: 1rpx solid rgba\(100, 116, 139, 0\.22\);[\s\S]*font-weight: 700;/)
+  assert.match(source, /\.tag\.vip \{[\s\S]*background: \$wplink-warning;[\s\S]*color: \$wplink-card;/)
+  assert.match(source, /\.tag\.feature \{[\s\S]*background: #fff7ed;[\s\S]*color: \$wplink-warning;/)
+})
+
+test('resource detail prioritizes description without title or standalone price', () => {
+  assert.match(source, /<text class="desc">\{\{ resource\.description \|\| '商家暂未填写详细描述，建议联系前确认数量、尺码、看样方式和交付时间。' \}\}<\/text>[\s\S]*<view class="spec-list">/)
+  assert.match(source, /\.desc \{[\s\S]*background: #fff7ed;[\s\S]*font-size: 28rpx;[\s\S]*line-height: 1\.6;/)
+  assert.equal(source.includes('<text class="title">{{ resource.title }}</text>'), false)
+  assert.equal(source.includes('<text v-if="resource.priceText" class="price">{{ resource.priceText }}</text>'), false)
+  assert.equal(source.includes('class="favorite-button"'), false)
+  assert.equal(source.includes('.favorite-button'), false)
+  assert.equal(source.includes('.detail-head-row'), false)
+  assert.equal(source.includes('.title-row'), false)
+  assert.equal(source.includes('.price {'), false)
 })
 
 test('own resource detail keeps share and management actions in the bottom bar', () => {
@@ -142,8 +158,11 @@ test('resource detail groups low-frequency contact actions behind more sheet', (
 
   assert.match(source, /const showContactMoreSheet = ref\(false\)/)
   assert.match(source, /<view v-if="showContactMoreSheet" class="sheet-mask" @click="closeContactMoreSheet">/)
+  assert.match(source, /<text class="sheet-desc">收藏、分享给同行或反馈问题资源。<\/text>/)
+  assert.match(source, /<button class="management-action" @click="favoriteResourceFromMore">\{\{ favorited \? '取消收藏' : '收藏' \}\}<\/button>/)
   assert.match(source, /<button class="management-action primary" open-type="share" @click="shareResourceFromMore">分享给朋友<\/button>/)
   assert.match(source, /<button class="management-action danger" @click="reportResourceFromMore">举报<\/button>/)
+  assert.match(source, /async function favoriteResourceFromMore\(\) \{[\s\S]*const success = await toggleFavorite\(\)[\s\S]*if \(success\) closeContactMoreSheet\(\)[\s\S]*\}/)
   assert.match(source, /async function shareResourceFromMore\(\) \{[\s\S]*await shareResource\(\)[\s\S]*closeContactMoreSheet\(\)[\s\S]*\}/)
   assert.match(source, /async function reportResourceFromMore\(\) \{[\s\S]*closeContactMoreSheet\(\)[\s\S]*openResourceReportPage\(\)[\s\S]*\}/)
   assert.match(contactBar, /@click="copyWechat"/)
@@ -193,6 +212,7 @@ test('resource detail supports WeChat group and timeline sharing with generated 
 test('resource detail renders configured attribute items as specs', () => {
   assert.match(source, /const attributeSpecItems = computed\(\(\) =>/)
   assert.match(source, /resource\.value\.attributeItems \|\| \[\]/)
+  assert.match(source, /!addressAttributeKeys\.value\.has\(item\.key\)/)
   assert.match(source, /label: item\.label/)
   assert.match(source, /value: item\.value/)
   assert.match(source, /const summarySpecItems = computed\(\(\) =>/)
@@ -200,18 +220,26 @@ test('resource detail renders configured attribute items as specs', () => {
   assert.match(source, /const specItems = computed\(\(\) => \[/)
   assert.match(source, /\.\.\.attributeSpecItems\.value/)
   assert.match(source, /\.\.\.summarySpecItems\.value/)
+  assert.match(source, /\{ label: '更新时间', value: resource\.value\.refreshedAt \|\| '近期更新' \}/)
+  assert.doesNotMatch(source, /\{ label: '刷新', value: resource\.value\.refreshedAt/)
   assert.equal(source.includes("{ label: '品类', value: resource.value.category || '待沟通' }"), false)
   assert.equal(source.includes("{ label: '数量', value: resource.value.quantityText || '待沟通' }"), false)
   assert.equal(source.includes("{ label: '价格', value: resource.value.priceText || '面议' }"), false)
 })
 
-test('resource detail shows map navigation only for address attributes with gps', () => {
+test('resource detail renders address attributes as full-width rows and maps gps addresses', () => {
   assert.match(source, /<view v-if="resourceAddressLocations\.length" class="resource-address-list">/)
-  assert.match(source, /<map[\s\S]*class="resource-address-map"[\s\S]*:latitude="item\.latitude"[\s\S]*:longitude="item\.longitude"[\s\S]*@tap="openResourceAddressLocation\(item\)"/)
+  assert.match(source, /<button v-if="item\.hasGps" class="address-action" @click="openResourceAddressLocation\(item\)">导航<\/button>/)
+  assert.match(source, /<button v-else class="address-action secondary" @click="copyResourceAddress\(item\)">复制<\/button>/)
+  assert.match(source, /<text class="resource-address-text">\{\{ item\.address \}\}<\/text>[\s\S]*<map[\s\S]*v-if="item\.hasGps"[\s\S]*class="resource-address-map"[\s\S]*:latitude="item\.latitude"[\s\S]*:longitude="item\.longitude"[\s\S]*@tap="openResourceAddressLocation\(item\)"/)
   assert.match(source, /const resourceAddressLocations = computed\(\(\) => \{[\s\S]*Object\.entries\(attributes\)[\s\S]*buildResourceAddressLocation/)
-  assert.match(source, /function buildResourceAddressLocation\(key, value, index\) \{[\s\S]*typeof value !== 'object'[\s\S]*Number\.isFinite\(latitude\)[\s\S]*Number\.isFinite\(longitude\)[\s\S]*return null[\s\S]*markers/)
+  assert.match(source, /const addressAttributeKeys = computed\(\(\) => new Set\(resourceAddressLocations\.value\.map\(\(item\) => item\.key\)\)\)/)
+  assert.match(source, /function buildResourceAddressLocation\(key, value, index\) \{[\s\S]*isResourceAddressAttributeValue\(value\)[\s\S]*const hasGps = Number\.isFinite\(latitude\) && Number\.isFinite\(longitude\)[\s\S]*if \(!hasGps\) return item[\s\S]*markers/)
+  assert.match(source, /function isResourceAddressAttributeValue\(value\) \{[\s\S]*\['address', 'name', 'latitude', 'longitude', 'lat', 'lng'\]/)
   assert.match(source, /function openResourceAddressLocation\(item\) \{[\s\S]*uni\.openLocation\(\{[\s\S]*latitude: item\.latitude[\s\S]*longitude: item\.longitude[\s\S]*scale: 18/)
+  assert.match(source, /function copyResourceAddress\(item, title = '地址已复制'\)/)
   assert.match(source, /导航打开失败，已复制地址/)
+  assert.match(source, /\.resource-address-text \{[\s\S]*display: block;[\s\S]*font-size: 27rpx;[\s\S]*word-break: break-word;/)
 })
 
 test('resource detail restores top voucher management action', () => {

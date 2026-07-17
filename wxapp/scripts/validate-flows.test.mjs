@@ -136,7 +136,8 @@ test('home resources use dedicated discovery endpoint', () => {
   assert.match(discoverySource, /listHomeResources/)
   assert.match(discoverySource, /\/api\/v1\/home\/resources/)
   assert.match(homeSource, /listHomeResources\(\{ cityCode: DEFAULT_CITY_CODE \}\)/)
-  assert.equal(homeSource.includes("from '../../api/resource'"), false)
+  assert.match(homeSource, /loadFallbackHomeResources/)
+  assert.match(homeSource, /listResources\([\s\S]*suppressErrorToast: true[\s\S]*\)/)
   assert.equal(homeSource.includes('pageSize: 2'), false)
 })
 

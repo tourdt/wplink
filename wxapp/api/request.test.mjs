@@ -100,6 +100,41 @@ test('requires local login before sending protected API requests', async () => {
   ])
 })
 
+test('keeps public API requests anonymous without local token', async () => {
+  const storage = new Map()
+  const navigations = []
+  let requestOptions
+
+  globalThis.uni = {
+    getStorageSync(key) {
+      return storage.get(key) || ''
+    },
+    request(options) {
+      requestOptions = options
+      options.success({
+        statusCode: 200,
+        data: {
+          data: { items: [{ id: 'resource-1' }] },
+        },
+      })
+    },
+    showToast() {},
+    navigateTo(options) {
+      navigations.push(options)
+    },
+  }
+  globalThis.getCurrentPages = () => [{ route: 'pages/home/index', options: {} }]
+
+  const requestModule = await loadWxappModule('api/request.js')
+  const request = requestModule.namespace.default
+
+  const resp = await request({ url: '/api/v1/home/resources', method: 'GET' })
+
+  assert.deepEqual(resp, { items: [{ id: 'resource-1' }] })
+  assert.equal(requestOptions.header.Authorization, '')
+  assert.deepEqual(navigations, [])
+})
+
 async function loadWxappModule(relativePath) {
   const cache = new Map()
   return loadModule(path.join(root, relativePath), cache)

@@ -308,17 +308,33 @@ const reviewResourceSQL = `
 UPDATE resources
 SET
   status = $2,
-  published_at = CASE WHEN $3 = 'approve' THEN $4 ELSE published_at END,
-  refreshed_at = CASE WHEN $3 = 'approve' THEN $4 ELSE refreshed_at END,
-  expires_at = CASE WHEN $3 = 'approve' THEN $4 + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int) ELSE expires_at END,
+  published_at = CASE WHEN $3 = 'approve' THEN $4::timestamptz ELSE published_at END,
+  refreshed_at = CASE WHEN $3 = 'approve' THEN $4::timestamptz ELSE refreshed_at END,
+  expires_at = CASE WHEN $3 = 'approve' THEN $4::timestamptz + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int) ELSE expires_at END,
   reject_reason = CASE WHEN $3 = 'reject' THEN $5 ELSE reject_reason END,
   take_down_reason = CASE WHEN $3 = 'take_down' THEN $5 ELSE take_down_reason END,
-  taken_down_at = CASE WHEN $3 = 'take_down' THEN $4 ELSE taken_down_at END,
-  updated_at = $4
+  taken_down_at = CASE WHEN $3 = 'take_down' THEN $4::timestamptz ELSE taken_down_at END,
+  updated_at = $4::timestamptz
 FROM resource_type_configs rtc
 WHERE resources.id = $1
   AND rtc.id = resources.resource_type_config_id
 RETURNING resources.id::text, resources.merchant_id::text, resources.title, resources.status
+`
+
+const publishResourceAfterAuditSQL = `
+UPDATE resources
+SET
+  status = 'published',
+  published_at = $2::timestamptz,
+  refreshed_at = $2::timestamptz,
+  expires_at = $2::timestamptz + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int),
+  reject_reason = NULL,
+  updated_at = $2::timestamptz
+FROM resource_type_configs rtc
+WHERE resources.id = $1
+  AND resources.status = 'pending'
+  AND rtc.id = resources.resource_type_config_id
+RETURNING resources.id::text, resources.status
 `
 
 const publishedResourceDetailSQL = `
@@ -864,21 +880,7 @@ FOR UPDATE
 				return err
 			}
 		}
-		if err := tx.QueryRowContext(ctx, `
-UPDATE resources
-SET
-  status = 'published',
-  published_at = $2,
-  refreshed_at = $2,
-  expires_at = $2 + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int),
-  reject_reason = NULL,
-  updated_at = $2
-FROM resource_type_configs rtc
-WHERE resources.id = $1
-  AND resources.status = 'pending'
-  AND rtc.id = resources.resource_type_config_id
-RETURNING resources.id::text, resources.status
-`, resourceID, now).Scan(&result.ID, &result.Status); err != nil {
+		if err := tx.QueryRowContext(ctx, publishResourceAfterAuditSQL, resourceID, now).Scan(&result.ID, &result.Status); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `

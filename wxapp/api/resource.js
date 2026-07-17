@@ -36,11 +36,12 @@ export function submitResource(resourceId, merchantId = '') {
   })
 }
 
-export function listResources(params = {}) {
+export function listResources(params = {}, options = {}) {
   return request({
     url: '/api/v1/resources',
     method: 'GET',
     data: params,
+    ...options,
   })
 }
 

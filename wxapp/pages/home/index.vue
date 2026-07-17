@@ -119,6 +119,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { listHomeOperationConfig, listHomeResources } from '../../api/discovery'
+import { listResources } from '../../api/resource'
 
 const banners = ref([])
 const recommendCards = ref([])
@@ -258,9 +259,28 @@ async function loadHomeResources() {
   // 首页资源位由后端统一控制排序和数量，前端只传城市，避免和通用资源列表页规则耦合。
   try {
     const resp = await listHomeResources({ cityCode: DEFAULT_CITY_CODE })
-    homeResources.value = resp.items || []
+    homeResources.value = await resolveHomeResourceItems(resp)
   } catch {
-    homeResources.value = []
+    homeResources.value = await loadFallbackHomeResources()
+  }
+}
+
+async function resolveHomeResourceItems(resp) {
+  const items = resp.items || []
+  if (items.length) return items
+  return loadFallbackHomeResources()
+}
+
+async function loadFallbackHomeResources() {
+  try {
+    // 兜底读取公开资源列表，避免运营精选接口异常或临时空数据时首页核心内容区直接消失。
+    const resp = await listResources(
+      { cityCode: DEFAULT_CITY_CODE, page: 1, pageSize: 30 },
+      { suppressErrorToast: true }
+    )
+    return resp.items || []
+  } catch {
+    return []
   }
 }
 

@@ -17,7 +17,10 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
-const defaultTencentMapGeocoderURL = "https://apis.map.qq.com/ws/geocoder/v1/"
+const (
+	defaultTencentMapGeocoderURL        = "https://apis.map.qq.com/ws/geocoder/v1/"
+	tencentMapStatusDailyQuotaExhausted = 121
+)
 
 type ReverseGeocodeReq struct {
 	Latitude  string
@@ -146,6 +149,9 @@ func (g *TencentMapGeocoder) ReverseGeocode(ctx context.Context, latitude float6
 	}
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
 		logx.Errorf("腾讯地图逆地理编码 HTTP 状态异常: latitude=%.6f longitude=%.6f status=%d", latitude, longitude, httpResp.StatusCode)
+		if httpResp.StatusCode == http.StatusTooManyRequests {
+			return ReverseGeocodeResp{}, errx.New(errx.CodeRateLimited, "地址解析服务调用过于频繁，请手动填写详细地址")
+		}
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析服务暂不可用，请手动填写详细地址")
 	}
 
@@ -156,6 +162,9 @@ func (g *TencentMapGeocoder) ReverseGeocode(ctx context.Context, latitude float6
 	}
 	if decoded.Status != 0 {
 		logx.Errorf("腾讯地图逆地理编码返回错误: latitude=%.6f longitude=%.6f status=%d message=%s", latitude, longitude, decoded.Status, decoded.Message)
+		if isTencentMapQuotaExhausted(decoded.Status, decoded.Message) {
+			return ReverseGeocodeResp{}, errx.New(errx.CodeRateLimited, "地址解析今日额度已用完，请手动填写详细地址")
+		}
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析失败，请手动填写详细地址")
 	}
 	address := chooseTencentAddress(decoded.Result)
@@ -213,4 +222,12 @@ func chooseTencentPOIName(pois []tencentMapPOI) string {
 		}
 	}
 	return ""
+}
+
+func isTencentMapQuotaExhausted(status int, message string) bool {
+	// 腾讯地图在 HTTP 200 内用业务状态码表达 Key 级别限制，避免误判为服务内部 500。
+	if status == tencentMapStatusDailyQuotaExhausted {
+		return true
+	}
+	return strings.Contains(message, "调用量已达到上限")
 }

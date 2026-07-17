@@ -46,17 +46,13 @@
       </view>
 
       <view class="resource-card">
-        <view class="tag-row">
+        <text class="desc">{{ resource.description || '商家暂未填写详细描述，建议联系前确认数量、尺码、看样方式和交付时间。' }}</text>
+        <view v-if="hasDetailTags" class="tag-row">
           <text v-if="isVIPMerchant" class="tag vip">VIP</text>
           <text v-if="isOwnResource && resource.status" class="tag">{{ statusText[resource.status] || resource.status }}</text>
           <text v-if="resource.refreshedAt" class="tag">{{ resource.refreshedAt }}</text>
           <text v-for="tag in resourceFeatureTags" :key="tag" class="tag feature">{{ tag }}</text>
         </view>
-        <view class="title-row">
-          <text class="title">{{ resource.title }}</text>
-          <button class="favorite-button" @click="toggleFavorite">{{ favorited ? '已收藏' : '收藏' }}</button>
-        </view>
-        <text v-if="resource.priceText" class="price">{{ resource.priceText }}</text>
         <view class="spec-list">
           <view v-for="item in specItems" :key="item.label" class="spec-item">
             <text class="spec-label">{{ item.label }}</text>
@@ -67,9 +63,12 @@
           <view v-for="item in resourceAddressLocations" :key="item.key" class="resource-address-card">
             <view class="resource-address-head">
               <text class="resource-address-title">{{ item.label }}</text>
-              <button class="address-action" @click="openResourceAddressLocation(item)">导航</button>
+              <button v-if="item.hasGps" class="address-action" @click="openResourceAddressLocation(item)">导航</button>
+              <button v-else class="address-action secondary" @click="copyResourceAddress(item)">复制</button>
             </view>
+            <text class="resource-address-text">{{ item.address }}</text>
             <map
+              v-if="item.hasGps"
               class="resource-address-map"
               :latitude="item.latitude"
               :longitude="item.longitude"
@@ -77,10 +76,8 @@
               :scale="17"
               @tap="openResourceAddressLocation(item)"
             />
-            <text class="resource-address-text">{{ item.address }}</text>
           </view>
         </view>
-        <text class="desc">{{ resource.description || '商家暂未填写详细描述，建议联系前确认数量、尺码、看样方式和交付时间。' }}</text>
       </view>
 
       <view class="trust-card">
@@ -141,11 +138,12 @@
           <view class="sheet-head">
             <view class="sheet-copy">
               <text class="sheet-title">更多操作</text>
-              <text class="sheet-desc">分享给同行或反馈问题资源。</text>
+              <text class="sheet-desc">收藏、分享给同行或反馈问题资源。</text>
             </view>
             <button class="sheet-close" @click="closeContactMoreSheet">关闭</button>
           </view>
           <view class="management-actions">
+            <button class="management-action" @click="favoriteResourceFromMore">{{ favorited ? '取消收藏' : '收藏' }}</button>
             <button class="management-action primary" open-type="share" @click="shareResourceFromMore">分享给朋友</button>
             <button class="management-action danger" @click="reportResourceFromMore">举报</button>
           </view>
@@ -257,6 +255,12 @@ const statusText = {
 const contentAuditStatuses = new Set(['pending', 'manual_review', 'audit_retry'])
 const isVIPMerchant = computed(() => (resource.value.merchant || {}).vipStatus === 'active')
 const resourceFeatureTags = computed(() => normalizeResourceFeatureTags(resource.value.tags))
+const hasDetailTags = computed(() => (
+  isVIPMerchant.value ||
+  (isOwnResource.value && resource.value.status) ||
+  Boolean(resource.value.refreshedAt) ||
+  resourceFeatureTags.value.length > 0
+))
 const contactAccess = computed(() => resource.value.contactAccess || {})
 // 底部主按钮执行的是电话解锁和拨号，按钮文案保持动作导向，避免展示“登录后免费查看”等规则说明。
 const contactButtonText = computed(() => '拨打电话')
@@ -299,12 +303,6 @@ const noImageHintText = computed(() => {
   if (isDemandResource.value) return '重点需求信息已整理在下方详情中。'
   return '重点供需信息已整理在下方详情中。'
 })
-const attributeSpecItems = computed(() => (resource.value.attributeItems || [])
-  .filter((item) => item?.label && item?.value !== undefined && item?.value !== '')
-  .map((item) => ({
-    label: item.label,
-    value: item.value,
-  })))
 const attributeLabelByKey = computed(() => {
   const labels = {}
   for (const item of resource.value.attributeItems || []) {
@@ -318,6 +316,13 @@ const resourceAddressLocations = computed(() => {
     .map(([key, value], index) => buildResourceAddressLocation(key, value, index))
     .filter(Boolean)
 })
+const addressAttributeKeys = computed(() => new Set(resourceAddressLocations.value.map((item) => item.key)))
+const attributeSpecItems = computed(() => (resource.value.attributeItems || [])
+  .filter((item) => item?.label && item?.value !== undefined && item?.value !== '' && !addressAttributeKeys.value.has(item.key))
+  .map((item) => ({
+    label: item.label,
+    value: item.value,
+  })))
 const attributeSpecValues = computed(() => new Set(attributeSpecItems.value.map((item) => String(item.value))))
 const summarySpecItems = computed(() => [
   { label: '分类摘要', value: resource.value.category },
@@ -327,7 +332,7 @@ const summarySpecItems = computed(() => [
 const specItems = computed(() => [
   ...attributeSpecItems.value,
   ...summarySpecItems.value,
-  { label: '刷新', value: resource.value.refreshedAt || '近期更新' },
+  { label: '更新时间', value: resource.value.refreshedAt || '近期更新' },
 ])
 const isExpiredResource = computed(() => {
   if (resource.value.status === 'expired') return true
@@ -491,18 +496,20 @@ async function loadFavoriteState(resourceId) {
 }
 
 async function toggleFavorite() {
-  if (!resource.value.id) return
+  if (!resource.value.id) return false
   if (isOwnResource.value) {
     uni.showToast({ title: '不能收藏自己发布的供应', icon: 'none' })
-    return
+    return false
   }
   try {
     // 收藏状态以服务端返回为准，避免弱网下本地乐观更新和真实状态不一致。
     const resp = await setResourceFavorite(resource.value.id, !favorited.value)
     favorited.value = Boolean(resp.favorited)
     uni.showToast({ title: favorited.value ? '已收藏供应' : '已取消收藏', icon: 'none' })
+    return true
   } catch (err) {
     uni.showToast({ title: err.message || '收藏失败，请稍后重试', icon: 'none' })
+    return false
   }
 }
 
@@ -581,18 +588,23 @@ async function openMerchant() {
 }
 
 function buildResourceAddressLocation(key, value, index) {
-  if (!value || typeof value !== 'object') return null
-  const latitude = Number(value.latitude)
-  const longitude = Number(value.longitude)
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  if (!isResourceAddressAttributeValue(value)) return null
   const address = normalizeResourceAddressText(value)
   if (!address) return null
+  const latitude = Number(value.latitude ?? value.lat)
+  const longitude = Number(value.longitude ?? value.lng)
+  const hasGps = Number.isFinite(latitude) && Number.isFinite(longitude)
   const label = attributeLabelByKey.value[key] || '地址'
-  return {
+  const item = {
     key,
     label,
     address,
     name: String(value.name || label || resource.value.title || '').trim(),
+    hasGps,
+  }
+  if (!hasGps) return item
+  return {
+    ...item,
     latitude,
     longitude,
     markers: [{
@@ -604,6 +616,11 @@ function buildResourceAddressLocation(key, value, index) {
   }
 }
 
+function isResourceAddressAttributeValue(value) {
+  if (!value || typeof value !== 'object') return false
+  return ['address', 'name', 'latitude', 'longitude', 'lat', 'lng'].some((key) => Object.prototype.hasOwnProperty.call(value, key))
+}
+
 function normalizeResourceAddressText(value) {
   if (typeof value === 'string') return value.trim()
   if (!value || typeof value !== 'object') return ''
@@ -612,6 +629,10 @@ function normalizeResourceAddressText(value) {
 
 function openResourceAddressLocation(item) {
   if (!item) return
+  if (!item.hasGps) {
+    copyResourceAddress(item)
+    return
+  }
   uni.openLocation({
     latitude: item.latitude,
     longitude: item.longitude,
@@ -620,11 +641,16 @@ function openResourceAddressLocation(item) {
     scale: 18,
     fail() {
       if (item.address) {
-        uni.setClipboardData({ data: item.address })
-        uni.showToast({ title: '导航打开失败，已复制地址', icon: 'none' })
+        copyResourceAddress(item, '导航打开失败，已复制地址')
       }
     },
   })
+}
+
+function copyResourceAddress(item, title = '地址已复制') {
+  if (!item?.address) return
+  uni.setClipboardData({ data: item.address })
+  uni.showToast({ title, icon: 'none' })
 }
 
 async function loadRelatedResources() {
@@ -986,6 +1012,11 @@ async function shareResource() {
 async function shareResourceFromMore() {
   await shareResource()
   closeContactMoreSheet()
+}
+
+async function favoriteResourceFromMore() {
+  const success = await toggleFavorite()
+  if (success) closeContactMoreSheet()
 }
 
 async function reportResourceFromMore() {
@@ -1386,52 +1417,43 @@ onShareTimeline(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
+  min-width: 0;
 }
 
 .tag {
-  padding: 6rpx 12rpx;
+  padding: 7rpx 14rpx;
+  border: 1rpx solid rgba(100, 116, 139, 0.22);
   border-radius: 8rpx;
   background: #edf2f7;
-  color: #4a5568;
+  color: #334155;
   font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .tag.vip {
-  background: rgba(194, 58, 0, 0.1);
-  color: $wplink-warning;
+  border-color: transparent;
+  background: $wplink-warning;
+  color: $wplink-card;
 }
 
 .tag.feature {
-  background: #f8fafc;
-  color: $wplink-muted;
+  border-color: rgba(194, 58, 0, 0.22);
+  background: #fff7ed;
+  color: $wplink-warning;
 }
 
-.title-row {
-  display: grid;
-  grid-template-columns: 1fr 136rpx;
-  gap: 16rpx;
-  align-items: start;
-}
-
-.title {
+.desc {
+  padding: 18rpx;
+  border-radius: 10rpx;
+  background: #fff7ed;
   color: $wplink-primary;
-  font-size: 38rpx;
-  font-weight: 700;
-  line-height: 1.35;
-  min-width: 0;
+  font-size: 28rpx;
+  line-height: 1.6;
   word-break: break-word;
 }
 
-.favorite-button {
-  height: 64rpx;
-  border-radius: 10rpx;
-  background: $wplink-warning-soft;
-  color: $wplink-warning;
-  font-size: 24rpx;
-}
-
 .meta,
-.desc,
 .merchant-status,
 .section-content,
 .merchant-hint,
@@ -1439,12 +1461,6 @@ onShareTimeline(() => {
   color: $wplink-muted;
   font-size: 28rpx;
   line-height: 1.55;
-}
-
-.price {
-  color: $wplink-warning;
-  font-size: 32rpx;
-  font-weight: 700;
 }
 
 .spec-list {
@@ -1514,6 +1530,11 @@ onShareTimeline(() => {
   line-height: 52rpx;
 }
 
+.address-action.secondary {
+  background: #eef2f7;
+  color: #364152;
+}
+
 .address-action::after {
   border: 0;
 }
@@ -1527,9 +1548,13 @@ onShareTimeline(() => {
 }
 
 .resource-address-text {
-  color: $wplink-muted;
-  font-size: 24rpx;
-  line-height: 1.45;
+  display: block;
+  padding: 18rpx;
+  border-radius: 8rpx;
+  background: #ffffff;
+  color: $wplink-primary;
+  font-size: 27rpx;
+  line-height: 1.55;
   word-break: break-word;
 }
 

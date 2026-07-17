@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"wplink/backend/app/internal/config"
+	"wplink/backend/common/errx"
 )
 
 func TestTencentMapGeocoderReverseGeocodeUsesRecommendedAddressAndPOIName(t *testing.T) {
@@ -44,6 +45,27 @@ func TestTencentMapGeocoderReverseGeocodeUsesRecommendedAddressAndPOIName(t *tes
 	}
 	if resp.Address != "织里童装城一区附近" || resp.Name != "织里童装城一区" || resp.Province != "浙江省" {
 		t.Fatalf("resp = %#v, want recommended address and first poi name", resp)
+	}
+}
+
+func TestTencentMapGeocoderMapsDailyQuotaExhaustedToRateLimited(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":121,"message":"此key每日调用量已达到上限"}`))
+	}))
+	defer server.Close()
+
+	geocoder := NewTencentMapGeocoder(config.TencentMapConfig{
+		Key:            "map-key",
+		RequestTimeout: time.Second,
+	}, server.Client()).WithBaseURL(server.URL)
+
+	_, err := geocoder.ReverseGeocode(context.Background(), 30.8732, 120.2255)
+	if err == nil || errx.CodeOf(err) != errx.CodeRateLimited {
+		t.Fatalf("ReverseGeocode() error = %v, code = %s, want rate limited", err, errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "地址解析今日额度已用完，请手动填写详细地址" {
+		t.Fatalf("public message = %q, want quota exhausted guidance", errx.PublicMessage(err))
 	}
 }
 
