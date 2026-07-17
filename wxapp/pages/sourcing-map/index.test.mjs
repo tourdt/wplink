@@ -367,7 +367,7 @@ test('sourcing map page renders readable object and poi details', () => {
   assert.match(source, /const detail = await getMapObject\(poi\.id/)
 })
 
-test('sourcing map highlights verified merchants and weak admin objects in canvas and list', () => {
+test('sourcing map highlights linked merchant points and weak admin objects in canvas and list', () => {
   expectTokens(source, [
     'displaySource',
     'displayLevel',
@@ -377,7 +377,7 @@ test('sourcing map highlights verified merchants and weak admin objects in canva
     'weak',
     'objectRowClasses',
     'selectedObjectMerchant',
-    '认证商户',
+    '商家点位',
     '后台点位',
   ])
   expectTokens(rendererSource, [
@@ -389,6 +389,8 @@ test('sourcing map highlights verified merchants and weak admin objects in canva
   ])
   assert.match(source, /objectDisplayName\(object\)/)
   assert.match(source, /v-if="selectedObject\.isVerifiedMerchant"/)
+  assert.equal(source.includes('认证商户'), false)
+  assert.equal(source.includes('实地认证'), false)
 })
 
 test('sourcing map page supports canvas gesture zoom and level based labels', () => {

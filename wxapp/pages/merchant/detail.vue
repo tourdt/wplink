@@ -8,10 +8,6 @@
           <view class="merchant-copy">
             <text class="merchant-name">{{ merchant.name || '商家' }}</text>
             <text class="merchant-summary">{{ merchantSubtitle }}</text>
-            <view class="hero-tag-row">
-              <text class="hero-tag verified" v-if="merchant.verificationStatus === 'verified'">认证</text>
-              <text class="hero-tag verified" v-if="creditTags.length">已核实</text>
-            </view>
           </view>
         </view>
         <button v-if="isOwnMerchant" class="follow-button" @click="openMerchantEditor">编辑</button>
@@ -35,31 +31,6 @@
         <text v-for="category in merchantCategoryTags" :key="category" class="profile-chip category">{{ category }}</text>
       </view>
       <text class="profile-description">{{ profileDescription }}</text>
-    </view>
-
-    <view v-if="showVerificationInfo" class="section verification-info-section">
-      <view class="section-head">
-        <text class="section-title">认证</text>
-        <text class="verification-status-pill">已认证</text>
-      </view>
-      <view class="verification-info-list">
-        <view class="verification-info-row">
-          <text class="verification-info-label">身份</text>
-          <text class="verification-info-value">{{ merchantVerificationTypeLabel }}</text>
-        </view>
-        <view class="verification-info-row">
-          <text class="verification-info-label">核验项</text>
-          <text class="verification-info-value">{{ merchantVerificationCheckedText }}</text>
-        </view>
-        <view v-if="merchantVerificationReviewedDate" class="verification-info-row">
-          <text class="verification-info-label">时间</text>
-          <text class="verification-info-value">{{ merchantVerificationReviewedDate }}</text>
-        </view>
-        <view v-if="merchantVerificationExpiresDate" class="verification-info-row">
-          <text class="verification-info-label">有效期</text>
-          <text class="verification-info-value">至 {{ merchantVerificationExpiresDate }}</text>
-        </view>
-      </view>
     </view>
 
     <view class="section" v-if="merchant.addressText || hasMerchantLocation">
@@ -117,7 +88,6 @@ import { getMerchantFollowState, setMerchantFollow } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
 import { listResources } from '../../api/resource'
 import { getSession } from '../../store/session'
-import { formatDateToDay } from '../../common/date'
 
 const merchant = ref({})
 const currentMerchantId = ref('')
@@ -137,34 +107,15 @@ const merchantTypeText = {
   service_provider: '配套服务',
   buyer: '采购',
 }
-const creditTags = computed(() => merchant.value.creditTags || [])
 const merchantLogo = computed(() => merchant.value.logoUrl || '')
 const merchantImages = computed(() => merchant.value.images || [])
 const merchantLocation = computed(() => merchant.value.location || {})
 const hasMerchantLocation = computed(() => hasValidLocation(merchantLocation.value))
 const resourcesSummary = computed(() => merchant.value.resourcesSummary || {})
-const merchantVerificationInfo = computed(() => merchant.value.verificationInfo || {})
 const isOwnMerchant = computed(() => Boolean(merchant.value.id) && merchant.value.id === ownMerchantId.value)
 const merchantInitial = computed(() => String(merchant.value.name || '商').slice(0, 1))
 const merchantCategoryTags = computed(() => merchant.value.mainCategories || [])
 const merchantTypeLabel = computed(() => merchantTypeText[merchant.value.merchantType] || merchant.value.merchantType || '')
-const showVerificationInfo = computed(() => merchant.value.verificationStatus === 'verified')
-const merchantVerificationTypeLabel = computed(() => {
-  const type = merchantVerificationInfo.value.type || merchant.value.merchantType
-  return merchantTypeText[type] || type || '商家'
-})
-const merchantVerificationCheckedText = computed(() => {
-  const items = merchantVerificationInfo.value.checkedItems || []
-  return items.length ? items.join('、') : '主体资质、经营场地'
-})
-const merchantVerificationReviewedDate = computed(() => {
-  const reviewedAt = merchantVerificationInfo.value.reviewedAt
-  return reviewedAt ? formatDateToDay(reviewedAt, '') : ''
-})
-const merchantVerificationExpiresDate = computed(() => {
-  const expiresAt = merchantVerificationInfo.value.expiresAt
-  return expiresAt ? formatDateToDay(expiresAt, '') : ''
-})
 const profileDescription = computed(() => merchant.value.description || '暂无介绍')
 const merchantSubtitle = computed(() => {
   const categories = merchantCategoryTags.value.join('、')
@@ -372,14 +323,12 @@ function hasValidLocation(location) {
   word-break: break-word;
 }
 
-.hero-tag-row,
 .profile-chip-row {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
 }
 
-.hero-tag,
 .profile-chip {
   display: inline-flex;
   align-items: center;
@@ -388,16 +337,6 @@ function hasValidLocation(location) {
   border-radius: 8rpx;
   font-size: 22rpx;
   line-height: 1.25;
-}
-
-.hero-tag {
-  background: rgba(255, 255, 255, 0.12);
-  color: $wplink-card;
-}
-
-.hero-tag.verified {
-  background: rgba(22, 163, 106, 0.16);
-  color: #b8f3d5;
 }
 
 .hero-stats {
@@ -478,11 +417,6 @@ function hasValidLocation(location) {
   font-weight: 700;
 }
 
-.profile-chip.verified {
-  background: $wplink-success-soft;
-  color: $wplink-success;
-}
-
 .profile-chip.muted {
   background: #f8fafc;
   color: $wplink-muted;
@@ -493,48 +427,6 @@ function hasValidLocation(location) {
   color: $wplink-primary;
   font-size: 30rpx;
   line-height: 1.6;
-  word-break: break-word;
-}
-
-.verification-info-section {
-  border: 1rpx solid rgba($wplink-success, 0.16);
-  background: #f0fdf4;
-}
-
-.verification-status-pill {
-  min-height: 44rpx;
-  padding: 0 16rpx;
-  border-radius: 8rpx;
-  background: $wplink-success-soft;
-  color: $wplink-success;
-  font-size: 22rpx;
-  font-weight: 700;
-  line-height: 44rpx;
-}
-
-.verification-info-list {
-  display: grid;
-  gap: 12rpx;
-}
-
-.verification-info-row {
-  display: grid;
-  grid-template-columns: 148rpx minmax(0, 1fr);
-  gap: 16rpx;
-  align-items: start;
-}
-
-.verification-info-label {
-  color: $wplink-muted;
-  font-size: 24rpx;
-  line-height: 1.45;
-}
-
-.verification-info-value {
-  color: $wplink-primary;
-  font-size: 26rpx;
-  font-weight: 700;
-  line-height: 1.45;
   word-break: break-word;
 }
 

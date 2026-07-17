@@ -32,8 +32,16 @@
           mode="aspectFill"
           @click="previewGalleryImage(0)"
         />
-        <view v-else class="gallery-main gallery-placeholder">
-          <text>{{ resource.category || '供应实拍' }}</text>
+        <view v-else :class="['gallery-main', 'gallery-placeholder', isDemandResource ? 'demand' : '']">
+          <view class="placeholder-copy">
+            <view class="placeholder-head">
+              <text class="placeholder-badge">{{ noImageBadgeText }}</text>
+              <text class="placeholder-type">{{ resourceTypeDisplay }}</text>
+            </view>
+            <text class="placeholder-title">{{ noImageStateTitle }}</text>
+            <text class="placeholder-desc">{{ noImageHintText }}</text>
+          </view>
+          <button v-if="canEditOwnResourceWithoutImage" class="placeholder-edit-button" @click.stop="openPublishEditor">补充图片</button>
         </view>
       </view>
 
@@ -52,6 +60,23 @@
           <view v-for="item in specItems" :key="item.label" class="spec-item">
             <text class="spec-label">{{ item.label }}</text>
             <text class="spec-value">{{ item.value }}</text>
+          </view>
+        </view>
+        <view v-if="resourceAddressLocations.length" class="resource-address-list">
+          <view v-for="item in resourceAddressLocations" :key="item.key" class="resource-address-card">
+            <view class="resource-address-head">
+              <text class="resource-address-title">{{ item.label }}</text>
+              <button class="address-action" @click="openResourceAddressLocation(item)">导航</button>
+            </view>
+            <map
+              class="resource-address-map"
+              :latitude="item.latitude"
+              :longitude="item.longitude"
+              :markers="item.markers"
+              :scale="17"
+              @tap="openResourceAddressLocation(item)"
+            />
+            <text class="resource-address-text">{{ item.address }}</text>
           </view>
         </view>
         <text class="desc">{{ resource.description || '商家暂未填写详细描述，建议联系前确认数量、尺码、看样方式和交付时间。' }}</text>
@@ -170,6 +195,7 @@ import {
 } from '../../api/resource'
 import { createQuotaPackOrder, createVIPPayment, listQuotaPacks } from '../../api/vip'
 import { requireLogin } from '../../common/auth'
+import { resourceTypeLabel as resolveResourceTypeLabel } from '../../common/resourceCategories'
 import {
   RESOURCE_SHARE_COVER_CANVAS_ID,
   RESOURCE_SHARE_COVER_SIZE,
@@ -193,7 +219,7 @@ const managementBusy = ref(false)
 const topServicePacks = ref([])
 const shareImageUrl = ref('')
 const shareCoverCanvasSize = RESOURCE_SHARE_COVER_SIZE
-// 底部只保留高频联系动作，分享和举报收进更多操作，减少供需详情主路径干扰。
+// 底部只保留高频联系动作，分享和举报收进更多操作，减少详情页主路径干扰。
 const showContactMoreSheet = ref(false)
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const fallbackTopServicePacks = [
@@ -256,12 +282,40 @@ const galleryImages = computed(() => {
   return [...cover, ...images].filter(Boolean)
 })
 const mainImage = computed(() => galleryImages.value[selectedGalleryIndex.value] || galleryImages.value[0] || '')
+const resourceTypeDisplay = computed(() => resolveResourceTypeLabel(resource.value) || resource.value.category || '供需信息')
+const isDemandResource = computed(() => {
+  const direction = String(resource.value.direction || '').trim()
+  if (direction === 'demand') return true
+  const typeCode = String(resource.value.typeCode || '').trim()
+  // 公开详情兼容历史响应可能缺少 direction 的情况，避免求购/求租类无图时仍显示供应口径。
+  return /^(buy_|find_|seek_)/.test(typeCode) || typeCode.endsWith('_buy') || typeCode === 'job_seeking'
+})
+const noImageBadgeText = computed(() => (isDemandResource.value ? '需求信息' : '供需信息'))
+const noImageStateTitle = computed(() => (isDemandResource.value ? '需求暂无图片' : '暂无实拍图片'))
+const noImageHintText = computed(() => {
+  if (isOwnResource.value) return '当前未上传图片，补充后详情展示会更完整。'
+  if (isDemandResource.value) return '重点需求信息已整理在下方详情中。'
+  return '重点供需信息已整理在下方详情中。'
+})
 const attributeSpecItems = computed(() => (resource.value.attributeItems || [])
   .filter((item) => item?.label && item?.value !== undefined && item?.value !== '')
   .map((item) => ({
     label: item.label,
     value: item.value,
   })))
+const attributeLabelByKey = computed(() => {
+  const labels = {}
+  for (const item of resource.value.attributeItems || []) {
+    if (item?.key && item?.label) labels[item.key] = item.label
+  }
+  return labels
+})
+const resourceAddressLocations = computed(() => {
+  const attributes = resource.value.attributes || {}
+  return Object.entries(attributes)
+    .map(([key, value], index) => buildResourceAddressLocation(key, value, index))
+    .filter(Boolean)
+})
 const attributeSpecValues = computed(() => new Set(attributeSpecItems.value.map((item) => String(item.value))))
 const summarySpecItems = computed(() => [
   { label: '分类摘要', value: resource.value.category },
@@ -281,6 +335,7 @@ const isExpiredResource = computed(() => {
 })
 const isDealtResource = computed(() => resource.value.status === 'dealt' || Boolean(resource.value.dealtAt))
 const canShareOwnResource = computed(() => resource.value.status === 'published' && !isExpiredResource.value && !resource.value.dealtAt)
+const canEditOwnResourceWithoutImage = computed(() => isOwnResource.value && ['draft', 'rejected'].includes(resource.value.status))
 const managementTitle = computed(() => statusText[resource.value.status] || '供应管理')
 const managementNotice = computed(() => {
   if (isContentAuditStatus(resource.value.status)) {
@@ -321,6 +376,13 @@ function isContentAuditStatus(status) {
   return contentAuditStatuses.has(status)
 }
 
+function updateNavigationTitle() {
+  if (typeof uni.setNavigationBarTitle !== 'function') return
+  uni.setNavigationBarTitle({
+    title: isDemandResource.value ? '需求详情' : '供应详情',
+  })
+}
+
 onLoad(async (options) => {
   if (!options.id) return
   // 从“我的发布”进入时允许查看待审核、草稿、已下架等非公开状态，避免误提示供应已下架。
@@ -330,6 +392,7 @@ onLoad(async (options) => {
   selectedGalleryIndex.value = 0
   try {
     resource.value = isOwnResource.value ? await getOwnResource(options.id, ownerMerchantId.value, { suppressErrorToast: true }) : await getResource(options.id, { suppressErrorToast: true })
+    updateNavigationTitle()
   } catch (err) {
     if (!isOwnResource.value && await loadOwnResourceIfCurrentMerchant(options.id)) {
       return
@@ -351,6 +414,7 @@ onLoad(async (options) => {
 
 onReady(() => {
   shareCanvasReady = true
+  if (resource.value.id) updateNavigationTitle()
   scheduleShareCoverRender()
 })
 
@@ -363,6 +427,7 @@ async function loadOwnResourceIfCurrentMerchant(resourceId) {
     isOwnResource.value = true
     resourceUnavailable.value = false
     selectedGalleryIndex.value = 0
+    updateNavigationTitle()
     await loadMerchantProfile()
     enableShareMenu()
     scheduleShareCoverRender()
@@ -375,6 +440,7 @@ async function loadOwnResourceIfCurrentMerchant(resourceId) {
 async function reloadOwnResource() {
   if (!resource.value.id || !ownerMerchantId.value) return
   resource.value = await getOwnResource(resource.value.id, ownerMerchantId.value, { suppressErrorToast: true })
+  updateNavigationTitle()
   await loadMerchantProfile()
 }
 
@@ -503,6 +569,53 @@ async function openMerchant() {
   if (!merchantId) return
   await recordContact('merchant_home')
   uni.navigateTo({ url: `/pages/merchant/detail?id=${merchantId}` })
+}
+
+function buildResourceAddressLocation(key, value, index) {
+  if (!value || typeof value !== 'object') return null
+  const latitude = Number(value.latitude)
+  const longitude = Number(value.longitude)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  const address = normalizeResourceAddressText(value)
+  if (!address) return null
+  const label = attributeLabelByKey.value[key] || '地址'
+  return {
+    key,
+    label,
+    address,
+    name: String(value.name || label || resource.value.title || '').trim(),
+    latitude,
+    longitude,
+    markers: [{
+      id: index + 1,
+      latitude,
+      longitude,
+      title: address,
+    }],
+  }
+}
+
+function normalizeResourceAddressText(value) {
+  if (typeof value === 'string') return value.trim()
+  if (!value || typeof value !== 'object') return ''
+  return String(value.address || value.name || '').trim()
+}
+
+function openResourceAddressLocation(item) {
+  if (!item) return
+  uni.openLocation({
+    latitude: item.latitude,
+    longitude: item.longitude,
+    name: item.name || resource.value.title || item.label,
+    address: item.address,
+    scale: 18,
+    fail() {
+      if (item.address) {
+        uni.setClipboardData({ data: item.address })
+        uni.showToast({ title: '导航打开失败，已复制地址', icon: 'none' })
+      }
+    },
+  })
 }
 
 async function loadRelatedResources() {
@@ -1173,16 +1286,91 @@ onShareTimeline(() => {
 }
 
 .gallery-placeholder {
-  display: flex;
-  align-items: flex-end;
-  padding: 24rpx;
+  display: grid;
+  gap: 22rpx;
+  box-sizing: border-box;
+  height: auto;
+  min-height: 240rpx;
+  padding: 28rpx;
   background:
-    linear-gradient(140deg, rgba(255, 255, 255, 0.22), transparent 38%),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.18) 0 14rpx, transparent 14rpx 28rpx),
-    #d88a80;
+    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 247, 237, 0.86)),
+    repeating-linear-gradient(135deg, rgba(194, 58, 0, 0.08) 0 14rpx, transparent 14rpx 30rpx),
+    #f8fafc;
+  border: 1rpx solid rgba(194, 58, 0, 0.16);
+}
+
+.gallery-placeholder.demand {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(236, 253, 245, 0.78)),
+    repeating-linear-gradient(135deg, rgba(21, 128, 61, 0.08) 0 14rpx, transparent 14rpx 30rpx),
+    #f8fafc;
+  border-color: rgba(21, 128, 61, 0.16);
+}
+
+.placeholder-copy {
+  display: grid;
+  gap: 14rpx;
+  min-width: 0;
+}
+
+.placeholder-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12rpx;
+  min-width: 0;
+}
+
+.placeholder-badge {
+  flex: 0 0 auto;
+  padding: 6rpx 12rpx;
+  border-radius: 8rpx;
+  background: rgba(6, 22, 37, 0.86);
   color: $wplink-card;
-  font-size: 30rpx;
+  font-size: 22rpx;
   font-weight: 700;
+  line-height: 1.35;
+}
+
+.placeholder-type {
+  min-width: 0;
+  color: #475569;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.placeholder-title {
+  color: $wplink-primary;
+  font-size: 38rpx;
+  font-weight: 700;
+  line-height: 1.28;
+  word-break: break-word;
+}
+
+.placeholder-desc {
+  color: #64748b;
+  font-size: 26rpx;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.placeholder-edit-button {
+  justify-self: start;
+  min-width: 172rpx;
+  height: 64rpx;
+  padding: 0 22rpx;
+  border-radius: 10rpx;
+  background: $wplink-primary;
+  color: $wplink-card;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.placeholder-edit-button::after {
+  border: 0;
 }
 
 .tag-row {
@@ -1269,6 +1457,65 @@ onShareTimeline(() => {
   font-size: 28rpx;
   font-weight: 700;
   line-height: 1.35;
+  word-break: break-word;
+}
+
+.resource-address-list {
+  display: grid;
+  gap: 14rpx;
+}
+
+.resource-address-card {
+  display: grid;
+  gap: 12rpx;
+  padding: 16rpx;
+  border: 1rpx solid $wplink-line;
+  border-radius: 10rpx;
+  background: #f8fafc;
+}
+
+.resource-address-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.resource-address-title {
+  color: $wplink-primary;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.address-action {
+  flex: 0 0 auto;
+  height: 52rpx;
+  padding: 0 18rpx;
+  border-radius: 8rpx;
+  background: $wplink-primary;
+  color: $wplink-card;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 52rpx;
+}
+
+.address-action::after {
+  border: 0;
+}
+
+.resource-address-map {
+  width: 100%;
+  height: 260rpx;
+  border-radius: 10rpx;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+.resource-address-text {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.45;
   word-break: break-word;
 }
 

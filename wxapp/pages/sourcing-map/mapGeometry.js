@@ -24,7 +24,7 @@ export function mapObjectBounds(object = {}) {
  * 统一计算地图对象的视觉中心点。
  *
  * 多边形取所有顶点的平均点，矩形取边界中心，点位直接返回点坐标。该中心用于标签、
- * 认证商户标记和点位命中半径，必须和边界计算共用相同的非法数据处理策略。
+ * 商家点位标记和点位命中半径，必须和边界计算共用相同的非法数据处理策略。
  */
 export function mapObjectCenter(object = {}) {
   const geometry = object.geometry || {}

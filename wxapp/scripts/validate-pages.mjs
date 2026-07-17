@@ -90,4 +90,13 @@ if (manifestConfig.uniStatistics?.enable !== false || manifestConfig['mp-weixin'
   throw new Error('manifest.json 必须显式关闭 uniStatistics，避免微信开发者工具启动期注入统计运行时')
 }
 
+const weixinConfig = manifestConfig['mp-weixin'] || {}
+if (!Array.isArray(weixinConfig.requiredPrivateInfos) || !weixinConfig.requiredPrivateInfos.includes('chooseLocation')) {
+  throw new Error('manifest.json mp-weixin.requiredPrivateInfos 必须声明 chooseLocation，供需表单地图选点依赖该微信隐私接口')
+}
+const userLocationDesc = weixinConfig.permission?.['scope.userLocation']?.desc || ''
+if (!userLocationDesc.includes('地图位置')) {
+  throw new Error('manifest.json mp-weixin.permission.scope.userLocation.desc 必须说明地图位置用途')
+}
+
 console.log('wxapp pages ok')

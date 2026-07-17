@@ -302,9 +302,11 @@ func TestAPIRouterUsesTokenSubjectAndMerchantPermissionForVerification(t *testin
 	}`))
 	allowedReq.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(allowedRec, allowedReq)
-	decodeEnvelopeData(t, allowedRec, http.StatusOK)
-	if store.submitVerificationInput.ApplicantUserID != "user-1" {
-		t.Fatalf("applicantUserID = %q, want token user", store.submitVerificationInput.ApplicantUserID)
+	if allowedRec.Code != http.StatusForbidden || !strings.Contains(allowedRec.Body.String(), publicMerchantVerificationDisabledMessage) {
+		t.Fatalf("status = %d body = %s, want disabled certification response", allowedRec.Code, allowedRec.Body.String())
+	}
+	if store.submitVerificationInput.MerchantID != "" {
+		t.Fatalf("submitVerificationInput = %#v, want no public certification submit", store.submitVerificationInput)
 	}
 
 	latestForbiddenRec := httptest.NewRecorder()
@@ -322,6 +324,13 @@ func TestAPIRouterUsesTokenSubjectAndMerchantPermissionForVerification(t *testin
 	decodeEnvelopeData(t, latestAllowedRec, http.StatusOK)
 	if store.latestVerificationMerchantID != "merchant-1" {
 		t.Fatalf("latest merchantID = %q, want merchant-1", store.latestVerificationMerchantID)
+	}
+
+	billingRec := httptest.NewRecorder()
+	billingReq := httptest.NewRequest(http.MethodGet, "/api/v1/verification-billing", nil)
+	router.ServeHTTP(billingRec, billingReq)
+	if billingRec.Code != http.StatusForbidden || !strings.Contains(billingRec.Body.String(), publicMerchantVerificationDisabledMessage) {
+		t.Fatalf("billing status = %d body = %s, want disabled certification billing", billingRec.Code, billingRec.Body.String())
 	}
 }
 
@@ -695,7 +704,6 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "hot search keywords", method: http.MethodGet, path: "/api/v1/search/hot-keywords?cityCode=zhili"},
 		{name: "topic resources", method: http.MethodGet, path: "/api/v1/topics/topic-1/resources?cityCode=zhili"},
 		{name: "validate webview", method: http.MethodPost, path: "/api/v1/webview/validate", body: `{"url":"https://www.wplink.cn/activity"}`},
-		{name: "submit verification", method: http.MethodPost, path: "/api/v1/merchants/merchant-1/verifications", body: `{"applicantUserId":"user-1","verificationType":"stockist","businessName":"织里云仓"}`},
 		{name: "latest verification", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/verifications/latest"},
 		{name: "list entitlements", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/entitlements"},
 		{name: "list entitlement usage records", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/entitlements/entitlement-1/usage-records"},
@@ -891,6 +899,14 @@ func (s *fakeFullAPIStore) ListPendingVerifications(ctx context.Context, filter 
 
 func (s *fakeFullAPIStore) GetVerificationBillingConfigForVerification(ctx context.Context, verificationID string) (model.VerificationBillingConfig, error) {
 	return model.VerificationBillingConfig{}, nil
+}
+
+func (s *fakeFullAPIStore) GetVerificationBillingConfig(ctx context.Context, cityCode string) (model.VerificationBillingConfig, error) {
+	return model.VerificationBillingConfig{CityCode: cityCode, Currency: "CNY"}, nil
+}
+
+func (s *fakeFullAPIStore) UpdateVerificationBillingConfig(ctx context.Context, input model.VerificationBillingConfig) (model.VerificationBillingConfig, error) {
+	return input, nil
 }
 
 func (s *fakeFullAPIStore) ReviewVerification(ctx context.Context, input model.ReviewVerificationInput) (model.ReviewVerificationResult, error) {

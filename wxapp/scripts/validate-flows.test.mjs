@@ -54,6 +54,26 @@ test('launch pages do not register unreleased purchase demand routes', () => {
   assert.equal(homeSource.includes('/pages/demand/index'), false)
 })
 
+test('launch pages do not register merchant certification route', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const pagePaths = pagesConfig.pages.map((item) => item.path)
+  const visibleSource = [
+    'pages/home/index.vue',
+    'pages/my/index.vue',
+    'pages/merchant/detail.vue',
+    'pages/merchant/profile.vue',
+    'pages/search/index.vue',
+    'pages/market/index.vue',
+  ].map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n')
+
+  assert.equal(pagePaths.includes('pages/verification/index'), false)
+  assert.equal(fs.existsSync(path.join(root, 'pages/verification/index.vue')), false)
+  assert.equal(fs.existsSync(path.join(root, 'api/verification.js')), false)
+  assert.equal(visibleSource.includes('商家认证'), false)
+  assert.equal(visibleSource.includes('认证状态'), false)
+})
+
 test('home banner only overlays labels and title on image', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
@@ -791,7 +811,6 @@ test('merchant profile page uses neutral profile setup wording and keeps basic f
 test('merchant identity wording is unified across profile and display pages', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const profileSource = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
-  const verificationSource = fs.readFileSync(path.join(root, 'pages/verification/index.vue'), 'utf8')
   const enumSource = fs.readFileSync(path.join(root, 'common/enums.js'), 'utf8')
   const displaySources = [
     'pages/merchant/detail.vue',
@@ -834,26 +853,6 @@ test('merchant identity wording is unified across profile and display pages', ()
   assert.equal(enumSource.includes("stall: '档口'"), false)
   assert.equal(enumSource.includes("stockist: '库存商'"), false)
   assert.equal(enumSource.includes("service_provider: '服务商'"), false)
-  assert.equal(verificationSource.includes('认证类型'), false)
-  assert.equal(verificationSource.includes('工厂认证'), false)
-})
-
-test('verification images are saved when submitting certification', () => {
-  const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/verification/index.vue'), 'utf8')
-
-  for (const token of [
-    'chooseImageFile',
-    'uploadSelectedImage',
-    'pendingVerificationFiles',
-    'uploadPendingVerificationImages',
-    'await uploadPendingVerificationImages()',
-  ]) {
-    assert.match(source, new RegExp(token))
-  }
-
-  assert.equal(source.includes('chooseAndUploadImage'), false)
-  assert.equal(source.includes('图片已上传'), false)
 })
 
 test('publish page presents grouped fast publishing workflow', () => {
@@ -1337,20 +1336,16 @@ test('merchant profile page reserves space above fixed save bar', () => {
   }
 })
 
-test('merchant profile page allows merchant type changes with re-verification warning', () => {
+test('merchant profile page allows merchant type changes without certification warning', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
 
-  for (const token of [
-    'merchantVerificationStatus',
-    'merchantTypeChanged',
-    'merchantTypeChangeNeedsReverify',
-    '修改后可能需要重新认证',
-    '保存后需重新提交认证',
-    'merchantType: form.merchantType',
-  ]) {
-    assert.match(source, new RegExp(token))
-  }
+  assert.match(source, /merchantType: form\.merchantType/)
+  assert.equal(source.includes('merchantVerificationStatus'), false)
+  assert.equal(source.includes('merchantTypeChangeNeedsReverify'), false)
+  assert.equal(source.includes('修改后可能需要重新认证'), false)
+  assert.equal(source.includes('保存后需重新提交认证'), false)
+  assert.equal(source.includes('getLatestVerification'), false)
 
   assert.equal(source.includes('merchant-type-readonly'), false)
   assert.equal(source.includes('showLockedMerchantTypeTip'), false)

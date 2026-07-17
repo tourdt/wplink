@@ -360,6 +360,7 @@ const fieldTypeOptions = [
   { value: 'boolean', label: '是/否开关' },
   { value: 'number', label: '数字' },
   { value: 'textarea', label: '多行文本' },
+  { value: 'address', label: '地址' },
 ]
 const directionTextMap = {
   supply: '供应类型',

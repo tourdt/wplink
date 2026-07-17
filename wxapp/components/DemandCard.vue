@@ -9,7 +9,6 @@
     <view class="demand-foot">
       <text v-if="resource.priceText" class="budget-text">{{ resource.priceText }}</text>
       <view class="merchant-line">
-        <text v-if="isVerifiedMerchant" class="verified-badge">已认证</text>
         <text class="merchant-name">{{ merchantName }}</text>
         <text class="refresh-time">{{ formatRefreshedAt(resource.refreshedAt) }}</text>
       </view>
@@ -32,7 +31,6 @@ const props = defineProps({
 
 defineEmits(['open'])
 
-const isVerifiedMerchant = computed(() => (props.resource.merchant || {}).verificationStatus === 'verified')
 const merchantName = computed(() => (props.resource.merchant || {}).name || '采购方待确认')
 const resourceTypeLabel = computed(() => resolveResourceTypeLabel(props.resource))
 const resourceSummaryText = computed(() => buildResourceSummaryText(props.resource, resourceTypeLabel.value || '需求信息待完善'))
@@ -126,17 +124,6 @@ function formatRefreshedAt(value) {
   align-items: center;
   gap: 12rpx;
   justify-content: space-between;
-}
-
-.verified-badge {
-  flex: 0 0 auto;
-  padding: 4rpx 10rpx;
-  border-radius: 8rpx;
-  background: $wplink-success-soft;
-  color: $wplink-success;
-  font-size: 22rpx;
-  font-weight: 700;
-  line-height: 1.3;
 }
 
 .merchant-name {

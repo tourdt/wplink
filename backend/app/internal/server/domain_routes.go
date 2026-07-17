@@ -58,6 +58,8 @@ type VerificationPaymentAPIStore interface {
 	paymentlogic.VerificationPaymentStore
 }
 
+const publicMerchantVerificationDisabledMessage = "商家资质服务已下线，请在资料设置中完善公开资料"
+
 type ContactUnlockPaymentAPIStore interface {
 	paymentlogic.ContactUnlockPaymentStore
 }
@@ -404,26 +406,20 @@ func registerDiscoveryRoutes(mux *http.ServeMux, store DiscoveryAPIStore) {
 
 func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, paymentStore VerificationPaymentAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool) {
 	mux.HandleFunc("POST /api/v1/merchants/{merchantId}/verifications", func(w http.ResponseWriter, r *http.Request) {
-		var body verificationlogic.SubmitVerificationReq
-		if err := decodeJSONBody(r, &body); err != nil {
-			response.JSON(w, nil, err)
-			return
-		}
-		body.MerchantID = r.PathValue("merchantId")
+		merchantID := r.PathValue("merchantId")
 		if tokenService != nil {
-			var err error
-			body.ApplicantUserID, err = userIDFromBearerToken(r, tokenService)
-			if err != nil {
+			if _, err := userIDFromBearerToken(r, tokenService); err != nil {
 				response.JSON(w, nil, err)
 				return
 			}
-			if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, body.MerchantID); err != nil {
+			if err := requireMerchantPermission(r, tokenService, adminTokenService, permissionStore, merchantID); err != nil {
 				response.JSON(w, nil, err)
 				return
 			}
 		}
-		resp, err := verificationlogic.NewSubmitVerificationLogic(store).SubmitVerification(r.Context(), body)
-		response.JSON(w, resp, err)
+		// 用户侧认证入口已下线，后台仍保留历史记录和内部审核能力，避免继续对外形成平台背书。
+		logx.Infof("用户侧商家认证提交已下线: merchantId=%s", merchantID)
+		response.JSON(w, nil, errx.New(errx.CodeForbidden, publicMerchantVerificationDisabledMessage))
 	})
 	mux.HandleFunc("GET /api/v1/merchants/{merchantId}/verifications/latest", func(w http.ResponseWriter, r *http.Request) {
 		merchantID := r.PathValue("merchantId")
@@ -458,18 +454,9 @@ func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, 
 		return
 	}
 	mux.HandleFunc("POST /api/v1/merchants/{merchantId}/verifications/{verificationId}/payment", func(w http.ResponseWriter, r *http.Request) {
-		var body struct {
-			UserID string `json:"userId"`
-		}
-		if err := decodeJSONBody(r, &body); err != nil {
-			response.JSON(w, nil, err)
-			return
-		}
 		merchantID := r.PathValue("merchantId")
 		if tokenService != nil {
-			var err error
-			body.UserID, err = userIDFromBearerToken(r, tokenService)
-			if err != nil {
+			if _, err := userIDFromBearerToken(r, tokenService); err != nil {
 				response.JSON(w, nil, err)
 				return
 			}
@@ -478,12 +465,9 @@ func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, 
 				return
 			}
 		}
-		resp, err := paymentlogic.NewCreateVerificationPaymentLogic(paymentStore, wechatPayGateway, wechatPayDevMock).CreateVerificationPayment(r.Context(), paymentlogic.CreateVerificationPaymentReq{
-			MerchantID:     merchantID,
-			VerificationID: r.PathValue("verificationId"),
-			UserID:         body.UserID,
-		})
-		response.JSON(w, resp, err)
+		// 用户侧认证支付随认证入口一并下线，避免旧客户端继续购买具有背书含义的服务。
+		logx.Infof("用户侧商家认证支付已下线: merchantId=%s verificationId=%s", merchantID, r.PathValue("verificationId"))
+		response.JSON(w, nil, errx.New(errx.CodeForbidden, publicMerchantVerificationDisabledMessage))
 	})
 	mux.HandleFunc("POST /api/v1/wechat-pay/verification/notify", func(w http.ResponseWriter, r *http.Request) {
 		body, err := readLimitedBody(r, 1<<20)
@@ -508,8 +492,7 @@ func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, 
 
 func registerVerificationBillingRoutes(mux *http.ServeMux, store VerificationBillingAPIStore) {
 	mux.HandleFunc("GET /api/v1/verification-billing", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := adminlogic.NewVerificationBillingConfigLogic(store).GetVerificationBillingConfig(r.Context(), adminlogic.GetVerificationBillingConfigReq{CityCode: r.URL.Query().Get("cityCode")})
-		response.JSON(w, resp, err)
+		response.JSON(w, nil, errx.New(errx.CodeForbidden, publicMerchantVerificationDisabledMessage))
 	})
 	mux.HandleFunc("GET /api/v1/admin/verification-billing", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := adminlogic.NewVerificationBillingConfigLogic(store).GetVerificationBillingConfig(r.Context(), adminlogic.GetVerificationBillingConfigReq{CityCode: r.URL.Query().Get("cityCode")})

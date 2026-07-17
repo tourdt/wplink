@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"wplink/backend/app/internal/model"
@@ -377,6 +379,8 @@ func resourceSummarySourceValue(source string, values map[string]string, attribu
 			return "是"
 		}
 		return "否"
+	case model.JSONMap, map[string]interface{}:
+		return resourceAddressAttributeText(typed)
 	default:
 		return strings.TrimSpace(fmt.Sprint(typed))
 	}
@@ -427,6 +431,8 @@ var resourceBaseFieldLabels = map[string]string{
 }
 
 const maxCustomSelectAttributeLength = 32
+const maxAddressAttributeLength = 160
+const maxAddressNameLength = 80
 
 type resourceFieldSpec struct {
 	Key         string
@@ -472,33 +478,218 @@ func validateResourceRequiredFields(config model.ResourcePublishConfig, values m
 
 func validateResourceDynamicFieldValues(fieldSchema model.JSONMap, attributes model.JSONMap) error {
 	for _, field := range resourceFieldSpecs(fieldSchema) {
-		if field.Type != "select" || len(field.Options) == 0 {
-			continue
-		}
-		value, ok := attributes[field.Key]
-		if !ok || resourceAttributeMissing(value) {
-			continue
-		}
-		text, ok := value.(string)
-		if !ok {
-			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("请选择正确的%s", fieldLabelOrKey(field)))
-		}
-		text = strings.TrimSpace(text)
-		if text == "" {
-			continue
-		}
-		attributes[field.Key] = text
-		if stringSliceContains(field.Options, text) {
-			continue
-		}
-		if !field.AllowCustom {
-			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("请选择正确的%s", fieldLabelOrKey(field)))
-		}
-		if !validCustomSelectAttribute(text) {
-			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("请正确填写%s", fieldLabelOrKey(field)))
+		switch field.Type {
+		case "select":
+			if len(field.Options) == 0 {
+				continue
+			}
+			if err := validateResourceSelectAttribute(field, attributes); err != nil {
+				return err
+			}
+		case "address":
+			if err := validateResourceAddressAttribute(field, attributes); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+func validateResourceSelectAttribute(field resourceFieldSpec, attributes model.JSONMap) error {
+	value, ok := attributes[field.Key]
+	if !ok || resourceAttributeMissing(value) {
+		return nil
+	}
+	text, ok := value.(string)
+	if !ok {
+		return errx.New(errx.CodeValidationFailed, fmt.Sprintf("请选择正确的%s", fieldLabelOrKey(field)))
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	attributes[field.Key] = text
+	if stringSliceContains(field.Options, text) {
+		return nil
+	}
+	if !field.AllowCustom {
+		return errx.New(errx.CodeValidationFailed, fmt.Sprintf("请选择正确的%s", fieldLabelOrKey(field)))
+	}
+	if !validCustomSelectAttribute(text) {
+		return errx.New(errx.CodeValidationFailed, fmt.Sprintf("请正确填写%s", fieldLabelOrKey(field)))
+	}
+	return nil
+}
+
+func validateResourceAddressAttribute(field resourceFieldSpec, attributes model.JSONMap) error {
+	value, ok := attributes[field.Key]
+	if !ok || resourceAttributeMissing(value) {
+		return nil
+	}
+	normalized, message := normalizeResourceAddressAttribute(value, fieldLabelOrKey(field))
+	if message != "" {
+		return errx.New(errx.CodeValidationFailed, message)
+	}
+	attributes[field.Key] = normalized
+	return nil
+}
+
+func normalizeResourceAddressAttribute(value interface{}, label string) (model.JSONMap, string) {
+	switch typed := value.(type) {
+	case string:
+		address, ok := cleanResourceAddressText(typed, maxAddressAttributeLength)
+		if !ok || address == "" {
+			return nil, fmt.Sprintf("请正确填写%s", label)
+		}
+		return model.JSONMap{"address": address}, ""
+	case model.JSONMap:
+		return normalizeResourceAddressMap(map[string]interface{}(typed), label)
+	case map[string]interface{}:
+		return normalizeResourceAddressMap(typed, label)
+	default:
+		return nil, fmt.Sprintf("请正确填写%s", label)
+	}
+}
+
+func normalizeResourceAddressMap(values map[string]interface{}, label string) (model.JSONMap, string) {
+	address, addressOK := cleanResourceAddressText(resourceAddressMapString(values, "address"), maxAddressAttributeLength)
+	name, nameOK := cleanResourceAddressText(resourceAddressMapString(values, "name"), maxAddressNameLength)
+	if !addressOK || !nameOK {
+		return nil, fmt.Sprintf("请正确填写%s", label)
+	}
+	if address == "" {
+		address = name
+	}
+	if address == "" {
+		return nil, fmt.Sprintf("请正确填写%s", label)
+	}
+
+	lat, latPresent, latOK := resourceCoordinateFromMap(values, "latitude", "lat")
+	lng, lngPresent, lngOK := resourceCoordinateFromMap(values, "longitude", "lng")
+	if latPresent != lngPresent || (latPresent && (!latOK || !lngOK || lat < -90 || lat > 90 || lng < -180 || lng > 180)) {
+		return nil, fmt.Sprintf("请重新选择%s地图位置", label)
+	}
+
+	normalized := model.JSONMap{"address": address}
+	if name != "" {
+		normalized["name"] = name
+	}
+	if latPresent {
+		normalized["latitude"] = lat
+		normalized["longitude"] = lng
+	}
+	return normalized, ""
+}
+
+func resourceAddressMapString(values map[string]interface{}, key string) string {
+	value, ok := values[key]
+	if !ok || value == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(value))
+}
+
+func cleanResourceAddressText(value string, maxRunes int) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", true
+	}
+	if len([]rune(value)) > maxRunes {
+		return "", false
+	}
+	// 地址会进入公开详情和导航标题，拦截控制字符，避免出现不可见内容影响展示和审核。
+	if strings.ContainsFunc(value, func(r rune) bool {
+		return r < 32 || r == 127
+	}) {
+		return "", false
+	}
+	return value, true
+}
+
+func resourceCoordinateFromMap(values map[string]interface{}, primaryKey string, fallbackKey string) (float64, bool, bool) {
+	if value, ok := values[primaryKey]; ok {
+		return parseResourceCoordinate(value)
+	}
+	if value, ok := values[fallbackKey]; ok {
+		return parseResourceCoordinate(value)
+	}
+	return 0, false, true
+}
+
+func parseResourceCoordinate(value interface{}) (float64, bool, bool) {
+	if value == nil {
+		return 0, false, true
+	}
+	switch typed := value.(type) {
+	case string:
+		typed = strings.TrimSpace(typed)
+		if typed == "" {
+			return 0, false, true
+		}
+		parsed, err := strconv.ParseFloat(typed, 64)
+		return parsed, true, err == nil && validResourceCoordinateNumber(parsed)
+	case float64:
+		return typed, true, validResourceCoordinateNumber(typed)
+	case float32:
+		parsed := float64(typed)
+		return parsed, true, validResourceCoordinateNumber(parsed)
+	case int:
+		return float64(typed), true, true
+	case int64:
+		return float64(typed), true, true
+	case int32:
+		return float64(typed), true, true
+	case uint:
+		return float64(typed), true, true
+	case uint64:
+		return float64(typed), true, true
+	case uint32:
+		return float64(typed), true, true
+	default:
+		return 0, true, false
+	}
+}
+
+func validResourceCoordinateNumber(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
+func resourceAddressAttributeText(value interface{}) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case model.JSONMap:
+		return resourceAddressMapDisplayText(map[string]interface{}(typed))
+	case map[string]interface{}:
+		return resourceAddressMapDisplayText(typed)
+	default:
+		return ""
+	}
+}
+
+func resourceAddressMapDisplayText(values map[string]interface{}) string {
+	if text := resourceAddressMapString(values, "address"); text != "" {
+		return text
+	}
+	return resourceAddressMapString(values, "name")
+}
+
+func isResourceAddressLikeMap(value interface{}) bool {
+	var values map[string]interface{}
+	switch typed := value.(type) {
+	case model.JSONMap:
+		values = map[string]interface{}(typed)
+	case map[string]interface{}:
+		values = typed
+	default:
+		return false
+	}
+	for _, key := range []string{"address", "name", "latitude", "longitude", "lat", "lng"} {
+		if _, ok := values[key]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func resourceFieldLabels(fieldSchema model.JSONMap) map[string]string {
@@ -603,6 +794,10 @@ func resourceAttributeMissing(value interface{}) bool {
 		return strings.TrimSpace(typed) == ""
 	case bool:
 		return false
+	case model.JSONMap, map[string]interface{}:
+		if isResourceAddressLikeMap(typed) {
+			return resourceAddressAttributeText(typed) == ""
+		}
 	}
 	rv := reflect.ValueOf(value)
 	switch rv.Kind() {

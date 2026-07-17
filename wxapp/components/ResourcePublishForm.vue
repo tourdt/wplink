@@ -81,6 +81,17 @@
           :placeholder="field.placeholder || `请填写${field.label}`"
           @input="setDynamicFieldValue(field.key, $event.detail.value)"
         />
+        <view v-else-if="field.type === 'address'" class="address-field">
+          <view class="address-row">
+            <input
+              class="field"
+              :value="getDynamicAddressText(field.key)"
+              :placeholder="field.placeholder || `请输入${field.label}`"
+              @input="setDynamicAddressText(field.key, $event.detail.value)"
+            />
+            <button class="map-button" @click="chooseDynamicAddress(field)">地图选择</button>
+          </view>
+        </view>
         <textarea
           v-else-if="field.type === 'textarea'"
           class="textarea"
@@ -473,9 +484,10 @@ async function submit() {
   }
   saveMerchantId(form.merchantId)
   if (editingResourceId.value) {
+    const images = await uploadPendingResourceImages()
     if (!editSavedAsDraft.value || editingResourceStatus.value !== 'draft') {
-      uni.showToast({ title: '请先保存草稿后再提交审核', icon: 'none' })
-      return
+      // 驳回资源或有未保存改动的草稿，提交审核前先落库为草稿，保证审核使用的是当前编辑内容。
+      await saveResourceDraftPayload(images)
     }
     const resp = await submitResource(editingResourceId.value, form.merchantId)
     openPublishSuccess(resp)
@@ -668,6 +680,7 @@ function normalizeSummaryText(value) {
   if (value === false) return '否'
   if (value === true) return '是'
   if (value === undefined || value === null) return ''
+  if (typeof value === 'object') return normalizeAddressText(value)
   return String(value).trim()
 }
 
@@ -712,7 +725,7 @@ function normalizeDynamicFieldOptions(options) {
 }
 
 function normalizeDynamicFieldType(type) {
-  if (['select', 'boolean', 'number', 'textarea'].includes(type)) {
+  if (['select', 'boolean', 'number', 'textarea', 'address'].includes(type)) {
     return type
   }
   return 'text'
@@ -720,11 +733,13 @@ function normalizeDynamicFieldType(type) {
 
 function syncAttributesWithSelectedType() {
   const allowedKeys = new Set(dynamicFieldItems.value.map((field) => field.key))
-  Object.keys(form.attributes || {}).forEach((key) => {
+  const nextAttributes = { ...(form.attributes || {}) }
+  Object.keys(nextAttributes).forEach((key) => {
     if (!allowedKeys.has(key)) {
-      delete form.attributes[key]
+      delete nextAttributes[key]
     }
   })
+  form.attributes = nextAttributes
   Object.keys(customSelectFieldKeys).forEach((key) => {
     if (!allowedKeys.has(key)) {
       delete customSelectFieldKeys[key]
@@ -738,11 +753,127 @@ function getDynamicFieldValue(key) {
 
 function setDynamicFieldValue(key, value) {
   if (!key) return
-  form.attributes[key] = value
+  // 替换 attributes 对象，确保微信小程序端新增/替换对象型字段后，输入框 value 能立即刷新。
+  form.attributes = {
+    ...(form.attributes || {}),
+    [key]: value,
+  }
 }
 
 function setDynamicFieldBoolean(key, value) {
   setDynamicFieldValue(key, value)
+}
+
+function getDynamicAddressText(key) {
+  return normalizeAddressText(getDynamicFieldValue(key))
+}
+
+function setDynamicAddressText(key, value) {
+  const address = String(value || '').trim()
+  // 用户手动修改地址后，原经纬度可能已经不再匹配新地址；丢弃旧坐标可避免详情页导航到旧位置。
+  setDynamicFieldValue(key, address ? { address } : '')
+}
+
+function chooseDynamicAddress(field) {
+  if (typeof uni.chooseLocation !== 'function') {
+    uni.showToast({ title: '当前环境不支持地图选点', icon: 'none' })
+    return
+  }
+  uni.chooseLocation({
+    success: (result) => {
+      console.log('供需表单地图选点成功', result)
+      const latitude = Number(result?.latitude)
+      const longitude = Number(result?.longitude)
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        uni.showToast({ title: '未获取到有效地图位置', icon: 'none' })
+        return
+      }
+      const address = resolveChooseLocationAddress(result, field.key)
+      if (!address) {
+        // 微信在拖动到非 POI 点位时可能只返回经纬度；不能把坐标当地址展示，提示用户选择带名称的具体地点。
+        console.warn('供需表单地图未返回详细地址', {
+          hasName: Boolean(result?.name),
+          hasAddress: Boolean(result?.address),
+          hasLatitude: Number.isFinite(latitude),
+          hasLongitude: Number.isFinite(longitude),
+        })
+        uni.showToast({ title: '未获取到详细地址，请搜索并选择具体地点', icon: 'none' })
+        return
+      }
+      console.log('供需表单地图选点结果', {
+        address,
+        name: result?.name,
+        latitude,
+        longitude,
+      })
+      const name = normalizeChooseLocationText(result?.name)
+      setDynamicFieldValue(field.key, {
+        address,
+        name,
+        latitude,
+        longitude,
+      })
+      uni.showToast({ title: '地图位置已保存', icon: 'none' })
+    },
+    fail: (err) => {
+      if (String(err?.errMsg || '').includes('cancel')) return
+      // 真实设备上地图选点失败通常来自隐私接口未声明、用户拒绝授权或系统定位关闭；记录原始 errMsg 便于排查，前端只展示可操作提示。
+      console.warn('供需表单地图选择失败', err)
+      uni.showToast({ title: resolveChooseLocationErrorMessage(err), icon: 'none' })
+    },
+  })
+}
+
+function resolveChooseLocationAddress(result, key) {
+  const selectedAddress = buildChooseLocationAddressText(result)
+  if (selectedAddress) return selectedAddress
+  const manualAddress = normalizeChooseLocationText(getDynamicAddressText(key))
+  if (manualAddress) return manualAddress
+  return ''
+}
+
+function buildChooseLocationAddressText(result) {
+  const address = normalizeChooseLocationText(result?.address)
+  const name = normalizeChooseLocationText(result?.name)
+  if (address && name && !address.includes(name) && !name.includes(address)) {
+    return `${address}${name}`
+  }
+  return address || name
+}
+
+function normalizeChooseLocationText(value) {
+  const text = String(value || '').trim()
+  if (!text || isCoordinateAddressText(text)) return ''
+  return text
+}
+
+function isCoordinateAddressText(text) {
+  const value = String(text || '').trim()
+  if (!value) return false
+  if (/^-?\d+(\.\d+)?\s*[,，]\s*-?\d+(\.\d+)?$/.test(value)) return true
+  if (/^(gps|经纬度|坐标|地图位置)[:：\s(（-]*-?\d+(\.\d+)?/i.test(value)) return true
+  return /纬度[:：]?\s*-?\d+(\.\d+)?[\s,，;；]+经度[:：]?\s*-?\d+(\.\d+)?/.test(value)
+}
+
+function resolveChooseLocationErrorMessage(err) {
+  const errMsg = String(err?.errMsg || err?.message || '').toLowerCase()
+  if (errMsg.includes('requiredprivateinfos') || errMsg.includes('declared')) {
+    return '地图能力未完成配置，请联系管理员'
+  }
+  if (errMsg.includes('auth deny') || errMsg.includes('authorize') || errMsg.includes('scope.userlocation')) {
+    return '请允许位置权限后再选择地图'
+  }
+  if (errMsg.includes('system permission denied') || errMsg.includes('permission denied')) {
+    return '请开启手机定位权限后再选择地图'
+  }
+  return '地图选择失败，请稍后重试'
+}
+
+function normalizeAddressText(value) {
+  if (value === undefined || value === null) return ''
+  if (typeof value === 'string') return value.trim()
+  if (typeof value !== 'object') return String(value).trim()
+  return String(value.address || value.name || '').trim()
 }
 
 function setDynamicFieldSelect(field, event) {
@@ -836,6 +967,7 @@ function isPublishFieldCompleted(field) {
 function isDynamicAttributeEmpty(value) {
   if (value === false || value === 0) return false
   if (Array.isArray(value)) return value.length === 0
+  if (value && typeof value === 'object') return !normalizeAddressText(value)
   if (typeof value === 'string') return !value.trim()
   return value === undefined || value === null
 }
@@ -1029,6 +1161,33 @@ function getPublishFieldLabel(field) {
 .select-with-custom {
   display: grid;
   gap: 12rpx;
+}
+
+.address-field {
+  display: grid;
+  gap: 10rpx;
+}
+
+.address-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 148rpx;
+  gap: 12rpx;
+  align-items: center;
+}
+
+.map-button {
+  height: 80rpx;
+  padding: 0;
+  border-radius: 10rpx;
+  background: $wplink-primary;
+  color: $wplink-card;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 80rpx;
+}
+
+.map-button::after {
+  border: 0;
 }
 
 .section-head {

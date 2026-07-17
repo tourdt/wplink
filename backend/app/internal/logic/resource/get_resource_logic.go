@@ -43,6 +43,7 @@ type ResourceDetailResp struct {
 	ID             string                  `json:"id"`
 	Status         string                  `json:"status"`
 	TypeCode       string                  `json:"typeCode"`
+	Direction      string                  `json:"direction"`
 	TypeName       string                  `json:"typeName,omitempty"`
 	Title          string                  `json:"title"`
 	Category       string                  `json:"category"`
@@ -91,6 +92,7 @@ func resourceDetailRespFromModel(detail model.ResourceDetail) ResourceDetailResp
 		ID:             detail.ID,
 		Status:         detail.Status,
 		TypeCode:       detail.TypeCode,
+		Direction:      detail.Direction,
 		TypeName:       detail.TypeName,
 		Title:          detail.Title,
 		Category:       detail.Category,
@@ -244,6 +246,11 @@ func resourceAttributeDisplayValue(value interface{}) string {
 		return "否"
 	case string:
 		return strings.TrimSpace(typed)
+	case model.JSONMap, map[string]interface{}:
+		if text := resourceAddressAttributeText(typed); text != "" {
+			return text
+		}
+		return strings.TrimSpace(fmt.Sprint(typed))
 	default:
 		return fmt.Sprint(typed)
 	}

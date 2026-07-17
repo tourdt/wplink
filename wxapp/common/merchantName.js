@@ -1,4 +1,4 @@
-export const misleadingMerchantNameMessage = '展示名称不能包含认证、官方等容易误导的字样'
+export const misleadingMerchantNameMessage = '展示名称不能包含官方、平台背书等容易误导的字样'
 
 const misleadingMerchantNameKeywords = [
   '认证',

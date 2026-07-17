@@ -140,7 +140,7 @@
           <view>
             <view class="object-title-line">
               <text class="object-name">{{ objectDisplayName(object) }}</text>
-              <text v-if="object.isVerifiedMerchant" class="verified-row-badge">认证商户</text>
+              <text v-if="object.isVerifiedMerchant" class="verified-row-badge">商家点位</text>
             </view>
             <text class="object-meta">{{ objectDisplaySourceText(object) }} · {{ objectTypeText(object) }} · {{ object.address || '地址待完善' }}</text>
           </view>
@@ -153,7 +153,7 @@
           <view>
             <text class="detail-title">{{ selectedObjectName }}</text>
             <text class="detail-meta">{{ selectedObjectMeta }}</text>
-            <text v-if="selectedObject.isVerifiedMerchant" class="verified-detail-badge">认证商户</text>
+            <text v-if="selectedObject.isVerifiedMerchant" class="verified-detail-badge">商家点位</text>
           </view>
           <button class="close-button" @click="clearSelectedObject">收起</button>
         </view>
@@ -227,7 +227,7 @@ const defaultLabelDictionary = {
   sample: '支持打样',
   dropship: '一件代发',
   mixed_batch: '支持混批',
-  verified: '实地认证',
+  verified: '已入驻',
   recommended: '平台推荐',
   packing: '打包',
   labeling: '贴单',
@@ -1311,7 +1311,7 @@ function objectDisplayName(object) {
 }
 
 function objectDisplaySourceText(object) {
-  return object?.displaySource === 'verified_merchant' || object?.isVerifiedMerchant ? '认证商户' : '后台点位'
+  return object?.displaySource === 'verified_merchant' || object?.isVerifiedMerchant ? '商家点位' : '后台点位'
 }
 
 function objectRowClasses(object) {

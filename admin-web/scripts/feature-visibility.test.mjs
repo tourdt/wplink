@@ -202,6 +202,7 @@ test('resource type config provides visual field schema editor', () => {
   assert.match(source, /基础必填字段/)
   assert.match(source, /fieldRows/)
   assert.match(source, /fieldTypeOptions/)
+  assert.match(source, /value:\s*'address'[\s\S]{0,40}label:\s*'地址'/)
   assert.match(source, /baseRequiredFieldOptions/)
   assert.match(source, /addField/)
   assert.match(source, /removeField/)

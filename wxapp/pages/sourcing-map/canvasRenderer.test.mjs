@@ -233,7 +233,7 @@ test('renderer hides verified point badge at overview zoom', () => {
       {
         id: 'verified-poi',
         isVerifiedMerchant: true,
-        name: '认证配套点',
+        name: '商家配套点',
         geometryType: 'point',
         geometry: { x: 120, y: 80 },
       },
@@ -450,7 +450,7 @@ test('renderer keeps selected and highlighted labels visible while interacting',
       },
       {
         id: 'highlight-booth',
-        name: '认证档口',
+        name: '商家档口',
         geometryType: 'rect',
         geometry: { x: 10, y: 70, width: 90, height: 40 },
         displayLevel: 'highlight',
@@ -473,7 +473,7 @@ test('renderer keeps selected and highlighted labels visible while interacting',
       .map((entry) => entry.args[0])
 
     assert.equal(labelTexts.includes('选中档口'), true)
-    assert.equal(labelTexts.includes('认证档口'), true)
+    assert.equal(labelTexts.includes('商家档口'), true)
     assert.equal(labelTexts.includes('普通档口'), false)
   } finally {
     globalThis.uni = originalUni

@@ -50,9 +50,6 @@
             <picker :range="merchantTypeOptions" range-key="label" @change="changeMerchantType">
               <view class="field picker-field">{{ currentMerchantTypeLabel }}</view>
             </picker>
-            <text v-if="merchantTypeChangeNeedsReverify" class="field-helper warning-helper">
-              修改后可能需要重新认证，保存后需重新提交认证。
-            </text>
           </view>
           <view class="form-field">
             <text class="field-label">主营内容</text>
@@ -155,7 +152,6 @@ import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { validateMerchantName } from '../../common/merchantName'
 import { bindWechatPhone } from '../../api/auth'
 import { createMerchant, getMerchant, updateMerchant } from '../../api/merchant'
-import { getLatestVerification } from '../../api/verification'
 import { createImageFileFromPath, uploadSelectedImage } from '../../common/upload'
 import {
   MERCHANT_PROFILE_IMAGE_MAX_COUNT,
@@ -185,8 +181,6 @@ const merchantId = ref('')
 const submitting = ref(false)
 const phoneAuthorizing = ref(false)
 const contactSectionOpen = ref(false)
-const originalMerchantType = ref(DEFAULT_MERCHANT_TYPE)
-const merchantVerificationStatus = ref('unverified')
 const mainCategoriesText = ref('')
 const pendingLogoFile = ref(null)
 const merchantImageEntries = ref([])
@@ -228,8 +222,6 @@ const currentMerchantTypeLabel = computed(() => {
   return matched.label || legacyMerchantTypeText[form.merchantType] || '个人'
 })
 const locationSelected = computed(() => hasValidLocation(form.location))
-const merchantTypeChanged = computed(() => Boolean(merchantId.value) && form.merchantType !== originalMerchantType.value)
-const merchantTypeChangeNeedsReverify = computed(() => merchantTypeChanged.value && ['pending', 'verified'].includes(merchantVerificationStatus.value))
 
 onLoad((options) => {
   merchantId.value = options.merchantId || getMerchantId()
@@ -243,8 +235,6 @@ async function loadMerchant() {
     form.name = detail.name || ''
     form.cityCode = detail.cityCode || DEFAULT_CITY_CODE
     form.merchantType = detail.merchantType || DEFAULT_MERCHANT_TYPE
-    originalMerchantType.value = form.merchantType
-    merchantVerificationStatus.value = detail.verificationStatus || 'unverified'
     const contact = detail.contact || {}
     form.contactName = contact.name || ''
     form.contactPhone = sanitizeContactPhoneValue(contact.phone || '')
@@ -258,20 +248,8 @@ async function loadMerchant() {
       .filter(Boolean)
       .map(createStoredMerchantImageEntry)
     contactSectionOpen.value = hasExistingContactInfo()
-    await loadMerchantVerificationStatus()
   } catch (err) {
     uni.showToast({ title: err.message || '资料加载失败', icon: 'none' })
-  }
-}
-
-async function loadMerchantVerificationStatus() {
-  try {
-    const latestVerification = await getLatestVerification(merchantId.value)
-    if (latestVerification?.status === 'pending') {
-      merchantVerificationStatus.value = 'pending'
-    }
-  } catch (err) {
-    // 没有认证记录时保持商家详情返回的认证状态即可。
   }
 }
 
@@ -305,7 +283,6 @@ async function submitMerchantProfile() {
   }
   try {
     submitting.value = true
-    const needsReverifyAfterSave = merchantTypeChangeNeedsReverify.value
     await uploadPendingMerchantImages()
     const images = getStoredMerchantImageUrls(merchantImageEntries.value)
     if (merchantId.value) {
@@ -327,12 +304,6 @@ async function submitMerchantProfile() {
         patch.contactWechat = normalizedWechat
       }
       await updateMerchant(merchantId.value, patch)
-      if (needsReverifyAfterSave) {
-        merchantVerificationStatus.value = 'unverified'
-      }
-      if (merchantTypeChanged.value) {
-        originalMerchantType.value = form.merchantType
-      }
     } else {
       const resp = await createMerchant({
         cityCode: form.cityCode || DEFAULT_CITY_CODE,
@@ -359,7 +330,7 @@ async function submitMerchantProfile() {
         })
       }
     }
-    uni.showToast({ title: needsReverifyAfterSave ? '已保存，请重新提交认证' : '资料已保存', icon: 'none' })
+    uni.showToast({ title: '资料已保存', icon: 'none' })
   } catch (err) {
     uni.showToast({ title: err.message || '资料保存失败', icon: 'none' })
   } finally {
@@ -737,10 +708,6 @@ function isValidContactPhone(value) {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.45;
-}
-
-.warning-helper {
-  color: $wplink-warning;
 }
 
 .phone-input-row {

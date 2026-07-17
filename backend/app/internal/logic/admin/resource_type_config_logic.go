@@ -98,6 +98,7 @@ var supportedResourceFieldTypes = map[string]struct{}{
 	"boolean":  {},
 	"number":   {},
 	"textarea": {},
+	"address":  {},
 }
 
 var baseResourceConfigFields = map[string]struct{}{

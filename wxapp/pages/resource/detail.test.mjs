@@ -5,6 +5,7 @@ import test from 'node:test'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
+const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
 
 test('resource detail gallery uses banner swiper and full screen preview', () => {
   assert.match(source, /const selectedGalleryIndex = ref\(0\)/)
@@ -18,6 +19,39 @@ test('resource detail gallery uses banner swiper and full screen preview', () =>
   assert.equal(source.includes('gallery-strip'), false)
   assert.equal(source.includes('gallery-thumb'), false)
   assert.equal(source.includes('selectGalleryImage'), false)
+})
+
+test('resource detail replaces empty image area with an informative no-image cover', () => {
+  assert.match(source, /import \{ resourceTypeLabel as resolveResourceTypeLabel \} from '\.\.\/\.\.\/common\/resourceCategories'/)
+  assert.match(source, /<view v-else :class="\['gallery-main', 'gallery-placeholder', isDemandResource \? 'demand' : ''\]">/)
+  assert.match(source, /<text class="placeholder-badge">\{\{ noImageBadgeText \}\}<\/text>/)
+  assert.match(source, /<text class="placeholder-type">\{\{ resourceTypeDisplay \}\}<\/text>/)
+  assert.match(source, /<text class="placeholder-title">\{\{ noImageStateTitle \}\}<\/text>/)
+  assert.match(source, /<button v-if="canEditOwnResourceWithoutImage" class="placeholder-edit-button" @click\.stop="openPublishEditor">补充图片<\/button>/)
+  assert.match(source, /const resourceTypeDisplay = computed\(\(\) => resolveResourceTypeLabel\(resource\.value\) \|\| resource\.value\.category \|\| '供需信息'\)/)
+  assert.match(source, /const isDemandResource = computed\(\(\) => \{[\s\S]*direction === 'demand'[\s\S]*\/\^\(buy_\|find_\|seek_\)\/[\s\S]*typeCode === 'job_seeking'[\s\S]*\}\)/)
+  assert.match(source, /const noImageStateTitle = computed\(\(\) => \(isDemandResource\.value \? '需求暂无图片' : '暂无实拍图片'\)\)/)
+  assert.match(source, /重点需求信息已整理在下方详情中/)
+  assert.match(source, /重点供需信息已整理在下方详情中/)
+  assert.match(source, /\.gallery-placeholder \{[\s\S]*height: auto;[\s\S]*min-height: 240rpx;[\s\S]*\}/)
+  assert.equal(source.includes('noImageSummaryItems'), false)
+  assert.equal(source.includes('placeholder-summary'), false)
+  assert.equal(source.includes('可先联系发布方确认品类、数量、预算和交付时间'), false)
+  assert.equal(source.includes('联系商家前，建议确认实物、数量、价格和交付方式'), false)
+  assert.equal(source.includes("{{ resource.category || '供应实拍' }}"), false)
+})
+
+test('resource detail updates navigation title by supply or demand direction', () => {
+  const detailPage = pagesConfig.pages.find((item) => item.path === 'pages/resource/detail')
+
+  assert.equal(detailPage?.style?.navigationBarTitleText, '供应详情')
+  assert.equal(source.includes('供需详情'), false)
+  assert.equal(JSON.stringify(detailPage).includes('供需详情'), false)
+  assert.match(source, /function updateNavigationTitle\(\) \{[\s\S]*uni\.setNavigationBarTitle\(\{[\s\S]*title: isDemandResource\.value \? '需求详情' : '供应详情'[\s\S]*\}\)[\s\S]*\}/)
+  assert.match(source, /resource\.value = isOwnResource\.value \? await getOwnResource[\s\S]*updateNavigationTitle\(\)/)
+  assert.match(source, /async function loadOwnResourceIfCurrentMerchant\(resourceId\) \{[\s\S]*resource\.value = await getOwnResource[\s\S]*updateNavigationTitle\(\)/)
+  assert.match(source, /async function reloadOwnResource\(\) \{[\s\S]*resource\.value = await getOwnResource[\s\S]*updateNavigationTitle\(\)/)
+  assert.match(source, /onReady\(\(\) => \{[\s\S]*if \(resource\.value\.id\) updateNavigationTitle\(\)[\s\S]*\}\)/)
 })
 
 test('resource detail keeps contact reminder friendly and visually quiet', () => {
@@ -162,6 +196,15 @@ test('resource detail renders configured attribute items as specs', () => {
   assert.equal(source.includes("{ label: '品类', value: resource.value.category || '待沟通' }"), false)
   assert.equal(source.includes("{ label: '数量', value: resource.value.quantityText || '待沟通' }"), false)
   assert.equal(source.includes("{ label: '价格', value: resource.value.priceText || '面议' }"), false)
+})
+
+test('resource detail shows map navigation only for address attributes with gps', () => {
+  assert.match(source, /<view v-if="resourceAddressLocations\.length" class="resource-address-list">/)
+  assert.match(source, /<map[\s\S]*class="resource-address-map"[\s\S]*:latitude="item\.latitude"[\s\S]*:longitude="item\.longitude"[\s\S]*@tap="openResourceAddressLocation\(item\)"/)
+  assert.match(source, /const resourceAddressLocations = computed\(\(\) => \{[\s\S]*Object\.entries\(attributes\)[\s\S]*buildResourceAddressLocation/)
+  assert.match(source, /function buildResourceAddressLocation\(key, value, index\) \{[\s\S]*typeof value !== 'object'[\s\S]*Number\.isFinite\(latitude\)[\s\S]*Number\.isFinite\(longitude\)[\s\S]*return null[\s\S]*markers/)
+  assert.match(source, /function openResourceAddressLocation\(item\) \{[\s\S]*uni\.openLocation\(\{[\s\S]*latitude: item\.latitude[\s\S]*longitude: item\.longitude[\s\S]*scale: 18/)
+  assert.match(source, /导航打开失败，已复制地址/)
 })
 
 test('resource detail restores top voucher management action', () => {

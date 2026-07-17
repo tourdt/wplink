@@ -151,6 +151,38 @@ func TestUpdateResourceTypeConfigPassesPatchToStore(t *testing.T) {
 	}
 }
 
+func TestUpdateResourceTypeConfigAcceptsAddressFieldType(t *testing.T) {
+	store := &fakeResourceTypeConfigStore{updatedAt: "2026-07-16T10:00:00+08:00"}
+	logic := NewResourceTypeConfigLogic(store)
+
+	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		DefaultValidDays: 10,
+		Status:           "active",
+		FieldSchema: map[string]interface{}{
+			"fields": []interface{}{
+				map[string]interface{}{"key": "locationText", "label": "详细位置", "type": "address", "required": true, "filterable": true, "displayIn": []interface{}{"detail"}},
+			},
+		},
+		RequiredFields: []string{"title", "locationText"},
+		FilterFields:   []string{"locationText"},
+		DisplayTemplate: map[string]interface{}{
+			"detail": []interface{}{"locationText"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateResourceTypeConfig() error = %v, want address field accepted", err)
+	}
+
+	fields, _ := store.patch.FieldSchema["fields"].([]interface{})
+	if len(fields) != 1 {
+		t.Fatalf("fields length = %d, want 1", len(fields))
+	}
+	field, _ := fields[0].(map[string]interface{})
+	if field["type"] != "address" || field["label"] != "详细位置" {
+		t.Fatalf("field = %#v, want address detailed location field", field)
+	}
+}
+
 func TestUpdateResourceTypeConfigRejectsPaidContactWithoutPrice(t *testing.T) {
 	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
 

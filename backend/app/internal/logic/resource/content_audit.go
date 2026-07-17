@@ -204,6 +204,8 @@ func auditScalarText(value any) string {
 		return "否"
 	case float64, float32, int, int64, int32, uint, uint64, uint32:
 		return strings.TrimSpace(fmt.Sprint(typed))
+	case model.JSONMap, map[string]interface{}:
+		return resourceAddressAttributeText(typed)
 	default:
 		return ""
 	}

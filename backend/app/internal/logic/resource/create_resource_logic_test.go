@@ -192,6 +192,129 @@ func TestCreateResourceAllowsCustomSelectAttributeWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestCreateResourceAcceptsManualAddressAttributeWithoutGPS(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "shop_office_rental",
+			RequiredFields: []string{"title", "locationText", "contactPhone"},
+			FieldSchema: model.JSONMap{
+				"fields": []interface{}{
+					map[string]interface{}{"key": "locationText", "label": "位置", "type": "address"},
+				},
+			},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: "pending"},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "shop_office_rental",
+		Title:       "童装城附近档口出租",
+		Description: "一楼档口，可随时看房。",
+		Attributes:  model.JSONMap{"locationText": "织里童装城一区附近"},
+		Contact:     ResourceContactReq{Name: "王老板", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+
+	address, ok := store.input.Attributes["locationText"].(model.JSONMap)
+	if !ok {
+		t.Fatalf("address attribute = %#v, want normalized JSON map", store.input.Attributes["locationText"])
+	}
+	if address["address"] != "织里童装城一区附近" {
+		t.Fatalf("address attribute = %#v, want manual address text", address)
+	}
+	if _, ok := address["latitude"]; ok {
+		t.Fatalf("address attribute = %#v, manual address should not keep GPS", address)
+	}
+}
+
+func TestCreateResourceAcceptsMapAddressAttributeWithGPS(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "job_hiring",
+			RequiredFields: []string{"title", "workLocation", "contactPhone"},
+			FieldSchema: model.JSONMap{
+				"fields": []interface{}{
+					map[string]interface{}{"key": "workLocation", "label": "工作地点", "type": "address"},
+				},
+			},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: "pending"},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "job_hiring",
+		Title:       "招聘平车工",
+		Description: "计件，多劳多得。",
+		Attributes: model.JSONMap{"workLocation": map[string]interface{}{
+			"address":   "浙江省湖州市吴兴区织里镇童装城",
+			"name":      "织里童装城",
+			"latitude":  "30.8732",
+			"longitude": 120.2255,
+		}},
+		Contact: ResourceContactReq{Name: "陈老板", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+
+	address, ok := store.input.Attributes["workLocation"].(model.JSONMap)
+	if !ok {
+		t.Fatalf("address attribute = %#v, want normalized JSON map", store.input.Attributes["workLocation"])
+	}
+	if address["address"] != "浙江省湖州市吴兴区织里镇童装城" || address["name"] != "织里童装城" {
+		t.Fatalf("address attribute = %#v, want address and name preserved", address)
+	}
+	if address["latitude"] != 30.8732 || address["longitude"] != 120.2255 {
+		t.Fatalf("address coordinates = %#v, want normalized GPS", address)
+	}
+}
+
+func TestCreateResourceRejectsIncompleteAddressGPS(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "job_hiring",
+			RequiredFields: []string{"title", "workLocation", "contactPhone"},
+			FieldSchema: model.JSONMap{
+				"fields": []interface{}{
+					map[string]interface{}{"key": "workLocation", "label": "工作地点", "type": "address"},
+				},
+			},
+		},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "job_hiring",
+		Title:       "招聘后道",
+		Description: "长期稳定。",
+		Attributes: model.JSONMap{"workLocation": map[string]interface{}{
+			"address":  "织里镇某园区",
+			"latitude": 30.8732,
+		}},
+		Contact: ResourceContactReq{Name: "陈老板", Phone: "13800000000"},
+	})
+
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "请重新选择工作地点地图位置" {
+		t.Fatalf("message = %q, want address gps error", errx.PublicMessage(err))
+	}
+}
+
 func TestCreateResourceCreatesPendingResource(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{

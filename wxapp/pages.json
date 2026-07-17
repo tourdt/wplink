@@ -93,7 +93,7 @@
     {
       "path": "pages/resource/detail",
       "style": {
-        "navigationBarTitleText": "供需详情"
+        "navigationBarTitleText": "供应详情"
       }
     },
     {
@@ -130,12 +130,6 @@
       "path": "pages/webview/index",
       "style": {
         "navigationBarTitleText": "活动详情"
-      }
-    },
-    {
-      "path": "pages/verification/index",
-      "style": {
-        "navigationBarTitleText": "商家认证"
       }
     }
   ],

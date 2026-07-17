@@ -24,6 +24,7 @@ func TestGetResourceReturnsPublishedDetail(t *testing.T) {
 	store := &fakeGetResourceStore{
 		detail: model.ResourceDetail{
 			ID: "resource-1", Status: "published", TypeCode: "stock_clearance", Title: "尾货资源",
+			Direction:  model.ResourceDirectionSupply,
 			TypeName:   "库存出售",
 			Attributes: model.JSONMap{"season": "春款", "allowLiveSale": true, "internalNote": "不展示"},
 			FieldSchema: model.JSONMap{
@@ -56,6 +57,9 @@ func TestGetResourceReturnsPublishedDetail(t *testing.T) {
 	if resp.TypeName != "库存出售" {
 		t.Fatalf("typeName = %q, want resource type display name", resp.TypeName)
 	}
+	if resp.Direction != model.ResourceDirectionSupply {
+		t.Fatalf("direction = %q, want supply", resp.Direction)
+	}
 	if len(resp.AttributeItems) != 2 {
 		t.Fatalf("attributeItems = %#v, want two display attributes", resp.AttributeItems)
 	}
@@ -64,6 +68,44 @@ func TestGetResourceReturnsPublishedDetail(t *testing.T) {
 	}
 	if resp.AttributeItems[1].Value != "是" {
 		t.Fatalf("boolean attribute value = %q, want 是", resp.AttributeItems[1].Value)
+	}
+}
+
+func TestGetResourceDisplaysAddressAttributeText(t *testing.T) {
+	store := &fakeGetResourceStore{
+		detail: model.ResourceDetail{
+			ID: "resource-1", Status: "published", TypeCode: "shop_office_rental", Title: "档口出租",
+			TypeName: "商铺/办公出租",
+			Attributes: model.JSONMap{
+				"locationText": model.JSONMap{
+					"address":   "浙江省湖州市吴兴区织里镇童装城",
+					"name":      "织里童装城",
+					"latitude":  30.8732,
+					"longitude": 120.2255,
+				},
+			},
+			FieldSchema: model.JSONMap{
+				"fields": []interface{}{
+					map[string]interface{}{"key": "locationText", "label": "位置", "type": "address"},
+				},
+			},
+			DisplayTemplate: model.JSONMap{"detail": []interface{}{"locationText"}},
+			MerchantID:      "merchant-1", MerchantName: "织里档口",
+			ContactName: "王老板", PhoneMasked: "138****0000",
+		},
+	}
+	logic := NewGetResourceLogic(store)
+
+	resp, err := logic.GetResource(context.Background(), "resource-1")
+	if err != nil {
+		t.Fatalf("GetResource() error = %v", err)
+	}
+
+	if len(resp.AttributeItems) != 1 {
+		t.Fatalf("attributeItems = %#v, want one address attribute", resp.AttributeItems)
+	}
+	if resp.AttributeItems[0].Label != "位置" || resp.AttributeItems[0].Value != "浙江省湖州市吴兴区织里镇童装城" {
+		t.Fatalf("address attribute item = %#v, want display address text", resp.AttributeItems[0])
 	}
 }
 

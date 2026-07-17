@@ -19,6 +19,14 @@
       "postcss": true,
       "minified": true
     },
+    "permission": {
+      "scope.userLocation": {
+        "desc": "用于在供需信息和商家资料中选择并展示地图位置"
+      }
+    },
+    "requiredPrivateInfos": [
+      "chooseLocation"
+    ],
     "usingComponents": true
   }
 }

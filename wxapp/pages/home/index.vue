@@ -153,7 +153,7 @@ const defaultBanners = [
   },
   {
     id: 'default-merchant',
-    kindText: '平台推荐 · 认证工厂',
+    kindText: '平台推荐 · 源头工厂',
     title: '本周空档工厂',
     jumpType: 'search',
     jumpTarget: '小单快返',
@@ -388,7 +388,7 @@ function bannerKindText(item) {
   const kindMap = {
     topic: '专题推荐',
     resource: '供应推荐',
-    merchant: '认证商家',
+    merchant: '入驻商家',
     publish: '商家发布',
     search: '热门搜索',
     webview: '活动推广',
