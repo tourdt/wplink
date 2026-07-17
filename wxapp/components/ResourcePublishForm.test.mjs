@@ -51,6 +51,22 @@ test('resource publish form removes completion progress from the basic section',
   assert.match(source, /const canSubmit = computed\(\(\) => requiredFieldStates\.value\.every\(Boolean\)\)/)
 })
 
+test('resource publish form only asks for description and auto-generates title', () => {
+  assert.doesNotMatch(source, /<text class="field-label">标题<\/text>/)
+  assert.doesNotMatch(source, /v-model="form\.title"/)
+  assert.doesNotMatch(source, /titlePlaceholder/)
+  assert.doesNotMatch(source, /请填写标题/)
+  assert.doesNotMatch(source, /\['typeCode', 'title', 'contactName', 'contactPhone'/)
+  assert.match(source, /<text class="section-title">\{\{ directionLabels\.detailTitle \}\}<\/text>/)
+  assert.match(source, /<text class="section-note">必填<\/text>/)
+  assert.match(source, /v-model="form\.description"/)
+  assert.match(source, /\['typeCode', 'description', 'contactName', 'contactPhone'/)
+  assert.match(source, /field !== 'title'/)
+  assert.match(source, /payload\.title = buildAutoResourceTitle\(payload, currentResourceType\.value\)/)
+  assert.match(source, /function buildAutoResourceTitle\(payload, resourceType = \{\}\)/)
+  assert.match(source, /请填写\$\{directionLabels\.value\.descriptionLabel\}/)
+})
+
 test('resource publish form includes optional contact wechat input', () => {
   assert.match(source, /<text class="field-label">微信号<\/text>/)
   assert.match(source, /v-model="form\.contact\.wechat"/)

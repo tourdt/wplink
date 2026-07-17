@@ -2,19 +2,8 @@
   <view class="publish-page">
     <view class="form-section basic-section">
       <view class="section-head">
-        <text class="section-title">{{ directionLabels.basicTitle }}</text>
-        <text class="section-note">必填</text>
-      </view>
-      <view class="field-group">
-        <text class="field-label">标题</text>
-        <input v-model="form.title" class="field" :placeholder="directionLabels.titlePlaceholder" />
-      </view>
-    </view>
-
-    <view class="form-section supply-section">
-      <view class="section-head">
         <text class="section-title">{{ directionLabels.detailTitle }}</text>
-        <text class="section-note">建议填写</text>
+        <text class="section-note">必填</text>
       </view>
       <view class="field-group">
         <text class="field-label">{{ directionLabels.descriptionLabel }}</text>
@@ -241,9 +230,7 @@ const isDemandDirection = computed(() => form.direction === RESOURCE_DIRECTION_D
 const directionLabels = computed(() => {
   if (isDemandDirection.value) {
     return {
-      basicTitle: '需求信息',
       typeLabel: '需求类型',
-      titlePlaceholder: '例如：急找童装春款现货 3000 件',
       detailTitle: '需求说明',
       descriptionLabel: '需求描述',
       descriptionPlaceholder: '说明款式、尺码颜色、交期、验货和交付要求',
@@ -256,9 +243,7 @@ const directionLabels = computed(() => {
     }
   }
   return {
-    basicTitle: '基础信息',
     typeLabel: '供应类型',
-    titlePlaceholder: '例如：童装春款现货 3000 件',
     detailTitle: '供应说明',
     descriptionLabel: '供应描述',
     descriptionPlaceholder: '说明货品状态、尺码颜色、交期、看样方式等关键信息',
@@ -273,8 +258,8 @@ const directionLabels = computed(() => {
 const dynamicFieldItems = computed(() => normalizeDynamicFieldItems(currentResourceType.value.fieldSchema))
 const requiredFields = computed(() => {
   const configuredFields = Array.isArray(currentResourceType.value.requiredFields) ? currentResourceType.value.requiredFields : []
-  const visibleConfiguredFields = configuredFields.filter((field) => !summaryFieldNames.has(field))
-  return Array.from(new Set(['typeCode', 'title', 'contactName', 'contactPhone', ...visibleConfiguredFields]))
+  const visibleConfiguredFields = configuredFields.filter((field) => !summaryFieldNames.has(field) && field !== 'title')
+  return Array.from(new Set(['typeCode', 'description', 'contactName', 'contactPhone', ...visibleConfiguredFields]))
 })
 const requiredFieldStates = computed(() => requiredFields.value.map(isPublishFieldCompleted))
 const canSubmit = computed(() => requiredFieldStates.value.every(Boolean))
@@ -659,7 +644,23 @@ function buildResourcePublishPayload(images) {
   }
   payload.contact.wechat = sanitizeContactWechatValue(payload.contact.wechat)
   applySummaryFieldsToPayload(payload, currentResourceType.value)
+  // 发布页不再让用户单独填写标题，提交前用类型摘要和描述生成稳定标题，兼容列表、分享和审核消息。
+  payload.title = buildAutoResourceTitle(payload, currentResourceType.value)
   return payload
+}
+
+function buildAutoResourceTitle(payload, resourceType = {}) {
+  const typeName = normalizeSummaryText(resourceType.typeName)
+  const summaryParts = [payload.category, payload.quantityText, payload.priceText].map(normalizeSummaryText).filter(Boolean)
+  const titleFromSummary = [typeName, summaryParts.join(' ')].filter(Boolean).join('｜')
+  if (titleFromSummary) return truncateResourceTitle(titleFromSummary)
+  return truncateResourceTitle(normalizeSummaryText(payload.description))
+}
+
+function truncateResourceTitle(value, maxLength = 30) {
+  const chars = Array.from(String(value || '').trim())
+  if (chars.length <= maxLength) return chars.join('')
+  return `${chars.slice(0, maxLength).join('')}...`
 }
 
 function applySummaryFieldsToPayload(payload, resourceType = {}) {
@@ -1185,8 +1186,8 @@ function validatePublishForm() {
     uni.showToast({ title: `请选择${directionLabels.value.typeLabel}`, icon: 'none' })
     return false
   }
-  if (!form.title.trim()) {
-    uni.showToast({ title: '请填写标题', icon: 'none' })
+  if (!form.description.trim()) {
+    uni.showToast({ title: `请填写${directionLabels.value.descriptionLabel}`, icon: 'none' })
     return false
   }
   if (!form.contact.name.trim()) {

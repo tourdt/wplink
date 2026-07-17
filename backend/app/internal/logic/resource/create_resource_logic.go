@@ -292,6 +292,13 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		values["contactPhone"] = strings.TrimSpace(merchantPhone)
 	}
 	deriveResourceSummaryFields(config, values, req.Attributes)
+	if values["description"] == "" {
+		return model.CreateResourceInput{}, "", errx.New(errx.CodeValidationFailed, resourceDescriptionRequiredMessage(config.Direction))
+	}
+	if values["title"] == "" {
+		// 小程序发布页减少用户填写项，不再要求手动标题；后端兜底生成标题，保证列表、分享和审核消息仍有稳定展示文本。
+		values["title"] = buildGeneratedResourceTitle(values)
+	}
 	if err := validateResourceRequiredFields(config, values, req.Attributes, req.Tags, req.Images); err != nil {
 		return model.CreateResourceInput{}, "", err
 	}
@@ -339,6 +346,39 @@ func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req Create
 		CreatedByOperator:    strings.TrimSpace(req.CreatedByOperator),
 		ConsumePublishQuota:  false,
 	}, typeCode, nil
+}
+
+func resourceDescriptionRequiredMessage(direction string) string {
+	if normalizeConfigDirection(direction) == model.ResourceDirectionDemand {
+		return "请填写需求描述"
+	}
+	return "请填写供应描述"
+}
+
+func buildGeneratedResourceTitle(values map[string]string) string {
+	summaryParts := make([]string, 0, 3)
+	for _, field := range []string{"category", "quantityText", "priceText"} {
+		if value := strings.TrimSpace(values[field]); value != "" {
+			summaryParts = append(summaryParts, value)
+		}
+	}
+	if title := truncateGeneratedResourceTitle(strings.Join(summaryParts, " ")); title != "" {
+		return title
+	}
+	return truncateGeneratedResourceTitle(values["description"])
+}
+
+func truncateGeneratedResourceTitle(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	const maxTitleRunes = 30
+	runes := []rune(value)
+	if len(runes) <= maxTitleRunes {
+		return value
+	}
+	return string(runes[:maxTitleRunes]) + "..."
 }
 
 func deriveResourceSummaryFields(config model.ResourcePublishConfig, values map[string]string, attributes model.JSONMap) {

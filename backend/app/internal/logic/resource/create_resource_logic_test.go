@@ -37,6 +37,66 @@ func TestCreateResourceRejectsMissingConfiguredRequiredField(t *testing.T) {
 	}
 }
 
+func TestCreateResourceGeneratesTitleWhenTitleIsMissing(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:   "merchant-1",
+		CityCode:     "zhili",
+		TypeCode:     "inventory",
+		Category:     "童装",
+		QuantityText: "3200 件",
+		Description:  "整包优先，可现场看货，支持同城自提。",
+		Contact:      ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+	if store.input.Title != "童装 3200 件" {
+		t.Fatalf("title = %q, want generated summary title", store.input.Title)
+	}
+}
+
+func TestCreateResourceRejectsMissingDescription(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "buy_kids_goods",
+			Direction:      model.ResourceDirectionDemand,
+			RequiredFields: []string{"title", "category", "contactPhone"},
+		},
+	}
+	logic := NewCreateResourceLogic(store)
+
+	_, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:  "merchant-1",
+		CityCode:    "zhili",
+		TypeCode:    "buy_kids_goods",
+		Title:       "急找童装库存",
+		Category:    "童装",
+		Description: " ",
+		Contact:     ResourceContactReq{Name: "王采购", Phone: "13800000000"},
+	})
+
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error code = %q, want validation failed", errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "请填写需求描述" {
+		t.Fatalf("message = %q, want demand description message", errx.PublicMessage(err))
+	}
+	if store.input.MerchantID != "" {
+		t.Fatalf("CreateResource was called despite missing description: %#v", store.input)
+	}
+}
+
 func TestCreateResourceRejectsMissingRequiredAttributeWithFieldLabel(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{
@@ -671,6 +731,7 @@ func TestCreateResourceUsesMerchantContactPhoneWhenRequestPhoneIsMasked(t *testi
 		Title:        "女童春款卫衣库存整包清",
 		Category:     "童装",
 		QuantityText: "3200 件",
+		Description:  "整包优先，可现场看货。",
 		Contact:      ResourceContactReq{Name: "张老板", Phone: "188****0002"},
 	})
 	if err != nil {

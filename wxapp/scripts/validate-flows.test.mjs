@@ -297,7 +297,7 @@ test('publish tab uses primary category entry and secondary type sheet', () => {
   assert.match(formSource, /direction:\s*RESOURCE_DIRECTION_SUPPLY/)
   assert.match(formSource, /listCityResourceTypes\(form\.cityCode\)/)
   assert.match(formSource, /form\.direction = normalizePublishDirection\(current\.direction \|\| ''\) \|\| RESOURCE_DIRECTION_SUPPLY/)
-  assert.match(formSource, /需求信息/)
+  assert.match(formSource, /需求说明/)
   assert.match(formSource, /参考图片/)
   assert.equal(formSource.includes('采购要求'), false)
 })
@@ -861,7 +861,6 @@ test('publish page presents grouped fast publishing workflow', () => {
 
   for (const token of [
     'form-section basic-section',
-    'form-section supply-section',
     'form-section image-section',
     'form-section contact-section',
     'field-label',
@@ -894,7 +893,6 @@ test('publish page presents grouped fast publishing workflow', () => {
     'fixed-save-spacer',
     'fixed-save-bar',
     'fixed-save-actions',
-    '基础信息',
     '供应说明',
     '类型字段',
     '供应图片',
@@ -935,6 +933,7 @@ test('publish page presents grouped fast publishing workflow', () => {
   assert.equal(source.includes('sticky-action-bar'), false)
   assert.equal(source.includes('padding: 24rpx 24rpx 176rpx'), false)
   assert.equal(source.includes('点击图片预览，点击最后一格添加'), false)
+  assert.equal(source.includes('form-section supply-section'), false)
   assert.match(source, /reserveBottomSafeArea/)
   assert.match(source, /fixed-save-spacer', \{ 'no-safe-area': !reserveBottomSafeArea \}/)
   assert.match(source, /fixed-save-bar', \{ 'no-safe-area': !reserveBottomSafeArea \}/)
@@ -965,7 +964,7 @@ test('publish page renders resource type field schema into attributes', () => {
   assert.match(source, /:placeholder="field\.placeholder \|\| `请填写\$\{field\.label\}`"/)
   assert.match(source, /:class="\['toggle-option', getDynamicFieldValue\(field\.key\) === true \? 'active' : ''\]"/)
   assert.match(source, /:class="\['toggle-option', getDynamicFieldValue\(field\.key\) === false \? 'active' : ''\]"/)
-  assert.match(source, /function syncAttributesWithSelectedType\(\) \{[\s\S]*delete form\.attributes\[key\][\s\S]*\}/)
+  assert.match(source, /function syncAttributesWithSelectedType\(\) \{[\s\S]*delete nextAttributes\[key\][\s\S]*\}/)
 })
 
 test('publish tab page does not reserve bottom safe area for fixed save bar', () => {
