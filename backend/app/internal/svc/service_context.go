@@ -11,6 +11,7 @@ import (
 	authlogic "wplink/backend/app/internal/logic/auth"
 	citylogic "wplink/backend/app/internal/logic/city"
 	"wplink/backend/app/internal/logic/contentaudit"
+	locationlogic "wplink/backend/app/internal/logic/location"
 	paymentlogic "wplink/backend/app/internal/logic/payment"
 	resourcelogic "wplink/backend/app/internal/logic/resource"
 	uploadlogic "wplink/backend/app/internal/logic/upload"
@@ -64,6 +65,7 @@ type ServiceContext struct {
 	SMSVerifier         authlogic.SMSVerifier
 	WechatPayGateway    paymentlogic.WechatPayGateway
 	ContentAuditor      resourcelogic.ContentAuditor
+	LocationGeocoder    locationlogic.ReverseGeocoder
 }
 
 func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
@@ -82,6 +84,7 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 	if auditor := contentaudit.NewWechatAuditor(c.Wechat, c.ContentAudit, c.Storage.PublicBaseURL, nil); auditor != nil {
 		contentAuditor = auditor
 	}
+	locationGeocoder := locationlogic.NewTencentMapGeocoder(c.TencentMap, nil)
 	return &ServiceContext{
 		Config:              c,
 		DB:                  db,
@@ -95,6 +98,7 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		SMSVerifier:         authlogic.NewConfiguredSMSVerifier(c.SMS),
 		WechatPayGateway:    wechatPayGateway,
 		ContentAuditor:      contentAuditor,
+		LocationGeocoder:    locationGeocoder,
 	}, nil
 }
 

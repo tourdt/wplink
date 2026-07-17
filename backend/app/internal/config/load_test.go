@@ -14,6 +14,7 @@ func TestLoadReadsAppYAMLAndExpandsEnv(t *testing.T) {
 	t.Setenv("USER_TOKEN_SECRET", "user-secret-token")
 	t.Setenv("WECHAT_APP_ID", "wx-local")
 	t.Setenv("WECHAT_APP_SECRET", "wechat-secret")
+	t.Setenv("TENCENT_MAP_KEY", "map-key")
 
 	path := filepath.Join(t.TempDir(), "app.yaml")
 	if err := os.WriteFile(path, []byte(`
@@ -41,6 +42,10 @@ Wechat:
   AppID: "${WECHAT_APP_ID}"
   AppSecret: "${WECHAT_APP_SECRET}"
   AllowDevCode: true
+
+TencentMap:
+  Key: "${TENCENT_MAP_KEY}"
+  RequestTimeout: 4s
 
 ContentAudit:
   Enabled: true
@@ -122,6 +127,9 @@ Storage:
 	}
 	if cfg.Wechat.AppID != "wx-local" || cfg.Wechat.AppSecret != "wechat-secret" || !cfg.Wechat.AllowDevCode {
 		t.Fatalf("wechat = %#v, want env app config", cfg.Wechat)
+	}
+	if cfg.TencentMap.Key != "map-key" || cfg.TencentMap.RequestTimeout != 4*time.Second {
+		t.Fatalf("tencent map = %#v, want env key and timeout", cfg.TencentMap)
 	}
 	if !cfg.ContentAudit.Enabled || cfg.ContentAudit.TextScene != 3 || !cfg.ContentAudit.MediaEnabled || cfg.ContentAudit.RequestTimeout != 6*time.Second || cfg.ContentAudit.MaxTextChars != 1200 {
 		t.Fatalf("content audit = %#v, want configured content audit", cfg.ContentAudit)

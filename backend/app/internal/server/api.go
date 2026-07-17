@@ -14,6 +14,7 @@ import (
 	authlogic "wplink/backend/app/internal/logic/auth"
 	citylogic "wplink/backend/app/internal/logic/city"
 	contentauditlogic "wplink/backend/app/internal/logic/contentaudit"
+	locationlogic "wplink/backend/app/internal/logic/location"
 	metricslogic "wplink/backend/app/internal/logic/metrics"
 	paymentlogic "wplink/backend/app/internal/logic/payment"
 	resourcelogic "wplink/backend/app/internal/logic/resource"
@@ -79,6 +80,7 @@ type apiRouterOptions struct {
 	wechatPayGateway    paymentlogic.WechatPayGateway
 	wechatPayDevMock    bool
 	contentAuditor      resourcelogic.ContentAuditor
+	locationGeocoder    locationlogic.ReverseGeocoder
 }
 
 type APIRouterOption func(*apiRouterOptions)
@@ -134,6 +136,12 @@ func WithWechatPayDevMock(enabled bool) APIRouterOption {
 func WithContentAuditor(auditor resourcelogic.ContentAuditor) APIRouterOption {
 	return func(options *apiRouterOptions) {
 		options.contentAuditor = auditor
+	}
+}
+
+func WithLocationGeocoder(geocoder locationlogic.ReverseGeocoder) APIRouterOption {
+	return func(options *apiRouterOptions) {
+		options.locationGeocoder = geocoder
 	}
 }
 
@@ -227,6 +235,7 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 		})
 		response.JSON(w, resp, err)
 	})
+	registerLocationRoutes(mux, options.locationGeocoder)
 	if resourceStore, ok := any(store).(ResourceAPIStore); ok {
 		permissionStore, _ := any(store).(MerchantPermissionStore)
 		registerResourceRoutes(mux, resourceStore, options.userTokenService, options.adminTokenService, permissionStore, options.wechatPayGateway, options.wechatPayDevMock, options.contentAuditor)
@@ -236,6 +245,18 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 		return requireAdminToken(mux, options.adminTokenService)
 	}
 	return mux
+}
+
+func registerLocationRoutes(mux *http.ServeMux, geocoder locationlogic.ReverseGeocoder) {
+	logic := locationlogic.NewLogic(geocoder)
+	mux.HandleFunc("GET /api/v1/locations/reverse-geocode", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		resp, err := logic.ReverseGeocode(r.Context(), locationlogic.ReverseGeocodeReq{
+			Latitude:  query.Get("latitude"),
+			Longitude: query.Get("longitude"),
+		})
+		response.JSON(w, resp, err)
+	})
 }
 
 func permissionStoreFromStore(store any) MerchantPermissionStore {

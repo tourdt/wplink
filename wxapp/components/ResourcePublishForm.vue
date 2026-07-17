@@ -173,9 +173,10 @@
 import { computed, reactive, ref, watch, onUnmounted } from 'vue'
 import UniGrid from './uni-ui/uni-grid/uni-grid.vue'
 import UniGridItem from './uni-ui/uni-grid-item/uni-grid-item.vue'
-import { DEFAULT_CITY_CODE } from '../common/constants'
+import { DEFAULT_CITY_CODE, DEFAULT_CITY_LOCATION } from '../common/constants'
 import { getMerchantId, saveMerchantId } from '../store/session'
 import { listCityResourceTypes } from '../api/city'
+import { reverseGeocodeLocation } from '../api/location'
 import { getMerchant } from '../api/merchant'
 import { createResource, createResourceDraft, getEditableResource, submitResource, updateResourceDraft } from '../api/resource'
 import { chooseImageFile, uploadSelectedImage } from '../common/upload'
@@ -774,13 +775,16 @@ function setDynamicAddressText(key, value) {
   setDynamicFieldValue(key, address ? { address } : '')
 }
 
-function chooseDynamicAddress(field) {
+async function chooseDynamicAddress(field) {
   if (typeof uni.chooseLocation !== 'function') {
     uni.showToast({ title: '当前环境不支持地图选点', icon: 'none' })
     return
   }
+  const initialLocation = await resolveChooseLocationInitialLocation()
   uni.chooseLocation({
-    success: (result) => {
+    latitude: initialLocation.latitude,
+    longitude: initialLocation.longitude,
+    success: async (result) => {
       console.log('供需表单地图选点成功', result)
       const latitude = Number(result?.latitude)
       const longitude = Number(result?.longitude)
@@ -788,28 +792,28 @@ function chooseDynamicAddress(field) {
         uni.showToast({ title: '未获取到有效地图位置', icon: 'none' })
         return
       }
-      const address = resolveChooseLocationAddress(result, field.key)
-      if (!address) {
-        // 微信在拖动到非 POI 点位时可能只返回经纬度；不能把坐标当地址展示，提示用户选择带名称的具体地点。
+      const resolvedAddress = await resolveChooseLocationAddress(result, field.key, latitude, longitude)
+      if (!resolvedAddress.address) {
+        // 微信在拖动到非 POI 点位时可能只返回经纬度；反查和手填兜底都失败时，不保存无法展示的“空地址”。
         console.warn('供需表单地图未返回详细地址', {
           hasName: Boolean(result?.name),
           hasAddress: Boolean(result?.address),
           hasLatitude: Number.isFinite(latitude),
           hasLongitude: Number.isFinite(longitude),
         })
-        uni.showToast({ title: '未获取到详细地址，请搜索并选择具体地点', icon: 'none' })
+        uni.showToast({ title: '未获取到详细地址，请搜索具体地点或先填写地址', icon: 'none' })
         return
       }
       console.log('供需表单地图选点结果', {
-        address,
-        name: result?.name,
+        address: resolvedAddress.address,
+        name: resolvedAddress.name,
+        source: resolvedAddress.source,
         latitude,
         longitude,
       })
-      const name = normalizeChooseLocationText(result?.name)
       setDynamicFieldValue(field.key, {
-        address,
-        name,
+        address: resolvedAddress.address,
+        name: resolvedAddress.name,
         latitude,
         longitude,
       })
@@ -824,12 +828,121 @@ function chooseDynamicAddress(field) {
   })
 }
 
-function resolveChooseLocationAddress(result, key) {
+async function resolveChooseLocationInitialLocation() {
+  const fallback = DEFAULT_CITY_LOCATION
+  const currentLocation = await getCurrentMapLocation()
+  if (!currentLocation) return fallback
+  const geocoded = await reverseGeocodeCurrentLocation(currentLocation.latitude, currentLocation.longitude)
+  if (isZhejiangLocation(geocoded)) {
+    return currentLocation
+  }
+  console.log('供需表单地图默认定位到织里', {
+    currentProvince: geocoded.province,
+    hasCurrentAddress: Boolean(geocoded.address),
+  })
+  return fallback
+}
+
+function getCurrentMapLocation() {
+  if (typeof uni.getLocation !== 'function') {
+    return Promise.resolve(null)
+  }
+  return new Promise((resolve) => {
+    uni.getLocation({
+      type: 'gcj02',
+      success: (result) => {
+        const latitude = Number(result?.latitude)
+        const longitude = Number(result?.longitude)
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          resolve(null)
+          return
+        }
+        resolve({ latitude, longitude })
+      },
+      fail: (err) => {
+        // 当前位置只用于决定地图初始视野；失败不阻断选点，直接回到织里默认中心。
+        console.warn('供需表单获取当前位置失败，使用织里默认地图中心', {
+          errMsg: err?.errMsg || err?.message || String(err || ''),
+        })
+        resolve(null)
+      },
+    })
+  })
+}
+
+async function reverseGeocodeCurrentLocation(latitude, longitude) {
+  try {
+    const resp = await reverseGeocodeLocation({ latitude, longitude })
+    return {
+      address: normalizeChooseLocationText(resp?.address),
+      province: normalizeChooseLocationText(resp?.province),
+    }
+  } catch (err) {
+    console.warn('供需表单当前位置省份判断失败，使用织里默认地图中心', {
+      latitude,
+      longitude,
+      errMsg: err?.message || err?.errMsg || String(err || ''),
+    })
+    return { address: '', province: '' }
+  }
+}
+
+function isZhejiangLocation(location) {
+  const province = normalizeChooseLocationText(location?.province)
+  const address = normalizeChooseLocationText(location?.address)
+  return province.includes('浙江') || address.includes('浙江')
+}
+
+async function resolveChooseLocationAddress(result, key, latitude, longitude) {
   const selectedAddress = buildChooseLocationAddressText(result)
-  if (selectedAddress) return selectedAddress
+  const selectedName = normalizeChooseLocationText(result?.name)
+  if (selectedAddress) {
+    return {
+      address: selectedAddress,
+      name: selectedName,
+      source: 'chooseLocation',
+    }
+  }
+  const geocoded = await reverseGeocodeChooseLocation(latitude, longitude)
+  if (geocoded.address) {
+    return {
+      address: geocoded.address,
+      name: geocoded.name || selectedName,
+      source: 'reverseGeocode',
+    }
+  }
   const manualAddress = normalizeChooseLocationText(getDynamicAddressText(key))
-  if (manualAddress) return manualAddress
-  return ''
+  if (manualAddress) {
+    return {
+      address: manualAddress,
+      name: selectedName,
+      source: 'manualInput',
+    }
+  }
+  return { address: '', name: selectedName, source: '' }
+}
+
+async function reverseGeocodeChooseLocation(latitude, longitude) {
+  uni.showLoading({ title: '解析地址中', mask: false })
+  try {
+    const resp = await reverseGeocodeLocation({ latitude, longitude })
+    const address = normalizeChooseLocationText(resp?.address)
+    const name = normalizeChooseLocationText(resp?.name)
+    if (!address) {
+      console.warn('供需表单地图地址反查未返回详细地址', { latitude, longitude })
+      return { address: '', name: '' }
+    }
+    return { address, name }
+  } catch (err) {
+    console.warn('供需表单地图地址反查失败', {
+      latitude,
+      longitude,
+      errMsg: err?.message || err?.errMsg || String(err || ''),
+    })
+    return { address: '', name: '' }
+  } finally {
+    uni.hideLoading()
+  }
 }
 
 function buildChooseLocationAddressText(result) {

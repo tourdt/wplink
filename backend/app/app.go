@@ -82,6 +82,7 @@ func main() {
 		server.WithWechatPayGateway(svcCtx.WechatPayGateway),
 		server.WithWechatPayDevMock(cfg.WechatPay.DevMockEnabled && !config.IsProductionMode(cfg.RuntimeMode)),
 		server.WithContentAuditor(svcCtx.ContentAuditor),
+		server.WithLocationGeocoder(svcCtx.LocationGeocoder),
 	)
 	if err != nil {
 		fatalf("初始化 API 路由失败: err=%v", err)

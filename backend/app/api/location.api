@@ -1,0 +1,21 @@
+syntax = "v1"
+
+type ReverseGeocodeReq {
+	Latitude  string `form:"latitude"`
+	Longitude string `form:"longitude"`
+}
+
+type ReverseGeocodeResp {
+	Address  string `json:"address"`
+	Name     string `json:"name,optional"`
+	Province string `json:"province,optional"`
+}
+
+@server(
+	prefix: /api/v1
+	group: location
+)
+service wplink-api {
+	@handler ReverseGeocode
+	get /locations/reverse-geocode (ReverseGeocodeReq) returns (ReverseGeocodeResp)
+}

@@ -33,6 +33,10 @@ Wechat:
   AppSecret: "${WECHAT_APP_SECRET}"
   AllowDevCode: false
 
+TencentMap:
+  Key: "${TENCENT_MAP_KEY}"
+  RequestTimeout: 5s
+
 ContentAudit:
   Enabled: true
   TextScene: 3

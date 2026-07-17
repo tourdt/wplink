@@ -16,6 +16,7 @@ type Config struct {
 	AdminAuth    AdminAuthConfig
 	UserAuth     UserAuthConfig
 	Wechat       WechatConfig
+	TencentMap   TencentMapConfig
 	ContentAudit ContentAuditConfig
 	WechatPay    WechatPayConfig
 	SMS          SMSConfig
@@ -48,6 +49,11 @@ type WechatConfig struct {
 	AppID        string `yaml:"AppID"`
 	AppSecret    string `yaml:"AppSecret"`
 	AllowDevCode bool   `yaml:"AllowDevCode"`
+}
+
+type TencentMapConfig struct {
+	Key            string
+	RequestTimeout time.Duration
 }
 
 type ContentAuditConfig struct {

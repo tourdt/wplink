@@ -39,6 +39,7 @@ type fileConfig struct {
 	AdminAuth    fileAdminAuthConfig    `yaml:"AdminAuth"`
 	UserAuth     fileUserAuthConfig     `yaml:"UserAuth"`
 	Wechat       WechatConfig           `yaml:"Wechat"`
+	TencentMap   fileTencentMapConfig   `yaml:"TencentMap"`
 	ContentAudit fileContentAuditConfig `yaml:"ContentAudit"`
 	WechatPay    fileWechatPayConfig    `yaml:"WechatPay"`
 	SMS          fileSMSConfig          `yaml:"SMS"`
@@ -90,6 +91,11 @@ type fileContentAuditConfig struct {
 	MediaScene     int            `yaml:"MediaScene"`
 	RequestTimeout configDuration `yaml:"RequestTimeout"`
 	MaxTextChars   int            `yaml:"MaxTextChars"`
+}
+
+type fileTencentMapConfig struct {
+	Key            string         `yaml:"Key"`
+	RequestTimeout configDuration `yaml:"RequestTimeout"`
 }
 
 type fileWechatPayConfig struct {
@@ -195,9 +201,13 @@ func (c fileConfig) toConfig() Config {
 			ConnMaxLifetime: c.Postgres.ConnMaxLifetime.Duration(),
 			ConnMaxIdleTime: c.Postgres.ConnMaxIdleTime.Duration(),
 		},
-		AdminAuth:    adminAuth,
-		UserAuth:     userAuth,
-		Wechat:       c.Wechat,
+		AdminAuth: adminAuth,
+		UserAuth:  userAuth,
+		Wechat:    c.Wechat,
+		TencentMap: TencentMapConfig{
+			Key:            strings.TrimSpace(c.TencentMap.Key),
+			RequestTimeout: c.TencentMap.RequestTimeout.Duration(),
+		},
 		ContentAudit: contentAudit,
 		WechatPay: WechatPayConfig{
 			Enabled:                c.WechatPay.Enabled,

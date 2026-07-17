@@ -94,6 +94,9 @@ const weixinConfig = manifestConfig['mp-weixin'] || {}
 if (!Array.isArray(weixinConfig.requiredPrivateInfos) || !weixinConfig.requiredPrivateInfos.includes('chooseLocation')) {
   throw new Error('manifest.json mp-weixin.requiredPrivateInfos 必须声明 chooseLocation，供需表单地图选点依赖该微信隐私接口')
 }
+if (!weixinConfig.requiredPrivateInfos.includes('getLocation')) {
+  throw new Error('manifest.json mp-weixin.requiredPrivateInfos 必须声明 getLocation，供需表单需按当前位置判断地图默认中心')
+}
 const userLocationDesc = weixinConfig.permission?.['scope.userLocation']?.desc || ''
 if (!userLocationDesc.includes('地图位置')) {
   throw new Error('manifest.json mp-weixin.permission.scope.userLocation.desc 必须说明地图位置用途')
