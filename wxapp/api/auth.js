@@ -13,6 +13,7 @@ export function getMe(options = {}) {
     url: '/api/v1/me',
     method: 'GET',
     ...options,
+    requireAuth: true,
   })
 }
 
@@ -29,6 +30,7 @@ export function bindPhone(data) {
     url: '/api/v1/me/phone',
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }
 
@@ -37,5 +39,6 @@ export function bindWechatPhone(data) {
     url: '/api/v1/me/wechat-phone',
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }

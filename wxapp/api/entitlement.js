@@ -5,6 +5,7 @@ export function getMerchantEntitlements(merchantId, options = {}) {
     url: `/api/v1/merchants/${merchantId}/entitlements`,
     method: 'GET',
     ...options,
+    requireAuth: true,
   })
 }
 
@@ -13,6 +14,7 @@ export function getMerchantEntitlementUsageRecords(merchantId, entitlementId, op
     url: `/api/v1/merchants/${merchantId}/entitlements/${entitlementId}/usage-records`,
     method: 'GET',
     ...options,
+    requireAuth: true,
   })
 }
 
@@ -20,6 +22,7 @@ export function listTopVouchers(merchantId) {
   return request({
     url: `/api/v1/merchants/${merchantId}/top-vouchers`,
     method: 'GET',
+    requireAuth: true,
   })
 }
 
@@ -28,5 +31,6 @@ export function redeemTopVoucher(voucherId, resourceId, merchantId = '') {
     url: `/api/v1/top-vouchers/${voucherId}/redeem`,
     method: 'POST',
     data: { merchantId, resourceId },
+    requireAuth: true,
   })
 }

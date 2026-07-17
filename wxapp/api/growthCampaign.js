@@ -13,5 +13,6 @@ export function getGrowthTasks(merchantId, options = {}) {
     url: `/api/v1/merchants/${merchantId}/growth-tasks`,
     method: 'GET',
     ...options,
+    requireAuth: true,
   })
 }

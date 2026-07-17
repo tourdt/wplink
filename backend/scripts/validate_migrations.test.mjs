@@ -112,6 +112,13 @@ test('resource type seed uses category-item display names and primary groups', (
   }
 })
 
+test('resource type seed tag update keeps update target references out of from joins', () => {
+  const seedSql = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')
+
+  assert.doesNotMatch(seedSql, /JOIN\s+city_stations\s+\w+\s+ON\s+\w+\.id\s*=\s*rtc\.city_station_id/i)
+  assert.match(seedSql, /WHERE\s+rtc\.city_station_id\s*=\s*\(\s*SELECT id FROM city_stations WHERE code = 'zhili'\s*\)/i)
+})
+
 test('core resource schema supports unified demand direction without retired demand tables', () => {
   const coreSql = fs.readFileSync(path.resolve(migrationsDir, '000002_core_domain.up.sql'), 'utf8')
   const seedSql = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')

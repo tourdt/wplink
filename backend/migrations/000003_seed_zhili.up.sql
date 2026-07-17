@@ -128,8 +128,9 @@ FROM (
     ('factory_sale', '{"tagOptions":["交通便利","带车位","货车可进","近高速","有三相电","产权清晰"],"maxTags":8}'),
     ('seek_factory_warehouse', '{"tagOptions":["交通便利","带车位","货车可进","近高速","需要三相电","急租","可长期租"],"maxTags":8}')
 ) AS cfg(type_code, tag_config)
-JOIN city_stations cs ON cs.id = rtc.city_station_id
-WHERE cs.code = 'zhili'
+WHERE rtc.city_station_id = (
+    SELECT id FROM city_stations WHERE code = 'zhili'
+  )
   AND rtc.type_code = cfg.type_code;
 
 WITH zhili AS (

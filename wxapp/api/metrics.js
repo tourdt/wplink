@@ -5,6 +5,7 @@ export function getResourceMetrics(resourceId, params = {}) {
     url: `/api/v1/resources/${resourceId}/metrics`,
     method: 'GET',
     data: params,
+    requireAuth: true,
   })
 }
 
@@ -13,5 +14,6 @@ export function getMerchantMetricsSummary(merchantId, options = {}) {
     url: `/api/v1/merchants/${merchantId}/metrics/summary`,
     method: 'GET',
     suppressErrorToast: options.suppressErrorToast,
+    requireAuth: true,
   })
 }

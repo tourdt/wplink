@@ -19,6 +19,7 @@ export function getMerchantVIP(merchantId, options = {}) {
     url: `/api/v1/merchants/${merchantId}/vip`,
     method: 'GET',
     ...options,
+    requireAuth: true,
   })
 }
 
@@ -27,6 +28,7 @@ export function createVIPOrder(merchantId, data) {
     url: `/api/v1/merchants/${merchantId}/vip/orders`,
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }
 
@@ -44,5 +46,6 @@ export function createVIPPayment(merchantId, orderId, data = {}) {
     url: `/api/v1/merchants/${merchantId}/vip/orders/${orderId}/payment`,
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }

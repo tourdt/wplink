@@ -5,5 +5,6 @@ export function createUploadToken(data) {
     url: '/api/v1/uploads/token',
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }

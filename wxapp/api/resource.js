@@ -5,6 +5,7 @@ export function createResource(data) {
     url: '/api/v1/resources',
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }
 
@@ -13,6 +14,7 @@ export function createResourceDraft(data) {
     url: '/api/v1/resources/drafts',
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }
 
@@ -21,6 +23,7 @@ export function updateResourceDraft(resourceId, data) {
     url: `/api/v1/resources/${resourceId}/draft`,
     method: 'PUT',
     data,
+    requireAuth: true,
   })
 }
 
@@ -29,6 +32,7 @@ export function submitResource(resourceId, merchantId = '') {
     url: `/api/v1/resources/${resourceId}/submit`,
     method: 'POST',
     data: merchantId ? { merchantId } : {},
+    requireAuth: true,
   })
 }
 
@@ -53,6 +57,7 @@ export function listMyResources(params = {}) {
     url: '/api/v1/me/resources',
     method: 'GET',
     data: params,
+    requireAuth: true,
   })
 }
 
@@ -61,6 +66,7 @@ export function getEditableResource(resourceId, merchantId) {
     url: `/api/v1/me/resources/${resourceId}/edit`,
     method: 'GET',
     data: { merchantId },
+    requireAuth: true,
   })
 }
 
@@ -78,6 +84,7 @@ export function getOwnResource(resourceId, merchantId, options = {}) {
     url: `/api/v1/me/resources/${resourceId}/detail${query}`,
     method: 'GET',
     ...options,
+    requireAuth: true,
   })
 }
 
@@ -93,6 +100,7 @@ export function refreshResource(resourceId, merchantId) {
     url: `/api/v1/resources/${resourceId}/refresh`,
     method: 'POST',
     data: { merchantId },
+    requireAuth: true,
   })
 }
 
@@ -101,6 +109,7 @@ export function markResourceDeal(resourceId, data) {
     url: `/api/v1/resources/${resourceId}/deal-feedback`,
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }
 
@@ -109,6 +118,7 @@ export function takeDownResource(resourceId, merchantId, reason) {
     url: `/api/v1/resources/${resourceId}/take-down`,
     method: 'POST',
     data: { merchantId, reason },
+    requireAuth: true,
   })
 }
 
@@ -117,6 +127,7 @@ export function deleteTakenDownResource(resourceId, merchantId) {
     url: `/api/v1/resources/${resourceId}`,
     method: 'DELETE',
     data: { merchantId },
+    requireAuth: true,
   })
 }
 
@@ -125,6 +136,7 @@ export function repostSimilarResource(resourceId, merchantId) {
     url: `/api/v1/resources/${resourceId}/repost-similar`,
     method: 'POST',
     data: { merchantId },
+    requireAuth: true,
   })
 }
 
@@ -141,6 +153,7 @@ export function reportResource(resourceId, data) {
     url: `/api/v1/resources/${resourceId}/reports`,
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }
 
@@ -149,6 +162,7 @@ export function createContactUnlockOrder(resourceId, data = {}) {
     url: `/api/v1/resources/${resourceId}/contact-unlock-orders`,
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }
 
@@ -157,5 +171,6 @@ export function createContactUnlockPayment(resourceId, orderId, data = {}) {
     url: `/api/v1/resources/${resourceId}/contact-unlock-orders/${orderId}/payment`,
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }

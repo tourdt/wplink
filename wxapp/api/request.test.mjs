@@ -58,6 +58,48 @@ test('redirects to login and clears session when API reports unauthorized sessio
   ])
 })
 
+test('requires local login before sending protected API requests', async () => {
+  const storage = new Map([['wplink_token', '   ']])
+  const toasts = []
+  const navigations = []
+  let requestCalled = false
+
+  globalThis.uni = {
+    getStorageSync(key) {
+      return storage.get(key) || ''
+    },
+    request() {
+      requestCalled = true
+    },
+    showToast(options) {
+      toasts.push(options)
+    },
+    navigateTo(options) {
+      navigations.push(options)
+    },
+  }
+  globalThis.getCurrentPages = () => [{ route: 'pages/resource/detail', options: { id: 'resource-1' } }]
+
+  const requestModule = await loadWxappModule('api/request.js')
+  const request = requestModule.namespace.default
+
+  let error
+  try {
+    await request({ url: '/api/v1/me', requireAuth: true })
+  } catch (err) {
+    error = err
+  }
+
+  assert.equal(requestCalled, false)
+  assert.equal(error?.message, '请先登录')
+  assert.equal(error?.code, 'UNAUTHORIZED')
+  assert.equal(error?.statusCode, 401)
+  assert.deepEqual(toasts, [{ title: '请先登录', icon: 'none' }])
+  assert.deepEqual(navigations, [
+    { url: '/pages/login/index?redirect=%2Fpages%2Fresource%2Fdetail%3Fid%3Dresource-1' },
+  ])
+})
+
 async function loadWxappModule(relativePath) {
   const cache = new Map()
   return loadModule(path.join(root, relativePath), cache)

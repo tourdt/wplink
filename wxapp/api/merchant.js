@@ -5,6 +5,7 @@ export function createMerchant(data) {
     url: '/api/v1/merchants',
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }
 
@@ -21,5 +22,6 @@ export function updateMerchant(merchantId, data) {
     url: `/api/v1/merchants/${merchantId}`,
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }

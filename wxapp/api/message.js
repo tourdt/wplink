@@ -5,6 +5,7 @@ export function listMessages(params = {}) {
     url: '/api/v1/messages',
     method: 'GET',
     data: params,
+    requireAuth: true,
   })
 }
 
@@ -13,5 +14,6 @@ export function readMessage(messageId) {
     url: `/api/v1/messages/${messageId}/read`,
     method: 'POST',
     data: {},
+    requireAuth: true,
   })
 }

@@ -67,6 +67,7 @@ export function getMerchantMapBinding(merchantId, options = {}) {
     method: 'GET',
     suppressErrorToast: true,
     ...options,
+    requireAuth: true,
   })
 }
 
@@ -76,6 +77,7 @@ export function listMapBindCandidates(params = {}) {
     method: 'GET',
     data: params,
     suppressErrorToast: true,
+    requireAuth: true,
   })
 }
 
@@ -84,5 +86,6 @@ export function submitMapBindRequest(merchantId, data = {}) {
     url: `/api/v1/merchants/${merchantId}/map-binding-requests`,
     method: 'POST',
     data,
+    requireAuth: true,
   })
 }
