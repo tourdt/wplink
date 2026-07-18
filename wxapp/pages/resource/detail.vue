@@ -45,13 +45,28 @@
         </view>
       </view>
 
-      <view class="resource-card">
+      <view class="summary-card">
         <text class="desc">{{ resource.description || '商家暂未填写详细描述，建议联系前确认数量、尺码、看样方式和交付时间。' }}</text>
-        <view v-if="hasDetailTags" class="tag-row">
-          <text v-if="isVIPMerchant" class="tag vip">VIP</text>
-          <text v-if="isOwnResource && resource.status" class="tag">{{ statusText[resource.status] || resource.status }}</text>
-          <text v-if="resource.refreshedAt" class="tag">{{ resource.refreshedAt }}</text>
+        <view v-if="resourceFeatureTags.length" class="tag-row">
           <text v-for="tag in resourceFeatureTags" :key="tag" class="tag feature">{{ tag }}</text>
+        </view>
+      </view>
+
+      <view v-if="showMerchantHomeEntry" class="merchant-card" @click="openMerchant">
+        <image v-if="merchantAvatarUrl" class="merchant-avatar" :src="merchantAvatarUrl" mode="aspectFill" />
+        <view v-else class="merchant-avatar merchant-avatar-placeholder">
+          <text>{{ merchantAvatarText }}</text>
+        </view>
+        <view class="merchant-info">
+          <MerchantBadge :merchant="merchantInfo" />
+          <text class="merchant-hint">{{ merchantBusinessText }}</text>
+        </view>
+        <text class="merchant-arrow">›</text>
+      </view>
+
+      <view v-if="specItems.length" class="resource-card">
+        <view class="section-head">
+          <text class="section-title">详细参数</text>
         </view>
         <view class="spec-list">
           <view v-for="item in specItems" :key="item.label" class="spec-item">
@@ -59,14 +74,22 @@
             <text class="spec-value">{{ item.value }}</text>
           </view>
         </view>
-        <view v-if="resourceAddressLocations.length" class="resource-address-list">
+      </view>
+
+      <view v-if="resourceAddressLocations.length" class="address-section">
+        <view class="section-head">
+          <text class="section-title">地址</text>
+        </view>
+        <view class="resource-address-list">
           <view v-for="item in resourceAddressLocations" :key="item.key" class="resource-address-card">
-            <view class="resource-address-head">
-              <text class="resource-address-title">{{ item.label }}</text>
+            <view class="resource-address-main">
+              <view class="resource-address-copy">
+                <text class="resource-address-title">{{ item.label }}</text>
+                <text class="resource-address-text">{{ item.address }}</text>
+              </view>
               <button v-if="item.hasGps" class="address-action" @click="openResourceAddressLocation(item)">导航</button>
               <button v-else class="address-action secondary" @click="copyResourceAddress(item)">复制</button>
             </view>
-            <text class="resource-address-text">{{ item.address }}</text>
             <map
               v-if="item.hasGps"
               class="resource-address-map"
@@ -83,18 +106,6 @@
       <view class="trust-card">
         <text class="section-title">友情提示</text>
         <text class="section-content contact-tip-content">联系商家前，建议先确认实物、价格、数量和交付方式。</text>
-      </view>
-
-      <view v-if="showMerchantHomeEntry" class="merchant-card" @click="openMerchant">
-        <image v-if="merchantAvatarUrl" class="merchant-avatar" :src="merchantAvatarUrl" mode="aspectFill" />
-        <view v-else class="merchant-avatar merchant-avatar-placeholder">
-          <text>{{ merchantAvatarText }}</text>
-        </view>
-        <view class="merchant-info">
-          <MerchantBadge :merchant="merchantInfo" />
-          <text class="merchant-hint">{{ merchantBusinessText }}</text>
-        </view>
-        <text class="merchant-arrow">›</text>
       </view>
 
       <view v-if="relatedResources.length" class="related-section">
@@ -156,9 +167,9 @@
       </view>
 
       <view v-else class="contact-bar">
+        <button class="more-button" @click="openContactMoreSheet">更多</button>
         <button @click="copyWechat">复制微信</button>
         <button class="primary-button" @click="callPhone">{{ contactButtonText }}</button>
-        <button class="more-button" @click="openContactMoreSheet">更多</button>
       </view>
 
       <canvas
@@ -253,14 +264,7 @@ const statusText = {
   taken_down: '已下架',
 }
 const contentAuditStatuses = new Set(['pending', 'manual_review', 'audit_retry'])
-const isVIPMerchant = computed(() => (resource.value.merchant || {}).vipStatus === 'active')
 const resourceFeatureTags = computed(() => normalizeResourceFeatureTags(resource.value.tags))
-const hasDetailTags = computed(() => (
-  isVIPMerchant.value ||
-  (isOwnResource.value && resource.value.status) ||
-  Boolean(resource.value.refreshedAt) ||
-  resourceFeatureTags.value.length > 0
-))
 const contactAccess = computed(() => resource.value.contactAccess || {})
 // 底部主按钮执行的是电话解锁和拨号，按钮文案保持动作导向，避免展示“登录后免费查看”等规则说明。
 const contactButtonText = computed(() => '拨打电话')
@@ -323,16 +327,8 @@ const attributeSpecItems = computed(() => (resource.value.attributeItems || [])
     label: item.label,
     value: item.value,
   })))
-const attributeSpecValues = computed(() => new Set(attributeSpecItems.value.map((item) => String(item.value))))
-const summarySpecItems = computed(() => [
-  { label: '分类摘要', value: resource.value.category },
-  { label: '数量摘要', value: resource.value.quantityText },
-  { label: '价格摘要', value: resource.value.priceText },
-].filter((item) => item.value && !attributeSpecValues.value.has(String(item.value))))
 const specItems = computed(() => [
   ...attributeSpecItems.value,
-  ...summarySpecItems.value,
-  { label: '更新时间', value: resource.value.refreshedAt || '近期更新' },
 ])
 const isExpiredResource = computed(() => {
   if (resource.value.status === 'expired') return true
@@ -1257,8 +1253,10 @@ onShareTimeline(() => {
   background: $wplink-bg;
 }
 
+.summary-card,
 .resource-card,
 .merchant-card,
+.address-section,
 .trust-card {
   display: grid;
   gap: 12rpx;
@@ -1431,23 +1429,22 @@ onShareTimeline(() => {
   line-height: 1.35;
 }
 
-.tag.vip {
-  border-color: transparent;
-  background: $wplink-warning;
-  color: $wplink-card;
-}
-
 .tag.feature {
   border-color: rgba(194, 58, 0, 0.22);
   background: #fff7ed;
   color: $wplink-warning;
 }
 
+.summary-card {
+  gap: 16rpx;
+  padding: 28rpx 24rpx;
+}
+
 .desc {
   padding: 18rpx;
   border-radius: 10rpx;
-  background: #fff7ed;
-  color: $wplink-primary;
+  background: #f8fafc;
+  color: #364152;
   font-size: 28rpx;
   line-height: 1.6;
   word-break: break-word;
@@ -1504,11 +1501,17 @@ onShareTimeline(() => {
   background: #f8fafc;
 }
 
-.resource-address-head {
-  display: flex;
+.resource-address-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96rpx;
   align-items: center;
-  justify-content: space-between;
   gap: 16rpx;
+}
+
+.resource-address-copy {
+  display: grid;
+  gap: 8rpx;
+  min-width: 0;
 }
 
 .resource-address-title {
@@ -1521,7 +1524,7 @@ onShareTimeline(() => {
 .address-action {
   flex: 0 0 auto;
   height: 52rpx;
-  padding: 0 18rpx;
+  padding: 0;
   border-radius: 8rpx;
   background: $wplink-primary;
   color: $wplink-card;
@@ -1541,7 +1544,7 @@ onShareTimeline(() => {
 
 .resource-address-map {
   width: 100%;
-  height: 260rpx;
+  height: 220rpx;
   border-radius: 10rpx;
   overflow: hidden;
   background: #e2e8f0;
@@ -1549,10 +1552,7 @@ onShareTimeline(() => {
 
 .resource-address-text {
   display: block;
-  padding: 18rpx;
-  border-radius: 8rpx;
-  background: #ffffff;
-  color: $wplink-primary;
+  color: #475569;
   font-size: 27rpx;
   line-height: 1.55;
   word-break: break-word;
@@ -1578,6 +1578,16 @@ onShareTimeline(() => {
 .contact-tip-content {
   font-size: 26rpx;
   line-height: 1.5;
+}
+
+.trust-card {
+  gap: 8rpx;
+  border: 1rpx solid rgba(194, 58, 0, 0.12);
+  background: #fffaf7;
+}
+
+.trust-card .section-title {
+  font-size: 28rpx;
 }
 
 .related-section {
@@ -1649,7 +1659,7 @@ onShareTimeline(() => {
 }
 
 .contact-bar {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) 104rpx;
+  grid-template-columns: 104rpx minmax(0, 1fr) minmax(0, 1.35fr);
 }
 
 .owner-action-bar {
