@@ -126,6 +126,7 @@ test('market page shows all secondary categories and scrolls selected category i
     'showTypeDrawer',
     'openTypeDrawer',
     'closeTypeDrawer',
+    'showAllTypeButton',
     'type-drawer-mask',
     'type-drawer-panel',
     'drawer-type-grid',
@@ -134,12 +135,17 @@ test('market page shows all secondary categories and scrolls selected category i
   }
 
   assert.match(source, /visibleResourceTypes = computed\(\(\) => resourceTypes\.value\)/)
+  assert.match(source, /const showAllTypeButton = computed\(\(\) => resourceTypes\.value\.length - 1 > 3\)/)
+  assert.match(source, /<view :class="\['filter-shell', showAllTypeButton \? 'has-all-type-button' : ''\]">/)
+  assert.match(source, /<button[\s\S]*v-if="showAllTypeButton"[\s\S]*class="all-type-button"[\s\S]*全部分类/)
   assert.match(source, /v-for="item in visibleResourceTypes"[\s\S]*:id="getTypeButtonId\(item\.value\)"/)
   assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypeDrawer\.value = false[\s\S]*scrollToSelectedType\(typeCode\)[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
   assert.doesNotMatch(source, /:scroll-left="typeScrollLeft"/)
   assert.doesNotMatch(source, /@scroll="handleTypeScroll"/)
   assert.doesNotMatch(source, /const typeScrollLeft = ref\(0\)/)
   assert.doesNotMatch(source, /function handleTypeScroll/)
+  assert.match(cssBlock('.filter-shell'), /grid-template-columns:\s*minmax\(0,\s*1fr\);/)
+  assert.match(cssBlock('.filter-shell.has-all-type-button'), /grid-template-columns:\s*minmax\(0,\s*1fr\) 156rpx;/)
   assert.match(cssBlock('.filter-row'), /overflow-x:\s*auto;/)
   assert.match(cssBlock('.filter-row'), /-webkit-overflow-scrolling:\s*touch;/)
 })

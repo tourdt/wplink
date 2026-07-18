@@ -15,7 +15,7 @@
         <text class="search-action">搜索</text>
       </view>
 
-      <view class="filter-shell">
+      <view :class="['filter-shell', showAllTypeButton ? 'has-all-type-button' : '']">
         <scroll-view
           class="filter-row"
           scroll-x
@@ -35,7 +35,7 @@
           </button>
         </scroll-view>
         <button
-          v-if="resourceTypes.length > 1"
+          v-if="showAllTypeButton"
           class="all-type-button"
           @click="openTypeDrawer"
         >
@@ -142,6 +142,7 @@ const selectedGroupName = computed(() => {
 })
 const channelTitle = computed(() => filters.groupCode ? selectedGroupName.value : PAGE_TITLE)
 const visibleResourceTypes = computed(() => resourceTypes.value)
+const showAllTypeButton = computed(() => resourceTypes.value.length - 1 > 3)
 const resourceNavStyle = computed(() => `padding-top: ${headerMetrics.value.statusBarHeight}px;`)
 const resourceTitleBarStyle = computed(() => `height: ${headerMetrics.value.navBarHeight}px;`)
 const resourcePageStyle = computed(() => `padding-top: calc(${headerMetrics.value.headerHeight}px + 24rpx);`)
@@ -447,9 +448,13 @@ function openResource(item) {
 
 .filter-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 156rpx;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 12rpx;
+}
+
+.filter-shell.has-all-type-button {
+  grid-template-columns: minmax(0, 1fr) 156rpx;
 }
 
 .filter-row {

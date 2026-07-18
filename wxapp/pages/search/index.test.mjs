@@ -74,6 +74,7 @@ test('search page matches market category browsing controls', () => {
     'showTypeDrawer',
     'openTypeDrawer',
     'closeTypeDrawer',
+    'showAllTypeButton',
     'type-drawer-mask',
     'type-drawer-panel',
     '全部分类',
@@ -86,6 +87,9 @@ test('search page matches market category browsing controls', () => {
   assert.match(source, /const selectedGroupName = computed\(\(\) =>/)
   assert.match(source, /const channelTitle = computed\(\(\) => filters\.groupCode \? selectedGroupName\.value : '供需搜索'\)/)
   assert.match(source, /visibleResourceTypes = computed\(\(\) => resourceTypes\.value\)/)
+  assert.match(source, /const showAllTypeButton = computed\(\(\) => resourceTypes\.value\.length - 1 > 3\)/)
+  assert.match(source, /<view :class="\['filter-shell', showAllTypeButton \? 'has-all-type-button' : ''\]">/)
+  assert.match(source, /<button[\s\S]*v-if="showAllTypeButton"[\s\S]*class="all-type-button"[\s\S]*全部分类/)
   assert.match(source, /listCityResourceTypes\(filters\.cityCode\)/)
   assert.match(source, /categoryGroups\.value = groupResourceTypes\(resp\.items \|\| \[\]\)/)
   assert.match(source, /const selectedGroup = categoryGroups\.value\.find\(\(item\) => item\.code === filters\.groupCode\)/)
@@ -114,14 +118,17 @@ test('search page supports configured resource tag filters', () => {
     'MAX_SEARCH_TAGS = 8',
     'class="tag-filter-row"',
     '@click="toggleSearchTag(tag)"',
-    '@click="clearSearchTags"',
-    '不限标签',
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 
   assert.match(source, /<scroll-view[\s\S]*v-if="searchTagOptions\.length"[\s\S]*class="tag-filter-row"/)
   assert.match(source, /:class="\['tag-filter-button', isSearchTagSelected\(tag\) \? 'active' : ''\]"/)
+  assert.doesNotMatch(source, /@click="clearSearchTags"/)
+  assert.doesNotMatch(source, />\s*不限标签\s*</)
+  assert.match(source, /if \(!selectedResourceType\.value\) return \[\]/)
+  assert.match(source, /normalizeSearchTagOptions\(selectedResourceType\.value\.fieldSchema\?\.tagOptions \|\| \[\]\)/)
+  assert.doesNotMatch(source, /sourceItems\.flatMap/)
   assert.match(source, /filters\.tags = normalizeSearchTags\(filters\.tags, searchTagOptions\.value\)/)
   assert.match(source, /uni\.showToast\(\{ title: `最多选择\$\{MAX_SEARCH_TAGS\}个标签`, icon: 'none' \}\)/)
   assert.match(cssBlock('.tag-filter-row'), /overflow-x:\s*auto;/)
@@ -155,12 +162,14 @@ test('search page uses the custom title bar as the primary category channel swit
 })
 
 test('search page keeps search and category controls sticky', () => {
-  assert.match(source, /<view class="search-toolbar" :style="searchToolbarStyle">[\s\S]*<view class="search-bar">[\s\S]*<view class="filter-shell">/)
+  assert.match(source, /<view class="search-toolbar" :style="searchToolbarStyle">[\s\S]*<view class="search-bar">[\s\S]*<view :class="\['filter-shell', showAllTypeButton \? 'has-all-type-button' : ''\]">/)
   assert.match(source, /const searchToolbarStyle = computed\(\(\) => `top: \$\{headerMetrics\.value\.headerHeight\}px;`\)/)
   assert.match(cssBlock('.search-toolbar'), /position:\s*sticky;/)
   assert.match(cssBlock('.search-toolbar'), /position:\s*-webkit-sticky;/)
   assert.match(cssBlock('.search-toolbar'), /z-index:\s*20;/)
   assert.match(cssBlock('.filter-shell'), /margin-bottom:\s*0;/)
+  assert.match(cssBlock('.filter-shell'), /grid-template-columns:\s*minmax\(0,\s*1fr\);/)
+  assert.match(cssBlock('.filter-shell.has-all-type-button'), /grid-template-columns:\s*minmax\(0,\s*1fr\) 156rpx;/)
 })
 
 test('search hot keywords come from server config', () => {

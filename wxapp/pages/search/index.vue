@@ -18,7 +18,7 @@
         <button class="search-button" @click="search">搜索</button>
       </view>
 
-      <view class="filter-shell">
+      <view :class="['filter-shell', showAllTypeButton ? 'has-all-type-button' : '']">
         <scroll-view
           class="filter-row"
           scroll-x
@@ -38,7 +38,7 @@
           </button>
         </scroll-view>
         <button
-          v-if="resourceTypes.length > 1"
+          v-if="showAllTypeButton"
           class="all-type-button"
           @click="openTypeDrawer"
         >
@@ -52,12 +52,6 @@
         enhanced
         :show-scrollbar="false"
       >
-        <button
-          :class="['tag-filter-button', !filters.tags.length ? 'active' : '']"
-          @click="clearSearchTags"
-        >
-          不限标签
-        </button>
         <button
           v-for="tag in searchTagOptions"
           :key="tag"
@@ -203,8 +197,9 @@ const currentGroupResourceTypeItems = computed(() => {
 })
 const selectedResourceType = computed(() => currentGroupResourceTypeItems.value.find((item) => item.typeCode === filters.typeCode))
 const searchTagOptions = computed(() => {
-  const sourceItems = selectedResourceType.value ? [selectedResourceType.value] : currentGroupResourceTypeItems.value
-  return normalizeSearchTagOptions(sourceItems.flatMap((item) => item.fieldSchema?.tagOptions || []))
+  // 标签筛选只跟具体二级分类绑定；停留在“全部分类”时隐藏，避免用户被跨分类标签误导。
+  if (!selectedResourceType.value) return []
+  return normalizeSearchTagOptions(selectedResourceType.value.fieldSchema?.tagOptions || [])
 })
 const selectedGroupName = computed(() => {
   const selectedGroup = groupFilterOptions.value.find((item) => item.code === filters.groupCode)
@@ -212,6 +207,7 @@ const selectedGroupName = computed(() => {
 })
 const channelTitle = computed(() => filters.groupCode ? selectedGroupName.value : '供需搜索')
 const visibleResourceTypes = computed(() => resourceTypes.value)
+const showAllTypeButton = computed(() => resourceTypes.value.length - 1 > 3)
 const trimmedKeyword = computed(() => keyword.value.trim())
 const searchNavStyle = computed(() => `padding-top: ${headerMetrics.value.statusBarHeight}px;`)
 const searchTitleBarStyle = computed(() => `height: ${headerMetrics.value.navBarHeight}px;`)
@@ -721,10 +717,14 @@ function openResource(item) {
 
 .filter-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 156rpx;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 12rpx;
   margin-bottom: 0;
+}
+
+.filter-shell.has-all-type-button {
+  grid-template-columns: minmax(0, 1fr) 156rpx;
 }
 
 .filter-row {
