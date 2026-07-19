@@ -1021,6 +1021,7 @@ type HomeResourceItem struct {
 	TypeName     string                    `json:"typeName,optional"`
 	Title        string                    `json:"title"`
 	Category     string                    `json:"category"`
+	CoverUrl     string                    `json:"coverUrl,optional"`
 	District     string                    `json:"district,optional"`
 	PriceText    string                    `json:"priceText,optional"`
 	QuantityText string                    `json:"quantityText,optional"`
@@ -1609,6 +1610,7 @@ type ResourceListItem struct {
 	TypeName     string                `json:"typeName,optional"`
 	Title        string                `json:"title"`
 	Category     string                `json:"category"`
+	CoverUrl     string                `json:"coverUrl,optional"`
 	District     string                `json:"district,optional"`
 	PriceText    string                `json:"priceText,optional"`
 	QuantityText string                `json:"quantityText,optional"`
@@ -1805,6 +1807,7 @@ type TopicResourceItem struct {
 	TypeCode     string `json:"typeCode"`
 	Title        string `json:"title"`
 	Category     string `json:"category"`
+	CoverUrl     string `json:"coverUrl,optional"`
 	District     string `json:"district,optional"`
 	PriceText    string `json:"priceText,optional"`
 	QuantityText string `json:"quantityText,optional"`

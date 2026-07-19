@@ -18,6 +18,17 @@
         <button class="search-button" @click="search">搜索</button>
       </view>
 
+      <view class="direction-filter-row">
+        <button
+          v-for="item in directionFilterOptions"
+          :key="item.value || 'all'"
+          :class="['direction-filter-button', item.value === filters.direction ? 'active' : '']"
+          @click="chooseResourceDirection(item.value)"
+        >
+          {{ item.label }}
+        </button>
+      </view>
+
       <view :class="['filter-shell', showAllTypeButton ? 'has-all-type-button' : '']">
         <scroll-view
           class="filter-row"
@@ -161,6 +172,7 @@ const resourceTypes = ref([{ label: '全部', value: '' }])
 const categoryGroups = ref([])
 const hotKeywords = ref([])
 const SEARCH_KEY = 'wplink_pending_search_keyword'
+const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
 const NAV_BOTTOM_RPX = 12
 const MAX_SEARCH_TAGS = 8
@@ -182,6 +194,7 @@ const filters = reactive({
   cityCode: DEFAULT_CITY_CODE,
   groupCode: '',
   typeCode: '',
+  direction: '',
   tags: [],
 })
 const showGroupDrawer = ref(false)
@@ -216,6 +229,11 @@ const searchToolbarStyle = computed(() => `top: ${headerMetrics.value.headerHeig
 const searchPlaceholder = computed(() => filters.groupCode
   ? `在${selectedGroupName.value}中搜索`
   : '搜供应、需求、场地或服务')
+const directionFilterOptions = [
+  { label: '全部', value: '' },
+  { label: '供应', value: RESOURCE_DIRECTION_SUPPLY },
+  { label: '需求', value: RESOURCE_DIRECTION_DEMAND },
+]
 const emptyTitle = '暂无匹配内容'
 const emptyDesc = computed(() => {
   if (trimmedKeyword.value) return '当前关键词暂无匹配。'
@@ -302,12 +320,14 @@ async function applyRouteSearch(options = {}) {
   const routeKeyword = decodeSearchValue(options.keyword || options.q || '')
   const routeGroupCode = decodeSearchValue(options.groupCode || '')
   const routeTypeCode = decodeSearchValue(options.typeCode || '')
+  const routeDirection = normalizeResourceDirection(options.direction || '')
   const routeTags = parseSearchTags(options.tags || '')
   const routeCityCode = decodeSearchValue(options.cityCode || '') || DEFAULT_CITY_CODE
-  if (!routeKeyword && !routeGroupCode && !routeTypeCode && !routeTags.length && routeCityCode === DEFAULT_CITY_CODE) return false
+  if (!routeKeyword && !routeGroupCode && !routeTypeCode && !routeDirection && !routeTags.length && routeCityCode === DEFAULT_CITY_CODE) return false
   keyword.value = routeKeyword
   filters.groupCode = routeGroupCode
   filters.typeCode = routeTypeCode
+  filters.direction = routeDirection
   filters.tags = routeTags
   filters.cityCode = routeCityCode
   await loadResourceTypes()
@@ -326,6 +346,7 @@ async function applyPendingKeyword() {
     keyword.value = pendingSearch.keyword || ''
     filters.groupCode = pendingSearch.groupCode || ''
     filters.typeCode = pendingSearch.typeCode || ''
+    filters.direction = normalizeResourceDirection(pendingSearch.direction || '')
     filters.tags = parseSearchTags(pendingSearch.tags || [])
     filters.cityCode = pendingSearch.cityCode || DEFAULT_CITY_CODE
   }
@@ -375,6 +396,7 @@ function searchHotKeyword(value) {
 async function resetSearchConditions() {
   keyword.value = ''
   filters.typeCode = ''
+  filters.direction = ''
   filters.tags = []
   showGroupDrawer.value = false
   showTypeDrawer.value = false
@@ -422,13 +444,27 @@ async function selectType(typeCode) {
   await search()
 }
 
+async function chooseResourceDirection(direction) {
+  direction = normalizeResourceDirection(direction)
+  if (filters.direction === direction) return
+  filters.direction = direction
+  filters.typeCode = ''
+  filters.tags = []
+  applyCurrentGroupTypes()
+  await scrollToSelectedType('')
+  await search()
+}
+
 function getTypeButtonId(typeCode) {
   const key = typeCode || 'all'
   return `search-type-${String(key).replace(/[^a-zA-Z0-9_-]/g, '-')}`
 }
 
 function applyCurrentGroupTypes() {
-  const items = currentGroupResourceTypeItems.value.map((item) => ({
+  const scopedItems = filters.direction
+    ? currentGroupResourceTypeItems.value.filter((item) => item.direction === filters.direction)
+    : currentGroupResourceTypeItems.value
+  const items = scopedItems.map((item) => ({
     label: item.typeName,
     value: item.typeCode,
   }))
@@ -478,6 +514,11 @@ function parseSearchTags(value) {
     .split(/[,，]/)
     .map(normalizeSearchTagText)
     .filter(Boolean)
+}
+
+function normalizeResourceDirection(value) {
+  const direction = String(value || '').trim()
+  return direction === RESOURCE_DIRECTION_SUPPLY || direction === RESOURCE_DIRECTION_DEMAND ? direction : ''
 }
 
 function syncSelectedTagsWithOptions() {
@@ -713,6 +754,29 @@ function openResource(item) {
   font-size: 26rpx;
   font-weight: 700;
   line-height: 1;
+}
+
+.direction-filter-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-bottom: 16rpx;
+}
+
+.direction-filter-button {
+  height: 64rpx;
+  border: 1rpx solid $wplink-line;
+  border-radius: 10rpx;
+  background: $wplink-card;
+  color: #475569;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+
+.direction-filter-button.active {
+  border-color: rgba($wplink-primary, 0.24);
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
 }
 
 .filter-shell {

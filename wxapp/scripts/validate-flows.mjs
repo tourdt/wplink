@@ -50,12 +50,12 @@ export const defaultFlowChecks = [
   {
     file: 'pages/market/index.vue',
     description: '供需 tab 推荐和类型筛选',
-    checks: ['供需市场', 'listCityResourceTypes', 'groupResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'DemandCard', 'selectGroup', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
+    checks: ['供需市场', 'listCityResourceTypes', 'groupResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'DemandCard', 'directionFilterOptions', 'chooseResourceDirection', 'selectGroup', 'selectType', 'visibleResourceTypes', 'showTypeDrawer', 'onPullDownRefresh', 'onReachBottom'],
   },
   {
     file: 'pages/search/index.vue',
     description: '独立搜索和频道化无结果动作',
-    checks: ['listCityResourceTypes', 'groupResourceTypes', 'searchResources', 'ResourceCard', 'DemandCard', 'selectGroup', '暂无匹配内容', 'hotKeywords', 'emptyPrimaryActionLabel'],
+    checks: ['listCityResourceTypes', 'groupResourceTypes', 'searchResources', 'ResourceCard', 'DemandCard', 'directionFilterOptions', 'chooseResourceDirection', 'selectGroup', '暂无匹配内容', 'hotKeywords', 'emptyPrimaryActionLabel'],
   },
   {
     file: 'pages/resource/detail.vue',
@@ -225,8 +225,8 @@ export const defaultFlowChecks = [
   },
   {
     file: 'components/ResourceCard.vue',
-    description: '供应卡四行信息和供应类型角标',
-    checks: ['isVIPMerchant', 'vip-badge', 'merchant-line', 'resource-title', 'resource-meta', 'resource-price', 'type-corner', 'formatRefreshedAt'],
+    description: '供应卡公开展示信息和类型标签',
+    checks: ['direction-badge', 'type-badge', 'merchant-line', 'resource-title', 'resource-meta', 'resource-price', 'locationText', 'freshnessText', 'formatRefreshedAt'],
   },
   {
     file: 'components/ResourceList.vue',

@@ -2,19 +2,26 @@
   <view :class="['resource-card', variantClass]" @click="$emit('open', resource)">
     <view class="thumb-wrap">
       <image class="resource-thumb" :src="coverUrl || DEFAULT_RESOURCE_COVER" mode="aspectFill" />
-      <text v-if="resourceTypeLabel" class="type-corner">{{ resourceTypeLabel }}</text>
     </view>
     <view class="card-main">
+      <view class="card-head">
+        <view class="badge-row">
+          <text class="direction-badge supply">供应</text>
+          <text v-if="resourceTypeLabel" class="type-badge">{{ resourceTypeLabel }}</text>
+        </view>
+        <text v-if="freshnessText" class="refresh-time">{{ freshnessText }}</text>
+      </view>
       <text class="resource-title">{{ resource.title || '供应标题待完善' }}</text>
       <text class="resource-meta">{{ resourceSummaryText }}</text>
-      <text v-if="resource.priceText" class="resource-price">{{ resource.priceText }}</text>
+      <view v-if="resource.priceText || locationText" class="value-line">
+        <text v-if="resource.priceText" class="resource-price">{{ resource.priceText }}</text>
+        <text v-if="locationText" class="location-text">{{ locationText }}</text>
+      </view>
       <view v-if="resourceLabels.length" class="resource-labels">
         <text v-for="label in resourceLabels" :key="label" class="resource-label">{{ label }}</text>
       </view>
       <view class="merchant-line">
-        <text v-if="isVIPMerchant" class="vip-badge">VIP</text>
         <text class="merchant-name">{{ merchantName }}</text>
-        <text class="refresh-time">{{ formatRefreshedAt(resource.refreshedAt) }}</text>
       </view>
     </view>
   </view>
@@ -50,11 +57,12 @@ const coverUrl = computed(() => {
   const images = props.resource.images || []
   return props.resource.coverUrl || images[0] || ''
 })
-const isVIPMerchant = computed(() => (props.resource.merchant || {}).vipStatus === 'active')
 const merchantName = computed(() => (props.resource.merchant || {}).name || '商家待确认')
 const resourceTypeLabel = computed(() => resolveResourceTypeLabel(props.resource))
 const resourceSummaryText = computed(() => buildResourceSummaryText(props.resource, resourceTypeLabel.value || '供应信息待完善'))
 const resourceLabels = computed(() => normalizeResourceLabels(props.resource.tags).slice(0, 3))
+const locationText = computed(() => String(props.resource.district || '').trim())
+const freshnessText = computed(() => formatRefreshedAt(props.resource.refreshedAt))
 
 function buildResourceSummaryText(resource, fallbackText) {
   const parts = [resource.category, resource.quantityText]
@@ -106,29 +114,16 @@ function normalizeResourceLabels(tags = []) {
   height: 100%;
 }
 
-.type-corner {
-  position: absolute;
-  top: 10rpx;
-  left: 10rpx;
-  max-width: calc(100% - 20rpx);
-  box-sizing: border-box;
-  padding: 3rpx 8rpx;
-  border-radius: 7rpx;
-  background: rgba(15, 23, 42, 0.76);
-  color: #fff;
-  font-size: 20rpx;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
 .card-main {
   display: grid;
   flex: 1;
   align-content: start;
-  gap: 14rpx;
+  gap: 12rpx;
   min-width: 0;
 }
 
+.card-head,
+.value-line,
 .merchant-line {
   display: flex;
   align-items: center;
@@ -136,15 +131,38 @@ function normalizeResourceLabels(tags = []) {
   justify-content: space-between;
 }
 
-.vip-badge {
+.badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  min-width: 0;
+}
+
+.direction-badge,
+.type-badge {
+  display: inline-flex;
+  align-items: center;
   flex: 0 0 auto;
-  padding: 4rpx 10rpx;
+  height: 36rpx;
+  padding: 0 10rpx;
   border-radius: 8rpx;
-  background: rgba(194, 58, 0, 0.1);
-  color: $wplink-warning;
   font-size: 22rpx;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1;
+}
+
+.direction-badge.supply {
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
+}
+
+.type-badge {
+  max-width: 168rpx;
+  overflow: hidden;
+  background: #f8fafc;
+  color: #475569;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .merchant-name {
@@ -163,6 +181,10 @@ function normalizeResourceLabels(tags = []) {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.35;
+}
+
+.value-line {
+  min-width: 0;
 }
 
 .resource-title {
@@ -187,9 +209,22 @@ function normalizeResourceLabels(tags = []) {
 }
 
 .resource-price {
+  flex: 1;
+  min-width: 0;
   color: $wplink-warning;
   font-size: 30rpx;
   font-weight: 700;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: $wplink-muted;
+  font-size: 24rpx;
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -237,10 +272,9 @@ function normalizeResourceLabels(tags = []) {
   gap: 10rpx;
 }
 
-.resource-card-home .type-corner {
-  top: 8rpx;
-  left: 8rpx;
-  max-width: calc(100% - 16rpx);
+.resource-card-home .direction-badge,
+.resource-card-home .type-badge {
+  height: 34rpx;
   font-size: 20rpx;
 }
 
@@ -259,9 +293,9 @@ function normalizeResourceLabels(tags = []) {
   line-height: 1.3;
 }
 
-.resource-card-home .vip-badge,
 .resource-card-home .merchant-name,
-.resource-card-home .refresh-time {
+.resource-card-home .refresh-time,
+.resource-card-home .location-text {
   font-size: 24rpx;
   line-height: 1.35;
 }
@@ -282,10 +316,9 @@ function normalizeResourceLabels(tags = []) {
   gap: 8rpx;
 }
 
-.resource-card-compact .type-corner {
-  top: 8rpx;
-  left: 8rpx;
-  max-width: calc(100% - 16rpx);
+.resource-card-compact .direction-badge,
+.resource-card-compact .type-badge {
+  height: 32rpx;
   font-size: 18rpx;
 }
 
@@ -301,9 +334,9 @@ function normalizeResourceLabels(tags = []) {
   font-size: 28rpx;
 }
 
-.resource-card-compact .vip-badge,
 .resource-card-compact .merchant-name,
-.resource-card-compact .refresh-time {
+.resource-card-compact .refresh-time,
+.resource-card-compact .location-text {
   font-size: 22rpx;
 }
 </style>

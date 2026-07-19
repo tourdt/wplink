@@ -12,8 +12,9 @@ func TestListResourcesRequestsPublishedOnly(t *testing.T) {
 		result: model.ListResourcesResult{
 			Items: []model.ResourceListItem{{
 				ID: "resource-1", TypeCode: "stock_clearance", TypeName: "尾货/库存出售", Title: "库存资源",
+				CoverURL: "https://img.example.com/resource-cover.jpg",
 				Tags:     []string{"急清", "支持看货"},
-				Merchant: model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓", VIPStatus: model.VIPStatusActive},
+				Merchant: model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓"},
 			}},
 			Page: 1, PageSize: 20, Total: 1,
 		},
@@ -37,8 +38,8 @@ func TestListResourcesRequestsPublishedOnly(t *testing.T) {
 	if resp.Items[0].TypeName != "尾货/库存出售" {
 		t.Fatalf("typeName = %q, want dynamic category item name", resp.Items[0].TypeName)
 	}
-	if resp.Items[0].Merchant.VIPStatus != model.VIPStatusActive {
-		t.Fatalf("merchant vipStatus = %q, want active", resp.Items[0].Merchant.VIPStatus)
+	if resp.Items[0].CoverURL != "https://img.example.com/resource-cover.jpg" {
+		t.Fatalf("coverUrl = %q, want resource cover", resp.Items[0].CoverURL)
 	}
 	if len(resp.Items[0].Tags) != 2 || resp.Items[0].Tags[0] != "急清" || resp.Items[0].Tags[1] != "支持看货" {
 		t.Fatalf("tags = %#v, want resource tags copied to response", resp.Items[0].Tags)

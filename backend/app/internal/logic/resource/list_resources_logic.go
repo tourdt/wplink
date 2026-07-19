@@ -40,6 +40,7 @@ type ResourceListItem struct {
 	TypeName     string                `json:"typeName,omitempty"`
 	Title        string                `json:"title"`
 	Category     string                `json:"category"`
+	CoverURL     string                `json:"coverUrl,omitempty"`
 	District     string                `json:"district,omitempty"`
 	PriceText    string                `json:"priceText,omitempty"`
 	QuantityText string                `json:"quantityText,omitempty"`
@@ -100,6 +101,7 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 			TypeName:     item.TypeName,
 			Title:        item.Title,
 			Category:     item.Category,
+			CoverURL:     item.CoverURL,
 			District:     item.District,
 			PriceText:    item.PriceText,
 			QuantityText: item.QuantityText,

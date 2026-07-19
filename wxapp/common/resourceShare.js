@@ -40,7 +40,6 @@ export function buildResourceSharePosterModel(resource = {}, merchant = {}) {
   const cityName = normalizeText(resource.cityName || resource.city || resource.cityCode)
   const category = normalizeText(resource.category)
   const badges = [
-    isVIPResource(resource, merchant) ? 'VIP' : '',
     cityName,
     category,
   ].filter(Boolean)
@@ -71,10 +70,6 @@ function buildSummaryLines(resource = {}) {
     normalizeText(resource.quantityText),
     normalizeText(resource.priceText),
   ].filter(Boolean)
-}
-
-function isVIPResource(resource = {}, merchant = {}) {
-  return resource.merchant?.vipStatus === 'active' || merchant.vipStatus === 'active'
 }
 
 function normalizeText(value) {

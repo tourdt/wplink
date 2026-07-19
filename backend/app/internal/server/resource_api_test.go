@@ -149,6 +149,9 @@ func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
 	if tags := searchItem["tags"].([]interface{}); len(tags) != 2 || tags[0] != "急清" || tags[1] != "支持看货" {
 		t.Fatalf("search item tags = %#v, want resource tags in list response", searchItem["tags"])
 	}
+	if searchItem["coverUrl"] != "https://img.example.com/list-cover.jpg" {
+		t.Fatalf("search item coverUrl = %#v, want list cover", searchItem["coverUrl"])
+	}
 
 	detailRec := httptest.NewRecorder()
 	detailReq := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1", nil)
@@ -802,6 +805,7 @@ func (s *fakeResourceAPIStore) ListResources(ctx context.Context, filter model.L
 	return model.ListResourcesResult{
 		Items: []model.ResourceListItem{{
 			ID: "resource-1", TypeCode: "inventory", Title: "女童春款卫衣库存", Category: "童装卫衣",
+			CoverURL:  "https://img.example.com/list-cover.jpg",
 			PriceText: "18元/件", QuantityText: "3800件", Merchant: model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓", VerificationStatus: "verified"},
 			Tags: []string{"急清", "支持看货"}, RefreshedAt: "2026-06-27T10:00:00Z",
 		}},

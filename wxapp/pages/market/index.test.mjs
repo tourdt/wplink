@@ -77,6 +77,20 @@ test('market page uses category groups instead of direction tabs', () => {
   }
 })
 
+test('market page supports lightweight supply and demand filtering', () => {
+  assert.match(source, /const RESOURCE_DIRECTION_SUPPLY = 'supply'/)
+  assert.match(source, /const RESOURCE_DIRECTION_DEMAND = 'demand'/)
+  assert.match(source, /const filters = reactive\(\{[\s\S]*direction: '',[\s\S]*\}\)/)
+  assert.match(source, /const directionFilterOptions = \[[\s\S]*label: '全部'[\s\S]*label: '供应'[\s\S]*label: '需求'[\s\S]*\]/)
+  assert.match(source, /<view class="direction-filter-row">[\s\S]*v-for="item in directionFilterOptions"[\s\S]*\['direction-filter-button', item\.value === filters\.direction \? 'active' : ''\][\s\S]*@click="chooseResourceDirection\(item\.value\)"/)
+  assert.match(source, /direction: filters\.direction/)
+  assert.match(source, /async function chooseResourceDirection\(direction\) \{[\s\S]*if \(filters\.direction === direction\) return[\s\S]*filters\.direction = direction[\s\S]*filters\.typeCode = ''[\s\S]*applyCurrentGroupTypes\(\)[\s\S]*await scrollToSelectedType\(''\)[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*await restorePageScroll\(0\)[\s\S]*\}/)
+  assert.match(source, /const scopedItems = filters\.direction[\s\S]*groupedItems\.filter\(\(item\) => item\.direction === filters\.direction\)[\s\S]*: groupedItems/)
+  assert.match(cssBlock('.direction-filter-row'), /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/)
+  assert.match(cssBlock('.direction-filter-button'), /height:\s*64rpx;/)
+  assert.match(cssBlock('.direction-filter-button.active'), /background:\s*\$wplink-primary-soft;/)
+})
+
 test('market page renders mixed supply and demand result cards from item direction', () => {
   for (const token of [
     'DemandCard',
@@ -152,7 +166,8 @@ test('market page shows all secondary categories and scrolls selected category i
 
 test('market page opens search with category filters and concise placeholder copy', () => {
   assert.match(source, /const searchPlaceholder = computed\(\(\) => filters\.groupCode[\s\S]*`在\$\{selectedGroupName\.value\}中搜索`[\s\S]*'搜供应、需求、场地或服务'[\s\S]*\)/)
-  assert.match(source, /const searchOptions = \{[\s\S]*keyword,[\s\S]*groupCode: filters\.groupCode,[\s\S]*typeCode: filters\.typeCode,[\s\S]*cityCode: filters\.cityCode,[\s\S]*\}/)
+  assert.match(source, /const searchOptions = \{[\s\S]*keyword,[\s\S]*groupCode: filters\.groupCode,[\s\S]*typeCode: filters\.typeCode,[\s\S]*direction: filters\.direction,[\s\S]*cityCode: filters\.cityCode,[\s\S]*\}/)
+  assert.match(source, /if \(keyword \|\| filters\.groupCode \|\| filters\.typeCode \|\| filters\.direction \|\| filters\.cityCode !== DEFAULT_CITY_CODE\)/)
   assert.match(source, /uni\.setStorageSync\(SEARCH_KEY, searchOptions\)/)
   assert.doesNotMatch(source, /搜索找现货、找库存、找工厂、找服务/)
   assert.doesNotMatch(source, /搜索库存清仓、现货货源、工厂接单、配套服务/)

@@ -179,6 +179,7 @@ type ResourceListItem struct {
 	TypeName     string
 	Title        string
 	Category     string
+	CoverURL     string
 	District     string
 	PriceText    string
 	QuantityText string
@@ -257,6 +258,7 @@ SELECT
   rtc.type_name,
   r.title,
   r.category,
+  COALESCE(NULLIF(r.cover_url, ''), r.images ->> 0, ''),
   COALESCE(r.district, ''),
   COALESCE(r.price_text, ''),
   COALESCE(r.quantity_text, ''),
@@ -1173,6 +1175,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 			&item.TypeName,
 			&item.Title,
 			&item.Category,
+			&item.CoverURL,
 			&item.District,
 			&item.PriceText,
 			&item.QuantityText,

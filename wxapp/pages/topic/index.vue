@@ -21,7 +21,6 @@
       <button class="filter-button">整包清</button>
       <button class="filter-button">可直播</button>
       <button class="filter-button">90-140</button>
-      <button class="filter-button">平台核实</button>
     </scroll-view>
 
     <view v-if="rows.length" class="result-list">

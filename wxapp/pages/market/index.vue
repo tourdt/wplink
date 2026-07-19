@@ -15,6 +15,17 @@
         <text class="search-action">搜索</text>
       </view>
 
+      <view class="direction-filter-row">
+        <button
+          v-for="item in directionFilterOptions"
+          :key="item.value || 'all'"
+          :class="['direction-filter-button', item.value === filters.direction ? 'active' : '']"
+          @click="chooseResourceDirection(item.value)"
+        >
+          {{ item.label }}
+        </button>
+      </view>
+
       <view :class="['filter-shell', showAllTypeButton ? 'has-all-type-button' : '']">
         <scroll-view
           class="filter-row"
@@ -113,6 +124,7 @@ const resourceTypes = ref([{ label: '全部', value: '' }])
 const categoryGroups = ref([])
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const PAGE_TITLE = '供需市场'
+const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
 const NAV_BOTTOM_RPX = 12
 const headerMetrics = ref({
@@ -130,6 +142,7 @@ const filters = reactive({
   cityCode: DEFAULT_CITY_CODE,
   groupCode: '',
   typeCode: '',
+  direction: '',
 })
 const showGroupDrawer = ref(false)
 const showTypeDrawer = ref(false)
@@ -148,6 +161,11 @@ const resourceTitleBarStyle = computed(() => `height: ${headerMetrics.value.navB
 const resourcePageStyle = computed(() => `padding-top: calc(${headerMetrics.value.headerHeight}px + 24rpx);`)
 const resourceToolbarStyle = computed(() => `top: ${headerMetrics.value.headerHeight}px;`)
 const recommendationEmptyTitle = '暂无推荐内容'
+const directionFilterOptions = [
+  { label: '全部', value: '' },
+  { label: '供应', value: RESOURCE_DIRECTION_SUPPLY },
+  { label: '需求', value: RESOURCE_DIRECTION_DEMAND },
+]
 const searchPlaceholder = computed(() => filters.groupCode
   ? `在${selectedGroupName.value}中搜索`
   : '搜供应、需求、场地或服务')
@@ -220,6 +238,7 @@ async function loadRecommendedResources({ reset = true } = {}) {
       cityCode: filters.cityCode,
       groupCode: filters.groupCode,
       typeCode: filters.typeCode,
+      direction: filters.direction,
       page: nextPage,
       pageSize,
     })
@@ -253,6 +272,16 @@ async function selectType(typeCode) {
   await loadRecommendedResources({ reset: true })
 }
 
+async function chooseResourceDirection(direction) {
+  if (filters.direction === direction) return
+  filters.direction = direction
+  filters.typeCode = ''
+  applyCurrentGroupTypes()
+  await scrollToSelectedType('')
+  await loadRecommendedResources({ reset: true })
+  await restorePageScroll(0)
+}
+
 function getTypeButtonId(typeCode) {
   const key = typeCode || 'all'
   return `resource-type-${String(key).replace(/[^a-zA-Z0-9_-]/g, '-')}`
@@ -263,7 +292,10 @@ function applyCurrentGroupTypes() {
   const groupedItems = selectedGroup
     ? selectedGroup.items
     : categoryGroups.value.flatMap((item) => item.items || [])
-  const items = groupedItems.map((item) => ({
+  const scopedItems = filters.direction
+    ? groupedItems.filter((item) => item.direction === filters.direction)
+    : groupedItems
+  const items = scopedItems.map((item) => ({
     label: item.typeName,
     value: item.typeCode,
   }))
@@ -319,9 +351,10 @@ function openSearchPage(keyword = '') {
     keyword,
     groupCode: filters.groupCode,
     typeCode: filters.typeCode,
+    direction: filters.direction,
     cityCode: filters.cityCode,
   }
-  if (keyword || filters.groupCode || filters.typeCode || filters.cityCode !== DEFAULT_CITY_CODE) {
+  if (keyword || filters.groupCode || filters.typeCode || filters.direction || filters.cityCode !== DEFAULT_CITY_CODE) {
     uni.setStorageSync(SEARCH_KEY, searchOptions)
   } else {
     uni.removeStorageSync(SEARCH_KEY)
@@ -444,6 +477,29 @@ function openResource(item) {
   color: $wplink-card;
   font-size: 26rpx;
   font-weight: 700;
+}
+
+.direction-filter-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-bottom: 16rpx;
+}
+
+.direction-filter-button {
+  height: 64rpx;
+  border: 1rpx solid $wplink-line;
+  border-radius: 10rpx;
+  background: $wplink-card;
+  color: #475569;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+
+.direction-filter-button.active {
+  border-color: rgba($wplink-primary, 0.24);
+  background: $wplink-primary-soft;
+  color: $wplink-primary;
 }
 
 .filter-shell {

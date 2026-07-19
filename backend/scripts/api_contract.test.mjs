@@ -124,6 +124,20 @@ test('api contract exposes demand direction through unified resource APIs', () =
   assert(cityApiSource.includes('ListResourceTypesReq'), 'resource type lookup accepts direction')
 })
 
+test('api contract exposes list cover image through public resource APIs', () => {
+  const resourceApiSource = fs.readFileSync(path.join(apiDir, 'resource.api'), 'utf8')
+  const discoveryApiSource = fs.readFileSync(path.join(apiDir, 'discovery.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
+
+  for (const source of [resourceApiSource, discoveryApiSource, typesSource]) {
+    assert(source.includes('CoverUrl'), 'public resource APIs should expose CoverUrl')
+    assert(source.includes('coverUrl'), 'public resource APIs should expose coverUrl json tag')
+  }
+  assert(resourceApiSource.includes('type ResourceListItem'), 'resource list item keeps a cover image')
+  assert(discoveryApiSource.includes('type HomeResourceItem'), 'home resource item keeps a cover image')
+  assert(discoveryApiSource.includes('type TopicResourceItem'), 'topic resource item keeps a cover image')
+})
+
 test('api contract exposes vip membership endpoints', () => {
   const appApiSource = fs.readFileSync(path.join(apiDir, 'app.api'), 'utf8')
   const vipApiSource = fs.readFileSync(path.join(apiDir, 'vip.api'), 'utf8')

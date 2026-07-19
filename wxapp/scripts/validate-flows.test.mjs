@@ -208,19 +208,21 @@ test('resource tab separates recommendation discovery from keyword search page',
   assert.ok(pagesConfig.pages.some((item) => item.path === 'pages/search/index'))
   assert.equal(resourceTab?.text, '供需')
 
-  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectGroup', 'selectType', 'groupResourceTypes', 'DemandCard']) {
+  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectGroup', 'selectType', 'groupResourceTypes', 'DemandCard', 'directionFilterOptions', 'chooseResourceDirection']) {
     assert.match(resourceSource, new RegExp(token))
   }
-  assert.equal(resourceSource.includes("label: '供应'"), false)
-  assert.equal(resourceSource.includes("label: '需求'"), false)
+  assert.match(resourceSource, /directionFilterOptions = \[[\s\S]*label: '全部'[\s\S]*label: '供应'[\s\S]*label: '需求'/)
+  assert.match(resourceSource, /direction: filters\.direction/)
   assert.equal(resourceSource.includes('activeDirection'), false)
   for (const removedToken of ['createSavedSearch', 'applySavedSearch', 'saveCurrentSearch']) {
     assert.equal(resourceSource.includes(removedToken), false)
   }
 
-  for (const token of ['searchResources', '暂无匹配内容', 'emptyPrimaryActionLabel', 'selectGroup', 'groupResourceTypes', 'DemandCard']) {
+  for (const token of ['searchResources', '暂无匹配内容', 'emptyPrimaryActionLabel', 'selectGroup', 'groupResourceTypes', 'DemandCard', 'directionFilterOptions', 'chooseResourceDirection']) {
     assert.match(searchSource, new RegExp(token))
   }
+  assert.match(searchSource, /directionFilterOptions = \[[\s\S]*label: '全部'[\s\S]*label: '供应'[\s\S]*label: '需求'/)
+  assert.match(searchSource, /direction:\s*'',/)
   assert.equal(searchSource.includes('activeDirection'), false)
   for (const removedToken of ['提交采购需求', 'openDemand', '/pages/demand/index']) {
     assert.equal(searchSource.includes(removedToken), false)
@@ -329,6 +331,9 @@ test('resource cards and detail display configured summaries without fixed categ
     assert.match(source, /resourceSummaryText/)
     assert.equal(source.includes('品类待沟通'), false)
     assert.equal(source.includes('数量待沟通'), false)
+    assert.equal(source.includes('VIP'), false)
+    assert.equal(source.includes('平台核实'), false)
+    assert.equal(source.includes('已认证'), false)
   }
   assert.equal(demandCardSource.includes('预算面议'), false)
   assert.match(resourceCardSource, /v-if="resource\.priceText"/)

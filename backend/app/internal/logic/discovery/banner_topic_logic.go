@@ -78,6 +78,7 @@ type HomeResourceItem struct {
 	TypeName     string                    `json:"typeName,omitempty"`
 	Title        string                    `json:"title"`
 	Category     string                    `json:"category"`
+	CoverURL     string                    `json:"coverUrl,omitempty"`
 	District     string                    `json:"district,omitempty"`
 	PriceText    string                    `json:"priceText,omitempty"`
 	QuantityText string                    `json:"quantityText,omitempty"`
@@ -106,6 +107,7 @@ type DiscoveryResourceItem struct {
 	TypeCode     string `json:"typeCode"`
 	Title        string `json:"title"`
 	Category     string `json:"category"`
+	CoverURL     string `json:"coverUrl,omitempty"`
 	District     string `json:"district,omitempty"`
 	PriceText    string `json:"priceText,omitempty"`
 	QuantityText string `json:"quantityText,omitempty"`
@@ -211,6 +213,7 @@ func (l *BannerTopicDiscoveryLogic) ListHomeResources(ctx context.Context, req L
 			TypeName:     item.TypeName,
 			Title:        item.Title,
 			Category:     item.Category,
+			CoverURL:     item.CoverURL,
 			District:     item.District,
 			PriceText:    item.PriceText,
 			QuantityText: item.QuantityText,
@@ -262,6 +265,7 @@ func (l *BannerTopicDiscoveryLogic) GetTopicResources(ctx context.Context, req T
 			TypeCode:     item.TypeCode,
 			Title:        item.Title,
 			Category:     item.Category,
+			CoverURL:     item.CoverURL,
 			District:     item.District,
 			PriceText:    item.PriceText,
 			QuantityText: item.QuantityText,

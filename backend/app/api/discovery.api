@@ -46,6 +46,7 @@ type HomeResourceItem {
 	TypeName     string                    `json:"typeName,optional"`
 	Title        string                    `json:"title"`
 	Category     string                    `json:"category"`
+	CoverUrl     string                    `json:"coverUrl,optional"`
 	District     string                    `json:"district,optional"`
 	PriceText    string                    `json:"priceText,optional"`
 	QuantityText string                    `json:"quantityText,optional"`
@@ -92,6 +93,7 @@ type TopicResourceItem {
 	TypeCode     string `json:"typeCode"`
 	Title        string `json:"title"`
 	Category     string `json:"category"`
+	CoverUrl     string `json:"coverUrl,optional"`
 	District     string `json:"district,optional"`
 	PriceText    string `json:"priceText,optional"`
 	QuantityText string `json:"quantityText,optional"`

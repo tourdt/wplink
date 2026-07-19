@@ -26,6 +26,8 @@ test('search page keeps the main tools and removes explanatory copy', () => {
     'class="hot-row"',
     'ResourceCard',
     'DemandCard',
+    'directionFilterOptions',
+    'chooseResourceDirection',
     'groupResourceTypes',
     'groupFilterOptions',
     'channelTitle',
@@ -99,6 +101,21 @@ test('search page matches market category browsing controls', () => {
   assert.doesNotMatch(source, /class="filter-row group-row"/)
   assert.doesNotMatch(source, /class="group-select-button"/)
   assert.doesNotMatch(source, />常用分类<\/text>/)
+})
+
+test('search page supports lightweight supply and demand filtering', () => {
+  assert.match(source, /const RESOURCE_DIRECTION_SUPPLY = 'supply'/)
+  assert.match(source, /const RESOURCE_DIRECTION_DEMAND = 'demand'/)
+  assert.match(source, /const filters = reactive\(\{[\s\S]*direction: '',[\s\S]*tags: \[\],[\s\S]*\}\)/)
+  assert.match(source, /const directionFilterOptions = \[[\s\S]*label: '全部'[\s\S]*label: '供应'[\s\S]*label: '需求'[\s\S]*\]/)
+  assert.match(source, /<view class="direction-filter-row">[\s\S]*v-for="item in directionFilterOptions"[\s\S]*\['direction-filter-button', item\.value === filters\.direction \? 'active' : ''\][\s\S]*@click="chooseResourceDirection\(item\.value\)"/)
+  assert.match(source, /async function chooseResourceDirection\(direction\) \{[\s\S]*direction = normalizeResourceDirection\(direction\)[\s\S]*filters\.direction = direction[\s\S]*filters\.typeCode = ''[\s\S]*filters\.tags = \[\][\s\S]*applyCurrentGroupTypes\(\)[\s\S]*await scrollToSelectedType\(''\)[\s\S]*await search\(\)[\s\S]*\}/)
+  assert.match(source, /const scopedItems = filters\.direction[\s\S]*currentGroupResourceTypeItems\.value\.filter\(\(item\) => item\.direction === filters\.direction\)[\s\S]*: currentGroupResourceTypeItems\.value/)
+  assert.match(source, /function resetSearchConditions\(\)|async function resetSearchConditions\(\)/)
+  assert.match(source, /filters\.direction = ''/)
+  assert.match(cssBlock('.direction-filter-row'), /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/)
+  assert.match(cssBlock('.direction-filter-button'), /height:\s*64rpx;/)
+  assert.match(cssBlock('.direction-filter-button.active'), /background:\s*\$wplink-primary-soft;/)
 })
 
 test('search page supports configured resource tag filters', () => {
@@ -180,19 +197,22 @@ test('search hot keywords come from server config', () => {
   assert.doesNotMatch(source, /const hotKeywords = \[[\s\S]*夏款现货[\s\S]*\]/)
 })
 
-test('search page applies route and pending category filters without direction state', () => {
+test('search page applies route and pending category filters with lightweight direction filtering', () => {
   assert.match(source, /const routeGroupCode = decodeSearchValue\(options\.groupCode \|\| ''\)/)
   assert.match(source, /const routeTypeCode = decodeSearchValue\(options\.typeCode \|\| ''\)/)
+  assert.match(source, /const routeDirection = normalizeResourceDirection\(options\.direction \|\| ''\)/)
   assert.match(source, /const routeTags = parseSearchTags\(options\.tags \|\| ''\)/)
-  assert.match(source, /if \(!routeKeyword && !routeGroupCode && !routeTypeCode && !routeTags\.length && routeCityCode === DEFAULT_CITY_CODE\) return false/)
+  assert.match(source, /if \(!routeKeyword && !routeGroupCode && !routeTypeCode && !routeDirection && !routeTags\.length && routeCityCode === DEFAULT_CITY_CODE\) return false/)
   assert.match(source, /filters\.groupCode = routeGroupCode/)
   assert.match(source, /filters\.typeCode = routeTypeCode/)
+  assert.match(source, /filters\.direction = routeDirection/)
   assert.match(source, /filters\.tags = routeTags/)
   assert.match(source, /filters\.groupCode = pendingSearch\.groupCode \|\| ''/)
   assert.match(source, /filters\.typeCode = pendingSearch\.typeCode \|\| ''/)
+  assert.match(source, /filters\.direction = normalizeResourceDirection\(pendingSearch\.direction \|\| ''\)/)
   assert.match(source, /filters\.tags = parseSearchTags\(pendingSearch\.tags \|\| \[\]\)/)
+  assert.match(source, /function normalizeResourceDirection\(value\) \{[\s\S]*return direction === RESOURCE_DIRECTION_SUPPLY \|\| direction === RESOURCE_DIRECTION_DEMAND \? direction : ''[\s\S]*\}/)
   assert.match(source, /function hasPendingSearch\(\) \{[\s\S]*return Boolean\(uni\.getStorageSync\(SEARCH_KEY\)\)[\s\S]*\}/)
-  assert.doesNotMatch(source, /routeDirection/)
   assert.doesNotMatch(source, /directionStateCache/)
 })
 
@@ -203,6 +223,7 @@ test('search placeholder follows the active primary channel', () => {
 
 test('search page submits group and type filters to search API', () => {
   assert.match(source, /searchResources\(\{[\s\S]*\.\.\.filters,[\s\S]*tags: filters\.tags\.join\(','\),[\s\S]*keyword: keyword\.value\.trim\(\),[\s\S]*page: nextPage,[\s\S]*pageSize,[\s\S]*\}\)/)
+  assert.match(source, /async function chooseResourceDirection\(direction\) \{[\s\S]*direction = normalizeResourceDirection\(direction\)[\s\S]*filters\.direction = direction[\s\S]*filters\.typeCode = ''[\s\S]*filters\.tags = \[\][\s\S]*await search\(\)[\s\S]*\}/)
   assert.match(source, /rows\.value = reset \? items : \[\.\.\.rows\.value, \.\.\.items\]/)
   assert.match(source, /searched\.value = true/)
   assert.doesNotMatch(source, /direction: activeDirection\.value/)

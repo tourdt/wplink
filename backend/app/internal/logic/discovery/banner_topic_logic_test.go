@@ -75,9 +75,8 @@ func TestListHomeResourcesUsesHomepageRule(t *testing.T) {
 		resources: model.ListResourcesResult{
 			Items: []model.ResourceListItem{{
 				ID: "resource-1", Direction: model.ResourceDirectionSupply, TypeCode: "stock_clearance", TypeName: "库存清仓", Title: "女童卫衣库存",
-				Category: "童装卫衣", PriceText: "18元/件", QuantityText: "3000件",
-				Merchant:    model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓", VerificationStatus: "verified", VIPStatus: model.VIPStatusActive},
-				CreditTags:  []string{"认证商家"},
+				Category: "童装卫衣", CoverURL: "https://img.example.com/home-cover.jpg", PriceText: "18元/件", QuantityText: "3000件",
+				Merchant:    model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓", VerificationStatus: "verified"},
 				RefreshedAt: "2026-07-14T10:00:00Z",
 			}},
 			Page: 1, PageSize: homeResourcesLimit, Total: 1,
@@ -96,8 +95,8 @@ func TestListHomeResourcesUsesHomepageRule(t *testing.T) {
 	if store.resourceFilter.Page != 1 || store.resourceFilter.PageSize != homeResourcesLimit {
 		t.Fatalf("page filter = page %d pageSize %d, want 1/%d", store.resourceFilter.Page, store.resourceFilter.PageSize, homeResourcesLimit)
 	}
-	if len(resp.Items) != 1 || resp.Items[0].ID != "resource-1" || resp.Items[0].Merchant.VIPStatus != model.VIPStatusActive {
-		t.Fatalf("items = %#v, want home resource item with merchant state", resp.Items)
+	if len(resp.Items) != 1 || resp.Items[0].ID != "resource-1" || resp.Items[0].CoverURL != "https://img.example.com/home-cover.jpg" {
+		t.Fatalf("items = %#v, want home resource item with cover", resp.Items)
 	}
 	if resp.PageSize != homeResourcesLimit || resp.Total != 1 {
 		t.Fatalf("pagination = %#v, want homepage limit and total", resp)
