@@ -36,7 +36,7 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 		return ResourceLifecycleResult{}, err
 	}
 	for _, item := range expired {
-		if _, err := t.store.CreateMessage(ctx, model.CreateMessageInput{
+		message, err := t.store.CreateMessage(ctx, model.CreateMessageInput{
 			RecipientRoleCode: "merchant:" + item.MerchantID,
 			MessageType:       "resource_expired",
 			TriggerType:       "resource_expired",
@@ -44,10 +44,13 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 			Title:             "资源已过期",
 			Content:           item.Title + " 已过期，可再发类似资源继续获得曝光",
 			TargetURL:         model.MerchantMyResourcesTargetURL(item.MerchantID),
-		}); err != nil {
+		})
+		if err != nil {
 			return ResourceLifecycleResult{}, err
 		}
-		result.ExpiredCount++
+		if message.Created {
+			result.ExpiredCount++
+		}
 	}
 
 	expiring, err := t.store.ListResourcesExpiringSoon(ctx)
@@ -55,7 +58,7 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 		return ResourceLifecycleResult{}, err
 	}
 	for _, item := range expiring {
-		if _, err := t.store.CreateMessage(ctx, model.CreateMessageInput{
+		message, err := t.store.CreateMessage(ctx, model.CreateMessageInput{
 			RecipientRoleCode: "merchant:" + item.MerchantID,
 			MessageType:       "resource_expiring",
 			TriggerType:       "resource_expiring",
@@ -63,17 +66,20 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 			Title:             "资源即将过期",
 			Content:           item.Title + " 即将过期，请及时刷新或再发类似",
 			TargetURL:         model.MerchantMyResourcesTargetURL(item.MerchantID),
-		}); err != nil {
+		})
+		if err != nil {
 			return ResourceLifecycleResult{}, err
 		}
-		result.ExpiringReminderCount++
+		if message.Created {
+			result.ExpiringReminderCount++
+		}
 	}
 	expiredVerifications, err := t.store.MarkExpiredVerifications(ctx)
 	if err != nil {
 		return ResourceLifecycleResult{}, err
 	}
 	for _, item := range expiredVerifications {
-		if _, err := t.store.CreateMessage(ctx, model.CreateMessageInput{
+		message, err := t.store.CreateMessage(ctx, model.CreateMessageInput{
 			RecipientRoleCode: "merchant:" + item.MerchantID,
 			MessageType:       "verification_expired",
 			TriggerType:       "verification_expired",
@@ -81,10 +87,13 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 			Title:             "认证已到期",
 			Content:           item.Title + " 已到期，请重新提交认证以恢复认证标识",
 			TargetURL:         model.MerchantVerificationTargetURL(item.MerchantID),
-		}); err != nil {
+		})
+		if err != nil {
 			return ResourceLifecycleResult{}, err
 		}
-		result.VerificationExpiredCount++
+		if message.Created {
+			result.VerificationExpiredCount++
+		}
 	}
 
 	expiringVerifications, err := t.store.ListVerificationsExpiringSoon(ctx)
@@ -92,7 +101,7 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 		return ResourceLifecycleResult{}, err
 	}
 	for _, item := range expiringVerifications {
-		if _, err := t.store.CreateMessage(ctx, model.CreateMessageInput{
+		message, err := t.store.CreateMessage(ctx, model.CreateMessageInput{
 			RecipientRoleCode: "merchant:" + item.MerchantID,
 			MessageType:       "verification_expiring",
 			TriggerType:       "verification_expiring",
@@ -100,10 +109,13 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 			Title:             "认证即将到期",
 			Content:           item.Title + " 即将到期，请提前重新提交认证",
 			TargetURL:         model.MerchantVerificationTargetURL(item.MerchantID),
-		}); err != nil {
+		})
+		if err != nil {
 			return ResourceLifecycleResult{}, err
 		}
-		result.VerificationExpiringReminderCount++
+		if message.Created {
+			result.VerificationExpiringReminderCount++
+		}
 	}
 	return result, nil
 }

@@ -1,16 +1,16 @@
 syntax = "v1"
 
 type MerchantEntitlementInfo {
-	Id              string `json:"id"`
-	Type            string `json:"type"`
-	SourceType      string `json:"sourceType"`
-	Status          string `json:"status"`
-	TotalAmount     int64  `json:"totalAmount"`
-	UsedAmount      int64  `json:"usedAmount"`
-	RemainingAmount int64  `json:"remainingAmount"`
-	TopDurationHours int64  `json:"topDurationHours,optional"`
+	Id               string   `json:"id"`
+	Type             string   `json:"type"`
+	SourceType       string   `json:"sourceType"`
+	Status           string   `json:"status"`
+	TotalAmount      int64    `json:"totalAmount"`
+	UsedAmount       int64    `json:"usedAmount"`
+	RemainingAmount  int64    `json:"remainingAmount"`
+	TopDurationHours int64    `json:"topDurationHours,optional"`
 	AllowedTypeCodes []string `json:"allowedTypeCodes,optional"`
-	ExpiresAt        string `json:"expiresAt,optional"`
+	ExpiresAt        string   `json:"expiresAt,optional"`
 }
 
 type ListMerchantEntitlementsResp {
@@ -31,7 +31,7 @@ type ListTopVouchersResp {
 }
 
 type RedeemTopVoucherReq {
-	MerchantId  string `json:"merchantId,optional"`
+	MerchantId string `json:"merchantId,optional"`
 	ResourceId string `json:"resourceId"`
 }
 
@@ -59,9 +59,9 @@ type ListEntitlementUsageRecordsResp {
 	Items []EntitlementUsageRecordInfo `json:"items"`
 }
 
-@server(
+@server (
 	prefix: /api/v1
-	group: entitlement
+	group:  entitlement
 )
 service wplink-api {
 	@handler ListMerchantEntitlements

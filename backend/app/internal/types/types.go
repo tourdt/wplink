@@ -62,6 +62,7 @@ type AdminCreateResourceTypeConfigReq struct {
 
 type AdminCreateResourceTypeConfigResp struct {
 	Id        string `json:"id"`
+	Version   int64  `json:"version"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
@@ -381,6 +382,7 @@ type AdminResourceReportsResp struct {
 
 type AdminResourceTypeConfigItem struct {
 	Id               string                 `json:"id"`
+	Version          int64                  `json:"version"`
 	CityCode         string                 `json:"cityCode,optional"`
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
@@ -646,6 +648,7 @@ type AdminUpdateOperatorStatusReq struct {
 }
 
 type AdminUpdateResourceTypeConfigReq struct {
+	Version          int64                  `json:"version"`
 	FieldSchema      map[string]interface{} `json:"fieldSchema,optional"`
 	RequiredFields   []string               `json:"requiredFields,optional"`
 	FilterFields     []string               `json:"filterFields,optional"`
@@ -660,6 +663,7 @@ type AdminUpdateResourceTypeConfigReq struct {
 
 type AdminUpdateResourceTypeConfigResp struct {
 	Id        string `json:"id"`
+	Version   int64  `json:"version"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
@@ -793,26 +797,6 @@ type CreateContactUnlockPaymentResp struct {
 	OrderId string          `json:"orderId"`
 	Status  string          `json:"status"`
 	Payment WechatPayParams `json:"payment"`
-}
-
-type CreateMerchantReq struct {
-	CityCode       string   `json:"cityCode"`
-	Name           string   `json:"name"`
-	MerchantType   string   `json:"merchantType"`
-	MainCategories []string `json:"mainCategories"`
-	ContactName    string   `json:"contactName,optional"`
-	ContactPhone   string   `json:"contactPhone,optional"`
-	ContactWechat  string   `json:"contactWechat,optional"`
-	AddressText    string   `json:"addressText,optional"`
-	Description    string   `json:"description,optional"`
-}
-
-type CreateMerchantResp struct {
-	Id                 string `json:"id"`
-	MerchantNo         string `json:"merchantNo,optional"`
-	Name               string `json:"name"`
-	VerificationStatus string `json:"verificationStatus"`
-	Status             string `json:"status"`
 }
 
 type CreateResourceReq struct {
@@ -1656,6 +1640,7 @@ type ResourceMetricsSummary struct {
 
 type ResourceTypeConfigInfo struct {
 	Id               string                 `json:"id"`
+	Version          int64                  `json:"version"`
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
 	Direction        string                 `json:"direction"`

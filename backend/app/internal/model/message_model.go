@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"time"
 
@@ -21,7 +22,8 @@ type CreateMessageInput struct {
 }
 
 type CreateMessageResult struct {
-	ID string
+	ID      string
+	Created bool
 }
 
 type MessageItem struct {
@@ -96,8 +98,15 @@ VALUES (
   NULLIF($8, ''),
   'unread'
 )
+ON CONFLICT DO NOTHING
 RETURNING id::text
 `, input.RecipientUserID, input.RecipientRoleCode, input.MessageType, input.TriggerType, input.TriggerID, input.Title, input.Content, input.TargetURL).Scan(&result.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return CreateMessageResult{Created: false}, nil
+	}
+	if err == nil {
+		result.Created = true
+	}
 	return result, err
 }
 
@@ -172,13 +181,31 @@ func normalizeMessageRoleCodes(primary string, values []string) []string {
 
 func (m *MessageModel) MarkExpiredResources(ctx context.Context) ([]LifecycleResource, error) {
 	rows, err := m.db.QueryContext(ctx, `
-UPDATE resources
-SET status = 'expired', updated_at = now()
-WHERE status = 'published'
-  AND expires_at IS NOT NULL
-  AND expires_at <= now()
-  AND deleted_at IS NULL
-RETURNING id::text, merchant_id::text, title
+WITH newly_expired AS (
+  UPDATE resources
+  SET status = 'expired', updated_at = now()
+  WHERE status = 'published'
+    AND expires_at IS NOT NULL
+    AND expires_at <= now()
+    AND deleted_at IS NULL
+  RETURNING id, merchant_id, title
+)
+SELECT id::text, merchant_id::text, title
+FROM newly_expired
+UNION
+SELECT r.id::text, r.merchant_id::text, r.title
+FROM resources r
+WHERE r.status = 'expired'
+  AND r.expires_at IS NOT NULL
+  AND r.expires_at <= now()
+  AND r.deleted_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM messages msg
+    WHERE msg.recipient_role_code = 'merchant:' || r.merchant_id::text
+      AND msg.trigger_type = 'resource_expired'
+      AND msg.trigger_id = r.id
+  )
 `)
 	if err != nil {
 		return nil, err
@@ -189,13 +216,12 @@ RETURNING id::text, merchant_id::text, title
 const listResourcesExpiringSoonSQL = `
 SELECT r.id::text, r.merchant_id::text, r.title
 FROM resources r
-JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 WHERE r.status = 'published'
   AND r.expires_at IS NOT NULL
   AND r.expires_at > now()
   AND r.expires_at <= now() + make_interval(days => CASE
-    WHEN NULLIF(rtc.message_rules ->> 'expiringSoonDays', '') ~ '^[0-9]+$'
-      THEN GREATEST((rtc.message_rules ->> 'expiringSoonDays')::int, 1)
+    WHEN NULLIF(r.resource_type_snapshot #>> '{messageRules,expiringSoonDays}', '') ~ '^[0-9]+$'
+      THEN GREATEST((r.resource_type_snapshot #>> '{messageRules,expiringSoonDays}')::int, 1)
     ELSE 2
   END)
   AND r.deleted_at IS NULL
@@ -277,7 +303,27 @@ WHERE merchant_id = $1
 				return err
 			}
 		}
-		return nil
+		// 状态更新与消息发送不是同一事务；这里同时捞取历史上已过期但尚未生成消息的记录，
+		// 让上一次消息写入失败能够在下一轮自动补偿。
+		rows, err = tx.QueryContext(ctx, `
+SELECT v.id::text, v.merchant_id::text, v.verification_type
+FROM verifications v
+WHERE v.status = 'expired'
+  AND v.expires_at IS NOT NULL
+  AND v.expires_at <= now()
+  AND NOT EXISTS (
+    SELECT 1
+    FROM messages msg
+    WHERE msg.recipient_role_code = 'merchant:' || v.merchant_id::text
+      AND msg.trigger_type = 'verification_expired'
+      AND msg.trigger_id = v.id
+  )
+`)
+		if err != nil {
+			return err
+		}
+		items, err = scanLifecycleVerificationRows(rows)
+		return err
 	})
 	return items, err
 }

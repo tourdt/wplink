@@ -127,6 +127,9 @@ CREATE INDEX IF NOT EXISTS idx_vip_orders_out_trade_no
   ON vip_orders(out_trade_no);
 CREATE INDEX IF NOT EXISTS idx_vip_orders_product_type
   ON vip_orders(product_type, product_code, status);
+CREATE INDEX IF NOT EXISTS idx_vip_orders_pending_created
+  ON vip_orders(created_at)
+  WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_merchant_vip_subscriptions_merchant_status
   ON merchant_vip_subscriptions(merchant_id, status);
 CREATE INDEX IF NOT EXISTS idx_merchant_vip_subscriptions_expires_at

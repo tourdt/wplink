@@ -1,5 +1,1 @@
-DROP TABLE IF EXISTS resource_contact_unlocks;
-DROP TABLE IF EXISTS resource_contact_unlock_orders;
-
-ALTER TABLE resource_type_configs
-  DROP COLUMN IF EXISTS commercial_rules;
+-- 000023 未引入独立数据库对象，回滚时不得删除 000002 创建的商业规则与联系方式解锁表。

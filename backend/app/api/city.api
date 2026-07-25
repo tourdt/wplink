@@ -14,6 +14,7 @@ type ListCityStationsResp {
 
 type ResourceTypeConfigInfo {
 	Id               string                 `json:"id"`
+	Version          int64                  `json:"version"`
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
 	Direction        string                 `json:"direction"`
@@ -32,9 +33,9 @@ type ListResourceTypesReq {
 	Direction string `form:"direction,optional"`
 }
 
-@server(
+@server (
 	prefix: /api/v1
-	group: city
+	group:  city
 )
 service wplink-api {
 	@handler ListCityStations

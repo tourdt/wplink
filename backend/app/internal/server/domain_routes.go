@@ -32,7 +32,6 @@ import (
 )
 
 type MerchantAPIStore interface {
-	merchantlogic.CreateMerchantStore
 	merchantlogic.GetMerchantStore
 	merchantlogic.UpdateMerchantStore
 	adminlogic.MerchantAdminStore
@@ -134,9 +133,6 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 		paymentStore, _ := store.(VerificationPaymentAPIStore)
 		registerVerificationRoutes(mux, verificationStore, paymentStore, userTokenService, adminTokenService, permissionStore, wechatPayGateway, wechatPayDevMock)
 	}
-	if contactUnlockPaymentStore, ok := store.(ContactUnlockPaymentAPIStore); ok {
-		registerContactUnlockPaymentRoutes(mux, contactUnlockPaymentStore, wechatPayGateway)
-	}
 	if billingStore, ok := store.(VerificationBillingAPIStore); ok {
 		registerVerificationBillingRoutes(mux, billingStore)
 	}
@@ -145,6 +141,9 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	}
 	if vipStore, ok := store.(VIPAPIStore); ok {
 		registerVIPRoutes(mux, vipStore, userTokenService, adminTokenService, permissionStore, wechatPayGateway, wechatPayDevMock)
+	}
+	if paymentNotifyStore, ok := store.(paymentlogic.UnifiedWechatPayNotifyStore); ok {
+		registerUnifiedWechatPayNotifyRoute(mux, paymentNotifyStore, wechatPayGateway)
 	}
 	if growthPublicStore, ok := store.(GrowthCampaignPublicAPIStore); ok {
 		registerPublicGrowthCampaignRoutes(mux, growthPublicStore)
@@ -274,23 +273,6 @@ func adminPermissionActorFromRequest(r *http.Request, adminTokenService AdminTok
 }
 
 func registerMerchantRoutes(mux *http.ServeMux, store MerchantAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, smsVerifier authlogic.SMSVerifier) {
-	mux.HandleFunc("POST /api/v1/merchants", func(w http.ResponseWriter, r *http.Request) {
-		var body merchantlogic.CreateMerchantReq
-		if err := decodeJSONBody(r, &body); err != nil {
-			response.JSON(w, nil, err)
-			return
-		}
-		if tokenService != nil {
-			var err error
-			body.CreatorUserID, err = userIDFromBearerToken(r, tokenService)
-			if err != nil {
-				response.JSON(w, nil, err)
-				return
-			}
-		}
-		resp, err := merchantlogic.NewCreateMerchantLogic(store).CreateMerchant(r.Context(), body)
-		response.JSON(w, resp, err)
-	})
 	mux.HandleFunc("GET /api/v1/merchants/{merchantId}", func(w http.ResponseWriter, r *http.Request) {
 		userID, err := optionalUserIDFromBearerToken(r, tokenService)
 		if err != nil {
@@ -469,25 +451,6 @@ func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, 
 		logx.Infof("用户侧商家认证支付已下线: merchantId=%s verificationId=%s", merchantID, r.PathValue("verificationId"))
 		response.JSON(w, nil, errx.New(errx.CodeForbidden, publicMerchantVerificationDisabledMessage))
 	})
-	mux.HandleFunc("POST /api/v1/wechat-pay/verification/notify", func(w http.ResponseWriter, r *http.Request) {
-		body, err := readLimitedBody(r, 1<<20)
-		if err != nil {
-			writeWechatPayNotifyError(w)
-			return
-		}
-		headers := map[string]string{}
-		for key, values := range r.Header {
-			if len(values) > 0 {
-				headers[key] = values[0]
-			}
-		}
-		resp, err := paymentlogic.NewWechatPayNotifyLogic(paymentStore, wechatPayGateway).HandleNotify(r.Context(), paymentlogic.WechatPayNotifyReq{Headers: headers, Body: body})
-		if err != nil {
-			writeWechatPayNotifyError(w)
-			return
-		}
-		writeRawJSON(w, http.StatusOK, resp)
-	})
 }
 
 func registerVerificationBillingRoutes(mux *http.ServeMux, store VerificationBillingAPIStore) {
@@ -512,8 +475,8 @@ func registerVerificationBillingRoutes(mux *http.ServeMux, store VerificationBil
 	})
 }
 
-func registerContactUnlockPaymentRoutes(mux *http.ServeMux, store ContactUnlockPaymentAPIStore, wechatPayGateway paymentlogic.WechatPayGateway) {
-	mux.HandleFunc("POST /api/v1/wechat-pay/contact-unlock/notify", func(w http.ResponseWriter, r *http.Request) {
+func registerUnifiedWechatPayNotifyRoute(mux *http.ServeMux, store paymentlogic.UnifiedWechatPayNotifyStore, wechatPayGateway paymentlogic.WechatPayGateway) {
+	mux.HandleFunc("POST /api/v1/wechat-pay/notify", func(w http.ResponseWriter, r *http.Request) {
 		body, err := readLimitedBody(r, 1<<20)
 		if err != nil {
 			writeWechatPayNotifyError(w)
@@ -525,7 +488,7 @@ func registerContactUnlockPaymentRoutes(mux *http.ServeMux, store ContactUnlockP
 				headers[key] = values[0]
 			}
 		}
-		resp, err := paymentlogic.NewContactUnlockWechatPayNotifyLogic(store, wechatPayGateway).HandleNotify(r.Context(), paymentlogic.WechatPayNotifyReq{Headers: headers, Body: body})
+		resp, err := paymentlogic.NewUnifiedWechatPayNotifyLogic(store, wechatPayGateway).HandleNotify(r.Context(), paymentlogic.WechatPayNotifyReq{Headers: headers, Body: body})
 		if err != nil {
 			writeWechatPayNotifyError(w)
 			return
@@ -692,25 +655,6 @@ func registerVIPRoutes(mux *http.ServeMux, store VIPAPIStore, tokenService authl
 		}
 		resp, err := paymentlogic.NewCreateVIPPaymentLogic(store, wechatPayGateway, wechatPayDevMock).CreateVIPPayment(r.Context(), body)
 		response.JSON(w, resp, err)
-	})
-	mux.HandleFunc("POST /api/v1/wechat-pay/vip/notify", func(w http.ResponseWriter, r *http.Request) {
-		body, err := readLimitedBody(r, 1<<20)
-		if err != nil {
-			writeWechatPayNotifyError(w)
-			return
-		}
-		headers := map[string]string{}
-		for key, values := range r.Header {
-			if len(values) > 0 {
-				headers[key] = values[0]
-			}
-		}
-		resp, err := paymentlogic.NewVIPWechatPayNotifyLogic(store, wechatPayGateway).HandleNotify(r.Context(), paymentlogic.WechatPayNotifyReq{Headers: headers, Body: body})
-		if err != nil {
-			writeWechatPayNotifyError(w)
-			return
-		}
-		writeRawJSON(w, http.StatusOK, resp)
 	})
 }
 
@@ -883,7 +827,14 @@ func registerGrowthCampaignRoutes(mux *http.ServeMux, store GrowthCampaignAPISto
 
 func readLimitedBody(r *http.Request, limit int64) ([]byte, error) {
 	defer r.Body.Close()
-	return io.ReadAll(io.LimitReader(r.Body, limit))
+	body, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > limit {
+		return nil, errors.New("request body exceeds limit")
+	}
+	return body, nil
 }
 
 func writeRawJSON(w http.ResponseWriter, status int, data interface{}) {

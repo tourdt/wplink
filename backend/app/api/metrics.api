@@ -41,9 +41,9 @@ type MerchantMetricsSummaryResp {
 	Last7Days              MerchantLast7DaysMetrics `json:"last7Days"`
 }
 
-@server(
+@server (
 	prefix: /api/v1
-	group: metrics
+	group:  metrics
 )
 service wplink-api {
 	@handler GetResourceMetrics

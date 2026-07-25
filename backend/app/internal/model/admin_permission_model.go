@@ -118,6 +118,18 @@ WHERE code = $1
 `, strings.TrimSpace(input.RoleCode), JSONStringSlice(input.Modules)); err != nil {
 			return err
 		}
+		// 角色模块权限发生变化时递增所有关联管理员的权限版本，使已签发 token 立即失效。
+		if _, err := tx.ExecContext(ctx, `
+UPDATE admin_operators ao
+SET auth_version = auth_version + 1, updated_at = now()
+WHERE EXISTS (
+  SELECT 1
+  FROM admin_operator_role_assignments aora
+  WHERE aora.operator_id = ao.id AND aora.role_id = $1
+)
+`, roleID); err != nil {
+			return err
+		}
 		if err := recordOperationLogTx(ctx, tx, OperationLogInput{
 			OperatorID:   strings.TrimSpace(input.OperatorID),
 			OperatorRole: "super_admin",
@@ -310,6 +322,7 @@ func (m *AdminPermissionModel) UpdateAdminOperator(ctx context.Context, input Ad
 	  login_name = $2,
 	  real_name = $3,
 	  status = $4,
+	  auth_version = auth_version + 1,
 	  updated_at = now()
 	WHERE id = $1
 	`, operatorID, loginName, strings.TrimSpace(input.RealName), input.Status); err != nil {
@@ -368,7 +381,7 @@ func (m *AdminPermissionModel) UpdateAdminOperatorStatus(ctx context.Context, in
 		}
 		if _, err := tx.ExecContext(ctx, `
 	UPDATE admin_operators
-	SET status = $2, updated_at = now()
+	SET status = $2, auth_version = auth_version + 1, updated_at = now()
 	WHERE id = $1
 	`, operatorID, input.Status); err != nil {
 			return err

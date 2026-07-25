@@ -12,13 +12,15 @@ import (
 )
 
 type AdminTokenSubject struct {
-	OperatorID string
-	Roles      []string
-	Modules    []string
+	OperatorID  string
+	AuthVersion int64
+	Roles       []string
+	Modules     []string
 }
 
 type adminTokenPayload struct {
 	Subject string   `json:"sub"`
+	Version int64    `json:"ver"`
 	Roles   []string `json:"roles"`
 	Modules []string `json:"modules,omitempty"`
 	Type    string   `json:"typ"`
@@ -42,13 +44,20 @@ func (i *HMACAdminTokenIssuer) IssueAdminToken(_ context.Context, subject AdminT
 	if len(i.secret) == 0 {
 		return "", errors.New("后台 token 密钥未配置")
 	}
+	if i.ttl <= 0 {
+		return "", errors.New("后台 token 有效期未配置")
+	}
 	if strings.TrimSpace(subject.OperatorID) == "" {
 		return "", errors.New("后台 token 操作人不能为空")
+	}
+	if subject.AuthVersion <= 0 {
+		return "", errors.New("后台 token 权限版本不正确")
 	}
 
 	now := time.Now()
 	payload := map[string]interface{}{
 		"sub":     subject.OperatorID,
+		"ver":     subject.AuthVersion,
 		"roles":   subject.Roles,
 		"modules": subject.Modules,
 		"typ":     "admin",
@@ -102,16 +111,17 @@ func (i *HMACAdminTokenIssuer) ParseAdminToken(_ context.Context, token string) 
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return AdminTokenSubject{}, errors.New("登录状态无效，请重新登录")
 	}
-	if payload.Type != "admin" || strings.TrimSpace(payload.Subject) == "" {
+	if payload.Type != "admin" || strings.TrimSpace(payload.Subject) == "" || payload.Version <= 0 {
 		return AdminTokenSubject{}, errors.New("登录状态无效，请重新登录")
 	}
-	if payload.Expires > 0 && time.Now().Unix() > payload.Expires {
+	if payload.Expires > 0 && time.Now().Unix() >= payload.Expires {
 		return AdminTokenSubject{}, errors.New("登录已过期，请重新登录")
 	}
 	return AdminTokenSubject{
-		OperatorID: payload.Subject,
-		Roles:      append([]string(nil), payload.Roles...),
-		Modules:    append([]string(nil), payload.Modules...),
+		OperatorID:  payload.Subject,
+		AuthVersion: payload.Version,
+		Roles:       append([]string(nil), payload.Roles...),
+		Modules:     append([]string(nil), payload.Modules...),
 	}, nil
 }
 

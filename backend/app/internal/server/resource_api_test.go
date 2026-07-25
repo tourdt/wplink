@@ -231,23 +231,72 @@ func TestResourceAPIRouterHandlesWechatContentAuditMediaCallback(t *testing.T) {
 	store := &fakeResourceAPIStore{
 		auditCompletion: model.ResourceContentAuditTaskCompletion{ResourceID: "resource-1"},
 	}
-	router := NewAPIRouter(store)
+	verifier := &fakeWechatCallbackVerifier{}
+	router := NewAPIRouter(store, WithContentAuditCallbackVerifier(verifier, "wx-app"))
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat/content-audit/media-callback", strings.NewReader(`{
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat/content-audit/media-callback?signature=sig&timestamp=1784971200&nonce=nonce", strings.NewReader(`{
+		"appid":"wx-app",
 		"trace_id":"trace-media",
 		"errcode":0,
 		"result":{"suggest":"pass","label":100}
 	}`))
 	router.ServeHTTP(rec, req)
 
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	if data["status"] != model.ResourceStatusPublished {
-		t.Fatalf("callback data = %#v, want published", data)
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != "success" {
+		t.Fatalf("status=%d body=%q, want wechat success acknowledgement", rec.Code, rec.Body.String())
 	}
 	if store.completedAuditInput.TraceID != "trace-media" || store.publishedAuditResourceID != "resource-1" {
 		t.Fatalf("completedAuditInput = %#v publishedAuditResourceID = %q, want completed and published", store.completedAuditInput, store.publishedAuditResourceID)
 	}
+	if verifier.remember != true {
+		t.Fatal("callback verifier remember = false, want replay protection enabled")
+	}
+}
+
+func TestResourceAPIRouterRejectsUnauthenticatedWechatContentAuditCallback(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store, WithContentAuditCallbackVerifier(
+		&fakeWechatCallbackVerifier{err: errors.New("invalid signature")},
+		"wx-app",
+	))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat/content-audit/media-callback", strings.NewReader(`{"appid":"wx-app","trace_id":"trace-media"}`))
+	router.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusOK {
+		t.Fatalf("status=%d body=%s, want rejected callback", rec.Code, rec.Body.String())
+	}
+	if store.completedAuditInput.TraceID != "" {
+		t.Fatalf("completedAuditInput = %#v, callback must not reach store", store.completedAuditInput)
+	}
+}
+
+func TestResourceAPIRouterHandlesWechatCallbackURLVerification(t *testing.T) {
+	verifier := &fakeWechatCallbackVerifier{}
+	router := NewAPIRouter(&fakeResourceAPIStore{}, WithContentAuditCallbackVerifier(verifier, "wx-app"))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/wechat/content-audit/media-callback?signature=sig&timestamp=1784971200&nonce=nonce&echostr=challenge", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK || rec.Body.String() != "challenge" {
+		t.Fatalf("status=%d body=%q, want callback challenge", rec.Code, rec.Body.String())
+	}
+	if verifier.remember {
+		t.Fatal("URL verification must not consume replay key")
+	}
+}
+
+type fakeWechatCallbackVerifier struct {
+	err      error
+	remember bool
+}
+
+func (v *fakeWechatCallbackVerifier) Verify(signature string, timestamp string, nonce string, remember bool) error {
+	v.remember = remember
+	return v.err
 }
 
 func TestResourceAPIRouterRequiresManagedMerchantWhenTokenConfigured(t *testing.T) {

@@ -124,6 +124,18 @@ test('api contract exposes demand direction through unified resource APIs', () =
   assert(cityApiSource.includes('ListResourceTypesReq'), 'resource type lookup accepts direction')
 })
 
+test('resource type api exposes optimistic versions', () => {
+  const adminApiSource = fs.readFileSync(path.join(apiDir, 'admin.api'), 'utf8')
+  const cityApiSource = fs.readFileSync(path.join(apiDir, 'city.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
+
+  for (const source of [adminApiSource, cityApiSource, typesSource]) {
+    assert(source.includes('Version'), 'resource type contracts should expose a config version')
+    assert(source.includes('json:"version"'), 'resource type contracts should serialize the config version')
+  }
+  assert.match(adminApiSource, /type AdminUpdateResourceTypeConfigReq \{[\s\S]*Version\s+int64/)
+})
+
 test('api contract exposes list cover image through public resource APIs', () => {
   const resourceApiSource = fs.readFileSync(path.join(apiDir, 'resource.api'), 'utf8')
   const discoveryApiSource = fs.readFileSync(path.join(apiDir, 'discovery.api'), 'utf8')

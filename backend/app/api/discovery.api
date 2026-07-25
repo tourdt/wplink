@@ -24,8 +24,8 @@ type HomeRecommendCardItem {
 }
 
 type HomeOperationConfigResp {
-	Banners        []HomeBannerItem         `json:"banners"`
-	RecommendCards []HomeRecommendCardItem  `json:"recommendCards"`
+	Banners        []HomeBannerItem        `json:"banners"`
+	RecommendCards []HomeRecommendCardItem `json:"recommendCards"`
 }
 
 type HomeResourcesReq {
@@ -101,7 +101,7 @@ type TopicResourceItem {
 }
 
 type TopicResourcesResp {
-	Topic    TopicInfoResp      `json:"topic"`
+	Topic    TopicInfoResp       `json:"topic"`
 	Items    []TopicResourceItem `json:"items"`
 	Page     int64               `json:"page"`
 	PageSize int64               `json:"pageSize"`
@@ -117,9 +117,9 @@ type ValidateWebviewResp {
 	Url     string `json:"url"`
 }
 
-@server(
+@server (
 	prefix: /api/v1
-	group: discovery
+	group:  discovery
 )
 service wplink-api {
 	@handler GetHomeOperationConfig

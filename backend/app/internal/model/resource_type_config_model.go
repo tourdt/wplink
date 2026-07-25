@@ -10,6 +10,7 @@ import (
 
 type ResourceTypeConfig struct {
 	ID               string
+	Version          int64
 	TypeCode         string
 	TypeName         string
 	Direction        string
@@ -23,6 +24,7 @@ type ResourceTypeConfig struct {
 
 type AdminResourceTypeConfig struct {
 	ID               string
+	Version          int64
 	CityCode         string
 	TypeCode         string
 	TypeName         string
@@ -40,6 +42,7 @@ type AdminResourceTypeConfig struct {
 }
 
 type ResourceTypeConfigPatch struct {
+	ExpectedVersion  int64
 	FieldSchema      JSONMap
 	RequiredFields   []string
 	FilterFields     []string
@@ -71,11 +74,18 @@ type CreateResourceTypeConfigInput struct {
 
 type CreateResourceTypeConfigResult struct {
 	ID        string
+	Version   int64
+	UpdatedAt string
+}
+
+type UpdateResourceTypeConfigResult struct {
+	Version   int64
 	UpdatedAt string
 }
 
 type resourceTypeConfigRow struct {
 	ID               string          `db:"id"`
+	Version          int64           `db:"version"`
 	TypeCode         string          `db:"type_code"`
 	TypeName         string          `db:"type_name"`
 	Direction        string          `db:"direction"`
@@ -88,6 +98,7 @@ type resourceTypeConfigRow struct {
 
 type adminResourceTypeConfigRow struct {
 	ID               string          `db:"id"`
+	Version          int64           `db:"version"`
 	CityCode         string          `db:"city_code"`
 	TypeCode         string          `db:"type_code"`
 	TypeName         string          `db:"type_name"`
@@ -122,6 +133,7 @@ func (m *ResourceTypeConfigModel) ListActiveResourceTypesByCityCode(ctx context.
 	err := m.conn.QueryRowsCtx(ctx, &rows, `
 SELECT
   rtc.id::text,
+  rtc.version,
   rtc.type_code,
   rtc.type_name,
   rtc.direction,
@@ -145,6 +157,7 @@ ORDER BY rtc.created_at ASC
 	for _, row := range rows {
 		configs = append(configs, ResourceTypeConfig{
 			ID:               row.ID,
+			Version:          row.Version,
 			TypeCode:         row.TypeCode,
 			TypeName:         row.TypeName,
 			Direction:        row.Direction,
@@ -163,6 +176,7 @@ func (m *ResourceTypeConfigModel) ListResourceTypeConfigs(ctx context.Context, c
 	err := m.conn.QueryRowsCtx(ctx, &rows, `
 SELECT
   rtc.id::text,
+  rtc.version,
   COALESCE(cs.code, '') AS city_code,
   rtc.type_code,
   rtc.type_name,
@@ -190,6 +204,7 @@ ORDER BY rtc.created_at ASC
 	for _, row := range rows {
 		configs = append(configs, AdminResourceTypeConfig{
 			ID:               row.ID,
+			Version:          row.Version,
 			CityCode:         row.CityCode,
 			TypeCode:         row.TypeCode,
 			TypeName:         row.TypeName,
@@ -209,11 +224,16 @@ ORDER BY rtc.created_at ASC
 	return configs, nil
 }
 
-func (m *ResourceTypeConfigModel) UpdateResourceTypeConfig(ctx context.Context, configID string, patch ResourceTypeConfigPatch) (string, error) {
+func (m *ResourceTypeConfigModel) UpdateResourceTypeConfig(ctx context.Context, configID string, patch ResourceTypeConfigPatch) (UpdateResourceTypeConfigResult, error) {
 	updatedAt := time.Now().UTC()
-	_, err := m.conn.ExecCtx(ctx, `
+	var row struct {
+		Version   int64     `db:"version"`
+		UpdatedAt time.Time `db:"updated_at"`
+	}
+	err := m.conn.QueryRowCtx(ctx, &row, `
 UPDATE resource_type_configs
 SET
+  version = version + 1,
   field_schema = $2,
   required_fields = $3,
   filter_fields = $4,
@@ -225,7 +245,8 @@ SET
   default_valid_days = $10,
   status = $11,
   updated_at = $12
-WHERE id = $1
+WHERE id = $1 AND version = $13
+RETURNING version, updated_at
 `, configID,
 		patch.FieldSchema,
 		JSONStringSlice(patch.RequiredFields),
@@ -238,17 +259,19 @@ WHERE id = $1
 		patch.DefaultValidDays,
 		patch.Status,
 		updatedAt,
+		patch.ExpectedVersion,
 	)
 	if err != nil {
-		return "", err
+		return UpdateResourceTypeConfigResult{}, err
 	}
-	return updatedAt.Format(time.RFC3339), nil
+	return UpdateResourceTypeConfigResult{Version: row.Version, UpdatedAt: row.UpdatedAt.Format(time.RFC3339)}, nil
 }
 
 func (m *ResourceTypeConfigModel) CreateResourceTypeConfig(ctx context.Context, input CreateResourceTypeConfigInput) (CreateResourceTypeConfigResult, error) {
 	updatedAt := time.Now().UTC()
 	var row struct {
 		ID        string    `db:"id"`
+		Version   int64     `db:"version"`
 		UpdatedAt time.Time `db:"updated_at"`
 	}
 	err := m.conn.QueryRowCtx(ctx, &row, `
@@ -287,7 +310,7 @@ SELECT
   $15
 FROM city_stations cs
 WHERE cs.code = $1
-RETURNING id::text, updated_at
+RETURNING id::text, version, updated_at
 `,
 		input.CityCode,
 		input.TypeCode,
@@ -308,5 +331,5 @@ RETURNING id::text, updated_at
 	if err != nil {
 		return CreateResourceTypeConfigResult{}, err
 	}
-	return CreateResourceTypeConfigResult{ID: row.ID, UpdatedAt: row.UpdatedAt.Format(time.RFC3339)}, nil
+	return CreateResourceTypeConfigResult{ID: row.ID, Version: row.Version, UpdatedAt: row.UpdatedAt.Format(time.RFC3339)}, nil
 }

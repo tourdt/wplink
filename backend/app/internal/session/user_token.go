@@ -32,6 +32,9 @@ func (s *HMACUserTokenService) IssueUserToken(_ context.Context, subject UserTok
 	if len(s.secret) == 0 {
 		return "", errors.New("用户 token 密钥未配置")
 	}
+	if s.ttl <= 0 {
+		return "", errors.New("用户 token 有效期未配置")
+	}
 	if strings.TrimSpace(subject.UserID) == "" {
 		return "", errors.New("用户 token 用户不能为空")
 	}

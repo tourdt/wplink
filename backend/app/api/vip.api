@@ -70,8 +70,7 @@ type CreateVIPOrderResp {
 	Benefits          VIPBenefitInfo `json:"benefits"`
 }
 
-type CreateVIPPaymentReq {
-}
+type CreateVIPPaymentReq {}
 
 type CreateVIPPaymentResp {
 	OrderId string          `json:"orderId"`
@@ -79,9 +78,9 @@ type CreateVIPPaymentResp {
 	Payment WechatPayParams `json:"payment"`
 }
 
-@server(
+@server (
 	prefix: /api/v1
-	group: vip
+	group:  vip
 )
 service wplink-api {
 	@handler ListVIPPlans

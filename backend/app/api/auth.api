@@ -57,9 +57,9 @@ type SendSMSCodeResp {
 	Message string `json:"message"`
 }
 
-@server(
+@server (
 	prefix: /api/v1
-	group: auth
+	group:  auth
 )
 service wplink-api {
 	@handler WechatLogin

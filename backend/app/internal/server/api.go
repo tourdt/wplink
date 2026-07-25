@@ -72,16 +72,18 @@ type UploadTokenService interface {
 }
 
 type apiRouterOptions struct {
-	adminLoginService   AdminLoginService
-	adminTokenService   AdminTokenService
-	uploadTokenService  UploadTokenService
-	userTokenService    authlogic.TokenService
-	wechatSessionClient authlogic.WechatSessionClient
-	smsVerifier         authlogic.SMSVerifier
-	wechatPayGateway    paymentlogic.WechatPayGateway
-	wechatPayDevMock    bool
-	contentAuditor      resourcelogic.ContentAuditor
-	locationGeocoder    locationlogic.ReverseGeocoder
+	adminLoginService            AdminLoginService
+	adminTokenService            AdminTokenService
+	uploadTokenService           UploadTokenService
+	userTokenService             authlogic.TokenService
+	wechatSessionClient          authlogic.WechatSessionClient
+	smsVerifier                  authlogic.SMSVerifier
+	wechatPayGateway             paymentlogic.WechatPayGateway
+	wechatPayDevMock             bool
+	contentAuditor               resourcelogic.ContentAuditor
+	contentAuditCallbackVerifier contentauditlogic.WechatCallbackVerifier
+	contentAuditCallbackAppID    string
+	locationGeocoder             locationlogic.ReverseGeocoder
 }
 
 type APIRouterOption func(*apiRouterOptions)
@@ -140,6 +142,13 @@ func WithContentAuditor(auditor resourcelogic.ContentAuditor) APIRouterOption {
 	}
 }
 
+func WithContentAuditCallbackVerifier(verifier contentauditlogic.WechatCallbackVerifier, appID string) APIRouterOption {
+	return func(options *apiRouterOptions) {
+		options.contentAuditCallbackVerifier = verifier
+		options.contentAuditCallbackAppID = strings.TrimSpace(appID)
+	}
+}
+
 func WithLocationGeocoder(geocoder locationlogic.ReverseGeocoder) APIRouterOption {
 	return func(options *apiRouterOptions) {
 		options.locationGeocoder = geocoder
@@ -188,6 +197,9 @@ func validateProductionAPIRouterDependencies(store CityAPIStore, options apiRout
 	}
 	if options.smsVerifier == nil {
 		missing = append(missing, "SMSVerifier")
+	}
+	if options.contentAuditCallbackVerifier == nil || options.contentAuditCallbackAppID == "" {
+		missing = append(missing, "ContentAuditCallbackVerifier")
 	}
 	if _, ok := any(store).(authlogic.UserStore); !ok {
 		missing = append(missing, "UserStore")
@@ -239,7 +251,18 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 	registerLocationRoutes(mux, options.locationGeocoder)
 	if resourceStore, ok := any(store).(ResourceAPIStore); ok {
 		permissionStore, _ := any(store).(MerchantPermissionStore)
-		registerResourceRoutes(mux, resourceStore, options.userTokenService, options.adminTokenService, permissionStore, options.wechatPayGateway, options.wechatPayDevMock, options.contentAuditor)
+		registerResourceRoutes(
+			mux,
+			resourceStore,
+			options.userTokenService,
+			options.adminTokenService,
+			permissionStore,
+			options.wechatPayGateway,
+			options.wechatPayDevMock,
+			options.contentAuditor,
+			options.contentAuditCallbackVerifier,
+			options.contentAuditCallbackAppID,
+		)
 	}
 	registerOptionalDomainRoutes(mux, store, options.userTokenService, options.adminTokenService, permissionStoreFromStore(store), options.smsVerifier, options.wechatPayGateway, options.wechatPayDevMock)
 	if options.adminTokenService != nil {
@@ -435,23 +458,91 @@ func registerAdminAuthRoutes(mux *http.ServeMux, service AdminLoginService) {
 	})
 }
 
-func registerResourceRoutes(mux *http.ServeMux, store ResourceAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool, contentAuditor resourcelogic.ContentAuditor) {
+func writeWechatCallbackSuccess(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("success"))
+}
+
+func registerResourceRoutes(
+	mux *http.ServeMux,
+	store ResourceAPIStore,
+	tokenService authlogic.TokenService,
+	adminTokenService AdminTokenService,
+	permissionStore MerchantPermissionStore,
+	wechatPayGateway paymentlogic.WechatPayGateway,
+	wechatPayDevMock bool,
+	contentAuditor resourcelogic.ContentAuditor,
+	callbackVerifier contentauditlogic.WechatCallbackVerifier,
+	callbackAppID string,
+) {
+	mux.HandleFunc("GET /api/v1/wechat/content-audit/media-callback", func(w http.ResponseWriter, r *http.Request) {
+		if callbackVerifier == nil {
+			response.JSON(w, nil, errx.New(errx.CodeInternalError, "微信内容审核回调验签未配置"))
+			return
+		}
+		query := r.URL.Query()
+		if err := callbackVerifier.Verify(query.Get("signature"), query.Get("timestamp"), query.Get("nonce"), false); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(query.Get("echostr")))
+	})
 	mux.HandleFunc("POST /api/v1/wechat/content-audit/media-callback", func(w http.ResponseWriter, r *http.Request) {
+		if callbackVerifier == nil {
+			response.JSON(w, nil, errx.New(errx.CodeInternalError, "微信内容审核回调验签未配置"))
+			return
+		}
+		query := r.URL.Query()
+		signature := query.Get("signature")
+		timestamp := query.Get("timestamp")
+		nonce := query.Get("nonce")
+		// 先完成验签和历史重放检查，业务处理成功后再记录指纹。
+		// 这样数据库或下游服务瞬时失败时，微信的合法重试不会被误判为已处理。
+		if err := callbackVerifier.Verify(signature, timestamp, nonce, false); err != nil {
+			if errors.Is(err, contentauditlogic.ErrWechatCallbackReplay) {
+				writeWechatCallbackSuccess(w)
+				return
+			}
+			response.JSON(w, nil, err)
+			return
+		}
 		callbackStore, ok := any(store).(contentauditlogic.MediaCheckCallbackStore)
 		if !ok {
 			response.JSON(w, nil, errx.New(errx.CodeInternalError, "图片审核回调服务暂不可用"))
 			return
 		}
+		body, err := readLimitedBody(r, 256<<10)
+		if err != nil {
+			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "图片审核回调内容过大或读取失败"))
+			return
+		}
 		var payload model.JSONMap
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		if err := json.Unmarshal(body, &payload); err != nil {
 			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "请求参数格式不正确"))
 			return
 		}
 		if payload == nil {
 			payload = model.JSONMap{}
 		}
-		resp, err := contentauditlogic.NewMediaCheckCallbackLogic(callbackStore).Handle(r.Context(), payload)
-		response.JSON(w, resp, err)
+		if appID, _ := payload["appid"].(string); strings.TrimSpace(appID) == "" || strings.TrimSpace(appID) != callbackAppID {
+			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, "微信内容审核回调 AppID 不匹配"))
+			return
+		}
+		_, err = contentauditlogic.NewMediaCheckCallbackLogic(callbackStore).Handle(r.Context(), payload)
+		if err != nil {
+			if errx.CodeOf(err) == errx.CodeStateConflict {
+				_ = callbackVerifier.Verify(signature, timestamp, nonce, true)
+				writeWechatCallbackSuccess(w)
+				return
+			}
+			response.JSON(w, nil, err)
+			return
+		}
+		_ = callbackVerifier.Verify(signature, timestamp, nonce, true)
+		writeWechatCallbackSuccess(w)
 	})
 	mux.HandleFunc("POST /api/v1/resources", func(w http.ResponseWriter, r *http.Request) {
 		req, err := decodeCreateResourceRequest(r)

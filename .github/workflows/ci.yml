@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: 后端与迁移
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
+      GOCACHE: ${{ github.workspace }}/.cache/go-build
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 安装 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 校验迁移与 API 契约
+        working-directory: backend
+        run: node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs
+      - name: 动态验证迁移回滚
+        working-directory: backend
+        run: go run ./scripts/verify_migrations.go
+      - name: 运行后端测试
+        working-directory: backend
+        run: go test ./...
+      - name: 运行静态检查
+        working-directory: backend
+        run: go vet ./...
+
+  frontend:
+    name: 管理后台与小程序
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            admin-web/package-lock.json
+            wxapp/package-lock.json
+      - name: 安装管理后台依赖
+        run: npm ci --prefix admin-web
+      - name: 安装小程序依赖
+        run: npm ci --prefix wxapp
+      - name: 检查并构建管理后台
+        run: npm --prefix admin-web run check
+      - name: 检查并构建小程序
+        run: npm --prefix wxapp run check

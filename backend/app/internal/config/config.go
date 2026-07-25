@@ -57,12 +57,14 @@ type TencentMapConfig struct {
 }
 
 type ContentAuditConfig struct {
-	Enabled        bool
-	TextScene      int
-	MediaEnabled   bool
-	MediaScene     int
-	RequestTimeout time.Duration
-	MaxTextChars   int
+	Enabled         bool
+	TextScene       int
+	MediaEnabled    bool
+	MediaScene      int
+	RequestTimeout  time.Duration
+	MaxTextChars    int
+	CallbackToken   string
+	CallbackMaxSkew time.Duration
 }
 
 type WechatPayConfig struct {
@@ -76,6 +78,7 @@ type WechatPayConfig struct {
 	PlatformPublicKeyPath  string
 	NotifyURL              string
 	RequestTimeout         time.Duration
+	OrderExpire            time.Duration
 }
 
 type SMSConfig struct {
@@ -93,6 +96,9 @@ type SMSConfig struct {
 
 type TasksConfig struct {
 	ResourceLifecycleInterval time.Duration
+	PaymentReconcileInterval  time.Duration
+	PaymentQueryDelay         time.Duration
+	PaymentBatchSize          int64
 }
 
 type StorageConfig struct {

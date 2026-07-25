@@ -50,27 +50,31 @@ type APIStore struct {
 	*model.GrowthCampaignModel
 	*model.FavoriteModel
 	*model.MapModel
+	*model.PaymentReconciliationModel
 }
 
 type ServiceContext struct {
-	Config              config.Config
-	DB                  *sql.DB
-	APIStore            *APIStore
-	CityStore           CityStore
-	AdminLoginService   AdminLoginService
-	AdminTokenService   *session.HMACAdminTokenIssuer
-	UploadTokenService  *uploadlogic.UploadTokenLogic
-	UserTokenService    *session.HMACUserTokenService
-	WechatSessionClient authlogic.WechatSessionClient
-	SMSVerifier         authlogic.SMSVerifier
-	WechatPayGateway    paymentlogic.WechatPayGateway
-	ContentAuditor      resourcelogic.ContentAuditor
-	LocationGeocoder    locationlogic.ReverseGeocoder
+	Config                       config.Config
+	DB                           *sql.DB
+	APIStore                     *APIStore
+	CityStore                    CityStore
+	AdminLoginService            AdminLoginService
+	AdminTokenService            *adminauth.ValidatingAdminTokenService
+	UploadTokenService           *uploadlogic.UploadTokenLogic
+	UserTokenService             *session.HMACUserTokenService
+	WechatSessionClient          authlogic.WechatSessionClient
+	SMSVerifier                  authlogic.SMSVerifier
+	WechatPayGateway             paymentlogic.WechatPayGateway
+	WechatPayOrderGateway        paymentlogic.WechatPayOrderGateway
+	ContentAuditor               resourcelogic.ContentAuditor
+	ContentAuditCallbackVerifier contentaudit.WechatCallbackVerifier
+	LocationGeocoder             locationlogic.ReverseGeocoder
 }
 
 func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 	adminTokenService := session.NewHMACAdminTokenIssuer(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL)
 	adminTokenIssuer := adminauth.NewSessionTokenIssuer(adminTokenService)
+	adminStore := adminauth.NewSQLAdminStore(db)
 	adminLoginOptions := make([]adminauth.LoginServiceOption, 0, 1)
 	if masterPassword := enabledAdminMasterPassword(c); masterPassword != "" {
 		adminLoginOptions = append(adminLoginOptions, adminauth.WithMasterPassword(masterPassword))
@@ -86,19 +90,21 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 	}
 	locationGeocoder := locationlogic.NewTencentMapGeocoder(c.TencentMap, nil)
 	return &ServiceContext{
-		Config:              c,
-		DB:                  db,
-		APIStore:            apiStore,
-		CityStore:           apiStore,
-		AdminLoginService:   adminauth.NewLoginService(adminauth.NewSQLAdminStore(db), adminauth.BcryptPasswordHasher{}, adminTokenIssuer, adminLoginOptions...),
-		AdminTokenService:   adminTokenService,
-		UploadTokenService:  uploadlogic.NewUploadTokenLogic(c.Storage),
-		UserTokenService:    session.NewHMACUserTokenService(c.UserAuth.TokenSecret, c.UserAuth.TokenTTL),
-		WechatSessionClient: authlogic.NewWechatSessionClient(c.Wechat, "", nil),
-		SMSVerifier:         authlogic.NewConfiguredSMSVerifier(c.SMS),
-		WechatPayGateway:    wechatPayGateway,
-		ContentAuditor:      contentAuditor,
-		LocationGeocoder:    locationGeocoder,
+		Config:                       c,
+		DB:                           db,
+		APIStore:                     apiStore,
+		CityStore:                    apiStore,
+		AdminLoginService:            adminauth.NewLoginService(adminStore, adminauth.BcryptPasswordHasher{}, adminTokenIssuer, adminLoginOptions...),
+		AdminTokenService:            adminauth.NewValidatingAdminTokenService(adminTokenService, adminStore),
+		UploadTokenService:           uploadlogic.NewUploadTokenLogic(c.Storage),
+		UserTokenService:             session.NewHMACUserTokenService(c.UserAuth.TokenSecret, c.UserAuth.TokenTTL),
+		WechatSessionClient:          authlogic.NewWechatSessionClient(c.Wechat, "", nil),
+		SMSVerifier:                  authlogic.NewConfiguredSMSVerifierWithLimiter(c.SMS, nil, authlogic.NewSQLSMSSendLimiter(db)),
+		WechatPayGateway:             wechatPayGateway,
+		WechatPayOrderGateway:        wechatPayGateway,
+		ContentAuditor:               contentAuditor,
+		ContentAuditCallbackVerifier: contentaudit.NewSHA1WechatCallbackVerifier(c.ContentAudit.CallbackToken, c.ContentAudit.CallbackMaxSkew),
+		LocationGeocoder:             locationGeocoder,
 	}, nil
 }
 
@@ -132,5 +138,6 @@ func newAPIStore(db *sql.DB) *APIStore {
 		GrowthCampaignModel:        model.NewGrowthCampaignModel(db),
 		FavoriteModel:              model.NewFavoriteModel(db),
 		MapModel:                   model.NewMapModel(db),
+		PaymentReconciliationModel: model.NewPaymentReconciliationModel(db),
 	}
 }

@@ -11,9 +11,10 @@ func TestHMACAdminTokenIssuerIssuesSignedToken(t *testing.T) {
 	issuer := NewHMACAdminTokenIssuer("secret", time.Hour)
 
 	token, err := issuer.IssueAdminToken(context.Background(), AdminTokenSubject{
-		OperatorID: "operator-1",
-		Roles:      []string{"platform_operator"},
-		Modules:    []string{"resource_review"},
+		OperatorID:  "operator-1",
+		AuthVersion: 1,
+		Roles:       []string{"platform_operator"},
+		Modules:     []string{"resource_review"},
 	})
 	if err != nil {
 		t.Fatalf("IssueAdminToken() error = %v", err)
@@ -28,9 +29,10 @@ func TestHMACAdminTokenIssuerIssuesSignedToken(t *testing.T) {
 func TestHMACAdminTokenIssuerParsesSignedToken(t *testing.T) {
 	issuer := NewHMACAdminTokenIssuer("secret", time.Hour)
 	token, err := issuer.IssueAdminToken(context.Background(), AdminTokenSubject{
-		OperatorID: "operator-1",
-		Roles:      []string{"platform_operator"},
-		Modules:    []string{"resource_review"},
+		OperatorID:  "operator-1",
+		AuthVersion: 2,
+		Roles:       []string{"platform_operator"},
+		Modules:     []string{"resource_review"},
 	})
 	if err != nil {
 		t.Fatalf("IssueAdminToken() error = %v", err)
@@ -43,6 +45,9 @@ func TestHMACAdminTokenIssuerParsesSignedToken(t *testing.T) {
 
 	if subject.OperatorID != "operator-1" || len(subject.Roles) != 1 || subject.Roles[0] != "platform_operator" {
 		t.Fatalf("subject = %#v, want issued subject", subject)
+	}
+	if subject.AuthVersion != 2 {
+		t.Fatalf("auth version = %d, want 2", subject.AuthVersion)
 	}
 	if len(subject.Modules) != 1 || subject.Modules[0] != "resource_review" {
 		t.Fatalf("modules = %#v, want issued modules", subject.Modules)
@@ -69,7 +74,7 @@ func TestHMACAdminTokenIssuerRejectsUserTokenWithAdminRole(t *testing.T) {
 func TestHMACAdminTokenIssuerRejectsEmptySecret(t *testing.T) {
 	issuer := NewHMACAdminTokenIssuer("", time.Hour)
 
-	_, err := issuer.IssueAdminToken(context.Background(), AdminTokenSubject{OperatorID: "operator-1"})
+	_, err := issuer.IssueAdminToken(context.Background(), AdminTokenSubject{OperatorID: "operator-1", AuthVersion: 1})
 	if err == nil {
 		t.Fatal("IssueAdminToken() error = nil, want error")
 	}

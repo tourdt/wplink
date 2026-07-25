@@ -14,6 +14,7 @@ func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
 		configs: []model.ResourceTypeConfig{
 			{
 				ID:               "type-1",
+				Version:          2,
 				TypeCode:         "stock_clearance",
 				TypeName:         "库存出售",
 				Direction:        model.ResourceDirectionSupply,
@@ -44,6 +45,9 @@ func TestListResourceTypesReturnsActiveConfigForCity(t *testing.T) {
 	}
 	if resp.Items[0].TypeCode != "stock_clearance" {
 		t.Fatalf("typeCode = %q, want stock_clearance", resp.Items[0].TypeCode)
+	}
+	if resp.Items[0].Version != 2 {
+		t.Fatalf("version = %d, want 2", resp.Items[0].Version)
 	}
 	if resp.Items[0].Direction != model.ResourceDirectionSupply {
 		t.Fatalf("direction = %q, want supply", resp.Items[0].Direction)

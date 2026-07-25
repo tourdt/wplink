@@ -186,7 +186,7 @@ func TestAPIRouterDoesNotExposePurchaseDemandRoutes(t *testing.T) {
 	}
 }
 
-func TestAPIRouterDoesNotExposeManualMatchingRoutes(t *testing.T) {
+func TestAPIRouterRejectsUnmappedRetiredAdminRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(store, WithAdminTokenService(&fakeAdminTokenService{subject: session.AdminTokenSubject{OperatorID: "admin-1", Roles: []string{"platform_operator"}}}))
 
@@ -209,8 +209,8 @@ func TestAPIRouterDoesNotExposeManualMatchingRoutes(t *testing.T) {
 			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
 			req.Header.Set("Authorization", "Bearer admin-token")
 			router.ServeHTTP(rec, req)
-			if rec.Code != http.StatusNotFound {
-				t.Fatalf("status = %d body = %s, want not found", rec.Code, rec.Body.String())
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("status = %d body = %s, want forbidden for unmapped admin route", rec.Code, rec.Body.String())
 			}
 		})
 	}
@@ -476,12 +476,13 @@ func TestAPIRouterRegistersVIPMembershipRoutes(t *testing.T) {
 	}
 }
 
-func TestAPIRouterRegistersContactUnlockPaymentNotifyRoute(t *testing.T) {
+func TestAPIRouterRegistersUnifiedWechatPayNotifyRoute(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(store, WithWechatPayGateway(&fakeServerWechatPayGateway{
 		notify: paymentlogic.WechatPayNotification{
-			OutTradeNo:    "contact_unlock_1",
+			OutTradeNo:    "CU202607140001",
 			TransactionID: "wx-transaction-1",
+			Attach:        "contact_unlock:order-1",
 			AmountTotal:   500,
 			SuccessTime:   "2026-07-14T12:00:00Z",
 			RawPayload:    map[string]interface{}{"trade_state": "SUCCESS"},
@@ -489,7 +490,7 @@ func TestAPIRouterRegistersContactUnlockPaymentNotifyRoute(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat-pay/contact-unlock/notify", strings.NewReader(`{"id":"notify-1"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat-pay/notify", strings.NewReader(`{"id":"notify-1"}`))
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -498,7 +499,7 @@ func TestAPIRouterRegistersContactUnlockPaymentNotifyRoute(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"SUCCESS"`) {
 		t.Fatalf("body = %s, want SUCCESS notify response", rec.Body.String())
 	}
-	if store.contactUnlockMarkInput.OutTradeNo != "contact_unlock_1" {
+	if store.contactUnlockMarkInput.OutTradeNo != "CU202607140001" {
 		t.Fatalf("contactUnlockMarkInput = %#v, want contact unlock notify", store.contactUnlockMarkInput)
 	}
 }
@@ -626,25 +627,17 @@ func TestAPIRouterRequiresMerchantPermissionForResourceMetrics(t *testing.T) {
 	decodeEnvelopeData(t, allowedRec, http.StatusOK)
 }
 
-func TestAPIRouterBindsCreatorAndProtectsMerchantUpdate(t *testing.T) {
+func TestAPIRouterDisablesSecondMerchantCreationAndProtectsMerchantUpdate(t *testing.T) {
 	store := newFakeFullAPIStore()
 	store.managedMerchants = map[string]bool{"merchant-1": true}
 	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
 
 	createRec := httptest.NewRecorder()
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants", strings.NewReader(`{
-		"cityCode":"zhili",
-		"name":"织里新商家",
-		"merchantType":"stockist",
-		"mainCategories":["童装"],
-		"contactName":"周经理",
-		"contactPhone":"18800000002"
-	}`))
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/merchants", strings.NewReader(`{}`))
 	createReq.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(createRec, createReq)
-	decodeEnvelopeData(t, createRec, http.StatusOK)
-	if store.createMerchantInput.CreatorUserID != "user-1" {
-		t.Fatalf("creatorUserID = %q, want token user", store.createMerchantInput.CreatorUserID)
+	if createRec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d body = %s, want create merchant route removed", createRec.Code, createRec.Body.String())
 	}
 
 	forbiddenRec := httptest.NewRecorder()
@@ -696,7 +689,6 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		path   string
 		body   string
 	}{
-		{name: "create merchant", method: http.MethodPost, path: "/api/v1/merchants", body: `{"cityCode":"zhili","name":"织里云仓","merchantType":"stockist","mainCategories":["童装"],"contactName":"周经理","contactPhone":"18800000002"}`},
 		{name: "get merchant", method: http.MethodGet, path: "/api/v1/merchants/merchant-1"},
 		{name: "update merchant", method: http.MethodPost, path: "/api/v1/merchants/merchant-1", body: `{"name":"  织里晨星童装  ","mainCategories":["童装"],"merchantType":"service_provider","description":"更新简介","logoUrl":"https://example.com/logo.png","images":["https://example.com/a.jpg"],"addressText":"织里镇利济路88号","location":{"latitude":30.1,"longitude":120.2,"name":"织里童装城","address":"织里镇利济路88号"}}`},
 		{name: "home operation config", method: http.MethodGet, path: "/api/v1/home/operation-config?cityCode=zhili"},
@@ -723,7 +715,7 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "update admin hot keyword", method: http.MethodPost, path: "/api/v1/admin/hot-search-keywords/keyword-1", body: `{"cityCode":"zhili","keyword":"夏款现货","status":"active","sortOrder":20}`},
 		{name: "list resource configs", method: http.MethodGet, path: "/api/v1/admin/resource-type-configs?cityCode=zhili"},
 		{name: "create resource config", method: http.MethodPost, path: "/api/v1/admin/resource-type-configs", body: `{"cityCode":"zhili","typeCode":"kids_brand_stock","typeName":"品牌库存","direction":"supply","groupCode":"kids_wholesale","groupName":"童装批发","defaultValidDays":15}`},
-		{name: "update resource config", method: http.MethodPost, path: "/api/v1/admin/resource-type-configs/config-1", body: `{"fieldSchema":{},"requiredFields":["title"],"filterFields":["category"],"displayTemplate":{},"reviewRules":{},"sortWeights":{},"messageRules":{},"defaultValidDays":7,"status":"active"}`},
+		{name: "update resource config", method: http.MethodPost, path: "/api/v1/admin/resource-type-configs/config-1", body: `{"version":1,"fieldSchema":{},"requiredFields":["title"],"filterFields":["category"],"displayTemplate":{},"reviewRules":{},"sortWeights":{},"messageRules":{},"defaultValidDays":7,"status":"active"}`},
 		{name: "list pending verifications", method: http.MethodGet, path: "/api/v1/admin/verifications/pending"},
 		{name: "review verification", method: http.MethodPost, path: "/api/v1/admin/verifications/verification-1/review", body: `{"reviewerId":"user-1","action":"approve"}`},
 		{name: "grant entitlement", method: http.MethodPost, path: "/api/v1/admin/merchants/merchant-1/entitlements", body: `{"operatorId":"user-1","entitlementType":"publish_quota","sourceType":"manual","totalAmount":3,"reason":"测试发放"}`},
@@ -769,7 +761,6 @@ func newFakeFullAPIStore() *fakeFullAPIStore {
 
 type fakeFullAPIStore struct {
 	fakeResourceAPIStore
-	createMerchantInput          model.CreateMerchantInput
 	updateMerchantPatch          model.UpdateMerchantPatch
 	submitVerificationInput      model.SubmitVerificationInput
 	latestVerificationMerchantID string
@@ -786,6 +777,7 @@ type fakeFullAPIStore struct {
 	createQuotaPackOrderInput    model.CreateQuotaPackOrderInput
 	createVIPPaymentInput        model.CreateVIPPaymentOrderInput
 	markVIPOrderPaidInput        model.MarkVIPOrderPaidInput
+	markVerificationPaidInput    model.MarkVerificationPaymentPaidInput
 	saveVIPPlanInput             model.SaveAdminVIPPlanInput
 	saveQuotaPackInput           model.SaveAdminQuotaPackInput
 	saveVIPPromotionInput        model.SaveAdminVIPPromotionInput
@@ -795,6 +787,16 @@ type fakeFullAPIStore struct {
 	statusAdminOperatorInput     model.AdminOperatorStatusInput
 	adminRoleModules             []string
 	adminRoleModuleInput         model.AdminRoleModulePermissionInput
+}
+
+func (s *fakeFullAPIStore) MarkVerificationPaymentPaid(ctx context.Context, input model.MarkVerificationPaymentPaidInput) (model.VerificationPaymentResult, error) {
+	s.markVerificationPaidInput = input
+	return model.VerificationPaymentResult{
+		OrderID:        "verification-payment-1",
+		VerificationID: "verification-1",
+		MerchantID:     "merchant-1",
+		Status:         model.PaymentOrderStatusPaid,
+	}, nil
 }
 
 type fakeServerWechatPayGateway struct {
@@ -821,11 +823,6 @@ type fakeAdminTokenService struct {
 func (s *fakeAdminTokenService) ParseAdminToken(ctx context.Context, token string) (session.AdminTokenSubject, error) {
 	s.token = token
 	return s.subject, s.err
-}
-
-func (s *fakeFullAPIStore) CreateMerchant(ctx context.Context, input model.CreateMerchantInput) (model.CreateMerchantResult, error) {
-	s.createMerchantInput = input
-	return model.CreateMerchantResult{ID: "merchant-1", Name: input.Name, VerificationStatus: "unverified", Status: model.MerchantStatusActive}, nil
 }
 
 func (s *fakeFullAPIStore) GetMerchantDetail(ctx context.Context, merchantID string) (model.MerchantDetail, error) {
@@ -1175,11 +1172,11 @@ func (s *fakeFullAPIStore) ListResourceTypeConfigs(ctx context.Context, cityCode
 }
 
 func (s *fakeFullAPIStore) CreateResourceTypeConfig(ctx context.Context, input model.CreateResourceTypeConfigInput) (model.CreateResourceTypeConfigResult, error) {
-	return model.CreateResourceTypeConfigResult{ID: "config-2", UpdatedAt: "2026-07-14T10:00:00Z"}, nil
+	return model.CreateResourceTypeConfigResult{ID: "config-2", Version: 1, UpdatedAt: "2026-07-14T10:00:00Z"}, nil
 }
 
-func (s *fakeFullAPIStore) UpdateResourceTypeConfig(ctx context.Context, configID string, patch model.ResourceTypeConfigPatch) (string, error) {
-	return "2026-06-28T10:00:00Z", nil
+func (s *fakeFullAPIStore) UpdateResourceTypeConfig(ctx context.Context, configID string, patch model.ResourceTypeConfigPatch) (model.UpdateResourceTypeConfigResult, error) {
+	return model.UpdateResourceTypeConfigResult{Version: 2, UpdatedAt: "2026-06-28T10:00:00Z"}, nil
 }
 
 func (s *fakeFullAPIStore) ListOperationLogs(ctx context.Context, filter model.OperationLogFilter) (model.ListOperationLogsResult, error) {
@@ -1237,5 +1234,5 @@ func (s *fakeFullAPIStore) ListVerificationsExpiringSoon(ctx context.Context) ([
 }
 
 func (s *fakeFullAPIStore) CreateMessage(ctx context.Context, input model.CreateMessageInput) (model.CreateMessageResult, error) {
-	return model.CreateMessageResult{ID: "message-task"}, nil
+	return model.CreateMessageResult{ID: "message-task", Created: true}, nil
 }

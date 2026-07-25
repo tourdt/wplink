@@ -65,9 +65,12 @@ CREATE TABLE IF NOT EXISTS merchant_admin_bindings (
   revoked_at timestamptz
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_active_merchant_user
-  ON merchant_admin_bindings(merchant_id, user_id)
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_active_merchant_binding_per_user
+  ON merchant_admin_bindings(user_id)
   WHERE status = 'active';
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_active_owner_per_merchant
+  ON merchant_admin_bindings(merchant_id)
+  WHERE status = 'active' AND role = 'owner';
 CREATE INDEX IF NOT EXISTS idx_merchant_admin_bindings_user ON merchant_admin_bindings(user_id, status);
 
 CREATE TABLE IF NOT EXISTS resource_type_configs (
@@ -75,6 +78,7 @@ CREATE TABLE IF NOT EXISTS resource_type_configs (
   city_station_id bigint REFERENCES city_stations(id),
   type_code varchar(64) NOT NULL,
   type_name varchar(64) NOT NULL,
+  version bigint NOT NULL DEFAULT 1,
   direction varchar(32) NOT NULL DEFAULT 'supply',
   field_schema jsonb NOT NULL DEFAULT '{}'::jsonb,
   required_fields jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -88,7 +92,8 @@ CREATE TABLE IF NOT EXISTS resource_type_configs (
   status varchar(32) NOT NULL DEFAULT 'active',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT chk_resource_type_configs_direction CHECK (direction IN ('supply', 'demand'))
+  CONSTRAINT chk_resource_type_configs_direction CHECK (direction IN ('supply', 'demand')),
+  CONSTRAINT chk_resource_type_configs_version CHECK (version > 0)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_resource_type_city_scope
@@ -106,6 +111,8 @@ CREATE TABLE IF NOT EXISTS resources (
   merchant_id bigint NOT NULL REFERENCES merchants(id),
   city_station_id bigint NOT NULL REFERENCES city_stations(id),
   resource_type_config_id bigint NOT NULL REFERENCES resource_type_configs(id),
+  resource_type_config_version bigint NOT NULL,
+  resource_type_snapshot jsonb NOT NULL,
   type_code varchar(64) NOT NULL,
   direction varchar(32) NOT NULL DEFAULT 'supply',
   status varchar(32) NOT NULL DEFAULT 'pending',
@@ -138,7 +145,9 @@ CREATE TABLE IF NOT EXISTS resources (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz,
-  CONSTRAINT chk_resources_direction CHECK (direction IN ('supply', 'demand'))
+  CONSTRAINT chk_resources_direction CHECK (direction IN ('supply', 'demand')),
+  CONSTRAINT chk_resources_type_config_version CHECK (resource_type_config_version > 0),
+  CONSTRAINT chk_resources_type_snapshot CHECK (jsonb_typeof(resource_type_snapshot) = 'object')
 );
 
 CREATE INDEX IF NOT EXISTS idx_resources_city_type_status ON resources(city_station_id, type_code, status);
@@ -293,6 +302,9 @@ CREATE INDEX IF NOT EXISTS idx_contact_unlock_orders_buyer_status
   ON resource_contact_unlock_orders(buyer_user_id, status);
 CREATE INDEX IF NOT EXISTS idx_contact_unlock_orders_out_trade_no
   ON resource_contact_unlock_orders(out_trade_no);
+CREATE INDEX IF NOT EXISTS idx_contact_unlock_orders_pending_created
+  ON resource_contact_unlock_orders(created_at)
+  WHERE status = 'pending';
 
 CREATE TABLE IF NOT EXISTS resource_contact_unlocks (
   id bigint PRIMARY KEY DEFAULT next_tsid(),
@@ -379,3 +391,13 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_recipient_status ON messages(recipient_user_id, status);
 CREATE INDEX IF NOT EXISTS idx_messages_trigger ON messages(trigger_type, trigger_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_messages_lifecycle_trigger
+  ON messages(recipient_role_code, trigger_type, trigger_id)
+  WHERE recipient_role_code IS NOT NULL
+    AND trigger_id IS NOT NULL
+    AND trigger_type IN (
+      'resource_expired',
+      'resource_expiring',
+      'verification_expired',
+      'verification_expiring'
+    );

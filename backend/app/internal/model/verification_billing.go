@@ -172,11 +172,12 @@ type VerificationPaymentOrder struct {
 }
 
 type MarkVerificationPaymentPaidInput struct {
-	OutTradeNo    string
-	TransactionID string
-	AmountTotal   int64
-	SuccessTime   string
-	NotifyPayload JSONMap
+	BusinessOrderID string
+	OutTradeNo      string
+	TransactionID   string
+	AmountTotal     int64
+	SuccessTime     string
+	NotifyPayload   JSONMap
 }
 
 type VerificationPaymentResult struct {

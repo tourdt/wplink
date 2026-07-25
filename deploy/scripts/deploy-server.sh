@@ -134,6 +134,10 @@ for migration_file in "${MIGRATION_FILES[@]}"; do
     printf 'missing migration file: backend/migrations/%s\n' "$migration_file" >&2
     exit 1
   fi
+  if [[ ! "$migration_file" =~ ^[0-9]{6}_[a-z0-9_]+\.up\.sql$ ]]; then
+    printf 'invalid migration file name: backend/migrations/%s\n' "$migration_file" >&2
+    exit 1
+  fi
 done
 
 printf 'building release package...\n'
@@ -323,8 +327,6 @@ if [[ "$RUN_MIGRATIONS" == "1" || "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
     exit 1
   fi
 
-  psql_run "$database_url" -v ON_ERROR_STOP=1 -q -c "CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, name text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now());"
-
   migration_files=()
   while IFS= read -r migration_file; do
     [[ -n "$migration_file" ]] && migration_files+=("$migration_file")
@@ -335,24 +337,41 @@ if [[ "$RUN_MIGRATIONS" == "1" || "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
     exit 1
   fi
 
-  for migration_file in "${migration_files[@]}"; do
-    migration_key="${migration_file%.up.sql}"
-    migration_version="${migration_file%%_*}"
-    already_applied="$(psql_run "$database_url" -At -c "SELECT 1 FROM schema_migrations WHERE version = '$migration_version' LIMIT 1;")"
-    if [[ "$already_applied" == "1" ]]; then
-      printf 'migration already applied: %s\n' "$migration_file"
-      continue
-    fi
+  migration_batch="$REMOTE_TMP/run-migrations.sql"
+  {
+    printf '\\set ON_ERROR_STOP on\n'
+    printf 'BEGIN;\n'
+    # 事务级 advisory lock 保证多次部署并发触发时仍只有一个迁移执行者。
+    printf "SELECT pg_advisory_xact_lock(hashtext('wplink_schema_migrations'));\n"
+    printf "CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, name text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now());\n"
 
-    if [[ "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
-      printf 'marking migration as applied without execution: %s\n' "$migration_file"
-    else
-      printf 'applying migration: %s\n' "$migration_file"
-      psql_run "$database_url" -v ON_ERROR_STOP=1 -f "$extract_dir/backend/migrations/$migration_file"
-    fi
+    for migration_file in "${migration_files[@]}"; do
+      if [[ ! "$migration_file" =~ ^[0-9]{6}_[a-z0-9_]+\.up\.sql$ ]]; then
+        printf 'invalid migration file name in manifest: %s\n' "$migration_file" >&2
+        exit 1
+      fi
 
-    psql_run "$database_url" -v ON_ERROR_STOP=1 -q -c "INSERT INTO schema_migrations (version, name) VALUES ('$migration_version', '$migration_key');"
-  done
+      migration_key="${migration_file%.up.sql}"
+      migration_version="${migration_file%%_*}"
+      printf "SELECT NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = '%s') AS should_apply \\gset\n" "$migration_version"
+      printf '\\if :should_apply\n'
+      if [[ "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
+        printf '\\echo marking migration as applied without execution: %s\n' "$migration_file"
+      else
+        printf '\\echo applying migration: %s\n' "$migration_file"
+        printf '\\ir %s\n' "$extract_dir/backend/migrations/$migration_file"
+      fi
+      printf "INSERT INTO schema_migrations (version, name) VALUES ('%s', '%s');\n" "$migration_version" "$migration_key"
+      printf '\\else\n'
+      printf '\\echo migration already applied: %s\n' "$migration_file"
+      printf '\\endif\n'
+    done
+
+    printf 'COMMIT;\n'
+  } > "$migration_batch"
+
+  # SQL 变更与 schema_migrations 记录在同一事务提交，任一版本失败都会整体回滚。
+  psql_run "$database_url" -q -f "$migration_batch"
 fi
 
 if [[ "$INSTALL_NGINX" == "1" ]]; then

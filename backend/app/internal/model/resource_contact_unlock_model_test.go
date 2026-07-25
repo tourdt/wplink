@@ -56,8 +56,7 @@ func TestMarkContactUnlockOrderPaidSkipsUnlockForDuplicatePaidOrder(t *testing.T
 
 func TestContactUnlockOrderSQLKeepsCommercialRuleSnapshot(t *testing.T) {
 	requiredResourceSnippets := []string{
-		"rtc.commercial_rules",
-		"JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id",
+		"r.resource_type_snapshot -> 'commercialRules'",
 		"r.status = 'published'",
 	}
 	for _, snippet := range requiredResourceSnippets {

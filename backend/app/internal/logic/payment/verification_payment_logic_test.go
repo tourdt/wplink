@@ -50,7 +50,9 @@ func TestCreateVerificationPaymentCreatesWechatPrepay(t *testing.T) {
 	if store.createInput.AmountTotal != 29900 || store.createInput.OpenID != "openid-1" {
 		t.Fatalf("createInput = %#v, want amount and openid", store.createInput)
 	}
-	if gateway.prepayInput.OutTradeNo != "VP202606300001" || gateway.prepayInput.OpenID != "openid-1" {
+	if gateway.prepayInput.OutTradeNo != "VP202606300001" ||
+		gateway.prepayInput.OpenID != "openid-1" ||
+		gateway.prepayInput.Attach != "verification:payment-1" {
 		t.Fatalf("prepayInput = %#v, want order and openid", gateway.prepayInput)
 	}
 	if resp.OrderID != "payment-1" || resp.Payment.Package != "prepay_id=wx-prepay" {
@@ -103,39 +105,6 @@ func TestCreateVerificationPaymentUsesDevMockWhenGatewayMissing(t *testing.T) {
 	}
 	if resp.OrderID != "payment-1" || resp.Status != model.PaymentOrderStatusPaid || resp.Payment.Package != "" {
 		t.Fatalf("resp = %#v, want paid mock response without wechat params", resp)
-	}
-}
-
-func TestHandleWechatPayNotifyActivatesVerification(t *testing.T) {
-	store := &fakeVerificationPaymentStore{
-		markResult: model.VerificationPaymentResult{
-			OrderID:        "payment-1",
-			VerificationID: "verification-1",
-			MerchantID:     "merchant-1",
-			Status:         model.PaymentOrderStatusPaid,
-		},
-	}
-	gateway := &fakeWechatPayGateway{
-		notify: WechatPayNotification{
-			OutTradeNo:    "VP202606300001",
-			TransactionID: "wx-transaction-1",
-			AmountTotal:   29900,
-			SuccessTime:   "2026-06-30T12:00:00+08:00",
-			RawPayload:    map[string]interface{}{"trade_state": "SUCCESS"},
-		},
-	}
-	logic := NewWechatPayNotifyLogic(store, gateway)
-
-	resp, err := logic.HandleNotify(context.Background(), WechatPayNotifyReq{Headers: map[string]string{"Wechatpay-Signature": "sig"}, Body: []byte(`{}`)})
-	if err != nil {
-		t.Fatalf("HandleNotify() error = %v", err)
-	}
-
-	if store.markInput.OutTradeNo != "VP202606300001" || store.markInput.TransactionID != "wx-transaction-1" {
-		t.Fatalf("markInput = %#v, want notification identifiers", store.markInput)
-	}
-	if resp.Code != "SUCCESS" || resp.Message != "成功" {
-		t.Fatalf("resp = %#v, want wechat success response", resp)
 	}
 }
 

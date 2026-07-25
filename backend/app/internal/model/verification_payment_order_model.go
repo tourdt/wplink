@@ -101,6 +101,7 @@ WITH target_order AS (
   WHERE out_trade_no = $1
     AND status IN ('pending', 'paid')
     AND ($3 <= 0 OR amount_total = $3)
+    AND ($6 = '' OR id = $6::bigint)
   FOR UPDATE
 )
 UPDATE verification_payment_orders AS vpo
@@ -113,7 +114,7 @@ SET transaction_id = $2,
 FROM target_order
 WHERE vpo.id = target_order.id
 RETURNING vpo.id::text, vpo.verification_id::text, vpo.merchant_id::text, vpo.status, target_order.previous_status
-`, input.OutTradeNo, input.TransactionID, input.AmountTotal, input.NotifyPayload, paidAt).Scan(
+`, input.OutTradeNo, input.TransactionID, input.AmountTotal, input.NotifyPayload, paidAt, strings.TrimSpace(input.BusinessOrderID)).Scan(
 			&result.OrderID,
 			&result.VerificationID,
 			&result.MerchantID,
@@ -176,8 +177,9 @@ VALUES ($1, 'verification_result', 'verification_payment_paid', $2, '认证支�
 
 func buildVerificationOutTradeNo(verificationID string) string {
 	cleanID := strings.NewReplacer("-", "", "_", "").Replace(strings.TrimSpace(verificationID))
-	if len(cleanID) > 24 {
-		cleanID = cleanID[len(cleanID)-24:]
+	// 微信支付商户订单号最多 32 个字符；固定前缀与秒级时间戳占 16 位，业务尾码最多保留 16 位。
+	if len(cleanID) > 16 {
+		cleanID = cleanID[len(cleanID)-16:]
 	}
 	return fmt.Sprintf("VP%s%s", time.Now().Format("20060102150405"), cleanID)
 }

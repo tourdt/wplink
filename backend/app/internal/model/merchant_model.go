@@ -13,27 +13,6 @@ const (
 	MerchantProfileStatusCompleted  = "completed"
 )
 
-type CreateMerchantInput struct {
-	CreatorUserID  string
-	CityCode       string
-	Name           string
-	MerchantType   string
-	MainCategories []string
-	ContactName    string
-	ContactPhone   string
-	ContactWechat  string
-	AddressText    string
-	Description    string
-}
-
-type CreateMerchantResult struct {
-	ID                 string
-	MerchantNo         string
-	Name               string
-	VerificationStatus string
-	Status             string
-}
-
 type CreditTag struct {
 	Code  string
 	Label string
@@ -114,60 +93,6 @@ type MerchantModel struct {
 
 func NewMerchantModel(db *sql.DB) *MerchantModel {
 	return &MerchantModel{db: db}
-}
-
-func (m *MerchantModel) CreateMerchant(ctx context.Context, input CreateMerchantInput) (CreateMerchantResult, error) {
-	var result CreateMerchantResult
-	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
-		if err := tx.QueryRowContext(ctx, `
-INSERT INTO merchants (
-  city_station_id,
-  name,
-  merchant_type,
-  main_categories,
-  description,
-  contact_name,
-  contact_phone,
-  contact_wechat,
-  address_text
-)
-SELECT
-  cs.id,
-  $2,
-  $3,
-  $4,
-  $5,
-  $6,
-  $7,
-  $8,
-  $9
-FROM city_stations cs
-WHERE cs.code = $1 AND cs.status = 'active'
-RETURNING id::text, COALESCE(merchant_no, ''), name, verification_status, status
-`,
-			input.CityCode,
-			input.Name,
-			input.MerchantType,
-			JSONStringSlice(input.MainCategories),
-			input.Description,
-			input.ContactName,
-			input.ContactPhone,
-			input.ContactWechat,
-			input.AddressText,
-		).Scan(&result.ID, &result.MerchantNo, &result.Name, &result.VerificationStatus, &result.Status); err != nil {
-			return err
-		}
-		if input.CreatorUserID == "" {
-			return nil
-		}
-		_, err := tx.ExecContext(ctx, `
-INSERT INTO merchant_admin_bindings (merchant_id, user_id, role, status, created_by)
-VALUES ($1, $2, 'owner', 'active', $2)
-ON CONFLICT (merchant_id, user_id) WHERE status = 'active' DO NOTHING
-`, result.ID, input.CreatorUserID)
-		return err
-	})
-	return result, err
 }
 
 func (m *MerchantModel) GetMerchantDetail(ctx context.Context, merchantID string) (MerchantDetail, error) {

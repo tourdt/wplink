@@ -235,12 +235,11 @@ export const defaultFlowChecks = [
   },
   {
     file: 'pages/merchant/profile.vue',
-    description: '商家入驻和资料维护',
+    description: '登录自动创建商家后的资料维护',
     checks: [
-      'createMerchant',
       'getMerchant',
       'updateMerchant',
-      'saveMerchantId',
+      'getMerchantId',
       'loadMerchant',
       'submitMerchantProfile',
       'sanitizeContactPhone',

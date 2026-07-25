@@ -15,9 +15,9 @@ type CreateUploadTokenResp {
 	ExpiresAt     string `json:"expiresAt"`
 }
 
-@server(
+@server (
 	prefix: /api/v1
-	group: upload
+	group:  upload
 )
 service wplink-api {
 	@handler CreateUploadToken

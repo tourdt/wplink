@@ -42,10 +42,9 @@ SELECT
   r.contact_phone,
   COALESCE(r.contact_wechat, ''),
   r.expires_at,
-  rtc.commercial_rules
+  r.resource_type_snapshot -> 'commercialRules'
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
-JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 WHERE r.id = $1
   AND r.deleted_at IS NULL
   AND m.deleted_at IS NULL

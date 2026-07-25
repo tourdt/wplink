@@ -54,6 +54,8 @@ ContentAudit:
   MediaScene: 3
   RequestTimeout: 6s
   MaxTextChars: 1200
+  CallbackToken: "callback-token"
+  CallbackMaxSkew: 4m
 
 SMS:
   Provider: "http"
@@ -82,11 +84,15 @@ WechatPay:
   MerchantSerialNo: "serial-no"
   MerchantPrivateKeyPath: "/secure/apiclient_key.pem"
   PlatformPublicKeyPath: "/secure/wechatpay_pub.pem"
-  NotifyURL: "https://api.example.com/api/v1/wechat-pay/verification/notify"
+  NotifyURL: "https://api.example.com/api/v1/wechat-pay/notify"
   RequestTimeout: 10s
+  OrderExpire: 30m
 
 Tasks:
   ResourceLifecycleInterval: 1h
+  PaymentReconcileInterval: 1m
+  PaymentQueryDelay: 2m
+  PaymentBatchSize: 100
 
 Storage:
   Provider: "qiniu-kodo"
@@ -131,7 +137,13 @@ Storage:
 	if cfg.TencentMap.Key != "map-key" || cfg.TencentMap.RequestTimeout != 4*time.Second {
 		t.Fatalf("tencent map = %#v, want env key and timeout", cfg.TencentMap)
 	}
-	if !cfg.ContentAudit.Enabled || cfg.ContentAudit.TextScene != 3 || !cfg.ContentAudit.MediaEnabled || cfg.ContentAudit.RequestTimeout != 6*time.Second || cfg.ContentAudit.MaxTextChars != 1200 {
+	if !cfg.ContentAudit.Enabled ||
+		cfg.ContentAudit.TextScene != 3 ||
+		!cfg.ContentAudit.MediaEnabled ||
+		cfg.ContentAudit.RequestTimeout != 6*time.Second ||
+		cfg.ContentAudit.MaxTextChars != 1200 ||
+		cfg.ContentAudit.CallbackToken != "callback-token" ||
+		cfg.ContentAudit.CallbackMaxSkew != 4*time.Minute {
 		t.Fatalf("content audit = %#v, want configured content audit", cfg.ContentAudit)
 	}
 	if cfg.SMS.Provider != "http" || cfg.SMS.SendMinInterval != 45*time.Second || cfg.SMS.DailySendLimit != 8 {
@@ -140,8 +152,17 @@ Storage:
 	if cfg.Log.Mode != "file" || cfg.Log.Encoding != "json" || cfg.Log.Path != "var/log/wplink" || cfg.Log.Level != "debug" || cfg.Log.Rotation != "daily" || cfg.Log.KeepDays != 7 || !cfg.Log.Compress || cfg.Log.Stat {
 		t.Fatalf("log = %#v, want file daily log config", cfg.Log)
 	}
-	if !cfg.WechatPay.Enabled || !cfg.WechatPay.DevMockEnabled || cfg.WechatPay.MchID != "1900000001" || cfg.WechatPay.RequestTimeout != 10*time.Second {
+	if !cfg.WechatPay.Enabled ||
+		!cfg.WechatPay.DevMockEnabled ||
+		cfg.WechatPay.MchID != "1900000001" ||
+		cfg.WechatPay.RequestTimeout != 10*time.Second ||
+		cfg.WechatPay.OrderExpire != 30*time.Minute {
 		t.Fatalf("wechat pay = %#v, want enabled merchant config", cfg.WechatPay)
+	}
+	if cfg.Tasks.PaymentReconcileInterval != time.Minute ||
+		cfg.Tasks.PaymentQueryDelay != 2*time.Minute ||
+		cfg.Tasks.PaymentBatchSize != 100 {
+		t.Fatalf("tasks = %#v, want payment reconciliation config", cfg.Tasks)
 	}
 	if cfg.Tasks.ResourceLifecycleInterval != time.Hour {
 		t.Fatalf("tasks = %#v, want resource lifecycle interval", cfg.Tasks)

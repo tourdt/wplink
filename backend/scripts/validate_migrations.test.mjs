@@ -174,14 +174,55 @@ test('vip membership migration supports online quota pack purchase products', ()
   }
 })
 
-test('category commercial rules migration defines contact unlock commerce schema', () => {
-  const source = fs.readFileSync(path.resolve(migrationsDir, '000023_category_commercial_rules.up.sql'), 'utf8')
+test('core domain migration owns category commercial rules and contact unlock commerce schema', () => {
+  const source = fs.readFileSync(path.resolve(migrationsDir, '000002_core_domain.up.sql'), 'utf8')
 
-  assert.match(source, /ALTER TABLE resource_type_configs\s+ADD COLUMN IF NOT EXISTS commercial_rules jsonb/i)
+  assert.match(source, /commercial_rules jsonb NOT NULL DEFAULT/i)
   assert.match(source, /CREATE TABLE IF NOT EXISTS resource_contact_unlock_orders/i)
   assert.match(source, /CREATE TABLE IF NOT EXISTS resource_contact_unlocks/i)
   assert.match(source, /idx_contact_unlock_orders_out_trade_no/i)
   assert.match(source, /idx_contact_unlocks_resource_user/i)
+})
+
+test('core domain enforces one active merchant binding per user and one owner per merchant', () => {
+  const coreSQL = fs.readFileSync(
+    path.join(migrationsDir, '000002_core_domain.up.sql'),
+    'utf8',
+  )
+
+  assert.match(
+    coreSQL,
+    /CREATE UNIQUE INDEX IF NOT EXISTS uniq_active_merchant_binding_per_user\s+ON merchant_admin_bindings\(user_id\)\s+WHERE status = 'active'/,
+  )
+  assert.match(
+    coreSQL,
+    /CREATE UNIQUE INDEX IF NOT EXISTS uniq_active_owner_per_merchant\s+ON merchant_admin_bindings\(merchant_id\)\s+WHERE status = 'active' AND role = 'owner'/,
+  )
+})
+
+test('core domain versions resource type configs and snapshots every resource', () => {
+  const source = fs.readFileSync(path.resolve(migrationsDir, '000002_core_domain.up.sql'), 'utf8')
+  for (const snippet of [
+    'version bigint NOT NULL DEFAULT 1',
+    'resource_type_config_version bigint NOT NULL',
+    'resource_type_snapshot jsonb NOT NULL',
+    'chk_resources_type_snapshot',
+  ]) {
+    assert(source.includes(snippet), `core migration should include immutable resource config snippet ${snippet}`)
+  }
+})
+
+test('core domain prevents duplicate lifecycle messages across instances', () => {
+  const source = fs.readFileSync(path.resolve(migrationsDir, '000002_core_domain.up.sql'), 'utf8')
+  for (const snippet of [
+    'uniq_messages_lifecycle_trigger',
+    "'resource_expired'",
+    "'resource_expiring'",
+    "'verification_expired'",
+    "'verification_expiring'",
+  ]) {
+    assert(source.includes(snippet), `core migration should include lifecycle idempotency snippet ${snippet}`)
+  }
 })
 
 test('resource tags migration adds gin index for structured tag filtering', () => {
@@ -192,22 +233,16 @@ test('resource tags migration adds gin index for structured tag filtering', () =
   assert.match(downSql, /DROP INDEX IF EXISTS idx_resources_tags_gin/i)
 })
 
-test('vip migration backfills product columns for databases that already applied old 000017', () => {
-  const repairSql = fs.readFileSync(path.resolve(migrationsDir, '000018_vip_order_product_backfill.up.sql'), 'utf8')
-
-  for (const snippet of [
-    'ALTER TABLE IF EXISTS vip_orders',
-    'ADD COLUMN IF NOT EXISTS product_type',
-    'ADD COLUMN IF NOT EXISTS product_code',
-    'ADD COLUMN IF NOT EXISTS product_name',
-    'ADD COLUMN IF NOT EXISTS product_snapshot',
-    'ALTER COLUMN plan_id DROP NOT NULL',
-    'ALTER COLUMN plan_version_id DROP NOT NULL',
-    'UPDATE vip_orders o',
-    "product_type = 'vip_plan'",
-    "CREATE TABLE IF NOT EXISTS vip_quota_packs",
+test('prelaunch consolidated migrations keep historical repair slots side effect free', () => {
+  for (const version of [
+    '000018_vip_order_product_backfill',
+    '000019_entitlement_usage_records',
+    '000023_category_commercial_rules',
   ]) {
-    assert(repairSql.includes(snippet), `repair migration should include snippet ${snippet}`)
+    const upSql = fs.readFileSync(path.resolve(migrationsDir, `${version}.up.sql`), 'utf8')
+    const downSql = fs.readFileSync(path.resolve(migrationsDir, `${version}.down.sql`), 'utf8')
+    assert.doesNotMatch(upSql, /\b(?:CREATE|ALTER|INSERT|UPDATE|DELETE|DROP)\b/i)
+    assert.doesNotMatch(downSql, /\b(?:CREATE|ALTER|INSERT|UPDATE|DELETE|DROP)\b/i)
   }
 })
 
@@ -243,26 +278,22 @@ test('vip top voucher pack migration updates existing databases to multiple top 
 
 test('entitlement migrations store top vouchers as merchant entitlement batches with usage records', () => {
   const coreSql = fs.readFileSync(path.resolve(migrationsDir, '000002_core_domain.up.sql'), 'utf8')
-  const upgradeSql = fs.readFileSync(path.resolve(migrationsDir, '000019_entitlement_usage_records.up.sql'), 'utf8')
   const demoSeedSql = fs.readFileSync(path.resolve(scriptDir, 'seed_demo_data.sql'), 'utf8')
 
-  for (const sql of [coreSql, upgradeSql]) {
-    for (const snippet of [
-      'top_started_at timestamptz',
-      'top_expires_at timestamptz',
-      'allowed_type_codes jsonb NOT NULL DEFAULT',
-      'top_duration_hours integer NOT NULL DEFAULT 0',
-      'CREATE TABLE IF NOT EXISTS merchant_entitlement_usage_records',
-      'before_remaining_amount integer NOT NULL',
-      'after_remaining_amount integer NOT NULL',
-      'resource_id bigint REFERENCES resources(id)',
-    ]) {
-      assert(sql.includes(snippet), `entitlement migration should include snippet ${snippet}`)
-    }
-    assert(!sql.includes('CREATE TABLE IF NOT EXISTS top_vouchers'), 'top_vouchers should not be created after entitlement unification')
+  for (const snippet of [
+    'top_started_at timestamptz',
+    'top_expires_at timestamptz',
+    'allowed_type_codes jsonb NOT NULL DEFAULT',
+    'top_duration_hours integer NOT NULL DEFAULT 0',
+    'CREATE TABLE IF NOT EXISTS merchant_entitlement_usage_records',
+    'before_remaining_amount integer NOT NULL',
+    'after_remaining_amount integer NOT NULL',
+    'resource_id bigint REFERENCES resources(id)',
+  ]) {
+    assert(coreSql.includes(snippet), `core entitlement migration should include snippet ${snippet}`)
   }
 
-  assert(upgradeSql.includes('DROP TABLE IF EXISTS top_vouchers'), 'upgrade migration should drop retired top_vouchers table')
+  assert(!coreSql.includes('CREATE TABLE IF NOT EXISTS top_vouchers'), 'top_vouchers should not be created after entitlement unification')
   assert(!demoSeedSql.includes('INSERT INTO top_vouchers'), 'demo seed should grant top vouchers through merchant_entitlements')
   assert(demoSeedSql.includes("'top_voucher'"), 'demo seed should include a top voucher entitlement')
   assert(demoSeedSql.includes('allowed_type_codes'), 'demo seed should preserve top voucher type limits on merchant_entitlements')

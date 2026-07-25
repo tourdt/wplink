@@ -65,6 +65,7 @@
                 </div>
                 <div class="type-meta">
                   <span>二级类型：{{ row.typeCode }}</span>
+                  <span>配置版本：v{{ row.version }}</span>
                   <span label="类型归属">类型归属：{{ directionLabel(row.direction) }}</span>
                   <span>有效期：{{ row.defaultValidDays }} 天</span>
                 </div>
@@ -961,6 +962,7 @@ async function saveConfig() {
   saving.value = true
   try {
     await updateResourceTypeConfig(editing.value.id, {
+      version: editing.value.version,
       ...payload,
       defaultValidDays: editing.value.defaultValidDays,
       status: editing.value.status,

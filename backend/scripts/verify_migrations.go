@@ -133,17 +133,144 @@ func verifyMigrationUpDown(ctx context.Context, sourceDSN string, rootDir string
 	if err != nil {
 		return err
 	}
+	for _, upFile := range upFiles {
+		downFile := strings.TrimSuffix(upFile, ".up.sql") + ".down.sql"
+		if _, err := os.Stat(downFile); err != nil {
+			return fmt.Errorf("%s 缺少配套 down migration: %w", upFile, err)
+		}
+
+		// 每个版本都执行一次 up -> down -> up，并比较回滚前后的结构快照。
+		// 这能及时发现 down migration 误删前序版本表、字段或索引的问题，而不是只验证整库最终能否清空。
+		before, err := loadPublicSchemaSnapshot(ctx, tempDB)
+		if err != nil {
+			return fmt.Errorf("%s 执行前读取结构失败: %w", upFile, err)
+		}
+		if err := executeSQLFile(ctx, tempDB, upFile); err != nil {
+			return err
+		}
+		if err := executeSQLFile(ctx, tempDB, downFile); err != nil {
+			return err
+		}
+		afterRollback, err := loadPublicSchemaSnapshot(ctx, tempDB)
+		if err != nil {
+			return fmt.Errorf("%s 回滚后读取结构失败: %w", downFile, err)
+		}
+		if diff := compareSchemaSnapshots(before, afterRollback); diff != "" {
+			return fmt.Errorf("%s 单步回滚破坏了前序数据库结构:\n%s", downFile, diff)
+		}
+		if err := executeSQLFile(ctx, tempDB, upFile); err != nil {
+			return fmt.Errorf("%s 回滚后重新执行失败: %w", upFile, err)
+		}
+	}
+
+	// 单步验证通过后，再按逆序完整回滚，覆盖跨版本依赖和最终清库路径。
 	downFiles, err := collectMigrationFiles(rootDir, "down")
 	if err != nil {
 		return err
 	}
-	files := append(upFiles, downFiles...)
-	for _, file := range files {
-		if err := executeSQLFile(ctx, tempDB, file); err != nil {
+	for _, downFile := range downFiles {
+		if err := executeSQLFile(ctx, tempDB, downFile); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func loadPublicSchemaSnapshot(ctx context.Context, db *sql.DB) ([]string, error) {
+	const query = `
+SELECT object_definition
+FROM (
+	SELECT
+		'column|' || table_name || '|' || column_name || '|' ||
+		data_type || '|' || udt_name || '|' || is_nullable || '|' ||
+		COALESCE(column_default, '') AS object_definition
+	FROM information_schema.columns
+	WHERE table_schema = 'public'
+
+	UNION ALL
+
+	SELECT
+		'index|' || tablename || '|' || indexname || '|' || indexdef
+	FROM pg_indexes
+	WHERE schemaname = 'public'
+
+	UNION ALL
+
+	SELECT
+		'constraint|' || c.relname || '|' || con.conname || '|' ||
+		pg_get_constraintdef(con.oid, true)
+	FROM pg_constraint con
+	JOIN pg_class c ON c.oid = con.conrelid
+	JOIN pg_namespace n ON n.oid = c.relnamespace
+	WHERE n.nspname = 'public'
+
+	UNION ALL
+
+	SELECT
+		'type|' || t.typname || '|' || e.enumlabel || '|' || e.enumsortorder::text
+	FROM pg_type t
+	JOIN pg_namespace n ON n.oid = t.typnamespace
+	JOIN pg_enum e ON e.enumtypid = t.oid
+	WHERE n.nspname = 'public'
+) snapshot
+ORDER BY object_definition`
+
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var snapshot []string
+	for rows.Next() {
+		var definition string
+		if err := rows.Scan(&definition); err != nil {
+			return nil, err
+		}
+		snapshot = append(snapshot, definition)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return snapshot, nil
+}
+
+func compareSchemaSnapshots(want []string, got []string) string {
+	if len(want) == len(got) {
+		equal := true
+		for index := range want {
+			if want[index] != got[index] {
+				equal = false
+				break
+			}
+		}
+		if equal {
+			return ""
+		}
+	}
+
+	wantSet := make(map[string]struct{}, len(want))
+	gotSet := make(map[string]struct{}, len(got))
+	for _, item := range want {
+		wantSet[item] = struct{}{}
+	}
+	for _, item := range got {
+		gotSet[item] = struct{}{}
+	}
+
+	var missing []string
+	var unexpected []string
+	for _, item := range want {
+		if _, ok := gotSet[item]; !ok {
+			missing = append(missing, "- 缺失: "+item)
+		}
+	}
+	for _, item := range got {
+		if _, ok := wantSet[item]; !ok {
+			unexpected = append(unexpected, "+ 多出: "+item)
+		}
+	}
+	return strings.Join(append(missing, unexpected...), "\n")
 }
 
 func verifyDemoSeedImport(ctx context.Context, sourceDSN string, rootDir string, keepDatabase bool) error {

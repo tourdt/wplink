@@ -53,35 +53,6 @@ func TestCreateContactUnlockPaymentUsesDevMock(t *testing.T) {
 	}
 }
 
-func TestContactUnlockWechatPayNotifyMarksOrderPaid(t *testing.T) {
-	store := &fakeContactUnlockPaymentStore{
-		markResult: model.ContactUnlockPaymentResult{
-			OrderID:    "order-1",
-			ResourceID: "resource-1",
-			Status:     model.PaymentOrderStatusPaid,
-		},
-	}
-	gateway := &fakeWechatPayGateway{
-		notify: WechatPayNotification{
-			OutTradeNo:    "contact_unlock_1",
-			TransactionID: "wx-transaction-1",
-			AmountTotal:   500,
-			SuccessTime:   "2026-07-14T12:00:00Z",
-			RawPayload:    map[string]interface{}{"trade_state": "SUCCESS"},
-		},
-	}
-	resp, err := NewContactUnlockWechatPayNotifyLogic(store, gateway).HandleNotify(context.Background(), WechatPayNotifyReq{})
-	if err != nil {
-		t.Fatalf("HandleNotify() error = %v", err)
-	}
-	if store.markInput.OutTradeNo != "contact_unlock_1" || store.markInput.TransactionID != "wx-transaction-1" {
-		t.Fatalf("markInput = %#v, want contact unlock payment notification", store.markInput)
-	}
-	if resp.Code != "SUCCESS" || resp.Message != "成功" {
-		t.Fatalf("resp = %#v, want wechat success", resp)
-	}
-}
-
 type fakeContactUnlockPaymentStore struct {
 	context     model.ContactUnlockPaymentContext
 	order       model.ContactUnlockPaymentOrder

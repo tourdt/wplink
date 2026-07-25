@@ -314,7 +314,7 @@ type VIPAPIStore interface {
 - `GET /api/v1/merchants/{merchantId}/vip`
 - `POST /api/v1/merchants/{merchantId}/vip/orders`
 - `POST /api/v1/merchants/{merchantId}/vip/orders/{orderId}/payment`
-- `POST /api/v1/wechat-pay/vip/notify`
+- `POST /api/v1/wechat-pay/notify`（统一支付回调，根据签名内的 `attach` 路由业务订单）
 
 - [ ] **Step 4: 运行路由测试**
 
@@ -548,4 +548,3 @@ git diff --stat
 ```
 
 确认只包含 VIP 实施相关文件。
-

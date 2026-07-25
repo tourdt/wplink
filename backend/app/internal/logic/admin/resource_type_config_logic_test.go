@@ -14,6 +14,7 @@ func TestListResourceTypeConfigsReturnsStoreItems(t *testing.T) {
 		items: []model.AdminResourceTypeConfig{
 			{
 				ID:               "config-1",
+				Version:          4,
 				CityCode:         "zhili",
 				TypeCode:         "buy_kids_goods",
 				TypeName:         "求购尾货",
@@ -45,6 +46,9 @@ func TestListResourceTypeConfigsReturnsStoreItems(t *testing.T) {
 	if resp.Items[0].Direction != model.ResourceDirectionDemand {
 		t.Fatalf("direction = %q, want demand", resp.Items[0].Direction)
 	}
+	if resp.Items[0].Version != 4 {
+		t.Fatalf("version = %d, want 4", resp.Items[0].Version)
+	}
 }
 
 func TestUpdateResourceTypeConfigRejectsEmptyID(t *testing.T) {
@@ -53,6 +57,18 @@ func TestUpdateResourceTypeConfigRejectsEmptyID(t *testing.T) {
 	_, err := logic.UpdateResourceTypeConfig(context.Background(), "", UpdateResourceTypeConfigReq{})
 	if err == nil {
 		t.Fatal("UpdateResourceTypeConfig() error = nil, want validation error")
+	}
+}
+
+func TestUpdateResourceTypeConfigRequiresExpectedVersion(t *testing.T) {
+	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
+
+	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		DefaultValidDays: 10,
+		Status:           "active",
+	})
+	if errx.CodeOf(err) != errx.CodeValidationFailed || !strings.Contains(err.Error(), "版本") {
+		t.Fatalf("UpdateResourceTypeConfig() error = %v, want version validation", err)
 	}
 }
 
@@ -128,6 +144,7 @@ func TestUpdateResourceTypeConfigPassesPatchToStore(t *testing.T) {
 	logic := NewResourceTypeConfigLogic(store)
 
 	resp, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		Version:          1,
 		DefaultValidDays: 10,
 		Status:           "active",
 		RequiredFields:   []string{"title"},
@@ -149,6 +166,9 @@ func TestUpdateResourceTypeConfigPassesPatchToStore(t *testing.T) {
 	if resp.UpdatedAt != "2026-06-27T10:00:00+08:00" {
 		t.Fatalf("updatedAt = %q, want fixed time", resp.UpdatedAt)
 	}
+	if resp.Version != 2 || store.patch.ExpectedVersion != 1 {
+		t.Fatalf("response version = %d expected version = %d, want 2/1", resp.Version, store.patch.ExpectedVersion)
+	}
 }
 
 func TestUpdateResourceTypeConfigAcceptsAddressFieldType(t *testing.T) {
@@ -156,6 +176,7 @@ func TestUpdateResourceTypeConfigAcceptsAddressFieldType(t *testing.T) {
 	logic := NewResourceTypeConfigLogic(store)
 
 	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		Version:          1,
 		DefaultValidDays: 10,
 		Status:           "active",
 		FieldSchema: map[string]interface{}{
@@ -187,6 +208,7 @@ func TestUpdateResourceTypeConfigRejectsPaidContactWithoutPrice(t *testing.T) {
 	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
 
 	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		Version:          1,
 		DefaultValidDays: 15,
 		Status:           "active",
 		CommercialRules: map[string]interface{}{
@@ -211,6 +233,7 @@ func TestUpdateResourceTypeConfigRejectsDuplicateDynamicFieldKeys(t *testing.T) 
 	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
 
 	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		Version:          1,
 		DefaultValidDays: 10,
 		Status:           "active",
 		FieldSchema: map[string]interface{}{
@@ -232,6 +255,7 @@ func TestUpdateResourceTypeConfigRejectsUnsupportedDynamicFieldType(t *testing.T
 	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
 
 	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		Version:          1,
 		DefaultValidDays: 10,
 		Status:           "active",
 		FieldSchema: map[string]interface{}{
@@ -252,6 +276,7 @@ func TestUpdateResourceTypeConfigRejectsSelectWithoutOptionsWhenCustomDisabled(t
 	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
 
 	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		Version:          1,
 		DefaultValidDays: 10,
 		Status:           "active",
 		FieldSchema: map[string]interface{}{
@@ -272,6 +297,7 @@ func TestUpdateResourceTypeConfigRejectsInvalidSummaryTarget(t *testing.T) {
 	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
 
 	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		Version:          1,
 		DefaultValidDays: 10,
 		Status:           "active",
 		FieldSchema: map[string]interface{}{
@@ -298,6 +324,7 @@ func TestUpdateResourceTypeConfigRejectsInvalidSummarySource(t *testing.T) {
 	logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
 
 	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		Version:          1,
 		DefaultValidDays: 10,
 		Status:           "active",
 		FieldSchema: map[string]interface{}{
@@ -337,13 +364,13 @@ func (s *fakeResourceTypeConfigStore) ListResourceTypeConfigs(ctx context.Contex
 	return append([]model.AdminResourceTypeConfig(nil), s.items...), nil
 }
 
-func (s *fakeResourceTypeConfigStore) UpdateResourceTypeConfig(ctx context.Context, configID string, patch model.ResourceTypeConfigPatch) (string, error) {
+func (s *fakeResourceTypeConfigStore) UpdateResourceTypeConfig(ctx context.Context, configID string, patch model.ResourceTypeConfigPatch) (model.UpdateResourceTypeConfigResult, error) {
 	s.configID = configID
 	s.patch = patch
-	return s.updatedAt, nil
+	return model.UpdateResourceTypeConfigResult{Version: 2, UpdatedAt: s.updatedAt}, nil
 }
 
 func (s *fakeResourceTypeConfigStore) CreateResourceTypeConfig(ctx context.Context, input model.CreateResourceTypeConfigInput) (model.CreateResourceTypeConfigResult, error) {
 	s.createInput = input
-	return model.CreateResourceTypeConfigResult{ID: s.createdID, UpdatedAt: s.updatedAt}, nil
+	return model.CreateResourceTypeConfigResult{ID: s.createdID, Version: 1, UpdatedAt: s.updatedAt}, nil
 }

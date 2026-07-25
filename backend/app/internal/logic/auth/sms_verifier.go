@@ -4,14 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"wplink/backend/app/internal/config"
 	"wplink/backend/common/errx"
+
+	"github.com/google/uuid"
 )
 
 type SMSVerifier interface {
@@ -22,18 +24,21 @@ type SMSCodeSender interface {
 	SendSMSCode(ctx context.Context, phone string) error
 }
 
-type ConfiguredSMSVerifier struct {
-	cfg        config.SMSConfig
-	client     *http.Client
-	now        func() time.Time
-	sendMu     sync.Mutex
-	sendLimits map[string]smsSendLimit
+var (
+	ErrSMSSendTooFrequent = errors.New("sms send too frequent")
+	ErrSMSDailyLimit      = errors.New("sms daily send limit reached")
+)
+
+type SMSSendLimiter interface {
+	Reserve(ctx context.Context, phone string, now time.Time, minInterval time.Duration, dailyLimit int) (string, error)
+	Rollback(ctx context.Context, phone string, now time.Time, reservationToken string) error
 }
 
-type smsSendLimit struct {
-	LastSentAt time.Time
-	Day        string
-	Count      int
+type ConfiguredSMSVerifier struct {
+	cfg     config.SMSConfig
+	client  *http.Client
+	now     func() time.Time
+	limiter SMSSendLimiter
 }
 
 func NewConfiguredSMSVerifier(cfg config.SMSConfig) *ConfiguredSMSVerifier {
@@ -41,10 +46,17 @@ func NewConfiguredSMSVerifier(cfg config.SMSConfig) *ConfiguredSMSVerifier {
 }
 
 func NewConfiguredSMSVerifierWithHTTP(cfg config.SMSConfig, client *http.Client) *ConfiguredSMSVerifier {
+	return NewConfiguredSMSVerifierWithLimiter(cfg, client, NewMemorySMSSendLimiter())
+}
+
+func NewConfiguredSMSVerifierWithLimiter(cfg config.SMSConfig, client *http.Client, limiter SMSSendLimiter) *ConfiguredSMSVerifier {
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Second}
 	}
-	return &ConfiguredSMSVerifier{cfg: cfg, client: client, now: time.Now, sendLimits: map[string]smsSendLimit{}}
+	if limiter == nil {
+		limiter = NewMemorySMSSendLimiter()
+	}
+	return &ConfiguredSMSVerifier{cfg: cfg, client: client, now: time.Now, limiter: limiter}
 }
 
 func (v *ConfiguredSMSVerifier) SendSMSCode(ctx context.Context, phone string) error {
@@ -57,17 +69,18 @@ func (v *ConfiguredSMSVerifier) SendSMSCode(ctx context.Context, phone string) e
 		return errx.New(errx.CodeValidationFailed, "请填写手机号")
 	}
 	if provider == "dev" {
-		if err := v.reserveSMSSend(phone); err != nil {
+		if _, err := v.reserveSMSSend(ctx, phone); err != nil {
 			return err
 		}
 		return nil
 	}
 	if provider == "http" {
-		if err := v.reserveSMSSend(phone); err != nil {
+		reservationToken, err := v.reserveSMSSend(ctx, phone)
+		if err != nil {
 			return err
 		}
 		if err := v.postSMS(ctx, strings.TrimSpace(v.cfg.SendURL), map[string]string{"phone": phone}, "短信验证码发送失败，请稍后重试", false); err != nil {
-			v.rollbackSMSSend(phone)
+			_ = v.limiter.Rollback(ctx, phone, v.now(), reservationToken)
 			return err
 		}
 		return nil
@@ -75,7 +88,7 @@ func (v *ConfiguredSMSVerifier) SendSMSCode(ctx context.Context, phone string) e
 	return errx.New(errx.CodeInternalError, "短信服务供应商尚未接入，请稍后重试")
 }
 
-func (v *ConfiguredSMSVerifier) reserveSMSSend(phone string) error {
+func (v *ConfiguredSMSVerifier) reserveSMSSend(ctx context.Context, phone string) (string, error) {
 	now := v.now()
 	minInterval := v.cfg.SendMinInterval
 	if minInterval <= 0 {
@@ -86,43 +99,21 @@ func (v *ConfiguredSMSVerifier) reserveSMSSend(phone string) error {
 		dailyLimit = 10
 	}
 
-	v.sendMu.Lock()
-	defer v.sendMu.Unlock()
-
-	limit := v.sendLimits[phone]
-	day := now.Format("2006-01-02")
-	if limit.Day != day {
-		limit = smsSendLimit{Day: day}
+	reservationToken, err := v.limiter.Reserve(ctx, phone, now, minInterval, dailyLimit)
+	switch {
+	case errors.Is(err, ErrSMSSendTooFrequent):
+		return "", errx.New(errx.CodeRateLimited, "验证码发送太频繁，请稍后再试")
+	case errors.Is(err, ErrSMSDailyLimit):
+		return "", errx.New(errx.CodeRateLimited, "今日验证码发送次数已达上限，请明天再试")
+	case err != nil:
+		return "", errx.New(errx.CodeInternalError, "验证码发送服务暂不可用，请稍后重试")
+	default:
+		return reservationToken, nil
 	}
-	if !limit.LastSentAt.IsZero() && now.Sub(limit.LastSentAt) < minInterval {
-		return errx.New(errx.CodeRateLimited, "验证码发送太频繁，请稍后再试")
-	}
-	if limit.Count >= dailyLimit {
-		return errx.New(errx.CodeRateLimited, "今日验证码发送次数已达上限，请明天再试")
-	}
-	limit.LastSentAt = now
-	limit.Count++
-	v.sendLimits[phone] = limit
-	return nil
 }
 
-func (v *ConfiguredSMSVerifier) rollbackSMSSend(phone string) {
-	v.sendMu.Lock()
-	defer v.sendMu.Unlock()
-
-	limit, ok := v.sendLimits[phone]
-	if !ok {
-		return
-	}
-	if limit.Count > 0 {
-		limit.Count--
-	}
-	limit.LastSentAt = time.Time{}
-	if limit.Count == 0 {
-		delete(v.sendLimits, phone)
-		return
-	}
-	v.sendLimits[phone] = limit
+func newSMSSendReservationToken() string {
+	return uuid.NewString()
 }
 
 func (v *ConfiguredSMSVerifier) VerifySMSCode(ctx context.Context, phone string, code string) error {

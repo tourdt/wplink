@@ -1,4 +1,5 @@
 DROP TABLE IF EXISTS operation_logs;
+DROP TABLE IF EXISTS sms_send_limits;
 DROP TABLE IF EXISTS admin_login_credentials;
 DROP TABLE IF EXISTS admin_operator_role_assignments;
 DROP TABLE IF EXISTS admin_roles;

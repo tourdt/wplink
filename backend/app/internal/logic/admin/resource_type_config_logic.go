@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,7 +16,7 @@ import (
 type ResourceTypeConfigStore interface {
 	ListResourceTypeConfigs(ctx context.Context, cityCode string, status string) ([]model.AdminResourceTypeConfig, error)
 	CreateResourceTypeConfig(ctx context.Context, input model.CreateResourceTypeConfigInput) (model.CreateResourceTypeConfigResult, error)
-	UpdateResourceTypeConfig(ctx context.Context, configID string, patch model.ResourceTypeConfigPatch) (string, error)
+	UpdateResourceTypeConfig(ctx context.Context, configID string, patch model.ResourceTypeConfigPatch) (model.UpdateResourceTypeConfigResult, error)
 }
 
 type ListResourceTypeConfigsReq struct {
@@ -25,6 +26,7 @@ type ListResourceTypeConfigsReq struct {
 
 type ResourceTypeConfigItem struct {
 	ID               string                 `json:"id"`
+	Version          int64                  `json:"version"`
 	CityCode         string                 `json:"cityCode,omitempty"`
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
@@ -67,10 +69,12 @@ type CreateResourceTypeConfigReq struct {
 
 type CreateResourceTypeConfigResp struct {
 	ID        string `json:"id"`
+	Version   int64  `json:"version"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
 type UpdateResourceTypeConfigReq struct {
+	Version          int64
 	FieldSchema      map[string]interface{}
 	RequiredFields   []string
 	FilterFields     []string
@@ -85,6 +89,7 @@ type UpdateResourceTypeConfigReq struct {
 
 type UpdateResourceTypeConfigResp struct {
 	ID        string `json:"id"`
+	Version   int64  `json:"version"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
@@ -140,6 +145,7 @@ func (l *ResourceTypeConfigLogic) ListResourceTypeConfigs(ctx context.Context, r
 	for _, config := range configs {
 		items = append(items, ResourceTypeConfigItem{
 			ID:               config.ID,
+			Version:          config.Version,
 			CityCode:         config.CityCode,
 			TypeCode:         config.TypeCode,
 			TypeName:         config.TypeName,
@@ -178,13 +184,16 @@ func (l *ResourceTypeConfigLogic) CreateResourceTypeConfig(ctx context.Context, 
 		return CreateResourceTypeConfigResp{}, errx.New(errx.CodeInternalError, "新增供需类型失败，请稍后重试")
 	}
 	logx.Infof("创建供需二级类型成功: cityCode=%s typeCode=%s groupCode=%s configId=%s", input.CityCode, input.TypeCode, groupCodeFromDisplayTemplate(input.DisplayTemplate), result.ID)
-	return CreateResourceTypeConfigResp{ID: result.ID, UpdatedAt: result.UpdatedAt}, nil
+	return CreateResourceTypeConfigResp{ID: result.ID, Version: result.Version, UpdatedAt: result.UpdatedAt}, nil
 }
 
 func (l *ResourceTypeConfigLogic) UpdateResourceTypeConfig(ctx context.Context, configID string, req UpdateResourceTypeConfigReq) (UpdateResourceTypeConfigResp, error) {
 	configID = strings.TrimSpace(configID)
 	if configID == "" {
 		return UpdateResourceTypeConfigResp{}, errx.New(errx.CodeValidationFailed, "资源类型配置不存在")
+	}
+	if req.Version <= 0 {
+		return UpdateResourceTypeConfigResp{}, errx.New(errx.CodeValidationFailed, "资源类型配置版本不正确，请刷新后重试")
 	}
 	if req.DefaultValidDays <= 0 {
 		return UpdateResourceTypeConfigResp{}, errx.New(errx.CodeValidationFailed, "默认有效期必须大于 0")
@@ -200,7 +209,8 @@ func (l *ResourceTypeConfigLogic) UpdateResourceTypeConfig(ctx context.Context, 
 		return UpdateResourceTypeConfigResp{}, err
 	}
 
-	updatedAt, err := l.store.UpdateResourceTypeConfig(ctx, configID, model.ResourceTypeConfigPatch{
+	result, err := l.store.UpdateResourceTypeConfig(ctx, configID, model.ResourceTypeConfigPatch{
+		ExpectedVersion:  req.Version,
 		FieldSchema:      model.JSONMap(req.FieldSchema),
 		RequiredFields:   append([]string(nil), req.RequiredFields...),
 		FilterFields:     append([]string(nil), req.FilterFields...),
@@ -213,9 +223,12 @@ func (l *ResourceTypeConfigLogic) UpdateResourceTypeConfig(ctx context.Context, 
 		Status:           req.Status,
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return UpdateResourceTypeConfigResp{}, errx.New(errx.CodeStateConflict, "资源类型配置已被其他人修改，请刷新后重试")
+		}
 		return UpdateResourceTypeConfigResp{}, err
 	}
-	return UpdateResourceTypeConfigResp{ID: configID, UpdatedAt: updatedAt}, nil
+	return UpdateResourceTypeConfigResp{ID: configID, Version: result.Version, UpdatedAt: result.UpdatedAt}, nil
 }
 
 func buildCreateResourceTypeConfigInput(req CreateResourceTypeConfigReq) (model.CreateResourceTypeConfigInput, error) {

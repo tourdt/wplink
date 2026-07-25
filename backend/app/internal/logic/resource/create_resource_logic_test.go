@@ -41,7 +41,9 @@ func TestCreateResourceGeneratesTitleWhenTitleIsMissing(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{
 			ID:             "config-1",
+			Version:        3,
 			TypeCode:       "inventory",
+			TypeName:       "库存出售",
 			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
 		},
 		result: model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
@@ -62,6 +64,12 @@ func TestCreateResourceGeneratesTitleWhenTitleIsMissing(t *testing.T) {
 	}
 	if store.input.Title != "童装 3200 件" {
 		t.Fatalf("title = %q, want generated summary title", store.input.Title)
+	}
+	if store.input.ResourceTypeConfigVersion != 3 {
+		t.Fatalf("config version = %d, want 3", store.input.ResourceTypeConfigVersion)
+	}
+	if store.input.ResourceTypeSnapshot["typeName"] != "库存出售" || store.input.ResourceTypeSnapshot["version"] != int64(3) {
+		t.Fatalf("config snapshot = %#v, want immutable version 3 snapshot", store.input.ResourceTypeSnapshot)
 	}
 }
 

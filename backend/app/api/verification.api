@@ -15,15 +15,15 @@ type SubmitVerificationResp {
 }
 
 type LatestVerificationResp {
-	Id               string `json:"id"`
-	VerificationType string `json:"verificationType"`
-	Status           string `json:"status"`
-	ReviewedAt       string `json:"reviewedAt,optional"`
-	ExpiresAt        string `json:"expiresAt,optional"`
-	ReviewNote       string `json:"reviewNote,optional"`
-	BusinessName     string `json:"businessName,optional"`
-	LicenseUrl       string `json:"licenseUrl,optional"`
-	StorefrontUrl    string `json:"storefrontUrl,optional"`
+	Id               string                 `json:"id"`
+	VerificationType string                 `json:"verificationType"`
+	Status           string                 `json:"status"`
+	ReviewedAt       string                 `json:"reviewedAt,optional"`
+	ExpiresAt        string                 `json:"expiresAt,optional"`
+	ReviewNote       string                 `json:"reviewNote,optional"`
+	BusinessName     string                 `json:"businessName,optional"`
+	LicenseUrl       string                 `json:"licenseUrl,optional"`
+	StorefrontUrl    string                 `json:"storefrontUrl,optional"`
 	Materials        map[string]interface{} `json:"materials,optional"`
 }
 
@@ -39,8 +39,7 @@ type VerificationBillingConfigResp {
 	UpdatedAt     string `json:"updatedAt,optional"`
 }
 
-type CreateVerificationPaymentReq {
-}
+type CreateVerificationPaymentReq {}
 
 type WechatPayParams {
 	TimeStamp string `json:"timeStamp"`
@@ -56,9 +55,9 @@ type CreateVerificationPaymentResp {
 	Payment WechatPayParams `json:"payment"`
 }
 
-@server(
+@server (
 	prefix: /api/v1
-	group: verification
+	group:  verification
 )
 service wplink-api {
 	@handler SubmitVerification

@@ -37,11 +37,12 @@
 
 ## 商家
 
+普通用户登录时由后端幂等初始化唯一商家，资料页只更新该商家，不提供再次创建商家的接口。
+
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
-| `POST /api/v1/merchants` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/create_merchant_logic.go` | `admin-web/src/views/MerchantView.vue` | `wxapp/pages/merchant/profile.vue` 商家入驻 | 已接 handler，测试通过 |
 | `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue`，含认证、信用标签和发布记录 | 已接 handler，测试通过 |
-| `PATCH /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/update_merchant_logic.go` | 商家编辑 | `wxapp/pages/merchant/profile.vue` 商家资料编辑 | 已接 handler，测试通过 |
+| `POST /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/update_merchant_logic.go` | 商家编辑 | `wxapp/pages/merchant/profile.vue` 商家资料编辑 | 已接 handler，测试通过 |
 
 ## 供需信息
 

@@ -30,12 +30,11 @@ type ReadMessageResp {
 	Status string `json:"status"`
 }
 
-type ReadMessageReq {
-}
+type ReadMessageReq {}
 
-@server(
+@server (
 	prefix: /api/v1
-	group: message
+	group:  message
 )
 service wplink-api {
 	@handler ListMessages

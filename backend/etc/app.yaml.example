@@ -45,6 +45,8 @@ ContentAudit:
   MediaScene: 3
   RequestTimeout: 5s
   MaxTextChars: 2500
+  CallbackToken: "${WECHAT_CONTENT_AUDIT_CALLBACK_TOKEN}"
+  CallbackMaxSkew: 5m
 
 WechatPay:
   Enabled: false
@@ -57,6 +59,7 @@ WechatPay:
   PlatformPublicKeyPath: "${WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH}"
   NotifyURL: "${WECHAT_PAY_NOTIFY_URL}"
   RequestTimeout: 10s
+  OrderExpire: 30m
 
 SMS:
   Provider: "dev"
@@ -72,6 +75,9 @@ SMS:
 
 Tasks:
   ResourceLifecycleInterval: 1h
+  PaymentReconcileInterval: 1m
+  PaymentQueryDelay: 2m
+  PaymentBatchSize: 100
 
 Storage:
   Provider: "qiniu-kodo"

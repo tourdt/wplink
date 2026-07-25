@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+const (
+	testAdminTokenSecret = "admin-token-secret-at-least-32-bytes"
+	testUserTokenSecret  = "user-token-secret-at-least-32-bytes!"
+)
+
 func TestValidateForProductionRejectsMissingCriticalConfig(t *testing.T) {
 	cfg := Config{
 		RuntimeMode: "production",
@@ -29,12 +34,14 @@ func TestValidateForProductionAcceptsRequiredConfig(t *testing.T) {
 	cfg := Config{
 		RuntimeMode: "production",
 		Postgres:    productionPostgresConfig(),
-		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
-		UserAuth:    UserAuthConfig{TokenSecret: "user-secret", TokenTTL: time.Hour},
+		AdminAuth:   AdminAuthConfig{TokenSecret: testAdminTokenSecret, TokenTTL: time.Hour},
+		UserAuth:    UserAuthConfig{TokenSecret: testUserTokenSecret, TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
 		ContentAudit: ContentAuditConfig{
-			Enabled:      true,
-			MediaEnabled: true,
+			Enabled:         true,
+			MediaEnabled:    true,
+			CallbackToken:   "callback-token",
+			CallbackMaxSkew: 5 * time.Minute,
 		},
 		SMS: SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
 		Log: defaultProductionLogConfig(),
@@ -95,6 +102,20 @@ func TestValidateForProductionRejectsDevSMSProvider(t *testing.T) {
 	}
 }
 
+func TestValidateForProductionRejectsWeakOrSharedTokenSecrets(t *testing.T) {
+	cfg := requiredProductionConfig()
+	cfg.AdminAuth.TokenSecret = "short"
+	if err := ValidateForProduction(cfg); err == nil || !strings.Contains(err.Error(), "至少需要 32 字节") {
+		t.Fatalf("ValidateForProduction(weak secret) error = %v, want minimum length error", err)
+	}
+
+	cfg = requiredProductionConfig()
+	cfg.UserAuth.TokenSecret = cfg.AdminAuth.TokenSecret
+	if err := ValidateForProduction(cfg); err == nil || !strings.Contains(err.Error(), "必须相互独立") {
+		t.Fatalf("ValidateForProduction(shared secret) error = %v, want independent secret error", err)
+	}
+}
+
 func TestValidateForProductionRejectsWechatPayDevMock(t *testing.T) {
 	cfg := requiredProductionConfig()
 	cfg.WechatPay.DevMockEnabled = true
@@ -102,6 +123,36 @@ func TestValidateForProductionRejectsWechatPayDevMock(t *testing.T) {
 	err := ValidateForProduction(cfg)
 	if err == nil || !strings.Contains(err.Error(), "WechatPay.DevMockEnabled") {
 		t.Fatalf("ValidateForProduction() error = %v, want reject wechat pay dev mock", err)
+	}
+}
+
+func TestValidateForProductionRequiresPaymentReconciliationWhenWechatPayEnabled(t *testing.T) {
+	cfg := requiredProductionConfig()
+	cfg.WechatPay = WechatPayConfig{
+		Enabled:                true,
+		MchID:                  "merchant-1",
+		AppID:                  "wx-app",
+		APIv3Key:               "12345678901234567890123456789012",
+		MerchantSerialNo:       "serial-1",
+		MerchantPrivateKeyPath: "/etc/wplink/apiclient_key.pem",
+		PlatformPublicKeyPath:  "/etc/wplink/wechatpay_pub.pem",
+		NotifyURL:              "https://api.example.com/api/v1/wechat-pay/notify",
+		RequestTimeout:         10 * time.Second,
+		OrderExpire:            30 * time.Minute,
+	}
+
+	err := ValidateForProduction(cfg)
+	if err == nil {
+		t.Fatal("ValidateForProduction() error = nil, want payment reconciliation config error")
+	}
+	for _, want := range []string{
+		"Tasks.PaymentReconcileInterval",
+		"Tasks.PaymentQueryDelay",
+		"Tasks.PaymentBatchSize",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q, want mention %s", err, want)
+		}
 	}
 }
 
@@ -175,12 +226,14 @@ func requiredProductionConfig() Config {
 	return Config{
 		RuntimeMode: "production",
 		Postgres:    productionPostgresConfig(),
-		AdminAuth:   AdminAuthConfig{TokenSecret: "secret", TokenTTL: time.Hour},
-		UserAuth:    UserAuthConfig{TokenSecret: "user-secret", TokenTTL: time.Hour},
+		AdminAuth:   AdminAuthConfig{TokenSecret: testAdminTokenSecret, TokenTTL: time.Hour},
+		UserAuth:    UserAuthConfig{TokenSecret: testUserTokenSecret, TokenTTL: time.Hour},
 		Wechat:      WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
 		ContentAudit: ContentAuditConfig{
-			Enabled:      true,
-			MediaEnabled: true,
+			Enabled:         true,
+			MediaEnabled:    true,
+			CallbackToken:   "callback-token",
+			CallbackMaxSkew: 5 * time.Minute,
 		},
 		SMS: SMSConfig{Provider: "aliyun", AccessKeyID: "sms-ak", AccessKeySecret: "sms-sk", SignName: "衣货通", TemplateCode: "SMS_001"},
 		Log: defaultProductionLogConfig(),

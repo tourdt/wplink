@@ -47,6 +47,16 @@ func TestMarkVerificationPaymentPaidCreatesMessageForPendingOrder(t *testing.T) 
 	}
 }
 
+func TestBuildVerificationOutTradeNoKeepsWechatSafeLength(t *testing.T) {
+	got := buildVerificationOutTradeNo("verification-1234567890-abcdefghijklmnopqrstuvwxyz")
+	if !strings.HasPrefix(got, "VP") {
+		t.Fatalf("out trade no = %q, want VP prefix", got)
+	}
+	if len(got) > 32 {
+		t.Fatalf("out trade no length = %d, want <= 32", len(got))
+	}
+}
+
 func openVerificationPaymentTestDB(t *testing.T, state *verificationPaymentTestState) *sql.DB {
 	t.Helper()
 	driverName := fmt.Sprintf("verification-payment-test-%d", verificationPaymentTestDriverSeq.Add(1))

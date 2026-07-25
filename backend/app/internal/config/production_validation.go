@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -39,10 +40,19 @@ func ValidateForProduction(cfg Config) error {
 	requirePositiveDuration("Postgres.ConnMaxLifetime", cfg.Postgres.ConnMaxLifetime)
 	requirePositiveDuration("Postgres.ConnMaxIdleTime", cfg.Postgres.ConnMaxIdleTime)
 	require("AdminAuth.TokenSecret", cfg.AdminAuth.TokenSecret)
+	requirePositiveDuration("AdminAuth.TokenTTL", cfg.AdminAuth.TokenTTL)
 	require("UserAuth.TokenSecret", cfg.UserAuth.TokenSecret)
+	requirePositiveDuration("UserAuth.TokenTTL", cfg.UserAuth.TokenTTL)
 	require("Wechat.AppID", cfg.Wechat.AppID)
 	require("Wechat.AppSecret", cfg.Wechat.AppSecret)
 	validateProductionWechatPay(cfg.WechatPay, require, requirePositiveDuration)
+	if cfg.WechatPay.Enabled {
+		requirePositiveDuration("Tasks.PaymentReconcileInterval", cfg.Tasks.PaymentReconcileInterval)
+		requirePositiveDuration("Tasks.PaymentQueryDelay", cfg.Tasks.PaymentQueryDelay)
+		if cfg.Tasks.PaymentBatchSize <= 0 {
+			missing = append(missing, "Tasks.PaymentBatchSize")
+		}
+	}
 	validateProductionSMS(cfg.SMS, require, &missing)
 	validateProductionLog(cfg.Log, require, requirePositiveInt)
 	requirePositiveDuration("Tasks.ResourceLifecycleInterval", cfg.Tasks.ResourceLifecycleInterval)
@@ -56,6 +66,15 @@ func ValidateForProduction(cfg Config) error {
 	if len(missing) > 0 {
 		return fmt.Errorf("生产配置缺失: %s", strings.Join(missing, ", "))
 	}
+	if len([]byte(cfg.AdminAuth.TokenSecret)) < 32 {
+		return fmt.Errorf("生产配置 AdminAuth.TokenSecret 至少需要 32 字节")
+	}
+	if len([]byte(cfg.UserAuth.TokenSecret)) < 32 {
+		return fmt.Errorf("生产配置 UserAuth.TokenSecret 至少需要 32 字节")
+	}
+	if cfg.AdminAuth.TokenSecret == cfg.UserAuth.TokenSecret {
+		return fmt.Errorf("生产配置 AdminAuth.TokenSecret 与 UserAuth.TokenSecret 必须相互独立")
+	}
 	if cfg.Wechat.AllowDevCode {
 		return fmt.Errorf("生产配置不允许启用 Wechat.AllowDevCode")
 	}
@@ -68,8 +87,23 @@ func ValidateForProduction(cfg Config) error {
 	if !cfg.ContentAudit.MediaEnabled {
 		return fmt.Errorf("生产配置必须启用 ContentAudit.MediaEnabled")
 	}
+	if strings.TrimSpace(cfg.ContentAudit.CallbackToken) == "" {
+		return fmt.Errorf("生产配置缺失: ContentAudit.CallbackToken")
+	}
+	if cfg.ContentAudit.CallbackMaxSkew <= 0 {
+		return fmt.Errorf("生产配置缺失: ContentAudit.CallbackMaxSkew")
+	}
 	if cfg.WechatPay.DevMockEnabled {
 		return fmt.Errorf("生产配置不允许启用 WechatPay.DevMockEnabled")
+	}
+	if cfg.WechatPay.Enabled {
+		if len(cfg.WechatPay.APIv3Key) != 32 {
+			return fmt.Errorf("生产配置 WechatPay.APIv3Key 必须为 32 字节")
+		}
+		notifyURL, err := url.Parse(strings.TrimSpace(cfg.WechatPay.NotifyURL))
+		if err != nil || notifyURL.Scheme != "https" || notifyURL.Host == "" || notifyURL.Path != "/api/v1/wechat-pay/notify" {
+			return fmt.Errorf("生产配置 WechatPay.NotifyURL 必须是 HTTPS 统一回调地址，路径固定为 /api/v1/wechat-pay/notify")
+		}
 	}
 	if err := validateProductionLogPolicy(cfg.Log); err != nil {
 		return err
@@ -89,6 +123,7 @@ func validateProductionWechatPay(cfg WechatPayConfig, require func(string, strin
 	require("WechatPay.PlatformPublicKeyPath", cfg.PlatformPublicKeyPath)
 	require("WechatPay.NotifyURL", cfg.NotifyURL)
 	requirePositiveDuration("WechatPay.RequestTimeout", cfg.RequestTimeout)
+	requirePositiveDuration("WechatPay.OrderExpire", cfg.OrderExpire)
 }
 
 func validateProductionSMS(cfg SMSConfig, require func(string, string), missing *[]string) {

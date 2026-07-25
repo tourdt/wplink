@@ -81,38 +81,69 @@ RETURNING id::text, remaining_amount + 1, remaining_amount
 
 type ResourcePublishConfig struct {
 	ID               string
+	Version          int64
 	TypeCode         string
+	TypeName         string
 	Direction        string
 	FieldSchema      JSONMap
 	RequiredFields   []string
+	FilterFields     []string
 	DisplayTemplate  JSONMap
+	ReviewRules      JSONMap
+	SortWeights      JSONMap
+	MessageRules     JSONMap
 	CommercialRules  JSONMap
 	DefaultValidDays int64
 }
 
+func ResourceTypeSnapshotFromPublishConfig(config ResourcePublishConfig) JSONMap {
+	version := config.Version
+	if version <= 0 {
+		// 测试桩和本地旧数据的兜底；真实配置由数据库约束保证版本从 1 开始。
+		version = 1
+	}
+	return JSONMap{
+		"version":          version,
+		"typeCode":         config.TypeCode,
+		"typeName":         config.TypeName,
+		"direction":        config.Direction,
+		"fieldSchema":      config.FieldSchema,
+		"requiredFields":   append([]string(nil), config.RequiredFields...),
+		"filterFields":     append([]string(nil), config.FilterFields...),
+		"displayTemplate":  config.DisplayTemplate,
+		"reviewRules":      config.ReviewRules,
+		"sortWeights":      config.SortWeights,
+		"messageRules":     config.MessageRules,
+		"commercialRules":  config.CommercialRules,
+		"defaultValidDays": config.DefaultValidDays,
+	}
+}
+
 type CreateResourceInput struct {
-	MerchantID           string
-	CityCode             string
-	ResourceTypeConfigID string
-	TypeCode             string
-	Direction            string
-	Status               string
-	Title                string
-	Category             string
-	District             string
-	PriceText            string
-	QuantityText         string
-	CoverURL             string
-	Description          string
-	Attributes           JSONMap
-	Tags                 []string
-	Images               []string
-	ContactName          string
-	ContactPhone         string
-	ContactWechat        string
-	CreatedByUser        string
-	CreatedByOperator    string
-	ConsumePublishQuota  bool
+	MerchantID                string
+	CityCode                  string
+	ResourceTypeConfigID      string
+	ResourceTypeConfigVersion int64
+	ResourceTypeSnapshot      JSONMap
+	TypeCode                  string
+	Direction                 string
+	Status                    string
+	Title                     string
+	Category                  string
+	District                  string
+	PriceText                 string
+	QuantityText              string
+	CoverURL                  string
+	Description               string
+	Attributes                JSONMap
+	Tags                      []string
+	Images                    []string
+	ContactName               string
+	ContactPhone              string
+	ContactWechat             string
+	CreatedByUser             string
+	CreatedByOperator         string
+	ConsumePublishQuota       bool
 }
 
 type CreateResourceResult struct {
@@ -255,7 +286,7 @@ SELECT
   r.id::text,
   r.direction,
   r.type_code,
-  rtc.type_name,
+  r.resource_type_snapshot ->> 'typeName',
   r.title,
   r.category,
   COALESCE(NULLIF(r.cover_url, ''), r.images ->> 0, ''),
@@ -279,13 +310,12 @@ SELECT
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
 JOIN city_stations cs ON cs.id = r.city_station_id
-JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 WHERE r.deleted_at IS NULL
   AND m.status = 'active'
   AND r.status = $1
   AND ($2 = '' OR cs.code = $2)
   AND (NULLIF($3, '')::bigint IS NULL OR r.merchant_id = NULLIF($3, '')::bigint)
-  AND ($4 = '' OR rtc.display_template #>> '{group,code}' = $4)
+  AND ($4 = '' OR r.resource_type_snapshot #>> '{displayTemplate,group,code}' = $4)
   AND ($5 = '' OR r.type_code = $5)
   AND ($6 = '' OR r.direction = $6)
   AND ($7 = '' OR r.category = $7)
@@ -312,14 +342,12 @@ SET
   status = $2,
   published_at = CASE WHEN $3 = 'approve' THEN $4::timestamptz ELSE published_at END,
   refreshed_at = CASE WHEN $3 = 'approve' THEN $4::timestamptz ELSE refreshed_at END,
-  expires_at = CASE WHEN $3 = 'approve' THEN $4::timestamptz + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int) ELSE expires_at END,
+  expires_at = CASE WHEN $3 = 'approve' THEN $4::timestamptz + make_interval(days => GREATEST((resources.resource_type_snapshot ->> 'defaultValidDays')::int, 1)) ELSE expires_at END,
   reject_reason = CASE WHEN $3 = 'reject' THEN $5 ELSE reject_reason END,
   take_down_reason = CASE WHEN $3 = 'take_down' THEN $5 ELSE take_down_reason END,
   taken_down_at = CASE WHEN $3 = 'take_down' THEN $4::timestamptz ELSE taken_down_at END,
   updated_at = $4::timestamptz
-FROM resource_type_configs rtc
 WHERE resources.id = $1
-  AND rtc.id = resources.resource_type_config_id
 RETURNING resources.id::text, resources.merchant_id::text, resources.title, resources.status
 `
 
@@ -329,13 +357,11 @@ SET
   status = 'published',
   published_at = $2::timestamptz,
   refreshed_at = $2::timestamptz,
-  expires_at = $2::timestamptz + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int),
+  expires_at = $2::timestamptz + make_interval(days => GREATEST((resources.resource_type_snapshot ->> 'defaultValidDays')::int, 1)),
   reject_reason = NULL,
   updated_at = $2::timestamptz
-FROM resource_type_configs rtc
 WHERE resources.id = $1
   AND resources.status = 'pending'
-  AND rtc.id = resources.resource_type_config_id
 RETURNING resources.id::text, resources.status
 `
 
@@ -345,16 +371,16 @@ SELECT
   r.status,
   r.type_code,
   r.direction,
-  rtc.type_name,
+  r.resource_type_snapshot ->> 'typeName',
   r.title,
   r.category,
   r.description,
   COALESCE(r.price_text, ''),
   COALESCE(r.quantity_text, ''),
   r.attributes,
-  rtc.field_schema,
-  rtc.display_template,
-  rtc.commercial_rules,
+  r.resource_type_snapshot -> 'fieldSchema',
+  r.resource_type_snapshot -> 'displayTemplate',
+  r.resource_type_snapshot -> 'commercialRules',
   r.tags,
   r.images,
   m.id::text,
@@ -375,7 +401,6 @@ SELECT
   r.expires_at
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
-JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 WHERE r.id = $1
   AND r.status = 'published'
   AND m.status = 'active'
@@ -389,15 +414,16 @@ SELECT
   r.status,
   r.type_code,
   r.direction,
-  rtc.type_name,
+  r.resource_type_snapshot ->> 'typeName',
   r.title,
   r.category,
   r.description,
   COALESCE(r.price_text, ''),
   COALESCE(r.quantity_text, ''),
   r.attributes,
-  rtc.field_schema,
-  rtc.display_template,
+  r.resource_type_snapshot -> 'fieldSchema',
+  r.resource_type_snapshot -> 'displayTemplate',
+  r.resource_type_snapshot -> 'commercialRules',
   r.tags,
   r.images,
   m.id::text,
@@ -410,7 +436,6 @@ SELECT
   r.expires_at
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
-JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 WHERE r.id = $1
   AND r.merchant_id = $2
   AND r.deleted_at IS NULL
@@ -505,7 +530,7 @@ SELECT
   r.id::text,
   r.direction,
   r.type_code,
-  rtc.type_name,
+  r.resource_type_snapshot ->> 'typeName',
   r.title,
   r.category,
   COALESCE(NULLIF(r.cover_url, ''), r.images ->> 0, ''),
@@ -520,7 +545,6 @@ SELECT
   COALESCE(SUM(rmd.wechat_copy_count), 0),
   COUNT(*) OVER() AS total
 FROM resources r
-JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 LEFT JOIN resource_metrics_daily rmd ON rmd.resource_id = r.id
 WHERE r.merchant_id = $1
   AND r.deleted_at IS NULL
@@ -535,7 +559,7 @@ WHERE r.merchant_id = $1
     OR r.status = $2
   )
   AND ($3 = '' OR r.direction = $3)
-GROUP BY r.id, rtc.type_name
+GROUP BY r.id
 ORDER BY r.updated_at DESC
 LIMIT $4 OFFSET $5
 `
@@ -601,16 +625,47 @@ func NewResourceModel(db *sql.DB) *ResourceModel {
 func (m *ResourceModel) GetResourcePublishConfig(ctx context.Context, cityCode string, typeCode string) (ResourcePublishConfig, error) {
 	var config ResourcePublishConfig
 	var requiredFields JSONStringSlice
+	var filterFields JSONStringSlice
 	err := m.db.QueryRowContext(ctx, `
-SELECT rtc.id::text, rtc.type_code, rtc.direction, rtc.field_schema, rtc.required_fields, rtc.display_template, rtc.commercial_rules, rtc.default_valid_days
+SELECT
+  rtc.id::text,
+  rtc.version,
+  rtc.type_code,
+  rtc.type_name,
+  rtc.direction,
+  rtc.field_schema,
+  rtc.required_fields,
+  rtc.filter_fields,
+  rtc.display_template,
+  rtc.review_rules,
+  rtc.sort_weights,
+  rtc.message_rules,
+  rtc.commercial_rules,
+  rtc.default_valid_days
 FROM resource_type_configs rtc
 JOIN city_stations cs ON cs.id = rtc.city_station_id
 WHERE cs.code = $1
   AND cs.status = 'active'
   AND rtc.type_code = $2
   AND rtc.status = 'active'
-`, cityCode, typeCode).Scan(&config.ID, &config.TypeCode, &config.Direction, &config.FieldSchema, &requiredFields, &config.DisplayTemplate, &config.CommercialRules, &config.DefaultValidDays)
+`, cityCode, typeCode).Scan(
+		&config.ID,
+		&config.Version,
+		&config.TypeCode,
+		&config.TypeName,
+		&config.Direction,
+		&config.FieldSchema,
+		&requiredFields,
+		&filterFields,
+		&config.DisplayTemplate,
+		&config.ReviewRules,
+		&config.SortWeights,
+		&config.MessageRules,
+		&config.CommercialRules,
+		&config.DefaultValidDays,
+	)
 	config.RequiredFields = []string(requiredFields)
+	config.FilterFields = []string(filterFields)
 	return config, err
 }
 
@@ -652,6 +707,8 @@ INSERT INTO resources (
   merchant_id,
   city_station_id,
   resource_type_config_id,
+  resource_type_config_version,
+  resource_type_snapshot,
   type_code,
   direction,
   status,
@@ -691,8 +748,10 @@ SELECT
   $17,
   $18,
   $19,
-	  NULLIF($20, '')::bigint,
-	  NULLIF($21, '')::bigint
+  $20,
+  $21,
+  NULLIF($22, '')::bigint,
+  NULLIF($23, '')::bigint
 	FROM city_stations cs
 	WHERE cs.code = $2 AND cs.status = 'active'
 	RETURNING id::text, status
@@ -700,6 +759,8 @@ SELECT
 		input.MerchantID,
 		input.CityCode,
 		input.ResourceTypeConfigID,
+		input.ResourceTypeConfigVersion,
+		input.ResourceTypeSnapshot,
 		input.TypeCode,
 		input.Direction,
 		input.Status,
@@ -723,9 +784,8 @@ SELECT
 }
 
 const submitResourceForReviewLockSQL = `
-SELECT r.merchant_id::text, rtc.commercial_rules
+SELECT r.merchant_id::text, r.resource_type_snapshot -> 'commercialRules'
 FROM resources r
-JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 WHERE r.id = $1
   AND r.status = 'draft'
   AND r.deleted_at IS NULL
@@ -862,9 +922,8 @@ func (m *ResourceModel) PublishResourceAfterAudit(ctx context.Context, resourceI
 		var title string
 		var commercialRules JSONMap
 		if err := tx.QueryRowContext(ctx, `
-SELECT r.merchant_id::text, r.title, rtc.commercial_rules
+SELECT r.merchant_id::text, r.title, r.resource_type_snapshot -> 'commercialRules'
 FROM resources r
-JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 WHERE r.id = $1
   AND r.status = 'pending'
   AND r.deleted_at IS NULL
@@ -1029,22 +1088,24 @@ UPDATE resources
 SET
   city_station_id = cs.id,
   resource_type_config_id = NULLIF($4, '')::bigint,
-  type_code = $5,
-  direction = $6,
+  resource_type_config_version = $5,
+  resource_type_snapshot = $6,
+  type_code = $7,
+  direction = $8,
   status = 'draft',
-  title = $7,
-  category = $8,
-  district = $9,
-  price_text = $10,
-  quantity_text = $11,
-  cover_url = NULLIF($12, ''),
-  description = $13,
-  attributes = $14,
-  tags = $15,
-  images = $16,
-  contact_name = $17,
-  contact_phone = $18,
-  contact_wechat = $19,
+  title = $9,
+  category = $10,
+  district = $11,
+  price_text = $12,
+  quantity_text = $13,
+  cover_url = NULLIF($14, ''),
+  description = $15,
+  attributes = $16,
+  tags = $17,
+  images = $18,
+  contact_name = $19,
+  contact_phone = $20,
+  contact_wechat = $21,
   reject_reason = NULL,
   updated_at = now()
 FROM city_stations cs
@@ -1060,6 +1121,8 @@ RETURNING resources.id::text, resources.status
 		input.MerchantID,
 		input.CityCode,
 		input.ResourceTypeConfigID,
+		input.ResourceTypeConfigVersion,
+		input.ResourceTypeSnapshot,
 		input.TypeCode,
 		input.Direction,
 		input.Title,
@@ -1268,6 +1331,7 @@ func (m *ResourceModel) GetOwnResourceDetail(ctx context.Context, merchantID str
 		&detail.Attributes,
 		&detail.FieldSchema,
 		&detail.DisplayTemplate,
+		&detail.CommercialRules,
 		&tags,
 		&images,
 		&detail.MerchantID,
@@ -1580,7 +1644,10 @@ INSERT INTO resources (
   merchant_id,
   city_station_id,
   resource_type_config_id,
+  resource_type_config_version,
+  resource_type_snapshot,
   type_code,
+  direction,
   status,
   title,
   category,
@@ -1598,29 +1665,49 @@ INSERT INTO resources (
 	  created_by_operator_id
 	)
 SELECT
-  merchant_id,
-  city_station_id,
-  resource_type_config_id,
-  type_code,
+  source.merchant_id,
+  source.city_station_id,
+  rtc.id,
+  rtc.version,
+  jsonb_build_object(
+    'version', rtc.version,
+    'typeCode', rtc.type_code,
+    'typeName', rtc.type_name,
+    'direction', rtc.direction,
+    'fieldSchema', rtc.field_schema,
+    'requiredFields', rtc.required_fields,
+    'filterFields', rtc.filter_fields,
+    'displayTemplate', rtc.display_template,
+    'reviewRules', rtc.review_rules,
+    'sortWeights', rtc.sort_weights,
+    'messageRules', rtc.message_rules,
+    'commercialRules', rtc.commercial_rules,
+    'defaultValidDays', rtc.default_valid_days
+  ),
+  rtc.type_code,
+  rtc.direction,
   'draft',
-  title,
-  category,
-  district,
-  price_text,
-  quantity_text,
-  description,
-  attributes,
-  tags,
-  images,
-  contact_name,
-  contact_phone,
-  contact_wechat,
-	  created_by_user_id,
-	  created_by_operator_id
-	FROM resources
-WHERE id = $1
-  AND merchant_id = $2
-  AND deleted_at IS NULL
+  source.title,
+  source.category,
+  source.district,
+  source.price_text,
+  source.quantity_text,
+  source.description,
+  source.attributes,
+  source.tags,
+  source.images,
+  source.contact_name,
+  source.contact_phone,
+  source.contact_wechat,
+  source.created_by_user_id,
+  source.created_by_operator_id
+FROM resources source
+JOIN resource_type_configs rtc
+  ON rtc.id = source.resource_type_config_id
+  AND rtc.status = 'active'
+WHERE source.id = $1
+  AND source.merchant_id = $2
+  AND source.deleted_at IS NULL
 RETURNING id::text, status
 `, resourceID, merchantID).Scan(&result.ID, &result.Status)
 	return result, err

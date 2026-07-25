@@ -138,6 +138,23 @@ func TestConfiguredSMSVerifierRejectsFailedHTTPSend(t *testing.T) {
 	}
 }
 
+func TestConfiguredSMSVerifierRollsBackLimitReservationWhenProviderFails(t *testing.T) {
+	limiter := &recordingSMSSendLimiter{}
+	verifier := NewConfiguredSMSVerifierWithLimiter(config.SMSConfig{
+		Provider: "http",
+		SendURL:  "https://sms.example.test/send",
+	}, &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusBadGateway, Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
+	})}, limiter)
+
+	if err := verifier.SendSMSCode(context.Background(), "18800000001"); err == nil {
+		t.Fatal("SendSMSCode() error = nil, want provider failure")
+	}
+	if limiter.rolledBackToken != "reservation-1" {
+		t.Fatalf("rolled back token = %q, want reservation-1", limiter.rolledBackToken)
+	}
+}
+
 func TestConfiguredSMSVerifierRejectsInvalidHTTPCode(t *testing.T) {
 	verifier := NewConfiguredSMSVerifierWithHTTP(config.SMSConfig{
 		Provider:  "http",
@@ -149,4 +166,17 @@ func TestConfiguredSMSVerifierRejectsInvalidHTTPCode(t *testing.T) {
 	if err := verifier.VerifySMSCode(context.Background(), "18800000001", "123456"); err == nil {
 		t.Fatal("VerifySMSCode() error = nil, want invalid code error")
 	}
+}
+
+type recordingSMSSendLimiter struct {
+	rolledBackToken string
+}
+
+func (l *recordingSMSSendLimiter) Reserve(_ context.Context, _ string, _ time.Time, _ time.Duration, _ int) (string, error) {
+	return "reservation-1", nil
+}
+
+func (l *recordingSMSSendLimiter) Rollback(_ context.Context, _ string, _ time.Time, reservationToken string) error {
+	l.rolledBackToken = reservationToken
+	return nil
 }

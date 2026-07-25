@@ -59,6 +59,7 @@ type WechatPayNotifyReq struct {
 type WechatPayNotification struct {
 	OutTradeNo    string
 	TransactionID string
+	Attach        string
 	AmountTotal   int64
 	SuccessTime   string
 	RawPayload    map[string]interface{}
@@ -128,7 +129,7 @@ func (l *CreateVerificationPaymentLogic) CreateVerificationPayment(ctx context.C
 		OpenID:      contextInfo.OpenID,
 		AmountTotal: order.AmountTotal,
 		Currency:    order.Currency,
-		Attach:      contextInfo.VerificationID,
+		Attach:      buildPaymentAttach(PaymentBusinessVerification, order.ID),
 	})
 	if err != nil {
 		return CreateVerificationPaymentResp{}, err
@@ -138,10 +139,11 @@ func (l *CreateVerificationPaymentLogic) CreateVerificationPayment(ctx context.C
 
 func (l *CreateVerificationPaymentLogic) completeDevMockPayment(ctx context.Context, order model.VerificationPaymentOrder) (CreateVerificationPaymentResp, error) {
 	result, err := l.store.MarkVerificationPaymentPaid(ctx, model.MarkVerificationPaymentPaidInput{
-		OutTradeNo:    order.OutTradeNo,
-		TransactionID: "mock-" + order.OutTradeNo,
-		AmountTotal:   order.AmountTotal,
-		SuccessTime:   nowFunc().Format(time.RFC3339),
+		BusinessOrderID: order.ID,
+		OutTradeNo:      order.OutTradeNo,
+		TransactionID:   "mock-" + order.OutTradeNo,
+		AmountTotal:     order.AmountTotal,
+		SuccessTime:     nowFunc().Format(time.RFC3339),
 		NotifyPayload: model.JSONMap{
 			"trade_state":  "SUCCESS",
 			"mock":         true,
@@ -153,37 +155,4 @@ func (l *CreateVerificationPaymentLogic) completeDevMockPayment(ctx context.Cont
 	}
 	logx.Infof("开发模拟认证支付已完成: verificationId=%s merchantId=%s orderId=%s outTradeNo=%s", result.VerificationID, result.MerchantID, result.OrderID, order.OutTradeNo)
 	return CreateVerificationPaymentResp{OrderID: result.OrderID, Status: result.Status}, nil
-}
-
-type WechatPayNotifyLogic struct {
-	store   VerificationPaymentStore
-	gateway WechatPayGateway
-}
-
-func NewWechatPayNotifyLogic(store VerificationPaymentStore, gateway WechatPayGateway) *WechatPayNotifyLogic {
-	return &WechatPayNotifyLogic{store: store, gateway: gateway}
-}
-
-func (l *WechatPayNotifyLogic) HandleNotify(ctx context.Context, req WechatPayNotifyReq) (WechatPayNotifyResp, error) {
-	if l.gateway == nil {
-		return WechatPayNotifyResp{}, errx.New(errx.CodeInternalError, "微信支付暂未配置")
-	}
-	notification, err := l.gateway.DecodeNotify(ctx, req)
-	if err != nil {
-		return WechatPayNotifyResp{}, err
-	}
-	if strings.TrimSpace(notification.OutTradeNo) == "" || strings.TrimSpace(notification.TransactionID) == "" {
-		return WechatPayNotifyResp{}, errx.New(errx.CodeValidationFailed, "支付通知数据不完整")
-	}
-	_, err = l.store.MarkVerificationPaymentPaid(ctx, model.MarkVerificationPaymentPaidInput{
-		OutTradeNo:    notification.OutTradeNo,
-		TransactionID: notification.TransactionID,
-		AmountTotal:   notification.AmountTotal,
-		SuccessTime:   notification.SuccessTime,
-		NotifyPayload: model.JSONMap(notification.RawPayload),
-	})
-	if err != nil {
-		return WechatPayNotifyResp{}, err
-	}
-	return WechatPayNotifyResp{Code: "SUCCESS", Message: "成功"}, nil
 }

@@ -25,6 +25,7 @@ export function validateMigrationFiles(files) {
   const issues = []
   const groups = groupByMigration(files)
   const knownTables = new Set()
+  const tableOwners = new Map()
 
   for (const key of [...groups.keys()].sort()) {
     const group = groups.get(key)
@@ -49,13 +50,26 @@ export function validateMigrationFiles(files) {
     const createdTables = extractCreatedTables(up.sql)
     const droppedTables = extractDroppedTables(down.sql)
     for (const table of createdTables) {
+      if (tableOwners.has(table)) {
+        issues.push(
+          `${up.fileName} 重复创建此前由 ${tableOwners.get(table)} 创建的表 ${table}`,
+        )
+      }
       if (!droppedTables.has(table)) {
         issues.push(`${down.fileName} down 未删除 up 创建的表 ${table}`)
+      }
+    }
+    for (const table of droppedTables) {
+      if (!createdTables.has(table)) {
+        issues.push(`${down.fileName} down 删除了不属于本 migration 的表 ${table}`)
       }
     }
 
     for (const table of createdTables) {
       knownTables.add(table)
+      if (!tableOwners.has(table)) {
+        tableOwners.set(table, up.fileName)
+      }
     }
   }
 

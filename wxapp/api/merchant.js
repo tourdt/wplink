@@ -1,14 +1,5 @@
 import request from './request'
 
-export function createMerchant(data) {
-  return request({
-    url: '/api/v1/merchants',
-    method: 'POST',
-    data,
-    requireAuth: true,
-  })
-}
-
 export function getMerchant(merchantId, options = {}) {
   return request({
     url: `/api/v1/merchants/${merchantId}`,

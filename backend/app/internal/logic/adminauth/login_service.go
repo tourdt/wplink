@@ -58,6 +58,7 @@ type LoginResponse struct {
 
 type AdminCredential struct {
 	OperatorID   string
+	AuthVersion  int64
 	LoginName    string
 	PasswordHash string
 	Status       string

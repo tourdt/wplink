@@ -85,12 +85,14 @@ type fileUserAuthConfig struct {
 }
 
 type fileContentAuditConfig struct {
-	Enabled        bool           `yaml:"Enabled"`
-	TextScene      int            `yaml:"TextScene"`
-	MediaEnabled   bool           `yaml:"MediaEnabled"`
-	MediaScene     int            `yaml:"MediaScene"`
-	RequestTimeout configDuration `yaml:"RequestTimeout"`
-	MaxTextChars   int            `yaml:"MaxTextChars"`
+	Enabled         bool           `yaml:"Enabled"`
+	TextScene       int            `yaml:"TextScene"`
+	MediaEnabled    bool           `yaml:"MediaEnabled"`
+	MediaScene      int            `yaml:"MediaScene"`
+	RequestTimeout  configDuration `yaml:"RequestTimeout"`
+	MaxTextChars    int            `yaml:"MaxTextChars"`
+	CallbackToken   string         `yaml:"CallbackToken"`
+	CallbackMaxSkew configDuration `yaml:"CallbackMaxSkew"`
 }
 
 type fileTencentMapConfig struct {
@@ -109,6 +111,7 @@ type fileWechatPayConfig struct {
 	PlatformPublicKeyPath  string         `yaml:"PlatformPublicKeyPath"`
 	NotifyURL              string         `yaml:"NotifyURL"`
 	RequestTimeout         configDuration `yaml:"RequestTimeout"`
+	OrderExpire            configDuration `yaml:"OrderExpire"`
 }
 
 type fileSMSConfig struct {
@@ -126,6 +129,9 @@ type fileSMSConfig struct {
 
 type fileTasksConfig struct {
 	ResourceLifecycleInterval configDuration `yaml:"ResourceLifecycleInterval"`
+	PaymentReconcileInterval  configDuration `yaml:"PaymentReconcileInterval"`
+	PaymentQueryDelay         configDuration `yaml:"PaymentQueryDelay"`
+	PaymentBatchSize          int64          `yaml:"PaymentBatchSize"`
 }
 
 type fileStorageConfig struct {
@@ -220,6 +226,7 @@ func (c fileConfig) toConfig() Config {
 			PlatformPublicKeyPath:  c.WechatPay.PlatformPublicKeyPath,
 			NotifyURL:              c.WechatPay.NotifyURL,
 			RequestTimeout:         c.WechatPay.RequestTimeout.Duration(),
+			OrderExpire:            c.WechatPay.OrderExpire.Duration(),
 		},
 		SMS: SMSConfig{
 			Provider:        c.SMS.Provider,
@@ -235,6 +242,9 @@ func (c fileConfig) toConfig() Config {
 		},
 		Tasks: TasksConfig{
 			ResourceLifecycleInterval: c.Tasks.ResourceLifecycleInterval.Duration(),
+			PaymentReconcileInterval:  c.Tasks.PaymentReconcileInterval.Duration(),
+			PaymentQueryDelay:         c.Tasks.PaymentQueryDelay.Duration(),
+			PaymentBatchSize:          c.Tasks.PaymentBatchSize,
 		},
 		Storage: StorageConfig{
 			Provider:            c.Storage.Provider,
@@ -253,12 +263,14 @@ func (c fileConfig) toConfig() Config {
 
 func (c fileContentAuditConfig) toConfig() ContentAuditConfig {
 	cfg := ContentAuditConfig{
-		Enabled:        c.Enabled,
-		TextScene:      c.TextScene,
-		MediaEnabled:   c.MediaEnabled,
-		MediaScene:     c.MediaScene,
-		RequestTimeout: c.RequestTimeout.Duration(),
-		MaxTextChars:   c.MaxTextChars,
+		Enabled:         c.Enabled,
+		TextScene:       c.TextScene,
+		MediaEnabled:    c.MediaEnabled,
+		MediaScene:      c.MediaScene,
+		RequestTimeout:  c.RequestTimeout.Duration(),
+		MaxTextChars:    c.MaxTextChars,
+		CallbackToken:   strings.TrimSpace(c.CallbackToken),
+		CallbackMaxSkew: c.CallbackMaxSkew.Duration(),
 	}
 	if cfg.TextScene == 0 {
 		cfg.TextScene = 3
@@ -271,6 +283,9 @@ func (c fileContentAuditConfig) toConfig() ContentAuditConfig {
 	}
 	if cfg.MaxTextChars == 0 {
 		cfg.MaxTextChars = 2500
+	}
+	if cfg.CallbackMaxSkew <= 0 {
+		cfg.CallbackMaxSkew = 5 * time.Minute
 	}
 	return cfg
 }

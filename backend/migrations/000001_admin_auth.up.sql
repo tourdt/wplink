@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS admin_operators (
   real_name varchar(64) NOT NULL,
   managed_city_station_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
   status varchar(32) NOT NULL DEFAULT 'enabled',
+  auth_version bigint NOT NULL DEFAULT 1,
   last_login_at timestamptz,
   created_by bigint REFERENCES admin_operators(id),
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -93,6 +94,17 @@ CREATE TABLE IF NOT EXISTS admin_login_credentials (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS sms_send_limits (
+  phone varchar(32) NOT NULL,
+  send_date date NOT NULL,
+  last_sent_at timestamptz NOT NULL,
+  send_count integer NOT NULL DEFAULT 0,
+  reservation_token varchar(64) NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (phone, send_date),
+  CONSTRAINT chk_sms_send_limits_count CHECK (send_count >= 0)
+);
+
 CREATE TABLE IF NOT EXISTS operation_logs (
   id bigint PRIMARY KEY DEFAULT next_tsid(),
   operator_id bigint NOT NULL REFERENCES admin_operators(id),
@@ -114,6 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_admin_operators_status ON admin_operators(status)
 CREATE INDEX IF NOT EXISTS idx_admin_operator_role_assignments_operator ON admin_operator_role_assignments(operator_id);
 CREATE INDEX IF NOT EXISTS idx_admin_operator_role_assignments_role ON admin_operator_role_assignments(role_id);
 CREATE INDEX IF NOT EXISTS idx_admin_login_credentials_operator ON admin_login_credentials(operator_id);
+CREATE INDEX IF NOT EXISTS idx_sms_send_limits_updated_at ON sms_send_limits(updated_at);
 CREATE INDEX IF NOT EXISTS idx_operation_logs_operator ON operation_logs(operator_id);
 CREATE INDEX IF NOT EXISTS idx_operation_logs_object ON operation_logs(object_type, object_id);
 CREATE INDEX IF NOT EXISTS idx_operation_logs_created_at ON operation_logs(created_at);

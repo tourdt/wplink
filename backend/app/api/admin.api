@@ -100,7 +100,7 @@ type AdminDashboardTask {
 
 type AdminDashboardOverviewResp {
 	Metrics AdminDashboardMetrics `json:"metrics"`
-	Tasks   []AdminDashboardTask `json:"tasks"`
+	Tasks   []AdminDashboardTask  `json:"tasks"`
 }
 
 type AdminPendingResourcesReq {
@@ -181,12 +181,12 @@ type AdminReviewResourceReportResp {
 }
 
 type AdminPendingVerificationItem {
-	Id               string `json:"id"`
-	MerchantId       string `json:"merchantId"`
-	MerchantName     string `json:"merchantName"`
-	VerificationType string `json:"verificationType"`
-	Status           string `json:"status"`
-	SubmittedAt      string `json:"submittedAt"`
+	Id               string                 `json:"id"`
+	MerchantId       string                 `json:"merchantId"`
+	MerchantName     string                 `json:"merchantName"`
+	VerificationType string                 `json:"verificationType"`
+	Status           string                 `json:"status"`
+	SubmittedAt      string                 `json:"submittedAt"`
 	BusinessName     string                 `json:"businessName"`
 	LicenseUrl       string                 `json:"licenseUrl"`
 	StorefrontUrl    string                 `json:"storefrontUrl"`
@@ -335,6 +335,7 @@ type AdminListMerchantsResp {
 
 type AdminResourceTypeConfigItem {
 	Id               string                 `json:"id"`
+	Version          int64                  `json:"version"`
 	CityCode         string                 `json:"cityCode,optional"`
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
@@ -382,6 +383,7 @@ type AdminCreateResourceTypeConfigReq {
 
 type AdminCreateResourceTypeConfigResp {
 	Id        string `json:"id"`
+	Version   int64  `json:"version"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
@@ -469,6 +471,7 @@ type AdminSaveHotSearchKeywordResp {
 }
 
 type AdminUpdateResourceTypeConfigReq {
+	Version          int64                  `json:"version"`
 	FieldSchema      map[string]interface{} `json:"fieldSchema,optional"`
 	RequiredFields   []string               `json:"requiredFields,optional"`
 	FilterFields     []string               `json:"filterFields,optional"`
@@ -483,6 +486,7 @@ type AdminUpdateResourceTypeConfigReq {
 
 type AdminUpdateResourceTypeConfigResp {
 	Id        string `json:"id"`
+	Version   int64  `json:"version"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
@@ -583,18 +587,18 @@ type AdminSaveVIPConfigResp {
 	UpdatedAt string `json:"updatedAt"`
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: adminauth
+	group:  adminauth
 )
 service wplink-api {
 	@handler AdminLogin
 	post /auth/login (AdminLoginReq) returns (AdminLoginResp)
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: adminpermission
+	group:  adminpermission
 )
 service wplink-api {
 	@handler AdminListOperators
@@ -616,18 +620,18 @@ service wplink-api {
 	post /module-permissions/:roleCode (AdminUpdateRoleModulePermissionsReq) returns (AdminUpdateRoleModulePermissionsResp)
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: admindashboard
+	group:  admindashboard
 )
 service wplink-api {
 	@handler AdminDashboardOverview
 	get /dashboard/overview (AdminDashboardOverviewReq) returns (AdminDashboardOverviewResp)
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: adminresource
+	group:  adminresource
 )
 service wplink-api {
 	@handler AdminListPendingResources
@@ -643,9 +647,9 @@ service wplink-api {
 	post /resource-reports/:reportId/review (AdminReviewResourceReportReq) returns (AdminReviewResourceReportResp)
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: adminverification
+	group:  adminverification
 )
 service wplink-api {
 	@handler AdminListPendingVerifications
@@ -661,18 +665,18 @@ service wplink-api {
 	post /verification-billing (AdminVerificationBillingConfigReq) returns (AdminVerificationBillingConfigResp)
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: adminentitlement
+	group:  adminentitlement
 )
 service wplink-api {
 	@handler AdminGrantMerchantEntitlement
 	post /merchants/:merchantId/entitlements (AdminGrantEntitlementReq) returns (AdminGrantEntitlementResp)
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: adminlog
+	group:  adminlog
 )
 service wplink-api {
 	@handler AdminListOperationLogs
@@ -685,18 +689,18 @@ service wplink-api {
 	post /tasks/resource-lifecycle/run returns (AdminRunResourceLifecycleResp)
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: adminmerchant
+	group:  adminmerchant
 )
 service wplink-api {
 	@handler AdminListMerchants
 	get /merchants (AdminListMerchantsReq) returns (AdminListMerchantsResp)
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: adminbannertopic
+	group:  adminbannertopic
 )
 service wplink-api {
 	@handler AdminListBannerTopics
@@ -709,9 +713,9 @@ service wplink-api {
 	post /banner-topics/:configId (AdminSaveBannerTopicReq) returns (AdminSaveBannerTopicResp)
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: adminhotsearchkeyword
+	group:  adminhotsearchkeyword
 )
 service wplink-api {
 	@handler AdminListHotSearchKeywords
@@ -724,9 +728,9 @@ service wplink-api {
 	post /hot-search-keywords/:configId (AdminSaveHotSearchKeywordReq) returns (AdminSaveHotSearchKeywordResp)
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: adminvipconfig
+	group:  adminvipconfig
 )
 service wplink-api {
 	@handler AdminListVIPPlans
@@ -757,9 +761,9 @@ service wplink-api {
 	post /vip/promotions/:promotionCode (AdminSaveVIPPromotionConfigReq) returns (AdminSaveVIPConfigResp)
 }
 
-@server(
+@server (
 	prefix: /api/v1/admin
-	group: adminconfig
+	group:  adminconfig
 )
 service wplink-api {
 	@handler AdminListResourceTypeConfigs

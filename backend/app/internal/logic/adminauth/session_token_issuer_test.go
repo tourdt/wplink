@@ -12,9 +12,10 @@ func TestSessionTokenIssuerPassesCredentialSubject(t *testing.T) {
 	issuer := NewSessionTokenIssuer(subjectIssuer)
 
 	token, err := issuer.IssueAdminToken(context.Background(), AdminCredential{
-		OperatorID: "operator-1",
-		Roles:      []string{RolePlatformOperator},
-		Modules:    []string{"resource_review", "verification_review"},
+		OperatorID:  "operator-1",
+		AuthVersion: 3,
+		Roles:       []string{RolePlatformOperator},
+		Modules:     []string{"resource_review", "verification_review"},
 	})
 	if err != nil {
 		t.Fatalf("IssueAdminToken() error = %v", err)
@@ -24,6 +25,9 @@ func TestSessionTokenIssuerPassesCredentialSubject(t *testing.T) {
 	}
 	if subjectIssuer.subject.OperatorID != "operator-1" {
 		t.Fatalf("subject operator = %q, want operator-1", subjectIssuer.subject.OperatorID)
+	}
+	if subjectIssuer.subject.AuthVersion != 3 {
+		t.Fatalf("subject auth version = %d, want 3", subjectIssuer.subject.AuthVersion)
 	}
 	if len(subjectIssuer.subject.Roles) != 1 || subjectIssuer.subject.Roles[0] != RolePlatformOperator {
 		t.Fatalf("subject roles = %#v, want platform operator", subjectIssuer.subject.Roles)

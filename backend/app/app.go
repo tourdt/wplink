@@ -70,6 +70,27 @@ func main() {
 		logx.Infof("资源生命周期自动任务已启用: interval=%s", cfg.Tasks.ResourceLifecycleInterval)
 		lifecycleScheduler.Start(appCtx)
 	}
+	paymentScheduler := task.NewPaymentReconciliationScheduler(
+		task.NewPaymentReconciliationTask(
+			svcCtx.APIStore,
+			svcCtx.WechatPayOrderGateway,
+			cfg.Tasks.PaymentQueryDelay,
+			cfg.WechatPay.OrderExpire,
+			cfg.Tasks.PaymentBatchSize,
+		),
+		cfg.Tasks.PaymentReconcileInterval,
+		log.Default(),
+	)
+	if svcCtx.WechatPayOrderGateway != nil && paymentScheduler.Enabled() {
+		logx.Infof(
+			"微信支付补偿任务已启用: interval=%s queryDelay=%s pendingTimeout=%s batchSize=%d",
+			cfg.Tasks.PaymentReconcileInterval,
+			cfg.Tasks.PaymentQueryDelay,
+			cfg.WechatPay.OrderExpire,
+			cfg.Tasks.PaymentBatchSize,
+		)
+		paymentScheduler.Start(appCtx)
+	}
 
 	apiHandler, err := server.NewProductionAPIRouter(
 		svcCtx.APIStore,
@@ -82,6 +103,7 @@ func main() {
 		server.WithWechatPayGateway(svcCtx.WechatPayGateway),
 		server.WithWechatPayDevMock(cfg.WechatPay.DevMockEnabled && !config.IsProductionMode(cfg.RuntimeMode)),
 		server.WithContentAuditor(svcCtx.ContentAuditor),
+		server.WithContentAuditCallbackVerifier(svcCtx.ContentAuditCallbackVerifier, cfg.Wechat.AppID),
 		server.WithLocationGeocoder(svcCtx.LocationGeocoder),
 	)
 	if err != nil {

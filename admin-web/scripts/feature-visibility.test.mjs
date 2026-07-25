@@ -271,6 +271,8 @@ test('resource type config exposes category hierarchy maintenance actions', () =
   assert.match(source, /openCreateGroup/)
   assert.match(source, /openCreateType/)
   assert.match(source, /createResourceTypeConfig/)
+  assert.match(source, /配置版本：v\{\{ row\.version \}\}/)
+  assert.match(source, /version:\s*editing\.value\.version/)
   assert.match(source, /一级分类/)
   assert.match(source, /二级类型/)
   assert.match(apiSource, /createResourceTypeConfig/)

@@ -21,6 +21,7 @@ type ListResourceTypesReq struct {
 
 type ResourceTypeConfigInfo struct {
 	ID               string                 `json:"id"`
+	Version          int64                  `json:"version"`
 	TypeCode         string                 `json:"typeCode"`
 	TypeName         string                 `json:"typeName"`
 	Direction        string                 `json:"direction"`
@@ -63,6 +64,7 @@ func (l *ListResourceTypesLogic) ListResourceTypes(ctx context.Context, req List
 	for _, config := range configs {
 		items = append(items, ResourceTypeConfigInfo{
 			ID:               config.ID,
+			Version:          config.Version,
 			TypeCode:         config.TypeCode,
 			TypeName:         config.TypeName,
 			Direction:        config.Direction,

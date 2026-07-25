@@ -10,8 +10,8 @@ func TestListResourcesSQLAllowsEmptyMerchantID(t *testing.T) {
 		"NULLIF($3, '')::bigint",
 		"r.merchant_id = NULLIF($3, '')::bigint",
 		"r.direction",
-		"rtc.type_name",
-		"rtc.display_template #>> '{group,code}' = $4",
+		"r.resource_type_snapshot ->> 'typeName'",
+		"r.resource_type_snapshot #>> '{displayTemplate,group,code}' = $4",
 		"($6 = '' OR r.direction = $6)",
 		"r.tags ?& $12::text[]",
 	}
@@ -57,12 +57,11 @@ func TestListResourcesSQLUsesJSONBTagFilter(t *testing.T) {
 	}
 }
 
-func TestReviewResourceSQLUsesConfiguredValidDays(t *testing.T) {
+func TestReviewResourceSQLUsesSnapshotValidDays(t *testing.T) {
 	requiredSnippets := []string{
-		"rtc.default_valid_days",
-		"$4::timestamptz + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int)",
+		"resources.resource_type_snapshot ->> 'defaultValidDays'",
+		"$4::timestamptz + make_interval",
 		"updated_at = $4::timestamptz",
-		"rtc.id = resources.resource_type_config_id",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(reviewResourceSQL, snippet) {
@@ -78,9 +77,8 @@ func TestPublishResourceAfterAuditSQLCastsPublishTime(t *testing.T) {
 	requiredSnippets := []string{
 		"published_at = $2::timestamptz",
 		"refreshed_at = $2::timestamptz",
-		"expires_at = $2::timestamptz + make_interval(days => GREATEST(rtc.default_valid_days, 1)::int)",
+		"resources.resource_type_snapshot ->> 'defaultValidDays'",
 		"updated_at = $2::timestamptz",
-		"rtc.id = resources.resource_type_config_id",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(publishResourceAfterAuditSQL, snippet) {
@@ -89,12 +87,12 @@ func TestPublishResourceAfterAuditSQLCastsPublishTime(t *testing.T) {
 	}
 }
 
-func TestPublishedResourceDetailSQLReturnsTypeDisplayConfigAndHidesInactiveMerchants(t *testing.T) {
+func TestPublishedResourceDetailSQLReturnsTypeSnapshotAndHidesInactiveMerchants(t *testing.T) {
 	requiredSnippets := []string{
-		"rtc.type_name",
-		"rtc.field_schema",
-		"rtc.display_template",
-		"rtc.commercial_rules",
+		"r.resource_type_snapshot ->> 'typeName'",
+		"r.resource_type_snapshot -> 'fieldSchema'",
+		"r.resource_type_snapshot -> 'displayTemplate'",
+		"r.resource_type_snapshot -> 'commercialRules'",
 		"m.status = 'active'",
 	}
 	for _, snippet := range requiredSnippets {
@@ -126,17 +124,22 @@ func TestListMyResourcesSQLFallsBackToFirstImageWhenCoverURLIsEmpty(t *testing.T
 	}
 }
 
-func TestExpiringResourcesSQLUsesTypeMessageRules(t *testing.T) {
+func TestExpiringResourcesSQLUsesSnapshotMessageRules(t *testing.T) {
 	requiredSnippets := []string{
-		"JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id",
-		"rtc.message_rules ->> 'expiringSoonDays'",
-		"NULLIF(rtc.message_rules ->> 'expiringSoonDays', '') ~ '^[0-9]+$'",
-		"GREATEST((rtc.message_rules ->> 'expiringSoonDays')::int, 1)",
+		"r.resource_type_snapshot #>> '{messageRules,expiringSoonDays}'",
+		"NULLIF(r.resource_type_snapshot #>> '{messageRules,expiringSoonDays}', '') ~ '^[0-9]+$'",
+		"GREATEST((r.resource_type_snapshot #>> '{messageRules,expiringSoonDays}')::int, 1)",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(listResourcesExpiringSoonSQL, snippet) {
 			t.Fatalf("listResourcesExpiringSoonSQL missing %q:\n%s", snippet, listResourcesExpiringSoonSQL)
 		}
+	}
+}
+
+func TestLifecycleMessageInsertIsIdempotent(t *testing.T) {
+	if !strings.Contains(listResourcesExpiringSoonSQL, "NOT EXISTS") {
+		t.Fatalf("listResourcesExpiringSoonSQL should skip delivered reminders:\n%s", listResourcesExpiringSoonSQL)
 	}
 }
 
@@ -179,10 +182,9 @@ func TestQuotaConsumeSQLGuardsOuterBalance(t *testing.T) {
 	}
 }
 
-func TestSubmitResourceForReviewLocksTypeCommercialRules(t *testing.T) {
+func TestSubmitResourceForReviewLocksSnapshotCommercialRules(t *testing.T) {
 	requiredSnippets := []string{
-		"JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id",
-		"rtc.commercial_rules",
+		"r.resource_type_snapshot -> 'commercialRules'",
 		"FOR UPDATE",
 	}
 	for _, snippet := range requiredSnippets {

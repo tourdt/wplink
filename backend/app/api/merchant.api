@@ -1,25 +1,5 @@
 syntax = "v1"
 
-type CreateMerchantReq {
-	CityCode       string   `json:"cityCode"`
-	Name           string   `json:"name"`
-	MerchantType   string   `json:"merchantType"`
-	MainCategories []string `json:"mainCategories"`
-	ContactName    string   `json:"contactName,optional"`
-	ContactPhone   string   `json:"contactPhone,optional"`
-	ContactWechat  string   `json:"contactWechat,optional"`
-	AddressText    string   `json:"addressText,optional"`
-	Description    string   `json:"description,optional"`
-}
-
-type CreateMerchantResp {
-	Id                 string `json:"id"`
-	MerchantNo         string `json:"merchantNo,optional"`
-	Name               string `json:"name"`
-	VerificationStatus string `json:"verificationStatus"`
-	Status             string `json:"status"`
-}
-
 type CreditTagInfo {
 	Code  string `json:"code"`
 	Label string `json:"label"`
@@ -70,16 +50,16 @@ type MerchantDetailResp {
 }
 
 type UpdateMerchantReq {
-	Name           string   `json:"name,optional"`
-	MainCategories []string `json:"mainCategories,optional"`
-	MerchantType   string   `json:"merchantType,optional"`
-	Description    string   `json:"description,optional"`
-	LogoUrl        string   `json:"logoUrl,optional"`
-	Images         []string `json:"images,optional"`
-	ContactName    string   `json:"contactName,optional"`
-	ContactPhone   string   `json:"contactPhone,optional"`
-	ContactWechat  string   `json:"contactWechat,optional"`
-	AddressText    string   `json:"addressText,optional"`
+	Name           string                 `json:"name,optional"`
+	MainCategories []string               `json:"mainCategories,optional"`
+	MerchantType   string                 `json:"merchantType,optional"`
+	Description    string                 `json:"description,optional"`
+	LogoUrl        string                 `json:"logoUrl,optional"`
+	Images         []string               `json:"images,optional"`
+	ContactName    string                 `json:"contactName,optional"`
+	ContactPhone   string                 `json:"contactPhone,optional"`
+	ContactWechat  string                 `json:"contactWechat,optional"`
+	AddressText    string                 `json:"addressText,optional"`
 	Location       map[string]interface{} `json:"location,optional"`
 	SmsCode        string                 `json:"smsCode,optional"`
 }
@@ -89,14 +69,11 @@ type UpdateMerchantResp {
 	UpdatedAt string `json:"updatedAt"`
 }
 
-@server(
+@server (
 	prefix: /api/v1
-	group: merchant
+	group:  merchant
 )
 service wplink-api {
-	@handler CreateMerchant
-	post /merchants (CreateMerchantReq) returns (CreateMerchantResp)
-
 	@handler GetMerchant
 	get /merchants/:merchantId returns (MerchantDetailResp)
 

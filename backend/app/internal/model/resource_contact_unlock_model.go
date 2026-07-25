@@ -106,11 +106,12 @@ type ContactUnlockPaymentOrder struct {
 }
 
 type MarkContactUnlockOrderPaidInput struct {
-	OutTradeNo    string
-	TransactionID string
-	AmountTotal   int64
-	SuccessTime   string
-	NotifyPayload JSONMap
+	BusinessOrderID string
+	OutTradeNo      string
+	TransactionID   string
+	AmountTotal     int64
+	SuccessTime     string
+	NotifyPayload   JSONMap
 }
 
 type ContactUnlockPaymentResult struct {
@@ -124,10 +125,9 @@ SELECT
   r.id::text,
   r.type_code,
   r.title,
-  rtc.commercial_rules
+  r.resource_type_snapshot -> 'commercialRules'
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
-JOIN resource_type_configs rtc ON rtc.id = r.resource_type_config_id
 WHERE r.id = $1
   AND r.status = 'published'
   AND r.deleted_at IS NULL
@@ -202,6 +202,7 @@ SELECT
   commercial_rules_snapshot
 FROM resource_contact_unlock_orders
 WHERE out_trade_no = $1
+  AND ($2 = '' OR id = $2::bigint)
   AND status IN ('pending', 'paid')
 FOR UPDATE
 `
@@ -348,7 +349,10 @@ func (m *ResourceContactUnlockModel) MarkContactUnlockOrderPaid(ctx context.Cont
 		var currentStatus string
 		var priceCent int64
 		var rulesSnapshot JSONMap
-		if err := tx.QueryRowContext(ctx, selectContactUnlockOrderForPaymentSQL, strings.TrimSpace(input.OutTradeNo)).Scan(
+		if err := tx.QueryRowContext(ctx, selectContactUnlockOrderForPaymentSQL,
+			strings.TrimSpace(input.OutTradeNo),
+			strings.TrimSpace(input.BusinessOrderID),
+		).Scan(
 			&result.OrderID,
 			&result.ResourceID,
 			&userID,

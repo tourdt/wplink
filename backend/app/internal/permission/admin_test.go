@@ -56,3 +56,12 @@ func TestCanAccessAdminModuleAllowsSuperAdmin(t *testing.T) {
 		t.Fatal("platform operator should not access module outside configured list")
 	}
 }
+
+func TestCanAccessAdminModuleRejectsUnmappedPathForEveryRole(t *testing.T) {
+	if CanAccessAdminModule([]string{RoleSuperAdmin}, AllAdminModules(), "") {
+		t.Fatal("super admin should not access an unmapped admin route")
+	}
+	if CanAccessAdminModule([]string{RolePlatformOperator}, DefaultPlatformOperatorAdminModules(), "") {
+		t.Fatal("platform operator should not access an unmapped admin route")
+	}
+}

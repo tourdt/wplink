@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	authlogic "wplink/backend/app/internal/logic/auth"
+	contentauditlogic "wplink/backend/app/internal/logic/contentaudit"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
 )
@@ -25,6 +26,7 @@ func TestNewProductionAPIRouterRequiresAuthorizationDependencies(t *testing.T) {
 		"UploadTokenService",
 		"WechatSessionClient",
 		"SMSVerifier",
+		"ContentAuditCallbackVerifier",
 		"MerchantPermissionStore",
 	} {
 		if !strings.Contains(message, want) {
@@ -44,6 +46,7 @@ func TestNewProductionAPIRouterRequiresResourceAPIStore(t *testing.T) {
 		WithUploadTokenService(fakeUploadTokenService{}),
 		WithWechatSessionClient(fakeWechatSessionClient{}),
 		WithSMSVerifier(fakeSMSVerifier{}),
+		WithContentAuditCallbackVerifier(contentauditlogic.NewSHA1WechatCallbackVerifier("callback-token", 0), "wx-app"),
 	)
 	if err == nil {
 		t.Fatal("NewProductionAPIRouter() error = nil, want missing ResourceAPIStore error")
@@ -65,6 +68,7 @@ func TestNewProductionAPIRouterAcceptsCompleteAuthorizationDependencies(t *testi
 		WithUploadTokenService(fakeUploadTokenService{}),
 		WithWechatSessionClient(fakeWechatSessionClient{}),
 		WithSMSVerifier(fakeSMSVerifier{}),
+		WithContentAuditCallbackVerifier(contentauditlogic.NewSHA1WechatCallbackVerifier("callback-token", 0), "wx-app"),
 	)
 	if err != nil {
 		t.Fatalf("NewProductionAPIRouter() error = %v, want nil", err)

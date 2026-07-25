@@ -197,7 +197,6 @@ SELECT id, name, profile_status FROM created
 		_, err = tx.ExecContext(ctx, `
 INSERT INTO merchant_admin_bindings (merchant_id, user_id, role, status, created_by)
 VALUES ($1, $2, 'owner', 'active', $2)
-ON CONFLICT (merchant_id, user_id) WHERE status = 'active' DO NOTHING
 `, merchant.ID, userID)
 		return err
 	})

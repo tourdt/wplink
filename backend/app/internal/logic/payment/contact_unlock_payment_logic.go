@@ -84,7 +84,7 @@ func (l *CreateContactUnlockPaymentLogic) CreateContactUnlockPayment(ctx context
 		OpenID:      contextInfo.OpenID,
 		AmountTotal: order.AmountTotal,
 		Currency:    order.Currency,
-		Attach:      "contact_unlock:" + order.ID,
+		Attach:      buildPaymentAttach(PaymentBusinessContactUnlock, order.ID),
 	})
 	if err != nil {
 		logx.Errorf("创建微信联系方式查看预支付失败: resourceId=%s orderId=%s userId=%s err=%+v", input.ResourceID, input.OrderID, input.UserID, err)
@@ -103,10 +103,11 @@ func contactUnlockPaymentDescription(resourceTitle string) string {
 
 func (l *CreateContactUnlockPaymentLogic) completeDevMockContactUnlockPayment(ctx context.Context, order model.ContactUnlockPaymentOrder) (CreateContactUnlockPaymentResp, error) {
 	result, err := l.store.MarkContactUnlockOrderPaid(ctx, model.MarkContactUnlockOrderPaidInput{
-		OutTradeNo:    order.OutTradeNo,
-		TransactionID: "mock-" + order.OutTradeNo,
-		AmountTotal:   order.AmountTotal,
-		SuccessTime:   nowFunc().Format(time.RFC3339),
+		BusinessOrderID: order.ID,
+		OutTradeNo:      order.OutTradeNo,
+		TransactionID:   "mock-" + order.OutTradeNo,
+		AmountTotal:     order.AmountTotal,
+		SuccessTime:     nowFunc().Format(time.RFC3339),
 		NotifyPayload: model.JSONMap{
 			"trade_state":  "SUCCESS",
 			"mock":         true,
@@ -118,38 +119,4 @@ func (l *CreateContactUnlockPaymentLogic) completeDevMockContactUnlockPayment(ct
 	}
 	logx.Infof("开发模拟联系方式查看支付已完成: resourceId=%s orderId=%s outTradeNo=%s", result.ResourceID, result.OrderID, order.OutTradeNo)
 	return CreateContactUnlockPaymentResp{OrderID: result.OrderID, Status: result.Status}, nil
-}
-
-type ContactUnlockWechatPayNotifyLogic struct {
-	store   ContactUnlockPaymentStore
-	gateway WechatPayGateway
-}
-
-func NewContactUnlockWechatPayNotifyLogic(store ContactUnlockPaymentStore, gateway WechatPayGateway) *ContactUnlockWechatPayNotifyLogic {
-	return &ContactUnlockWechatPayNotifyLogic{store: store, gateway: gateway}
-}
-
-func (l *ContactUnlockWechatPayNotifyLogic) HandleNotify(ctx context.Context, req WechatPayNotifyReq) (WechatPayNotifyResp, error) {
-	if l.gateway == nil {
-		return WechatPayNotifyResp{}, errx.New(errx.CodeInternalError, "微信支付暂未配置")
-	}
-	notification, err := l.gateway.DecodeNotify(ctx, req)
-	if err != nil {
-		return WechatPayNotifyResp{}, err
-	}
-	if strings.TrimSpace(notification.OutTradeNo) == "" || strings.TrimSpace(notification.TransactionID) == "" {
-		return WechatPayNotifyResp{}, errx.New(errx.CodeValidationFailed, "支付通知数据不完整")
-	}
-	result, err := l.store.MarkContactUnlockOrderPaid(ctx, model.MarkContactUnlockOrderPaidInput{
-		OutTradeNo:    notification.OutTradeNo,
-		TransactionID: notification.TransactionID,
-		AmountTotal:   notification.AmountTotal,
-		SuccessTime:   notification.SuccessTime,
-		NotifyPayload: model.JSONMap(notification.RawPayload),
-	})
-	if err != nil {
-		logx.Errorf("处理联系方式查看支付回调失败: resourceId=%s orderId=%s outTradeNo=%s err=%+v", result.ResourceID, result.OrderID, notification.OutTradeNo, err)
-		return WechatPayNotifyResp{}, err
-	}
-	return WechatPayNotifyResp{Code: "SUCCESS", Message: "成功"}, nil
 }

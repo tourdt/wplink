@@ -1645,7 +1645,7 @@ test('merchant detail page uses trust-first homepage layout', () => {
     'statCards',
     'heatScore',
     "' · '",
-    '发布者介绍',
+    '商家档案',
     'profile-chip category',
     'profile-chip.category',
     '热度',

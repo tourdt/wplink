@@ -151,7 +151,7 @@ import UniGridItem from '../../components/uni-ui/uni-grid-item/uni-grid-item.vue
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { validateMerchantName } from '../../common/merchantName'
 import { bindWechatPhone } from '../../api/auth'
-import { createMerchant, getMerchant, updateMerchant } from '../../api/merchant'
+import { getMerchant, updateMerchant } from '../../api/merchant'
 import { createImageFileFromPath, uploadSelectedImage } from '../../common/upload'
 import {
   MERCHANT_PROFILE_IMAGE_MAX_COUNT,
@@ -163,7 +163,7 @@ import {
   removeMerchantImageEntry,
   resolveImageCompressionOptions,
 } from '../../common/merchantProfileImages'
-import { getMerchantId, saveMerchantId } from '../../store/session'
+import { getMerchantId } from '../../store/session'
 
 const DEFAULT_MERCHANT_TYPE = 'individual'
 const merchantTypeOptions = [
@@ -281,55 +281,32 @@ async function submitMerchantProfile() {
     uni.showToast({ title: '手机号需为 6-20 位数字', icon: 'none' })
     return
   }
+  if (!merchantId.value) {
+    uni.showToast({ title: '登录状态异常，请重新登录', icon: 'none' })
+    return
+  }
   try {
     submitting.value = true
     await uploadPendingMerchantImages()
     const images = getStoredMerchantImageUrls(merchantImageEntries.value)
-    if (merchantId.value) {
-      const patch = {
-        name: form.name.trim(),
-        mainCategories,
-        merchantType: form.merchantType,
-        description: form.description.trim(),
-        logoUrl: form.logoUrl.trim(),
-        images,
-        contactName: form.contactName.trim(),
-        addressText: form.addressText.trim(),
-        location: form.location || {},
-      }
-      if (normalizedContactPhone) {
-        patch.contactPhone = normalizedContactPhone
-      }
-      if (normalizedWechat) {
-        patch.contactWechat = normalizedWechat
-      }
-      await updateMerchant(merchantId.value, patch)
-    } else {
-      const resp = await createMerchant({
-        cityCode: form.cityCode || DEFAULT_CITY_CODE,
-        name: form.name.trim(),
-        merchantType: form.merchantType,
-        mainCategories,
-        contactName: form.contactName.trim(),
-        contactPhone: normalizedContactPhone,
-        contactWechat: normalizedWechat,
-        addressText: form.addressText.trim(),
-        description: form.description.trim(),
-      })
-      merchantId.value = resp.id
-      saveMerchantId(resp.id)
-      if (images.length > 0 || form.logoUrl.trim() || form.description.trim() || locationSelected.value) {
-        await updateMerchant(resp.id, {
-          mainCategories,
-          merchantType: form.merchantType,
-          description: form.description.trim(),
-          logoUrl: form.logoUrl.trim(),
-          images,
-          addressText: form.addressText.trim(),
-          location: form.location || {},
-        })
-      }
+    const patch = {
+      name: form.name.trim(),
+      mainCategories,
+      merchantType: form.merchantType,
+      description: form.description.trim(),
+      logoUrl: form.logoUrl.trim(),
+      images,
+      contactName: form.contactName.trim(),
+      addressText: form.addressText.trim(),
+      location: form.location || {},
     }
+    if (normalizedContactPhone) {
+      patch.contactPhone = normalizedContactPhone
+    }
+    if (normalizedWechat) {
+      patch.contactWechat = normalizedWechat
+    }
+    await updateMerchant(merchantId.value, patch)
     uni.showToast({ title: '资料已保存', icon: 'none' })
   } catch (err) {
     uni.showToast({ title: err.message || '资料保存失败', icon: 'none' })

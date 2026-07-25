@@ -34,12 +34,26 @@ test('deploy script migrates every current up migration in sorted order', () => 
     .sort()
 
   assert(migrationFiles.length > 0)
-  for (const migrationFile of migrationFiles) {
-    assert(
-      script.includes(migrationFile),
-      `deploy script should include ${migrationFile}`,
-    )
-  }
+  assert.match(script, /find "\$ROOT_DIR\/backend\/migrations"/)
+  assert.match(script, /-name '\*\.up\.sql'/)
+  assert.match(script, /\| sort/)
+  assert.match(script, /migrations\.manifest/)
+  assert.match(script, /while IFS= read -r migration_file/)
+})
+
+test('deploy script serializes and atomically records migrations', () => {
+  const script = fs.readFileSync(deployScriptPath, 'utf8')
+
+  assert.match(script, /BEGIN;/)
+  assert.match(
+    script,
+    /pg_advisory_xact_lock\(hashtext\('wplink_schema_migrations'\)\)/,
+  )
+  assert.match(script, /SELECT NOT EXISTS .*schema_migrations/)
+  assert.match(script, /AS should_apply \\\\gset/)
+  assert.match(script, /\\\\if :should_apply/)
+  assert.match(script, /INSERT INTO schema_migrations/)
+  assert.match(script, /COMMIT;/)
 })
 
 test('repository ignores private tls certificate and key material', () => {

@@ -226,11 +226,12 @@ type VIPPaymentOrder struct {
 }
 
 type MarkVIPOrderPaidInput struct {
-	OutTradeNo    string
-	TransactionID string
-	AmountTotal   int64
-	SuccessTime   string
-	NotifyPayload JSONMap
+	BusinessOrderID string
+	OutTradeNo      string
+	TransactionID   string
+	AmountTotal     int64
+	SuccessTime     string
+	NotifyPayload   JSONMap
 }
 
 type VIPPaymentResult struct {
@@ -1325,8 +1326,9 @@ func (m *VIPModel) MarkVIPOrderPaid(ctx context.Context, input MarkVIPOrderPaidI
 SELECT id::text, merchant_id::text, plan_id::text, promotion_id::text, product_type, status, actual_price_cent, benefits_snapshot, product_snapshot
 FROM vip_orders
 WHERE out_trade_no = $1
+  AND ($2 = '' OR id = $2::bigint)
 FOR UPDATE
-`, strings.TrimSpace(input.OutTradeNo)).Scan(
+`, strings.TrimSpace(input.OutTradeNo), strings.TrimSpace(input.BusinessOrderID)).Scan(
 			&result.OrderID,
 			&result.MerchantID,
 			&planID,

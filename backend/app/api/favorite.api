@@ -75,9 +75,9 @@ type DeleteSavedSearchResp {
 	Message string `json:"message"`
 }
 
-@server(
+@server (
 	prefix: /api/v1
-	group: favorite
+	group:  favorite
 )
 service wplink-api {
 	@handler ListFavoriteResources

@@ -11,9 +11,9 @@ type ReverseGeocodeResp {
 	Province string `json:"province,optional"`
 }
 
-@server(
+@server (
 	prefix: /api/v1
-	group: location
+	group:  location
 )
 service wplink-api {
 	@handler ReverseGeocode

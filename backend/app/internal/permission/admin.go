@@ -94,7 +94,11 @@ func ResolveAdminModules(roles []string, roleModules map[string][]string) []stri
 }
 
 func CanAccessAdminModule(roles []string, modules []string, module string) bool {
-	if module == "" || CanManageAdminPermissions(roles) {
+	// 未映射的后台路径默认拒绝，避免新增路由忘记登记模块时意外继承后台访问权限。
+	if module == "" {
+		return false
+	}
+	if CanManageAdminPermissions(roles) {
 		return true
 	}
 	for _, allowed := range modules {

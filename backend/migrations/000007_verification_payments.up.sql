@@ -22,3 +22,6 @@ CREATE INDEX IF NOT EXISTS idx_verification_payment_orders_merchant_status
   ON verification_payment_orders(merchant_id, status);
 CREATE INDEX IF NOT EXISTS idx_verification_payment_orders_out_trade_no
   ON verification_payment_orders(out_trade_no);
+CREATE INDEX IF NOT EXISTS idx_verification_payment_orders_pending_created
+  ON verification_payment_orders(created_at)
+  WHERE status = 'pending';
