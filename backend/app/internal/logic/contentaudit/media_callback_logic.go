@@ -57,7 +57,23 @@ func (l *MediaCheckCallbackLogic) Handle(ctx context.Context, payload model.JSON
 		return MediaCheckCallbackResp{}, err
 	}
 
-	if input.Status == resourceAuditTaskStatusRejected || input.Status == resourceAuditTaskStatusFailed {
+	if input.Status == resourceAuditTaskStatusFailed {
+		stateStore, ok := l.store.(resourcelogic.ResourceAuditStateStore)
+		if !ok {
+			logx.Errorf("图片审核依赖失败但存储不支持自动重试: resourceId=%s traceId=%s", completion.ResourceID, traceID)
+			return MediaCheckCallbackResp{}, errx.New(errx.CodeInternalError, "图片审核处理失败，请稍后重试")
+		}
+		retryCount, retryErr := stateStore.MarkResourceAuditRetry(ctx, completion.ResourceID, input.Reason)
+		if retryErr != nil {
+			logx.Errorf("图片审核依赖失败后进入重试队列失败: resourceId=%s traceId=%s err=%+v", completion.ResourceID, traceID, retryErr)
+			return MediaCheckCallbackResp{}, errx.New(errx.CodeInternalError, "图片审核处理失败，请稍后重试")
+		}
+		l.recordAuditDecision(ctx, completion.ResourceID, "dependency_error", input.Reason, traceID)
+		logx.Errorf("图片审核依赖失败，已进入自动重试: resourceId=%s traceId=%s retryCount=%d", completion.ResourceID, traceID, retryCount)
+		return MediaCheckCallbackResp{ResourceID: completion.ResourceID, Status: model.ResourceStatusAuditRetry, Message: "图片审核服务暂时不可用，系统将自动重试"}, nil
+	}
+	if input.Status == resourceAuditTaskStatusRejected {
+		l.recordAuditDecision(ctx, completion.ResourceID, "risky", input.Reason, traceID)
 		return l.rejectResource(ctx, completion.ResourceID, input.Reason, traceID)
 	}
 	if completion.PendingCount > 0 {
@@ -73,8 +89,25 @@ func (l *MediaCheckCallbackLogic) Handle(ctx context.Context, payload model.JSON
 	if err != nil {
 		return l.handlePublishFailure(ctx, completion.ResourceID, traceID, err)
 	}
+	l.recordAuditDecision(ctx, completion.ResourceID, "pass", "", traceID)
 	logx.Infof("图片全部审核通过，资源已自动发布: resourceId=%s traceId=%s", completion.ResourceID, traceID)
 	return MediaCheckCallbackResp{ResourceID: published.ID, Status: published.Status, Message: "资源已发布"}, nil
+}
+
+func (l *MediaCheckCallbackLogic) recordAuditDecision(ctx context.Context, resourceID string, decision string, reason string, traceID string) {
+	store, ok := l.store.(resourcelogic.ResourceAuditDecisionStore)
+	if !ok {
+		return
+	}
+	if err := store.RecordResourceAuditDecision(ctx, model.ResourceAuditDecisionInput{
+		ResourceID: resourceID,
+		Action:     "media_callback",
+		Decision:   decision,
+		Reason:     reason,
+		TraceIDs:   []string{traceID},
+	}); err != nil {
+		logx.Errorf("记录图片内容审核决策失败: resourceId=%s traceId=%s decision=%s err=%+v", resourceID, traceID, decision, err)
+	}
 }
 
 func (l *MediaCheckCallbackLogic) rejectResource(ctx context.Context, resourceID string, reason string, traceID string) (MediaCheckCallbackResp, error) {

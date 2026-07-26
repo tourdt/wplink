@@ -206,6 +206,7 @@ WHERE me.id = $1
   AND (me.expires_at IS NULL OR me.expires_at > now())
   AND r.merchant_id = me.merchant_id
   AND r.status = 'published'
+  AND r.dealt_at IS NULL
   AND r.deleted_at IS NULL
   AND (jsonb_array_length(me.allowed_type_codes) = 0 OR me.allowed_type_codes ? r.type_code)
 RETURNING
@@ -242,6 +243,7 @@ SET top_started_at = now(),
 WHERE id = $1
   AND merchant_id = $3
   AND status = 'published'
+  AND dealt_at IS NULL
   AND deleted_at IS NULL
 RETURNING top_expires_at
 `, result.ResourceID, topDurationHours, merchantID).Scan(&topExpiresAt); err != nil {

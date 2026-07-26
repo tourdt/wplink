@@ -23,7 +23,7 @@ func TestAuthAPIRouterRunsLoginMeAndBindPhoneFlow(t *testing.T) {
 	router := NewAPIRouter(store, WithUserTokenService(tokenService), WithWechatSessionClient(wechatClient), WithSMSVerifier(smsVerifier))
 
 	loginRec := httptest.NewRecorder()
-	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/wechat-login", strings.NewReader(`{"code":"wx-code","defaultCityCode":"zhili"}`))
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/wechat-login", strings.NewReader(`{"code":"wx-code","defaultCityCode":"zhili","agreedToPolicies":true,"privacyPolicyVersion":"2026-07-25","userAgreementVersion":"2026-07-25"}`))
 	router.ServeHTTP(loginRec, loginReq)
 	loginData := decodeEnvelopeData(t, loginRec, http.StatusOK)
 	if loginData["token"] != "user-token" {
@@ -89,7 +89,7 @@ func TestAuthAPIRouterInitializesDefaultMerchantForNewLogin(t *testing.T) {
 	router := NewAPIRouter(store, WithUserTokenService(tokenService), WithWechatSessionClient(wechatClient))
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/wechat-login", strings.NewReader(`{"code":"wx-code","defaultCityCode":"zhili"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/wechat-login", strings.NewReader(`{"code":"wx-code","defaultCityCode":"zhili","agreedToPolicies":true,"privacyPolicyVersion":"2026-07-25","userAgreementVersion":"2026-07-25"}`))
 	router.ServeHTTP(rec, req)
 	data := decodeEnvelopeData(t, rec, http.StatusOK)
 
@@ -168,6 +168,14 @@ func (s *fakeAuthAPIStore) GetUserProfile(ctx context.Context, userID string) (m
 func (s *fakeAuthAPIStore) BindUserPhone(ctx context.Context, userID string, phone string) (model.UserProfile, error) {
 	s.boundPhone = phone
 	return s.profile(phone), nil
+}
+
+func (s *fakeAuthAPIStore) RecordUserConsents(ctx context.Context, userID string, privacyVersion string, agreementVersion string) error {
+	return nil
+}
+
+func (s *fakeAuthAPIStore) DeleteUserAccount(ctx context.Context, userID string, reason string) error {
+	return nil
 }
 
 func (s *fakeAuthAPIStore) EnsureDefaultMerchantForUser(ctx context.Context, userID string, cityCode string) (model.ManagedMerchantInfo, error) {

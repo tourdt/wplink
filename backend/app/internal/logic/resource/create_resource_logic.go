@@ -131,12 +131,12 @@ func (l *CreateResourceLogic) auditCreatedResource(ctx context.Context, created 
 	}
 	userID := strings.TrimSpace(req.CreatedByUser)
 	if isOperatorProxy(req.CreatedByRole) {
-		reason := "后台代发布缺少微信用户信息，无法完成内容审核，请由商家在小程序提交"
-		return rejectCreatedResourceForAuditBlock(ctx, auditStore, created.ID, reason, "operator_proxy", input)
+		reason := "后台代发布缺少微信审核身份，已转人工复核"
+		return holdCreatedResourceForManualReview(ctx, auditStore, created.ID, reason, "operator_proxy", input)
 	}
 	if userID == "" {
-		reason := "内容审核需要微信登录信息，请重新登录后编辑提交"
-		return rejectCreatedResourceForAuditBlock(ctx, auditStore, created.ID, reason, "missing_user", input)
+		reason := "资源缺少微信审核身份，已转人工复核"
+		return holdCreatedResourceForManualReview(ctx, auditStore, created.ID, reason, "missing_user", input)
 	}
 	userStore, ok := l.store.(ResourceAuditUserStore)
 	if !ok {
@@ -145,17 +145,11 @@ func (l *CreateResourceLogic) auditCreatedResource(ctx context.Context, created 
 	}
 	openID, err := userStore.GetUserWechatOpenID(ctx, userID)
 	if err != nil {
-		reason := "内容审核服务暂不可用，请稍后重新提交"
-		if _, rejectErr := auditStore.RejectResourceAfterAudit(ctx, created.ID, reason); rejectErr != nil {
-			logx.Errorf("创建资源获取 openid 失败后自动驳回失败: merchantId=%s resourceId=%s typeCode=%s userId=%s err=%+v rejectErr=%+v", input.MerchantID, created.ID, input.TypeCode, userID, err, rejectErr)
-			return CreateResourceResp{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
-		}
-		logx.Errorf("创建资源获取 openid 失败并已驳回: merchantId=%s resourceId=%s typeCode=%s userId=%s err=%+v", input.MerchantID, created.ID, input.TypeCode, userID, err)
-		return CreateResourceResp{ID: created.ID, Status: model.ResourceStatusRejected, Message: reason}, nil
+		return scheduleCreatedResourceAuditRetry(ctx, auditStore, created.ID, "读取微信审核身份失败", input, err)
 	}
 	if strings.TrimSpace(openID) == "" {
-		reason := "内容审核需要微信登录信息，请重新登录后编辑提交"
-		return rejectCreatedResourceForAuditBlock(ctx, auditStore, created.ID, reason, "empty_openid", input)
+		reason := "资源缺少微信审核身份，已转人工复核"
+		return holdCreatedResourceForManualReview(ctx, auditStore, created.ID, reason, "empty_openid", input)
 	}
 	auditInput := contentAuditInputFromCreate(input, openID)
 	auditInput.ResourceID = created.ID
@@ -163,13 +157,45 @@ func (l *CreateResourceLogic) auditCreatedResource(ctx context.Context, created 
 	return l.applyAutoAuditResult(ctx, auditStore, "create_resource", created.ID, auditInput, result, err)
 }
 
-func rejectCreatedResourceForAuditBlock(ctx context.Context, auditStore ResourceAutoAuditStore, resourceID string, reason string, blockReason string, input model.CreateResourceInput) (CreateResourceResp, error) {
-	if _, err := auditStore.RejectResourceAfterAudit(ctx, resourceID, reason); err != nil {
-		logx.Errorf("创建资源因无法内容审核自动驳回失败: merchantId=%s resourceId=%s typeCode=%s blockReason=%s err=%+v", input.MerchantID, resourceID, input.TypeCode, blockReason, err)
+func holdCreatedResourceForManualReview(ctx context.Context, auditStore ResourceAutoAuditStore, resourceID string, reason string, blockReason string, input model.CreateResourceInput) (CreateResourceResp, error) {
+	stateStore, ok := auditStore.(ResourceAuditStateStore)
+	if !ok {
+		logx.Errorf("创建资源需要人工复核但缺少状态更新能力: merchantId=%s resourceId=%s typeCode=%s blockReason=%s", input.MerchantID, resourceID, input.TypeCode, blockReason)
+		return CreateResourceResp{}, errx.New(errx.CodeInternalError, "内容审核服务暂不可用，请稍后重试")
+	}
+	if err := stateStore.MarkResourceManualReview(ctx, resourceID, reason); err != nil {
+		logx.Errorf("创建资源转人工复核失败: merchantId=%s resourceId=%s typeCode=%s blockReason=%s err=%+v", input.MerchantID, resourceID, input.TypeCode, blockReason, err)
 		return CreateResourceResp{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
 	}
-	logx.Infof("创建资源因无法内容审核已驳回: merchantId=%s resourceId=%s typeCode=%s blockReason=%s", input.MerchantID, resourceID, input.TypeCode, blockReason)
-	return CreateResourceResp{ID: resourceID, Status: model.ResourceStatusRejected, Message: reason}, nil
+	recordResourceAuditDecision(ctx, auditStore, model.ResourceAuditDecisionInput{
+		ResourceID: resourceID,
+		Action:     "create_resource",
+		Decision:   "manual_review",
+		Reason:     reason,
+	})
+	logx.Infof("创建资源已转人工复核: merchantId=%s resourceId=%s typeCode=%s blockReason=%s", input.MerchantID, resourceID, input.TypeCode, blockReason)
+	return CreateResourceResp{ID: resourceID, Status: model.ResourceStatusManualReview, Message: "内容审核中"}, nil
+}
+
+func scheduleCreatedResourceAuditRetry(ctx context.Context, auditStore ResourceAutoAuditStore, resourceID string, reason string, input model.CreateResourceInput, cause error) (CreateResourceResp, error) {
+	stateStore, ok := auditStore.(ResourceAuditStateStore)
+	if !ok {
+		logx.Errorf("创建资源内容审核依赖失败但缺少重试能力: merchantId=%s resourceId=%s typeCode=%s err=%+v", input.MerchantID, resourceID, input.TypeCode, cause)
+		return CreateResourceResp{}, errx.New(errx.CodeInternalError, "内容审核服务暂不可用，请稍后重试")
+	}
+	retryCount, err := stateStore.MarkResourceAuditRetry(ctx, resourceID, reason)
+	if err != nil {
+		logx.Errorf("创建资源进入审核重试队列失败: merchantId=%s resourceId=%s typeCode=%s err=%+v cause=%+v", input.MerchantID, resourceID, input.TypeCode, err, cause)
+		return CreateResourceResp{}, errx.New(errx.CodeInternalError, "内容审核服务暂不可用，请稍后重试")
+	}
+	recordResourceAuditDecision(ctx, auditStore, model.ResourceAuditDecisionInput{
+		ResourceID: resourceID,
+		Action:     "create_resource",
+		Decision:   "dependency_error",
+		Reason:     reason,
+	})
+	logx.Errorf("创建资源内容审核依赖失败，已进入自动重试: merchantId=%s resourceId=%s typeCode=%s retryCount=%d err=%+v", input.MerchantID, resourceID, input.TypeCode, retryCount, cause)
+	return CreateResourceResp{ID: resourceID, Status: model.ResourceStatusAuditRetry, Message: "内容审核服务暂时不可用，系统将自动重试"}, nil
 }
 
 func (l *CreateResourceLogic) applyAutoAuditResult(ctx context.Context, auditStore ResourceAutoAuditStore, action string, resourceID string, input ContentAuditInput, result ContentAuditResult, err error) (CreateResourceResp, error) {
@@ -182,15 +208,40 @@ func (l *CreateResourceLogic) applyAutoAuditResult(ctx context.Context, auditSto
 
 func applyResourceAutoAuditResult(ctx context.Context, auditStore ResourceAutoAuditStore, action string, resourceID string, input ContentAuditInput, result ContentAuditResult, err error) (autoAuditOutcome, error) {
 	if err != nil {
-		reason := "内容审核服务暂不可用，请稍后重新提交"
-		if _, rejectErr := auditStore.RejectResourceAfterAudit(ctx, resourceID, reason); rejectErr != nil {
-			logx.Errorf("内容审核失败后自动驳回资源失败: action=%s resourceId=%s err=%+v rejectErr=%+v", action, resourceID, err, rejectErr)
-			return autoAuditOutcome{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
+		reason := "内容审核服务暂时不可用，系统将自动重试"
+		stateStore, ok := auditStore.(ResourceAuditStateStore)
+		if !ok {
+			logx.Errorf("内容审核失败但存储不支持自动重试: action=%s resourceId=%s err=%+v", action, resourceID, err)
+			return autoAuditOutcome{}, errx.New(errx.CodeInternalError, "内容审核服务暂不可用，请稍后重试")
 		}
-		logx.Errorf("资源内容审核失败并已驳回: action=%s merchantId=%s resourceId=%s typeCode=%s err=%+v", action, input.MerchantID, resourceID, input.TypeCode, err)
-		return autoAuditOutcome{ID: resourceID, Status: model.ResourceStatusRejected, Message: reason}, nil
+		retryCount, retryErr := stateStore.MarkResourceAuditRetry(ctx, resourceID, err.Error())
+		if retryErr != nil {
+			logx.Errorf("内容审核失败后进入自动重试队列失败: action=%s resourceId=%s err=%+v retryErr=%+v", action, resourceID, err, retryErr)
+			return autoAuditOutcome{}, errx.New(errx.CodeInternalError, "内容审核服务暂不可用，请稍后重试")
+		}
+		recordResourceAuditDecision(ctx, auditStore, model.ResourceAuditDecisionInput{
+			ResourceID: resourceID,
+			Action:     action,
+			Decision:   "dependency_error",
+			Reason:     err.Error(),
+		})
+		logx.Errorf("资源内容审核依赖失败，已进入自动重试: action=%s merchantId=%s resourceId=%s typeCode=%s retryCount=%d err=%+v", action, input.MerchantID, resourceID, input.TypeCode, retryCount, err)
+		return autoAuditOutcome{ID: resourceID, Status: model.ResourceStatusAuditRetry, Message: reason}, nil
 	}
-	if normalizeContentAuditDecision(result.Decision) == ContentAuditDecisionRisky {
+	decision := normalizeContentAuditDecision(result.Decision)
+	recordedDecision := decision
+	if decision == ContentAuditDecisionReview {
+		recordedDecision = "review_relaxed"
+	}
+	recordResourceAuditDecision(ctx, auditStore, model.ResourceAuditDecisionInput{
+		ResourceID: resourceID,
+		Action:     action,
+		Decision:   recordedDecision,
+		Reason:     strings.TrimSpace(result.Reason),
+		Labels:     append([]string(nil), result.Labels...),
+		TraceIDs:   append([]string(nil), result.TraceIDs...),
+	})
+	if decision == ContentAuditDecisionRisky {
 		reason := ResourceAuditRejectReason(result, "内容可能含有违规信息，请调整文字或图片后重新提交")
 		if _, err := auditStore.RejectResourceAfterAudit(ctx, resourceID, reason); err != nil {
 			logx.Errorf("资源内容审核命中风险后自动驳回失败: action=%s resourceId=%s labels=%s err=%+v", action, resourceID, strings.Join(result.Labels, ","), err)
@@ -198,6 +249,11 @@ func applyResourceAutoAuditResult(ctx context.Context, auditStore ResourceAutoAu
 		}
 		logx.Infof("资源内容审核拒绝发布: action=%s merchantId=%s resourceId=%s typeCode=%s labels=%s reason=%s", action, input.MerchantID, resourceID, input.TypeCode, strings.Join(result.Labels, ","), reason)
 		return autoAuditOutcome{ID: resourceID, Status: model.ResourceStatusRejected, Message: reason}, nil
+	}
+	if decision == ContentAuditDecisionReview {
+		// 冷启动阶段采用宽松审核：微信建议复核但未判定风险时继续发布，并记录标签供后续抽检。
+		// 确定高风险内容仍由上方 risky 分支直接拦截。
+		logx.Infof("资源内容审核建议复核，按宽松策略继续自动发布: action=%s merchantId=%s resourceId=%s typeCode=%s labels=%s", action, input.MerchantID, resourceID, input.TypeCode, strings.Join(result.Labels, ","))
 	}
 	if len(result.MediaTasks) > 0 {
 		tasks := make([]model.ResourceContentAuditTaskInput, 0, len(result.MediaTasks))

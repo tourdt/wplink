@@ -167,7 +167,7 @@ test('home page keeps custom brand first screen structure', () => {
     'homeContentStyle',
     '搜索供应、需求、工厂或服务',
     'factory-hero',
-    '织里站 · 精选工厂',
+    '织里站 · 产业供需',
 	    '童装产业带供需服务平台',
 	    'quick-action-grid',
 	    '童装批发',

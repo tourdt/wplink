@@ -46,6 +46,10 @@
       </view>
 
       <view class="summary-card">
+        <view v-if="isDealtResource" class="completed-notice">
+          <text class="completed-notice-title">该供需已完成</text>
+          <text class="completed-notice-desc">内容将在完成后保留 7 天供参考，期间不再支持联系或购买推广服务。</text>
+        </view>
         <text class="desc">{{ resource.description || '商家暂未填写详细描述，建议联系前确认数量、尺码、看样方式和交付时间。' }}</text>
         <view v-if="resourceFeatureTags.length" class="tag-row">
           <text v-for="tag in resourceFeatureTags" :key="tag" class="tag feature">{{ tag }}</text>
@@ -166,10 +170,13 @@
         <button class="primary-button" @click="openManagementSheet">管理</button>
       </view>
 
-      <view v-else class="contact-bar">
+      <view v-else-if="!isDealtResource" class="contact-bar">
         <button class="more-button" @click="openContactMoreSheet">更多</button>
         <button @click="copyWechat">复制微信</button>
         <button class="primary-button" @click="callPhone">{{ contactButtonText }}</button>
+      </view>
+      <view v-else class="completed-action-bar">
+        <text>该供需已完成，联系方式已关闭</text>
       </view>
 
       <canvas
@@ -347,7 +354,7 @@ const managementNotice = computed(() => {
   if (resource.value.status === 'draft') return '草稿可继续编辑，完善后再提交审核。'
   if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : '供应已被驳回，可编辑后重新提交审核。'
   if (isExpiredResource.value) return '供应已过期，建议再发类似供应后重新提交审核。'
-  if (isDealtResource.value) return '供应已成交，不再公开展示，可再发类似供应。'
+  if (isDealtResource.value) return '供需已完成，将保留 7 天供参考，期间不能联系、刷新或置顶。'
   if (resource.value.status === 'taken_down') return '供应已下架，不再公开展示。'
   return '供应展示中，可按需刷新、置顶或下架。'
 })
@@ -1440,6 +1447,26 @@ onShareTimeline(() => {
   padding: 28rpx 24rpx;
 }
 
+.completed-notice {
+  display: grid;
+  gap: 6rpx;
+  padding: 18rpx;
+  border-radius: 10rpx;
+  background: #f1f5f9;
+}
+
+.completed-notice-title {
+  color: #334155;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.completed-notice-desc {
+  color: #64748b;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
 .desc {
   padding: 18rpx;
   border-radius: 10rpx;
@@ -1644,7 +1671,8 @@ onShareTimeline(() => {
 }
 
 .contact-bar,
-.owner-action-bar {
+.owner-action-bar,
+.completed-action-bar {
   position: fixed;
   right: 0;
   bottom: 0;
@@ -1656,6 +1684,15 @@ onShareTimeline(() => {
   border-top: 1rpx solid $wplink-line;
   background: rgba(255, 255, 255, 0.96);
   z-index: 20;
+}
+
+.completed-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88rpx;
+  color: #64748b;
+  font-size: 26rpx;
 }
 
 .contact-bar {

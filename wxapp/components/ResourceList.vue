@@ -2,13 +2,18 @@
   <view class="resource-list-shell">
     <view v-if="resources.length === 0 && !loading" class="empty-text">{{ emptyText }}</view>
     <view v-else class="resource-list">
-      <ResourceCard
+      <ResourceExposure
         v-for="item in resources"
         :key="item.id"
-        :resource="item"
-        :variant="variant"
-        @open="emit('open', $event)"
-      />
+        :resource-id="item.id"
+        :source="exposureSource"
+      >
+        <ResourceCard
+          :resource="item"
+          :variant="variant"
+          @open="emit('open', $event)"
+        />
+      </ResourceExposure>
     </view>
 
     <button v-if="hasMore || loading" class="load-more" :disabled="loading" @click="emit('load-more')">
@@ -19,6 +24,7 @@
 
 <script setup>
 import ResourceCard from './ResourceCard.vue'
+import ResourceExposure from './ResourceExposure.vue'
 
 defineProps({
   resources: {
@@ -48,6 +54,10 @@ defineProps({
   variant: {
     type: String,
     default: '',
+  },
+  exposureSource: {
+    type: String,
+    default: 'list',
   },
 })
 

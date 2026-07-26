@@ -3,8 +3,16 @@ package model
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 )
+
+const (
+	UserStatusActive  = "active"
+	UserStatusDeleted = "deleted"
+)
+
+var ErrUserDisabled = errors.New("user disabled")
 
 type UpsertWechatUserInput struct {
 	WechatOpenID    string
@@ -13,6 +21,7 @@ type UpsertWechatUserInput struct {
 
 type UserProfile struct {
 	ID               string
+	Status           string
 	Phone            string
 	WechatOpenID     string
 	Nickname         string
@@ -64,6 +73,7 @@ func (m *UserModel) UpsertWechatUser(ctx context.Context, input UpsertWechatUser
 	openID := strings.TrimSpace(input.WechatOpenID)
 	defaultCityCode := strings.TrimSpace(input.DefaultCityCode)
 	var userID string
+	var status string
 	if err := m.db.QueryRowContext(ctx, `
 WITH city AS (
   SELECT id FROM city_stations WHERE code = $2 AND status = 'active' LIMIT 1
@@ -73,14 +83,17 @@ upserted AS (
   VALUES ($1, (SELECT id FROM city), 'active', now())
   ON CONFLICT (wechat_openid) DO UPDATE SET
     default_city_station_id = COALESCE(EXCLUDED.default_city_station_id, users.default_city_station_id),
-    status = 'active',
     last_login_at = now(),
     updated_at = now()
-  RETURNING id::text
+  RETURNING id::text, status
 )
-SELECT id::text FROM upserted
-`, openID, defaultCityCode).Scan(&userID); err != nil {
+SELECT id::text, status FROM upserted
+`, openID, defaultCityCode).Scan(&userID, &status); err != nil {
 		return UserProfile{}, err
+	}
+	// 登录只能更新最近登录时间，绝不能把后台停用或待注销账号重新激活。
+	if status != UserStatusActive {
+		return UserProfile{}, ErrUserDisabled
 	}
 	if err := m.ensureNormalUserRole(ctx, userID); err != nil {
 		return UserProfile{}, err
@@ -93,6 +106,7 @@ func (m *UserModel) GetUserProfile(ctx context.Context, userID string) (UserProf
 	if err := m.db.QueryRowContext(ctx, `
 SELECT
   u.id::text,
+  u.status,
   COALESCE(u.phone, ''),
   COALESCE(u.wechat_openid, ''),
   COALESCE(u.nickname, ''),
@@ -101,8 +115,11 @@ SELECT
 FROM users u
 LEFT JOIN city_stations cs ON cs.id = u.default_city_station_id
 WHERE u.id = $1 AND u.deleted_at IS NULL
-`, strings.TrimSpace(userID)).Scan(&profile.ID, &profile.Phone, &profile.WechatOpenID, &profile.Nickname, &profile.AvatarURL, &profile.DefaultCityCode); err != nil {
+`, strings.TrimSpace(userID)).Scan(&profile.ID, &profile.Status, &profile.Phone, &profile.WechatOpenID, &profile.Nickname, &profile.AvatarURL, &profile.DefaultCityCode); err != nil {
 		return UserProfile{}, err
+	}
+	if profile.Status != UserStatusActive {
+		return UserProfile{}, ErrUserDisabled
 	}
 
 	roles, err := m.listUserRoles(ctx, profile.ID)
@@ -116,6 +133,117 @@ WHERE u.id = $1 AND u.deleted_at IS NULL
 	profile.Roles = roles
 	profile.ManagedMerchants = managedMerchants
 	return profile, nil
+}
+
+func (m *UserModel) IsUserActive(ctx context.Context, userID string) (bool, error) {
+	var active bool
+	err := m.db.QueryRowContext(ctx, `
+SELECT status = 'active' AND deleted_at IS NULL
+FROM users
+WHERE id = $1
+`, strings.TrimSpace(userID)).Scan(&active)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return active, err
+}
+
+func (m *UserModel) RecordUserConsents(ctx context.Context, userID string, privacyVersion string, agreementVersion string) error {
+	userID = strings.TrimSpace(userID)
+	privacyVersion = strings.TrimSpace(privacyVersion)
+	agreementVersion = strings.TrimSpace(agreementVersion)
+	if userID == "" || privacyVersion == "" || agreementVersion == "" {
+		return errors.New("consent fields are incomplete")
+	}
+	return WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		for _, consent := range []struct {
+			consentType string
+			version     string
+		}{
+			{consentType: "privacy_policy", version: privacyVersion},
+			{consentType: "user_agreement", version: agreementVersion},
+		} {
+			if _, err := tx.ExecContext(ctx, `
+INSERT INTO user_consents (user_id, consent_type, version, source, consented_at)
+VALUES ($1, $2, $3, 'wechat_mini_program', now())
+ON CONFLICT (user_id, consent_type, version) DO UPDATE SET
+  withdrawn_at = NULL,
+  consented_at = now(),
+  updated_at = now()
+`, userID, consent.consentType, consent.version); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (m *UserModel) DeleteUserAccount(ctx context.Context, userID string, reason string) error {
+	userID = strings.TrimSpace(userID)
+	return WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		var status string
+		if err := tx.QueryRowContext(ctx, `
+SELECT status
+FROM users
+WHERE id = $1
+  AND deleted_at IS NULL
+FOR UPDATE
+`, userID).Scan(&status); err != nil {
+			return err
+		}
+		if status != UserStatusActive {
+			return ErrUserDisabled
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO user_account_deletion_requests (user_id, status, reason, completed_at, snapshot)
+VALUES ($1, 'completed', NULLIF($2, ''), now(), '{"channel":"wechat_mini_program"}'::jsonb)
+`, userID, strings.TrimSpace(reason)); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+UPDATE merchant_admin_bindings
+SET status = 'inactive', revoked_at = COALESCE(revoked_at, now())
+WHERE user_id = $1 AND status = 'active'
+`, userID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+UPDATE user_consents
+SET withdrawn_at = COALESCE(withdrawn_at, now()), updated_at = now()
+WHERE user_id = $1 AND withdrawn_at IS NULL
+`, userID); err != nil {
+			return err
+		}
+		// 收藏、关注和搜索订阅属于可直接删除的个人偏好；交易、支付等依法或履约所需记录只保留匿名用户外键。
+		if _, err := tx.ExecContext(ctx, `UPDATE user_favorite_resources SET status = 'inactive', updated_at = now() WHERE user_id = $1`, userID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE user_followed_merchants SET status = 'inactive', updated_at = now() WHERE user_id = $1`, userID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE user_saved_searches SET deleted_at = COALESCE(deleted_at, now()), updated_at = now() WHERE user_id = $1`, userID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE search_logs SET user_id = NULL WHERE user_id = $1`, userID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE resource_contact_events SET user_id = NULL WHERE user_id = $1`, userID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `
+UPDATE users
+SET
+  phone = NULL,
+  wechat_openid = 'deleted:' || id::text,
+  nickname = NULL,
+  avatar_url = NULL,
+  status = 'deleted',
+  deleted_at = now(),
+  updated_at = now()
+WHERE id = $1
+`, userID)
+		return err
+	})
 }
 
 func (m *UserModel) GetUserWechatOpenID(ctx context.Context, userID string) (string, error) {

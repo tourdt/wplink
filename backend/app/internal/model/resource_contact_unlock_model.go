@@ -134,6 +134,7 @@ WHERE r.id = $1
   AND m.deleted_at IS NULL
   AND m.status = 'active'
   AND (r.expires_at IS NULL OR r.expires_at > now())
+  AND r.dealt_at IS NULL
 LIMIT 1
 `
 
@@ -170,6 +171,7 @@ JOIN users u ON u.id = $3
 WHERE o.resource_id = $1
   AND o.id = $2
   AND o.buyer_user_id = $3
+  AND r.dealt_at IS NULL
 LIMIT 1
 `
 
@@ -182,6 +184,11 @@ WHERE resource_id = $1
   AND buyer_user_id = $3
   AND status = 'pending'
   AND expires_at > now()
+  AND EXISTS (
+    SELECT 1 FROM resources r
+    WHERE r.id = resource_contact_unlock_orders.resource_id
+      AND r.dealt_at IS NULL
+  )
 RETURNING id::text,
   resource_id::text,
   out_trade_no,

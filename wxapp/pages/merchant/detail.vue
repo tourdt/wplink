@@ -77,6 +77,7 @@
         <text class="section-link" v-if="merchantResourceCountText">{{ merchantResourceCountText }}</text>
       </view>
       <ResourceList
+        exposure-source="merchant"
         :resources="merchantResources"
         :empty-text="merchantResourcesEmptyText"
         :loading="merchantResourcesLoading"

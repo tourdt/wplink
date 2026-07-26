@@ -1,0 +1,9 @@
+DROP INDEX IF EXISTS idx_user_account_deletion_user_requested;
+DROP TABLE IF EXISTS user_account_deletion_requests;
+DROP INDEX IF EXISTS idx_user_consents_user_active;
+DROP TABLE IF EXISTS user_consents;
+DROP INDEX IF EXISTS idx_admin_security_alerts_pending_created;
+DROP TABLE IF EXISTS admin_security_alerts;
+DROP INDEX IF EXISTS idx_admin_login_attempts_login_created;
+DROP INDEX IF EXISTS idx_admin_login_attempts_ip_created;
+DROP TABLE IF EXISTS admin_login_attempts;

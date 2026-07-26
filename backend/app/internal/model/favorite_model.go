@@ -101,6 +101,7 @@ WHERE r.id = $2::bigint
   AND r.deleted_at IS NULL
   AND r.status = 'published'
   AND (r.expires_at IS NULL OR r.expires_at > now())
+  AND (r.dealt_at IS NULL OR r.dealt_at > now() - interval '7 days')
 ON CONFLICT (user_id, resource_id)
 DO UPDATE SET status = EXCLUDED.status, updated_at = now()
 RETURNING resource_id::text, status = 'active'
@@ -157,6 +158,7 @@ SELECT
   m.name,
   m.verification_status,
   COALESCE(r.refreshed_at, r.published_at, r.created_at),
+  r.dealt_at,
   COUNT(*) OVER() AS total
 FROM user_favorite_resources ufr
 JOIN resources r ON r.id = ufr.resource_id
@@ -166,6 +168,7 @@ WHERE ufr.user_id = $1::bigint
   AND r.deleted_at IS NULL
   AND r.status = 'published'
   AND (r.expires_at IS NULL OR r.expires_at > now())
+  AND (r.dealt_at IS NULL OR r.dealt_at > now() - interval '7 days')
 ORDER BY ufr.updated_at DESC
 LIMIT $2 OFFSET $3
 `, userID, pageSize, offset)
@@ -352,6 +355,7 @@ func scanResourceListRows(rows *sql.Rows, page int64, pageSize int64) (ListResou
 	for rows.Next() {
 		var item ResourceListItem
 		var refreshedAt time.Time
+		var dealtAt sql.NullTime
 		if err := rows.Scan(
 			&item.ID,
 			&item.TypeCode,
@@ -364,11 +368,15 @@ func scanResourceListRows(rows *sql.Rows, page int64, pageSize int64) (ListResou
 			&item.Merchant.Name,
 			&item.Merchant.VerificationStatus,
 			&refreshedAt,
+			&dealtAt,
 			&result.Total,
 		); err != nil {
 			return ListResourcesResult{}, err
 		}
 		item.RefreshedAt = refreshedAt.Format(time.RFC3339)
+		if dealtAt.Valid {
+			item.DealtAt = dealtAt.Time.Format(time.RFC3339)
+		}
 		result.Items = append(result.Items, item)
 	}
 	if err := rows.Err(); err != nil {

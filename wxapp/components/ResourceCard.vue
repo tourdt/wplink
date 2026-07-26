@@ -8,6 +8,7 @@
         <view class="badge-row">
           <text class="direction-badge supply">供应</text>
           <text v-if="resourceTypeLabel" class="type-badge">{{ resourceTypeLabel }}</text>
+          <text v-if="isCompleted" class="completed-badge">已完成</text>
         </view>
         <text v-if="freshnessText" class="refresh-time">{{ freshnessText }}</text>
       </view>
@@ -63,6 +64,7 @@ const resourceSummaryText = computed(() => buildResourceSummaryText(props.resour
 const resourceLabels = computed(() => normalizeResourceLabels(props.resource.tags).slice(0, 3))
 const locationText = computed(() => String(props.resource.district || '').trim())
 const freshnessText = computed(() => formatRefreshedAt(props.resource.refreshedAt))
+const isCompleted = computed(() => Boolean(props.resource.dealtAt))
 
 function buildResourceSummaryText(resource, fallbackText) {
   const parts = [resource.category, resource.quantityText]
@@ -149,6 +151,18 @@ function normalizeResourceLabels(tags = []) {
   font-size: 22rpx;
   font-weight: 700;
   line-height: 1;
+}
+
+.completed-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 36rpx;
+  padding: 0 10rpx;
+  border-radius: 8rpx;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 22rpx;
+  font-weight: 700;
 }
 
 .direction-badge.supply {

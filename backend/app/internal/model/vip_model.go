@@ -1198,6 +1198,7 @@ FROM resources
 WHERE id = $1
   AND merchant_id = $2
   AND status = 'published'
+  AND dealt_at IS NULL
   AND deleted_at IS NULL
 LIMIT 1
 `, resourceID, merchantID).Scan(&topResourceTitle, &topResourceTypeCode); err != nil {

@@ -574,7 +574,7 @@ func TestCreateResourceBlocksRiskyContentAudit(t *testing.T) {
 	}
 }
 
-func TestCreateResourceRejectsWhenAuditFails(t *testing.T) {
+func TestCreateResourceQueuesRetryWhenAuditDependencyFails(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{
 			ID:             "config-1",
@@ -602,11 +602,11 @@ func TestCreateResourceRejectsWhenAuditFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateResource() error = %v", err)
 	}
-	if resp.Status != model.ResourceStatusRejected || store.rejectedResourceID != "resource-1" {
-		t.Fatalf("resp = %#v rejectedResourceID = %q, want rejected resource after audit dependency failure", resp, store.rejectedResourceID)
+	if resp.Status != model.ResourceStatusAuditRetry || store.auditRetryResourceID != "resource-1" {
+		t.Fatalf("resp = %#v retryResourceID = %q, want audit retry after dependency failure", resp, store.auditRetryResourceID)
 	}
-	if store.rejectReason != "内容审核服务暂不可用，请稍后重新提交" {
-		t.Fatalf("rejectReason = %q, want audit service unavailable reason", store.rejectReason)
+	if store.auditRetryReason != "wechat unavailable" {
+		t.Fatalf("auditRetryReason = %q, want dependency error recorded for retry", store.auditRetryReason)
 	}
 }
 
@@ -978,6 +978,18 @@ type fakeCreateResourceStore struct {
 	rejectReason         string
 	publishErr           error
 	rejectErr            error
+	auditRetryResourceID string
+	auditRetryReason     string
+}
+
+func (s *fakeCreateResourceStore) MarkResourceAuditRetry(ctx context.Context, resourceID string, reason string) (int64, error) {
+	s.auditRetryResourceID = resourceID
+	s.auditRetryReason = reason
+	return 0, nil
+}
+
+func (s *fakeCreateResourceStore) MarkResourceManualReview(ctx context.Context, resourceID string, reason string) error {
+	return nil
 }
 
 func (s *fakeCreateResourceStore) GetMerchantPublishStatus(ctx context.Context, merchantID string) (string, error) {

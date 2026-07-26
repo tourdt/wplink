@@ -82,6 +82,13 @@
           </view>
           <text class="entry-arrow"></text>
         </view>
+        <view class="action-item" @click="openAccountSettings">
+          <view class="action-main">
+            <text class="action-title">账号与隐私</text>
+            <text class="action-meta">协议、隐私和账号注销</text>
+          </view>
+          <text class="entry-arrow"></text>
+        </view>
         <button class="action-item customer-service-button" open-type="contact">
           <view class="action-main">
             <text class="action-title">联系客服</text>
@@ -257,6 +264,11 @@ function openFavorites() {
 function openMessages() {
   if (!requireLogin()) return
   uni.switchTab({ url: '/pages/messages/index' })
+}
+
+function openAccountSettings() {
+  if (!requireLogin()) return
+  uni.navigateTo({ url: '/pages/account/settings' })
 }
 
 async function openMyResources() {

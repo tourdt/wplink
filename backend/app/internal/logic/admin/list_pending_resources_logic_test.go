@@ -7,10 +7,10 @@ import (
 	"wplink/backend/app/internal/model"
 )
 
-func TestListPendingResourcesPassesPendingStatus(t *testing.T) {
+func TestListPendingResourcesPassesManualReviewStatus(t *testing.T) {
 	store := &fakePendingResourceStore{
 		result: model.ListPendingResourcesResult{
-			Items: []model.PendingResourceItem{{ID: "resource-1", Status: model.ResourceStatusPending, Title: "待审核库存", TypeCode: "inventory", MerchantName: "织里样板童装厂"}},
+			Items: []model.PendingResourceItem{{ID: "resource-1", Status: model.ResourceStatusManualReview, Title: "待审核库存", TypeCode: "inventory", MerchantName: "织里样板童装厂"}},
 			Page:  1, PageSize: 20, Total: 1,
 		},
 	}
@@ -21,8 +21,8 @@ func TestListPendingResourcesPassesPendingStatus(t *testing.T) {
 		t.Fatalf("ListPendingResources() error = %v", err)
 	}
 
-	if store.filter.CityCode != "zhili" || store.filter.Status != "pending" {
-		t.Fatalf("filter = %#v, want zhili pending", store.filter)
+	if store.filter.CityCode != "zhili" || store.filter.Status != model.ResourceStatusManualReview {
+		t.Fatalf("filter = %#v, want zhili manual_review", store.filter)
 	}
 	if len(resp.Items) != 1 || resp.Items[0].Title != "待审核库存" {
 		t.Fatalf("items = %#v, want pending resource", resp.Items)

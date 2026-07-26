@@ -56,6 +56,10 @@ func ValidateForProduction(cfg Config) error {
 	validateProductionSMS(cfg.SMS, require, &missing)
 	validateProductionLog(cfg.Log, require, requirePositiveInt)
 	requirePositiveDuration("Tasks.ResourceLifecycleInterval", cfg.Tasks.ResourceLifecycleInterval)
+	requirePositiveDuration("Tasks.ContentAuditRetryInterval", cfg.Tasks.ContentAuditRetryInterval)
+	if cfg.Tasks.ContentAuditRetryBatchSize <= 0 {
+		missing = append(missing, "Tasks.ContentAuditRetryBatchSize")
+	}
 	require("Storage.Provider", cfg.Storage.Provider)
 	require("Storage.Endpoint", cfg.Storage.Endpoint)
 	require("Storage.Bucket", cfg.Storage.Bucket)

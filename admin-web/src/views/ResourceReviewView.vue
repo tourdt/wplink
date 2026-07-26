@@ -8,20 +8,14 @@
     <section class="panel">
       <el-form :inline="true" class="filter-bar">
         <el-form-item label="城市站">
-          <el-select v-model="filters.cityCode" style="width: 140px">
+          <el-select v-model="filters.cityCode" style="width: 140px" @change="handleCityChange">
             <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="供需类型">
           <el-select v-model="filters.typeCode" placeholder="全部" style="width: 160px">
             <el-option label="全部" value="" />
-            <el-option label="库存清仓" value="inventory" />
-            <el-option label="现货货源" value="goods" />
-            <el-option label="工厂接单" value="factory" />
-            <el-option label="订单找厂" value="order" />
-            <el-option label="招工招聘" value="job" />
-            <el-option label="出租转让" value="rental" />
-            <el-option label="配套服务" value="service" />
+            <el-option v-for="item in resourceTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -44,18 +38,17 @@
           <template #default="{ row }">
             <el-button type="primary" link @click="approve(row)">通过</el-button>
             <el-button type="danger" link @click="openReject(row)">驳回</el-button>
-            <el-button type="warning" link @click="openTakeDown(row)">下架</el-button>
             <el-button link @click="openRowDetail(row)">详情</el-button>
           </template>
         </el-table-column>
       </el-table>
     </section>
 
-    <el-dialog v-model="reasonVisible" :title="reasonAction === 'reject' ? '驳回供需信息' : '下架供需信息'" width="420px">
+    <el-dialog v-model="reasonVisible" title="驳回供需信息" width="420px">
       <el-input v-model="reasonText" type="textarea" :rows="4" placeholder="请填写处理原因" />
       <template #footer>
         <el-button @click="reasonVisible = false">取消</el-button>
-        <el-button :type="reasonAction === 'reject' ? 'danger' : 'warning'" :loading="submitting" @click="submitReasonAction">
+        <el-button type="danger" :loading="submitting" @click="submitReasonAction">
           确认
         </el-button>
       </template>
@@ -114,18 +107,12 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from '../plugins/elementPlus'
 import { createResource, listPendingResources, reviewResource } from '../api/resource'
+import { listCityResourceTypes } from '../api/city'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { useAuthStore } from '../stores/auth'
 
-const typeText = {
-  inventory: '库存清仓',
-  goods: '现货货源',
-  factory: '工厂接单',
-  order: '订单找厂',
-  job: '招工招聘',
-  rental: '出租转让',
-  service: '配套服务',
-}
+const typeText = reactive({})
+const resourceTypeOptions = ref([])
 
 const filters = reactive({
   cityCode: defaultCityCode,
@@ -146,7 +133,31 @@ const detailRow = ref(null)
 const proxyForm = reactive(defaultProxyForm())
 const auth = useAuthStore()
 
-onMounted(loadRows)
+onMounted(async () => {
+  await loadResourceTypes()
+  await loadRows()
+})
+
+async function loadResourceTypes() {
+  try {
+    const resp = await listCityResourceTypes(filters.cityCode)
+    resourceTypeOptions.value = (resp.items || []).map((item) => ({
+      value: item.typeCode,
+      label: item.typeName,
+    }))
+    Object.keys(typeText).forEach((key) => delete typeText[key])
+    resourceTypeOptions.value.forEach((item) => {
+      typeText[item.value] = item.label
+    })
+  } catch {
+    resourceTypeOptions.value = []
+  }
+}
+
+async function handleCityChange() {
+  filters.typeCode = ''
+  await loadResourceTypes()
+}
 
 async function loadRows() {
   loading.value = true
@@ -188,13 +199,6 @@ function openReject(row) {
   reasonVisible.value = true
 }
 
-function openTakeDown(row) {
-  reasonTarget.value = row
-  reasonAction.value = 'take_down'
-  reasonText.value = ''
-  reasonVisible.value = true
-}
-
 async function submitReasonAction() {
   if (!reasonText.value.trim()) {
     ElMessage.warning('请填写处理原因')
@@ -203,7 +207,7 @@ async function submitReasonAction() {
   submitting.value = true
   try {
     await reviewResource(reasonTarget.value.id, { action: reasonAction.value, reason: reasonText.value.trim(), reviewerId: currentOperatorId() })
-    ElMessage.success(reasonAction.value === 'reject' ? '供需信息已驳回' : '供需信息已下架')
+    ElMessage.success('供需信息已驳回')
     reasonVisible.value = false
     await loadRows()
   } finally {

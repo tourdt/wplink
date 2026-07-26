@@ -1,8 +1,11 @@
 syntax = "v1"
 
 type WechatLoginReq {
-	Code            string `json:"code"`
-	DefaultCityCode string `json:"defaultCityCode,optional"`
+	Code                   string `json:"code"`
+	DefaultCityCode        string `json:"defaultCityCode,optional"`
+	AgreedToPolicies       bool   `json:"agreedToPolicies"`
+	PrivacyPolicyVersion   string `json:"privacyPolicyVersion"`
+	UserAgreementVersion   string `json:"userAgreementVersion"`
 }
 
 type AuthUserInfo {
@@ -57,6 +60,15 @@ type SendSMSCodeResp {
 	Message string `json:"message"`
 }
 
+type DeleteAccountReq {
+	Confirmation string `json:"confirmation"`
+	Reason       string `json:"reason,optional"`
+}
+
+type DeleteAccountResp {
+	Message string `json:"message"`
+}
+
 @server (
 	prefix: /api/v1
 	group:  auth
@@ -76,4 +88,7 @@ service wplink-api {
 
 	@handler BindWechatPhone
 	post /me/wechat-phone (BindWechatPhoneReq) returns (BindPhoneResp)
+
+	@handler DeleteAccount
+	post /me/account-deletion (DeleteAccountReq) returns (DeleteAccountResp)
 }

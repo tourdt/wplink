@@ -35,7 +35,7 @@
               <view class="banner-copy">
                 <text class="banner-kicker">{{ item.kindText || '平台推荐' }}</text>
                 <text class="banner-title">{{ item.title }}</text>
-                <text class="banner-subcopy">{{ item.subTitle || '本周新增 128 家金牌工厂' }}</text>
+                <text class="banner-subcopy">{{ item.subTitle || '织里产业供需持续更新' }}</text>
               </view>
             </view>
           </swiper-item>
@@ -87,13 +87,13 @@
       </view>
 
       <view class="section-head">
-        <text class="section-title">平台精选</text>
+        <text class="section-title">近期供需</text>
         <text class="section-link" @click="openSearch()">更多</text>
       </view>
 
       <view class="recommend-card" v-if="displayRecommendCard" @click="openRecommendCard(displayRecommendCard)">
         <view>
-          <text class="recommend-tag">{{ displayRecommendCard.tag || '平台推荐' }}</text>
+          <text class="recommend-tag">{{ displayRecommendCard.tag || '热门场景' }}</text>
           <text class="recommend-title">{{ displayRecommendCard.title }}</text>
           <text v-if="displayRecommendCard.subtitle" class="recommend-desc">{{ displayRecommendCard.subtitle }}</text>
         </view>
@@ -101,13 +101,18 @@
       </view>
 
       <view v-if="homeResources.length" class="home-resource-list">
-        <ResourceCard
+        <ResourceExposure
           v-for="item in homeResources"
           :key="item.id"
-          :resource="item"
-          variant="home"
-          @open="openResource"
-        />
+          :resource-id="item.id"
+          source="home"
+        >
+          <ResourceCard
+            :resource="item"
+            variant="home"
+            @open="openResource"
+          />
+        </ResourceExposure>
       </view>
     </view>
   </view>
@@ -117,6 +122,7 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import ResourceCard from '../../components/ResourceCard.vue'
+import ResourceExposure from '../../components/ResourceExposure.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { listHomeOperationConfig, listHomeResources } from '../../api/discovery'
 import { listResources } from '../../api/resource'
@@ -136,34 +142,26 @@ const SEARCH_BLOCK_RPX = 116
 const defaultBanners = [
   {
     id: 'default-topic',
-    kindText: '织里站 · 精选工厂',
+    kindText: '织里站 · 产业供需',
     title: '童装产业带供需服务平台',
-    subTitle: '本周新增 128 家金牌工厂',
+    subTitle: '货源、加工、招聘和租赁信息持续更新',
     coverUrl: '/static/home/factory-hero.jpg',
     jumpType: 'topic',
     jumpTarget: 'default-topic',
     tone: 'topic',
   },
   {
-    id: 'default-activity',
-    kindText: '活动推广 · 白名单网页',
-    title: '夏款供需对接会',
-    jumpType: 'webview',
-    jumpTarget: 'https://m.fulink.example/events/zhili-summer',
-    tone: 'activity',
-  },
-  {
     id: 'default-merchant',
-    kindText: '平台推荐 · 源头工厂',
-    title: '本周空档工厂',
+    kindText: '热门场景 · 加工供需',
+    title: '近期可沟通的加工信息',
     jumpType: 'search',
     jumpTarget: '小单快返',
     tone: 'factory',
   },
   {
     id: 'default-demand',
-    kindText: '类目入口 · 找供应',
-    title: '附近需求正在更新',
+    kindText: '类目入口 · 找需求',
+    title: '最新需求持续更新',
     jumpType: 'search',
     jumpTarget: '求购',
     groupCode: 'kids_wholesale',

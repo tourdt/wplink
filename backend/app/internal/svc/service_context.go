@@ -61,7 +61,7 @@ type ServiceContext struct {
 	AdminLoginService            AdminLoginService
 	AdminTokenService            *adminauth.ValidatingAdminTokenService
 	UploadTokenService           *uploadlogic.UploadTokenLogic
-	UserTokenService             *session.HMACUserTokenService
+	UserTokenService             authlogic.TokenService
 	WechatSessionClient          authlogic.WechatSessionClient
 	SMSVerifier                  authlogic.SMSVerifier
 	WechatPayGateway             paymentlogic.WechatPayGateway
@@ -80,6 +80,7 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		adminLoginOptions = append(adminLoginOptions, adminauth.WithMasterPassword(masterPassword))
 	}
 	apiStore := newAPIStore(db)
+	baseUserTokenService := session.NewHMACUserTokenService(c.UserAuth.TokenSecret, c.UserAuth.TokenTTL)
 	wechatPayGateway, err := paymentlogic.NewHTTPWechatPayGateway(c.WechatPay)
 	if err != nil {
 		return nil, fmt.Errorf("初始化微信支付网关失败: %w", err)
@@ -97,7 +98,7 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		AdminLoginService:            adminauth.NewLoginService(adminStore, adminauth.BcryptPasswordHasher{}, adminTokenIssuer, adminLoginOptions...),
 		AdminTokenService:            adminauth.NewValidatingAdminTokenService(adminTokenService, adminStore),
 		UploadTokenService:           uploadlogic.NewUploadTokenLogic(c.Storage),
-		UserTokenService:             session.NewHMACUserTokenService(c.UserAuth.TokenSecret, c.UserAuth.TokenTTL),
+		UserTokenService:             authlogic.NewValidatingUserTokenService(baseUserTokenService, apiStore.UserModel),
 		WechatSessionClient:          authlogic.NewWechatSessionClient(c.Wechat, "", nil),
 		SMSVerifier:                  authlogic.NewConfiguredSMSVerifierWithLimiter(c.SMS, nil, authlogic.NewSQLSMSSendLimiter(db)),
 		WechatPayGateway:             wechatPayGateway,

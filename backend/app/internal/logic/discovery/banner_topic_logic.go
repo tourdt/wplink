@@ -85,6 +85,7 @@ type HomeResourceItem struct {
 	Merchant     HomeResourceMerchantBrief `json:"merchant"`
 	CreditTags   []string                  `json:"creditTags"`
 	RefreshedAt  string                    `json:"refreshedAt,omitempty"`
+	DealtAt      string                    `json:"dealtAt,omitempty"`
 }
 
 type ListHomeResourcesResp struct {
@@ -112,6 +113,7 @@ type DiscoveryResourceItem struct {
 	PriceText    string `json:"priceText,omitempty"`
 	QuantityText string `json:"quantityText,omitempty"`
 	MerchantName string `json:"merchantName"`
+	DealtAt      string `json:"dealtAt,omitempty"`
 }
 
 type TopicResourcesResp struct {
@@ -225,6 +227,7 @@ func (l *BannerTopicDiscoveryLogic) ListHomeResources(ctx context.Context, req L
 			},
 			CreditTags:  append([]string(nil), item.CreditTags...),
 			RefreshedAt: item.RefreshedAt,
+			DealtAt:     item.DealtAt,
 		})
 	}
 	return ListHomeResourcesResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil
@@ -270,6 +273,7 @@ func (l *BannerTopicDiscoveryLogic) GetTopicResources(ctx context.Context, req T
 			PriceText:    item.PriceText,
 			QuantityText: item.QuantityText,
 			MerchantName: item.Merchant.Name,
+			DealtAt:      item.DealtAt,
 		})
 	}
 	resp := TopicResourcesResp{

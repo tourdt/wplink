@@ -4,6 +4,13 @@
       <view class="brand-mark">衣</view>
       <text class="login-title">衣货通</text>
       <text class="login-desc">登录后同步收藏、消息和发布记录</text>
+      <view class="policy-row" @click="agreedToPolicies = !agreedToPolicies">
+        <view :class="['policy-check', { checked: agreedToPolicies }]">{{ agreedToPolicies ? '✓' : '' }}</view>
+        <text class="policy-text">我已阅读并同意</text>
+        <text class="policy-link" @click.stop="openLegal('agreement')">《用户协议》</text>
+        <text class="policy-text">和</text>
+        <text class="policy-link" @click.stop="openLegal('privacy')">《隐私政策》</text>
+      </view>
       <button class="login-button" :disabled="loggingIn" @click="loginWithWechatAccount">
         {{ loggingIn ? '登录中' : '微信登录' }}
       </button>
@@ -14,7 +21,12 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { API_BASE_URL, DEFAULT_CITY_CODE } from '../../common/constants'
+import {
+  API_BASE_URL,
+  DEFAULT_CITY_CODE,
+  PRIVACY_POLICY_VERSION,
+  USER_AGREEMENT_VERSION,
+} from '../../common/constants'
 import { getMe, wechatLogin } from '../../api/auth'
 import { saveMerchantId, saveToken, saveUserId } from '../../store/session'
 
@@ -22,16 +34,27 @@ const TAB_PAGE_PATHS = ['/pages/home/index', '/pages/market/index', '/pages/publ
 
 const redirectUrl = ref('/pages/my/index')
 const loggingIn = ref(false)
+const agreedToPolicies = ref(false)
 
 onLoad((options = {}) => {
   redirectUrl.value = safeDecode(options.redirect) || '/pages/my/index'
 })
 
 async function loginWithWechatAccount() {
+  if (!agreedToPolicies.value) {
+    uni.showToast({ title: '请先阅读并同意用户协议和隐私政策', icon: 'none' })
+    return
+  }
   try {
     loggingIn.value = true
     const code = await getWechatLoginCode()
-    const resp = await wechatLogin({ code, defaultCityCode: DEFAULT_CITY_CODE })
+    const resp = await wechatLogin({
+      code,
+      defaultCityCode: DEFAULT_CITY_CODE,
+      agreedToPolicies: true,
+      privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+      userAgreementVersion: USER_AGREEMENT_VERSION,
+    })
     if (resp.token) {
       saveToken(resp.token)
     }
@@ -47,6 +70,10 @@ async function loginWithWechatAccount() {
   } finally {
     loggingIn.value = false
   }
+}
+
+function openLegal(type) {
+  uni.navigateTo({ url: `/pages/legal/index?type=${type}` })
 }
 
 async function restoreManagedMerchantId(loginResp = {}) {
@@ -169,6 +196,41 @@ function localDevLoginCode() {
   color: $wplink-muted;
   font-size: 28rpx;
   line-height: 1.5;
+}
+
+.policy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+  width: 100%;
+  margin-top: 8rpx;
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.7;
+}
+
+.policy-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30rpx;
+  height: 30rpx;
+  margin-right: 6rpx;
+  border: 2rpx solid $wplink-line;
+  border-radius: 6rpx;
+  color: #fff;
+  font-size: 22rpx;
+}
+
+.policy-check.checked {
+  border-color: $wplink-accent;
+  background: $wplink-accent;
+}
+
+.policy-link {
+  color: $wplink-accent;
 }
 
 .login-button {

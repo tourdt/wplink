@@ -65,6 +65,18 @@
       }
     },
     {
+      "path": "pages/legal/index",
+      "style": {
+        "navigationBarTitleText": "隐私与协议"
+      }
+    },
+    {
+      "path": "pages/account/settings",
+      "style": {
+        "navigationBarTitleText": "账号与隐私"
+      }
+    },
+    {
       "path": "pages/my-resources/index",
       "style": {
         "navigationBarTitleText": "我的发布",

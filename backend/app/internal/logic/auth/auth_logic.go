@@ -13,7 +13,11 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
-const RoleNormalUser = "normal_user"
+const (
+	RoleNormalUser              = "normal_user"
+	CurrentPrivacyPolicyVersion = "2026-07-25"
+	CurrentUserAgreementVersion = "2026-07-25"
+)
 
 type UserStore interface {
 	UpsertWechatUser(ctx context.Context, input model.UpsertWechatUserInput) (model.UserProfile, error)
@@ -34,9 +38,20 @@ type GrowthEventStore interface {
 	TriggerGrowthEvent(ctx context.Context, input model.GrowthEventInput) ([]model.GrowthRewardGrantResult, error)
 }
 
+type UserConsentStore interface {
+	RecordUserConsents(ctx context.Context, userID string, privacyVersion string, agreementVersion string) error
+}
+
+type UserAccountStore interface {
+	DeleteUserAccount(ctx context.Context, userID string, reason string) error
+}
+
 type WechatLoginReq struct {
-	Code            string `json:"code"`
-	DefaultCityCode string `json:"defaultCityCode,omitempty"`
+	Code                 string `json:"code"`
+	DefaultCityCode      string `json:"defaultCityCode,omitempty"`
+	AgreedToPolicies     bool   `json:"agreedToPolicies"`
+	PrivacyPolicyVersion string `json:"privacyPolicyVersion"`
+	UserAgreementVersion string `json:"userAgreementVersion"`
 }
 
 type AuthUserInfo struct {
@@ -91,6 +106,15 @@ type SendSMSCodeResp struct {
 	Message string `json:"message"`
 }
 
+type DeleteAccountReq struct {
+	Confirmation string `json:"confirmation"`
+	Reason       string `json:"reason,omitempty"`
+}
+
+type DeleteAccountResp struct {
+	Message string `json:"message"`
+}
+
 type WechatLoginLogic struct {
 	store         UserStore
 	tokenService  TokenService
@@ -110,6 +134,14 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 	if code == "" {
 		return WechatLoginResp{}, errx.New(errx.CodeValidationFailed, "请提供微信登录凭证")
 	}
+	privacyVersion := strings.TrimSpace(req.PrivacyPolicyVersion)
+	agreementVersion := strings.TrimSpace(req.UserAgreementVersion)
+	if !req.AgreedToPolicies || privacyVersion == "" || agreementVersion == "" {
+		return WechatLoginResp{}, errx.New(errx.CodeValidationFailed, "请阅读并同意用户协议和隐私政策")
+	}
+	if privacyVersion != CurrentPrivacyPolicyVersion || agreementVersion != CurrentUserAgreementVersion {
+		return WechatLoginResp{}, errx.New(errx.CodeValidationFailed, "协议版本已更新，请重新阅读并同意")
+	}
 	if l.tokenService == nil {
 		return WechatLoginResp{}, errx.New(errx.CodeInternalError, "登录服务未配置，请稍后重试")
 	}
@@ -127,8 +159,21 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 		DefaultCityCode: strings.TrimSpace(req.DefaultCityCode),
 	})
 	if err != nil {
+		if errors.Is(err, model.ErrUserDisabled) {
+			logx.Infof("微信登录被拦截，账号已停用: defaultCityCode=%s", strings.TrimSpace(req.DefaultCityCode))
+			return WechatLoginResp{}, errx.New(errx.CodeForbidden, "账号已停用或已注销，如有疑问请联系客服")
+		}
 		logx.Errorf("微信登录写入用户失败: defaultCityCode=%s openidPresent=%t err=%+v", strings.TrimSpace(req.DefaultCityCode), strings.TrimSpace(wechatSession.OpenID) != "", err)
 		return WechatLoginResp{}, loginDependencyError(err, "登录失败，请稍后重试")
+	}
+	consentStore, ok := l.store.(UserConsentStore)
+	if !ok {
+		logx.Errorf("微信登录缺少协议同意记录能力: userId=%s", profile.ID)
+		return WechatLoginResp{}, errx.New(errx.CodeInternalError, "登录服务暂不可用，请稍后重试")
+	}
+	if err := consentStore.RecordUserConsents(ctx, profile.ID, privacyVersion, agreementVersion); err != nil {
+		logx.Errorf("记录用户协议同意失败: userId=%s privacyVersion=%s agreementVersion=%s err=%+v", profile.ID, privacyVersion, agreementVersion, err)
+		return WechatLoginResp{}, errx.New(errx.CodeInternalError, "登录服务暂不可用，请稍后重试")
 	}
 	profile, err = l.ensureDefaultMerchantProfile(ctx, profile, req.DefaultCityCode)
 	if err != nil {
@@ -147,6 +192,30 @@ func (l *WechatLoginLogic) WechatLogin(ctx context.Context, req WechatLoginReq) 
 		User:             authUserInfoFromProfile(profile),
 		ManagedMerchants: managedMerchantInfosFromProfile(profile),
 	}, nil
+}
+
+func (l *MeLogic) DeleteAccount(ctx context.Context, userID string, req DeleteAccountReq) (DeleteAccountResp, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return DeleteAccountResp{}, errx.New(errx.CodeUnauthorized, "请先登录")
+	}
+	if strings.TrimSpace(req.Confirmation) != "确认注销" {
+		return DeleteAccountResp{}, errx.New(errx.CodeValidationFailed, "请输入“确认注销”后再提交")
+	}
+	accountStore, ok := l.store.(UserAccountStore)
+	if !ok {
+		logx.Errorf("注销账号缺少数据处理能力: userId=%s", userID)
+		return DeleteAccountResp{}, errx.New(errx.CodeInternalError, "注销服务暂不可用，请稍后重试")
+	}
+	if err := accountStore.DeleteUserAccount(ctx, userID, strings.TrimSpace(req.Reason)); err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, model.ErrUserDisabled) {
+			return DeleteAccountResp{}, errx.New(errx.CodeStateConflict, "账号已注销或当前状态不可操作")
+		}
+		logx.Errorf("注销账号失败: userId=%s err=%+v", userID, err)
+		return DeleteAccountResp{}, errx.New(errx.CodeInternalError, "注销失败，请稍后重试")
+	}
+	logx.Infof("用户账号已注销并完成个人资料匿名化: userId=%s", userID)
+	return DeleteAccountResp{Message: "账号已注销，个人资料已清理"}, nil
 }
 
 func (l *WechatLoginLogic) triggerFirstLoginGrowthReward(ctx context.Context, profile model.UserProfile) {

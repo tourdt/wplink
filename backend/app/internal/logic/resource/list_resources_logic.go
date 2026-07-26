@@ -48,6 +48,7 @@ type ResourceListItem struct {
 	Merchant     ResourceMerchantBrief `json:"merchant"`
 	CreditTags   []string              `json:"creditTags"`
 	RefreshedAt  string                `json:"refreshedAt,omitempty"`
+	DealtAt      string                `json:"dealtAt,omitempty"`
 }
 
 type ListResourcesResp struct {
@@ -114,6 +115,7 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 			},
 			CreditTags:  append([]string(nil), item.CreditTags...),
 			RefreshedAt: item.RefreshedAt,
+			DealtAt:     item.DealtAt,
 		})
 	}
 	return ListResourcesResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil

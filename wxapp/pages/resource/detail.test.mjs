@@ -132,7 +132,8 @@ test('own resource detail keeps share and management actions in the bottom bar',
   assert.match(source, /<button class="share-button" @click="shareOwnResource" :open-type="canShareOwnResource \? 'share' : ''">分享<\/button>/)
   assert.match(source, /const canShareOwnResource = computed\(\(\) => resource\.value\.status === 'published' && !isExpiredResource\.value && !resource\.value\.dealtAt\)/)
   assert.match(source, /<button class="primary-button" @click="openManagementSheet">管理<\/button>/)
-  assert.match(source, /<view v-else class="contact-bar">/)
+  assert.match(source, /<view v-else-if="!isDealtResource" class="contact-bar">/)
+  assert.match(source, /<view v-else class="completed-action-bar">/)
   assert.doesNotMatch(source, /这是你发布的供需信息，可在我的发布中管理/)
 })
 
@@ -178,7 +179,7 @@ test('resource detail uses short phone action text in bottom bar', () => {
 })
 
 test('resource detail groups low-frequency contact actions behind more sheet', () => {
-  const contactBar = source.match(/<view v-else class="contact-bar">[\s\S]*?<\/view>/)?.[0] || ''
+  const contactBar = source.match(/<view v-else-if="!isDealtResource" class="contact-bar">[\s\S]*?<\/view>/)?.[0] || ''
 
   assert.match(source, /const showContactMoreSheet = ref\(false\)/)
   assert.match(source, /<view v-if="showContactMoreSheet" class="sheet-mask" @click="closeContactMoreSheet">/)

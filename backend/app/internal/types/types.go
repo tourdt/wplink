@@ -904,6 +904,15 @@ type DealFeedbackResp struct {
 	Message string `json:"message"`
 }
 
+type DeleteAccountReq struct {
+	Confirmation string `json:"confirmation"`
+	Reason       string `json:"reason,optional"`
+}
+
+type DeleteAccountResp struct {
+	Message string `json:"message"`
+}
+
 type DeleteSavedSearchResp struct {
 	Message string `json:"message"`
 }
@@ -1012,6 +1021,7 @@ type HomeResourceItem struct {
 	Merchant     HomeResourceMerchantBrief `json:"merchant"`
 	CreditTags   []string                  `json:"creditTags"`
 	RefreshedAt  string                    `json:"refreshedAt,optional"`
+	DealtAt      string                    `json:"dealtAt,optional"`
 }
 
 type HomeResourceMerchantBrief struct {
@@ -1495,6 +1505,17 @@ type ReadMessageResp struct {
 	Status string `json:"status"`
 }
 
+type RecordResourceExposuresReq struct {
+	VisitorKey string                 `json:"visitorKey"`
+	SessionId  string                 `json:"sessionId"`
+	Source     string                 `json:"source"`
+	Items      []ResourceExposureItem `json:"items"`
+}
+
+type RecordResourceExposuresResp struct {
+	RecordedCount int64 `json:"recordedCount"`
+}
+
 type RedeemTopVoucherReq struct {
 	MerchantId string `json:"merchantId,optional"`
 	ResourceId string `json:"resourceId"`
@@ -1580,6 +1601,12 @@ type ResourceDetailResp struct {
 	ContactAccess  ResourceContactAccess   `json:"contactAccess"`
 	PublishedAt    string                  `json:"publishedAt,optional"`
 	ExpiresAt      string                  `json:"expiresAt,optional"`
+	DealtAt        string                  `json:"dealtAt,optional"`
+}
+
+type ResourceExposureItem struct {
+	ResourceId        string `json:"resourceId"`
+	VisibleDurationMs int64  `json:"visibleDurationMs"`
 }
 
 type ResourceFavoriteStateResp struct {
@@ -1602,6 +1629,7 @@ type ResourceListItem struct {
 	Merchant     ResourceMerchantBrief `json:"merchant"`
 	CreditTags   []string              `json:"creditTags"`
 	RefreshedAt  string                `json:"refreshedAt,optional"`
+	DealtAt      string                `json:"dealtAt,optional"`
 }
 
 type ResourceMerchantBrief struct {
@@ -1797,6 +1825,7 @@ type TopicResourceItem struct {
 	PriceText    string `json:"priceText,optional"`
 	QuantityText string `json:"quantityText,optional"`
 	MerchantName string `json:"merchantName"`
+	DealtAt      string `json:"dealtAt,optional"`
 }
 
 type TopicResourcesReq struct {
@@ -1874,8 +1903,11 @@ type VerificationBillingConfigResp struct {
 }
 
 type WechatLoginReq struct {
-	Code            string `json:"code"`
-	DefaultCityCode string `json:"defaultCityCode,optional"`
+	Code                 string `json:"code"`
+	DefaultCityCode      string `json:"defaultCityCode,optional"`
+	AgreedToPolicies     bool   `json:"agreedToPolicies"`
+	PrivacyPolicyVersion string `json:"privacyPolicyVersion"`
+	UserAgreementVersion string `json:"userAgreementVersion"`
 }
 
 type WechatLoginResp struct {

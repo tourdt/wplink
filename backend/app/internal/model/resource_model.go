@@ -196,6 +196,21 @@ type ResourceContentAuditTaskCompletion struct {
 	FailedCount   int64
 }
 
+type ResourceAuditRetryClaim struct {
+	ResourceID   string
+	RetryCount   int64
+	ManualReview bool
+}
+
+type ResourceAuditDecisionInput struct {
+	ResourceID string
+	Action     string
+	Decision   string
+	Reason     string
+	Labels     []string
+	TraceIDs   []string
+}
+
 type ResourceMerchantBrief struct {
 	ID                 string
 	Name               string
@@ -218,6 +233,7 @@ type ResourceListItem struct {
 	Merchant     ResourceMerchantBrief
 	CreditTags   []string
 	RefreshedAt  string
+	DealtAt      string
 }
 
 type ListResourcesFilter struct {
@@ -268,6 +284,7 @@ type ResourceDetail struct {
 	WechatMasked               string
 	PublishedAt                string
 	ExpiresAt                  string
+	DealtAt                    string
 }
 
 type ReviewResourceInput struct {
@@ -306,6 +323,7 @@ SELECT
       AND mvs.expires_at > now()
   ) THEN 'active' ELSE 'none' END AS vip_status,
   COALESCE(r.refreshed_at, r.published_at, r.created_at),
+  r.dealt_at,
   COUNT(*) OVER() AS total
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
@@ -329,6 +347,7 @@ WHERE r.deleted_at IS NULL
   )
   AND ($9 = false OR r.is_verified = true OR m.verification_status = 'verified')
   AND (r.expires_at IS NULL OR r.expires_at > now())
+  AND (r.dealt_at IS NULL OR r.dealt_at > now() - interval '7 days')
   AND (cardinality($12::text[]) = 0 OR r.tags ?& $12::text[])
 ORDER BY
   CASE WHEN r.top_expires_at IS NOT NULL AND r.top_expires_at > now() THEN 1 ELSE 0 END DESC,
@@ -348,6 +367,11 @@ SET
   taken_down_at = CASE WHEN $3 = 'take_down' THEN $4::timestamptz ELSE taken_down_at END,
   updated_at = $4::timestamptz
 WHERE resources.id = $1
+  AND (
+    ($3 IN ('approve', 'reject') AND resources.status IN ('pending', 'manual_review'))
+    OR ($3 = 'take_down' AND resources.status = 'published')
+  )
+  AND resources.deleted_at IS NULL
 RETURNING resources.id::text, resources.merchant_id::text, resources.title, resources.status
 `
 
@@ -398,7 +422,8 @@ SELECT
   r.contact_phone,
   COALESCE(r.contact_wechat, ''),
   r.published_at,
-  r.expires_at
+  r.expires_at,
+  r.dealt_at
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
 WHERE r.id = $1
@@ -406,6 +431,7 @@ WHERE r.id = $1
   AND m.status = 'active'
   AND r.deleted_at IS NULL
   AND (r.expires_at IS NULL OR r.expires_at > now())
+  AND (r.dealt_at IS NULL OR r.dealt_at > now() - interval '7 days')
 `
 
 const ownResourceDetailSQL = `
@@ -433,7 +459,8 @@ SELECT
   r.contact_phone,
   COALESCE(r.contact_wechat, ''),
   r.published_at,
-  r.expires_at
+  r.expires_at,
+  r.dealt_at
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
 WHERE r.id = $1
@@ -843,7 +870,7 @@ SELECT
 FROM resources r
 	LEFT JOIN users u ON u.id = r.created_by_user_id AND u.deleted_at IS NULL
 WHERE r.id = $1
-  AND r.status IN ('draft', 'pending')
+  AND r.status IN ('draft', 'pending', 'audit_retry')
   AND r.deleted_at IS NULL
 `, resourceID).Scan(
 		&snapshot.ID,
@@ -865,6 +892,135 @@ WHERE r.id = $1
 	snapshot.Tags = []string(tags)
 	snapshot.Images = []string(images)
 	return snapshot, err
+}
+
+func (m *ResourceModel) MarkResourceAuditRetry(ctx context.Context, resourceID string, reason string) (int64, error) {
+	var retryCount int64
+	err := m.db.QueryRowContext(ctx, `
+UPDATE resources
+SET
+  status = 'audit_retry',
+  audit_retry_at = now() + make_interval(secs => LEAST((30 * power(2, audit_retry_count))::int, 1800)),
+  audit_last_error = NULLIF($2, ''),
+  updated_at = now()
+WHERE id = $1
+  AND status IN ('pending', 'audit_retry')
+  AND deleted_at IS NULL
+RETURNING audit_retry_count
+`, resourceID, reason).Scan(&retryCount)
+	return retryCount, err
+}
+
+func (m *ResourceModel) RecordResourceAuditDecision(ctx context.Context, input ResourceAuditDecisionInput) error {
+	_, err := m.db.ExecContext(ctx, `
+INSERT INTO resource_content_audit_runs (
+  resource_id, attempt_no, audit_action, decision, reason, labels, trace_ids
+)
+SELECT
+  id,
+  audit_retry_count,
+  $2,
+  $3,
+  NULLIF($4, ''),
+  $5,
+  $6
+FROM resources
+WHERE id = $1
+`, input.ResourceID, input.Action, input.Decision, input.Reason, JSONStringSlice(input.Labels), JSONStringSlice(input.TraceIDs))
+	return err
+}
+
+func (m *ResourceModel) MarkResourceManualReview(ctx context.Context, resourceID string, reason string) error {
+	_, err := m.db.ExecContext(ctx, `
+UPDATE resources
+SET
+  status = 'manual_review',
+  audit_retry_at = NULL,
+  audit_last_error = NULLIF($2, ''),
+  updated_at = now()
+WHERE id = $1
+  AND status IN ('pending', 'audit_retry')
+  AND deleted_at IS NULL
+`, resourceID, reason)
+	return err
+}
+
+func (m *ResourceModel) MarkStaleContentAuditTasksForRetry(ctx context.Context, staleBefore time.Time) (int64, error) {
+	result, err := m.db.ExecContext(ctx, `
+WITH stale_resources AS (
+  SELECT DISTINCT rcat.resource_id
+  FROM resource_content_audit_tasks rcat
+  JOIN resources r ON r.id = rcat.resource_id
+  WHERE rcat.status = 'pending'
+    AND rcat.created_at < $1
+    AND r.status = 'pending'
+    AND r.deleted_at IS NULL
+),
+failed_tasks AS (
+  UPDATE resource_content_audit_tasks
+  SET status = 'failed', reason = '图片审核回调超时，系统将自动重试', completed_at = now(), updated_at = now()
+  WHERE resource_id IN (SELECT resource_id FROM stale_resources)
+    AND status = 'pending'
+)
+UPDATE resources
+SET
+  status = 'audit_retry',
+  audit_retry_at = now(),
+  audit_last_error = '图片审核回调超时',
+  updated_at = now()
+WHERE id IN (SELECT resource_id FROM stale_resources)
+`, staleBefore)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+func (m *ResourceModel) ClaimDueResourceAuditRetries(ctx context.Context, batchSize int64, maxRetries int64) ([]ResourceAuditRetryClaim, error) {
+	if batchSize <= 0 {
+		batchSize = 20
+	}
+	if maxRetries <= 0 {
+		maxRetries = 5
+	}
+	rows, err := m.db.QueryContext(ctx, `
+WITH candidates AS (
+  SELECT id
+  FROM resources
+  WHERE status = 'audit_retry'
+    AND audit_retry_at <= now()
+    AND deleted_at IS NULL
+  ORDER BY audit_retry_at ASC, updated_at ASC
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+),
+claimed AS (
+  UPDATE resources r
+  SET
+    status = CASE WHEN r.audit_retry_count >= $2 THEN 'manual_review' ELSE 'pending' END,
+    audit_retry_count = CASE WHEN r.audit_retry_count >= $2 THEN r.audit_retry_count ELSE r.audit_retry_count + 1 END,
+    audit_retry_at = NULL,
+    updated_at = now()
+  WHERE r.id IN (SELECT id FROM candidates)
+  RETURNING r.id::text, r.audit_retry_count, r.status
+)
+SELECT id, audit_retry_count, status = 'manual_review'
+FROM claimed
+ORDER BY id
+`, batchSize, maxRetries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var claims []ResourceAuditRetryClaim
+	for rows.Next() {
+		var claim ResourceAuditRetryClaim
+		if err := rows.Scan(&claim.ResourceID, &claim.RetryCount, &claim.ManualReview); err != nil {
+			return nil, err
+		}
+		claims = append(claims, claim)
+	}
+	return claims, rows.Err()
 }
 
 func (m *ResourceModel) CreateResourceContentAuditTasks(ctx context.Context, resourceID string, tasks []ResourceContentAuditTaskInput) error {
@@ -1231,6 +1387,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 		var item ResourceListItem
 		var tags JSONStringSlice
 		var refreshedAt time.Time
+		var dealtAt sql.NullTime
 		if err := rows.Scan(
 			&item.ID,
 			&item.Direction,
@@ -1248,12 +1405,16 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 			&item.Merchant.VerificationStatus,
 			&item.Merchant.VIPStatus,
 			&refreshedAt,
+			&dealtAt,
 			&total,
 		); err != nil {
 			return ListResourcesResult{}, err
 		}
 		item.Tags = []string(tags)
 		item.RefreshedAt = refreshedAt.Format(time.RFC3339)
+		if dealtAt.Valid {
+			item.DealtAt = dealtAt.Time.Format(time.RFC3339)
+		}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -1268,6 +1429,7 @@ func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resource
 	var images JSONStringSlice
 	var publishedAt sql.NullTime
 	var expiresAt sql.NullTime
+	var dealtAt sql.NullTime
 	err := m.db.QueryRowContext(ctx, publishedResourceDetailSQL, resourceID).Scan(
 		&detail.ID,
 		&detail.Status,
@@ -1294,6 +1456,7 @@ func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resource
 		&detail.WechatMasked,
 		&publishedAt,
 		&expiresAt,
+		&dealtAt,
 	)
 	if err != nil {
 		return ResourceDetail{}, err
@@ -1308,6 +1471,9 @@ func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resource
 	if expiresAt.Valid {
 		detail.ExpiresAt = expiresAt.Time.Format(time.RFC3339)
 	}
+	if dealtAt.Valid {
+		detail.DealtAt = dealtAt.Time.Format(time.RFC3339)
+	}
 	return detail, nil
 }
 
@@ -1317,6 +1483,7 @@ func (m *ResourceModel) GetOwnResourceDetail(ctx context.Context, merchantID str
 	var images JSONStringSlice
 	var publishedAt sql.NullTime
 	var expiresAt sql.NullTime
+	var dealtAt sql.NullTime
 	err := m.db.QueryRowContext(ctx, ownResourceDetailSQL, resourceID, merchantID).Scan(
 		&detail.ID,
 		&detail.Status,
@@ -1342,6 +1509,7 @@ func (m *ResourceModel) GetOwnResourceDetail(ctx context.Context, merchantID str
 		&detail.WechatMasked,
 		&publishedAt,
 		&expiresAt,
+		&dealtAt,
 	)
 	if err != nil {
 		return ResourceDetail{}, err
@@ -1353,6 +1521,9 @@ func (m *ResourceModel) GetOwnResourceDetail(ctx context.Context, merchantID str
 	}
 	if expiresAt.Valid {
 		detail.ExpiresAt = expiresAt.Time.Format(time.RFC3339)
+	}
+	if dealtAt.Valid {
+		detail.DealtAt = dealtAt.Time.Format(time.RFC3339)
 	}
 	return detail, nil
 }
@@ -1369,6 +1540,30 @@ func (m *ResourceModel) ReviewResource(ctx context.Context, resourceID string, i
 
 	var result ReviewResourceResult
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		if input.Action == "approve" {
+			var merchantID string
+			var commercialRules JSONMap
+			if err := tx.QueryRowContext(ctx, `
+SELECT merchant_id::text, resource_type_snapshot -> 'commercialRules'
+FROM resources
+WHERE id = $1
+  AND status IN ('pending', 'manual_review')
+  AND deleted_at IS NULL
+FOR UPDATE
+`, resourceID).Scan(&merchantID, &commercialRules); err != nil {
+				return err
+			}
+			switch PublishModeFromCommercialRules(commercialRules) {
+			case ResourcePublishModeDisabled:
+				return ErrPublishDisabled
+			case ResourcePublishModeFree:
+				// 免费发布分类经人工复核通过后不消耗额度。
+			default:
+				if err := consumePublishQuotaTx(ctx, tx, merchantID, resourceID); err != nil {
+					return err
+				}
+			}
+		}
 		var merchantID string
 		var title string
 		row := tx.QueryRowContext(ctx, reviewResourceSQL, resourceID, status, input.Action, now, input.Reason)
@@ -1537,6 +1732,7 @@ SET refreshed_at = now(), updated_at = now()
 WHERE id = $1
   AND merchant_id = $2
   AND status = 'published'
+  AND dealt_at IS NULL
   AND deleted_at IS NULL
 RETURNING id::text, refreshed_at
 `, resourceID, merchantID).Scan(&result.ID, &refreshedAt); err != nil {

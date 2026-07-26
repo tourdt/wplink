@@ -41,11 +41,30 @@ type MerchantMetricsSummaryResp {
 	Last7Days              MerchantLast7DaysMetrics `json:"last7Days"`
 }
 
+type ResourceExposureItem {
+	ResourceId        string `json:"resourceId"`
+	VisibleDurationMs int64  `json:"visibleDurationMs"`
+}
+
+type RecordResourceExposuresReq {
+	VisitorKey string                 `json:"visitorKey"`
+	SessionId  string                 `json:"sessionId"`
+	Source     string                 `json:"source"`
+	Items      []ResourceExposureItem `json:"items"`
+}
+
+type RecordResourceExposuresResp {
+	RecordedCount int64 `json:"recordedCount"`
+}
+
 @server (
 	prefix: /api/v1
 	group:  metrics
 )
 service wplink-api {
+	@handler RecordResourceExposures
+	post /metrics/exposures/batch (RecordResourceExposuresReq) returns (RecordResourceExposuresResp)
+
 	@handler GetResourceMetrics
 	get /resources/:resourceId/metrics (ResourceMetricsReq) returns (ResourceMetricsResp)
 

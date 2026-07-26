@@ -42,3 +42,12 @@ export function bindWechatPhone(data) {
     requireAuth: true,
   })
 }
+
+export function deleteAccount(data) {
+  return request({
+    url: '/api/v1/me/account-deletion',
+    method: 'POST',
+    data,
+    requireAuth: true,
+  })
+}

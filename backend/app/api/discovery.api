@@ -53,6 +53,7 @@ type HomeResourceItem {
 	Merchant     HomeResourceMerchantBrief `json:"merchant"`
 	CreditTags   []string                  `json:"creditTags"`
 	RefreshedAt  string                    `json:"refreshedAt,optional"`
+	DealtAt      string                    `json:"dealtAt,optional"`
 }
 
 type HomeResourcesResp {
@@ -98,6 +99,7 @@ type TopicResourceItem {
 	PriceText    string `json:"priceText,optional"`
 	QuantityText string `json:"quantityText,optional"`
 	MerchantName string `json:"merchantName"`
+	DealtAt      string `json:"dealtAt,optional"`
 }
 
 type TopicResourcesResp {

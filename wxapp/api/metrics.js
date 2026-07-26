@@ -1,5 +1,14 @@
 import request from './request'
 
+export function recordResourceExposures(data) {
+  return request({
+    url: '/api/v1/metrics/exposures/batch',
+    method: 'POST',
+    data,
+    suppressErrorToast: true,
+  })
+}
+
 export function getResourceMetrics(resourceId, params = {}) {
   return request({
     url: `/api/v1/resources/${resourceId}/metrics`,

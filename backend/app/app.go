@@ -70,6 +70,23 @@ func main() {
 		logx.Infof("资源生命周期自动任务已启用: interval=%s", cfg.Tasks.ResourceLifecycleInterval)
 		lifecycleScheduler.Start(appCtx)
 	}
+	contentAuditRetryScheduler := task.NewContentAuditRetryScheduler(
+		task.NewContentAuditRetryTask(
+			svcCtx.APIStore,
+			svcCtx.ContentAuditor,
+			cfg.Tasks.ContentAuditRetryBatchSize,
+		),
+		cfg.Tasks.ContentAuditRetryInterval,
+		log.Default(),
+	)
+	if svcCtx.ContentAuditor != nil && contentAuditRetryScheduler.Enabled() {
+		logx.Infof(
+			"内容审核自动重试任务已启用: interval=%s batchSize=%d",
+			cfg.Tasks.ContentAuditRetryInterval,
+			cfg.Tasks.ContentAuditRetryBatchSize,
+		)
+		contentAuditRetryScheduler.Start(appCtx)
+	}
 	paymentScheduler := task.NewPaymentReconciliationScheduler(
 		task.NewPaymentReconciliationTask(
 			svcCtx.APIStore,

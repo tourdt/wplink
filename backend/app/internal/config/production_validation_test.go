@@ -54,7 +54,7 @@ func TestValidateForProductionAcceptsRequiredConfig(t *testing.T) {
 			PublicBaseURL:       "https://cdn.example.com",
 			AllowedContentTypes: []string{"image/png"},
 		},
-		Tasks: TasksConfig{ResourceLifecycleInterval: time.Hour},
+		Tasks: TasksConfig{ResourceLifecycleInterval: time.Hour, ContentAuditRetryInterval: time.Minute, ContentAuditRetryBatchSize: 20},
 	}
 
 	if err := ValidateForProduction(cfg); err != nil {
@@ -246,7 +246,7 @@ func requiredProductionConfig() Config {
 			PublicBaseURL:       "https://cdn.example.com",
 			AllowedContentTypes: []string{"image/png"},
 		},
-		Tasks: TasksConfig{ResourceLifecycleInterval: time.Hour},
+		Tasks: TasksConfig{ResourceLifecycleInterval: time.Hour, ContentAuditRetryInterval: time.Minute, ContentAuditRetryBatchSize: 20},
 	}
 }
 

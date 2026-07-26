@@ -44,7 +44,8 @@ func NewListPendingResourcesLogic(store PendingResourceStore) *ListPendingResour
 }
 
 func (l *ListPendingResourcesLogic) ListPendingResources(ctx context.Context, req ListPendingResourcesReq) (ListPendingResourcesResp, error) {
-	req.Status = model.ResourceStatusPending
+	// 自动审核中的 pending/audit_retry 不进入人工队列，只有明确转人工的内容才占用运营工作量。
+	req.Status = model.ResourceStatusManualReview
 	return l.listResources(ctx, req)
 }
 

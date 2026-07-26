@@ -1,7 +1,9 @@
 package adminauth
 
 import (
+	"net"
 	"net/http"
+	"strings"
 
 	adminauthlogic "wplink/backend/app/internal/logic/adminauth"
 	"wplink/backend/app/internal/svc"
@@ -22,9 +24,15 @@ func AdminLoginHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		resp, err := svcCtx.AdminLoginService.Login(r.Context(), adminauthlogic.LoginRequest{
 			LoginName: req.LoginName,
 			Password:  req.Password,
+			ClientIP:  requestClientIP(r),
+			UserAgent: r.UserAgent(),
 		})
 		if err != nil {
-			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, adminauthlogic.PublicLoginErrorMessage(err)))
+			code := errx.CodeUnauthorized
+			if adminauthlogic.IsLoginRateLimited(err) {
+				code = errx.CodeRateLimited
+			}
+			response.JSON(w, nil, errx.New(code, adminauthlogic.PublicLoginErrorMessage(err)))
 			return
 		}
 		response.JSON(w, types.AdminLoginResp{
@@ -34,4 +42,26 @@ func AdminLoginHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			Modules:    append([]string(nil), resp.Modules...),
 		}, nil)
 	}
+}
+
+func requestClientIP(r *http.Request) string {
+	if r == nil {
+		return "unknown"
+	}
+	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwarded != "" {
+		if first := strings.TrimSpace(strings.Split(forwarded, ",")[0]); first != "" {
+			return first
+		}
+	}
+	if realIP := strings.TrimSpace(r.Header.Get("X-Real-IP")); realIP != "" {
+		return realIP
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err == nil && host != "" {
+		return host
+	}
+	if remoteAddr := strings.TrimSpace(r.RemoteAddr); remoteAddr != "" {
+		return remoteAddr
+	}
+	return "unknown"
 }

@@ -280,6 +280,10 @@ func (l *RefreshResourceLogic) RefreshResource(ctx context.Context, req RefreshR
 		logx.Infof("刷新资源被拦截: merchantId=%s resourceId=%s reason=expired", merchantID, resourceID)
 		return RefreshResourceResp{}, errx.New(errx.CodeStateConflict, "资源已过期，请再发类似资源")
 	}
+	if status.IsDealt {
+		logx.Infof("刷新资源被拦截: merchantId=%s resourceId=%s reason=completed", merchantID, resourceID)
+		return RefreshResourceResp{}, errx.New(errx.CodeStateConflict, "该供需已完成，不能继续刷新")
+	}
 	result, err := l.store.RefreshResource(ctx, merchantID, resourceID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

@@ -249,6 +249,9 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 		response.JSON(w, resp, err)
 	})
 	registerLocationRoutes(mux, options.locationGeocoder)
+	if exposureStore, ok := any(store).(metricslogic.ResourceExposureStore); ok {
+		registerResourceExposureRoute(mux, exposureStore, options.userTokenService)
+	}
 	if resourceStore, ok := any(store).(ResourceAPIStore); ok {
 		permissionStore, _ := any(store).(MerchantPermissionStore)
 		registerResourceRoutes(
@@ -269,6 +272,24 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 		return requireAdminToken(mux, options.adminTokenService)
 	}
 	return mux
+}
+
+func registerResourceExposureRoute(mux *http.ServeMux, store metricslogic.ResourceExposureStore, tokenService authlogic.TokenService) {
+	mux.HandleFunc("POST /api/v1/metrics/exposures/batch", func(w http.ResponseWriter, r *http.Request) {
+		var body metricslogic.RecordResourceExposuresReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		userID, err := optionalUserIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		body.UserID = userID
+		resp, err := metricslogic.NewRecordResourceExposuresLogic(store).RecordResourceExposures(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
 }
 
 func registerLocationRoutes(mux *http.ServeMux, geocoder locationlogic.ReverseGeocoder) {
@@ -449,9 +470,15 @@ func registerAdminAuthRoutes(mux *http.ServeMux, service AdminLoginService) {
 		resp, err := service.Login(r.Context(), adminauth.LoginRequest{
 			LoginName: body.LoginName,
 			Password:  body.Password,
+			ClientIP:  requestClientIP(r),
+			UserAgent: r.UserAgent(),
 		})
 		if err != nil {
-			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, adminauth.PublicLoginErrorMessage(err)))
+			code := errx.CodeUnauthorized
+			if adminauth.IsLoginRateLimited(err) {
+				code = errx.CodeRateLimited
+			}
+			response.JSON(w, nil, errx.New(code, adminauth.PublicLoginErrorMessage(err)))
 			return
 		}
 		response.JSON(w, resp, nil)

@@ -16,7 +16,7 @@ func TestWechatLoginCreatesUserAndIssuesToken(t *testing.T) {
 	sessionClient := &fakeWechatSessionClient{session: WechatSession{OpenID: "openid-1", UnionID: "union-1"}}
 	logic := NewWechatLoginLogic(store, tokenService, sessionClient)
 
-	resp, err := logic.WechatLogin(context.Background(), WechatLoginReq{Code: " wx-code ", DefaultCityCode: " zhili "})
+	resp, err := logic.WechatLogin(context.Background(), validWechatLoginReq(" wx-code "))
 	if err != nil {
 		t.Fatalf("wechat login: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestWechatLoginHidesStoreFailure(t *testing.T) {
 	sessionClient := &fakeWechatSessionClient{session: WechatSession{OpenID: "openid-1"}}
 	logic := NewWechatLoginLogic(store, tokenService, sessionClient)
 
-	_, err := logic.WechatLogin(context.Background(), WechatLoginReq{Code: "wx-code"})
+	_, err := logic.WechatLogin(context.Background(), validWechatLoginReq("wx-code"))
 	if err == nil {
 		t.Fatal("err = nil, want friendly internal error")
 	}
@@ -61,7 +61,7 @@ func TestWechatLoginHidesTokenIssueFailure(t *testing.T) {
 	sessionClient := &fakeWechatSessionClient{session: WechatSession{OpenID: "openid-1"}}
 	logic := NewWechatLoginLogic(store, tokenService, sessionClient)
 
-	_, err := logic.WechatLogin(context.Background(), WechatLoginReq{Code: "wx-code"})
+	_, err := logic.WechatLogin(context.Background(), validWechatLoginReq("wx-code"))
 	if err == nil {
 		t.Fatal("err = nil, want friendly internal error")
 	}
@@ -156,6 +156,24 @@ type fakeAuthStore struct {
 	boundUserID string
 	boundPhone  string
 	upsertErr   error
+}
+
+func validWechatLoginReq(code string) WechatLoginReq {
+	return WechatLoginReq{
+		Code:                 code,
+		DefaultCityCode:      " zhili ",
+		AgreedToPolicies:     true,
+		PrivacyPolicyVersion: "2026-07-25",
+		UserAgreementVersion: "2026-07-25",
+	}
+}
+
+func (s *fakeAuthStore) RecordUserConsents(ctx context.Context, userID string, privacyVersion string, agreementVersion string) error {
+	return nil
+}
+
+func (s *fakeAuthStore) DeleteUserAccount(ctx context.Context, userID string, reason string) error {
+	return nil
 }
 
 func (s *fakeAuthStore) UpsertWechatUser(ctx context.Context, input model.UpsertWechatUserInput) (model.UserProfile, error) {

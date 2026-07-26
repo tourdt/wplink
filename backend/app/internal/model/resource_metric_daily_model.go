@@ -18,6 +18,19 @@ type ResourceMetricDelta struct {
 	DealFeedbackCount   int64
 }
 
+type ResourceExposureItem struct {
+	ResourceID        string
+	VisibleDurationMS int64
+}
+
+type RecordResourceExposuresInput struct {
+	UserID     string
+	VisitorKey string
+	SessionID  string
+	Source     string
+	Items      []ResourceExposureItem
+}
+
 type ResourceMetricsSummary struct {
 	ExposureCount     int64
 	DetailViewCount   int64
@@ -107,6 +120,84 @@ DO UPDATE SET
   updated_at = now()
 `, delta.ResourceID, delta.ExposureCount, delta.SearchExposureCount, delta.ListExposureCount, delta.DetailViewCount, delta.ContactClickCount, delta.PhoneClickCount, delta.WechatCopyCount, delta.ShareCount, delta.DealFeedbackCount)
 	return err
+}
+
+func (m *ResourceMetricDailyModel) RecordResourceExposures(ctx context.Context, input RecordResourceExposuresInput) (int64, error) {
+	tx, err := m.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	var recorded int64
+	for _, item := range input.Items {
+		result, execErr := tx.ExecContext(ctx, `
+WITH candidate AS (
+  SELECT r.id AS resource_id, r.merchant_id
+  FROM resources r
+  WHERE r.id = $1
+    AND r.status = 'published'
+    AND r.deleted_at IS NULL
+    AND (r.expires_at IS NULL OR r.expires_at > now())
+    AND (r.dealt_at IS NULL OR r.dealt_at > now() - interval '7 days')
+    AND (
+      NULLIF($2, '') IS NULL
+      OR NOT EXISTS (
+        SELECT 1
+        FROM merchant_admin_bindings mab
+        WHERE mab.merchant_id = r.merchant_id
+          AND mab.user_id = NULLIF($2, '')::bigint
+          AND mab.status = 'active'
+      )
+    )
+),
+inserted AS (
+  INSERT INTO resource_exposure_events (
+    resource_id, merchant_id, user_id, visitor_key, session_id, source, visible_duration_ms
+  )
+  SELECT
+    candidate.resource_id,
+    candidate.merchant_id,
+    NULLIF($2, '')::bigint,
+    $3,
+    $4,
+    $5,
+    $6
+  FROM candidate
+  ON CONFLICT (resource_id, visitor_key, source, exposure_date) DO NOTHING
+  RETURNING resource_id, merchant_id
+)
+INSERT INTO resource_metrics_daily (
+  resource_id, merchant_id, stat_date, exposure_count, search_exposure_count, list_exposure_count
+)
+SELECT
+  inserted.resource_id,
+  inserted.merchant_id,
+  CURRENT_DATE,
+  1,
+  CASE WHEN $5 = 'search' THEN 1 ELSE 0 END,
+  CASE WHEN $5 IN ('home', 'list', 'topic', 'merchant') THEN 1 ELSE 0 END
+FROM inserted
+ON CONFLICT (resource_id, stat_date)
+DO UPDATE SET
+  exposure_count = resource_metrics_daily.exposure_count + 1,
+  search_exposure_count = resource_metrics_daily.search_exposure_count + EXCLUDED.search_exposure_count,
+  list_exposure_count = resource_metrics_daily.list_exposure_count + EXCLUDED.list_exposure_count,
+  updated_at = now()
+`, item.ResourceID, input.UserID, input.VisitorKey, input.SessionID, input.Source, item.VisibleDurationMS)
+		if execErr != nil {
+			return 0, execErr
+		}
+		affected, affectedErr := result.RowsAffected()
+		if affectedErr != nil {
+			return 0, affectedErr
+		}
+		recorded += affected
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return recorded, nil
 }
 
 func (m *ResourceMetricDailyModel) GetResourceMetrics(ctx context.Context, resourceID string, from string, to string) (ResourceMetricsResult, error) {

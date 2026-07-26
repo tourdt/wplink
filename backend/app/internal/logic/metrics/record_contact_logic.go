@@ -126,6 +126,9 @@ func (l *RecordContactLogic) validateContactUnlock(ctx context.Context, input mo
 	if info.Status != model.ResourceStatusPublished || isExpired(info.ExpiresAt) {
 		return RecordContactResp{}, false, errx.New(errx.CodeResourceNotFound, "资源不存在或已下架")
 	}
+	if info.DealtAt.Valid {
+		return RecordContactResp{}, false, errx.New(errx.CodeStateConflict, "该供需已完成，暂不支持继续联系")
+	}
 	canManage, err := l.store.UserCanManageMerchant(ctx, input.UserID, info.MerchantID)
 	if err != nil {
 		logx.Errorf("校验联系方式查看者商家权限失败: resourceId=%s userId=%s merchantId=%s action=%s err=%+v", input.ResourceID, input.UserID, info.MerchantID, input.Action, err)

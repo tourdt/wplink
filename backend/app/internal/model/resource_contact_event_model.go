@@ -23,6 +23,7 @@ type ResourceContactUnlockInfo struct {
 	Phone           string
 	Wechat          string
 	ExpiresAt       sql.NullTime
+	DealtAt         sql.NullTime
 	CommercialRules JSONMap
 }
 
@@ -42,6 +43,7 @@ SELECT
   r.contact_phone,
   COALESCE(r.contact_wechat, ''),
   r.expires_at,
+  r.dealt_at,
   r.resource_type_snapshot -> 'commercialRules'
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
@@ -60,6 +62,7 @@ func (m *ResourceContactEventModel) GetResourceContactUnlockInfo(ctx context.Con
 		&info.Phone,
 		&info.Wechat,
 		&info.ExpiresAt,
+		&info.DealtAt,
 		&info.CommercialRules,
 	)
 	return info, err

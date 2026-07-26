@@ -75,6 +75,8 @@ SMS:
 
 Tasks:
   ResourceLifecycleInterval: 1h
+  ContentAuditRetryInterval: 1m
+  ContentAuditRetryBatchSize: 20
   PaymentReconcileInterval: 1m
   PaymentQueryDelay: 2m
   PaymentBatchSize: 100

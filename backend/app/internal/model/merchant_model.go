@@ -144,8 +144,12 @@ SELECT
     ORDER BY v.reviewed_at DESC NULLS LAST, v.submitted_at DESC
     LIMIT 1
   ) AS verification_expires_at,
-  COUNT(r.id) FILTER (WHERE r.status = 'published') AS published_count,
-  COUNT(r.id) FILTER (WHERE r.status = 'dealt') AS dealt_count,
+  COUNT(r.id) FILTER (
+    WHERE r.status = 'published'
+      AND (r.expires_at IS NULL OR r.expires_at > now())
+      AND (r.dealt_at IS NULL OR r.dealt_at > now() - interval '7 days')
+  ) AS published_count,
+  COUNT(r.id) FILTER (WHERE r.dealt_at IS NOT NULL) AS dealt_count,
   (
     SELECT COUNT(*)
     FROM user_followed_merchants ufm

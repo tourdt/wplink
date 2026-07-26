@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"wplink/backend/app/internal/model"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 const (
@@ -62,6 +64,55 @@ type ResourceAutoAuditStore interface {
 	CreateResourceContentAuditTasks(ctx context.Context, resourceID string, tasks []model.ResourceContentAuditTaskInput) error
 	PublishResourceAfterAudit(ctx context.Context, resourceID string) (model.ReviewResourceResult, error)
 	RejectResourceAfterAudit(ctx context.Context, resourceID string, reason string) (model.ReviewResourceResult, error)
+}
+
+type ResourceAuditStateStore interface {
+	MarkResourceAuditRetry(ctx context.Context, resourceID string, reason string) (int64, error)
+	MarkResourceManualReview(ctx context.Context, resourceID string, reason string) error
+}
+
+type ResourceAuditDecisionStore interface {
+	RecordResourceAuditDecision(ctx context.Context, input model.ResourceAuditDecisionInput) error
+}
+
+type ResourceAuditRetryStore interface {
+	ResourceAutoAuditStore
+	ResourceAuditSnapshotStore
+	ResourceAuditStateStore
+}
+
+func RetryResourceContentAudit(ctx context.Context, store ResourceAuditRetryStore, auditor ContentAuditor, resourceID string) (autoAuditOutcome, error) {
+	snapshot, err := store.GetResourceAuditSnapshot(ctx, resourceID)
+	if err != nil {
+		return autoAuditOutcome{}, err
+	}
+	if strings.TrimSpace(snapshot.OpenID) == "" {
+		reason := "资源缺少微信审核身份，已转人工复核"
+		if err := store.MarkResourceManualReview(ctx, resourceID, reason); err != nil {
+			return autoAuditOutcome{}, err
+		}
+		recordResourceAuditDecision(ctx, store, model.ResourceAuditDecisionInput{
+			ResourceID: resourceID,
+			Action:     "retry_resource_audit",
+			Decision:   "manual_review",
+			Reason:     reason,
+		})
+		return autoAuditOutcome{ID: resourceID, Status: model.ResourceStatusManualReview, Message: "内容审核中"}, nil
+	}
+	input := contentAuditInputFromSnapshot(snapshot)
+	result, auditErr := auditor.AuditResource(ctx, input)
+	return applyResourceAutoAuditResult(ctx, store, "retry_resource_audit", resourceID, input, result, auditErr)
+}
+
+func recordResourceAuditDecision(ctx context.Context, store any, input model.ResourceAuditDecisionInput) {
+	decisionStore, ok := store.(ResourceAuditDecisionStore)
+	if !ok {
+		return
+	}
+	if err := decisionStore.RecordResourceAuditDecision(ctx, input); err != nil {
+		// 审核日志失败不能改变已经落库的资源状态，但必须保留诊断日志供告警采集。
+		logx.Errorf("记录资源内容审核决策失败: resourceId=%s action=%s decision=%s err=%+v", input.ResourceID, input.Action, input.Decision, err)
+	}
 }
 
 func contentAuditInputFromCreate(input model.CreateResourceInput, openID string) ContentAuditInput {

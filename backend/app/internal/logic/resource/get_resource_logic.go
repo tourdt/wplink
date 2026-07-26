@@ -59,6 +59,7 @@ type ResourceDetailResp struct {
 	ContactAccess  ResourceContactAccess   `json:"contactAccess"`
 	PublishedAt    string                  `json:"publishedAt,omitempty"`
 	ExpiresAt      string                  `json:"expiresAt,omitempty"`
+	DealtAt        string                  `json:"dealtAt,omitempty"`
 }
 
 type GetResourceLogic struct {
@@ -117,6 +118,7 @@ func resourceDetailRespFromModel(detail model.ResourceDetail) ResourceDetailResp
 		ContactAccess: contactAccessFromCommercialRules(detail.CommercialRules, false),
 		PublishedAt:   detail.PublishedAt,
 		ExpiresAt:     detail.ExpiresAt,
+		DealtAt:       detail.DealtAt,
 	}
 }
 

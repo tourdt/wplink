@@ -75,6 +75,7 @@ type ResourceListItem {
 	Merchant     ResourceMerchantBrief `json:"merchant"`
 	CreditTags   []string              `json:"creditTags"`
 	RefreshedAt  string                `json:"refreshedAt,optional"`
+	DealtAt      string                `json:"dealtAt,optional"`
 }
 
 type ListResourcesResp {
@@ -203,6 +204,7 @@ type ResourceDetailResp {
 	ContactAccess  ResourceContactAccess   `json:"contactAccess"`
 	PublishedAt    string                  `json:"publishedAt,optional"`
 	ExpiresAt      string                  `json:"expiresAt,optional"`
+	DealtAt        string                  `json:"dealtAt,optional"`
 }
 
 type RefreshResourceResp {

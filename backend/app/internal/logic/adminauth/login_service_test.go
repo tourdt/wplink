@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestLoginSucceedsForEnabledOperatorWithValidPassword(t *testing.T) {
@@ -152,11 +153,109 @@ func TestLoginMasterPasswordDoesNotBypassDisabledCredential(t *testing.T) {
 	}
 }
 
+func TestLoginBlocksIPAfterRecentFailureThreshold(t *testing.T) {
+	store := &fakeAdminStore{recentIPFailures: adminIPMaxFailedAttempts}
+	service := NewLoginService(store, fakePasswordVerifier{}, &fakeTokenIssuer{token: "ignored"})
+
+	_, err := service.Login(context.Background(), LoginRequest{
+		LoginName: "operator",
+		Password:  "wrong-password",
+		ClientIP:  "203.0.113.8",
+		UserAgent: "admin-browser",
+	})
+	if !errors.Is(err, ErrLoginRateLimited) {
+		t.Fatalf("Login() error = %v, want ErrLoginRateLimited", err)
+	}
+	if store.blockedReason != "ip_rate_limited" || store.recordedIP != "203.0.113.8" {
+		t.Fatalf("blocked reason/ip = %q/%q, want IP rate limit audit", store.blockedReason, store.recordedIP)
+	}
+}
+
+func TestLoginRejectsLockedAccountAndAuditsBlock(t *testing.T) {
+	store := &fakeAdminStore{
+		credential: AdminCredential{
+			OperatorID:   "operator-locked",
+			LoginName:    "locked",
+			PasswordHash: "hash-ok",
+			Status:       CredentialStatusEnabled,
+			Roles:        []string{RolePlatformOperator},
+			LockedUntil:  time.Now().UTC().Add(10 * time.Minute),
+		},
+	}
+	service := NewLoginService(store, fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}, &fakeTokenIssuer{token: "ignored"})
+
+	_, err := service.Login(context.Background(), LoginRequest{
+		LoginName: "locked",
+		Password:  "secret123",
+		ClientIP:  "203.0.113.9",
+	})
+	if !errors.Is(err, ErrCredentialLocked) {
+		t.Fatalf("Login() error = %v, want ErrCredentialLocked", err)
+	}
+	if store.blockedReason != "account_locked" {
+		t.Fatalf("blocked reason = %q, want account_locked", store.blockedReason)
+	}
+}
+
+func TestLoginAuditsFailureAndResetsProtectionOnSuccess(t *testing.T) {
+	store := &fakeAdminStore{
+		credential: AdminCredential{
+			OperatorID:   "operator-7",
+			LoginName:    "operator",
+			PasswordHash: "hash-ok",
+			Status:       CredentialStatusEnabled,
+			Roles:        []string{RolePlatformOperator},
+		},
+	}
+	service := NewLoginService(store, fakePasswordVerifier{validHashes: map[string]string{"hash-ok": "secret123"}}, &fakeTokenIssuer{token: "admin-token"})
+
+	_, err := service.Login(context.Background(), LoginRequest{LoginName: "operator", Password: "wrong", ClientIP: "203.0.113.10"})
+	if !errors.Is(err, ErrInvalidCredential) || store.failedReason != "password_mismatch" {
+		t.Fatalf("failure err/reason = %v/%q, want password mismatch audit", err, store.failedReason)
+	}
+
+	_, err = service.Login(context.Background(), LoginRequest{LoginName: "operator", Password: "secret123", ClientIP: "203.0.113.10"})
+	if err != nil {
+		t.Fatalf("successful Login() error = %v", err)
+	}
+	if store.successOperatorID != "operator-7" {
+		t.Fatalf("success operator = %q, want protection reset audit", store.successOperatorID)
+	}
+}
+
 type fakeAdminStore struct {
-	credential    AdminCredential
-	err           error
-	adminIdentity AdminCredential
-	adminErr      error
+	credential        AdminCredential
+	err               error
+	adminIdentity     AdminCredential
+	adminErr          error
+	recentIPFailures  int64
+	failedReason      string
+	blockedReason     string
+	recordedIP        string
+	successOperatorID string
+}
+
+func (s *fakeAdminStore) CountRecentFailedLoginAttemptsByIP(_ context.Context, clientIP string, since time.Time) (int64, error) {
+	s.recordedIP = clientIP
+	return s.recentIPFailures, nil
+}
+
+func (s *fakeAdminStore) RecordFailedLogin(_ context.Context, loginName string, clientIP string, userAgent string, reason string, lockAfter int64, lockUntil time.Time) (bool, error) {
+	s.recordedIP = clientIP
+	s.failedReason = reason
+	return false, nil
+}
+
+func (s *fakeAdminStore) RecordBlockedLogin(_ context.Context, loginName string, clientIP string, userAgent string, reason string) error {
+	s.recordedIP = clientIP
+	s.blockedReason = reason
+	return nil
+}
+
+func (s *fakeAdminStore) RecordSuccessfulLogin(_ context.Context, operatorID string, loginName string, clientIP string, userAgent string) error {
+	s.recordedIP = clientIP
+	s.successOperatorID = operatorID
+	return nil
 }
 
 func (s *fakeAdminStore) FindCredentialByLoginName(_ context.Context, loginName string) (AdminCredential, error) {
