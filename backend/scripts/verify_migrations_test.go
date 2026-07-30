@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadDSNFromConfigExpandsEnvironment(t *testing.T) {
@@ -127,6 +129,20 @@ func TestCollectDemoSeedImportFilesRunsSeedTwice(t *testing.T) {
 	}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("demo seed import files = %#v, want %#v", got, want)
+	}
+}
+
+func TestDemoSeedImportsTwiceIntoTemporaryDatabase(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if dsn == "" {
+		t.Skip("DATABASE_URL 未配置，跳过 PostgreSQL 演示种子集成测试")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	if err := verifyDemoSeedImport(ctx, dsn, "..", false); err != nil {
+		t.Fatalf("演示种子连续导入两次失败: %v", err)
 	}
 }
 

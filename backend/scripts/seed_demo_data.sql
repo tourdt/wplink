@@ -639,7 +639,7 @@ VALUES
   ),
   (
     'zhili_lijilu_demo',
-    8020000000000000001,
+    NULL,
     'A006',
     '晨星童装现货 A006',
     'factory_booth',
@@ -668,7 +668,7 @@ VALUES
   ),
   (
     'zhili_lijilu_demo',
-    8020000000000000002,
+    NULL,
     'A012',
     '米粒童裙档口 A012',
     'booth',
@@ -697,7 +697,7 @@ VALUES
   ),
   (
     'zhili_lijilu_demo',
-    8020000000000000001,
+    NULL,
     'B216',
     '森屿套装工厂 B216',
     'factory_booth',
@@ -726,7 +726,7 @@ VALUES
   ),
   (
     'zhili_lijilu_demo',
-    8020000000000000002,
+    NULL,
     'D018',
     '棉朵婴童仓 D018',
     'warehouse',
@@ -784,7 +784,7 @@ VALUES
   ),
   (
     'zhili_lijilu_demo',
-    8020000000000000003,
+    NULL,
     'P001',
     '利济路打包点',
     'packing_station',
@@ -842,7 +842,7 @@ VALUES
   ),
   (
     'zhili_lijilu_demo',
-    8020000000000000003,
+    NULL,
     'P003',
     '全国物流发货点',
     'logistics_point',
@@ -871,7 +871,7 @@ VALUES
   ),
   (
     'zhili_lijilu_demo',
-    8020000000000000003,
+    NULL,
     'P004',
     '童装城快递集包点',
     'express_point',
