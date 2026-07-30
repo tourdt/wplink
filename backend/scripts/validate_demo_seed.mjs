@@ -65,6 +65,73 @@ for (const conflictUpdate of [
   assert(resourceSql.includes(conflictUpdate), `资源重复导入未更新配置字段: ${conflictUpdate}`)
 }
 
+const enabledSupplyTypes = [
+  'factory_direct',
+  'spot_wholesale',
+  'stock_clearance',
+  'fabric_supply',
+  'accessory_supply',
+  'processing_accept',
+  'production_support',
+  'sample_rental',
+  'shop_office_rental',
+  'shop_sale',
+  'apartment_rental',
+  'housing_sale',
+  'factory_warehouse_rental',
+  'workshop_rental',
+  'factory_sale',
+  'secondhand_sale',
+  'education_training',
+  'appliance_repair',
+  'moving_cleaning',
+  'other_local_service',
+]
+
+const enabledDemandTypes = [
+  'buy_kids_goods',
+  'find_factory',
+  'seek_shop_office',
+  'seek_housing',
+  'seek_factory_warehouse',
+  'secondhand_buy',
+]
+
+const disabledHistoricalTypes = ['job_hiring', 'job_seeking']
+const expectedTypes = [...enabledSupplyTypes, ...enabledDemandTypes, ...disabledHistoricalTypes]
+
+function parseResourceScenarios(resourceSQL) {
+  return [...resourceSQL.matchAll(
+    /^\s*\((803\d+),\s*(802\d+),\s*'([^']+)',\s*'([^']+)',\s*'([^']+)'/gm,
+  )].map((match) => ({
+    id: match[1],
+    merchantId: match[2],
+    typeCode: match[3],
+    status: match[4],
+    title: match[5],
+  }))
+}
+
+const scenarios = parseResourceScenarios(resourceSql)
+assert(scenarios.length >= 28, `供需演示场景偏少: ${scenarios.length}, want >= 28`)
+assert.equal(new Set(scenarios.map((item) => item.id)).size, scenarios.length, '供需演示场景 ID 重复')
+
+for (const typeCode of expectedTypes) {
+  assert(scenarios.some((item) => item.typeCode === typeCode), `演示种子缺少供需类型: ${typeCode}`)
+}
+for (const typeCode of [...enabledSupplyTypes, ...enabledDemandTypes]) {
+  assert(
+    scenarios.some((item) => item.typeCode === typeCode && item.status === 'published'),
+    `启用供需类型缺少公开样例: ${typeCode}`,
+  )
+}
+for (const typeCode of disabledHistoricalTypes) {
+  assert(
+    !scenarios.some((item) => item.typeCode === typeCode && item.status === 'published'),
+    `停用供需类型不应包含公开样例: ${typeCode}`,
+  )
+}
+
 const requiredSnippets = [
   '认证工厂',
   '认证库存商',
