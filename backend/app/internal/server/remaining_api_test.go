@@ -147,12 +147,8 @@ func TestAPIRouterReturnsEditableMerchantContactForManagerOnly(t *testing.T) {
 	publicReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1", nil)
 	router.ServeHTTP(publicRec, publicReq)
 	publicData := decodeEnvelopeData(t, publicRec, http.StatusOK)
-	publicContact := publicData["contact"].(map[string]interface{})
-	if _, ok := publicContact["phone"]; ok {
-		t.Fatalf("public contact = %#v, should not expose raw phone", publicContact)
-	}
-	if _, ok := publicContact["wechat"]; ok {
-		t.Fatalf("public contact = %#v, should not expose raw wechat", publicContact)
+	if publicContact, ok := publicData["contact"]; ok {
+		t.Fatalf("public contact = %#v, public merchant detail should omit contact entirely", publicContact)
 	}
 }
 
