@@ -28,6 +28,19 @@ test('launch UI hides matching feature copy', () => {
   assert.equal(visibleSource.includes('登录后同步收藏、需求'), false)
 })
 
+test('cold-start public entries hide recruitment and job seeking', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const visibleSource = [
+    'pages/home/index.vue',
+    'pages/publish/index.vue',
+    'pages/market/index.vue',
+    'pages/search/index.vue',
+  ].map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n')
+
+  assert.equal(visibleSource.includes('招聘'), false)
+  assert.equal(visibleSource.includes('求职'), false)
+})
+
 test('unreleased purchase demand pages are removed from wxapp source', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const mySource = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
@@ -173,7 +186,6 @@ test('home page keeps custom brand first screen structure', () => {
 	    '童装批发',
 	    '面料辅料',
 	    '加工生产',
-	    '招聘求职',
 	    '商铺办公',
 	    '住宅公寓',
 	    '厂房仓库',
@@ -361,7 +373,7 @@ test('home quick actions map to supply and demand resource flows', () => {
   assert.match(source, /\{ title: '童装批发'[\s\S]*icon: 'market'[\s\S]*groupCode: 'kids_wholesale'/)
   assert.match(source, /\{ title: '面料辅料'[\s\S]*icon: 'clearance'[\s\S]*groupCode: 'materials'/)
   assert.match(source, /\{ title: '加工生产'[\s\S]*icon: 'factory'[\s\S]*groupCode: 'production'/)
-  assert.match(source, /\{ title: '招聘求职'[\s\S]*icon: 'orders'[\s\S]*groupCode: 'jobs'/)
+  assert.doesNotMatch(source, /\{ title: '招聘求职'[\s\S]*groupCode: 'jobs'/)
   assert.match(source, /\{ title: '厂房仓库'[\s\S]*groupCode: 'factory_warehouse'/)
   assert.match(source, /\{ title: '拿货地图'[\s\S]*icon: 'map'[\s\S]*action: 'sourcing-map'/)
   assert.match(source, /\.quick-action-grid \{[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/)
@@ -1650,7 +1662,7 @@ test('merchant detail page uses trust-first homepage layout', () => {
     'profile-chip.category',
     '热度',
     '主营待补充',
-    '电话和微信见供应详情',
+    '联系方式仅随有效供需信息展示',
   ]) {
     assert.match(source, new RegExp(token))
   }

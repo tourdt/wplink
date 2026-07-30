@@ -211,7 +211,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/merchant/detail.vue',
     description: '发布者资料和发布记录',
-    checks: ['getMerchant', 'listResources', 'ResourceList', 'merchantResources', 'loadMerchantResources', 'hasMoreMerchantResources', 'onReachBottom', 'openResource', 'resourcesSummary', 'heatScore', '热度', 'merchantLogo', 'merchantImages', 'merchantLocation', 'openMerchantLocation', 'uni.openLocation', '导航', 'merchant-hero-card', 'merchant-gallery', 'merchant-image', 'previewMerchantImage', 'uni.previewImage', 'trust-note-section', '电话和微信见供应详情', 'getMerchantFollowState', 'setMerchantFollow', 'toggleFollow', 'isOwnMerchant', 'openMerchantEditor', '编辑', '/pages/merchant/profile?merchantId='],
+    checks: ['getMerchant', 'listResources', 'ResourceList', 'merchantResources', 'loadMerchantResources', 'hasMoreMerchantResources', 'onReachBottom', 'openResource', 'resourcesSummary', 'heatScore', '热度', 'merchantLogo', 'merchantImages', 'merchantLocation', 'openMerchantLocation', 'uni.openLocation', '导航', 'merchant-hero-card', 'merchant-gallery', 'merchant-image', 'previewMerchantImage', 'uni.previewImage', 'trust-note-section', '联系方式仅随有效供需信息展示', 'getMerchantFollowState', 'setMerchantFollow', 'toggleFollow', 'isOwnMerchant', 'openMerchantEditor', '编辑', '/pages/merchant/profile?merchantId='],
   },
   {
     file: 'api/favorite.js',

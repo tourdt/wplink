@@ -13,3 +13,9 @@ test('home platform picks fall back to public resources when curated feed is emp
   assert.match(source, /async function loadFallbackHomeResources\(\)/)
   assert.match(source, /listResources\([\s\S]*cityCode: DEFAULT_CITY_CODE[\s\S]*pageSize: 30[\s\S]*suppressErrorToast: true[\s\S]*\)/)
 })
+
+test('home cold-start entries exclude recruitment and job seeking', () => {
+  assert.doesNotMatch(source, /招聘/)
+  assert.doesNotMatch(source, /求职/)
+  assert.doesNotMatch(source, /groupCode:\s*'jobs'/)
+})

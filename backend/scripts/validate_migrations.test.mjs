@@ -56,6 +56,17 @@ test('current migrations pass static validation', () => {
   assert.deepEqual(issues, [])
 })
 
+test('cold-start migration disables recruitment publish types and removes station entries', () => {
+  const fileName = '000030_sourcing_map_cold_start_core_rules.up.sql'
+  assert.equal(fs.existsSync(path.resolve(migrationsDir, fileName)), true, `${fileName} should exist`)
+
+  const source = fs.readFileSync(path.resolve(migrationsDir, fileName), 'utf8')
+  assert.match(source, /type_code IN \('job_hiring', 'job_seeking'\)[\s\S]*status = 'inactive'|status = 'inactive'[\s\S]*type_code IN \('job_hiring', 'job_seeking'\)/)
+  assert.match(source, /enabledTypeCodes/)
+  assert.match(source, /job_hiring/)
+  assert.match(source, /job_seeking/)
+})
+
 test('migrations and demo seed do not point to retired demand pages', () => {
   const retiredSnippets = ['/pages/demand/index', '/pages/my-demands/index', '/pages/demand-success/index']
   const sqlFiles = [
