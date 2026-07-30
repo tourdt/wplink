@@ -99,6 +99,37 @@ func TestCollectMigrationFilesUsesAllFilesInOrder(t *testing.T) {
 	}
 }
 
+func TestCollectDemoSeedImportFilesRunsSeedTwice(t *testing.T) {
+	rootDir := t.TempDir()
+	migrationsDir := filepath.Join(rootDir, "migrations")
+	if err := os.MkdirAll(migrationsDir, 0o755); err != nil {
+		t.Fatalf("mkdir migrations: %v", err)
+	}
+	for _, name := range []string{"000001_init.up.sql", "000002_core.up.sql"} {
+		if err := os.WriteFile(filepath.Join(migrationsDir, name), []byte("-- "+name), 0o600); err != nil {
+			t.Fatalf("write migration %s: %v", name, err)
+		}
+	}
+
+	files, err := collectDemoSeedImportFiles(rootDir)
+	if err != nil {
+		t.Fatalf("collectDemoSeedImportFiles() error = %v", err)
+	}
+	got := make([]string, 0, len(files))
+	for _, file := range files {
+		got = append(got, filepath.Base(file))
+	}
+	want := []string{
+		"000001_init.up.sql",
+		"000002_core.up.sql",
+		"seed_demo_data.sql",
+		"seed_demo_data.sql",
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("demo seed import files = %#v, want %#v", got, want)
+	}
+}
+
 func baseNames(paths []string) []string {
 	names := make([]string, 0, len(paths))
 	for _, item := range paths {

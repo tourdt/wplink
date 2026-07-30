@@ -316,17 +316,26 @@ func verifyDemoSeedImport(ctx context.Context, sourceDSN string, rootDir string,
 		return fmt.Errorf("连接临时数据库失败: %w", err)
 	}
 
-	files, err := collectMigrationFiles(rootDir, "up")
+	files, err := collectDemoSeedImportFiles(rootDir)
 	if err != nil {
 		return err
 	}
-	files = append(files, filepath.Join(rootDir, "scripts/seed_demo_data.sql"))
 	for _, file := range files {
 		if err := executeSQLFile(ctx, tempDB, file); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func collectDemoSeedImportFiles(rootDir string) ([]string, error) {
+	files, err := collectMigrationFiles(rootDir, "up")
+	if err != nil {
+		return nil, err
+	}
+	// 连续执行两次同一份种子，真实验证固定 ID 与 ON CONFLICT 是否保持幂等。
+	seedFile := filepath.Join(rootDir, "scripts", "seed_demo_data.sql")
+	return append(files, seedFile, seedFile), nil
 }
 
 func collectMigrationFiles(rootDir string, direction string) ([]string, error) {
