@@ -94,6 +94,23 @@ func TestPublicMapLogicHighlightsVerifiedMerchantObject(t *testing.T) {
 	}
 }
 
+func TestMapObjectItemsHideContactFromPublicButKeepAdmin(t *testing.T) {
+	object := model.MapObject{
+		ID:     "object-1",
+		Phone:  "18800000001",
+		Wechat: "xiaolu001",
+	}
+
+	publicItem := mapPublicObjectItem(object)
+	if publicItem.Phone != "" || publicItem.Wechat != "" {
+		t.Fatalf("public item = %#v, want contact hidden outside supply and demand", publicItem)
+	}
+	adminItem := mapAdminObjectItem(object)
+	if adminItem.Phone != "18800000001" || adminItem.Wechat != "xiaolu001" {
+		t.Fatalf("admin item = %#v, want contact retained for maintenance", adminItem)
+	}
+}
+
 func TestPublicMapLogicKeepsUnverifiedMerchantObjectWeak(t *testing.T) {
 	store := &fakePublicMapStore{
 		objects: []model.MapObject{{

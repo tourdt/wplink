@@ -442,14 +442,14 @@ func mapAdminObjectItems(objects []model.MapObject) []MapObjectItem {
 }
 
 func mapPublicObjectItem(object model.MapObject) MapObjectItem {
-	return mapObjectItem(object, false)
+	return mapObjectItem(object, false, false)
 }
 
 func mapAdminObjectItem(object model.MapObject) MapObjectItem {
-	return mapObjectItem(object, true)
+	return mapObjectItem(object, true, true)
 }
 
-func mapObjectItem(object model.MapObject, includeUnverifiedMerchant bool) MapObjectItem {
+func mapObjectItem(object model.MapObject, includeUnverifiedMerchant bool, includeContact bool) MapObjectItem {
 	verifiedMerchant := isVerifiedMapMerchant(object)
 	displaySource := model.MapObjectDisplaySourceAdminObject
 	displayLevel := model.MapObjectDisplayLevelWeak
@@ -467,7 +467,7 @@ func mapObjectItem(object model.MapObject, includeUnverifiedMerchant bool) MapOb
 		merchant = mapObjectMerchantItem(object)
 	}
 
-	return MapObjectItem{
+	item := MapObjectItem{
 		Id:                 object.ID,
 		SceneCode:          object.SceneCode,
 		MerchantId:         merchantID,
@@ -490,13 +490,16 @@ func mapObjectItem(object model.MapObject, includeUnverifiedMerchant bool) MapOb
 		PlatformTags:       append([]string(nil), object.PlatformTags...),
 		PoiServiceTags:     append([]string(nil), object.PoiServiceTags...),
 		Address:            object.Address,
-		Phone:              object.Phone,
-		Wechat:             object.Wechat,
 		Lat:                object.Lat,
 		Lng:                object.Lng,
 		Extra:              map[string]interface{}(object.Extra),
 		Status:             object.Status,
 	}
+	if includeContact {
+		item.Phone = object.Phone
+		item.Wechat = object.Wechat
+	}
+	return item
 }
 
 func isVerifiedMapMerchant(object model.MapObject) bool {

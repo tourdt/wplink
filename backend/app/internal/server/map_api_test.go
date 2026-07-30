@@ -209,6 +209,56 @@ func TestMapAPIRouterSubmitsMerchantMapBindRequest(t *testing.T) {
 	}
 }
 
+func TestMapAPIRouterSubmitsAuthenticatedLocationCorrection(t *testing.T) {
+	store := &fakeMapAPIStore{
+		fakeCityAPIStore: fakeCityAPIStore{},
+		mapReportResult: model.MapObjectReportResult{
+			ID:                "report-1",
+			Status:            model.MapObjectReportStatusPending,
+			ActiveReportCount: 1,
+		},
+	}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/map/objects/object-1/location-corrections", strings.NewReader(`{
+		"reasonCode":"navigation_inaccurate",
+		"description":"导航落点不对"
+	}`))
+	req.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	item := data["item"].(map[string]interface{})
+	if item["id"] != "report-1" || data["message"] != "反馈已记录，感谢帮助完善拿货地图" {
+		t.Fatalf("data = %#v, want stored correction", data)
+	}
+	if store.mapReportInput.ReporterUserID != "user-1" {
+		t.Fatalf("reporter user id = %q, want token user", store.mapReportInput.ReporterUserID)
+	}
+	if store.mapReportInput.Kind != model.MapObjectReportKindLocationCorrection || store.mapReportInput.ReasonCode != "navigation_inaccurate" {
+		t.Fatalf("input = %#v, want location correction", store.mapReportInput)
+	}
+}
+
+func TestMapAPIRouterRejectsAnonymousRiskReport(t *testing.T) {
+	store := &fakeMapAPIStore{fakeCityAPIStore: fakeCityAPIStore{}}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/map/objects/object-1/risk-reports", strings.NewReader(`{
+		"reasonCode":"false_information"
+	}`))
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, body = %s, want unauthorized", rec.Code, rec.Body.String())
+	}
+	if store.mapReportInput.ObjectID != "" {
+		t.Fatalf("input = %#v, anonymous report must not reach store", store.mapReportInput)
+	}
+}
+
 func TestMapAPIRouterReviewsAdminMapBindRequest(t *testing.T) {
 	store := &fakeMapAPIStore{
 		fakeCityAPIStore: fakeCityAPIStore{},
@@ -250,6 +300,7 @@ type fakeMapAPIStore struct {
 	savedObjectInput    model.MapObjectInput
 	createdBindInput    model.MapBindRequestInput
 	reviewBindInput     model.ReviewMapBindRequestInput
+	mapReportInput      model.MapObjectReportInput
 	scenes              []model.MapScene
 	savedScene          model.MapScene
 	objects             []model.MapObject
@@ -261,6 +312,7 @@ type fakeMapAPIStore struct {
 	bindRequests        []model.MapBindRequest
 	createdBindRequest  model.MapBindRequest
 	reviewedBindRequest model.MapBindRequest
+	mapReportResult     model.MapObjectReportResult
 }
 
 func (s *fakeMapAPIStore) ListPublishedScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error) {
@@ -370,4 +422,9 @@ func (s *fakeMapAPIStore) ListMapBindRequests(ctx context.Context, filter model.
 func (s *fakeMapAPIStore) ReviewMapBindRequest(ctx context.Context, input model.ReviewMapBindRequestInput) (model.MapBindRequest, error) {
 	s.reviewBindInput = input
 	return s.reviewedBindRequest, nil
+}
+
+func (s *fakeMapAPIStore) CreateMapObjectReport(ctx context.Context, input model.MapObjectReportInput) (model.MapObjectReportResult, error) {
+	s.mapReportInput = input
+	return s.mapReportResult, nil
 }

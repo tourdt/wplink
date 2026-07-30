@@ -1327,6 +1327,13 @@ type MapObjectMerchantItem struct {
 	MainCategories     []string `json:"mainCategories"`
 }
 
+type MapObjectReportItem struct {
+	Id                string `json:"id"`
+	Status            string `json:"status"`
+	ActiveReportCount int64  `json:"activeReportCount"`
+	WarningTriggered  bool   `json:"warningTriggered"`
+}
+
 type MapSceneItem struct {
 	Code           string `json:"code"`
 	Name           string `json:"name"`
@@ -1762,6 +1769,16 @@ type SubmitMapBindRequestReq struct {
 
 type SubmitMapBindRequestResp struct {
 	Item MapBindRequestItem `json:"item"`
+}
+
+type SubmitMapObjectReportReq struct {
+	ReasonCode  string `json:"reasonCode"`
+	Description string `json:"description,optional"`
+}
+
+type SubmitMapObjectReportResp struct {
+	Item    MapObjectReportItem `json:"item"`
+	Message string              `json:"message"`
 }
 
 type SubmitResourceReq struct {

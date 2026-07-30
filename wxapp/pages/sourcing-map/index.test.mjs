@@ -53,7 +53,7 @@ test('sourcing map api uses public map endpoints', () => {
   ])
 })
 
-test('sourcing map page loads scenes, renders canvas and shows contact actions', () => {
+test('sourcing map page loads scenes and renders canvas without public contact actions', () => {
   expectTokens(source, [
     'onLoad',
     'loadScenes',
@@ -66,13 +66,15 @@ test('sourcing map page loads scenes, renders canvas and shows contact actions',
     'renderMapCanvas',
     'mapCanvasStyle',
     'selectedObject',
-    'callSelectedObject',
-    'copySelectedWechat',
     'nearbyPois',
     'loadNearbyPois',
+    '联系方式仅随有效供需信息展示',
     '地图暂未开放',
     '暂无匹配点位',
   ])
+  for (const contactToken of ['callSelectedObject', 'copySelectedWechat', '拨打电话', '复制微信']) {
+    assert.doesNotMatch(source, new RegExp(contactToken))
+  }
 })
 
 test('sourcing map overlay shows total object count text instead of loaded viewport count', () => {
@@ -343,6 +345,45 @@ test('sourcing map page provides navigation with address fallback', () => {
   ])
   assert.match(source, /openLocation\(\{[\s\S]*latitude:\s*payload\.latitude,[\s\S]*longitude:\s*payload\.longitude,[\s\S]*name:\s*payload\.name,[\s\S]*address:\s*payload\.address/)
   assert.match(source, /if \(!payload\.latitude \|\| !payload\.longitude\) \{[\s\S]*uni\.setClipboardData\(\{ data: payload\.address \}\)/)
+})
+
+test('sourcing map supports authenticated location corrections and risk reports', () => {
+  expectTokens(apiSource, [
+    'submitMapLocationCorrection',
+    'submitMapRiskReport',
+    '/location-corrections',
+    '/risk-reports',
+    'requireAuth: true',
+  ])
+  expectTokens(source, [
+    '位置纠错',
+    '举报问题',
+    'submitSelectedObjectLocationCorrection',
+    'submitSelectedObjectRiskReport',
+    'submitMapLocationCorrection',
+    'submitMapRiskReport',
+    'requireLogin',
+    '地址不准确',
+    '导航位置错误',
+    '档口已搬迁或不存在',
+    '信息已过期',
+    '冒用商家',
+    '虚假信息',
+    '违规内容',
+    '反馈已记录',
+  ])
+  assert.match(source, /uni\.showActionSheet\(\{[\s\S]*itemList:/)
+})
+
+test('sourcing map warns before navigation after aggregated location corrections', () => {
+  expectTokens(source, [
+    'locationWarning',
+    'location-warning',
+    '多人反馈位置可能有误，请导航前确认',
+  ])
+  assert.match(source, /v-if="selectedObjectLocationWarning"/)
+  assert.match(source, /markSelectedObjectWarning\(objectId,\s*warningKey,\s*reason\.code\)/)
+  assert.match(source, /mapObjectIdentity\(selectedObject\.value\) === objectId/)
 })
 
 test('sourcing map page renders readable object and poi details', () => {

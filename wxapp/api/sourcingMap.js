@@ -61,6 +61,24 @@ export function listNearbyPois(objectId, params = {}) {
   })
 }
 
+export function submitMapLocationCorrection(objectId, data = {}) {
+  return request({
+    url: `/api/v1/map/objects/${objectId}/location-corrections`,
+    method: 'POST',
+    data,
+    requireAuth: true,
+  })
+}
+
+export function submitMapRiskReport(objectId, data = {}) {
+  return request({
+    url: `/api/v1/map/objects/${objectId}/risk-reports`,
+    method: 'POST',
+    data,
+    requireAuth: true,
+  })
+}
+
 export function getMerchantMapBinding(merchantId, options = {}) {
   return request({
     url: `/api/v1/merchants/${merchantId}/map-binding`,

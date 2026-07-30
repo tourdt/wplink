@@ -29,7 +29,7 @@ export const defaultFlowChecks = [
   },
   {
     file: 'pages/sourcing-map/index.vue',
-    description: '拿货地图浏览和点位联系',
+    description: '拿货地图浏览、免费导航和点位反馈',
     checks: [
       '拿货地图',
       'sourcing-map-page',
@@ -41,8 +41,10 @@ export const defaultFlowChecks = [
       'loadSceneObjects',
       'applySceneDefaultViewport',
       'selectMapObject',
-      'callSelectedObject',
-      'copySelectedWechat',
+      'openSelectedObjectLocation',
+      'submitSelectedObjectLocationCorrection',
+      'submitSelectedObjectRiskReport',
+      '联系方式仅随有效供需信息展示',
       '地图暂未开放',
       '暂无匹配点位',
     ],

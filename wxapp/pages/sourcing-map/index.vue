@@ -166,10 +166,16 @@
             <text class="detail-value">{{ field.value }}</text>
           </view>
         </view>
-        <view class="contact-actions">
+        <view v-if="selectedObjectLocationWarning" class="location-warning">
+          <text>多人反馈位置可能有误，请导航前确认</text>
+        </view>
+        <view class="navigation-actions">
           <button class="primary-button" @click="openSelectedObjectLocation">导航</button>
-          <button class="secondary-button" @click="callSelectedObject">拨打电话</button>
-          <button class="secondary-button" @click="copySelectedWechat">复制微信</button>
+        </view>
+        <text class="contact-policy-tip">联系方式仅随有效供需信息展示</text>
+        <view class="report-actions">
+          <button class="secondary-button" :disabled="reportSubmitting" @click="submitSelectedObjectLocationCorrection">位置纠错</button>
+          <button class="secondary-button risk" :disabled="reportSubmitting" @click="submitSelectedObjectRiskReport">举报问题</button>
         </view>
         <view v-if="nearbyPois.length" class="nearby-section">
           <text class="nearby-title">附近配套</text>
@@ -187,6 +193,7 @@
 import { computed, getCurrentInstance, nextTick, onUnmounted, ref, watch } from 'vue'
 import { onLoad, onReady } from '@dcloudio/uni-app'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
+import { requireLogin } from '../../common/auth'
 import {
   getMapObject,
   listMapCategories,
@@ -194,6 +201,8 @@ import {
   listMapScenes,
   listNearbyPois,
   searchMapObjects,
+  submitMapLocationCorrection,
+  submitMapRiskReport,
 } from '../../api/sourcingMap'
 import { createSourcingMapRenderer } from './canvasRenderer'
 import { createInitialTransform, endGesture, moveGesture, screenToMap, startGesture } from './mapGesture'
@@ -212,6 +221,17 @@ const MAP_EDGE_FEEDBACK_PADDING_PX = 40
 const MAP_OBJECT_SEARCH_LIMIT = 1000
 const CANVAS_RENDER_FRAME_DELAY_MS = 16
 const DEFAULT_SCENE_NAME = '织里童装拿货地图'
+const locationCorrectionReasons = [
+  { label: '地址不准确', code: 'address_inaccurate' },
+  { label: '导航位置错误', code: 'navigation_inaccurate' },
+  { label: '档口已搬迁或不存在', code: 'moved_or_closed' },
+  { label: '信息已过期', code: 'information_expired' },
+]
+const riskReportReasons = [
+  { label: '冒用商家', code: 'impersonation' },
+  { label: '虚假信息', code: 'false_information' },
+  { label: '违规内容', code: 'prohibited_content' },
+]
 const defaultLabelDictionary = {
   girl: '女童',
   boy: '男童',
@@ -306,6 +326,7 @@ const loadedObjectKeyword = ref('')
 const mapCategories = ref([])
 const selectedObject = ref(null)
 const selectedObjectId = ref('')
+const reportSubmitting = ref(false)
 const nearbyPois = ref([])
 const mapTransform = ref({ scale: 1, offsetX: 0, offsetY: 0 })
 const mapViewportSize = ref({ width: 375, height: 500 })
@@ -390,6 +411,7 @@ const selectedObjectMerchant = computed(() => selectedObject.value?.merchant || 
 const selectedObjectName = computed(() => selectedObject.value ? objectDisplayName(selectedObject.value) : '点位详情')
 const selectedObjectMeta = computed(() => selectedObject.value ? `${objectDisplaySourceText(selectedObject.value)} · ${objectTypeText(selectedObject.value)} · ${selectedObject.value.code || '无编号'}` : '')
 const selectedObjectAddress = computed(() => selectedObject.value?.address || '地址待完善')
+const selectedObjectLocationWarning = computed(() => Boolean(selectedObject.value?.extra?.locationWarning))
 const detailTags = computed(() => {
   if (!selectedObject.value) return []
   const tags = [
@@ -413,8 +435,6 @@ const detailFields = computed(() => {
     { label: '发车时间', value: formatExtraValue(extra.departureTime) },
     { label: '快递品牌', value: formatExtraValue(extra.brands) },
     { label: '收费说明', value: formatExtraValue(extra.priceNote) },
-    { label: '联系电话', value: selectedObject.value.phone || '' },
-    { label: '微信', value: selectedObject.value.wechat || '' },
   ].filter((field) => field.value)
 })
 
@@ -1238,24 +1258,6 @@ async function selectNearbyPoi(poi) {
   }
 }
 
-function callSelectedObject() {
-  const phone = selectedObject.value?.phone || ''
-  if (!phone) {
-    uni.showToast({ title: '该点位暂未提供电话', icon: 'none' })
-    return
-  }
-  uni.makePhoneCall({ phoneNumber: phone })
-}
-
-function copySelectedWechat() {
-  const wechat = selectedObject.value?.wechat || ''
-  if (!wechat) {
-    uni.showToast({ title: '该点位暂未提供微信', icon: 'none' })
-    return
-  }
-  uni.setClipboardData({ data: wechat })
-}
-
 function openSelectedObjectLocation() {
   const payload = buildNavigationPayload(selectedObject.value)
   if (!payload.address && (!payload.latitude || !payload.longitude)) {
@@ -1281,6 +1283,68 @@ function openSelectedObjectLocation() {
       }
     },
   })
+}
+
+function submitSelectedObjectLocationCorrection() {
+  openSelectedObjectReport({
+    reasons: locationCorrectionReasons,
+    submit: submitMapLocationCorrection,
+    warningKey: 'locationWarning',
+  })
+}
+
+function submitSelectedObjectRiskReport() {
+  openSelectedObjectReport({
+    reasons: riskReportReasons,
+    submit: submitMapRiskReport,
+    warningKey: 'riskWarning',
+  })
+}
+
+function openSelectedObjectReport({ reasons, submit, warningKey }) {
+  const objectId = mapObjectIdentity(selectedObject.value)
+  if (!objectId || reportSubmitting.value || !requireLogin()) return
+
+  uni.showActionSheet({
+    itemList: reasons.map((item) => item.label),
+    async success({ tapIndex }) {
+      const reason = reasons[tapIndex]
+      if (!reason) return
+      reportSubmitting.value = true
+      try {
+        const resp = await submit(objectId, { reasonCode: reason.code })
+        if (resp?.item?.warningTriggered) {
+          markSelectedObjectWarning(objectId, warningKey, reason.code)
+        }
+        uni.showToast({
+          title: resp?.message || '反馈已记录',
+          icon: 'none',
+          duration: 2400,
+        })
+      } finally {
+        reportSubmitting.value = false
+      }
+    },
+  })
+}
+
+function markSelectedObjectWarning(objectId, warningKey, reasonCode) {
+  const addWarning = (object) => ({
+    ...object,
+    extra: {
+      ...(object.extra || {}),
+      [warningKey]: true,
+      [`${warningKey}Reason`]: reasonCode,
+    },
+  })
+  const objectIndex = mapObjects.value.findIndex((item) => mapObjectIdentity(item) === objectId)
+  if (objectIndex >= 0) {
+    mapObjects.value.splice(objectIndex, 1, addWarning(mapObjects.value[objectIndex]))
+  }
+  // 请求返回时用户可能已经切换点位，只更新本次提交所对应的详情，避免把风险提示标到其他点位。
+  if (mapObjectIdentity(selectedObject.value) === objectId) {
+    selectedObject.value = addWarning(selectedObject.value)
+  }
 }
 
 function buildNavigationPayload(object) {
@@ -2051,10 +2115,37 @@ function clampNumber(value, min, max) {
   word-break: break-word;
 }
 
-.contact-actions {
+.navigation-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 16rpx;
+}
+
+.contact-policy-tip {
+  color: $wplink-muted;
+  font-size: 22rpx;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.location-warning {
+  padding: 16rpx 18rpx;
+  border-radius: 14rpx;
+  background: $wplink-warning-soft;
+  color: #9a5b00;
+  font-size: 23rpx;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.report-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.report-actions .risk {
+  color: #b42318;
 }
 
 .nearby-section {

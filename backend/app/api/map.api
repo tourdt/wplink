@@ -332,6 +332,23 @@ type AdminBatchGenerateMapObjectsResp {
 	Items []MapObjectItem `json:"items"`
 }
 
+type SubmitMapObjectReportReq {
+	ReasonCode  string `json:"reasonCode"`
+	Description string `json:"description,optional"`
+}
+
+type MapObjectReportItem {
+	Id                string `json:"id"`
+	Status            string `json:"status"`
+	ActiveReportCount int64  `json:"activeReportCount"`
+	WarningTriggered  bool   `json:"warningTriggered"`
+}
+
+type SubmitMapObjectReportResp {
+	Item    MapObjectReportItem `json:"item"`
+	Message string              `json:"message"`
+}
+
 type AdminListMapCategoriesReq {
 	Type   string `form:"type,optional"`
 	Status string `form:"status,optional"`
@@ -377,6 +394,12 @@ service wplink-api {
 
 	@handler ListNearbyPois
 	get /map/objects/:objectId/nearby-pois (ListNearbyPoisReq) returns (ListNearbyPoisResp)
+
+	@handler SubmitMapLocationCorrection
+	post /map/objects/:objectId/location-corrections (SubmitMapObjectReportReq) returns (SubmitMapObjectReportResp)
+
+	@handler SubmitMapRiskReport
+	post /map/objects/:objectId/risk-reports (SubmitMapObjectReportReq) returns (SubmitMapObjectReportResp)
 
 	@handler ListMapCategories
 	get /map/categories (ListMapCategoriesReq) returns (ListMapCategoriesResp)

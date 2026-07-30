@@ -5,6 +5,7 @@ import (
 
 	authlogic "wplink/backend/app/internal/logic/auth"
 	maplogic "wplink/backend/app/internal/logic/map"
+	"wplink/backend/app/internal/model"
 	"wplink/backend/common/response"
 )
 
@@ -12,6 +13,7 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 	publicLogic := maplogic.NewPublicLogic(store)
 	adminLogic := maplogic.NewAdminLogic(store)
 	bindingLogic := maplogic.NewBindingLogic(store)
+	reportLogic := maplogic.NewReportLogic(store)
 
 	mux.HandleFunc("GET /api/v1/map/scenes", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
@@ -71,6 +73,12 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 			Limit: int64FromQuery(r, "limit"),
 		})
 		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("POST /api/v1/map/objects/{objectId}/location-corrections", func(w http.ResponseWriter, r *http.Request) {
+		submitMapObjectReport(w, r, tokenService, reportLogic, model.MapObjectReportKindLocationCorrection)
+	})
+	mux.HandleFunc("POST /api/v1/map/objects/{objectId}/risk-reports", func(w http.ResponseWriter, r *http.Request) {
+		submitMapObjectReport(w, r, tokenService, reportLogic, model.MapObjectReportKindRiskReport)
 	})
 	mux.HandleFunc("GET /api/v1/map/categories", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := publicLogic.ListCategories(r.Context(), maplogic.ListCategoriesReq{Type: r.URL.Query().Get("type")})
@@ -248,4 +256,21 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 		resp, err := bindingLogic.ReviewRequest(r.Context(), r.PathValue("requestId"), body)
 		response.JSON(w, resp, err)
 	})
+}
+
+func submitMapObjectReport(w http.ResponseWriter, r *http.Request, tokenService authlogic.TokenService, reportLogic *maplogic.ReportLogic, kind string) {
+	userID, err := userIDFromBearerToken(r, tokenService)
+	if err != nil {
+		response.JSON(w, nil, err)
+		return
+	}
+	var body maplogic.SubmitMapObjectReportReq
+	if err := decodeJSONBody(r, &body); err != nil {
+		response.JSON(w, nil, err)
+		return
+	}
+	// 提交人只采用服务端令牌身份，客户端即使传入同名字段也无法伪造举报归属。
+	body.ReporterUserID = userID
+	resp, err := reportLogic.Submit(r.Context(), r.PathValue("objectId"), kind, body)
+	response.JSON(w, resp, err)
 }

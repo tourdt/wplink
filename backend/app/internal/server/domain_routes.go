@@ -119,6 +119,7 @@ type MapAPIStore interface {
 	maplogic.PublicStore
 	maplogic.AdminStore
 	maplogic.BindingStore
+	maplogic.ReportStore
 }
 
 func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, smsVerifier authlogic.SMSVerifier, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool) {

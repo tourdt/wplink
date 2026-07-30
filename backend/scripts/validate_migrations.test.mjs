@@ -76,6 +76,22 @@ test('cold-start migration enforces one main map booth per merchant', () => {
   assert.match(source, /WHERE merchant_id IS NOT NULL/)
 })
 
+test('map object report migration stores corrections and risk reports with deduplication', () => {
+  const fileName = '000031_map_object_reports.up.sql'
+  assert.equal(fs.existsSync(path.resolve(migrationsDir, fileName)), true, `${fileName} should exist`)
+
+  const source = fs.readFileSync(path.resolve(migrationsDir, fileName), 'utf8')
+  assert.match(source, /CREATE TABLE IF NOT EXISTS map_object_reports/)
+  assert.match(source, /location_correction/)
+  assert.match(source, /risk_report/)
+  assert.match(source, /object_snapshot jsonb NOT NULL/)
+  assert.match(source, /CREATE UNIQUE INDEX IF NOT EXISTS uniq_open_map_object_report_user_reason/)
+  assert.match(source, /reporter_user_id/)
+  assert.match(source, /reason_code/)
+  assert.match(source, /CREATE INDEX IF NOT EXISTS idx_map_object_reports_aggregate/)
+  assert.match(source, /CREATE INDEX IF NOT EXISTS idx_map_object_reports_pending/)
+})
+
 test('migrations and demo seed do not point to retired demand pages', () => {
   const retiredSnippets = ['/pages/demand/index', '/pages/my-demands/index', '/pages/demand-success/index']
   const sqlFiles = [

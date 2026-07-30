@@ -40,6 +40,15 @@ const (
 	MapBindRequestStatusPending  = "pending"
 	MapBindRequestStatusApproved = "approved"
 	MapBindRequestStatusRejected = "rejected"
+
+	MapObjectReportKindLocationCorrection = "location_correction"
+	MapObjectReportKindRiskReport         = "risk_report"
+
+	MapObjectReportStatusPending   = "pending"
+	MapObjectReportStatusResolved  = "resolved"
+	MapObjectReportStatusDismissed = "dismissed"
+
+	mapObjectReportWarningThreshold = 3
 )
 
 var (
@@ -256,6 +265,21 @@ type ReviewMapBindRequestInput struct {
 	ReviewerID string
 }
 
+type MapObjectReportInput struct {
+	ObjectID       string
+	ReporterUserID string
+	Kind           string
+	ReasonCode     string
+	Description    string
+}
+
+type MapObjectReportResult struct {
+	ID                string
+	Status            string
+	ActiveReportCount int64
+	WarningTriggered  bool
+}
+
 type ListMapCategoriesFilter struct {
 	Type   string
 	Status string
@@ -464,6 +488,102 @@ func (m *MapModel) ListObjectsBySceneAndTypes(ctx context.Context, sceneCode str
 
 func (m *MapModel) ListAdminObjects(ctx context.Context, filter ListMapObjectsFilter) ([]MapObject, error) {
 	return m.listObjects(ctx, filter)
+}
+
+// CreateMapObjectReport 以单个事务完成反馈幂等写入、独立用户聚合和风险提示更新。
+// 自动阈值只增加提示，不会删除点位或修改导航坐标，避免少量错误反馈直接影响商家正常展示。
+func (m *MapModel) CreateMapObjectReport(ctx context.Context, input MapObjectReportInput) (MapObjectReportResult, error) {
+	var result MapObjectReportResult
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		var sceneCode string
+		var snapshot JSONMap
+		if err := tx.QueryRowContext(ctx, `
+SELECT
+  o.scene_code,
+  jsonb_build_object(
+    'objectId', o.id::text,
+    'sceneCode', o.scene_code,
+    'merchantId', COALESCE(o.merchant_id::text, ''),
+    'code', o.code,
+    'name', o.name,
+    'type', o.type,
+    'address', COALESCE(o.address, ''),
+    'lat', COALESCE(o.lat::text, ''),
+    'lng', COALESCE(o.lng::text, ''),
+    'status', o.status,
+    'extra', o.extra
+  )
+FROM map_object o
+JOIN map_scene s ON s.code = o.scene_code AND s.status = 'published'
+WHERE o.id::text = $1
+  AND o.status = 'normal'
+FOR UPDATE
+`, input.ObjectID).Scan(&sceneCode, &snapshot); err != nil {
+			return err
+		}
+
+		if err := tx.QueryRowContext(ctx, `
+INSERT INTO map_object_reports (
+  object_id,
+  scene_code,
+  reporter_user_id,
+  report_kind,
+  reason_code,
+  description,
+  object_snapshot
+)
+VALUES ($1::bigint, $2, $3::bigint, $4, $5, $6, $7)
+ON CONFLICT (object_id, reporter_user_id, report_kind, reason_code)
+WHERE status = 'pending'
+DO UPDATE SET
+  description = EXCLUDED.description,
+  object_snapshot = EXCLUDED.object_snapshot,
+  created_at = now(),
+  updated_at = now()
+RETURNING id::text, status
+`, input.ObjectID, sceneCode, input.ReporterUserID, input.Kind, input.ReasonCode, input.Description, snapshot).
+			Scan(&result.ID, &result.Status); err != nil {
+			return err
+		}
+
+		if err := tx.QueryRowContext(ctx, `
+SELECT COUNT(DISTINCT reporter_user_id)
+FROM map_object_reports
+WHERE object_id = $1::bigint
+  AND report_kind = $2
+  AND reason_code = $3
+  AND status = 'pending'
+  AND created_at >= now() - interval '30 days'
+`, input.ObjectID, input.Kind, input.ReasonCode).Scan(&result.ActiveReportCount); err != nil {
+			return err
+		}
+
+		result.WarningTriggered = result.ActiveReportCount >= mapObjectReportWarningThreshold
+		if !result.WarningTriggered {
+			return nil
+		}
+
+		warningKey := "riskWarning"
+		warningReasonKey := "riskWarningReason"
+		warningAtKey := "riskWarningAt"
+		if input.Kind == MapObjectReportKindLocationCorrection {
+			warningKey = "locationWarning"
+			warningReasonKey = "locationWarningReason"
+			warningAtKey = "locationWarningAt"
+		}
+		_, err := tx.ExecContext(ctx, `
+UPDATE map_object
+SET extra = COALESCE(extra, '{}'::jsonb) || jsonb_build_object(
+      $2::text, true,
+      $3::text, $5::text,
+      $4::text, now()
+    ),
+    updated_at = now()
+WHERE id = $1::bigint
+`, input.ObjectID, warningKey, warningReasonKey, warningAtKey, input.ReasonCode)
+		return err
+	})
+	return result, err
 }
 
 func (m *MapModel) ListAdminScenes(ctx context.Context, filter ListMapScenesFilter) ([]MapScene, error) {
