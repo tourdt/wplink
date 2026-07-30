@@ -84,9 +84,9 @@ const statusOptions = [
 ]
 const statusText = {
   draft: '草稿',
-  pending: '内容审核中',
-  manual_review: '内容审核中',
-  audit_retry: '内容审核中',
+  pending: '自动检测中',
+  manual_review: '异常处理中',
+  audit_retry: '自动检测重试中',
   published: '已发布',
   rejected: '已驳回',
   taken_down: '已下架',
@@ -498,7 +498,7 @@ function handleResourceCoverError(item) {
 }
 
 function expireText(item) {
-  if (isContentAuditStatus(item.status)) return '内容审核中'
+  if (isContentAuditStatus(item.status)) return statusText[item.status]
   if (item.dealtAt) return `成交 ${formatDateToDay(item.dealtAt)}`
   if (isExpiredResource(item)) return '已过期'
   if (item.expiresAt) return `到期 ${formatDateToDay(item.expiresAt)}`

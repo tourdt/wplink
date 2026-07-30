@@ -3,9 +3,9 @@
     <view class="publish-rule-card">
       <view class="rule-head">
         <text class="rule-title">发布前须知</text>
-        <text class="rule-badge">平台审核</text>
+        <text class="rule-badge">每月 3 条免费</text>
       </view>
-      <text class="rule-summary">提交后进入平台审核，请确保信息可核验、可履约。</text>
+      <text class="rule-summary">提交后由系统自动安全检测，请确保信息可核验、可履约。</text>
       <view class="rule-list">
         <view
           v-for="(rule, index) in publishRules"
@@ -90,7 +90,7 @@ const publishRules = [
     content: '不得发布违法违规、虚假夸大、重复刷屏、无关推广、侵权或误导交易内容。',
   },
   {
-    title: '审核与权益',
+    title: '安全与权益',
     content: '违规内容可能下架；严重时限制功能、封停账号、收回相关权益，费用不予退还。',
   },
 ]

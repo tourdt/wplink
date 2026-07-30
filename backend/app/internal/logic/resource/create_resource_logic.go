@@ -77,7 +77,7 @@ func NewCreateResourceLogic(store CreateResourceStore, auditors ...ContentAudito
 }
 
 func (l *CreateResourceLogic) CreateResource(ctx context.Context, req CreateResourceReq) (CreateResourceResp, error) {
-	return l.create(ctx, req, model.ResourceStatusPending, "已提交审核，审核通过后将展示给买家")
+	return l.create(ctx, req, model.ResourceStatusPending, "已提交，系统将自动进行安全检测")
 }
 
 func (l *CreateResourceLogic) CreateResourceDraft(ctx context.Context, req CreateResourceReq) (CreateResourceResp, error) {
@@ -93,7 +93,7 @@ func (l *CreateResourceLogic) create(ctx context.Context, req CreateResourceReq,
 	if err != nil {
 		if errors.Is(err, model.ErrPublishQuotaInsufficient) {
 			logx.Infof("创建资源被拦截: merchantId=%s typeCode=%s reason=publish_quota_insufficient", strings.TrimSpace(req.MerchantID), typeCode)
-			return CreateResourceResp{}, errx.New(errx.CodeQuotaNotEnough, "本月发布次数已用完，可开通 VIP 或购买发布包")
+			return CreateResourceResp{}, errx.New(errx.CodeQuotaNotEnough, "本月免费发布次数已用完，可购买发布次数后继续发布")
 		}
 		logx.Errorf("创建资源失败: merchantId=%s typeCode=%s targetStatus=%s err=%+v", strings.TrimSpace(req.MerchantID), typeCode, status, err)
 		return CreateResourceResp{}, err
@@ -122,7 +122,7 @@ func (l *CreateResourceLogic) create(ctx context.Context, req CreateResourceReq,
 
 func (l *CreateResourceLogic) auditCreatedResource(ctx context.Context, created model.CreateResourceResult, input model.CreateResourceInput, req CreateResourceReq) (CreateResourceResp, error) {
 	if l.auditor == nil {
-		return CreateResourceResp{ID: created.ID, Status: created.Status, Message: "已提交审核，审核通过后将展示给买家"}, nil
+		return CreateResourceResp{ID: created.ID, Status: created.Status, Message: "已提交，等待系统安全检测"}, nil
 	}
 	auditStore, ok := l.store.(ResourceAutoAuditStore)
 	if !ok {
@@ -131,12 +131,10 @@ func (l *CreateResourceLogic) auditCreatedResource(ctx context.Context, created 
 	}
 	userID := strings.TrimSpace(req.CreatedByUser)
 	if isOperatorProxy(req.CreatedByRole) {
-		reason := "后台代发布缺少微信审核身份，已转人工复核"
-		return holdCreatedResourceForManualReview(ctx, auditStore, created.ID, reason, "operator_proxy", input)
+		return scheduleCreatedResourceAuditRetry(ctx, auditStore, created.ID, "后台代发布缺少自动检测身份", input, errors.New("operator proxy missing content audit identity"))
 	}
 	if userID == "" {
-		reason := "资源缺少微信审核身份，已转人工复核"
-		return holdCreatedResourceForManualReview(ctx, auditStore, created.ID, reason, "missing_user", input)
+		return scheduleCreatedResourceAuditRetry(ctx, auditStore, created.ID, "发布身份异常，等待自动重试", input, errors.New("resource creator user missing"))
 	}
 	userStore, ok := l.store.(ResourceAuditUserStore)
 	if !ok {
@@ -148,33 +146,12 @@ func (l *CreateResourceLogic) auditCreatedResource(ctx context.Context, created 
 		return scheduleCreatedResourceAuditRetry(ctx, auditStore, created.ID, "读取微信审核身份失败", input, err)
 	}
 	if strings.TrimSpace(openID) == "" {
-		reason := "资源缺少微信审核身份，已转人工复核"
-		return holdCreatedResourceForManualReview(ctx, auditStore, created.ID, reason, "empty_openid", input)
+		return scheduleCreatedResourceAuditRetry(ctx, auditStore, created.ID, "未获取到安全检测身份，等待自动重试", input, errors.New("resource creator openid missing"))
 	}
 	auditInput := contentAuditInputFromCreate(input, openID)
 	auditInput.ResourceID = created.ID
 	result, err := l.auditor.AuditResource(ctx, auditInput)
 	return l.applyAutoAuditResult(ctx, auditStore, "create_resource", created.ID, auditInput, result, err)
-}
-
-func holdCreatedResourceForManualReview(ctx context.Context, auditStore ResourceAutoAuditStore, resourceID string, reason string, blockReason string, input model.CreateResourceInput) (CreateResourceResp, error) {
-	stateStore, ok := auditStore.(ResourceAuditStateStore)
-	if !ok {
-		logx.Errorf("创建资源需要人工复核但缺少状态更新能力: merchantId=%s resourceId=%s typeCode=%s blockReason=%s", input.MerchantID, resourceID, input.TypeCode, blockReason)
-		return CreateResourceResp{}, errx.New(errx.CodeInternalError, "内容审核服务暂不可用，请稍后重试")
-	}
-	if err := stateStore.MarkResourceManualReview(ctx, resourceID, reason); err != nil {
-		logx.Errorf("创建资源转人工复核失败: merchantId=%s resourceId=%s typeCode=%s blockReason=%s err=%+v", input.MerchantID, resourceID, input.TypeCode, blockReason, err)
-		return CreateResourceResp{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
-	}
-	recordResourceAuditDecision(ctx, auditStore, model.ResourceAuditDecisionInput{
-		ResourceID: resourceID,
-		Action:     "create_resource",
-		Decision:   "manual_review",
-		Reason:     reason,
-	})
-	logx.Infof("创建资源已转人工复核: merchantId=%s resourceId=%s typeCode=%s blockReason=%s", input.MerchantID, resourceID, input.TypeCode, blockReason)
-	return CreateResourceResp{ID: resourceID, Status: model.ResourceStatusManualReview, Message: "内容审核中"}, nil
 }
 
 func scheduleCreatedResourceAuditRetry(ctx context.Context, auditStore ResourceAutoAuditStore, resourceID string, reason string, input model.CreateResourceInput, cause error) (CreateResourceResp, error) {
@@ -195,7 +172,7 @@ func scheduleCreatedResourceAuditRetry(ctx context.Context, auditStore ResourceA
 		Reason:     reason,
 	})
 	logx.Errorf("创建资源内容审核依赖失败，已进入自动重试: merchantId=%s resourceId=%s typeCode=%s retryCount=%d err=%+v", input.MerchantID, resourceID, input.TypeCode, retryCount, cause)
-	return CreateResourceResp{ID: resourceID, Status: model.ResourceStatusAuditRetry, Message: "内容审核服务暂时不可用，系统将自动重试"}, nil
+	return CreateResourceResp{ID: resourceID, Status: model.ResourceStatusAuditRetry, Message: "自动安全检测暂时不可用，系统将自动重试"}, nil
 }
 
 func (l *CreateResourceLogic) applyAutoAuditResult(ctx context.Context, auditStore ResourceAutoAuditStore, action string, resourceID string, input ContentAuditInput, result ContentAuditResult, err error) (CreateResourceResp, error) {
@@ -283,7 +260,7 @@ func applyResourceAutoAuditResult(ctx context.Context, auditStore ResourceAutoAu
 func mapAutoPublishError(ctx context.Context, auditStore ResourceAutoAuditStore, resourceID string, err error) error {
 	switch {
 	case errors.Is(err, model.ErrPublishQuotaInsufficient):
-		reason := "本月发布次数已用完，可开通 VIP 或购买发布包后重新提交"
+		reason := "本月免费发布次数已用完，可购买发布次数后重新提交"
 		_, _ = auditStore.RejectResourceAfterAudit(ctx, resourceID, reason)
 		return errx.New(errx.CodeQuotaNotEnough, reason)
 	case errors.Is(err, model.ErrPublishDisabled):
@@ -314,7 +291,7 @@ func (l *CreateResourceLogic) UpdateResourceDraft(ctx context.Context, resourceI
 		return CreateResourceResp{}, err
 	}
 	logx.Infof("更新资源草稿成功: merchantId=%s resourceId=%s status=%s", strings.TrimSpace(req.MerchantID), result.ID, result.Status)
-	return CreateResourceResp{ID: result.ID, Status: result.Status, Message: "草稿已保存，请重新提交审核"}, nil
+	return CreateResourceResp{ID: result.ID, Status: result.Status, Message: "草稿已保存，请重新提交发布"}, nil
 }
 
 func (l *CreateResourceLogic) buildResourceInput(ctx context.Context, req CreateResourceReq, status string) (model.CreateResourceInput, string, error) {

@@ -16,15 +16,15 @@ test('publish success page switches copy for demand submissions', () => {
   assert.match(source, /const RESOURCE_DIRECTION_DEMAND = 'demand'/)
   assert.match(source, /onLoad\(\(options = \{\}\) => \{[\s\S]*publishDirection\.value = normalizePublishDirection\(options\.direction\)[\s\S]*resultStatus\.value = normalizeResultStatus\(options\.status\)[\s\S]*\}\)/)
   assert.match(source, /<text class="success-title">\{\{ successCopy\.title \}\}<\/text>/)
-  assert.match(source, /需求已提交审核/)
-  assert.match(source, /需求会进入搜索、推荐和需求列表/)
+  assert.match(source, /需求已提交/)
+  assert.match(source, /系统正在自动安全检测/)
   assert.match(source, /搜索、推荐和需求列表/)
 })
 
 test('publish success page uses supply copy instead of resource copy', () => {
-  assert.match(source, /title: '供应已提交审核'/)
-  assert.match(source, /供应会进入搜索、推荐和供应方资料/)
-  assert.doesNotMatch(source, /供需信息已提交审核/)
+  assert.match(source, /title: '供应已提交'/)
+  assert.match(source, /系统正在自动安全检测/)
+  assert.doesNotMatch(source, /供应已提交审核/)
 })
 
 test('resource publish form passes direction to success page', () => {
@@ -35,8 +35,9 @@ test('resource publish form passes direction to success page', () => {
   assert.match(formSource, /const images = await uploadPendingResourceImages\(\)[\s\S]*const resp = await createResource\(buildResourcePublishPayload\(images\)\)[\s\S]*openPublishSuccess\(resp\)/)
 })
 
-test('publish success page normalizes internal audit states for users', () => {
-  assert.match(source, /const contentAuditStatuses = new Set\(\['pending', 'manual_review', 'audit_retry'\]\)/)
+test('publish success page normalizes automatic safety states for users', () => {
   assert.match(source, /<text class="result-value">\{\{ auditResultText \}\}<\/text>/)
-  assert.match(source, /if \(contentAuditStatuses\.has\(resultStatus\.value\)\) return '内容审核中'/)
+  assert.match(source, /resultStatus\.value === 'pending'\) return '自动检测中'/)
+  assert.match(source, /resultStatus\.value === 'audit_retry'\) return '自动检测重试中'/)
+  assert.match(source, /resultStatus\.value === 'manual_review'\) return '异常处理中'/)
 })

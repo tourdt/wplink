@@ -7,7 +7,7 @@
 
       <view class="success-result-list">
         <view class="success-result-item">
-          <text class="result-label">审核结果</text>
+          <text class="result-label">发布状态</text>
           <text class="result-value">{{ auditResultText }}</text>
         </view>
         <view class="success-result-item">
@@ -32,31 +32,32 @@ import { getMerchantId } from '../../store/session'
 
 const RESOURCE_DIRECTION_SUPPLY = 'supply'
 const RESOURCE_DIRECTION_DEMAND = 'demand'
-const contentAuditStatuses = new Set(['pending', 'manual_review', 'audit_retry'])
 const publishDirection = ref(RESOURCE_DIRECTION_SUPPLY)
 const resultStatus = ref('pending')
 const resultMessage = ref('')
 const successCopy = computed(() => {
   if (publishDirection.value === RESOURCE_DIRECTION_DEMAND) {
     return {
-      title: '需求已提交审核',
-      desc: '审核通过后，需求会进入搜索、推荐和需求列表，合适供应商可主动联系，后续进展会通过消息中心通知。',
-      exposureLabel: '通过后展示',
+      title: '需求已提交',
+      desc: '系统正在自动安全检测；通过后会进入搜索、推荐和需求列表，合适供应商可免费查看联系方式。',
+      exposureLabel: '发布后展示',
       exposureValue: '搜索、推荐和需求列表',
     }
   }
   return {
-    title: '供应已提交审核',
-    desc: '审核通过后，供应会进入搜索、推荐和供应方资料，后续进展会通过消息中心通知。',
-    exposureLabel: '通过后曝光',
+    title: '供应已提交',
+    desc: '系统正在自动安全检测；通过后会进入搜索、推荐和供应方资料，买家可免费查看联系方式。',
+    exposureLabel: '发布后曝光',
     exposureValue: '搜索、推荐和供应方资料',
   }
 })
 const auditResultText = computed(() => {
-  if (contentAuditStatuses.has(resultStatus.value)) return '内容审核中'
+  if (resultStatus.value === 'pending') return '自动检测中'
+  if (resultStatus.value === 'audit_retry') return '自动检测重试中'
+  if (resultStatus.value === 'manual_review') return '异常处理中'
   if (resultStatus.value === 'published') return '已发布'
-  if (resultStatus.value === 'rejected') return resultMessage.value || '审核未通过'
-  return '内容审核中'
+  if (resultStatus.value === 'rejected') return resultMessage.value || '安全检测未通过'
+  return '处理中'
 })
 
 onLoad((options = {}) => {

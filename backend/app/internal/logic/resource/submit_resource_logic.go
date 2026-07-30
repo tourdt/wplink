@@ -45,7 +45,7 @@ func (l *SubmitResourceLogic) SubmitResource(ctx context.Context, resourceID str
 	if err != nil {
 		if errors.Is(err, model.ErrPublishQuotaInsufficient) {
 			logx.Infof("提交资源审核被拦截: resourceId=%s reason=publish_quota_insufficient", resourceID)
-			return SubmitResourceResp{}, errx.New(errx.CodeQuotaNotEnough, "本月发布次数已用完，可开通 VIP 或购买发布包")
+			return SubmitResourceResp{}, errx.New(errx.CodeQuotaNotEnough, "本月免费发布次数已用完，可购买发布次数后继续发布")
 		}
 		if errors.Is(err, model.ErrPublishDisabled) {
 			logx.Infof("提交资源审核被拦截: resourceId=%s reason=publish_disabled", resourceID)
@@ -53,7 +53,7 @@ func (l *SubmitResourceLogic) SubmitResource(ctx context.Context, resourceID str
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			logx.Infof("提交资源审核被拦截: resourceId=%s reason=draft_not_editable", resourceID)
-			return SubmitResourceResp{}, errx.New(errx.CodeStateConflict, "请先编辑并保存草稿后再提交审核")
+			return SubmitResourceResp{}, errx.New(errx.CodeStateConflict, "请先编辑并保存草稿后再提交发布")
 		}
 		logx.Errorf("提交资源审核失败: resourceId=%s err=%+v", resourceID, err)
 		return SubmitResourceResp{}, err
@@ -66,7 +66,7 @@ func (l *SubmitResourceLogic) SubmitResource(ctx context.Context, resourceID str
 	return SubmitResourceResp{
 		ID:      result.ID,
 		Status:  result.Status,
-		Message: "已提交审核，审核通过后将展示给买家",
+		Message: "已提交，等待系统安全检测",
 	}, nil
 }
 
@@ -104,21 +104,22 @@ func (l *SubmitResourceLogic) auditSubmittedResource(ctx context.Context, submit
 	if strings.TrimSpace(snapshot.OpenID) == "" {
 		stateStore, ok := auditStore.(ResourceAuditStateStore)
 		if !ok {
-			logx.Errorf("提交资源缺少 openid 且无法转人工复核: resourceId=%s merchantId=%s typeCode=%s", submitted.ID, snapshot.MerchantID, snapshot.TypeCode)
+			logx.Errorf("提交资源缺少 openid 且无法进入自动重试: resourceId=%s merchantId=%s typeCode=%s", submitted.ID, snapshot.MerchantID, snapshot.TypeCode)
 			return SubmitResourceResp{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
 		}
-		if err := stateStore.MarkResourceManualReview(ctx, submitted.ID, "资源缺少微信审核身份"); err != nil {
-			logx.Errorf("提交资源缺少 openid 转人工复核失败: resourceId=%s merchantId=%s typeCode=%s err=%+v", submitted.ID, snapshot.MerchantID, snapshot.TypeCode, err)
+		retryCount, err := stateStore.MarkResourceAuditRetry(ctx, submitted.ID, "资源缺少自动安全检测身份")
+		if err != nil {
+			logx.Errorf("提交资源缺少 openid 后进入自动重试失败: resourceId=%s merchantId=%s typeCode=%s err=%+v", submitted.ID, snapshot.MerchantID, snapshot.TypeCode, err)
 			return SubmitResourceResp{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
 		}
 		recordResourceAuditDecision(ctx, auditStore, model.ResourceAuditDecisionInput{
 			ResourceID: submitted.ID,
 			Action:     "submit_resource",
-			Decision:   "manual_review",
-			Reason:     "资源缺少微信审核身份",
+			Decision:   "dependency_error",
+			Reason:     "资源缺少自动安全检测身份",
 		})
-		logx.Infof("提交资源缺少 openid，已转人工复核: resourceId=%s merchantId=%s typeCode=%s", submitted.ID, snapshot.MerchantID, snapshot.TypeCode)
-		return SubmitResourceResp{ID: submitted.ID, Status: model.ResourceStatusManualReview, Message: "内容审核中"}, nil
+		logx.Infof("提交资源缺少 openid，已进入自动重试: resourceId=%s merchantId=%s typeCode=%s retryCount=%d", submitted.ID, snapshot.MerchantID, snapshot.TypeCode, retryCount)
+		return SubmitResourceResp{ID: submitted.ID, Status: model.ResourceStatusAuditRetry, Message: "自动安全检测暂时不可用，系统将自动重试"}, nil
 	}
 	auditInput := contentAuditInputFromSnapshot(snapshot)
 	result, err := l.auditor.AuditResource(ctx, auditInput)

@@ -20,13 +20,13 @@ test('my resources list displays Chinese resource type text instead of raw type 
   assert.doesNotMatch(source, /\{\{ item\.category \}\} · \{\{ item\.typeCode \}\}/)
 })
 
-test('my resources list shows internal audit states as content auditing', () => {
+test('my resources list distinguishes automatic safety checks from exceptional handling', () => {
   assert.match(source, /const contentAuditStatuses = new Set\(\['pending', 'manual_review', 'audit_retry'\]\)/)
-  assert.match(source, /pending: '内容审核中'/)
-  assert.match(source, /manual_review: '内容审核中'/)
-  assert.match(source, /audit_retry: '内容审核中'/)
+  assert.match(source, /pending: '自动检测中'/)
+  assert.match(source, /manual_review: '异常处理中'/)
+  assert.match(source, /audit_retry: '自动检测重试中'/)
   assert.match(source, /if \(isContentAuditStatus\(item\.status\)\) return 'pending'/)
-  assert.match(source, /if \(isContentAuditStatus\(item\.status\)\) return '内容审核中'/)
+  assert.match(source, /if \(isContentAuditStatus\(item\.status\)\) return statusText\[item\.status\]/)
 })
 
 test('my resources list falls back to a default resource image', () => {

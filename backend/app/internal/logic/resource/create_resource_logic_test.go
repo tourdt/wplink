@@ -610,6 +610,65 @@ func TestCreateResourceQueuesRetryWhenAuditDependencyFails(t *testing.T) {
 	}
 }
 
+func TestCreateResourceQueuesRetryWhenCreatedByUserIsMissing(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
+	}
+	logic := NewCreateResourceLogic(store, &fakeContentAuditor{})
+
+	resp, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:   "merchant-1",
+		CityCode:     "zhili",
+		TypeCode:     "inventory",
+		Title:        "女童春款卫衣库存整包清",
+		Category:     "童装",
+		QuantityText: "3200 件",
+		Description:  "整包优先，可现场看货。",
+		Contact:      ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+	if resp.Status != model.ResourceStatusAuditRetry || store.auditRetryResourceID != "resource-1" {
+		t.Fatalf("resp = %#v retryResourceID = %q, want automatic audit retry", resp, store.auditRetryResourceID)
+	}
+}
+
+func TestCreateResourceQueuesRetryWhenOpenIDIsMissing(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
+		},
+		result: model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
+	}
+	logic := NewCreateResourceLogic(store, &fakeContentAuditor{})
+
+	resp, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:    "merchant-1",
+		CityCode:      "zhili",
+		TypeCode:      "inventory",
+		Title:         "女童春款卫衣库存整包清",
+		Category:      "童装",
+		QuantityText:  "3200 件",
+		Description:   "整包优先，可现场看货。",
+		Contact:       ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+		CreatedByUser: "user-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+	if resp.Status != model.ResourceStatusAuditRetry || store.auditRetryResourceID != "resource-1" {
+		t.Fatalf("resp = %#v retryResourceID = %q, want automatic audit retry", resp, store.auditRetryResourceID)
+	}
+}
+
 func TestCreateResourceRejectsDisabledPublishCategory(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{
@@ -697,7 +756,7 @@ func TestCreateResourceMapsPublishQuotaInsufficient(t *testing.T) {
 	if errx.CodeOf(err) != errx.CodeQuotaNotEnough {
 		t.Fatalf("error code = %q, want quota not enough", errx.CodeOf(err))
 	}
-	if errx.PublicMessage(err) != "本月发布次数已用完，可开通 VIP 或购买发布包" {
+	if errx.PublicMessage(err) != "本月免费发布次数已用完，可购买发布次数后继续发布" {
 		t.Fatalf("message = %q, want publish quota upsell message", errx.PublicMessage(err))
 	}
 }

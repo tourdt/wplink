@@ -263,9 +263,9 @@ const statusText = {
   draft: '草稿',
   rejected: '已驳回',
   published: '已发布',
-  pending: '内容审核中',
-  manual_review: '内容审核中',
-  audit_retry: '内容审核中',
+  pending: '自动检测中',
+  manual_review: '异常处理中',
+  audit_retry: '自动检测重试中',
   expired: '已过期',
   dealt: '已成交',
   taken_down: '已下架',
@@ -348,12 +348,12 @@ const canShareOwnResource = computed(() => resource.value.status === 'published'
 const canEditOwnResourceWithoutImage = computed(() => isOwnResource.value && ['draft', 'rejected'].includes(resource.value.status))
 const managementTitle = computed(() => statusText[resource.value.status] || '供应管理')
 const managementNotice = computed(() => {
-  if (isContentAuditStatus(resource.value.status)) {
-    return '供应正在内容审核中，审核通过后会公开展示。当前暂不能刷新、下架或分享。'
-  }
-  if (resource.value.status === 'draft') return '草稿可继续编辑，完善后再提交审核。'
-  if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : '供应已被驳回，可编辑后重新提交审核。'
-  if (isExpiredResource.value) return '供应已过期，建议再发类似供应后重新提交审核。'
+  if (resource.value.status === 'pending') return '供应正在自动安全检测，检测通过后会公开展示。当前暂不能刷新、下架或分享。'
+  if (resource.value.status === 'audit_retry') return '系统正在自动重试安全检测，请稍后查看结果。当前暂不能刷新、下架或分享。'
+  if (resource.value.status === 'manual_review') return '供应处于异常处理中，平台仅处理系统无法自动判断的少量情况。'
+  if (resource.value.status === 'draft') return '草稿可继续编辑，完善后再提交发布。'
+  if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : '供应未通过安全检测，可编辑后重新提交发布。'
+  if (isExpiredResource.value) return '供应已过期，建议再发类似供应后重新发布。'
   if (isDealtResource.value) return '供需已完成，将保留 7 天供参考，期间不能联系、刷新或置顶。'
   if (resource.value.status === 'taken_down') return '供应已下架，不再公开展示。'
   return '供应展示中，可按需刷新、置顶或下架。'

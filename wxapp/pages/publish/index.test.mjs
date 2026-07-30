@@ -18,8 +18,8 @@ test('publish entry shows pre-publish content rules and penalty notice', () => {
   assert.match(source, /<view class="publish-rule-card">/)
   for (const token of [
     '发布前须知',
-    '平台审核',
-    '提交后进入平台审核',
+    '每月 3 条免费',
+    '提交后由系统自动安全检测',
     '真实有效',
     '联系方式',
     '价格',
@@ -32,7 +32,7 @@ test('publish entry shows pre-publish content rules and penalty notice', () => {
     '无关推广',
     '侵权',
     '误导交易',
-    '审核与权益',
+    '安全与权益',
     '违规内容可能下架',
     '限制功能',
     '封停账号',
@@ -41,6 +41,8 @@ test('publish entry shows pre-publish content rules and penalty notice', () => {
   ]) {
     assert.match(source, new RegExp(token))
   }
+  assert.doesNotMatch(source, /平台审核/)
+  assert.doesNotMatch(source, /提交后进入平台审核/)
   for (const removedText of [
     '请确认发布信息真实、合法、有效，内容应与实际供给或需求一致。',
     '禁止发布违法违规、虚假夸大、重复刷屏、无关推广或误导交易的信息。',

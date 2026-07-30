@@ -137,9 +137,11 @@ test('own resource detail keeps share and management actions in the bottom bar',
   assert.doesNotMatch(source, /这是你发布的供需信息，可在我的发布中管理/)
 })
 
-test('pending own resource management sheet only explains review state', () => {
+test('pending own resource management sheet explains automatic safety state', () => {
   assert.match(source, /const contentAuditStatuses = new Set\(\['pending', 'manual_review', 'audit_retry'\]\)/)
-  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*isContentAuditStatus\(resource\.value\.status\)[\s\S]*供应正在内容审核中，审核通过后会公开展示。当前暂不能刷新、下架或分享。[\s\S]*\}\)/)
+  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*resource\.value\.status === 'pending'[\s\S]*供应正在自动安全检测，检测通过后会公开展示。当前暂不能刷新、下架或分享。[\s\S]*\}\)/)
+  assert.match(source, /resource\.value\.status === 'audit_retry'[\s\S]*系统正在自动重试安全检测/)
+  assert.match(source, /resource\.value\.status === 'manual_review'[\s\S]*供应处于异常处理中/)
   assert.match(source, /const managementActions = computed\(\(\) => \{[\s\S]*if \(isContentAuditStatus\(resource\.value\.status\)\) return \[\][\s\S]*\}\)/)
   assert.match(source, /<view v-if="showManagementSheet" class="sheet-mask" @click="closeManagementSheet">/)
   assert.match(source, /<text class="sheet-title">\{\{ managementTitle \}\}<\/text>/)

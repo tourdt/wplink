@@ -1197,8 +1197,8 @@ FOR UPDATE
 }
 
 func profileMonthlyBenefitsForStatus(profileStatus string) (int64, int64) {
-	// 冷启动发布次数改由增长活动配置发放，避免继续把“完善商家名片”作为获取额度的主路径。
-	return 0, 0
+	// 冷启动基础额度与资料完整度解耦：所有商家每月都有 3 次免费发布，完善名片不再是领取门槛。
+	return 3, 0
 }
 
 func currentMonthlyEntitlementPeriod(now time.Time) (time.Time, time.Time) {

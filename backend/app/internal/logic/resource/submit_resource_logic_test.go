@@ -31,7 +31,7 @@ func TestSubmitResourceSetsPending(t *testing.T) {
 	if store.resourceID != "resource-1" {
 		t.Fatalf("resourceID = %q, want trimmed resource-1", store.resourceID)
 	}
-	if resp.Status != "pending" || resp.Message != "已提交审核，审核通过后将展示给买家" {
+	if resp.Status != "pending" || resp.Message != "已提交，等待系统安全检测" {
 		t.Fatalf("resp = %#v, want pending submit message", resp)
 	}
 }
@@ -122,6 +122,27 @@ func TestSubmitResourceCreatesImageAuditTasks(t *testing.T) {
 	}
 }
 
+func TestSubmitResourceQueuesRetryWhenOpenIDIsMissing(t *testing.T) {
+	store := &fakeSubmitResourceStore{
+		result: model.SubmitResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
+		snapshot: model.ResourceAuditSnapshot{
+			ID:         "resource-1",
+			MerchantID: "merchant-1",
+			TypeCode:   "inventory",
+			Title:      "待提交库存",
+		},
+	}
+	logic := NewSubmitResourceLogic(store, &fakeContentAuditor{})
+
+	resp, err := logic.SubmitResource(context.Background(), "resource-1")
+	if err != nil {
+		t.Fatalf("SubmitResource() error = %v", err)
+	}
+	if resp.Status != model.ResourceStatusAuditRetry || store.auditRetryResourceID != "resource-1" {
+		t.Fatalf("resp = %#v retryResourceID = %q, want automatic audit retry", resp, store.auditRetryResourceID)
+	}
+}
+
 func TestSubmitResourceMapsUnavailableResourceToStateConflict(t *testing.T) {
 	store := &fakeSubmitResourceStore{err: sql.ErrNoRows}
 	logic := NewSubmitResourceLogic(store)
@@ -142,7 +163,7 @@ func TestSubmitResourceRequiresSavedDraft(t *testing.T) {
 	if errx.CodeOf(err) != errx.CodeStateConflict {
 		t.Fatalf("error code = %q, want state conflict", errx.CodeOf(err))
 	}
-	if errx.PublicMessage(err) != "请先编辑并保存草稿后再提交审核" {
+	if errx.PublicMessage(err) != "请先编辑并保存草稿后再提交发布" {
 		t.Fatalf("message = %q, want save draft first", errx.PublicMessage(err))
 	}
 }
@@ -156,7 +177,7 @@ func TestSubmitResourceMapsPublishQuotaInsufficient(t *testing.T) {
 	if errx.CodeOf(err) != errx.CodeQuotaNotEnough {
 		t.Fatalf("error code = %q, want quota not enough", errx.CodeOf(err))
 	}
-	if errx.PublicMessage(err) != "本月发布次数已用完，可开通 VIP 或购买发布包" {
+	if errx.PublicMessage(err) != "本月免费发布次数已用完，可购买发布次数后继续发布" {
 		t.Fatalf("message = %q, want publish quota upsell message", errx.PublicMessage(err))
 	}
 }
@@ -176,16 +197,18 @@ func TestSubmitResourceMapsDisabledPublishCategory(t *testing.T) {
 }
 
 type fakeSubmitResourceStore struct {
-	resourceID          string
-	result              model.SubmitResourceResult
-	snapshot            model.ResourceAuditSnapshot
-	err                 error
-	auditTasks          []model.ResourceContentAuditTaskInput
-	publishedResourceID string
-	rejectedResourceID  string
-	rejectReason        string
-	publishErr          error
-	rejectErr           error
+	resourceID           string
+	result               model.SubmitResourceResult
+	snapshot             model.ResourceAuditSnapshot
+	err                  error
+	auditTasks           []model.ResourceContentAuditTaskInput
+	publishedResourceID  string
+	rejectedResourceID   string
+	rejectReason         string
+	publishErr           error
+	rejectErr            error
+	auditRetryResourceID string
+	auditRetryReason     string
 }
 
 func (s *fakeSubmitResourceStore) SubmitResourceForReview(ctx context.Context, resourceID string) (model.SubmitResourceResult, error) {
@@ -220,4 +243,14 @@ func (s *fakeSubmitResourceStore) RejectResourceAfterAudit(ctx context.Context, 
 		return model.ReviewResourceResult{}, s.rejectErr
 	}
 	return model.ReviewResourceResult{ID: resourceID, Status: model.ResourceStatusRejected}, nil
+}
+
+func (s *fakeSubmitResourceStore) MarkResourceAuditRetry(ctx context.Context, resourceID string, reason string) (int64, error) {
+	s.auditRetryResourceID = resourceID
+	s.auditRetryReason = reason
+	return 1, nil
+}
+
+func (s *fakeSubmitResourceStore) MarkResourceManualReview(ctx context.Context, resourceID string, reason string) error {
+	return nil
 }
