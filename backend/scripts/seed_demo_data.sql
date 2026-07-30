@@ -297,7 +297,13 @@ CROSS JOIN (
     (8030000000000000025, 8020000000000000003, 'education_training', 'published', '童装制版与电商运营培训', '童装制版', '织里', '1980 元/期', '工厂版师和创业团队', '', '面向工厂版师和创业团队的童装制版与电商运营培训。', '{"courseType":"童装制版","targetAudience":"工厂版师和创业团队","coursePriceText":"1980 元/期","classTime":"周一至周五晚间","serviceArea":"织里"}', '["教育培训","童装制版","电商运营"]', '李经理', '18800000003', 'service-demo', true, now() - interval '6 days', now() - interval '22 hours', NULL, NULL, now() + interval '30 days', NULL, NULL, NULL, NULL, 8010000000000000004),
     (8030000000000000026, 8020000000000000003, 'appliance_repair', 'published', '缝纫设备上门检修服务', '缝纫设备', '织里', '上门检测 80 元起', '织里全域', '', '缝纫设备上门检修，织里全域两小时内响应。', '{"applianceType":"缝纫设备","serviceArea":"织里全域","repairPriceText":"上门检测 80 元起","responseTime":"2 小时内响应"}', '["设备维修","上门服务","两小时响应"]', '李经理', '18800000003', 'service-demo', true, now() - interval '7 days', now() - interval '23 hours', NULL, NULL, now() + interval '20 days', NULL, NULL, NULL, NULL, 8010000000000000004),
     (8030000000000000027, 8020000000000000003, 'moving_cleaning', 'published', '仓库搬运与开荒保洁', '仓库搬运', '织里', '按车次和人工报价', '织里及周边 20 公里', '', '提供仓库搬运、设备拆装和开荒保洁，当天可预约。', '{"serviceType":"仓库搬运","serviceArea":"织里及周边 20 公里","movingPriceText":"按车次和人工报价","appointmentTime":"当天可预约"}', '["搬家保洁","仓库搬运","当天预约"]', '李经理', '18800000003', 'service-demo', true, now() - interval '8 days', now() - interval '1 day', NULL, NULL, now() + interval '20 days', NULL, NULL, NULL, NULL, 8010000000000000004),
-    (8030000000000000028, 8020000000000000003, 'other_local_service', 'published', '童装拍摄与广告制作服务', '摄影拍摄', '织里', '主图套拍 399 元起', '织里童装城', '', '提供童装主图拍摄、短视频和广告物料制作，次日交片。', '{"serviceType":"摄影拍摄","serviceArea":"织里童装城","localServicePriceText":"主图套拍 399 元起","responseTime":"次日交片"}', '["童装拍摄","广告制作","次日交片"]', '李经理', '18800000003', 'service-demo', true, now() - interval '9 days', now() - interval '26 hours', NULL, NULL, now() + interval '20 days', NULL, NULL, NULL, NULL, 8010000000000000004)
+    (8030000000000000028, 8020000000000000003, 'other_local_service', 'published', '童装拍摄与广告制作服务', '摄影拍摄', '织里', '主图套拍 399 元起', '织里童装城', '', '提供童装主图拍摄、短视频和广告物料制作，次日交片。', '{"serviceType":"摄影拍摄","serviceArea":"织里童装城","localServicePriceText":"主图套拍 399 元起","responseTime":"次日交片"}', '["童装拍摄","广告制作","次日交片"]', '李经理', '18800000003', 'service-demo', true, now() - interval '9 days', now() - interval '26 hours', NULL, NULL, now() + interval '20 days', NULL, NULL, NULL, NULL, 8010000000000000004),
+    (8030000000000000029, 8020000000000000002, 'stock_clearance', 'draft', '尚未提交的秋款库存草稿', '中大童', '织里', '待补充', '待盘点', '', '商家尚未完成的秋款库存草稿，用于调试继续编辑。', '{"clearanceCategory":"中大童","stockQuantityText":"待盘点","packagePriceText":"待补充","stockCondition":"尾季","warehouseLocation":"织里仓库","allowMixedLot":false}', '["草稿","秋款库存"]', '周经理', '18800000002', 'stock-demo', true, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 8010000000000000003),
+    (8030000000000000030, 8020000000000000002, 'stock_clearance', 'pending', '待审核夏款短袖库存', '男童', '织里', '12-18 元/件', '1800 件', '', '已提交并等待内容审核的夏款短袖库存。', '{"clearanceCategory":"男童","stockQuantityText":"1800 件","packagePriceText":"12-18 元/件","stockCondition":"散货","warehouseLocation":"织里童装城 3 区","allowMixedLot":true}', '["待审核","夏款库存"]', '周经理', '18800000002', 'stock-demo', true, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 8010000000000000003),
+    (8030000000000000031, 8020000000000000001, 'factory_direct', 'manual_review', '等待人工复核的工厂货源', '卫衣', '织里', '30-42 元/件', '50 件起批', '', '自动审核转入人工复核的工厂卫衣货源。', '{"productCategory":"卫衣","factoryPriceText":"30-42 元/件","minOrderText":"50 件起批","factoryAdvantage":"来样定制","supportsDropship":false,"deliveryArea":"华东"}', '["人工复核","工厂货源"]', '陈厂长', '18800000001', 'factory-demo', true, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 8010000000000000002),
+    (8030000000000000032, 8020000000000000005, 'fabric_supply', 'audit_retry', '内容审核重试中的面料现货', '针织', '织里', '19 元/公斤', '现货 3 吨', '', '外部内容审核暂时失败，等待后台任务重试。', '{"fabricType":"针织","fabricComposition":"棉氨","widthWeight":"175cm / 220g","fabricPriceText":"19 元/公斤","inStockText":"现货 3 吨","colorCount":8}', '["审核重试","针织面料"]', '赵经理', '18800000005', 'material-demo', true, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 8010000000000000006),
+    (8030000000000000033, 8020000000000000001, 'factory_direct', 'rejected', '资料不完整的货源演示', '童装', '织里', '面议', '起批待确认', '', '资料不完整并已被驳回的工厂货源演示。', '{"productCategory":"童装","factoryPriceText":"面议","minOrderText":"起批待确认","factoryAdvantage":"源头工厂","supportsDropship":false,"deliveryArea":"织里"}', '["已驳回","资料不完整"]', '陈厂长', '18800000001', 'factory-demo', true, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '缺少清晰价格和联系方式确认材料', NULL, 8010000000000000002),
+    (8030000000000000034, 8020000000000000002, 'secondhand_sale', 'published', '已成交超过七天的旧设备', '设备', '织里', '成交价 3 万元', '2 台', '', '成交超过七天的旧设备，用于验证公开列表自动隐藏。', '{"itemType":"设备","conditionLevel":"正常使用","secondhandPriceText":"成交价 3 万元","secondhandQuantityText":"2 台","pickupLocation":"织里镇仓储区"}', '["历史成交","二手设备"]', '周经理', '18800000002', 'stock-demo', true, now() - interval '20 days', now() - interval '12 days', NULL, NULL, now() + interval '10 days', now() - interval '10 days', NULL, NULL, NULL, 8010000000000000003)
 ) AS r(id, merchant_id, type_code, status, title, category, district, price_text, quantity_text, cover_url, description, attributes, tags, contact_name, contact_phone, contact_wechat, is_verified, published_at, refreshed_at, top_started_at, top_expires_at, expires_at, dealt_at, taken_down_at, reject_reason, take_down_reason, created_by_user_id)
 WHERE cs.code = 'zhili'
   AND rtc.type_code = r.type_code
@@ -339,20 +345,28 @@ INSERT INTO verifications (id, merchant_id, verification_type, status, applicant
 VALUES
   (8040000000000000001, 8020000000000000001, 'factory', 'verified', 8010000000000000002, '湖州织里晨星童装厂', 'https://example.com/demo/factory-license.jpg', 'https://example.com/demo/factory-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days'),
   (8040000000000000002, 8020000000000000002, 'stockist', 'verified', 8010000000000000003, '织里云仓尾货', 'https://example.com/demo/stock-license.jpg', 'https://example.com/demo/stock-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days'),
-  (8040000000000000003, 8020000000000000003, 'service_provider', 'verified', 8010000000000000004, '织里快印包装服务商', 'https://example.com/demo/service-license.jpg', 'https://example.com/demo/service-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days')
+  (8040000000000000003, 8020000000000000003, 'service_provider', 'verified', 8010000000000000004, '织里快印包装服务商', 'https://example.com/demo/service-license.jpg', 'https://example.com/demo/service-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days'),
+  (8040000000000000004, 8020000000000000005, 'material_supplier', 'verified', 8010000000000000006, '织里面辅料现货中心', 'https://example.com/demo/material-license.jpg', 'https://example.com/demo/material-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days'),
+  (8040000000000000005, 8020000000000000006, 'property_service', 'verified', 8010000000000000007, '织里产业物业服务中心', 'https://example.com/demo/property-license.jpg', 'https://example.com/demo/property-office.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days')
 ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, review_note = EXCLUDED.review_note, reviewed_at = EXCLUDED.reviewed_at;
 
 INSERT INTO credit_records (id, merchant_id, source_type, tag_code, tag_label, description, visibility, created_by)
 VALUES
   (8041000000000000001, 8020000000000000001, 'verification', 'factory_verified', '认证工厂', '演示认证信用标签', 'public', 8009000000000000001),
   (8041000000000000002, 8020000000000000002, 'verification', 'stockist_verified', '认证库存商', '演示认证信用标签', 'public', 8009000000000000001),
-  (8041000000000000003, 8020000000000000003, 'verification', 'service_provider_verified', '认证服务商', '演示认证信用标签', 'public', 8009000000000000001)
+  (8041000000000000003, 8020000000000000003, 'verification', 'service_provider_verified', '认证服务商', '演示认证信用标签', 'public', 8009000000000000001),
+  (8041000000000000004, 8020000000000000005, 'verification', 'material_supplier_verified', '认证面辅料商', '演示认证信用标签', 'public', 8009000000000000001),
+  (8041000000000000005, 8020000000000000006, 'verification', 'property_service_verified', '认证物业服务商', '演示认证信用标签', 'public', 8009000000000000001)
 ON CONFLICT (id) DO UPDATE SET tag_label = EXCLUDED.tag_label, description = EXCLUDED.description, revoked_at = NULL;
 
 INSERT INTO merchant_entitlements (id, merchant_id, entitlement_type, source_type, total_amount, remaining_amount, allowed_type_codes, top_duration_hours, expires_at, status)
 VALUES
   (8042000000000000001, 8020000000000000001, 'publish_quota', 'verification_bonus', 20, 18, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
   (8042000000000000002, 8020000000000000002, 'refresh_quota', 'verification_bonus', 30, 27, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
+  (8042000000000000003, 8020000000000000003, 'publish_quota', 'verification_bonus', 20, 16, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
+  (8042000000000000004, 8020000000000000004, 'publish_quota', 'demo_debug', 20, 14, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
+  (8042000000000000005, 8020000000000000005, 'publish_quota', 'verification_bonus', 20, 17, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
+  (8042000000000000006, 8020000000000000006, 'publish_quota', 'verification_bonus', 20, 11, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
   (8043000000000000001, 8020000000000000002, 'top_voucher', 'verification_bonus', 1, 1, '["stock_clearance","factory_direct"]'::jsonb, 24, now() + interval '20 days', 'active')
 ON CONFLICT (id) DO UPDATE SET
   entitlement_type = EXCLUDED.entitlement_type,
@@ -370,26 +384,49 @@ SELECT
   rr.id,
   r.id,
   8009000000000000001,
-  CASE WHEN r.status = 'rejected' THEN 'reject' ELSE 'approve' END,
-  CASE WHEN r.status = 'rejected' THEN r.reject_reason ELSE '演示审核通过' END,
+  rr.action,
+  rr.reason,
   jsonb_build_object('title', r.title, 'status', r.status)
 FROM resources r
 JOIN (
   VALUES
-    (8030000000000000001, 8044000000000000001),
-    (8030000000000000002, 8044000000000000002),
-    (8030000000000000003, 8044000000000000003),
-    (8030000000000000004, 8044000000000000004),
-    (8030000000000000005, 8044000000000000005),
-    (8030000000000000006, 8044000000000000006),
-    (8030000000000000007, 8044000000000000007),
-    (8030000000000000009, 8044000000000000009),
-    (8030000000000000010, 8044000000000000010),
-    (8030000000000000011, 8044000000000000011)
-) AS rr(resource_id, id) ON rr.resource_id = r.id
-WHERE r.id BETWEEN 8030000000000000001 AND 8030000000000000011
-  AND r.status <> 'pending'
-ON CONFLICT (id) DO NOTHING;
+    (8030000000000000001, 8044000000000000001, 'approve', '演示审核通过'),
+    (8030000000000000002, 8044000000000000002, 'approve', '演示审核通过'),
+    (8030000000000000003, 8044000000000000003, 'approve', '演示审核通过'),
+    (8030000000000000004, 8044000000000000004, 'approve', '演示审核通过'),
+    (8030000000000000005, 8044000000000000005, 'approve', '演示审核通过'),
+    (8030000000000000006, 8044000000000000006, 'approve', '演示审核通过'),
+    (8030000000000000007, 8044000000000000007, 'approve', '演示审核通过'),
+    (8030000000000000008, 8044000000000000008, 'approve', '演示审核通过'),
+    (8030000000000000009, 8044000000000000009, 'approve', '演示审核通过'),
+    (8030000000000000010, 8044000000000000010, 'take_down', '冷启动阶段暂停招聘入口'),
+    (8030000000000000011, 8044000000000000011, 'approve', '历史资源审核通过'),
+    (8030000000000000012, 8044000000000000012, 'approve', '演示审核通过'),
+    (8030000000000000013, 8044000000000000013, 'approve', '演示审核通过'),
+    (8030000000000000014, 8044000000000000014, 'approve', '演示审核通过'),
+    (8030000000000000015, 8044000000000000015, 'approve', '演示审核通过'),
+    (8030000000000000016, 8044000000000000016, 'approve', '演示审核通过'),
+    (8030000000000000017, 8044000000000000017, 'approve', '演示审核通过'),
+    (8030000000000000018, 8044000000000000018, 'approve', '演示审核通过'),
+    (8030000000000000019, 8044000000000000019, 'approve', '演示审核通过'),
+    (8030000000000000020, 8044000000000000020, 'approve', '演示审核通过'),
+    (8030000000000000021, 8044000000000000021, 'approve', '演示审核通过'),
+    (8030000000000000022, 8044000000000000022, 'approve', '演示审核通过'),
+    (8030000000000000023, 8044000000000000023, 'approve', '演示审核通过'),
+    (8030000000000000024, 8044000000000000024, 'approve', '演示审核通过'),
+    (8030000000000000025, 8044000000000000025, 'approve', '演示审核通过'),
+    (8030000000000000026, 8044000000000000026, 'approve', '演示审核通过'),
+    (8030000000000000027, 8044000000000000027, 'approve', '演示审核通过'),
+    (8030000000000000028, 8044000000000000028, 'approve', '演示审核通过'),
+    (8030000000000000033, 8044000000000000033, 'reject', '缺少清晰价格和联系方式确认材料'),
+    (8030000000000000034, 8044000000000000034, 'approve', '历史成交资源审核通过')
+) AS rr(resource_id, id, action, reason) ON rr.resource_id = r.id
+ON CONFLICT (id) DO UPDATE SET
+  resource_id = EXCLUDED.resource_id,
+  reviewer_id = EXCLUDED.reviewer_id,
+  action = EXCLUDED.action,
+  reason = EXCLUDED.reason,
+  snapshot = EXCLUDED.snapshot;
 
 INSERT INTO resource_metrics_daily (
   resource_id,
@@ -422,9 +459,11 @@ FROM resources r
 JOIN (
   VALUES
     (8030000000000000001, 1),
-    (8030000000000000002, 2),
-    (8030000000000000003, 3),
-    (8030000000000000007, 4)
+    (8030000000000000003, 2),
+    (8030000000000000007, 3),
+    (8030000000000000004, 4),
+    (8030000000000000008, 5),
+    (8030000000000000015, 6)
 ) AS n(resource_id, idx) ON n.resource_id = r.id
 ON CONFLICT (resource_id, stat_date) DO UPDATE SET
   exposure_count = EXCLUDED.exposure_count,
@@ -440,9 +479,15 @@ ON CONFLICT (resource_id, stat_date) DO UPDATE SET
 
 INSERT INTO resource_contact_events (id, resource_id, user_id, merchant_id, action, created_at)
 VALUES
-  (8045000000000000001, 8030000000000000001, 8010000000000000005, 8020000000000000002, 'phone', now() - interval '2 hours'),
-  (8045000000000000002, 8030000000000000001, 8010000000000000005, 8020000000000000002, 'wechat', now() - interval '1 hours')
-ON CONFLICT (id) DO UPDATE SET created_at = EXCLUDED.created_at;
+  (8045000000000000001, 8030000000000000001, 8010000000000000005, 8020000000000000001, 'phone', now() - interval '2 hours'),
+  (8045000000000000002, 8030000000000000003, 8010000000000000005, 8020000000000000002, 'wechat', now() - interval '1 hours'),
+  (8045000000000000003, 8030000000000000008, 8010000000000000002, 8020000000000000004, 'phone', now() - interval '30 minutes')
+ON CONFLICT (id) DO UPDATE SET
+  resource_id = EXCLUDED.resource_id,
+  user_id = EXCLUDED.user_id,
+  merchant_id = EXCLUDED.merchant_id,
+  action = EXCLUDED.action,
+  created_at = EXCLUDED.created_at;
 
 INSERT INTO map_category(code, name, type, sort)
 VALUES
@@ -941,9 +986,20 @@ ON CONFLICT (scene_code, code) DO UPDATE SET
 
 INSERT INTO messages (id, recipient_user_id, recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status, sent_at)
 VALUES
-  (8052000000000000001, NULL, 'merchant:8020000000000000002', 'resource_review', 'resource_approve', 8030000000000000001, '供需信息审核通过', '女童春款卫衣库存整包清 已公开展示', '/pages/my-resources/index', 'unread', now()),
-  (8052000000000000002, NULL, 'merchant:8020000000000000002', 'resource_expiring', 'resource_expiring', 8030000000000000010, '供需信息即将过期', '即将过期的直播童裙库存 将在 1 天后过期', '/pages/my-resources/index', 'unread', now())
-ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, content = EXCLUDED.content, sent_at = EXCLUDED.sent_at;
+  (8052000000000000001, NULL, 'merchant:8020000000000000002', 'resource_review', 'resource_approve', 8030000000000000003, '供需信息审核通过', '女童春款卫衣库存整包清 已公开展示', '/pages/my-resources/index', 'unread', now()),
+  (8052000000000000002, NULL, 'merchant:8020000000000000001', 'resource_review', 'resource_reject', 8030000000000000033, '供需信息审核未通过', '资料不完整的货源演示 未通过审核，请补充清晰价格和联系方式确认材料', '/pages/my-resources/index', 'unread', now()),
+  (8052000000000000003, NULL, 'merchant:8020000000000000002', 'resource_expiring', 'resource_expiring', 8030000000000000003, '供需信息即将过期', '女童春款卫衣库存整包清 将在 1 天后过期', '/pages/my-resources/index', 'unread', now())
+ON CONFLICT (id) DO UPDATE SET
+  recipient_user_id = EXCLUDED.recipient_user_id,
+  recipient_role_code = EXCLUDED.recipient_role_code,
+  message_type = EXCLUDED.message_type,
+  trigger_type = EXCLUDED.trigger_type,
+  trigger_id = EXCLUDED.trigger_id,
+  title = EXCLUDED.title,
+  content = EXCLUDED.content,
+  target_url = EXCLUDED.target_url,
+  status = EXCLUDED.status,
+  sent_at = EXCLUDED.sent_at;
 
 INSERT INTO banner_topics (id, city_station_id, kind, title, subtitle, cover_url, type_scope, jump_type, jump_target, tags, sort_order, status, start_at, end_at)
 SELECT
@@ -968,7 +1024,8 @@ ON CONFLICT (id) DO UPDATE SET subtitle = EXCLUDED.subtitle, jump_target = EXCLU
 INSERT INTO operation_logs (id, operator_id, operator_role, action, object_type, object_id, after_snapshot)
 VALUES
   (8054000000000000001, 8009000000000000001, 'super_admin', 'merchant_verify', 'merchant', 8020000000000000001, '{"demo":true}'::jsonb),
-  (8054000000000000002, 8009000000000000001, 'super_admin', 'resource_approve', 'resource', 8030000000000000001, '{"demo":true}'::jsonb)
+  (8054000000000000002, 8009000000000000001, 'super_admin', 'resource_approve', 'resource', 8030000000000000003, '{"demo":true}'::jsonb),
+  (8054000000000000003, 8009000000000000001, 'super_admin', 'resource_reject', 'resource', 8030000000000000033, '{"demo":true,"reason":"缺少清晰价格和联系方式确认材料"}'::jsonb)
 ON CONFLICT (id) DO UPDATE SET
   operator_id = EXCLUDED.operator_id,
   operator_role = EXCLUDED.operator_role,

@@ -132,6 +132,49 @@ for (const typeCode of disabledHistoricalTypes) {
   )
 }
 
+const expectedStatuses = [
+  'draft',
+  'pending',
+  'manual_review',
+  'audit_retry',
+  'published',
+  'rejected',
+  'taken_down',
+  'expired',
+]
+
+assert(scenarios.length >= 34, `供需演示场景偏少: ${scenarios.length}, want >= 34`)
+for (const status of expectedStatuses) {
+  assert(scenarios.some((item) => item.status === status), `演示种子缺少资源状态: ${status}`)
+}
+
+for (const marker of [
+  "now() - interval '1 hours'",
+  "now() + interval '24 hours'",
+  "now() + interval '1 day'",
+  "now() - interval '2 days'",
+  "now() - interval '10 days'",
+  'top_started_at',
+  'top_expires_at',
+  'dealt_at',
+  'taken_down_at',
+  'take_down_reason',
+]) {
+  assert(resourceSql.includes(marker), `演示种子缺少特殊生命周期场景: ${marker}`)
+}
+
+for (const association of [
+  'INSERT INTO resource_review_records',
+  'INSERT INTO resource_metrics_daily',
+  'INSERT INTO resource_contact_events',
+  'INSERT INTO messages',
+  "'resource_approve'",
+  "'resource_reject'",
+  "'resource_expiring'",
+]) {
+  assert(sql.includes(association), `演示种子缺少关联调试数据: ${association}`)
+}
+
 const requiredSnippets = [
   '认证工厂',
   '认证库存商',
