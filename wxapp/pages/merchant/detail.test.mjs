@@ -68,3 +68,10 @@ test('merchant detail page renders address as a lightweight single-address block
   assert.match(source, /\.merchant-address-section \.section-head \{[\s\S]*margin-bottom: 0;/)
   assert.match(source, /\.merchant-address-text \{[\s\S]*display: block;[\s\S]*font-size: 30rpx;[\s\S]*line-height: 1\.55;[\s\S]*word-break: break-word;/)
 })
+
+test('merchant detail page only directs users to contact details in published supply and demand', () => {
+  const source = fs.readFileSync(sourcePath, 'utf8')
+
+  assert.doesNotMatch(source, /merchant\.contact/)
+  assert.match(source, /联系方式仅随有效供需信息展示/)
+})

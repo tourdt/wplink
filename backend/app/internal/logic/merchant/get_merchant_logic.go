@@ -58,7 +58,7 @@ type MerchantDetailResp struct {
 	VIPStatus          string                    `json:"vipStatus"`
 	VerificationInfo   *MerchantVerificationInfo `json:"verificationInfo,omitempty"`
 	CreditTags         []CreditTagInfo           `json:"creditTags"`
-	Contact            MerchantContactInfo       `json:"contact"`
+	Contact            *MerchantContactInfo      `json:"contact,omitempty"`
 	ResourcesSummary   MerchantResourcesSummary  `json:"resourcesSummary"`
 	HeatScore          int64                     `json:"heatScore"`
 	AddressText        string                    `json:"addressText,omitempty"`
@@ -95,19 +95,21 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string, v
 	for _, tag := range detail.CreditTags {
 		tags = append(tags, CreditTagInfo{Code: tag.Code, Label: tag.Label})
 	}
-	contact := MerchantContactInfo{
-		Name:         detail.ContactName,
-		PhoneMasked:  detail.PhoneMasked,
-		WechatMasked: detail.WechatMasked,
-	}
 	canExposeContact, err := canExposeEditableContact(ctx, l.store, merchantID, firstViewerUserID(viewerUserID))
 	if err != nil {
 		logx.Errorf("商家详情联系方式权限判断失败: merchantId=%s userId=%s err=%+v", merchantID, firstViewerUserID(viewerUserID), err)
 		return MerchantDetailResp{}, errx.New(errx.CodeInternalError, "资料加载失败，请稍后重试")
 	}
+	var contact *MerchantContactInfo
 	if canExposeContact {
-		contact.Phone = detail.ContactPhone
-		contact.Wechat = detail.ContactWechat
+		// 联系方式只服务于商家本人编辑资料，公开商家主页不会返回联系人、脱敏电话或微信。
+		contact = &MerchantContactInfo{
+			Name:         detail.ContactName,
+			Phone:        detail.ContactPhone,
+			Wechat:       detail.ContactWechat,
+			PhoneMasked:  detail.PhoneMasked,
+			WechatMasked: detail.WechatMasked,
+		}
 	}
 	return MerchantDetailResp{
 		ID:                 detail.ID,

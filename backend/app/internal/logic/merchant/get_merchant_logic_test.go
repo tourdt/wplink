@@ -91,12 +91,8 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	if decoded["profileStatus"] != "completed" {
 		t.Fatalf("profileStatus = %#v, want completed", decoded["profileStatus"])
 	}
-	contact := decoded["contact"].(map[string]interface{})
-	if _, ok := contact["phone"]; ok {
-		t.Fatalf("contact = %#v, public merchant detail should not expose raw phone", contact)
-	}
-	if _, ok := contact["wechat"]; ok {
-		t.Fatalf("contact = %#v, public merchant detail should not expose raw wechat", contact)
+	if contact, ok := decoded["contact"]; ok {
+		t.Fatalf("contact = %#v, public merchant detail should not expose any merchant contact field", contact)
 	}
 }
 

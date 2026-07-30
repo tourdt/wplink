@@ -38,7 +38,7 @@ type MerchantDetailResp {
 	VipStatus          string                   `json:"vipStatus"`
 	VerificationInfo   MerchantVerificationInfo `json:"verificationInfo,optional"`
 	CreditTags         []CreditTagInfo          `json:"creditTags"`
-	Contact            MerchantContactInfo      `json:"contact"`
+	Contact            *MerchantContactInfo     `json:"contact,optional"`
 	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`
 	HeatScore          int64                    `json:"heatScore"`
 	AddressText        string                   `json:"addressText,optional"`

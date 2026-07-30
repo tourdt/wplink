@@ -68,7 +68,7 @@
     <view class="section trust-note-section">
       <text class="section-title">温馨提醒</text>
       <text class="section-content">联系前请确认实物、价格和交期。</text>
-      <text class="section-tip">电话和微信见供应详情。</text>
+      <text class="section-tip">联系方式仅随有效供需信息展示。</text>
     </view>
 
     <view class="section resource-list-section">
