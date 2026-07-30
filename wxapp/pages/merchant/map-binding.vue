@@ -8,7 +8,7 @@
       <text class="status-badge">{{ statusText }}</text>
     </view>
 
-    <view class="search-panel">
+    <view v-if="!boundObject" class="search-panel">
       <view class="field-row">
         <text class="field-label">地图场景</text>
         <picker :range="sceneOptions" range-key="name" @change="changeScene">
@@ -24,7 +24,7 @@
       </view>
     </view>
 
-    <view class="candidate-list">
+    <view v-if="!boundObject" class="candidate-list">
       <view
         v-for="item in candidates"
         :key="item.objectId"
@@ -43,26 +43,17 @@
       </view>
     </view>
 
-    <view class="submit-panel">
+    <view v-if="!boundObject" class="submit-panel">
       <view class="field-row">
-        <text class="field-label">说明</text>
-        <textarea v-model="note" class="textarea" placeholder="例如：我是 A001 档口负责人，门头名为 XX 童装。" />
-      </view>
-      <view class="field-row">
-        <view class="image-title-row">
-          <text class="field-label">证明图片 URL</text>
-          <button class="link-button" @click="addEvidenceImage">添加</button>
-        </view>
-        <view v-for="(url, index) in evidenceImages" :key="index" class="evidence-row">
-          <input v-model="evidenceImages[index]" class="field" placeholder="门头或档口照片 URL" />
-          <button class="remove-button" @click="removeEvidenceImage(index)">删除</button>
-        </view>
+        <text class="field-label">档口说明（选填）</text>
+        <textarea v-model="note" class="textarea" placeholder="例如：A001 档口，门头名为 XX 童装。" />
+        <text class="candidate-desc">每个商家暂时只能绑定一个主档口，绑定后可通过位置纠错处理变更。</text>
       </view>
     </view>
 
-    <view class="fixed-submit-spacer" />
-    <view class="fixed-submit-bar">
-      <button class="primary-button" :disabled="submitting || !selectedObjectId" @click="submitBindingRequest">提交绑定申请</button>
+    <view v-if="!boundObject" class="fixed-submit-spacer" />
+    <view v-if="!boundObject" class="fixed-submit-bar">
+      <button class="primary-button" :disabled="submitting || !selectedObjectId" @click="submitBindingRequest">确认绑定</button>
     </view>
   </view>
 </template>
@@ -82,7 +73,6 @@ const keyword = ref('')
 const candidates = ref([])
 const selectedObjectId = ref('')
 const note = ref('')
-const evidenceImages = ref([''])
 const bindingStatus = ref({})
 const sceneLoading = ref(false)
 const candidateLoading = ref(false)
@@ -97,15 +87,15 @@ const latestRequest = computed(() => bindingStatus.value.latestRequest || {})
 const boundObject = computed(() => bindingStatus.value.boundObject || null)
 const statusText = computed(() => {
   if (boundObject.value) return '已绑定'
-  if (latestRequest.value.status === 'pending') return '审核中'
+  if (latestRequest.value.status === 'pending') return '处理中'
   if (latestRequest.value.status === 'rejected') return '已驳回'
   return '未绑定'
 })
 const statusSummary = computed(() => {
   if (boundObject.value) return `${boundObject.value.sceneName || '拿货地图'} · ${boundObject.value.code || ''} ${boundObject.value.name || ''}`
-  if (latestRequest.value.status === 'pending') return '平台正在核对档口信息，请等待审核结果。'
+  if (latestRequest.value.status === 'pending') return '历史绑定记录正在处理中，请稍后查看结果。'
   if (latestRequest.value.status === 'rejected') return latestRequest.value.reviewNote || '申请未通过，可重新选择档口后提交。'
-  return '请选择你的档口并提交证明，审核通过后会关联到拿货地图。'
+  return '请选择你的主档口，确认后会立即关联到拿货地图。'
 })
 
 onLoad(async (options) => {
@@ -180,15 +170,6 @@ function selectCandidate(item) {
   selectedObjectId.value = item.objectId
 }
 
-function addEvidenceImage() {
-  evidenceImages.value.push('')
-}
-
-function removeEvidenceImage(index) {
-  evidenceImages.value.splice(index, 1)
-  if (evidenceImages.value.length === 0) evidenceImages.value.push('')
-}
-
 async function submitBindingRequest() {
   if (!selectedObjectId.value) {
     uni.showToast({ title: '请选择要绑定的档口', icon: 'none' })
@@ -199,12 +180,12 @@ async function submitBindingRequest() {
     await submitMapBindRequest(merchantId.value, {
       objectId: selectedObjectId.value,
       note: note.value.trim(),
-      evidenceImages: evidenceImages.value.map((item) => item.trim()).filter(Boolean),
+      evidenceImages: [],
     })
-    uni.showToast({ title: '绑定申请已提交', icon: 'none' })
+    uni.showToast({ title: '档口已绑定', icon: 'none' })
     await loadBindingStatus()
   } catch (err) {
-    uni.showToast({ title: err.message || '绑定申请提交失败', icon: 'none' })
+    uni.showToast({ title: err.message || '档口绑定失败', icon: 'none' })
   } finally {
     submitting.value = false
   }

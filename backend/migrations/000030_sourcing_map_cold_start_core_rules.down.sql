@@ -1,3 +1,5 @@
+DROP INDEX IF EXISTS uniq_map_object_merchant;
+
 UPDATE resource_type_configs
 SET status = 'active',
     updated_at = now()

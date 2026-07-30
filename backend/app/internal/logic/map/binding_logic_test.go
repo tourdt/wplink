@@ -8,14 +8,14 @@ import (
 	"wplink/backend/common/errx"
 )
 
-func TestBindingLogicCreatesPendingRequest(t *testing.T) {
+func TestBindingLogicCreatesApprovedAutomaticBinding(t *testing.T) {
 	store := &fakeBindingStore{
 		createdRequest: model.MapBindRequest{
 			ID:         "request-1",
 			MerchantID: "merchant-1",
 			ObjectID:   "object-1",
 			SceneCode:  "scene-1",
-			Status:     model.MapBindRequestStatusPending,
+			Status:     model.MapBindRequestStatusApproved,
 		},
 	}
 	logic := NewBindingLogic(store)
@@ -36,20 +36,36 @@ func TestBindingLogicCreatesPendingRequest(t *testing.T) {
 	if len(store.createInput.EvidenceImages) != 1 || store.createInput.EvidenceImages[0] != "https://img.example.com/booth.jpg" {
 		t.Fatalf("evidence images = %#v, want trimmed image", store.createInput.EvidenceImages)
 	}
-	if resp.Item.Status != model.MapBindRequestStatusPending {
-		t.Fatalf("resp = %#v, want pending request", resp)
+	if resp.Item.Status != model.MapBindRequestStatusApproved {
+		t.Fatalf("resp = %#v, want approved automatic binding", resp)
 	}
 }
 
-func TestBindingLogicRejectsDuplicatePendingRequest(t *testing.T) {
+func TestBindingLogicRejectsMerchantWithAnotherMainBooth(t *testing.T) {
 	store := &fakeBindingStore{
-		createErr: model.ErrMapBindRequestPending,
+		createErr: model.ErrMapMerchantAlreadyBound,
 	}
 	logic := NewBindingLogic(store)
 
 	_, err := logic.SubmitRequest(context.Background(), "merchant-1", SubmitMapBindRequestReq{ObjectID: "object-1"})
 	if err == nil || errx.CodeOf(err) != errx.CodeStateConflict {
 		t.Fatalf("SubmitRequest() error = %v, want conflict", err)
+	}
+	if errx.PublicMessage(err) != "该商家已绑定主档口，如需更换请先提交位置纠错" {
+		t.Fatalf("message = %q, want merchant main booth conflict", errx.PublicMessage(err))
+	}
+}
+
+func TestBindingLogicRejectsBoothBoundByAnotherMerchant(t *testing.T) {
+	store := &fakeBindingStore{createErr: model.ErrMapObjectAlreadyBound}
+	logic := NewBindingLogic(store)
+
+	_, err := logic.SubmitRequest(context.Background(), "merchant-1", SubmitMapBindRequestReq{ObjectID: "object-1"})
+	if err == nil || errx.CodeOf(err) != errx.CodeStateConflict {
+		t.Fatalf("SubmitRequest() error = %v, want conflict", err)
+	}
+	if errx.PublicMessage(err) != "该档口已绑定其他商家，请选择其他档口或提交位置纠错" {
+		t.Fatalf("message = %q, want occupied booth conflict", errx.PublicMessage(err))
 	}
 }
 

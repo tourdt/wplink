@@ -67,6 +67,15 @@ test('cold-start migration disables recruitment publish types and removes statio
   assert.match(source, /job_seeking/)
 })
 
+test('cold-start migration enforces one main map booth per merchant', () => {
+  const source = fs.readFileSync(path.resolve(migrationsDir, '000030_sourcing_map_cold_start_core_rules.up.sql'), 'utf8')
+
+  assert.match(source, /duplicate_map_merchant_binding/)
+  assert.match(source, /CREATE UNIQUE INDEX IF NOT EXISTS uniq_map_object_merchant/)
+  assert.match(source, /ON map_object\(merchant_id\)/)
+  assert.match(source, /WHERE merchant_id IS NOT NULL/)
+})
+
 test('migrations and demo seed do not point to retired demand pages', () => {
   const retiredSnippets = ['/pages/demand/index', '/pages/my-demands/index', '/pages/demand-success/index']
   const sqlFiles = [

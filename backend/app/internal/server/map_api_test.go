@@ -186,7 +186,7 @@ func TestMapAPIRouterSubmitsMerchantMapBindRequest(t *testing.T) {
 			MerchantID: "merchant-1",
 			ObjectID:   "object-1",
 			SceneCode:  "scene-1",
-			Status:     model.MapBindRequestStatusPending,
+			Status:     model.MapBindRequestStatusApproved,
 		},
 	}
 	router := NewAPIRouter(store)
@@ -201,8 +201,8 @@ func TestMapAPIRouterSubmitsMerchantMapBindRequest(t *testing.T) {
 
 	data := decodeEnvelopeData(t, rec, http.StatusOK)
 	item := data["item"].(map[string]interface{})
-	if item["id"] != "request-1" || item["status"] != model.MapBindRequestStatusPending {
-		t.Fatalf("item = %#v, want pending request", item)
+	if item["id"] != "request-1" || item["status"] != model.MapBindRequestStatusApproved {
+		t.Fatalf("item = %#v, want approved automatic binding", item)
 	}
 	if store.createdBindInput.MerchantID != "merchant-1" || store.createdBindInput.ObjectID != "object-1" {
 		t.Fatalf("created input = %#v, want merchant/object", store.createdBindInput)

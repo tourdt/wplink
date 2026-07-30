@@ -164,16 +164,22 @@ func (l *BindingLogic) SubmitRequest(ctx context.Context, merchantID string, req
 		Note:            strings.TrimSpace(req.Note),
 	})
 	if err != nil {
+		if errors.Is(err, model.ErrMapMerchantAlreadyBound) {
+			return SubmitMapBindRequestResp{}, errx.New(errx.CodeStateConflict, "该商家已绑定主档口，如需更换请先提交位置纠错")
+		}
+		if errors.Is(err, model.ErrMapObjectAlreadyBound) {
+			return SubmitMapBindRequestResp{}, errx.New(errx.CodeStateConflict, "该档口已绑定其他商家，请选择其他档口或提交位置纠错")
+		}
 		if errors.Is(err, model.ErrMapBindRequestPending) {
 			return SubmitMapBindRequestResp{}, errx.New(errx.CodeStateConflict, "该档口已有待审核绑定申请，请勿重复提交")
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			return SubmitMapBindRequestResp{}, errx.New(errx.CodeResourceNotFound, "地图档口不存在或暂不可绑定")
 		}
-		logx.Errorf("提交地图档口绑定申请失败: merchantId=%s objectId=%s err=%+v", merchantID, objectID, err)
-		return SubmitMapBindRequestResp{}, errx.New(errx.CodeInternalError, "绑定申请提交失败，请稍后重试")
+		logx.Errorf("自动绑定地图档口失败: merchantId=%s objectId=%s err=%+v", merchantID, objectID, err)
+		return SubmitMapBindRequestResp{}, errx.New(errx.CodeInternalError, "档口绑定失败，请稍后重试")
 	}
-	logx.Infof("商家提交地图档口绑定申请: merchantId=%s objectId=%s requestId=%s", merchantID, objectID, request.ID)
+	logx.Infof("商家地图档口自动绑定成功: merchantId=%s objectId=%s requestId=%s", merchantID, objectID, request.ID)
 	return SubmitMapBindRequestResp{Item: mapBindRequestItem(request)}, nil
 }
 
@@ -211,6 +217,9 @@ func (l *BindingLogic) ReviewRequest(ctx context.Context, requestID string, req 
 		ReviewerID: strings.TrimSpace(req.ReviewerID),
 	})
 	if err != nil {
+		if errors.Is(err, model.ErrMapMerchantAlreadyBound) {
+			return ReviewMapBindRequestResp{}, errx.New(errx.CodeStateConflict, "该商家已绑定其他主档口，请先处理原绑定")
+		}
 		if errors.Is(err, model.ErrMapObjectAlreadyBound) {
 			return ReviewMapBindRequestResp{}, errx.New(errx.CodeStateConflict, "该档口已绑定其他商家，请先处理原绑定")
 		}

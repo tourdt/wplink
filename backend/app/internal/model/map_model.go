@@ -43,8 +43,9 @@ const (
 )
 
 var (
-	ErrMapBindRequestPending = errors.New("map bind request pending")
-	ErrMapObjectAlreadyBound = errors.New("map object already bound")
+	ErrMapBindRequestPending   = errors.New("map bind request pending")
+	ErrMapObjectAlreadyBound   = errors.New("map object already bound")
+	ErrMapMerchantAlreadyBound = errors.New("map merchant already bound")
 )
 
 type MapScene struct {
@@ -836,43 +837,64 @@ func (m *MapModel) CreateMapBindRequest(ctx context.Context, input MapBindReques
 	var created MapBindRequest
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
 		var sceneCode string
+		var currentMerchantID string
 		if err := tx.QueryRowContext(ctx, `
-SELECT o.scene_code
+SELECT o.scene_code, COALESCE(o.merchant_id::text, '')
 FROM map_object o
 JOIN map_scene s ON s.code = o.scene_code
 WHERE o.id::text = $1 AND o.status = 'normal' AND o.layer = 'booth' AND s.status = 'published'
 LIMIT 1
-`, strings.TrimSpace(input.ObjectID)).Scan(&sceneCode); err != nil {
+FOR UPDATE
+`, strings.TrimSpace(input.ObjectID)).Scan(&sceneCode, &currentMerchantID); err != nil {
 			return err
+		}
+		merchantID := strings.TrimSpace(input.MerchantID)
+		objectID := strings.TrimSpace(input.ObjectID)
+		if currentMerchantID != "" && currentMerchantID != merchantID {
+			return ErrMapObjectAlreadyBound
 		}
 
-		var hasPending bool
-		if err := tx.QueryRowContext(ctx, `
-SELECT EXISTS (
-  SELECT 1
-  FROM map_object_bind_request
-  WHERE merchant_id::text = $1 AND object_id::text = $2 AND status = 'pending'
-)
-`, strings.TrimSpace(input.MerchantID), strings.TrimSpace(input.ObjectID)).Scan(&hasPending); err != nil {
+		// 冷启动阶段一个商家只维护一个主档口。先做可读的业务校验，唯一索引再兜住并发竞态。
+		var existingObjectID string
+		err := tx.QueryRowContext(ctx, `
+SELECT id::text
+FROM map_object
+WHERE merchant_id::text = $1
+ORDER BY id
+LIMIT 1
+FOR UPDATE
+`, merchantID).Scan(&existingObjectID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
-		if hasPending {
-			return ErrMapBindRequestPending
+		if existingObjectID != "" {
+			return ErrMapMerchantAlreadyBound
+		}
+
+		if _, err := tx.ExecContext(ctx, `
+UPDATE map_object
+SET merchant_id = $1::bigint,
+    updated_at = now()
+WHERE id::text = $2
+`, merchantID, objectID); err != nil {
+			if isUniqueViolation(err) {
+				return ErrMapMerchantAlreadyBound
+			}
+			return err
 		}
 
 		row := tx.QueryRowContext(ctx, `
 INSERT INTO map_object_bind_request (
-  merchant_id, object_id, scene_code, applicant_user_id, evidence_images, note, status, updated_at
+  merchant_id, object_id, scene_code, applicant_user_id, evidence_images, note,
+  status, review_note, reviewed_at, updated_at
 ) VALUES (
-  $1::bigint, $2::bigint, $3, CASE WHEN $4 = '' THEN NULL ELSE $4::bigint END, $5, $6, 'pending', now()
+  $1::bigint, $2::bigint, $3, CASE WHEN $4 = '' THEN NULL ELSE $4::bigint END, $5, $6,
+  'approved', '系统自动绑定', now(), now()
 )
 RETURNING id::text
-`, strings.TrimSpace(input.MerchantID), strings.TrimSpace(input.ObjectID), sceneCode, strings.TrimSpace(input.ApplicantUserID), JSONStringSlice(cleanStringSlice(input.EvidenceImages)), strings.TrimSpace(input.Note))
+`, merchantID, objectID, sceneCode, strings.TrimSpace(input.ApplicantUserID), JSONStringSlice(cleanStringSlice(input.EvidenceImages)), strings.TrimSpace(input.Note))
 		var requestID string
 		if err := row.Scan(&requestID); err != nil {
-			if isUniqueViolation(err) {
-				return ErrMapBindRequestPending
-			}
 			return err
 		}
 		request, err := selectMapBindRequestByID(ctx, tx, requestID)
@@ -962,11 +984,29 @@ FOR UPDATE
 			if currentMerchantID != "" && currentMerchantID != merchantID {
 				return ErrMapObjectAlreadyBound
 			}
+			var existingObjectID string
+			err := tx.QueryRowContext(ctx, `
+SELECT id::text
+FROM map_object
+WHERE merchant_id::text = $1 AND id::text <> $2
+ORDER BY id
+LIMIT 1
+FOR UPDATE
+`, merchantID, objectID).Scan(&existingObjectID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			if existingObjectID != "" {
+				return ErrMapMerchantAlreadyBound
+			}
 			if _, err := tx.ExecContext(ctx, `
 UPDATE map_object
 SET merchant_id = $1::bigint, updated_at = now()
 WHERE id::text = $2
 `, merchantID, objectID); err != nil {
+				if isUniqueViolation(err) {
+					return ErrMapMerchantAlreadyBound
+				}
 				return err
 			}
 		}

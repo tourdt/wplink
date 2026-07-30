@@ -27,3 +27,25 @@ SET config = jsonb_set(
     ),
     updated_at = now()
 WHERE code = 'zhili';
+
+-- 唯一索引创建前显式拦截历史重复数据，避免迁移过程静默选择或解绑任一档口。
+DO $$
+DECLARE
+  duplicate_map_merchant_binding bigint;
+BEGIN
+  SELECT merchant_id
+  INTO duplicate_map_merchant_binding
+  FROM map_object
+  WHERE merchant_id IS NOT NULL
+  GROUP BY merchant_id
+  HAVING COUNT(*) > 1
+  LIMIT 1;
+
+  IF duplicate_map_merchant_binding IS NOT NULL THEN
+    RAISE EXCEPTION 'duplicate_map_merchant_binding: merchant_id=%', duplicate_map_merchant_binding;
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_map_object_merchant
+  ON map_object(merchant_id)
+  WHERE merchant_id IS NOT NULL;
