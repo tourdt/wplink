@@ -113,6 +113,43 @@ func TestListHomeResourcesReturnsFriendlyError(t *testing.T) {
 	}
 }
 
+func TestListHomeRecentMerchantsUsesFixedHomepageLimit(t *testing.T) {
+	store := &fakeDiscoveryStore{
+		recentMerchants: []model.HomeRecentMerchant{{
+			ID:             "merchant-1",
+			Name:           "小鹿童装",
+			MerchantType:   "stall",
+			MainCategories: []string{"女童", "连衣裙"},
+			LogoURL:        "https://img.example.com/merchant-1.jpg",
+			AddressText:    "织里童装城 A 区 101",
+			OnboardedAt:    "2026-07-31T10:00:00Z",
+		}},
+	}
+	logic := NewBannerTopicDiscoveryLogic(store)
+
+	resp, err := logic.ListHomeRecentMerchants(context.Background(), ListHomeRecentMerchantsReq{CityCode: " zhili "})
+	if err != nil {
+		t.Fatalf("ListHomeRecentMerchants() error = %v", err)
+	}
+
+	if store.recentMerchantCityCode != "zhili" || store.recentMerchantLimit != 6 {
+		t.Fatalf("recent merchant query = city %q limit %d, want zhili/6", store.recentMerchantCityCode, store.recentMerchantLimit)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].ID != "merchant-1" || resp.Items[0].OnboardedAt != "2026-07-31T10:00:00Z" {
+		t.Fatalf("items = %#v, want mapped public merchant", resp.Items)
+	}
+}
+
+func TestListHomeRecentMerchantsReturnsFriendlyError(t *testing.T) {
+	store := &fakeDiscoveryStore{recentMerchantErr: errors.New("db timeout")}
+	logic := NewBannerTopicDiscoveryLogic(store)
+
+	_, err := logic.ListHomeRecentMerchants(context.Background(), ListHomeRecentMerchantsReq{CityCode: "zhili"})
+	if err == nil || errx.CodeOf(err) != errx.CodeInternalError || errx.PublicMessage(err) != "新入驻商家加载失败，请稍后重试" {
+		t.Fatalf("ListHomeRecentMerchants() error = %v, want friendly internal error", err)
+	}
+}
+
 func TestGetTopicResourcesDoesNotReturnDemandEntryWhenEmpty(t *testing.T) {
 	store := &fakeDiscoveryStore{
 		topic: model.BannerTopicConfig{ID: "topic-1", Kind: "topic", Title: "夏季童装", TypeScope: []string{"inventory"}},
@@ -173,6 +210,11 @@ type fakeDiscoveryStore struct {
 	topic             model.BannerTopicConfig
 	resources         model.ListResourcesResult
 	resourceErr       error
+	recentMerchants   []model.HomeRecentMerchant
+	recentMerchantErr error
+
+	recentMerchantCityCode string
+	recentMerchantLimit    int64
 }
 
 func (s *fakeDiscoveryStore) ListActiveHomeOperationConfigs(ctx context.Context, cityCode string) ([]model.BannerTopicConfig, error) {
@@ -193,4 +235,13 @@ func (s *fakeDiscoveryStore) ListResources(ctx context.Context, filter model.Lis
 		return model.ListResourcesResult{}, s.resourceErr
 	}
 	return s.resources, nil
+}
+
+func (s *fakeDiscoveryStore) ListHomeRecentMerchants(ctx context.Context, cityCode string, limit int64) ([]model.HomeRecentMerchant, error) {
+	s.recentMerchantCityCode = cityCode
+	s.recentMerchantLimit = limit
+	if s.recentMerchantErr != nil {
+		return nil, s.recentMerchantErr
+	}
+	return append([]model.HomeRecentMerchant(nil), s.recentMerchants...), nil
 }

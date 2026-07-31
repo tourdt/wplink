@@ -63,6 +63,24 @@ type HomeResourcesResp {
 	Total    int64              `json:"total"`
 }
 
+type HomeRecentMerchantsReq {
+	CityCode string `form:"cityCode,optional"`
+}
+
+type HomeRecentMerchantItem {
+	Id             string   `json:"id"`
+	Name           string   `json:"name"`
+	MerchantType   string   `json:"merchantType"`
+	MainCategories []string `json:"mainCategories"`
+	LogoUrl        string   `json:"logoUrl,optional"`
+	AddressText    string   `json:"addressText,optional"`
+	OnboardedAt    string   `json:"onboardedAt"`
+}
+
+type HomeRecentMerchantsResp {
+	Items []HomeRecentMerchantItem `json:"items"`
+}
+
 type HotSearchKeywordsReq {
 	CityCode string `form:"cityCode,optional"`
 }
@@ -129,6 +147,9 @@ service wplink-api {
 
 	@handler ListHomeResources
 	get /home/resources (HomeResourcesReq) returns (HomeResourcesResp)
+
+	@handler ListHomeRecentMerchants
+	get /home/recent-merchants (HomeRecentMerchantsReq) returns (HomeRecentMerchantsResp)
 
 	@handler ListHotSearchKeywords
 	get /search/hot-keywords (HotSearchKeywordsReq) returns (HotSearchKeywordsResp)

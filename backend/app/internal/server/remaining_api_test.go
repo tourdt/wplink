@@ -689,6 +689,7 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "update merchant", method: http.MethodPost, path: "/api/v1/merchants/merchant-1", body: `{"name":"  织里晨星童装  ","mainCategories":["童装"],"merchantType":"service_provider","description":"更新简介","logoUrl":"https://example.com/logo.png","images":["https://example.com/a.jpg"],"addressText":"织里镇利济路88号","location":{"latitude":30.1,"longitude":120.2,"name":"织里童装城","address":"织里镇利济路88号"}}`},
 		{name: "home operation config", method: http.MethodGet, path: "/api/v1/home/operation-config?cityCode=zhili"},
 		{name: "home resources", method: http.MethodGet, path: "/api/v1/home/resources?cityCode=zhili"},
+		{name: "home recent merchants", method: http.MethodGet, path: "/api/v1/home/recent-merchants?cityCode=zhili"},
 		{name: "hot search keywords", method: http.MethodGet, path: "/api/v1/search/hot-keywords?cityCode=zhili"},
 		{name: "topic resources", method: http.MethodGet, path: "/api/v1/topics/topic-1/resources?cityCode=zhili"},
 		{name: "validate webview", method: http.MethodPost, path: "/api/v1/webview/validate", body: `{"url":"https://www.wplink.cn/activity"}`},
@@ -843,6 +844,17 @@ func (s *fakeFullAPIStore) ListActiveHomeOperationConfigs(ctx context.Context, c
 		{ID: "banner-1", CityCode: cityCode, Kind: "banner", Title: "现货活动", JumpType: "internal", JumpTarget: "/pages/search/index", Status: "active", UpdatedAt: "2026-06-28T10:00:00Z"},
 		{ID: "recommend-card-1", CityCode: cityCode, Kind: "home_recommend_card", Title: "本周空档工厂", JumpType: "search", JumpTarget: "小单快返", Tags: []string{"平台推荐"}, Status: "active", UpdatedAt: "2026-06-28T10:00:00Z"},
 	}, nil
+}
+
+func (s *fakeFullAPIStore) ListHomeRecentMerchants(ctx context.Context, cityCode string, limit int64) ([]model.HomeRecentMerchant, error) {
+	return []model.HomeRecentMerchant{{
+		ID:             "merchant-1",
+		Name:           "小鹿童装",
+		MerchantType:   "stall",
+		MainCategories: []string{"女童"},
+		AddressText:    "织里童装城 A 区 101",
+		OnboardedAt:    "2026-07-31T10:00:00Z",
+	}}, nil
 }
 
 func (s *fakeFullAPIStore) GetActiveTopic(ctx context.Context, topicID string, cityCode string) (model.BannerTopicConfig, error) {

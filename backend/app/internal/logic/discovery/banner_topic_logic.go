@@ -13,12 +13,16 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
-const homeResourcesLimit int64 = 30
+const (
+	homeResourcesLimit       int64 = 30
+	homeRecentMerchantsLimit int64 = 6
+)
 
 type BannerTopicDiscoveryStore interface {
 	ListActiveHomeOperationConfigs(ctx context.Context, cityCode string) ([]model.BannerTopicConfig, error)
 	GetActiveTopic(ctx context.Context, topicID string, cityCode string) (model.BannerTopicConfig, error)
 	ListResources(ctx context.Context, filter model.ListResourcesFilter) (model.ListResourcesResult, error)
+	ListHomeRecentMerchants(ctx context.Context, cityCode string, limit int64) ([]model.HomeRecentMerchant, error)
 }
 
 type GetHomeOperationConfigReq struct {
@@ -26,6 +30,10 @@ type GetHomeOperationConfigReq struct {
 }
 
 type ListHomeResourcesReq struct {
+	CityCode string
+}
+
+type ListHomeRecentMerchantsReq struct {
 	CityCode string
 }
 
@@ -93,6 +101,20 @@ type ListHomeResourcesResp struct {
 	Page     int64              `json:"page"`
 	PageSize int64              `json:"pageSize"`
 	Total    int64              `json:"total"`
+}
+
+type HomeRecentMerchantItem struct {
+	ID             string   `json:"id"`
+	Name           string   `json:"name"`
+	MerchantType   string   `json:"merchantType"`
+	MainCategories []string `json:"mainCategories"`
+	LogoURL        string   `json:"logoUrl,omitempty"`
+	AddressText    string   `json:"addressText,omitempty"`
+	OnboardedAt    string   `json:"onboardedAt"`
+}
+
+type ListHomeRecentMerchantsResp struct {
+	Items []HomeRecentMerchantItem `json:"items"`
 }
 
 type TopicInfo struct {
@@ -231,6 +253,30 @@ func (l *BannerTopicDiscoveryLogic) ListHomeResources(ctx context.Context, req L
 		})
 	}
 	return ListHomeResourcesResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil
+}
+
+func (l *BannerTopicDiscoveryLogic) ListHomeRecentMerchants(ctx context.Context, req ListHomeRecentMerchantsReq) (ListHomeRecentMerchantsResp, error) {
+	cityCode := strings.TrimSpace(req.CityCode)
+	// 首页曝光位固定最多 6 家，避免客户端扩大数量后稀释单个新商家的曝光价值。
+	merchants, err := l.store.ListHomeRecentMerchants(ctx, cityCode, homeRecentMerchantsLimit)
+	if err != nil {
+		logx.Errorf("加载首页新入驻商家失败: cityCode=%s limit=%d err=%+v", cityCode, homeRecentMerchantsLimit, err)
+		return ListHomeRecentMerchantsResp{}, errx.New(errx.CodeInternalError, "新入驻商家加载失败，请稍后重试")
+	}
+
+	items := make([]HomeRecentMerchantItem, 0, len(merchants))
+	for _, merchant := range merchants {
+		items = append(items, HomeRecentMerchantItem{
+			ID:             merchant.ID,
+			Name:           merchant.Name,
+			MerchantType:   merchant.MerchantType,
+			MainCategories: append([]string(nil), merchant.MainCategories...),
+			LogoURL:        merchant.LogoURL,
+			AddressText:    merchant.AddressText,
+			OnboardedAt:    merchant.OnboardedAt,
+		})
+	}
+	return ListHomeRecentMerchantsResp{Items: items}, nil
 }
 
 func (l *BannerTopicDiscoveryLogic) GetTopicResources(ctx context.Context, req TopicResourcesReq) (TopicResourcesResp, error) {

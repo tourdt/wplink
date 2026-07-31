@@ -150,6 +150,29 @@ test('api contract exposes list cover image through public resource APIs', () =>
   assert(discoveryApiSource.includes('type TopicResourceItem'), 'topic resource item keeps a cover image')
 })
 
+test('discovery api exposes public recent merchants without contact fields', () => {
+  const discoveryApiSource = fs.readFileSync(path.join(apiDir, 'discovery.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
+
+  for (const snippet of [
+    'type HomeRecentMerchantItem',
+    'type HomeRecentMerchantsResp',
+    'OnboardedAt',
+    'onboardedAt',
+  ]) {
+    assert(discoveryApiSource.includes(snippet), `discovery.api should contain ${snippet}`)
+    assert(typesSource.includes(snippet), `types.go should contain generated ${snippet}`)
+  }
+  assert(
+    discoveryApiSource.includes('get /home/recent-merchants (HomeRecentMerchantsReq) returns (HomeRecentMerchantsResp)'),
+    'discovery.api should expose the recent merchant route',
+  )
+  const itemContract = discoveryApiSource.match(/type HomeRecentMerchantItem \{([\s\S]*?)\n\}/)?.[1] || ''
+  for (const sensitiveField of ['Phone', 'Wechat', 'Contact']) {
+    assert(!itemContract.includes(sensitiveField), `recent merchant item should not expose ${sensitiveField}`)
+  }
+})
+
 test('api contract exposes vip membership endpoints', () => {
   const appApiSource = fs.readFileSync(path.join(apiDir, 'app.api'), 'utf8')
   const vipApiSource = fs.readFileSync(path.join(apiDir, 'vip.api'), 'utf8')

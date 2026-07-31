@@ -317,6 +317,12 @@ func registerDiscoveryRoutes(mux *http.ServeMux, store DiscoveryAPIStore) {
 		resp, err := discoverylogic.NewBannerTopicDiscoveryLogic(store).ListHomeResources(r.Context(), discoverylogic.ListHomeResourcesReq{CityCode: r.URL.Query().Get("cityCode")})
 		response.JSON(w, resp, err)
 	})
+	mux.HandleFunc("GET /api/v1/home/recent-merchants", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := discoverylogic.NewBannerTopicDiscoveryLogic(store).ListHomeRecentMerchants(r.Context(), discoverylogic.ListHomeRecentMerchantsReq{
+			CityCode: r.URL.Query().Get("cityCode"),
+		})
+		response.JSON(w, resp, err)
+	})
 	mux.HandleFunc("GET /api/v1/search/hot-keywords", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := discoverylogic.NewHotSearchKeywordDiscoveryLogic(store).ListHotSearchKeywords(r.Context(), discoverylogic.ListHotSearchKeywordsReq{CityCode: r.URL.Query().Get("cityCode")})
 		response.JSON(w, resp, err)

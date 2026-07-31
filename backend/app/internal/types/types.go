@@ -998,6 +998,24 @@ type HomeOperationConfigResp struct {
 	RecommendCards []HomeRecommendCardItem `json:"recommendCards"`
 }
 
+type HomeRecentMerchantItem struct {
+	Id             string   `json:"id"`
+	Name           string   `json:"name"`
+	MerchantType   string   `json:"merchantType"`
+	MainCategories []string `json:"mainCategories"`
+	LogoUrl        string   `json:"logoUrl,optional"`
+	AddressText    string   `json:"addressText,optional"`
+	OnboardedAt    string   `json:"onboardedAt"`
+}
+
+type HomeRecentMerchantsReq struct {
+	CityCode string `form:"cityCode,optional"`
+}
+
+type HomeRecentMerchantsResp struct {
+	Items []HomeRecentMerchantItem `json:"items"`
+}
+
 type HomeRecommendCardItem struct {
 	Id         string `json:"id"`
 	Tag        string `json:"tag,optional"`
