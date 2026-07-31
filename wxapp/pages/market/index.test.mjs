@@ -119,7 +119,7 @@ test('market page uses the custom title bar as the primary category channel swit
   assert.match(source, /getMenuButtonBoundingClientRect/)
 })
 
-test('market page shows all secondary categories and scrolls selected category into view', () => {
+test('market page expands secondary categories inline from a compact arrow control', () => {
   for (const token of [
     'class="channel-title-button"',
     'showGroupDrawer',
@@ -135,31 +135,48 @@ test('market page shows all secondary categories and scrolls selected category i
     'scroll-with-animation',
     'enhanced',
     ':show-scrollbar="false"',
-    'showTypeDrawer',
-    'openTypeDrawer',
-    'closeTypeDrawer',
+    'showTypePanel',
+    'openTypePanel',
+    'closeTypePanel',
+    'toggleTypePanel',
     'showAllTypeButton',
-    'type-drawer-mask',
-    'type-drawer-panel',
-    'drawer-type-grid',
+    'type-panel-toggle',
+    'type-panel-arrow',
+    'type-panel',
+    'type-panel-grid',
+    ':aria-expanded="showTypePanel"',
+    "showTypePanel ? '收起全部分类' : '展开全部分类'",
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 
   assert.match(source, /visibleResourceTypes = computed\(\(\) => resourceTypes\.value\)/)
   assert.match(source, /const showAllTypeButton = computed\(\(\) => resourceTypes\.value\.length - 1 > 3\)/)
-  assert.match(source, /<view :class="\['filter-shell', showAllTypeButton \? 'has-all-type-button' : ''\]">/)
-  assert.match(source, /<button[\s\S]*v-if="showAllTypeButton"[\s\S]*class="all-type-button"[\s\S]*全部分类/)
+  assert.match(source, /<view class="resource-page" :style="resourcePageStyle" @click="closeTypePanel">/)
+  assert.match(source, /<view :class="\['filter-shell', showAllTypeButton \? 'has-type-panel-button' : ''\]" @click\.stop>/)
+  assert.match(source, /<button[\s\S]*v-if="showAllTypeButton"[\s\S]*class="type-panel-toggle"[\s\S]*@click\.stop="toggleTypePanel"/)
+  assert.match(source, /<scroll-view[\s\S]*v-if="showTypePanel"[\s\S]*class="type-panel"[\s\S]*scroll-y/)
+  assert.match(source, /v-for="item in resourceTypes"[\s\S]*:class="\['type-panel-button', item\.value === filters\.typeCode \? 'active' : ''\]"/)
   assert.match(source, /v-for="item in visibleResourceTypes"[\s\S]*:id="getTypeButtonId\(item\.value\)"/)
-  assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypeDrawer\.value = false[\s\S]*scrollToSelectedType\(typeCode\)[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
+  assert.match(source, /async function selectType\(typeCode\) \{[\s\S]*showTypePanel\.value = false[\s\S]*scrollToSelectedType\(typeCode\)[\s\S]*await loadRecommendedResources\(\{ reset: true \}\)[\s\S]*\}/)
+  assert.match(source, /async function selectGroup\(groupCode\) \{[\s\S]*showTypePanel\.value = false[\s\S]*applyCurrentGroupTypes\(\)[\s\S]*\}/)
+  assert.doesNotMatch(source, /class="all-type-button"/)
+  assert.doesNotMatch(source, /class="type-drawer-mask"/)
+  assert.doesNotMatch(source, />\s*全部分类\s*</)
   assert.doesNotMatch(source, /:scroll-left="typeScrollLeft"/)
   assert.doesNotMatch(source, /@scroll="handleTypeScroll"/)
   assert.doesNotMatch(source, /const typeScrollLeft = ref\(0\)/)
   assert.doesNotMatch(source, /function handleTypeScroll/)
-  assert.match(cssBlock('.filter-shell'), /grid-template-columns:\s*minmax\(0,\s*1fr\);/)
-  assert.match(cssBlock('.filter-shell.has-all-type-button'), /grid-template-columns:\s*minmax\(0,\s*1fr\) 156rpx;/)
+  assert.match(cssBlock('.filter-shell'), /height:\s*80rpx;/)
+  assert.match(cssBlock('.filter-shell'), /padding:\s*4rpx;/)
+  assert.match(cssBlock('.filter-shell.has-type-panel-button'), /grid-template-columns:\s*minmax\(0,\s*1fr\) 72rpx;/)
   assert.match(cssBlock('.filter-row'), /overflow-x:\s*auto;/)
   assert.match(cssBlock('.filter-row'), /-webkit-overflow-scrolling:\s*touch;/)
+  assert.match(cssBlock('.type-panel-toggle'), /width:\s*72rpx;/)
+  assert.match(cssBlock('.type-panel-toggle'), /height:\s*72rpx;/)
+  assert.match(cssBlock('.type-panel'), /max-height:\s*360rpx;/)
+  assert.match(cssBlock('.type-panel-grid'), /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/)
+  assert.match(cssBlock('.type-panel-button'), /height:\s*72rpx;/)
 })
 
 test('market page opens search with category filters and concise placeholder copy', () => {
