@@ -362,7 +362,7 @@ function openScene(item) {
 }
 
 function openSourcingMap() {
-  uni.navigateTo({ url: '/pages/sourcing-map/index' })
+  uni.switchTab({ url: '/pages/sourcing-map/index' })
 }
 
 function openRecommendCard(item) {
@@ -714,7 +714,7 @@ function bannerTone(jumpType) {
 .section-subtitle {
   display: block;
   margin-top: 7rpx;
-  color: #7b8492;
+  color: $wplink-muted;
   font-size: 22rpx;
 }
 

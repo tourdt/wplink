@@ -59,13 +59,19 @@ const onboardedLabel = computed(() => `${formatListFreshnessDate(props.merchant.
   margin: 0;
   padding: 22rpx;
   overflow: hidden;
-  border: 1rpx solid rgba(23, 32, 51, 0.14);
+  border: 1rpx solid rgba($wplink-primary, 0.14);
   border-radius: 16rpx;
-  background: #ffffff;
-  color: #172033;
+  background: $wplink-card;
+  color: $wplink-primary;
   text-align: left;
   line-height: 1.2;
   box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.05);
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+.recent-merchant-card:active {
+  box-shadow: 0 5rpx 16rpx rgba(15, 23, 42, 0.07);
+  transform: translateY(1rpx);
 }
 
 .recent-merchant-card::before {
@@ -74,7 +80,7 @@ const onboardedLabel = computed(() => `${formatListFreshnessDate(props.merchant.
   right: 0;
   left: 0;
   height: 5rpx;
-  background: linear-gradient(90deg, #172033 0 68%, #c23a00 68% 100%);
+  background: linear-gradient(90deg, $wplink-primary 0 68%, $wplink-warning 68% 100%);
   content: '';
 }
 
@@ -106,8 +112,8 @@ const onboardedLabel = computed(() => `${formatListFreshnessDate(props.merchant.
   display: grid;
   place-items: center;
   background:
-    linear-gradient(145deg, rgba(23, 32, 51, 0.94), rgba(38, 64, 83, 0.9)),
-    #172033;
+    linear-gradient(145deg, rgba($wplink-primary, 0.96), rgba(38, 64, 83, 0.9)),
+    $wplink-primary;
   color: #ffffff;
   font-size: 32rpx;
   font-weight: 800;
@@ -127,14 +133,14 @@ const onboardedLabel = computed(() => `${formatListFreshnessDate(props.merchant.
 }
 
 .merchant-name {
-  color: #172033;
+  color: $wplink-primary;
   font-size: 28rpx;
   font-weight: 800;
 }
 
 .merchant-type {
   margin-top: 8rpx;
-  color: #667085;
+  color: $wplink-muted;
   font-size: 21rpx;
 }
 
@@ -149,7 +155,7 @@ const onboardedLabel = computed(() => `${formatListFreshnessDate(props.merchant.
 .new-badge {
   padding: 5rpx 11rpx;
   border-radius: 5rpx;
-  background: #c23a00;
+  background: $wplink-warning;
   color: #ffffff;
   font-size: 19rpx;
   font-weight: 800;
@@ -157,7 +163,7 @@ const onboardedLabel = computed(() => `${formatListFreshnessDate(props.merchant.
 }
 
 .onboarded-date {
-  color: #7b8492;
+  color: $wplink-muted;
   font-family: "DIN Alternate", Arial, sans-serif;
   font-size: 20rpx;
   font-weight: 700;
@@ -184,12 +190,12 @@ const onboardedLabel = computed(() => `${formatListFreshnessDate(props.merchant.
 }
 
 .category-tag.muted {
-  color: #7b8492;
+  color: $wplink-muted;
 }
 
 .merchant-address {
   margin-top: 16rpx;
-  color: #7b8492;
+  color: $wplink-muted;
   font-size: 20rpx;
   line-height: 1.35;
 }

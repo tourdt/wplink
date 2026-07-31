@@ -32,7 +32,7 @@ test('home displays at most six recent onboarded merchants without blocking othe
   assert.match(source, /v-if="recentMerchants\.length" class="recent-merchant-section"/)
   assert.match(source, /v-for="item in recentMerchants"/)
   assert.match(source, /@open="openMerchant"/)
-  assert.match(source, /openSourcingMap/)
+  assert.match(source, /function openSourcingMap\(\) \{[\s\S]*uni\.switchTab\(\{ url: '\/pages\/sourcing-map\/index' \}\)[\s\S]*\}/)
   assert.match(discoveryApiSource, /url: '\/api\/v1\/home\/recent-merchants'/)
   assert.match(discoveryApiSource, /suppressErrorToast: true/)
 })
