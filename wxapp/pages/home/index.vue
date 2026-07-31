@@ -86,51 +86,58 @@
         </button>
       </view>
 
-      <view v-if="recentMerchants.length" class="recent-merchant-section">
-        <view class="section-head recent-merchant-head">
-          <view>
-            <text class="section-title">新入驻商家</text>
-            <text class="section-subtitle">刚加入衣货通的产业商家</text>
-          </view>
-          <text class="section-link" @click="openSourcingMap()">更多</text>
+      <view v-if="homeFeedReady && homeFeedState.hasAnyContent" class="home-feed-section">
+        <view v-if="homeFeedState.showSwitcher" class="home-feed-tabs">
+          <button
+            :class="['home-feed-tab', { active: activeHomeFeedTab === 'merchants' }]"
+            @click="selectHomeFeedTab('merchants')"
+          >新入驻商家</button>
+          <button
+            :class="['home-feed-tab', { active: activeHomeFeedTab === 'resources' }]"
+            @click="selectHomeFeedTab('resources')"
+          >近期供需</button>
         </view>
-        <view class="recent-merchant-grid">
+
+        <view v-else class="section-head home-feed-single-head">
+          <text class="section-title">{{ homeFeedState.hasMerchants ? '新入驻商家' : '近期供需' }}</text>
+        </view>
+
+        <view v-if="activeHomeFeedTab === 'merchants'" class="recent-merchant-list">
           <HomeRecentMerchantCard
             v-for="item in recentMerchants"
             :key="item.id"
             :merchant="item"
             @open="openMerchant"
           />
+          <button class="home-feed-more" @click="openSourcingMap()">查看更多商家</button>
         </view>
-      </view>
 
-      <view class="section-head">
-        <text class="section-title">近期供需</text>
-        <text class="section-link" @click="openSearch()">更多</text>
-      </view>
+        <view v-else-if="activeHomeFeedTab === 'resources'" class="home-resource-panel">
+          <view class="recommend-card" v-if="displayRecommendCard" @click="openRecommendCard(displayRecommendCard)">
+            <view>
+              <text class="recommend-tag">{{ displayRecommendCard.tag || '热门场景' }}</text>
+              <text class="recommend-title">{{ displayRecommendCard.title }}</text>
+              <text v-if="displayRecommendCard.subtitle" class="recommend-desc">{{ displayRecommendCard.subtitle }}</text>
+            </view>
+            <text class="recommend-action">查看</text>
+          </view>
 
-      <view class="recommend-card" v-if="displayRecommendCard" @click="openRecommendCard(displayRecommendCard)">
-        <view>
-          <text class="recommend-tag">{{ displayRecommendCard.tag || '热门场景' }}</text>
-          <text class="recommend-title">{{ displayRecommendCard.title }}</text>
-          <text v-if="displayRecommendCard.subtitle" class="recommend-desc">{{ displayRecommendCard.subtitle }}</text>
+          <view v-if="homeResources.length" class="home-resource-list">
+            <ResourceExposure
+              v-for="item in homeResources"
+              :key="item.id"
+              :resource-id="item.id"
+              source="home"
+            >
+              <ResourceCard
+                :resource="item"
+                variant="home"
+                @open="openResource"
+              />
+            </ResourceExposure>
+          </view>
+          <button class="home-feed-more" @click="openSearch()">查看更多供需</button>
         </view>
-        <text class="recommend-action">查看</text>
-      </view>
-
-      <view v-if="homeResources.length" class="home-resource-list">
-        <ResourceExposure
-          v-for="item in homeResources"
-          :key="item.id"
-          :resource-id="item.id"
-          source="home"
-        >
-          <ResourceCard
-            :resource="item"
-            variant="home"
-            @open="openResource"
-          />
-        </ResourceExposure>
       </view>
     </view>
   </view>
@@ -145,12 +152,15 @@ import ResourceExposure from '../../components/ResourceExposure.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { listHomeOperationConfig, listHomeRecentMerchants, listHomeResources } from '../../api/discovery'
 import { listResources } from '../../api/resource'
+import { getHomeFeedState } from './homeFeedState'
 
 const banners = ref([])
 const recommendCards = ref([])
 const recentMerchants = ref([])
 const homeResources = ref([])
 const activeBannerIndex = ref(0)
+const activeHomeFeedTab = ref('')
+const homeFeedReady = ref(false)
 const headerMetrics = ref({
   statusBarHeight: 44,
   navBarHeight: 44,
@@ -215,6 +225,11 @@ const displayRecommendCard = computed(() => {
   const item = recommendCards.value.find((card) => card.title)
   return item ? normalizeRecommendCard(item) : null
 })
+const homeFeedState = computed(() => getHomeFeedState({
+  merchantCount: recentMerchants.value.length,
+  resourceCount: homeResources.value.length,
+  hasRecommendCard: Boolean(displayRecommendCard.value),
+}))
 const fixedHeaderStyle = computed(() => `padding-top: ${headerMetrics.value.statusBarHeight}px;`)
 const customTitleBarStyle = computed(() => `height: ${headerMetrics.value.navBarHeight}px;`)
 const homeContentStyle = computed(() => `padding-top: ${headerMetrics.value.headerHeight}px;`)
@@ -257,6 +272,8 @@ function updateHeaderMetrics() {
 
 async function loadHomeData() {
   await Promise.all([loadHomeOperationConfig(), loadHomeRecentMerchants(), loadHomeResources()])
+  activeHomeFeedTab.value = homeFeedState.value.defaultTab
+  homeFeedReady.value = true
 }
 
 async function loadHomeOperationConfig() {
@@ -291,6 +308,12 @@ async function loadHomeRecentMerchants() {
   } catch {
     recentMerchants.value = []
   }
+}
+
+function selectHomeFeedTab(tab) {
+  if (tab === 'merchants' && !homeFeedState.value.hasMerchants) return
+  if (tab === 'resources' && !homeFeedState.value.hasResources) return
+  activeHomeFeedTab.value = tab
 }
 
 async function resolveHomeResourceItems(resp) {
@@ -702,26 +725,71 @@ function bannerTone(jumpType) {
   margin: 0 0 42rpx;
 }
 
-.recent-merchant-section {
+.home-feed-section {
   margin-bottom: 12rpx;
 }
 
-.recent-merchant-head {
-  align-items: flex-end;
+.home-feed-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8rpx;
+  margin: 0 0 20rpx;
+  padding: 6rpx;
+  border: 1rpx solid rgba(148, 163, 184, 0.28);
+  border-radius: 16rpx;
+  background: #e8eeee;
+}
+
+.home-feed-tab {
+  margin: 0;
+  padding: 16rpx 8rpx;
+  border: 0;
+  border-radius: 12rpx;
+  background: transparent;
+  color: $wplink-muted;
+  font-size: 27rpx;
+  font-weight: 700;
+  line-height: 1.3;
+  box-shadow: none;
+}
+
+.home-feed-tab.active {
+  background: #ffffff;
+  color: $wplink-primary;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.08);
+}
+
+.home-feed-tab::after,
+.home-feed-more::after {
+  border: 0;
+}
+
+.home-feed-single-head {
   margin-top: 0;
 }
 
-.section-subtitle {
-  display: block;
-  margin-top: 7rpx;
-  color: $wplink-muted;
-  font-size: 22rpx;
+.recent-merchant-list,
+.home-resource-panel {
+  display: grid;
+  gap: 12rpx;
 }
 
-.recent-merchant-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14rpx;
+.home-resource-panel .home-resource-list {
+  margin-top: 0;
+}
+
+.home-feed-more {
+  width: 100%;
+  margin: 0;
+  padding: 18rpx;
+  border: 0;
+  background: transparent;
+  color: $wplink-primary;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  box-shadow: none;
 }
 
 .quick-action {
