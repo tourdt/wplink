@@ -92,6 +92,21 @@ test('map object report migration stores corrections and risk reports with dedup
   assert.match(source, /CREATE INDEX IF NOT EXISTS idx_map_object_reports_pending/)
 })
 
+test('merchant onboarding migration records first completed profile time for homepage exposure', () => {
+  const upFileName = '000032_merchant_onboarded_at.up.sql'
+  const downFileName = '000032_merchant_onboarded_at.down.sql'
+  assert.equal(fs.existsSync(path.resolve(migrationsDir, upFileName)), true, `${upFileName} should exist`)
+  assert.equal(fs.existsSync(path.resolve(migrationsDir, downFileName)), true, `${downFileName} should exist`)
+
+  const upSource = fs.readFileSync(path.resolve(migrationsDir, upFileName), 'utf8')
+  const downSource = fs.readFileSync(path.resolve(migrationsDir, downFileName), 'utf8')
+  assert.match(upSource, /ADD COLUMN IF NOT EXISTS onboarded_at timestamptz/)
+  assert.match(upSource, /SET onboarded_at = created_at[\s\S]*profile_status = 'completed'[\s\S]*onboarded_at IS NULL/)
+  assert.match(upSource, /CREATE INDEX IF NOT EXISTS idx_merchants_home_recent[\s\S]*onboarded_at DESC[\s\S]*profile_status = 'completed'/)
+  assert.match(downSource, /DROP INDEX IF EXISTS idx_merchants_home_recent/)
+  assert.match(downSource, /DROP COLUMN IF EXISTS onboarded_at/)
+})
+
 test('migrations and demo seed do not point to retired demand pages', () => {
   const retiredSnippets = ['/pages/demand/index', '/pages/my-demands/index', '/pages/demand-success/index']
   const sqlFiles = [

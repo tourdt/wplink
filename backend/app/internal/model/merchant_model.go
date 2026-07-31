@@ -11,6 +11,7 @@ const (
 	MerchantStatusActive            = "active"
 	MerchantProfileStatusIncomplete = "incomplete"
 	MerchantProfileStatusCompleted  = "completed"
+	homeRecentMerchantsMaxLimit     = int64(6)
 )
 
 type CreditTag struct {
@@ -78,6 +79,16 @@ type MerchantListItem struct {
 	VerificationStatus string
 	Status             string
 	LastActiveAt       string
+}
+
+type HomeRecentMerchant struct {
+	ID             string
+	Name           string
+	MerchantType   string
+	MainCategories []string
+	LogoURL        string
+	AddressText    string
+	OnboardedAt    string
 }
 
 type ListMerchantsResult struct {
@@ -255,25 +266,23 @@ FOR UPDATE
 			nextVerificationStatus = "unverified"
 		}
 
-		result, err := tx.ExecContext(ctx, `
-UPDATE merchants
-SET
-  name = COALESCE(NULLIF($2, ''), name),
-  main_categories = $3,
-  merchant_type = $4,
-  verification_status = $5,
-  description = $6,
-  logo_url = $7,
-  images = $8,
-  updated_at = $9,
-  contact_name = COALESCE(NULLIF($10, ''), contact_name),
-  contact_phone = COALESCE(NULLIF($11, ''), contact_phone),
-  contact_wechat = COALESCE(NULLIF($12, ''), contact_wechat),
-  address_text = COALESCE(NULLIF($13, ''), address_text),
-  location = CASE WHEN $14 THEN $15 ELSE location END,
-  profile_status = 'completed'
-WHERE id = $1 AND deleted_at IS NULL
-`, merchantID, patch.Name, JSONStringSlice(patch.MainCategories), nextMerchantType, nextVerificationStatus, patch.Description, patch.LogoURL, JSONStringSlice(patch.Images), updatedAt, patch.ContactName, patch.ContactPhone, patch.ContactWechat, patch.AddressText, patch.LocationSet, patch.Location)
+		result, err := tx.ExecContext(ctx, updateMerchantSQL,
+			merchantID,
+			patch.Name,
+			JSONStringSlice(patch.MainCategories),
+			nextMerchantType,
+			nextVerificationStatus,
+			patch.Description,
+			patch.LogoURL,
+			JSONStringSlice(patch.Images),
+			updatedAt,
+			patch.ContactName,
+			patch.ContactPhone,
+			patch.ContactWechat,
+			patch.AddressText,
+			patch.LocationSet,
+			patch.Location,
+		)
 		if err != nil {
 			return err
 		}
@@ -321,6 +330,87 @@ VALUES ($1, $2, $3, $4, $5, $6)
 		return "", err
 	}
 	return updatedAt.Format(time.RFC3339), nil
+}
+
+const updateMerchantSQL = `
+UPDATE merchants
+SET
+  name = COALESCE(NULLIF($2, ''), name),
+  main_categories = $3,
+  merchant_type = $4,
+  verification_status = $5,
+  description = $6,
+  logo_url = $7,
+  images = $8,
+  updated_at = $9,
+  contact_name = COALESCE(NULLIF($10, ''), contact_name),
+  contact_phone = COALESCE(NULLIF($11, ''), contact_phone),
+  contact_wechat = COALESCE(NULLIF($12, ''), contact_wechat),
+  address_text = COALESCE(NULLIF($13, ''), address_text),
+  location = CASE WHEN $14 THEN $15 ELSE location END,
+  onboarded_at = COALESCE(onboarded_at, $9),
+  profile_status = 'completed'
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+const listHomeRecentMerchantsSQL = `
+SELECT
+  m.id::text,
+  m.name,
+  m.merchant_type,
+  m.main_categories,
+  COALESCE(m.logo_url, ''),
+  COALESCE(m.address_text, ''),
+  m.onboarded_at
+FROM merchants m
+JOIN city_stations cs ON cs.id = m.city_station_id
+WHERE m.status = 'active'
+  AND m.profile_status = 'completed'
+  AND m.deleted_at IS NULL
+  AND m.onboarded_at IS NOT NULL
+  AND cs.code = $1
+  AND EXISTS (
+    SELECT 1
+    FROM merchant_admin_bindings mab
+    WHERE mab.merchant_id = m.id
+      AND mab.status = 'active'
+      AND mab.role = 'owner'
+  )
+ORDER BY m.onboarded_at DESC, m.id DESC
+LIMIT $2
+`
+
+func (m *MerchantModel) ListHomeRecentMerchants(ctx context.Context, cityCode string, limit int64) ([]HomeRecentMerchant, error) {
+	if limit <= 0 || limit > homeRecentMerchantsMaxLimit {
+		limit = homeRecentMerchantsMaxLimit
+	}
+	rows, err := m.db.QueryContext(ctx, listHomeRecentMerchantsSQL, strings.TrimSpace(cityCode), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]HomeRecentMerchant, 0, limit)
+	for rows.Next() {
+		var item HomeRecentMerchant
+		var categories JSONStringSlice
+		var onboardedAt time.Time
+		if err := rows.Scan(
+			&item.ID,
+			&item.Name,
+			&item.MerchantType,
+			&categories,
+			&item.LogoURL,
+			&item.AddressText,
+			&onboardedAt,
+		); err != nil {
+			return nil, err
+		}
+		item.MainCategories = []string(categories)
+		item.OnboardedAt = onboardedAt.Format(time.RFC3339)
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
 
 func (m *MerchantModel) ListMerchants(ctx context.Context, filter ListMerchantsFilter) (ListMerchantsResult, error) {
