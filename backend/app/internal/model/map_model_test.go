@@ -161,3 +161,48 @@ func TestSortNearbyMapObjectsOrdersByDistance(t *testing.T) {
 		t.Fatalf("distanceText = %q, want 30m", items[0].DistanceText)
 	}
 }
+
+func TestBuildMerchantPlaceFilterSQLScopesPublishedBoothsAndDirectoryFilters(t *testing.T) {
+	claimed := true
+	whereSQL, args := buildMerchantPlaceFilterSQL(MerchantPlaceFilter{
+		CityCode:      "zhili",
+		Keyword:       "童装",
+		Categories:    []string{"girl"},
+		MerchantTypes: []string{"factory"},
+		Claimed:       &claimed,
+		Bounds: &GeoBoundsFilter{
+			MinLat: 30.80,
+			MaxLat: 30.90,
+			MinLng: 120.20,
+			MaxLng: 120.30,
+		},
+	})
+
+	for _, token := range []string{
+		"o.status = 'normal'",
+		"o.layer = 'booth'",
+		"s.status = 'published'",
+		"city.code = $1",
+		"o.merchant_id IS NOT NULL",
+		"o.category_codes ?|",
+		"m.merchant_type = ANY",
+		"o.lat >=",
+		"o.lng <=",
+	} {
+		if !strings.Contains(whereSQL, token) {
+			t.Fatalf("whereSQL = %q, want token %q", whereSQL, token)
+		}
+	}
+	if len(args) != 8 {
+		t.Fatalf("args = %#v, want city keyword category type and four bounds", args)
+	}
+}
+
+func TestBuildMerchantPlaceFilterSQLCanSelectPrelistedBooths(t *testing.T) {
+	claimed := false
+	whereSQL, _ := buildMerchantPlaceFilterSQL(MerchantPlaceFilter{Claimed: &claimed})
+
+	if !strings.Contains(whereSQL, "o.merchant_id IS NULL") {
+		t.Fatalf("whereSQL = %q, want prelisted filter", whereSQL)
+	}
+}

@@ -363,7 +363,7 @@ function openResource(item) {
 }
 
 function openInternal(url) {
-  const tabPages = ['/pages/home/index', '/pages/market/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
+  const tabPages = ['/pages/home/index', '/pages/sourcing-map/index', '/pages/market/index', '/pages/publish/index', '/pages/my/index']
   const path = url.split('?')[0]
   if (path === '/pages/market/index' && url.includes('?')) {
     const query = url.split('?')[1] || ''

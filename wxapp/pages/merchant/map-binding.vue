@@ -67,6 +67,7 @@ import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { getMerchantId } from '../../store/session'
 
 const merchantId = ref('')
+const routeObjectId = ref('')
 const scenes = ref([])
 const selectedSceneCode = ref('')
 const keyword = ref('')
@@ -100,6 +101,8 @@ const statusSummary = computed(() => {
 
 onLoad(async (options) => {
   merchantId.value = options.merchantId || getMerchantId()
+  // 从商家目录认领时保留点位 ID，候选数据返回后直接预选，避免商家再次搜索同一档口。
+  routeObjectId.value = String(options.objectId || '').trim()
   if (!(await ensureMerchantProfileReady(merchantId.value))) return
   loadInitialData()
 })
@@ -149,17 +152,27 @@ async function searchCandidates() {
   try {
     const resp = await listMapBindCandidates({
       merchantId: merchantId.value,
-      sceneCode: selectedSceneCode.value,
+      sceneCode: routeObjectId.value ? '' : selectedSceneCode.value,
       keyword: keyword.value.trim(),
+      objectId: routeObjectId.value,
       limit: 30,
     })
     candidates.value = resp.items || []
+    applyRouteObjectSelection()
   } catch (err) {
     candidates.value = []
     uni.showToast({ title: '档口加载失败，请重试', icon: 'none' })
   } finally {
     candidateLoading.value = false
   }
+}
+
+function applyRouteObjectSelection() {
+  if (!routeObjectId.value || selectedObjectId.value) return
+  const candidate = candidates.value.find((item) => item.objectId === routeObjectId.value && !item.isBound)
+  if (!candidate) return
+  selectedObjectId.value = candidate.objectId
+  if (candidate.sceneCode) selectedSceneCode.value = candidate.sceneCode
 }
 
 function selectCandidate(item) {

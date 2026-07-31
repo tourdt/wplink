@@ -24,6 +24,8 @@ type PublicStore interface {
 	GetPublishedObject(ctx context.Context, objectID string) (model.MapObject, error)
 	ListObjectsBySceneAndTypes(ctx context.Context, sceneCode string, types []string) ([]model.MapObject, error)
 	ListCategories(ctx context.Context, filter model.ListMapCategoriesFilter) ([]model.MapCategory, error)
+	ListMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) ([]model.MerchantPlace, error)
+	CountMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) (int64, error)
 }
 
 type PublicLogic struct {
@@ -103,6 +105,52 @@ type SearchObjectsResp struct {
 	Total int64           `json:"total"`
 }
 
+type ListMerchantPlacesReq struct {
+	CityCode      string
+	Keyword       string
+	Categories    string
+	MerchantTypes string
+	Claimed       string
+	Page          int64
+	PageSize      int64
+	MinLat        string
+	MaxLat        string
+	MinLng        string
+	MaxLng        string
+	Lat           string
+	Lng           string
+}
+
+type ListMerchantPlacesResp struct {
+	Items    []MerchantPlaceItem `json:"items"`
+	Total    int64               `json:"total"`
+	Page     int64               `json:"page"`
+	PageSize int64               `json:"pageSize"`
+}
+
+type MerchantPlaceItem struct {
+	ObjectId      string   `json:"objectId"`
+	MerchantId    string   `json:"merchantId,omitempty"`
+	Name          string   `json:"name"`
+	Code          string   `json:"code"`
+	MerchantType  string   `json:"merchantType,omitempty"`
+	CategoryCodes []string `json:"categoryCodes"`
+	ServiceTags   []string `json:"serviceTags"`
+	PlatformTags  []string `json:"platformTags"`
+	CityCode      string   `json:"cityCode,omitempty"`
+	MarketName    string   `json:"marketName,omitempty"`
+	BuildingName  string   `json:"buildingName,omitempty"`
+	FloorNo       string   `json:"floorNo,omitempty"`
+	Address       string   `json:"address,omitempty"`
+	CoverUrl      string   `json:"coverUrl,omitempty"`
+	Claimed       bool     `json:"claimed"`
+	SourceType    string   `json:"sourceType"`
+	Lat           string   `json:"lat,omitempty"`
+	Lng           string   `json:"lng,omitempty"`
+	DistanceText  string   `json:"distanceText,omitempty"`
+	RiskWarning   bool     `json:"riskWarning,omitempty"`
+}
+
 type MapObjectItem struct {
 	Id                 string                 `json:"id"`
 	SceneCode          string                 `json:"sceneCode"`
@@ -177,6 +225,115 @@ func (l *PublicLogic) ListScenes(ctx context.Context, req ListScenesReq) (ListSc
 		return ListScenesResp{}, errx.New(errx.CodeInternalError, "地图场景加载失败，请稍后重试")
 	}
 	return ListScenesResp{Items: mapSceneItems(scenes)}, nil
+}
+
+func (l *PublicLogic) ListMerchantPlaces(ctx context.Context, req ListMerchantPlacesReq) (ListMerchantPlacesResp, error) {
+	page := req.Page
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := req.PageSize
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		return ListMerchantPlacesResp{}, errx.New(errx.CodeValidationFailed, "每页商家数量不能超过 100 条")
+	}
+	claimed, err := parseMerchantPlaceClaimed(req.Claimed)
+	if err != nil {
+		return ListMerchantPlacesResp{}, err
+	}
+	bounds, err := parseGeoBoundsFilter(req.MinLat, req.MaxLat, req.MinLng, req.MaxLng)
+	if err != nil {
+		return ListMerchantPlacesResp{}, err
+	}
+	filter := model.MerchantPlaceFilter{
+		CityCode:      strings.TrimSpace(req.CityCode),
+		Keyword:       strings.TrimSpace(req.Keyword),
+		Categories:    splitCSV(req.Categories),
+		MerchantTypes: splitCSV(req.MerchantTypes),
+		Claimed:       claimed,
+		Bounds:        bounds,
+		Page:          page,
+		PageSize:      pageSize,
+	}
+	places, err := l.store.ListMerchantPlaces(ctx, filter)
+	if err != nil {
+		logx.Errorf("查询商家目录失败: cityCode=%s keyword=%s page=%d pageSize=%d err=%+v", filter.CityCode, filter.Keyword, page, pageSize, err)
+		return ListMerchantPlacesResp{}, errx.New(errx.CodeInternalError, "商家列表加载失败，请稍后重试")
+	}
+	total, err := l.store.CountMerchantPlaces(ctx, filter)
+	if err != nil {
+		logx.Errorf("统计商家目录失败: cityCode=%s keyword=%s err=%+v", filter.CityCode, filter.Keyword, err)
+		return ListMerchantPlacesResp{}, errx.New(errx.CodeInternalError, "商家数量加载失败，请稍后重试")
+	}
+	return ListMerchantPlacesResp{
+		Items:    mapMerchantPlaceItems(places),
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
+}
+
+func parseMerchantPlaceClaimed(value string) (*bool, error) {
+	switch strings.TrimSpace(value) {
+	case "", "all":
+		return nil, nil
+	case "claimed":
+		value := true
+		return &value, nil
+	case "prelisted":
+		value := false
+		return &value, nil
+	default:
+		return nil, errx.New(errx.CodeValidationFailed, "商家状态筛选不正确，请重新选择")
+	}
+}
+
+func parseGeoBoundsFilter(minLatText, maxLatText, minLngText, maxLngText string) (*model.GeoBoundsFilter, error) {
+	values := []string{minLatText, maxLatText, minLngText, maxLngText}
+	hasValue := false
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			hasValue = true
+			break
+		}
+	}
+	if !hasValue {
+		return nil, nil
+	}
+	minLat, err := parseGeoNumber(minLatText, "最小纬度", -90, 90)
+	if err != nil {
+		return nil, err
+	}
+	maxLat, err := parseGeoNumber(maxLatText, "最大纬度", -90, 90)
+	if err != nil {
+		return nil, err
+	}
+	minLng, err := parseGeoNumber(minLngText, "最小经度", -180, 180)
+	if err != nil {
+		return nil, err
+	}
+	maxLng, err := parseGeoNumber(maxLngText, "最大经度", -180, 180)
+	if err != nil {
+		return nil, err
+	}
+	if minLat > maxLat || minLng > maxLng {
+		return nil, errx.New(errx.CodeValidationFailed, "地图区域范围不正确，请重新搜索")
+	}
+	return &model.GeoBoundsFilter{MinLat: minLat, MaxLat: maxLat, MinLng: minLng, MaxLng: maxLng}, nil
+}
+
+func parseGeoNumber(value, label string, minValue, maxValue float64) (float64, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, errx.New(errx.CodeValidationFailed, "地图区域参数不完整，请重新搜索")
+	}
+	number, err := strconv.ParseFloat(value, 64)
+	if err != nil || math.IsNaN(number) || math.IsInf(number, 0) || number < minValue || number > maxValue {
+		return 0, errx.New(errx.CodeValidationFailed, label+"不正确，请重新搜索")
+	}
+	return number, nil
 }
 
 func (l *PublicLogic) GetScene(ctx context.Context, sceneCode string) (SceneResp, error) {
@@ -429,6 +586,43 @@ func mapPublicObjectItems(objects []model.MapObject) []MapObjectItem {
 	items := make([]MapObjectItem, 0, len(objects))
 	for _, object := range objects {
 		items = append(items, mapPublicObjectItem(object))
+	}
+	return items
+}
+
+func mapMerchantPlaceItems(places []model.MerchantPlace) []MerchantPlaceItem {
+	items := make([]MerchantPlaceItem, 0, len(places))
+	for _, place := range places {
+		object := place.Object
+		claimed := strings.TrimSpace(object.MerchantID) != "" && strings.TrimSpace(object.MerchantName) != ""
+		item := MerchantPlaceItem{
+			ObjectId:      object.ID,
+			Name:          object.Name,
+			Code:          object.Code,
+			CategoryCodes: append([]string(nil), object.CategoryCodes...),
+			ServiceTags:   append([]string(nil), object.ServiceTags...),
+			PlatformTags:  append([]string(nil), object.PlatformTags...),
+			CityCode:      place.CityCode,
+			MarketName:    place.MarketName,
+			BuildingName:  place.SceneName,
+			FloorNo:       place.FloorNo,
+			Address:       object.Address,
+			Claimed:       claimed,
+			SourceType:    model.MerchantPlaceSourcePrelisted,
+			Lat:           object.Lat,
+			Lng:           object.Lng,
+		}
+		if claimed {
+			item.MerchantId = strings.TrimSpace(object.MerchantID)
+			item.Name = strings.TrimSpace(object.MerchantName)
+			item.MerchantType = strings.TrimSpace(object.MerchantType)
+			item.CoverUrl = strings.TrimSpace(object.MerchantLogoURL)
+			if len(object.MerchantMainCategories) > 0 {
+				item.CategoryCodes = append([]string(nil), object.MerchantMainCategories...)
+			}
+			item.SourceType = model.MerchantPlaceSourceClaimed
+		}
+		items = append(items, item)
 	}
 	return items
 }

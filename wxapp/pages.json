@@ -24,7 +24,8 @@
     {
       "path": "pages/sourcing-map/index",
       "style": {
-        "navigationBarTitleText": "拿货地图"
+        "navigationBarTitleText": "拿货地图",
+        "enablePullDownRefresh": true
       }
     },
     {
@@ -160,10 +161,10 @@
         "selectedIconPath": "static/tabbar/home-active.png"
       },
       {
-        "pagePath": "pages/market/index",
-        "text": "供需",
-        "iconPath": "static/tabbar/search.png",
-        "selectedIconPath": "static/tabbar/search-active.png"
+        "pagePath": "pages/sourcing-map/index",
+        "text": "拿货地图",
+        "iconPath": "static/tabbar/map.png",
+        "selectedIconPath": "static/tabbar/map-active.png"
       },
       {
         "pagePath": "pages/publish/index",
@@ -172,10 +173,10 @@
         "selectedIconPath": "static/tabbar/publish-active.png"
       },
       {
-        "pagePath": "pages/messages/index",
-        "text": "消息",
-        "iconPath": "static/tabbar/messages.png",
-        "selectedIconPath": "static/tabbar/messages-active.png"
+        "pagePath": "pages/market/index",
+        "text": "供需",
+        "iconPath": "static/tabbar/search.png",
+        "selectedIconPath": "static/tabbar/search-active.png"
       },
       {
         "pagePath": "pages/my/index",

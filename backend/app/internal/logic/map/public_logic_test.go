@@ -2,6 +2,8 @@ package maplogic
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -24,6 +26,66 @@ func TestPublicMapLogicListsPublishedScenes(t *testing.T) {
 	}
 	if len(resp.Items) != 1 || resp.Items[0].Code != "zhili_lijilu_middle" {
 		t.Fatalf("items = %#v, want scene", resp.Items)
+	}
+}
+
+func TestPublicMapLogicListsClaimedAndPrelistedMerchantPlacesWithoutContact(t *testing.T) {
+	store := &fakePublicMapStore{
+		merchantPlaces: []model.MerchantPlace{
+			{
+				Object: model.MapObject{
+					ID: "object-1", MerchantID: "merchant-1", MerchantName: "小鹿童装",
+					MerchantType: "factory", MerchantLogoURL: "https://img.example.com/logo.png",
+					Code: "A001", Name: "后台档口", Address: "利济路 A001",
+					Phone: "18800000001", Wechat: "xiaolu", Lat: "30.9000000", Lng: "120.2000000",
+				},
+				CityCode: "zhili", SceneName: "利济路市场", FloorNo: "1F",
+			},
+			{
+				Object:   model.MapObject{ID: "object-2", Code: "B008", Name: "B008 童装档口", Address: "利济路 B008"},
+				CityCode: "zhili", SceneName: "利济路市场", FloorNo: "2F",
+			},
+		},
+		merchantPlaceTotal: 2,
+	}
+	logic := NewPublicLogic(store)
+
+	resp, err := logic.ListMerchantPlaces(context.Background(), ListMerchantPlacesReq{
+		CityCode: " zhili ", Keyword: " 童装 ", Claimed: "all", Page: 1, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("ListMerchantPlaces() error = %v", err)
+	}
+
+	if store.merchantPlaceFilter.CityCode != "zhili" || store.merchantPlaceFilter.Keyword != "童装" {
+		t.Fatalf("filter = %#v, want trimmed directory filters", store.merchantPlaceFilter)
+	}
+	if len(resp.Items) != 2 || resp.Total != 2 || resp.Page != 1 || resp.PageSize != 20 {
+		t.Fatalf("resp = %#v, want two paged places", resp)
+	}
+	claimed := resp.Items[0]
+	if claimed.SourceType != "merchant_claimed" || !claimed.Claimed || claimed.Name != "小鹿童装" || claimed.MerchantId != "merchant-1" {
+		t.Fatalf("claimed item = %#v, want merchant identity", claimed)
+	}
+	claimedJSON, err := json.Marshal(claimed)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if strings.Contains(string(claimedJSON), "phone") || strings.Contains(string(claimedJSON), "wechat") {
+		t.Fatalf("claimed json = %s, want contact fields absent", claimedJSON)
+	}
+	prelisted := resp.Items[1]
+	if prelisted.SourceType != "platform_prelisted" || prelisted.Claimed || prelisted.Name != "B008 童装档口" {
+		t.Fatalf("prelisted item = %#v, want platform identity", prelisted)
+	}
+}
+
+func TestPublicMapLogicRejectsInvalidMerchantPlaceClaimedFilter(t *testing.T) {
+	logic := NewPublicLogic(&fakePublicMapStore{})
+
+	_, err := logic.ListMerchantPlaces(context.Background(), ListMerchantPlacesReq{Claimed: "unknown"})
+	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed || err.Error() != "商家状态筛选不正确，请重新选择" {
+		t.Fatalf("error = %v code=%s, want claimed validation", err, errx.CodeOf(err))
 	}
 }
 
@@ -329,20 +391,23 @@ func TestPublicMapLogicListsNearbyPois(t *testing.T) {
 }
 
 type fakePublicMapStore struct {
-	sceneFilter     model.ListMapScenesFilter
-	objectFilter    model.ListMapObjectsFilter
-	countFilter     model.ListMapObjectsFilter
-	objectID        string
-	categoryFilter  model.ListMapCategoriesFilter
-	nearbySceneCode string
-	nearbyTypes     []string
-	scenes          []model.MapScene
-	scene           model.MapScene
-	objects         []model.MapObject
-	objectTotal     int64
-	object          model.MapObject
-	nearby          []model.MapObject
-	categories      []model.MapCategory
+	sceneFilter         model.ListMapScenesFilter
+	objectFilter        model.ListMapObjectsFilter
+	countFilter         model.ListMapObjectsFilter
+	objectID            string
+	categoryFilter      model.ListMapCategoriesFilter
+	nearbySceneCode     string
+	nearbyTypes         []string
+	scenes              []model.MapScene
+	scene               model.MapScene
+	objects             []model.MapObject
+	objectTotal         int64
+	object              model.MapObject
+	nearby              []model.MapObject
+	categories          []model.MapCategory
+	merchantPlaceFilter model.MerchantPlaceFilter
+	merchantPlaces      []model.MerchantPlace
+	merchantPlaceTotal  int64
 }
 
 func (s *fakePublicMapStore) ListPublishedScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error) {
@@ -383,4 +448,14 @@ func (s *fakePublicMapStore) ListObjectsBySceneAndTypes(ctx context.Context, sce
 func (s *fakePublicMapStore) ListCategories(ctx context.Context, filter model.ListMapCategoriesFilter) ([]model.MapCategory, error) {
 	s.categoryFilter = filter
 	return append([]model.MapCategory(nil), s.categories...), nil
+}
+
+func (s *fakePublicMapStore) ListMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) ([]model.MerchantPlace, error) {
+	s.merchantPlaceFilter = filter
+	return append([]model.MerchantPlace(nil), s.merchantPlaces...), nil
+}
+
+func (s *fakePublicMapStore) CountMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) (int64, error) {
+	s.merchantPlaceFilter = filter
+	return s.merchantPlaceTotal, nil
 }

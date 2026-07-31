@@ -218,13 +218,13 @@ const jumpTypeOptions = [
 ]
 const internalPageOptions = [
   { label: '首页', value: '/pages/home/index' },
+  { label: '拿货地图', value: '/pages/sourcing-map/index' },
   { label: '搜索页', value: '/pages/search/index' },
   { label: '发布页', value: '/pages/publish/index' },
   { label: '消息页', value: '/pages/messages/index' },
   { label: '我的', value: '/pages/my/index' },
   { label: '我的发布', value: '/pages/my-resources/index' },
   { label: '收藏页', value: '/pages/favorites/index' },
-  { label: '认证页', value: '/pages/verification/index' },
 ]
 
 const filters = reactive({ cityCode: defaultCityCode, kind: 'banner', status: '' })

@@ -24,6 +24,25 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 		})
 		response.JSON(w, resp, err)
 	})
+	mux.HandleFunc("GET /api/v1/map/merchant-places", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		resp, err := publicLogic.ListMerchantPlaces(r.Context(), maplogic.ListMerchantPlacesReq{
+			CityCode:      query.Get("cityCode"),
+			Keyword:       query.Get("keyword"),
+			Categories:    query.Get("categories"),
+			MerchantTypes: query.Get("merchantTypes"),
+			Claimed:       query.Get("claimed"),
+			Page:          int64FromQuery(r, "page"),
+			PageSize:      int64FromQuery(r, "pageSize"),
+			MinLat:        query.Get("minLat"),
+			MaxLat:        query.Get("maxLat"),
+			MinLng:        query.Get("minLng"),
+			MaxLng:        query.Get("maxLng"),
+			Lat:           query.Get("lat"),
+			Lng:           query.Get("lng"),
+		})
+		response.JSON(w, resp, err)
+	})
 	mux.HandleFunc("GET /api/v1/map/scenes/{sceneCode}", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := publicLogic.GetScene(r.Context(), r.PathValue("sceneCode"))
 		response.JSON(w, resp, err)
@@ -93,6 +112,7 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 		}
 		resp, err := bindingLogic.ListCandidates(r.Context(), maplogic.ListMapBindCandidatesReq{
 			MerchantID: merchantID,
+			ObjectID:   query.Get("objectId"),
 			SceneCode:  query.Get("sceneCode"),
 			Keyword:    query.Get("keyword"),
 			Limit:      int64FromQuery(r, "limit"),

@@ -66,6 +66,7 @@ type MapBindingStatusResp struct {
 
 type ListMapBindCandidatesReq struct {
 	MerchantID string
+	ObjectID   string
 	SceneCode  string
 	Keyword    string
 	Limit      int64
@@ -136,12 +137,13 @@ func (l *BindingLogic) ListCandidates(ctx context.Context, req ListMapBindCandid
 	}
 	candidates, err := l.store.ListMapBindCandidates(ctx, model.MapBindCandidateFilter{
 		MerchantID: merchantID,
+		ObjectID:   strings.TrimSpace(req.ObjectID),
 		SceneCode:  strings.TrimSpace(req.SceneCode),
 		Keyword:    strings.TrimSpace(req.Keyword),
 		Limit:      req.Limit,
 	})
 	if err != nil {
-		logx.Errorf("查询地图绑定候选点位失败: merchantId=%s sceneCode=%s keyword=%s err=%+v", merchantID, req.SceneCode, req.Keyword, err)
+		logx.Errorf("查询地图绑定候选点位失败: merchantId=%s objectId=%s sceneCode=%s keyword=%s err=%+v", merchantID, req.ObjectID, req.SceneCode, req.Keyword, err)
 		return ListMapBindCandidatesResp{}, errx.New(errx.CodeInternalError, "地图档口加载失败，请稍后重试")
 	}
 	return ListMapBindCandidatesResp{Items: mapBindCandidateItems(candidates)}, nil

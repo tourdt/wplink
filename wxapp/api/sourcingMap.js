@@ -1,5 +1,14 @@
 import request from './request'
 
+export function listMerchantPlaces(params = {}) {
+  return request({
+    url: '/api/v1/map/merchant-places',
+    method: 'GET',
+    data: params,
+    suppressErrorToast: true,
+  })
+}
+
 export function listMapScenes(params = {}) {
   return request({
     url: '/api/v1/map/scenes',

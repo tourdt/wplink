@@ -6,7 +6,7 @@ import test from 'node:test'
 import { mapObjectIdentity } from './mapObjectState.js'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
-const pageSource = fs.readFileSync(path.join(root, 'pages/sourcing-map/index.vue'), 'utf8')
+const legacyPageSource = fs.readFileSync(path.join(root, 'pages/sourcing-map/legacy-canvas.vue'), 'utf8')
 const rendererSource = fs.readFileSync(path.join(root, 'pages/sourcing-map/canvasRenderer.js'), 'utf8')
 const hitTestSource = fs.readFileSync(path.join(root, 'pages/sourcing-map/mapHitTest.js'), 'utf8')
 
@@ -16,11 +16,11 @@ test('normalizes map object identity from backend id only', () => {
   assert.equal(mapObjectIdentity(null), '')
 })
 
-test('sourcing map modules share the same object identity helper', () => {
-  assert.match(pageSource, /import \{[^}]*mapObjectIdentity[^}]*\} from '\.\/mapObjectState'/)
+test('preserved canvas map modules share the same object identity helper', () => {
+  assert.match(legacyPageSource, /import \{[^}]*mapObjectIdentity[^}]*\} from '\.\/mapObjectState'/)
   assert.match(rendererSource, /import \{[^}]*mapObjectIdentity[^}]*\} from '\.\/mapObjectState\.js'/)
   assert.match(hitTestSource, /import \{[^}]*mapObjectIdentity[^}]*\} from '\.\/mapObjectState\.js'/)
-  assert.doesNotMatch(pageSource, /function objectIdentity\(/)
+  assert.doesNotMatch(legacyPageSource, /function objectIdentity\(/)
   assert.doesNotMatch(rendererSource, /function objectIdentity\(/)
   assert.doesNotMatch(hitTestSource, /function objectIdentity\(/)
 })

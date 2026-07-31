@@ -451,10 +451,8 @@ test('my page separates guest and logged-in account states without merchant bind
     'openMerchantHome',
     '我的主页',
     '查看对外展示资料',
-    'VIP 权益',
-    '查看额度和限时特价',
-    'openVIP',
-    '/pages/vip/index\\?merchantId=',
+    '我的权益',
+    '暂无可领取权益',
     'ensureMerchantProfileReady',
     'openMessages',
     'requireLogin',
@@ -462,7 +460,7 @@ test('my page separates guest and logged-in account states without merchant bind
     assert.match(source, new RegExp(token))
   }
 
-  for (const hiddenToken of ['保存身份', '商家 ID', '用户 ID：', '主页配置', 'merchant-actions', '权益提醒', '手机号绑定', '登录后可用', '同步收藏关注', '接收审核和联系消息', '我的需求', 'openMyDemands', '登录后管理收藏和发布记录', '已登录，可管理收藏和消息']) {
+  for (const hiddenToken of ['保存身份', '商家 ID', '用户 ID：', '主页配置', 'merchant-actions', '权益提醒', '手机号绑定', '登录后可用', '同步收藏关注', '接收审核和联系消息', '我的需求', 'openMyDemands', '登录后管理收藏和发布记录', '已登录，可管理收藏和消息', 'VIP 权益', '查看额度和限时特价', 'openVIP', '/pages/vip/index?merchantId=']) {
     assert.equal(source.includes(hiddenToken), false)
   }
 })

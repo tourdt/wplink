@@ -173,6 +173,13 @@ test('banner config unifies topic entry and uses selectable non-web targets', ()
   assert.equal(source.includes('<el-option label="专题" value="topic" />'), false)
 })
 
+test('banner internal page options can drive traffic to sourcing map without stale verification target', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/BannerTopicView.vue'), 'utf8')
+
+  assert.match(source, /\{ label: '拿货地图', value: '\/pages\/sourcing-map\/index' \}/)
+  assert.doesNotMatch(source, /\{ label: '认证页', value: '\/pages\/verification\/index' \}/)
+})
+
 test('home recommend card config hides banner image fields', () => {
   const source = fs.readFileSync(path.join(root, 'src/views/BannerTopicView.vue'), 'utf8')
 

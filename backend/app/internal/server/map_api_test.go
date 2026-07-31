@@ -33,6 +33,34 @@ func TestMapAPIRouterListsPublishedScenes(t *testing.T) {
 	}
 }
 
+func TestMapAPIRouterPassesMerchantDirectoryFilters(t *testing.T) {
+	store := &fakeMapAPIStore{
+		fakeCityAPIStore: fakeCityAPIStore{},
+		merchantPlaces: []model.MerchantPlace{{
+			Object:   model.MapObject{ID: "object-1", Code: "A001", Name: "小鹿童装"},
+			CityCode: "zhili", SceneName: "利济路市场",
+		}},
+		merchantPlaceTotal: 1,
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/merchant-places?cityCode=zhili&keyword=%E7%AB%A5%E8%A3%85&categories=girl&merchantTypes=factory&claimed=claimed&page=2&pageSize=10&minLat=30.8&maxLat=30.9&minLng=120.2&maxLng=120.3", nil)
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	if data["total"] != float64(1) {
+		t.Fatalf("data = %#v, want merchant place total", data)
+	}
+	filter := store.merchantPlaceFilter
+	if filter.CityCode != "zhili" || filter.Keyword != "童装" || filter.Page != 2 || filter.PageSize != 10 {
+		t.Fatalf("filter = %#v, want parsed merchant directory query", filter)
+	}
+	if filter.Claimed == nil || !*filter.Claimed || filter.Bounds == nil || filter.Bounds.MaxLng != 120.3 {
+		t.Fatalf("filter = %#v, want claimed and geo bounds", filter)
+	}
+}
+
 func TestMapAPIRouterSavesAdminScene(t *testing.T) {
 	store := &fakeMapAPIStore{
 		fakeCityAPIStore: fakeCityAPIStore{},
@@ -313,6 +341,9 @@ type fakeMapAPIStore struct {
 	createdBindRequest  model.MapBindRequest
 	reviewedBindRequest model.MapBindRequest
 	mapReportResult     model.MapObjectReportResult
+	merchantPlaceFilter model.MerchantPlaceFilter
+	merchantPlaces      []model.MerchantPlace
+	merchantPlaceTotal  int64
 }
 
 func (s *fakeMapAPIStore) ListPublishedScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error) {
@@ -339,6 +370,16 @@ func (s *fakeMapAPIStore) CountPublishedObjects(ctx context.Context, filter mode
 		return s.objectTotal, nil
 	}
 	return int64(len(s.objects)), nil
+}
+
+func (s *fakeMapAPIStore) ListMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) ([]model.MerchantPlace, error) {
+	s.merchantPlaceFilter = filter
+	return append([]model.MerchantPlace(nil), s.merchantPlaces...), nil
+}
+
+func (s *fakeMapAPIStore) CountMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) (int64, error) {
+	s.merchantPlaceFilter = filter
+	return s.merchantPlaceTotal, nil
 }
 
 func (s *fakeMapAPIStore) GetPublishedObject(ctx context.Context, objectID string) (model.MapObject, error) {

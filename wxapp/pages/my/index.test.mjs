@@ -51,7 +51,7 @@ test('my page prompts before opening merchant-only entries without profile', () 
   assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善发布者资料'/)
 })
 
-test('my page shows compact entitlement overview and hides duplicated quota sections', () => {
+test('my page shows compact entitlement overview without exposing the unreleased VIP package', () => {
   const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
 
   assert.match(source, /import \{ getMerchantEntitlements \} from '\.\.\/\.\.\/api\/entitlement'/)
@@ -69,10 +69,11 @@ test('my page shows compact entitlement overview and hides duplicated quota sect
   assert.match(source, /function entitlementRemaining\(type\)/)
   assert.match(source, /async function loadMerchantEntitlements\(\)/)
   assert.match(source, /getMerchantEntitlements\(merchantId\.value/)
-  assert.match(source, /<text class="action-title">VIP 权益<\/text>/)
-  assert.match(source, /<text class="action-meta">查看额度和限时特价<\/text>/)
-  assert.match(source, /async function openBenefitOverview\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(activeGrowthCampaign\.value\.code\) \{[\s\S]*await openGrowthEntitlement\(\)[\s\S]*return[\s\S]*await openVIP\(\)/)
-  assert.match(source, /async function openVIP\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/vip\/index\?merchantId=\$\{merchantId\.value\}` \}\)/)
+  assert.doesNotMatch(source, /<text class="action-title">VIP 权益<\/text>/)
+  assert.doesNotMatch(source, /<text class="action-meta">查看额度和限时特价<\/text>/)
+  assert.doesNotMatch(source, /function openVIP\(\)/)
+  assert.doesNotMatch(source, /\/pages\/vip\/index/)
+  assert.match(source, /async function openBenefitOverview\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(activeGrowthCampaign\.value\.code\) \{[\s\S]*await openGrowthEntitlement\(\)[\s\S]*return[\s\S]*uni\.showToast\(\{ title: '暂无可领取权益', icon: 'none' \}\)/)
   assert.doesNotMatch(source, /quota-summary/)
   assert.doesNotMatch(source, /entitlement-section/)
   assert.doesNotMatch(source, /免费额度/)
@@ -84,6 +85,14 @@ test('my page shows compact entitlement overview and hides duplicated quota sect
   assert.doesNotMatch(source, /<text class="action-title">商家认证<\/text>/)
   assert.doesNotMatch(source, /openMerchantVerification/)
   assert.doesNotMatch(source, /getLatestVerification/)
+})
+
+test('my page keeps messages reachable after messages leaves the tab bar', () => {
+  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
+
+  assert.match(source, /<text class="action-title">消息<\/text>/)
+  assert.match(source, /function openMessages\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/messages\/index' \}\)/)
+  assert.doesNotMatch(source, /uni\.switchTab\(\{ url: '\/pages\/messages\/index' \}\)/)
 })
 
 test('my page shows nearest 7-day expiring entitlement reminder', () => {

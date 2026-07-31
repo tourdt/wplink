@@ -41,6 +41,23 @@ func TestBindingLogicCreatesApprovedAutomaticBinding(t *testing.T) {
 	}
 }
 
+func TestBindingLogicKeepsDirectoryObjectIDWhenListingCandidates(t *testing.T) {
+	store := &fakeBindingStore{}
+	logic := NewBindingLogic(store)
+
+	_, err := logic.ListCandidates(context.Background(), ListMapBindCandidatesReq{
+		MerchantID: " merchant-1 ",
+		ObjectID:   " object-9 ",
+		Limit:      30,
+	})
+	if err != nil {
+		t.Fatalf("ListCandidates() error = %v", err)
+	}
+	if store.candidateFilter.ObjectID != "object-9" {
+		t.Fatalf("filter = %#v, want exact directory object id", store.candidateFilter)
+	}
+}
+
 func TestBindingLogicRejectsMerchantWithAnotherMainBooth(t *testing.T) {
 	store := &fakeBindingStore{
 		createErr: model.ErrMapMerchantAlreadyBound,

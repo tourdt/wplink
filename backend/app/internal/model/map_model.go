@@ -37,6 +37,9 @@ const (
 	MapObjectDisplayLevelWeak              = "weak"
 	MapObjectDisplayLevelHighlight         = "highlight"
 
+	MerchantPlaceSourceClaimed   = "merchant_claimed"
+	MerchantPlaceSourcePrelisted = "platform_prelisted"
+
 	MapBindRequestStatusPending  = "pending"
 	MapBindRequestStatusApproved = "approved"
 	MapBindRequestStatusRejected = "rejected"
@@ -238,6 +241,7 @@ type MapBindingStatus struct {
 
 type MapBindCandidateFilter struct {
 	MerchantID string
+	ObjectID   string
 	SceneCode  string
 	Keyword    string
 	Limit      int64
@@ -310,6 +314,34 @@ type MapViewportFilter struct {
 	MinY float64
 	MaxX float64
 	MaxY float64
+}
+
+// GeoBoundsFilter 表示腾讯地图当前可视区域。目录查询只在用户主动点击“搜索此区域”时使用，
+// 避免地图拖动过程持续触发数据库查询。
+type GeoBoundsFilter struct {
+	MinLat float64
+	MaxLat float64
+	MinLng float64
+	MaxLng float64
+}
+
+type MerchantPlaceFilter struct {
+	CityCode      string
+	Keyword       string
+	Categories    []string
+	MerchantTypes []string
+	Claimed       *bool
+	Bounds        *GeoBoundsFilter
+	Page          int64
+	PageSize      int64
+}
+
+type MerchantPlace struct {
+	Object     MapObject
+	CityCode   string
+	SceneName  string
+	MarketName string
+	FloorNo    string
 }
 
 type MapModel struct {
@@ -472,6 +504,61 @@ func (m *MapModel) CountPublishedObjects(ctx context.Context, filter ListMapObje
 	filter.Zoom = 0
 	filter.Limit = 0
 	return m.countObjects(ctx, filter)
+}
+
+func (m *MapModel) ListMerchantPlaces(ctx context.Context, filter MerchantPlaceFilter) ([]MerchantPlace, error) {
+	page := filter.Page
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := filter.PageSize
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 20
+	}
+	query := `SELECT ` + joinedMapObjectSelectColumns("o") + `,
+       COALESCE(city.code, ''), s.name, COALESCE(parent.name, ''), COALESCE(s.floor_no, '')
+FROM map_object o
+JOIN map_scene s ON s.code = o.scene_code
+LEFT JOIN map_scene parent ON parent.code = s.parent_code
+LEFT JOIN city_stations city ON city.id = s.city_station_id
+LEFT JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL AND m.status = 'active'`
+	whereSQL, args := buildMerchantPlaceFilterSQL(filter)
+	query += whereSQL
+	args = append(args, pageSize, (page-1)*pageSize)
+	query += fmt.Sprintf(`
+ORDER BY (m.id IS NOT NULL) DESC, s.sort ASC, o.sort ASC, o.code ASC
+LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
+
+	rows, err := m.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]MerchantPlace, 0)
+	for rows.Next() {
+		item, err := scanMerchantPlace(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (m *MapModel) CountMerchantPlaces(ctx context.Context, filter MerchantPlaceFilter) (int64, error) {
+	query := `SELECT COUNT(*)
+FROM map_object o
+JOIN map_scene s ON s.code = o.scene_code
+LEFT JOIN map_scene parent ON parent.code = s.parent_code
+LEFT JOIN city_stations city ON city.id = s.city_station_id
+LEFT JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL AND m.status = 'active'`
+	whereSQL, args := buildMerchantPlaceFilterSQL(filter)
+	query += whereSQL
+
+	var total int64
+	err := m.db.QueryRowContext(ctx, query, args...).Scan(&total)
+	return total, err
 }
 
 func (m *MapModel) GetPublishedObject(ctx context.Context, objectID string) (MapObject, error) {
@@ -924,6 +1011,10 @@ LEFT JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL
 `
 	args := make([]interface{}, 0, 4)
 	conditions := []string{"o.status = 'normal'", "o.layer = 'booth'", "s.status = 'published'"}
+	if v := strings.TrimSpace(filter.ObjectID); v != "" {
+		args = append(args, v)
+		conditions = append(conditions, fmt.Sprintf("o.id::text = $%d", len(args)))
+	}
 	if v := strings.TrimSpace(filter.SceneCode); v != "" {
 		args = append(args, v)
 		conditions = append(conditions, fmt.Sprintf("o.scene_code = $%d", len(args)))
@@ -1271,6 +1362,53 @@ func buildMapObjectFilterSQL(filter ListMapObjectsFilter) (string, []interface{}
 	return " WHERE " + strings.Join(conditions, " AND "), args
 }
 
+func buildMerchantPlaceFilterSQL(filter MerchantPlaceFilter) (string, []interface{}) {
+	conditions := []string{
+		"o.status = 'normal'",
+		"o.layer = 'booth'",
+		"s.status = 'published'",
+	}
+	args := make([]interface{}, 0, 8)
+	if value := strings.TrimSpace(filter.CityCode); value != "" {
+		args = append(args, value)
+		conditions = append(conditions, fmt.Sprintf("city.code = $%d", len(args)))
+	}
+	if value := strings.TrimSpace(filter.Keyword); value != "" {
+		args = append(args, value)
+		position := len(args)
+		conditions = append(conditions, fmt.Sprintf(
+			"(o.code ILIKE '%%' || $%d || '%%' OR o.name ILIKE '%%' || $%d || '%%' OR o.search_text ILIKE '%%' || $%d || '%%' OR COALESCE(m.name, '') ILIKE '%%' || $%d || '%%')",
+			position, position, position, position,
+		))
+	}
+	if values := cleanStringSlice(filter.Categories); len(values) > 0 {
+		args = append(args, pq.Array(values))
+		conditions = append(conditions, fmt.Sprintf("(o.category_codes ?| $%d OR COALESCE(m.main_categories, '[]'::jsonb) ?| $%d)", len(args), len(args)))
+	}
+	if values := cleanStringSlice(filter.MerchantTypes); len(values) > 0 {
+		args = append(args, pq.Array(values))
+		conditions = append(conditions, fmt.Sprintf("m.merchant_type = ANY($%d)", len(args)))
+	}
+	if filter.Claimed != nil {
+		if *filter.Claimed {
+			conditions = append(conditions, "m.id IS NOT NULL", "o.merchant_id IS NOT NULL")
+		} else {
+			conditions = append(conditions, "m.id IS NULL", "o.merchant_id IS NULL")
+		}
+	}
+	if filter.Bounds != nil {
+		args = append(args, filter.Bounds.MinLat)
+		conditions = append(conditions, fmt.Sprintf("o.lat >= $%d", len(args)))
+		args = append(args, filter.Bounds.MaxLat)
+		conditions = append(conditions, fmt.Sprintf("o.lat <= $%d", len(args)))
+		args = append(args, filter.Bounds.MinLng)
+		conditions = append(conditions, fmt.Sprintf("o.lng >= $%d", len(args)))
+		args = append(args, filter.Bounds.MaxLng)
+		conditions = append(conditions, fmt.Sprintf("o.lng <= $%d", len(args)))
+	}
+	return " WHERE " + strings.Join(conditions, " AND "), args
+}
+
 type rowScanner interface {
 	Scan(dest ...interface{}) error
 }
@@ -1294,6 +1432,23 @@ func scanMapScene(row rowScanner) (MapScene, error) {
 }
 
 func scanMapObject(row rowScanner) (MapObject, error) {
+	return scanMapObjectWithExtras(row)
+}
+
+func scanMerchantPlace(row rowScanner) (MerchantPlace, error) {
+	var item MerchantPlace
+	object, err := scanMapObjectWithExtras(row, &item.CityCode, &item.SceneName, &item.MarketName, &item.FloorNo)
+	if err != nil {
+		return MerchantPlace{}, err
+	}
+	item.Object = object
+	if strings.TrimSpace(item.MarketName) == "" {
+		item.MarketName = item.SceneName
+	}
+	return item, nil
+}
+
+func scanMapObjectWithExtras(row rowScanner, extraDestinations ...interface{}) (MapObject, error) {
 	var object MapObject
 	var merchantMainCategories JSONStringSlice
 	var categoryCodes JSONStringSlice
@@ -1302,7 +1457,7 @@ func scanMapObject(row rowScanner) (MapObject, error) {
 	var poiServiceTags JSONStringSlice
 	var createdAt time.Time
 	var updatedAt time.Time
-	err := row.Scan(
+	destinations := []interface{}{
 		&object.ID, &object.SceneCode, &object.MerchantID,
 		&object.MerchantName, &object.MerchantType, &object.MerchantVerificationStatus, &object.MerchantLogoURL, &merchantMainCategories,
 		&object.Code, &object.Name,
@@ -1311,7 +1466,9 @@ func scanMapObject(row rowScanner) (MapObject, error) {
 		&object.MinZoom, &object.MaxZoom, &categoryCodes, &serviceTags, &platformTags, &poiServiceTags,
 		&object.Address, &object.Phone, &object.Wechat, &object.Lat, &object.Lng,
 		&object.SearchText, &object.Extra, &object.Sort, &object.Status, &createdAt, &updatedAt,
-	)
+	}
+	destinations = append(destinations, extraDestinations...)
+	err := row.Scan(destinations...)
 	if err != nil {
 		return MapObject{}, err
 	}

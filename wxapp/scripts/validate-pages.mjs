@@ -50,7 +50,7 @@ for (const page of requiredPages) {
 }
 
 const tabBarPages = new Set((pagesConfig.tabBar?.list || []).map((item) => item.pagePath))
-for (const page of ['pages/home/index', 'pages/market/index', 'pages/publish/index', 'pages/messages/index', 'pages/my/index']) {
+for (const page of ['pages/home/index', 'pages/sourcing-map/index', 'pages/publish/index', 'pages/market/index', 'pages/my/index']) {
   if (!tabBarPages.has(page)) {
     throw new Error(`tabBar 缺少页面: ${page}`)
   }

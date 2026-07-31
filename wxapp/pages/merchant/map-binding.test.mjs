@@ -19,3 +19,11 @@ test('merchant map binding confirms the main booth without normal manual review 
   assert.doesNotMatch(source, /提交绑定申请/)
   assert.doesNotMatch(source, /平台正在核对档口信息/)
 })
+
+test('merchant map binding preselects the directory booth from route object id', () => {
+  assert.match(source, /const routeObjectId = ref\(''\)/)
+  assert.match(source, /routeObjectId\.value = String\(options\.objectId \|\| ''\)\.trim\(\)/)
+  assert.match(source, /function applyRouteObjectSelection\(\)/)
+  assert.match(source, /candidates\.value\.find\(\(item\) => item\.objectId === routeObjectId\.value && !item\.isBound\)/)
+  assert.match(source, /selectedObjectId\.value = candidate\.objectId/)
+})

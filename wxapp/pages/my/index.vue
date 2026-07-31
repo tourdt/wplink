@@ -61,13 +61,6 @@
           </view>
           <text class="entry-arrow"></text>
         </view>
-        <view class="action-item" @click="openVIP">
-          <view class="action-main">
-            <text class="action-title">VIP 权益</text>
-            <text class="action-meta">查看额度和限时特价</text>
-          </view>
-          <text class="entry-arrow"></text>
-        </view>
         <view class="action-item" @click="openFavorites">
           <view class="action-main">
             <text class="action-title">收藏关注</text>
@@ -160,12 +153,12 @@ const benefitExpiryReminder = computed(() => {
 })
 const benefitOverviewDesc = computed(() => {
   if (merchantProfile.value.vipStatus === 'active') {
-    return 'VIP 权益已启用，可购买次数包补充'
+    return '现有发布和刷新次数可继续使用'
   }
   if (activeGrowthCampaign.value.code) {
     return activeGrowthCampaign.value.hint || '完成新手任务可获得更多发布和刷新次数'
   }
-  return '完成任务、开通 VIP 或购买次数包可获得更多次数'
+  return '查看当前可用的发布和刷新次数'
 })
 
 onLoad(() => {
@@ -263,7 +256,8 @@ function openFavorites() {
 
 function openMessages() {
   if (!requireLogin()) return
-  uni.switchTab({ url: '/pages/messages/index' })
+  // 消息页退出 TabBar 后仍从“我的”进入，使用普通页面跳转保留返回路径。
+  uni.navigateTo({ url: '/pages/messages/index' })
 }
 
 function openAccountSettings() {
@@ -283,18 +277,14 @@ async function openMerchantHome() {
   uni.navigateTo({ url: `/pages/merchant/detail?id=${merchantId.value}` })
 }
 
-async function openVIP() {
-  if (!requireLogin()) return
-  uni.navigateTo({ url: `/pages/vip/index?merchantId=${merchantId.value}` })
-}
-
 async function openBenefitOverview() {
   if (!requireLogin()) return
   if (activeGrowthCampaign.value.code) {
     await openGrowthEntitlement()
     return
   }
-  await openVIP()
+  // VIP 套餐首发暂不开放；无成长活动时只展示当前额度，不把用户导向未发布页面。
+  uni.showToast({ title: '暂无可领取权益', icon: 'none' })
 }
 
 async function openGrowthEntitlement() {
