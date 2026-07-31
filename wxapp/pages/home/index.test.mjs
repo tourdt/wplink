@@ -19,3 +19,30 @@ test('home cold-start entries exclude recruitment and job seeking', () => {
   assert.doesNotMatch(source, /求职/)
   assert.doesNotMatch(source, /groupCode:\s*'jobs'/)
 })
+
+test('home displays at most six recent onboarded merchants without blocking other feeds', () => {
+  const discoveryApiSource = fs.readFileSync(path.join(root, 'api/discovery.js'), 'utf8')
+
+  assert.match(source, /import HomeRecentMerchantCard from '\.\.\/\.\.\/components\/HomeRecentMerchantCard\.vue'/)
+  assert.match(source, /import \{[\s\S]*listHomeRecentMerchants[\s\S]*\} from '\.\.\/\.\.\/api\/discovery'/)
+  assert.match(source, /const RECENT_MERCHANT_LIMIT = 6/)
+  assert.match(source, /Promise\.all\(\[loadHomeOperationConfig\(\), loadHomeRecentMerchants\(\), loadHomeResources\(\)\]\)/)
+  assert.match(source, /recentMerchants\.value = \(resp\.items \|\| \[\]\)\.slice\(0, RECENT_MERCHANT_LIMIT\)/)
+  assert.match(source, /catch \{[\s\S]*recentMerchants\.value = \[\]/)
+  assert.match(source, /v-if="recentMerchants\.length" class="recent-merchant-section"/)
+  assert.match(source, /v-for="item in recentMerchants"/)
+  assert.match(source, /@open="openMerchant"/)
+  assert.match(source, /openSourcingMap/)
+  assert.match(discoveryApiSource, /url: '\/api\/v1\/home\/recent-merchants'/)
+  assert.match(discoveryApiSource, /suppressErrorToast: true/)
+})
+
+test('home recent merchants appear between quick entries and recent resources', () => {
+  const quickEntryIndex = source.indexOf('class="quick-action-grid"')
+  const merchantSectionIndex = source.indexOf('class="recent-merchant-section"')
+  const resourceSectionIndex = source.indexOf('>近期供需<')
+
+  assert(quickEntryIndex >= 0, 'quick entry grid should exist')
+  assert(merchantSectionIndex > quickEntryIndex, 'recent merchants should follow quick entries')
+  assert(resourceSectionIndex > merchantSectionIndex, 'recent resources should follow recent merchants')
+})

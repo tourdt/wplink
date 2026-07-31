@@ -86,6 +86,24 @@
         </button>
       </view>
 
+      <view v-if="recentMerchants.length" class="recent-merchant-section">
+        <view class="section-head recent-merchant-head">
+          <view>
+            <text class="section-title">新入驻商家</text>
+            <text class="section-subtitle">刚加入衣货通的产业商家</text>
+          </view>
+          <text class="section-link" @click="openSourcingMap()">更多</text>
+        </view>
+        <view class="recent-merchant-grid">
+          <HomeRecentMerchantCard
+            v-for="item in recentMerchants"
+            :key="item.id"
+            :merchant="item"
+            @open="openMerchant"
+          />
+        </view>
+      </view>
+
       <view class="section-head">
         <text class="section-title">近期供需</text>
         <text class="section-link" @click="openSearch()">更多</text>
@@ -121,14 +139,16 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import HomeRecentMerchantCard from '../../components/HomeRecentMerchantCard.vue'
 import ResourceCard from '../../components/ResourceCard.vue'
 import ResourceExposure from '../../components/ResourceExposure.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
-import { listHomeOperationConfig, listHomeResources } from '../../api/discovery'
+import { listHomeOperationConfig, listHomeRecentMerchants, listHomeResources } from '../../api/discovery'
 import { listResources } from '../../api/resource'
 
 const banners = ref([])
 const recommendCards = ref([])
+const recentMerchants = ref([])
 const homeResources = ref([])
 const activeBannerIndex = ref(0)
 const headerMetrics = ref({
@@ -139,6 +159,7 @@ const headerMetrics = ref({
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const PUBLISH_TYPE_KEY = 'wplink_pending_publish_type_code'
 const SEARCH_BLOCK_RPX = 116
+const RECENT_MERCHANT_LIMIT = 6
 const defaultBanners = [
   {
     id: 'default-topic',
@@ -235,7 +256,7 @@ function updateHeaderMetrics() {
 }
 
 async function loadHomeData() {
-  await Promise.all([loadHomeOperationConfig(), loadHomeResources()])
+  await Promise.all([loadHomeOperationConfig(), loadHomeRecentMerchants(), loadHomeResources()])
 }
 
 async function loadHomeOperationConfig() {
@@ -259,6 +280,16 @@ async function loadHomeResources() {
     homeResources.value = await resolveHomeResourceItems(resp)
   } catch {
     homeResources.value = await loadFallbackHomeResources()
+  }
+}
+
+async function loadHomeRecentMerchants() {
+  // 新入驻商家是激励曝光位，请求失败时只隐藏该区块，不能阻断首页供需和固定入口。
+  try {
+    const resp = await listHomeRecentMerchants({ cityCode: DEFAULT_CITY_CODE })
+    recentMerchants.value = (resp.items || []).slice(0, RECENT_MERCHANT_LIMIT)
+  } catch {
+    recentMerchants.value = []
   }
 }
 
@@ -360,6 +391,11 @@ function openPublish(options = {}) {
 
 function openResource(item) {
   uni.navigateTo({ url: `/pages/resource/detail?id=${item.id}` })
+}
+
+function openMerchant(item) {
+  if (!item?.id) return
+  uni.navigateTo({ url: `/pages/merchant/detail?id=${item.id}` })
 }
 
 function openInternal(url) {
@@ -664,6 +700,28 @@ function bannerTone(jumpType) {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12rpx;
   margin: 0 0 42rpx;
+}
+
+.recent-merchant-section {
+  margin-bottom: 12rpx;
+}
+
+.recent-merchant-head {
+  align-items: flex-end;
+  margin-top: 0;
+}
+
+.section-subtitle {
+  display: block;
+  margin-top: 7rpx;
+  color: #7b8492;
+  font-size: 22rpx;
+}
+
+.recent-merchant-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
 }
 
 .quick-action {
