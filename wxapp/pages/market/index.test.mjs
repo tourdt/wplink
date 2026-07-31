@@ -102,9 +102,30 @@ test('market page renders mixed supply and demand result cards from item directi
     'RESOURCE_DIRECTION_DEMAND',
     '<template v-for="item in rows" :key="item.id">',
     'v-if="item.direction === RESOURCE_DIRECTION_DEMAND"',
-    '<ResourceCard v-else',
+    '<ResourceCard',
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  assert.match(
+    source,
+    /<DemandCard[\s\S]*v-if="item\.direction === RESOURCE_DIRECTION_DEMAND"[\s\S]*:resource="item"[\s\S]*variant="market"[\s\S]*@open="openResource"[\s\S]*\/>/,
+  )
+  assert.match(
+    source,
+    /<ResourceCard[\s\S]*v-else[\s\S]*:resource="item"[\s\S]*variant="market"[\s\S]*@open="openResource"[\s\S]*\/>/,
+  )
+})
+
+test('market-only card layout does not leak into other resource feeds', () => {
+  for (const relativePath of [
+    'pages/search/index.vue',
+    'pages/home/index.vue',
+    'pages/favorites/index.vue',
+    'pages/topic/index.vue',
+  ]) {
+    const pageSource = fs.readFileSync(path.join(root, relativePath), 'utf8')
+    assert.equal(pageSource.includes('variant="market"'), false, `${relativePath} should keep its existing card layout`)
   }
 })
 

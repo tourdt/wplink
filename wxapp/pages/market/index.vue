@@ -98,8 +98,18 @@
     <view v-if="rows.length" class="result-list">
       <template v-for="item in rows" :key="item.id">
         <ResourceExposure :resource-id="item.id" source="list">
-          <DemandCard v-if="item.direction === RESOURCE_DIRECTION_DEMAND" :resource="item" @open="openResource" />
-          <ResourceCard v-else :resource="item" @open="openResource" />
+          <DemandCard
+            v-if="item.direction === RESOURCE_DIRECTION_DEMAND"
+            :resource="item"
+            variant="market"
+            @open="openResource"
+          />
+          <ResourceCard
+            v-else
+            :resource="item"
+            variant="market"
+            @open="openResource"
+          />
         </ResourceExposure>
       </template>
       <text class="load-more-text">{{ loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了' }}</text>
