@@ -95,6 +95,19 @@ test('resource card provides a compact market-only layout', () => {
   assert.match(source, /<template v-else>[\s\S]*class="direction-badge supply"[\s\S]*class="resource-meta"[\s\S]*class="location-text"[\s\S]*class="resource-labels"/)
 })
 
+test('demand card provides the matching compact market-only layout', () => {
+  assert.match(demandSource, /variant:\s*\{[\s\S]*type: String,[\s\S]*default: '',[\s\S]*\}/)
+  assert.match(demandSource, /const variantClass = computed\(\(\) => props\.variant === 'market' \? 'demand-card-market' : ''\)/)
+  assert.match(demandSource, /const isMarketVariant = computed\(\(\) => props\.variant === 'market'\)/)
+  assert.match(demandSource, /const quantityText = computed\(\(\) => String\(props\.resource\.quantityText \|\| ''\)\.trim\(\)\)/)
+  assert.match(demandSource, /<template v-if="isMarketVariant">[\s\S]*class="market-type-badge demand"[\s\S]*class="market-title"[\s\S]*class="market-decision-line"[\s\S]*class="market-merchant-line"[\s\S]*<\/template>/)
+  assert.match(demandSource, /<text v-if="isCompleted" class="market-completed-badge">已完成<\/text>/)
+  assert.match(demandSource, /\.demand-card-market \{[\s\S]*padding: 20rpx;/)
+  assert.match(demandSource, /\.demand-card-market \.thumb-wrap \{[\s\S]*width: 152rpx;[\s\S]*height: 152rpx;/)
+  assert.match(demandSource, /\.market-type-badge\.demand \{[\s\S]*background: \$wplink-warning;/)
+  assert.match(demandSource, /<template v-else>[\s\S]*class="direction-badge"[\s\S]*class="demand-meta"[\s\S]*class="location-text"[\s\S]*class="resource-labels"/)
+})
+
 test('resource card uses short freshness date in resource list', () => {
   assert.match(source, /import \{ formatListFreshnessDate \} from '\.\.\/common\/date'/)
   assert.match(source, /const freshnessText = computed\(\(\) => formatRefreshedAt\(props\.resource\.refreshedAt\)\)/)
