@@ -105,7 +105,7 @@ git commit -m "feat: 精简供需首页方向筛选"
 - Consumes: `searchResources({ cityCode, groupCode, typeCode, tags, keyword, page, pageSize })`
 - Produces: 无方向筛选状态的供需混合搜索结果
 
-- [ ] **Step 1: 修改搜索页测试并验证失败**
+- [x] **Step 1: 修改搜索页测试并验证失败**
 
 在 `wxapp/pages/search/index.test.mjs` 中断言搜索页不再包含方向筛选模板、状态、方法和样式，且路由、待搜索条件、接口请求均不再读取或传递 `direction`。同步更新流程校验，但保留混合供应卡片和需求卡片断言。
 
@@ -124,7 +124,7 @@ cd wxapp && node --test pages/search/index.test.mjs scripts/validate-flows.test.
 
 预期：搜索页仍包含方向筛选实现，因此测试失败。
 
-- [ ] **Step 2: 实现最小页面改动**
+- [x] **Step 2: 实现最小页面改动**
 
 从 `wxapp/pages/search/index.vue` 删除方向筛选模板、样式、状态、方法、路由读取和待搜索条件读取；保留结果卡片根据 `item.direction` 选择 `DemandCard` 或 `ResourceCard`。
 
@@ -142,7 +142,7 @@ const items = currentGroupResourceTypeItems.value.map((item) => ({
 }))
 ```
 
-- [ ] **Step 3: 运行定向测试**
+- [x] **Step 3: 运行定向测试**
 
 ```bash
 cd wxapp && node --test pages/search/index.test.mjs scripts/validate-flows.test.mjs
@@ -150,7 +150,7 @@ cd wxapp && node --test pages/search/index.test.mjs scripts/validate-flows.test.
 
 预期：全部通过。
 
-- [ ] **Step 4: 运行完整检查**
+- [x] **Step 4: 运行完整检查**
 
 ```bash
 cd wxapp && npm run check
@@ -158,7 +158,7 @@ cd wxapp && npm run check
 
 预期：页面校验、流程校验、全部测试和微信小程序构建通过。
 
-- [ ] **Step 5: 检查差异并提交**
+- [x] **Step 5: 检查差异并提交**
 
 ```bash
 git diff --check

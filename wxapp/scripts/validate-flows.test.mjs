@@ -231,11 +231,12 @@ test('resource tab separates recommendation discovery from keyword search page',
     assert.equal(resourceSource.includes(removedToken), false)
   }
 
-  for (const token of ['searchResources', '暂无匹配内容', 'emptyPrimaryActionLabel', 'selectGroup', 'groupResourceTypes', 'DemandCard', 'directionFilterOptions', 'chooseResourceDirection']) {
+  for (const token of ['searchResources', '暂无匹配内容', 'emptyPrimaryActionLabel', 'selectGroup', 'groupResourceTypes', 'DemandCard']) {
     assert.match(searchSource, new RegExp(token))
   }
-  assert.match(searchSource, /directionFilterOptions = \[[\s\S]*label: '全部'[\s\S]*label: '供应'[\s\S]*label: '需求'/)
-  assert.match(searchSource, /direction:\s*'',/)
+  for (const removedToken of ['direction-filter-row', 'directionFilterOptions', 'chooseResourceDirection', 'filters.direction', "direction: ''", 'normalizeResourceDirection']) {
+    assert.equal(searchSource.includes(removedToken), false)
+  }
   assert.equal(searchSource.includes('activeDirection'), false)
   for (const removedToken of ['提交采购需求', 'openDemand', '/pages/demand/index']) {
     assert.equal(searchSource.includes(removedToken), false)
