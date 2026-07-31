@@ -52,6 +52,10 @@
         :show-scrollbar="false"
         @click.stop
       >
+        <view class="type-panel-head">
+          <text class="type-panel-title">选择分类</text>
+          <text class="type-panel-current">当前：{{ selectedTypeName }}</text>
+        </view>
         <view class="type-panel-grid">
           <button
             v-for="item in resourceTypes"
@@ -60,6 +64,11 @@
             @click="selectType(item.value)"
           >
             <text class="type-panel-button-text">{{ item.label }}</text>
+            <text
+              v-if="item.value === filters.typeCode"
+              class="type-panel-check"
+              aria-hidden="true"
+            ></text>
           </button>
         </view>
       </scroll-view>
@@ -148,6 +157,7 @@ const selectedGroupName = computed(() => {
 })
 const channelTitle = computed(() => filters.groupCode ? selectedGroupName.value : PAGE_TITLE)
 const visibleResourceTypes = computed(() => resourceTypes.value)
+const selectedTypeName = computed(() => resourceTypes.value.find((item) => item.value === filters.typeCode)?.label || '全部')
 const showAllTypeButton = computed(() => resourceTypes.value.length - 1 > 3)
 const resourceNavStyle = computed(() => `padding-top: ${headerMetrics.value.statusBarHeight}px;`)
 const resourceTitleBarStyle = computed(() => `height: ${headerMetrics.value.navBarHeight}px;`)
@@ -469,8 +479,9 @@ function openResource(item) {
   height: 80rpx;
   padding: 4rpx;
   border: 1rpx solid $wplink-line;
-  border-radius: 10rpx;
+  border-radius: 12rpx;
   background: $wplink-card;
+  box-shadow: 0 2rpx 8rpx rgba(6, 22, 37, 0.03);
 }
 
 .filter-shell.has-type-panel-button {
@@ -494,25 +505,32 @@ function openResource(item) {
   justify-content: center;
   min-width: 112rpx;
   height: 72rpx;
-  margin-right: 12rpx;
+  margin-right: 8rpx;
   padding: 0 20rpx;
   border-radius: 8rpx;
-  background: $wplink-card;
+  background: transparent;
   color: #364152;
   font-size: 26rpx;
 }
 
 .filter-button.active {
-  background: $wplink-warning-soft;
-  color: $wplink-primary;
+  background: $wplink-primary;
+  color: $wplink-card;
+  font-weight: 700;
 }
 
 .type-panel-toggle {
   width: 72rpx;
   height: 72rpx;
-  border-radius: 8rpx;
-  background: $wplink-primary-soft;
+  padding: 0;
+  border-left: 1rpx solid $wplink-line;
+  border-radius: 0 8rpx 8rpx 0;
+  background: transparent;
   color: $wplink-primary;
+}
+
+.type-panel-toggle:active {
+  background: rgba($wplink-primary, 0.04);
 }
 
 .type-panel-arrow {
@@ -530,12 +548,36 @@ function openResource(item) {
 
 .type-panel {
   max-height: 360rpx;
-  margin-top: 8rpx;
-  padding: 12rpx;
+  margin-top: 10rpx;
+  padding: 16rpx;
   border: 1rpx solid $wplink-line;
-  border-radius: 10rpx;
+  border-radius: 12rpx;
   background: $wplink-card;
-  box-shadow: 0 12rpx 28rpx rgba(6, 22, 37, 0.12);
+  box-shadow: 0 10rpx 24rpx rgba(6, 22, 37, 0.08);
+}
+
+.type-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 14rpx;
+}
+
+.type-panel-title {
+  flex: 0 0 auto;
+  color: $wplink-text;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.type-panel-current {
+  min-width: 0;
+  overflow: hidden;
+  color: $wplink-muted;
+  font-size: 22rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .type-panel-grid {
@@ -545,8 +587,10 @@ function openResource(item) {
 }
 
 .type-panel-button {
+  position: relative;
   height: 72rpx;
   padding: 0 10rpx;
+  border: 1rpx solid transparent;
   border-radius: 10rpx;
   background: $wplink-bg;
   color: #364152;
@@ -554,8 +598,9 @@ function openResource(item) {
 }
 
 .type-panel-button.active {
-  background: $wplink-warning-soft;
-  color: $wplink-primary;
+  border-color: $wplink-primary;
+  background: $wplink-primary;
+  color: $wplink-card;
   font-weight: 700;
 }
 
@@ -564,6 +609,17 @@ function openResource(item) {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.type-panel-check {
+  position: absolute;
+  top: 10rpx;
+  right: 12rpx;
+  width: 10rpx;
+  height: 6rpx;
+  border-left: 2rpx solid currentColor;
+  border-bottom: 2rpx solid currentColor;
+  transform: rotate(-45deg);
 }
 
 .result-list {
