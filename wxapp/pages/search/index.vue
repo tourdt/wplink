@@ -1,5 +1,5 @@
 <template>
-  <view class="search-page" :style="searchPageStyle">
+  <view class="search-page" :style="searchPageStyle" @click="closeTypePanel">
     <view class="search-nav" :style="searchNavStyle">
       <view class="search-title-bar" :style="searchTitleBarStyle">
         <button class="nav-back-button" @click="goBack">
@@ -18,7 +18,7 @@
         <button class="search-button" @click="search">搜索</button>
       </view>
 
-      <view :class="['filter-shell', showAllTypeButton ? 'has-all-type-button' : '']">
+      <view :class="['filter-shell', showAllTypeButton ? 'has-type-panel-button' : '']" @click.stop>
         <scroll-view
           class="filter-row"
           scroll-x
@@ -39,12 +39,33 @@
         </scroll-view>
         <button
           v-if="showAllTypeButton"
-          class="all-type-button"
-          @click="openTypeDrawer"
+          class="type-panel-toggle"
+          :aria-label="showTypePanel ? '收起全部分类' : '展开全部分类'"
+          :aria-expanded="showTypePanel"
+          @click.stop="toggleTypePanel"
         >
-          全部分类
+          <text :class="['type-panel-arrow', showTypePanel ? 'expanded' : '']"></text>
         </button>
       </view>
+      <scroll-view
+        v-if="showTypePanel"
+        class="type-panel"
+        scroll-y
+        enhanced
+        :show-scrollbar="false"
+        @click.stop
+      >
+        <view class="type-panel-grid">
+          <button
+            v-for="item in resourceTypes"
+            :key="item.value"
+            :class="['type-panel-button', item.value === filters.typeCode ? 'active' : '']"
+            @click="selectType(item.value)"
+          >
+            <text class="type-panel-button-text">{{ item.label }}</text>
+          </button>
+        </view>
+      </scroll-view>
       <scroll-view
         v-if="searchTagOptions.length"
         class="tag-filter-row"
@@ -127,24 +148,6 @@
       </view>
     </view>
 
-    <view v-if="showTypeDrawer" class="type-drawer-mask" @click="closeTypeDrawer">
-      <view class="type-drawer-panel" @click.stop>
-        <view class="type-drawer-head">
-          <text class="type-drawer-title">全部分类</text>
-          <button class="type-drawer-close" @click="closeTypeDrawer">关闭</button>
-        </view>
-        <view class="drawer-type-grid">
-          <button
-            v-for="item in resourceTypes"
-            :key="item.value"
-            :class="['drawer-type-button', item.value === filters.typeCode ? 'active' : '']"
-            @click="selectType(item.value)"
-          >
-            {{ item.label }}
-          </button>
-        </view>
-      </view>
-    </view>
   </view>
 </template>
 
@@ -188,7 +191,7 @@ const filters = reactive({
   tags: [],
 })
 const showGroupDrawer = ref(false)
-const showTypeDrawer = ref(false)
+const showTypePanel = ref(false)
 const scrollIntoTypeId = ref('')
 const pageScrollTop = ref(0)
 const groupFilterOptions = computed(() => [{ code: '', name: '全部类目' }, ...categoryGroups.value])
@@ -380,7 +383,7 @@ async function resetSearchConditions() {
   filters.typeCode = ''
   filters.tags = []
   showGroupDrawer.value = false
-  showTypeDrawer.value = false
+  showTypePanel.value = false
   applyCurrentGroupTypes()
   await scrollToSelectedType('')
   await search()
@@ -410,7 +413,7 @@ async function selectGroup(groupCode) {
   if (filters.groupCode === groupCode) return
   filters.groupCode = groupCode
   filters.typeCode = ''
-  showTypeDrawer.value = false
+  showTypePanel.value = false
   applyCurrentGroupTypes()
   await scrollToSelectedType('')
   await search()
@@ -419,7 +422,7 @@ async function selectGroup(groupCode) {
 async function selectType(typeCode) {
   filters.typeCode = typeCode
   showGroupDrawer.value = false
-  showTypeDrawer.value = false
+  showTypePanel.value = false
   syncSelectedTagsWithOptions()
   await scrollToSelectedType(typeCode)
   await search()
@@ -524,7 +527,7 @@ async function scrollToSelectedType(typeCode = filters.typeCode) {
 }
 
 function openGroupDrawer() {
-  showTypeDrawer.value = false
+  showTypePanel.value = false
   showGroupDrawer.value = true
 }
 
@@ -532,13 +535,22 @@ function closeGroupDrawer() {
   showGroupDrawer.value = false
 }
 
-function openTypeDrawer() {
+function openTypePanel() {
   showGroupDrawer.value = false
-  showTypeDrawer.value = true
+  showTypePanel.value = true
 }
 
-function closeTypeDrawer() {
-  showTypeDrawer.value = false
+function closeTypePanel() {
+  showTypePanel.value = false
+}
+
+// 箭头只表达二级分类面板的展开状态；打开一级类目或选择分类时都会同步收起，避免两个选择层同时出现。
+function toggleTypePanel() {
+  if (showTypePanel.value) {
+    closeTypePanel()
+    return
+  }
+  openTypePanel()
 }
 
 function handlePageScroll(event = {}) {
@@ -691,9 +703,7 @@ function openResource(item) {
   margin-bottom: 20rpx;
 }
 
-.search-input,
-.filter-button,
-.all-type-button {
+.search-input {
   height: 80rpx;
   border-radius: 10rpx;
 }
@@ -722,18 +732,24 @@ function openResource(item) {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 12rpx;
+  gap: 4rpx;
+  height: 80rpx;
+  padding: 4rpx;
+  border: 1rpx solid $wplink-line;
+  border-radius: 10rpx;
+  background: $wplink-card;
   margin-bottom: 0;
 }
 
-.filter-shell.has-all-type-button {
-  grid-template-columns: minmax(0, 1fr) 156rpx;
+.filter-shell.has-type-panel-button {
+  grid-template-columns: minmax(0, 1fr) 72rpx;
 }
 
 .filter-row {
   flex: 1;
   min-width: 0;
   width: 100%;
+  height: 72rpx;
   white-space: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
@@ -745,8 +761,10 @@ function openResource(item) {
   align-items: center;
   justify-content: center;
   min-width: 112rpx;
+  height: 72rpx;
   margin-right: 12rpx;
   padding: 0 20rpx;
+  border-radius: 8rpx;
   background: $wplink-card;
   color: #364152;
   font-size: 26rpx;
@@ -757,13 +775,63 @@ function openResource(item) {
   color: $wplink-primary;
 }
 
-.all-type-button {
-  flex: 0 0 auto;
-  width: 156rpx;
+.type-panel-toggle {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 8rpx;
   background: $wplink-primary-soft;
   color: $wplink-primary;
+}
+
+.type-panel-arrow {
+  display: block;
+  width: 14rpx;
+  height: 14rpx;
+  border-right: 3rpx solid currentColor;
+  border-bottom: 3rpx solid currentColor;
+  transform: rotate(45deg) translate(-2rpx, -2rpx);
+}
+
+.type-panel-arrow.expanded {
+  transform: rotate(225deg) translate(-1rpx, -1rpx);
+}
+
+.type-panel {
+  max-height: 360rpx;
+  margin-top: 8rpx;
+  padding: 12rpx;
+  border: 1rpx solid $wplink-line;
+  border-radius: 10rpx;
+  background: $wplink-card;
+  box-shadow: 0 12rpx 28rpx rgba(6, 22, 37, 0.12);
+}
+
+.type-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.type-panel-button {
+  height: 72rpx;
+  padding: 0 10rpx;
+  border-radius: 10rpx;
+  background: $wplink-bg;
+  color: #364152;
   font-size: 24rpx;
+}
+
+.type-panel-button.active {
+  background: $wplink-warning-soft;
+  color: $wplink-primary;
   font-weight: 700;
+}
+
+.type-panel-button-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .tag-filter-row {
@@ -975,8 +1043,7 @@ function openResource(item) {
   box-shadow: none;
 }
 
-.group-drawer-mask,
-.type-drawer-mask {
+.group-drawer-mask {
   position: fixed;
   top: 0;
   right: 0;
@@ -988,8 +1055,7 @@ function openResource(item) {
   background: rgba(15, 23, 42, 0.38);
 }
 
-.group-drawer-panel,
-.type-drawer-panel {
+.group-drawer-panel {
   width: 100%;
   max-height: 72vh;
   padding: 26rpx 24rpx calc(30rpx + env(safe-area-inset-bottom));
@@ -1040,24 +1106,4 @@ function openResource(item) {
   font-size: 24rpx;
 }
 
-.drawer-type-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12rpx;
-}
-
-.drawer-type-button {
-  height: 72rpx;
-  padding: 0 10rpx;
-  border-radius: 10rpx;
-  background: $wplink-card;
-  color: #364152;
-  font-size: 24rpx;
-}
-
-.drawer-type-button.active {
-  background: $wplink-warning-soft;
-  color: $wplink-primary;
-  font-weight: 700;
-}
 </style>
