@@ -52,24 +52,26 @@
         :show-scrollbar="false"
         @click.stop
       >
-        <view class="type-panel-head">
-          <text class="type-panel-title">选择分类</text>
-          <text class="type-panel-current">当前：{{ selectedTypeName }}</text>
-        </view>
-        <view class="type-panel-grid">
-          <button
-            v-for="item in resourceTypes"
-            :key="item.value"
-            :class="['type-panel-button', item.value === filters.typeCode ? 'active' : '']"
-            @click="selectType(item.value)"
-          >
-            <text class="type-panel-button-text">{{ item.label }}</text>
-            <text
-              v-if="item.value === filters.typeCode"
-              class="type-panel-check"
-              aria-hidden="true"
-            ></text>
-          </button>
+        <view class="type-panel-content">
+          <view class="type-panel-head">
+            <text class="type-panel-title">选择分类</text>
+            <text class="type-panel-current">当前：{{ selectedTypeName }}</text>
+          </view>
+          <view class="type-panel-grid">
+            <button
+              v-for="item in resourceTypes"
+              :key="item.value"
+              :class="['type-panel-button', item.value === filters.typeCode ? 'active' : '']"
+              @click="selectType(item.value)"
+            >
+              <text class="type-panel-button-text">{{ item.label }}</text>
+              <text
+                v-if="item.value === filters.typeCode"
+                class="type-panel-check"
+                aria-hidden="true"
+              ></text>
+            </button>
+          </view>
         </view>
       </scroll-view>
     </view>
@@ -549,11 +551,16 @@ function openResource(item) {
 .type-panel {
   max-height: 360rpx;
   margin-top: 10rpx;
-  padding: 16rpx;
+  padding: 0;
   border: 1rpx solid $wplink-line;
   border-radius: 12rpx;
   background: $wplink-card;
   box-shadow: 0 10rpx 24rpx rgba(6, 22, 37, 0.08);
+  overflow: hidden;
+}
+
+.type-panel-content {
+  padding: 16rpx;
 }
 
 .type-panel-head {
