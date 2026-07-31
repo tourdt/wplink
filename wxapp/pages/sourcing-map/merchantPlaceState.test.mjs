@@ -3,7 +3,9 @@ import test from 'node:test'
 
 import {
   buildMerchantPlaceQuery,
+  hasMerchantDetail,
   hasValidLocation,
+  merchantDetailPath,
   merchantPlaceSourceLabel,
   normalizeMerchantPlace,
 } from './merchantPlaceState.js'
@@ -58,4 +60,13 @@ test('merchant places normalize claimed and prelisted labels without contact fie
   assert.equal(merchantPlaceSourceLabel(claimed), '已入驻')
   assert.equal(prelisted.claimed, false)
   assert.equal(merchantPlaceSourceLabel(prelisted), '待认领')
+})
+
+test('merchant detail path only accepts claimed places with a merchant id', () => {
+  const claimed = { claimed: true, merchantId: ' merchant/9 ' }
+
+  assert.equal(hasMerchantDetail(claimed), true)
+  assert.equal(merchantDetailPath(claimed), '/pages/merchant/detail?id=merchant%2F9')
+  assert.equal(hasMerchantDetail({ claimed: true, merchantId: '' }), false)
+  assert.equal(hasMerchantDetail({ claimed: false, merchantId: '9' }), false)
 })

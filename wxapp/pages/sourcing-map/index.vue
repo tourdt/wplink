@@ -63,6 +63,7 @@
           :key="place.objectId"
           :place="place"
           @select="handlePlaceSelect"
+          @detail="openMerchantDetail"
           @navigate="openPlaceLocation"
           @claim="openPlaceClaim"
         />
@@ -91,6 +92,7 @@
           :place="selectedPlace"
           selected
           @select="handlePlaceSelect"
+          @detail="openMerchantDetail"
           @navigate="openPlaceLocation"
           @claim="openPlaceClaim"
         />
@@ -122,6 +124,7 @@ import {
 import {
   buildMerchantPlaceQuery,
   hasValidLocation,
+  merchantDetailPath,
   normalizeMerchantPlace,
 } from './merchantPlaceState'
 import {
@@ -318,12 +321,8 @@ function handleMarkerTap(event) {
 }
 
 function handlePlaceSelect(place) {
-  if (viewMode.value === 'map') {
-    selectedObjectId.value = place.objectId
-    return
-  }
-  if (place.claimed && place.merchantId) {
-    uni.navigateTo({ url: `/pages/merchant/detail?id=${place.merchantId}` })
+  if (merchantDetailPath(place)) {
+    openMerchantDetail(place)
     return
   }
   uni.showModal({
@@ -334,6 +333,13 @@ function handlePlaceSelect(place) {
       if (confirm) openPlaceClaim(place)
     },
   })
+}
+
+function openMerchantDetail(place) {
+  const url = merchantDetailPath(place)
+  if (!url) return
+  // 列表卡片和地图摘要卡共用同一入口，避免地图模式只选中商家却无法继续查看主页。
+  uni.navigateTo({ url })
 }
 
 function openPlaceClaim(place) {

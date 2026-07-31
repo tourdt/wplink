@@ -95,6 +95,15 @@ test('selected native marker opens a custom merchant card and prelisted place ca
   ])
 })
 
+test('claimed merchant cards open the merchant homepage in list and map views', () => {
+  assert.equal((source.match(/@detail="openMerchantDetail"/g) || []).length, 2)
+  expectTokens(source, [
+    'merchantDetailPath',
+    'function openMerchantDetail(place)',
+    'uni.navigateTo({ url })',
+  ])
+})
+
 test('legacy canvas implementation is preserved outside the registered user path', () => {
   assert.match(legacySource, /canvas-id="sourcingMapCanvas"/)
   assert.match(legacySource, /createSourcingMapRenderer/)
