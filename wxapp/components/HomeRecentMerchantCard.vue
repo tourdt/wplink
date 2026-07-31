@@ -87,6 +87,7 @@ const onboardedLabel = computed(() => `${formatListFreshnessDate(props.merchant.
 }
 
 .onboarded-date {
+  margin-left: auto;
   color: $wplink-muted;
   font-family: "DIN Alternate", Arial, sans-serif;
   font-size: 20rpx;

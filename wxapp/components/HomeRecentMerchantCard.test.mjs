@@ -17,6 +17,7 @@ test('recent merchant item composes the shared list style with onboarding contex
   assert.match(source, /formatListFreshnessDate/)
   assert.match(source, /logoUrl/)
   assert.match(source, /merchant-initial/)
+  assert.match(source, /\.onboarded-date\s*\{[\s\S]*margin-left:\s*auto/)
   assert.doesNotMatch(source, /addressText/)
 })
 
