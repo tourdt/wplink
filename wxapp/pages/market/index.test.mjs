@@ -13,6 +13,12 @@ function cssBlock(selector) {
   return match?.[1] || ''
 }
 
+function rpxValue(styles, property) {
+  const match = styles.match(new RegExp(`${property}:\\s*(\\d+)rpx`))
+  assert.ok(match, `missing ${property} rpx value`)
+  return Number(match[1])
+}
+
 test('market page supports pull refresh and load more pagination', () => {
   for (const token of [
     'onPullDownRefresh',
@@ -171,8 +177,13 @@ test('market page expands secondary categories inline from a compact arrow contr
   assert.doesNotMatch(source, /@scroll="handleTypeScroll"/)
   assert.doesNotMatch(source, /const typeScrollLeft = ref\(0\)/)
   assert.doesNotMatch(source, /function handleTypeScroll/)
-  assert.match(cssBlock('.filter-shell'), /height:\s*80rpx;/)
-  assert.match(cssBlock('.filter-shell'), /padding:\s*4rpx;/)
+  const filterShellStyles = cssBlock('.filter-shell')
+  const filterControlHeight = rpxValue(cssBlock('.type-panel-toggle'), 'height')
+  assert.equal(
+    rpxValue(filterShellStyles, 'height'),
+    filterControlHeight + rpxValue(filterShellStyles, 'padding') * 2 + rpxValue(filterShellStyles, 'border') * 2,
+  )
+  assert.match(filterShellStyles, /padding:\s*4rpx;/)
   assert.match(cssBlock('.filter-shell.has-type-panel-button'), /grid-template-columns:\s*minmax\(0,\s*1fr\) 72rpx;/)
   assert.match(cssBlock('.filter-row'), /overflow-x:\s*auto;/)
   assert.match(cssBlock('.filter-row'), /-webkit-overflow-scrolling:\s*touch;/)

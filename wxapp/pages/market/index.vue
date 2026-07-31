@@ -478,7 +478,7 @@ function openResource(item) {
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 4rpx;
-  height: 80rpx;
+  height: 82rpx;
   padding: 4rpx;
   border: 1rpx solid $wplink-line;
   border-radius: 12rpx;
