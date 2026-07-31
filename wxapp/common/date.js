@@ -22,7 +22,8 @@ export function formatListFreshnessDate(value, now = new Date(), placeholder = '
   const text = String(value).trim()
   if (!text) return placeholder
 
-  const dayMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  const dayMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  // 纯日期没有时区语义，按设备本地日期处理；完整时间戳必须保留偏移量，避免凌晨跨日显示错误。
   const date = dayMatch ? new Date(Number(dayMatch[1]), Number(dayMatch[2]) - 1, Number(dayMatch[3])) : new Date(text)
   if (Number.isNaN(date.getTime())) return placeholder
 
