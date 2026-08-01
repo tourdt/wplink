@@ -767,7 +767,7 @@ git commit -m "feat: 接入商家地图行为埋点"
 - 检查：本计划涉及的全部文件。
 - 修改：`docs/superpowers/plans/2026-08-01-wxapp-merchant-location-nearby.md`（执行时勾选完成项）。
 
-- [ ] **步骤 1：格式、契约和差异检查**
+- [x] **步骤 1：格式、契约和差异检查**
 
 ```bash
 cd backend
@@ -776,13 +776,17 @@ goctl api validate --api app/api/app.api
 git diff --check
 ```
 
-- [ ] **步骤 2：后端全量测试**
+2026-08-01 fresh 验证：`gofmt`、`goctl api validate`、`git diff --check` 均退出 0，`gofmt` 未产生文件差异。
+
+- [x] **步骤 2：后端全量测试**
 
 ```bash
 cd backend
 go test ./...
 node --test scripts/*.test.mjs
 ```
+
+2026-08-01 fresh 验证：原样 `go test ./...` 因 sandbox Go cache、缺少 ignored `etc/app.yaml`、不完整 admin embed 产物和 `httptest` 监听限制退出 1；将 Go 临时目录指向 `/private/tmp`、临时补齐配置与 embed 产物并允许本机随机端口后，35 个 Go 包全部通过（31 个包有测试、4 个包无测试），命令退出 0。`node --test scripts/*.test.mjs` 为 45/45 通过，退出 0。临时文件均已清理。
 
 - [ ] **步骤 3：数据库 migration 集成验证**
 
@@ -792,13 +796,17 @@ cd backend && go run ./scripts/verify_migrations.go -config etc/app.yaml
 
 预期：临时数据库完成全部 up/down 和演示数据重复导入，日志中的 DSN 已脱敏。
 
-- [ ] **步骤 4：小程序全量验证与构建**
+2026-08-01 待处理：已在 `--rm`、数据目录 `tmpfs`、仅绑定 `127.0.0.1` 随机端口的临时 PostgreSQL 16 中执行，命令退出 1。旧 `000003_seed_zhili.down.sql` 删除 `city_stations` 时被既有 `banner_topics_city_station_id_fkey` 阻止，尚未执行到本功能新增的 `000033`；容器已删除。该项没有通过，不勾选。
+
+- [x] **步骤 4：小程序全量验证与构建**
 
 ```bash
 cd wxapp && npm run check
 ```
 
-- [ ] **步骤 5：微信真机验收**
+2026-08-01 fresh 验证：退出 0；页面与流程校验通过，322/322 测试通过，微信小程序构建完成。存在 1 条 Node VM Modules 实验性 warning、36 条 Sass `legacy-js-api` 和 1 条 Sass `@import` 弃用 warning，并非 0 warning。
+
+- [ ] **步骤 5：微信真机验收（待微信开发者工具/真机验收）**
 
 1. 一级 Tab 和首页入口显示“拿货档口”，默认只出现商家列表。
 2. 已入驻商家进入独立位置页，待认领档口仍可直接导航。
@@ -810,7 +818,9 @@ cd wxapp && npm run check
 8. 导航失败、上下文失败、周边失败、无结果和无坐标均有规定的中文反馈。
 9. 断网或埋点失败不阻断地图、导航和商家跳转。
 
-- [ ] **步骤 6：最终范围审查**
+当前命令行环境无法证明以上 9 项真机行为，均保持待验收，不声称已完成。
+
+- [x] **步骤 6：最终范围审查**
 
 ```bash
 git status --short
@@ -820,9 +830,11 @@ git diff --stat
 
 确认未删除旧 Canvas 文件，未引入地图搜索、周边筛选、聚合、用户定位或无关构建产物。
 
-- [ ] **步骤 7：提交计划完成状态**
+2026-08-01 fresh 审查：工作树无业务差异，`git diff --check` 退出 0；旧 `legacy-canvas.vue` 和 Canvas/几何辅助文件仍受 Git 跟踪且相对计划基点未修改。位置页与一级目录未出现 `uni.getLocation`、`show-location`、地图区域搜索、周边筛选、Marker 聚合或路线规划；未发现无关构建产物。
+
+- [x] **步骤 7：提交计划验证状态**
 
 ```bash
 git add docs/superpowers/plans/2026-08-01-wxapp-merchant-location-nearby.md
-git commit -m "docs: 完成档口位置实施计划"
+git commit -m "docs: 更新档口位置实施计划验证状态"
 ```
