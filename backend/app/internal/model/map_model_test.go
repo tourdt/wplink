@@ -283,3 +283,29 @@ func TestBuildNearbyMerchantPlaceQueryScopesPublishedActiveBoothsInBoundingBox(t
 		t.Fatalf("longitude bounds = [%f, %f], want about 1km around 120.12", minLng, maxLng)
 	}
 }
+
+func TestBuildNearbyMerchantPlaceQueryUsesGlobalLongitudeWhenRadiusReachesPole(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		lat  string
+	}{
+		{name: "north pole", lat: "89.9950000"},
+		{name: "south pole", lat: "-89.9950000"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			origin := MerchantPlace{Object: MapObject{MerchantID: "merchant-1", Lat: tc.lat, Lng: "0.0000000"}}
+			_, args := buildNearbyMerchantPlaceQuery(origin, 1000)
+			if len(args) != 5 {
+				t.Fatalf("args = %#v, want merchant ID and four bounding values", args)
+			}
+			minLng, minLngOK := args[3].(float64)
+			maxLng, maxLngOK := args[4].(float64)
+			if !minLngOK || !maxLngOK {
+				t.Fatalf("longitude bounds = %#v, want float64 values", args[3:])
+			}
+			if minLng != -180 || maxLng != 180 {
+				t.Fatalf("longitude bounds = [%f, %f], want global range for across-pole candidates", minLng, maxLng)
+			}
+		})
+	}
+}

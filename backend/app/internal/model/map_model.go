@@ -1480,7 +1480,7 @@ func buildNearbyMerchantPlaceQuery(origin MerchantPlace, radiusMeters int64) (st
 
 	minLng, maxLng := -180.0, 180.0
 	cosLatitude := math.Cos(lat * math.Pi / 180)
-	if math.Abs(cosLatitude) > 1e-12 {
+	if minLat > -90 && maxLat < 90 && math.Abs(cosLatitude) > 1e-12 {
 		longitudeDelta := angularRadius * 180 / (math.Pi * math.Abs(cosLatitude))
 		if longitudeDelta < 180 && lng-longitudeDelta >= -180 && lng+longitudeDelta <= 180 {
 			minLng = lng - longitudeDelta
