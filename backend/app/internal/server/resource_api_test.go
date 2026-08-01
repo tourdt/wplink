@@ -91,6 +91,24 @@ func TestMerchantMapEventRouterUsesTokenSubject(t *testing.T) {
 	}
 }
 
+func TestMerchantMapEventRouterRejectsCredentialWhenTokenServiceMissing(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(validMerchantMapEventJSON("location_view")))
+	req.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(rec, req)
+
+	body := decodeEnvelope(t, rec, http.StatusUnauthorized)
+	if body["errorCode"] != errx.CodeUnauthorized || body["msg"] != "登录已过期，请重新登录" {
+		t.Fatalf("body = %#v, want expired login error when token service is unavailable", body)
+	}
+	if store.mapEventCalled {
+		t.Fatal("store called when request credential could not be verified")
+	}
+}
+
 func TestMerchantMapEventRouterRejectsExpiredTokenBeforeStore(t *testing.T) {
 	store := &fakeResourceAPIStore{}
 	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))

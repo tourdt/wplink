@@ -284,6 +284,11 @@ func registerMerchantMapEventRoute(mux *http.ServeMux, store metricslogic.Mercha
 			response.JSON(w, nil, err)
 			return
 		}
+		// 请求主动携带凭证时禁止静默降级为匿名；缺少解析服务意味着该凭证无法验证，应按登录过期处理。
+		if tokenService == nil && strings.TrimSpace(r.Header.Get("Authorization")) != "" {
+			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, "登录已过期，请重新登录"))
+			return
+		}
 		userID, err := optionalUserIDFromBearerToken(r, tokenService)
 		if err != nil {
 			response.JSON(w, nil, err)
