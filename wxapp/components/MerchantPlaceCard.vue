@@ -17,6 +17,7 @@
       <view class="place-foot">
         <text class="distance-text">{{ hasLocation ? (place.distanceText || '可导航到店') : '位置待完善' }}</text>
         <view class="place-actions">
+          <button v-if="hasMerchantDetail(place)" class="detail-button" @click.stop="$emit('detail', place)">进入主页</button>
           <button v-if="hasLocation" class="navigate-button" @click.stop="$emit('navigate', place)">导航</button>
           <button v-if="!place.claimed" class="claim-button" @click.stop="$emit('claim', place)">这是我的档口</button>
         </view>
@@ -27,7 +28,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { hasValidLocation } from '../pages/sourcing-map/merchantPlaceState'
+import { hasMerchantDetail, hasValidLocation } from '../pages/sourcing-map/merchantPlaceState'
 
 const props = defineProps({
   place: {
@@ -40,7 +41,7 @@ const props = defineProps({
   },
 })
 
-defineEmits(['select', 'navigate', 'claim'])
+defineEmits(['select', 'detail', 'navigate', 'claim'])
 
 const hasLocation = computed(() => hasValidLocation(props.place))
 const sourceLabel = computed(() => props.place.claimed ? '已入驻' : '待认领')
@@ -177,6 +178,7 @@ const locationText = computed(() => [
   gap: 8rpx;
 }
 
+.detail-button,
 .navigate-button,
 .claim-button {
   min-width: 92rpx;
@@ -185,6 +187,12 @@ const locationText = computed(() => [
   border-radius: 8rpx;
   font-size: 22rpx;
   line-height: 50rpx;
+}
+
+.detail-button {
+  border: 1rpx solid #172033;
+  background: #ffffff;
+  color: #172033;
 }
 
 .navigate-button {
@@ -198,6 +206,7 @@ const locationText = computed(() => [
   color: #a83200;
 }
 
+.detail-button::after,
 .navigate-button::after,
 .claim-button::after {
   border: 0;

@@ -59,6 +59,16 @@ export function merchantPlaceSourceLabel(place = {}) {
   return place.sourceType === SOURCE_CLAIMED || place.claimed ? '已入驻' : '待认领'
 }
 
+export function merchantDetailPath(place = {}) {
+  const merchantId = String(place.merchantId || '').trim()
+  if (!place.claimed || !merchantId) return ''
+  return `/pages/merchant/detail?id=${encodeURIComponent(merchantId)}`
+}
+
+export function hasMerchantDetail(place = {}) {
+  return Boolean(merchantDetailPath(place))
+}
+
 function cleanList(values) {
   const list = Array.isArray(values) ? values : String(values || '').split(',')
   return [...new Set(list.map((value) => String(value || '').trim()).filter(Boolean))]

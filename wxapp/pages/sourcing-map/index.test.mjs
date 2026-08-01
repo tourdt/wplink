@@ -88,11 +88,22 @@ test('selected native marker opens a custom merchant card and prelisted place ca
     'selectedPlace',
     'marker-card',
     'handleMarkerTap',
+    '@detail="openMerchantDetail"',
     'openPlaceClaim',
     '/pages/merchant/map-binding?objectId=',
     '这是我的档口',
     '平台预录',
   ])
+})
+
+test('list and map merchant cards share the same merchant homepage navigation', () => {
+  assert.equal((source.match(/@detail="openMerchantDetail"/g) || []).length, 2)
+  expectTokens(source, [
+    'merchantDetailPath',
+    'function openMerchantDetail(place)',
+    'uni.navigateTo({ url })',
+  ])
+  assert.doesNotMatch(source, /function handlePlaceSelect\(place\) \{\s*if \(viewMode\.value === 'map'\)/)
 })
 
 test('legacy canvas implementation is preserved outside the registered user path', () => {

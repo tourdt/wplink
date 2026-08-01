@@ -26,3 +26,10 @@ test('merchant place card exposes navigation for valid coordinates and keeps cla
   assert.doesNotMatch(source, /v-else-if="!place\.claimed"/)
   assert.doesNotMatch(source, /拨打电话|复制微信|makePhoneCall|setClipboardData/)
 })
+
+test('claimed merchant card exposes an explicit merchant homepage action', () => {
+  assert.match(source, /v-if="hasMerchantDetail\(place\)" class="detail-button"/)
+  assert.match(source, /@click\.stop="\$emit\('detail', place\)"/)
+  assert.match(source, />进入主页<\/button>/)
+  assert.match(source, /defineEmits\(\['select', 'detail', 'navigate', 'claim'\]\)/)
+})
