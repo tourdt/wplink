@@ -9,6 +9,15 @@ export function recordResourceExposures(data) {
   })
 }
 
+export function recordMerchantMapEvent(data) {
+  return request({
+    url: '/api/v1/metrics/merchant-map-events',
+    method: 'POST',
+    data,
+    suppressErrorToast: true,
+  })
+}
+
 export function getResourceMetrics(resourceId, params = {}) {
   return request({
     url: `/api/v1/resources/${resourceId}/metrics`,

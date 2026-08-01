@@ -77,6 +77,7 @@ import { onLoad, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-
 import MerchantPlaceCard from '../../components/MerchantPlaceCard.vue'
 import { requireLogin } from '../../common/auth'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
+import { trackMerchantMapEvent } from '../../common/merchantMapAnalytics'
 import { getMerchantId } from '../../store/session'
 import {
   listMapCategories,
@@ -230,6 +231,7 @@ function openMerchantLocation(place) {
   if (!hasMerchantDetail(place) || !hasValidLocation(place)) return
   const merchantId = String(place.merchantId || '').trim()
   // 已入驻档口进入商家位置页；待认领点位没有可靠的商家上下文，只允许直接导航。
+  trackMerchantMapEvent({ merchantId, eventType: 'location_entry_click', source: 'directory' })
   uni.navigateTo({ url: `/pages/merchant/location?merchantId=${encodeURIComponent(merchantId)}` })
 }
 

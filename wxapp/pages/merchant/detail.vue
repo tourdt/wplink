@@ -89,6 +89,7 @@ import ResourceList from '../../components/ResourceList.vue'
 import { getMerchantFollowState, setMerchantFollow } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
 import { listResources } from '../../api/resource'
+import { trackMerchantMapEvent } from '../../common/merchantMapAnalytics'
 import { getSession } from '../../store/session'
 import { buildMerchantAddressLocation } from '../sourcing-map/merchantPlaceState'
 
@@ -231,6 +232,11 @@ function openResource(resource) {
 function openMerchantLocation() {
   if (!merchant.value.id || !merchantAddressLocation.value?.hasGps) return
   // 已入驻商家的坐标要进入独立位置页，确保用户始终处于明确的商家上下文中。
+  trackMerchantMapEvent({
+    merchantId: merchant.value.id,
+    eventType: 'location_entry_click',
+    source: 'merchant_detail',
+  })
   uni.navigateTo({ url: `/pages/merchant/location?merchantId=${encodeURIComponent(merchant.value.id)}` })
 }
 

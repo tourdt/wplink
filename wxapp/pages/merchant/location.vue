@@ -121,6 +121,7 @@
 import { computed, nextTick, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getMerchantLocationContext } from '../../api/sourcingMap'
+import { trackMerchantMapEvent } from '../../common/merchantMapAnalytics'
 import {
   buildMerchantLocationMarkers,
   merchantMainTags,
@@ -188,6 +189,11 @@ async function loadLocationContext({ preserveCurrent = false } = {}) {
     scrollIntoViewId.value = ''
     nearbyDrawerOpen.value = false
     mapScale.value = 16
+    trackMerchantMapEvent({
+      merchantId: merchantId.value,
+      eventType: 'location_view',
+      source: 'merchant_location',
+    })
   } catch (err) {
     console.error('加载商家位置上下文失败', { merchantId: merchantId.value, err })
     if (preserveCurrent && context.value.current) {
@@ -218,12 +224,23 @@ function handleMarkerTap(event) {
     closeNearbyDrawer()
     return
   }
+  trackMerchantMapEvent({
+    merchantId: merchantId.value,
+    targetMerchantId: tappedMerchantId,
+    eventType: 'nearby_marker_click',
+    source: 'merchant_location',
+  })
   selectNearbyMerchant(tappedMerchantId)
 }
 
 function openNearbyDrawer() {
-  if (!context.value.nearbyAvailable || !context.value.nearby.length) return
+  if (nearbyDrawerOpen.value || !context.value.nearbyAvailable || !context.value.nearby.length) return
   nearbyDrawerOpen.value = true
+  trackMerchantMapEvent({
+    merchantId: merchantId.value,
+    eventType: 'nearby_drawer_open',
+    source: 'merchant_location',
+  })
 }
 
 function closeNearbyDrawer() {
@@ -252,7 +269,7 @@ function selectNearbyMerchant(merchantId) {
   if (!place || !context.value.current) return
 
   selectedNearbyMerchantId.value = normalizedMerchantId
-  nearbyDrawerOpen.value = true
+  openNearbyDrawer()
   scrollIntoViewId.value = nearbyMerchantDomId(normalizedMerchantId)
   mapScale.value = 14
 
@@ -274,6 +291,12 @@ function selectNearbyMerchant(merchantId) {
 function openNearbyMerchant(place) {
   const normalizedMerchantId = String(place?.merchantId || '').trim()
   if (!normalizedMerchantId) return
+  trackMerchantMapEvent({
+    merchantId: merchantId.value,
+    targetMerchantId: normalizedMerchantId,
+    eventType: 'nearby_merchant_click',
+    source: 'merchant_location',
+  })
   uni.navigateTo({
     url: `/pages/merchant/detail?id=${encodeURIComponent(normalizedMerchantId)}`,
     fail(err) {
@@ -286,6 +309,11 @@ function openNearbyMerchant(place) {
 function openCurrentLocation() {
   const current = context.value.current
   if (!current) return
+  trackMerchantMapEvent({
+    merchantId: merchantId.value,
+    eventType: 'navigation_click',
+    source: 'merchant_location',
+  })
   uni.openLocation({
     latitude: Number(current.lat),
     longitude: Number(current.lng),

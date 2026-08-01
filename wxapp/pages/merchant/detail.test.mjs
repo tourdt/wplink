@@ -2,11 +2,47 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
+import vm from 'node:vm'
 
 import * as merchantPlaceState from '../sourcing-map/merchantPlaceState.js'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const sourcePath = path.join(root, 'pages/merchant/detail.vue')
+
+function plain(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
+function loadMerchantDetailPage({ trackMerchantMapEvent, timeline }) {
+  const source = fs.readFileSync(sourcePath, 'utf8')
+  const script = source
+    .match(/<script setup>([\s\S]*?)<\/script>/)?.[1]
+    .replace(/import[\s\S]*?from\s+['"][^'"]+['"]\s*/g, '') || ''
+  const sandbox = {
+    buildMerchantAddressLocation: merchantPlaceState.buildMerchantAddressLocation,
+    computed(getter) {
+      return { get value() { return getter() } }
+    },
+    getMerchant: async () => ({}),
+    getMerchantFollowState: async () => ({ followed: false }),
+    getSession: () => ({ merchantId: '', token: '' }),
+    listResources: async () => ({ items: [], total: 0 }),
+    onLoad() {},
+    onReachBottom() {},
+    ref(value) {
+      return { value }
+    },
+    setMerchantFollow: async () => ({ followed: false }),
+    trackMerchantMapEvent,
+    uni: {
+      navigateTo(options) {
+        timeline.push(['navigateTo', options.url])
+      },
+    },
+  }
+  vm.runInNewContext(`${script}\nglobalThis.merchantDetailPage = { merchant, openMerchantLocation }`, sandbox)
+  return sandbox.merchantDetailPage
+}
 
 test('merchant detail page does not show verification wording', () => {
   const source = fs.readFileSync(sourcePath, 'utf8')
@@ -114,4 +150,36 @@ test('merchant detail page only directs users to contact details in published su
 
   assert.doesNotMatch(source, /merchant\.contact/)
   assert.match(source, /联系方式仅随有效供需信息展示/)
+})
+
+test('merchant detail records its valid location entry immediately before navigation', () => {
+  const timeline = []
+  const page = loadMerchantDetailPage({
+    trackMerchantMapEvent(event) {
+      timeline.push(['track', event])
+      return new Promise(() => {})
+    },
+    timeline,
+  })
+  page.merchant.value = {
+    id: 'merchant-detail',
+    addressText: '织里商城 A-101',
+    location: { lat: '30.89912', lng: '120.20482' },
+  }
+
+  page.openMerchantLocation()
+
+  assert.deepEqual(plain(timeline), [
+    ['track', {
+      merchantId: 'merchant-detail',
+      eventType: 'location_entry_click',
+      source: 'merchant_detail',
+    }],
+    ['navigateTo', '/pages/merchant/location?merchantId=merchant-detail'],
+  ])
+
+  timeline.length = 0
+  page.merchant.value.location.lat = ''
+  page.openMerchantLocation()
+  assert.deepEqual(timeline, [])
 })

@@ -4,6 +4,8 @@ import path from 'node:path'
 import test from 'node:test'
 import vm from 'node:vm'
 
+import * as locationState from './locationState.js'
+
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = read('pages/merchant/location.vue')
 const apiSource = read('api/sourcingMap.js')
@@ -20,6 +22,10 @@ function expectTokens(target, tokens) {
   }
 }
 
+function plain(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
 function loadSourcingMapApi(request) {
   const executableSource = apiSource
     .replace("import request from './request'", '')
@@ -27,6 +33,81 @@ function loadSourcingMapApi(request) {
   const sandbox = { request }
   vm.runInNewContext(`${executableSource}\nglobalThis.sourcingMapApi = { getMerchantLocationContext }`, sandbox)
   return sandbox.sourcingMapApi
+}
+
+function loadLocationPage({ getMerchantLocationContext, trackMerchantMapEvent, timeline = [] }) {
+  const script = source
+    .match(/<script setup>([\s\S]*?)<\/script>/)?.[1]
+    .replace(/import[\s\S]*?from\s+['"][^'"]+['"]\s*/g, '') || ''
+  let loadHook
+  const sandbox = {
+    ...locationState,
+    computed(getter) {
+      return { get value() { return getter() } }
+    },
+    console,
+    getMerchantLocationContext,
+    nextTick(callback) {
+      callback()
+    },
+    onLoad(callback) {
+      loadHook = callback
+    },
+    ref(value) {
+      return { value }
+    },
+    trackMerchantMapEvent,
+    uni: {
+      createMapContext() {
+        return {
+          includePoints() {},
+          moveToLocation() {},
+        }
+      },
+      navigateBack() {},
+      navigateTo(options) {
+        timeline.push(['navigateTo', options.url])
+      },
+      openLocation() {
+        timeline.push(['openLocation'])
+      },
+      showToast() {},
+      switchTab() {},
+    },
+  }
+  vm.runInNewContext(`${script}\nglobalThis.locationPage = {
+    closeNearbyDrawer,
+    handleMarkerTap,
+    openCurrentLocation,
+    openNearbyDrawer,
+    openNearbyMerchant,
+  }`, sandbox)
+  sandbox.locationPage.loadHook = (...args) => loadHook(...args)
+  return sandbox.locationPage
+}
+
+function locationContext() {
+  return {
+    current: {
+      claimed: true,
+      sourceType: 'merchant_claimed',
+      merchantId: 'merchant-main',
+      name: '主商家',
+      lat: '30.89912',
+      lng: '120.20482',
+    },
+    nearby: [{
+      claimed: true,
+      sourceType: 'merchant_claimed',
+      merchantId: ' nearby-2 ',
+      name: '周边商家',
+      lat: '30.90012',
+      lng: '120.20582',
+      distanceMeters: 180,
+    }],
+    nearbyAvailable: true,
+    radiusMeters: 3000,
+  }
 }
 
 test('merchant location page is registered with its business title', () => {
@@ -127,4 +208,107 @@ test('merchant location page links a nearby marker, list item, and merchant deta
   assert.match(source, /:latitude="mapCenter\.latitude"[\s\S]*:longitude="mapCenter\.longitude"/)
   assert.doesNotMatch(source, /:id="`nearby-\$\{place\.merchantId\}`"/)
   assert.doesNotMatch(source, /platformTags/)
+})
+
+test('merchant location page records a view only after a valid location context succeeds', async () => {
+  const events = []
+  const page = loadLocationPage({
+    getMerchantLocationContext: async () => locationContext(),
+    trackMerchantMapEvent(event) {
+      events.push(event)
+    },
+  })
+
+  await page.loadHook({ merchantId: ' merchant-main ' })
+
+  assert.deepEqual(plain(events), [{
+    merchantId: 'merchant-main',
+    eventType: 'location_view',
+    source: 'merchant_location',
+  }])
+
+  const invalidEvents = []
+  const invalidPage = loadLocationPage({
+    getMerchantLocationContext: async () => ({
+      current: { merchantId: 'merchant-main', name: '无效坐标', lat: '', lng: '120.20482' },
+      nearby: [],
+      nearbyAvailable: true,
+    }),
+    trackMerchantMapEvent(event) {
+      invalidEvents.push(event)
+    },
+  })
+  await invalidPage.loadHook({ merchantId: 'merchant-main' })
+  assert.deepEqual(invalidEvents, [])
+})
+
+test('merchant location page records navigation immediately before opening the map without awaiting analytics', async () => {
+  const timeline = []
+  const page = loadLocationPage({
+    getMerchantLocationContext: async () => locationContext(),
+    trackMerchantMapEvent(event) {
+      timeline.push(['track', event])
+      return new Promise(() => {})
+    },
+    timeline,
+  })
+  await page.loadHook({ merchantId: 'merchant-main' })
+  timeline.length = 0
+
+  page.openCurrentLocation()
+
+  assert.deepEqual(plain(timeline), [
+    ['track', { merchantId: 'merchant-main', eventType: 'navigation_click', source: 'merchant_location' }],
+    ['openLocation'],
+  ])
+})
+
+test('merchant location page records drawer transition, nearby marker, and nearby merchant jump at their real actions', async () => {
+  const timeline = []
+  const page = loadLocationPage({
+    getMerchantLocationContext: async () => locationContext(),
+    trackMerchantMapEvent(event) {
+      timeline.push(['track', event])
+      return new Promise(() => {})
+    },
+    timeline,
+  })
+  await page.loadHook({ merchantId: 'merchant-main' })
+  timeline.length = 0
+
+  page.openNearbyDrawer()
+  page.openNearbyDrawer()
+  assert.deepEqual(plain(timeline), [[
+    'track',
+    { merchantId: 'merchant-main', eventType: 'nearby_drawer_open', source: 'merchant_location' },
+  ]])
+
+  page.closeNearbyDrawer()
+  timeline.length = 0
+  page.handleMarkerTap({ detail: { markerId: 2 } })
+  assert.deepEqual(plain(timeline), [
+    ['track', {
+      merchantId: 'merchant-main',
+      targetMerchantId: 'nearby-2',
+      eventType: 'nearby_marker_click',
+      source: 'merchant_location',
+    }],
+    ['track', {
+      merchantId: 'merchant-main',
+      eventType: 'nearby_drawer_open',
+      source: 'merchant_location',
+    }],
+  ])
+
+  timeline.length = 0
+  page.openNearbyMerchant({ merchantId: ' nearby-2 ' })
+  assert.deepEqual(plain(timeline), [
+    ['track', {
+      merchantId: 'merchant-main',
+      targetMerchantId: 'nearby-2',
+      eventType: 'nearby_merchant_click',
+      source: 'merchant_location',
+    }],
+    ['navigateTo', '/pages/merchant/detail?id=nearby-2'],
+  ])
 })

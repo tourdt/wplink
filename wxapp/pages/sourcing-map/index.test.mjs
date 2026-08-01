@@ -2,6 +2,9 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
+import vm from 'node:vm'
+
+import * as merchantPlaceState from './merchantPlaceState.js'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = read('pages/sourcing-map/index.vue')
@@ -18,6 +21,47 @@ function expectTokens(target, tokens) {
   for (const token of tokens) {
     assert.match(target, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
+}
+
+function plain(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
+function loadDirectoryPage({ trackMerchantMapEvent, timeline }) {
+  const script = source
+    .match(/<script setup>([\s\S]*?)<\/script>/)?.[1]
+    .replace(/import[\s\S]*?from\s+['"][^'"]+['"]\s*/g, '') || ''
+  const sandbox = {
+    ...merchantPlaceState,
+    DEFAULT_CITY_CODE: 'zhili',
+    computed(getter) {
+      return { get value() { return getter() } }
+    },
+    getMerchantId() {
+      return ''
+    },
+    listMapCategories: async () => ({ items: [] }),
+    listMerchantPlaces: async () => ({ items: [], total: 0 }),
+    onLoad() {},
+    onPullDownRefresh() {},
+    onReachBottom() {},
+    onShow() {},
+    ref(value) {
+      return { value }
+    },
+    requireLogin() {
+      return true
+    },
+    submitMapLocationCorrection: async () => {},
+    trackMerchantMapEvent,
+    uni: {
+      navigateTo(options) {
+        timeline.push(['navigateTo', options.url])
+      },
+    },
+  }
+  vm.runInNewContext(`${script}\nglobalThis.directoryPage = { openMerchantLocation }`, sandbox)
+  return sandbox.directoryPage
 }
 
 test('merchant booth directory remains a stable tab and home entry target', () => {
@@ -98,4 +142,36 @@ test('legacy canvas implementation is preserved outside the registered user path
   assert.match(legacySource, /canvas-id="sourcingMapCanvas"/)
   assert.match(legacySource, /createSourcingMapRenderer/)
   assert.ok(!pagesConfig.pages.some((entry) => entry.path === 'pages/sourcing-map/legacy-canvas'))
+})
+
+test('merchant directory records its valid location entry immediately before navigation', () => {
+  const timeline = []
+  const page = loadDirectoryPage({
+    trackMerchantMapEvent(event) {
+      timeline.push(['track', event])
+      return new Promise(() => {})
+    },
+    timeline,
+  })
+  const place = {
+    claimed: true,
+    merchantId: ' merchant-directory ',
+    lat: '30.89912',
+    lng: '120.20482',
+  }
+
+  page.openMerchantLocation(place)
+
+  assert.deepEqual(plain(timeline), [
+    ['track', {
+      merchantId: 'merchant-directory',
+      eventType: 'location_entry_click',
+      source: 'directory',
+    }],
+    ['navigateTo', '/pages/merchant/location?merchantId=merchant-directory'],
+  ])
+
+  timeline.length = 0
+  page.openMerchantLocation({ ...place, lat: '' })
+  assert.deepEqual(timeline, [])
 })
