@@ -1,5 +1,9 @@
 <template>
-  <view :class="['resource-feed-card', { demand: cardModel.isDemand }]" @click="$emit('open', resource)">
+  <view
+    :class="['resource-feed-card', { demand: cardModel.isDemand }]"
+    role="button"
+    @click="$emit('open', resource)"
+  >
     <view class="feed-thumb-wrap">
       <image
         class="feed-thumb"
@@ -59,6 +63,11 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   border-radius: 12rpx;
   background: $wplink-card;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+  transition: transform 120ms ease-out;
+}
+
+.resource-feed-card:active {
+  transform: translateY(1rpx);
 }
 
 .feed-thumb-wrap {

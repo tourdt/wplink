@@ -71,3 +71,18 @@ test('home degrades to one available feed and hides an empty feed container', ()
   assert.match(source, /homeFeedState\.value\.hasResources/)
   assert.match(source, /v-for="item in recentMerchants"/)
 })
+
+test('home reuses map merchant rows and the shared compact resource feed card', () => {
+  const merchantCardSource = fs.readFileSync(path.join(root, 'components/HomeRecentMerchantCard.vue'), 'utf8')
+
+  assert.match(source, /import HomeRecentMerchantCard from '\.\.\/\.\.\/components\/HomeRecentMerchantCard\.vue'/)
+  assert.match(source, /import ResourceFeedCard from '\.\.\/\.\.\/components\/ResourceFeedCard\.vue'/)
+  assert.match(
+    source,
+    /<ResourceExposure[\s\S]*v-for="item in homeResources"[\s\S]*:resource-id="item\.id"[\s\S]*source="home"[\s\S]*<ResourceFeedCard[\s\S]*:resource="item"[\s\S]*@open="openResource"/,
+  )
+  assert.doesNotMatch(source, /import ResourceCard/)
+  assert.doesNotMatch(source, /variant="home"/)
+  assert.match(merchantCardSource, /import MerchantListItem from '\.\/MerchantListItem\.vue'/)
+  assert.doesNotMatch(merchantCardSource, /导航|待认领|这是我的档口/)
+})

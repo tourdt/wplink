@@ -19,7 +19,7 @@ export const defaultFlowChecks = [
       'PUBLISH_TYPE_KEY',
       '织里站 · 产业供需',
       '近期供需',
-      'ResourceCard',
+      'ResourceFeedCard',
       'listHomeResources',
       'homeResources',
       '拿货地图',
@@ -50,7 +50,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/market/index.vue',
     description: '供需 tab 推荐和类型筛选',
-    checks: ['供需市场', 'listCityResourceTypes', 'groupResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceCard', 'DemandCard', 'selectGroup', 'selectType', 'visibleResourceTypes', 'showTypePanel', 'onPullDownRefresh', 'onReachBottom'],
+    checks: ['供需市场', 'listCityResourceTypes', 'groupResourceTypes', 'listResources', 'loadRecommendedResources', 'ResourceFeedCard', 'selectGroup', 'selectType', 'visibleResourceTypes', 'showTypePanel', 'onPullDownRefresh', 'onReachBottom'],
   },
   {
     file: 'pages/search/index.vue',

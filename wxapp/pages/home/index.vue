@@ -129,11 +129,7 @@
               :resource-id="item.id"
               source="home"
             >
-              <ResourceCard
-                :resource="item"
-                variant="home"
-                @open="openResource"
-              />
+              <ResourceFeedCard :resource="item" @open="openResource" />
             </ResourceExposure>
           </view>
           <button class="home-feed-more" @click="openSearch()">查看更多供需</button>
@@ -147,7 +143,7 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import HomeRecentMerchantCard from '../../components/HomeRecentMerchantCard.vue'
-import ResourceCard from '../../components/ResourceCard.vue'
+import ResourceFeedCard from '../../components/ResourceFeedCard.vue'
 import ResourceExposure from '../../components/ResourceExposure.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { listHomeOperationConfig, listHomeRecentMerchants, listHomeResources } from '../../api/discovery'
@@ -772,6 +768,13 @@ function bannerTone(jumpType) {
 .recent-merchant-list,
 .home-resource-panel {
   display: grid;
+}
+
+.recent-merchant-list {
+  gap: 18rpx;
+}
+
+.home-resource-panel {
   gap: 12rpx;
 }
 
@@ -1076,7 +1079,7 @@ function bannerTone(jumpType) {
 
 .home-resource-list {
   display: grid;
-  gap: 20rpx;
+  gap: 18rpx;
   margin-top: 20rpx;
 }
 </style>

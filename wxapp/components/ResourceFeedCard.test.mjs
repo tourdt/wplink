@@ -19,7 +19,10 @@ test('resource feed card renders one compact structure from the normalized model
 
 test('resource feed card preserves the click contract and compact visual hierarchy', () => {
   assert.match(source, /defineEmits\(\['open'\]\)/)
+  assert.match(source, /role="button"/)
   assert.match(source, /@click="\$emit\('open', resource\)"/)
+  assert.match(source, /\.resource-feed-card \{[\s\S]*transition: transform 120ms ease-out;/)
+  assert.match(source, /\.resource-feed-card:active \{[\s\S]*transform: translateY\(1rpx\);/)
   assert.match(source, /\.feed-thumb-wrap \{[\s\S]*width: 152rpx;[\s\S]*height: 152rpx;/)
   assert.match(source, /\.feed-card-main \{[\s\S]*align-content: space-between;/)
   assert.match(source, /\.feed-type-badge\.demand \{[\s\S]*background: \$wplink-warning;/)

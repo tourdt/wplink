@@ -220,7 +220,7 @@ test('resource tab separates recommendation discovery from keyword search page',
   assert.ok(pagesConfig.pages.some((item) => item.path === 'pages/search/index'))
   assert.equal(resourceTab?.text, '供需')
 
-  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectGroup', 'selectType', 'groupResourceTypes', 'DemandCard']) {
+  for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectGroup', 'selectType', 'groupResourceTypes', 'ResourceFeedCard']) {
     assert.match(resourceSource, new RegExp(token))
   }
   for (const removedToken of ['direction-filter-row', 'directionFilterOptions', 'chooseResourceDirection', 'filters.direction', 'direction: filters.direction']) {
