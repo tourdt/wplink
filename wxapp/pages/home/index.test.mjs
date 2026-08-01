@@ -38,81 +38,95 @@ test('home displays at most six recent onboarded merchants without blocking othe
   assert.match(discoveryApiSource, /suppressErrorToast: true/)
 })
 
-test('home presents recent merchants and resources as a woven business channel', () => {
+test('home presents the active feed as an editorial channel title', () => {
   assert.match(source, /import \{ getHomeFeedState \} from '\.\/homeFeedState'/)
   assert.match(source, /const activeHomeFeedTab = ref\(''\)/)
   assert.match(source, />织里商机 · 持续更新</)
-  assert.match(source, />新入驻商家</)
-  assert.match(source, />近期供需</)
   assert.match(source, /v-if="activeHomeFeedTab === 'merchants'" class="recent-merchant-list"/)
   assert.match(source, /v-else class="home-resource-panel"/)
   assert.doesNotMatch(source, /v-show="activeHomeFeedTab ===/)
   assert.match(source, /\.home-feed-more\s*\{[\s\S]*min-height:\s*88rpx/)
 
   const tabListTag = source.match(/<view\s+[^>]*class="home-feed-tabs"[^>]*>/)?.[0] || ''
-  const merchantTab = source.match(
-    /<button\n\s+:class="\['home-feed-tab', 'home-feed-woven-label', \{ active: activeHomeFeedTab === 'merchants' \}\]"[\s\S]*?<\/button>/,
+  const activeTab = source.match(
+    /<button\n\s+class="home-feed-tab home-feed-channel-title"[\s\S]*?<\/button>/,
   )?.[0] || ''
-  const resourceTab = source.match(
-    /<button\n\s+:class="\['home-feed-tab', 'home-feed-woven-label', \{ active: activeHomeFeedTab === 'resources' \}\]"[\s\S]*?<\/button>/,
+  const switchTab = source.match(
+    /<button\n\s+class="home-feed-tab home-feed-channel-switch"[\s\S]*?<\/button>/,
   )?.[0] || ''
   const singleHead = source.match(
-    /<view v-else class="home-feed-single-head home-feed-woven-label active">[\s\S]*?<\/view>/,
+    /<view v-else class="home-feed-single-head">[\s\S]*?<\/view>\n\s*<\/view>/,
   )?.[0] || ''
 
   assert.match(tabListTag, /role="tablist"/)
   assert.match(tabListTag, /aria-label="首页内容"/)
-  assert.match(merchantTab, /role="tab"/)
-  assert.match(merchantTab, /:aria-selected="activeHomeFeedTab === 'merchants'"/)
-  assert.match(merchantTab, /selectHomeFeedTab\('merchants'\)/)
-  assert.match(resourceTab, /role="tab"/)
-  assert.match(resourceTab, /:aria-selected="activeHomeFeedTab === 'resources'"/)
-  assert.match(resourceTab, /selectHomeFeedTab\('resources'\)/)
+  assert.match(activeTab, /role="tab"/)
+  assert.match(activeTab, /aria-selected="true"/)
+  assert.match(activeTab, /selectHomeFeedTab\(activeHomeFeedTab\)/)
+  assert.match(activeTab, /activeHomeFeedTab === 'merchants' \? '新入驻商家' : '近期供需'/)
+  assert.match(switchTab, /role="tab"/)
+  assert.match(switchTab, /aria-selected="false"/)
+  assert.match(
+    switchTab,
+    /selectHomeFeedTab\(activeHomeFeedTab === 'merchants' \? 'resources' : 'merchants'\)/,
+  )
+  assert.match(switchTab, /activeHomeFeedTab === 'merchants' \? '近期供需' : '新入驻商家'/)
+  assert.match(switchTab, /class="home-feed-channel-arrow" aria-hidden="true">→<\/text>/)
+  assert.match(singleHead, /class="home-feed-channel-title"/)
   assert.match(singleHead, /homeFeedState\.hasMerchants \? '新入驻商家' : '近期供需'/)
-  assert.doesNotMatch(singleHead, /role="tab"|aria-selected|@click/)
+  assert.doesNotMatch(singleHead, /role="tab"|aria-selected|@click|home-feed-channel-arrow/)
+  assert.doesNotMatch(source, /home-feed-woven-label/)
 
   const kickerStyle = source.match(/\.home-feed-kicker\s*\{([\s\S]*?)\n\}/)?.[1] || ''
   const tabsStyle = source.match(/\.home-feed-tabs\s*\{([\s\S]*?)\n\}/)?.[1] || ''
-  const labelStyle = source.match(/\.home-feed-woven-label\s*\{([\s\S]*?)\n\}/)?.[1] || ''
-  const activeStyle = source.match(/\.home-feed-woven-label\.active\s*\{([\s\S]*?)\n\}/)?.[1] || ''
-  const seamStyle = source.match(/\.home-feed-woven-label::before\s*\{([\s\S]*?)\n\}/)?.[1] || ''
-  const activeSeamStyle = source.match(/\.home-feed-woven-label\.active::before\s*\{([\s\S]*?)\n\}/)?.[1] || ''
-  const activeNotchStyle = source.match(/\.home-feed-woven-label\.active::after\s*\{([\s\S]*?)\n\}/)?.[1] || ''
-  const pressedTabStyle = source.match(/\.home-feed-tab:active\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const tabStyle = source.match(/\.home-feed-tab\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const titleStyle = source.match(/\.home-feed-channel-title\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const markerStyle = source.match(/\.home-feed-channel-title::before\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const switchStyle = source.match(/\.home-feed-channel-switch\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const arrowStyle = source.match(/\.home-feed-channel-arrow\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const pressedSwitchStyle = source.match(/\.home-feed-channel-switch:active\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const singleHeadStyle = source.match(/\.home-feed-single-head\s*\{([\s\S]*?)\n\}/)?.[1] || ''
 
-  assert.match(kickerStyle, /margin-bottom:\s*12rpx/)
+  assert.match(kickerStyle, /margin-bottom:\s*8rpx/)
   assert.match(kickerStyle, /font-size:\s*22rpx/)
   assert.match(kickerStyle, /font-weight:\s*600/)
   assert.match(kickerStyle, /letter-spacing:\s*1rpx/)
   assert.match(kickerStyle, /color:\s*\$wplink-muted/)
   assert.match(tabsStyle, /display:\s*flex/)
+  assert.match(tabsStyle, /align-items:\s*stretch/)
+  assert.match(tabsStyle, /justify-content:\s*space-between/)
   assert.match(tabsStyle, /gap:\s*18rpx/)
-  assert.match(tabsStyle, /border-top:\s*1rpx solid \$wplink-line/)
+  assert.match(tabsStyle, /min-height:\s*88rpx/)
+  assert.match(tabsStyle, /margin:\s*0 0 20rpx/)
   assert.match(tabsStyle, /border-bottom:\s*1rpx solid \$wplink-line/)
-  assert.doesNotMatch(tabsStyle, /background:|border-radius:|box-shadow:/)
-  assert.match(labelStyle, /display:\s*inline-flex/)
-  assert.match(labelStyle, /min-height:\s*88rpx/)
-  assert.match(labelStyle, /padding:\s*0 28rpx/)
-  assert.match(labelStyle, /font-size:\s*27rpx/)
-  assert.match(labelStyle, /font-weight:\s*700/)
-  assert.match(labelStyle, /overflow:\s*visible/)
-  assert.match(labelStyle, /white-space:\s*nowrap/)
-  assert.match(activeStyle, /background:\s*\$wplink-primary/)
-  assert.match(activeStyle, /color:\s*#ffffff/)
-  assert.doesNotMatch(activeStyle, /padding:|font-size:|font-weight:/)
-  assert.match(seamStyle, /top:\s*28rpx/)
-  assert.match(seamStyle, /width:\s*4rpx/)
-  assert.match(seamStyle, /height:\s*32rpx/)
-  assert.match(activeSeamStyle, /background:\s*\$wplink-accent/)
-  assert.match(activeNotchStyle, /right:\s*-14rpx/)
-  assert.match(activeNotchStyle, /border-top:\s*44rpx solid transparent/)
-  assert.match(activeNotchStyle, /border-bottom:\s*44rpx solid transparent/)
-  assert.match(activeNotchStyle, /border-left:\s*14rpx solid \$wplink-primary/)
-  assert.doesNotMatch(activeNotchStyle, /clip-path:/)
-  assert.match(pressedTabStyle, /opacity:\s*0\.82/)
+  assert.doesNotMatch(tabsStyle, /border-top:|background:|border-radius:|box-shadow:/)
+  assert.match(tabStyle, /display:\s*inline-flex/)
+  assert.match(tabStyle, /min-height:\s*88rpx/)
+  assert.match(tabStyle, /white-space:\s*nowrap/)
+  assert.match(titleStyle, /position:\s*relative/)
+  assert.match(titleStyle, /padding:\s*0 0 0 14rpx/)
+  assert.match(titleStyle, /font-size:\s*32rpx/)
+  assert.match(titleStyle, /font-weight:\s*800/)
+  assert.match(titleStyle, /color:\s*\$wplink-primary/)
+  assert.match(markerStyle, /top:\s*28rpx/)
+  assert.match(markerStyle, /left:\s*0/)
+  assert.match(markerStyle, /width:\s*4rpx/)
+  assert.match(markerStyle, /height:\s*32rpx/)
+  assert.match(markerStyle, /background:\s*\$wplink-accent/)
+  assert.match(switchStyle, /justify-content:\s*flex-end/)
+  assert.match(switchStyle, /gap:\s*8rpx/)
+  assert.match(switchStyle, /font-size:\s*25rpx/)
+  assert.match(switchStyle, /font-weight:\s*700/)
+  assert.match(switchStyle, /color:\s*\$wplink-muted/)
+  assert.match(arrowStyle, /font-size:\s*24rpx/)
+  assert.match(pressedSwitchStyle, /opacity:\s*0\.72/)
+  assert.match(singleHeadStyle, /display:\s*flex/)
+  assert.match(singleHeadStyle, /min-height:\s*88rpx/)
+  assert.match(singleHeadStyle, /margin:\s*0 0 20rpx/)
+  assert.match(singleHeadStyle, /border-bottom:\s*1rpx solid \$wplink-line/)
   assert.doesNotMatch(
-    `${labelStyle}\n${activeStyle}\n${pressedTabStyle}`,
-    /transform:|transition:|animation:|box-shadow:/,
+    `${tabsStyle}\n${tabStyle}\n${titleStyle}\n${switchStyle}\n${pressedSwitchStyle}`,
+    /transform:|transition:|animation:|box-shadow:|clip-path:/,
   )
 })
 

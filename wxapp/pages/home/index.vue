@@ -96,21 +96,28 @@
           aria-label="首页内容"
         >
           <button
-            :class="['home-feed-tab', 'home-feed-woven-label', { active: activeHomeFeedTab === 'merchants' }]"
+            class="home-feed-tab home-feed-channel-title"
             role="tab"
-            :aria-selected="activeHomeFeedTab === 'merchants'"
-            @click="selectHomeFeedTab('merchants')"
-          >新入驻商家</button>
+            aria-selected="true"
+            @click="selectHomeFeedTab(activeHomeFeedTab)"
+          >
+            <text>{{ activeHomeFeedTab === 'merchants' ? '新入驻商家' : '近期供需' }}</text>
+          </button>
           <button
-            :class="['home-feed-tab', 'home-feed-woven-label', { active: activeHomeFeedTab === 'resources' }]"
+            class="home-feed-tab home-feed-channel-switch"
             role="tab"
-            :aria-selected="activeHomeFeedTab === 'resources'"
-            @click="selectHomeFeedTab('resources')"
-          >近期供需</button>
+            aria-selected="false"
+            @click="selectHomeFeedTab(activeHomeFeedTab === 'merchants' ? 'resources' : 'merchants')"
+          >
+            <text>{{ activeHomeFeedTab === 'merchants' ? '近期供需' : '新入驻商家' }}</text>
+            <text class="home-feed-channel-arrow" aria-hidden="true">→</text>
+          </button>
         </view>
 
-        <view v-else class="home-feed-single-head home-feed-woven-label active">
-          <text>{{ homeFeedState.hasMerchants ? '新入驻商家' : '近期供需' }}</text>
+        <view v-else class="home-feed-single-head">
+          <view class="home-feed-channel-title">
+            <text>{{ homeFeedState.hasMerchants ? '新入驻商家' : '近期供需' }}</text>
+          </view>
         </view>
 
         <view v-if="activeHomeFeedTab === 'merchants'" class="recent-merchant-list">
@@ -738,7 +745,7 @@ function bannerTone(jumpType) {
 
 .home-feed-kicker {
   display: block;
-  margin-bottom: 12rpx;
+  margin-bottom: 8rpx;
   color: $wplink-muted;
   font-size: 22rpx;
   font-weight: 600;
@@ -749,69 +756,66 @@ function bannerTone(jumpType) {
 .home-feed-tabs {
   display: flex;
   align-items: stretch;
+  justify-content: space-between;
   gap: 18rpx;
+  min-height: 88rpx;
   margin: 0 0 20rpx;
-  border-top: 1rpx solid $wplink-line;
   border-bottom: 1rpx solid $wplink-line;
 }
 
-.home-feed-woven-label {
-  position: relative;
+.home-feed-tab {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   width: auto;
   min-height: 88rpx;
   margin: 0;
-  padding: 0 28rpx;
-  overflow: visible;
+  padding: 0;
   border: 0;
-  border-radius: 0;
   background: transparent;
-  color: $wplink-muted;
-  font-size: 27rpx;
-  font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
-.home-feed-woven-label.active {
-  background: $wplink-primary;
-  color: #ffffff;
+.home-feed-channel-title {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 88rpx;
+  padding: 0 0 0 14rpx;
+  color: $wplink-primary;
+  font-size: 32rpx;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.home-feed-woven-label::before,
-.home-feed-woven-label::after {
+.home-feed-channel-title::before {
   position: absolute;
-  border: 0;
+  top: 28rpx;
+  left: 0;
+  width: 4rpx;
+  height: 32rpx;
+  background: $wplink-accent;
   content: '';
 }
 
-.home-feed-woven-label::before {
-  top: 28rpx;
-  left: 14rpx;
-  width: 4rpx;
-  height: 32rpx;
-  border-radius: 999rpx;
-  background: transparent;
+.home-feed-channel-switch {
+  justify-content: flex-end;
+  gap: 8rpx;
+  color: $wplink-muted;
+  font-size: 25rpx;
+  font-weight: 700;
+  text-align: right;
 }
 
-.home-feed-woven-label.active::before {
-  background: $wplink-accent;
+.home-feed-channel-arrow {
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.home-feed-woven-label.active::after {
-  top: 0;
-  right: -14rpx;
-  width: 0;
-  height: 0;
-  border-top: 44rpx solid transparent;
-  border-bottom: 44rpx solid transparent;
-  border-left: 14rpx solid $wplink-primary;
-}
-
-.home-feed-tab:active {
-  opacity: 0.82;
+.home-feed-channel-switch:active {
+  opacity: 0.72;
 }
 
 .home-feed-more::after {
@@ -819,7 +823,10 @@ function bannerTone(jumpType) {
 }
 
 .home-feed-single-head {
+  display: flex;
+  min-height: 88rpx;
   margin: 0 0 20rpx;
+  border-bottom: 1rpx solid $wplink-line;
 }
 
 .recent-merchant-list,
