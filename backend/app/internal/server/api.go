@@ -249,6 +249,9 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 		response.JSON(w, resp, err)
 	})
 	registerLocationRoutes(mux, options.locationGeocoder)
+	if mapEventStore, ok := any(store).(metricslogic.MerchantMapEventStore); ok {
+		registerMerchantMapEventRoute(mux, mapEventStore, options.userTokenService)
+	}
 	if exposureStore, ok := any(store).(metricslogic.ResourceExposureStore); ok {
 		registerResourceExposureRoute(mux, exposureStore, options.userTokenService)
 	}
@@ -272,6 +275,25 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 		return requireAdminToken(mux, options.adminTokenService)
 	}
 	return mux
+}
+
+func registerMerchantMapEventRoute(mux *http.ServeMux, store metricslogic.MerchantMapEventStore, tokenService authlogic.TokenService) {
+	mux.HandleFunc("POST /api/v1/metrics/merchant-map-events", func(w http.ResponseWriter, r *http.Request) {
+		var body metricslogic.RecordMerchantMapEventReq
+		if err := decodeJSONBody(r, &body); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		userID, err := optionalUserIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		// 匿名请求保留空 userId；携带 token 时只信任服务端解析结果，禁止前端伪造事件归因。
+		body.UserID = userID
+		resp, err := metricslogic.NewRecordMerchantMapEventLogic(store).RecordMerchantMapEvent(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
 }
 
 func registerResourceExposureRoute(mux *http.ServeMux, store metricslogic.ResourceExposureStore, tokenService authlogic.TokenService) {

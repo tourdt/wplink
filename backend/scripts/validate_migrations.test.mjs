@@ -107,6 +107,53 @@ test('merchant onboarding migration records first completed profile time for hom
   assert.match(downSource, /DROP COLUMN IF EXISTS onboarded_at/)
 })
 
+test('merchant map event migration constrains attribution data and supports map metrics queries', () => {
+  const upFileName = '000033_merchant_map_events.up.sql'
+  const downFileName = '000033_merchant_map_events.down.sql'
+  assert.equal(fs.existsSync(path.resolve(migrationsDir, upFileName)), true, `${upFileName} should exist`)
+  assert.equal(fs.existsSync(path.resolve(migrationsDir, downFileName)), true, `${downFileName} should exist`)
+
+  const upSource = fs.readFileSync(path.resolve(migrationsDir, upFileName), 'utf8')
+  const downSource = fs.readFileSync(path.resolve(migrationsDir, downFileName), 'utf8')
+  for (const column of [
+    'merchant_id',
+    'target_merchant_id',
+    'event_type',
+    'source',
+    'visitor_key',
+    'session_id',
+  ]) {
+    assert.match(upSource, new RegExp(`\\b${column}\\b`), `up migration should define ${column}`)
+  }
+  for (const eventType of [
+    'location_entry_click',
+    'location_view',
+    'navigation_click',
+    'nearby_drawer_open',
+    'nearby_marker_click',
+    'nearby_merchant_click',
+  ]) {
+    assert.match(upSource, new RegExp(`'${eventType}'`), `event CHECK should allow ${eventType}`)
+  }
+  for (const source of ['directory', 'merchant_detail', 'merchant_location']) {
+    assert.match(upSource, new RegExp(`'${source}'`), `source CHECK should allow ${source}`)
+  }
+  assert.match(upSource, /CREATE TABLE IF NOT EXISTS merchant_map_events/)
+  assert.match(upSource, /CONSTRAINT chk_merchant_map_event_type CHECK/)
+  assert.match(upSource, /CONSTRAINT chk_merchant_map_event_source CHECK/)
+  assert.match(
+    upSource,
+    /CREATE INDEX IF NOT EXISTS idx_merchant_map_events_merchant_event_created[\s\S]*ON merchant_map_events\(merchant_id, event_type, created_at DESC\)/,
+  )
+  assert.match(
+    upSource,
+    /CREATE INDEX IF NOT EXISTS idx_merchant_map_events_target_created[\s\S]*ON merchant_map_events\(target_merchant_id, created_at DESC\)/,
+  )
+  assert.match(downSource, /DROP INDEX IF EXISTS idx_merchant_map_events_target_created/)
+  assert.match(downSource, /DROP INDEX IF EXISTS idx_merchant_map_events_merchant_event_created/)
+  assert.match(downSource, /DROP TABLE IF EXISTS merchant_map_events/)
+})
+
 test('migrations and demo seed do not point to retired demand pages', () => {
   const retiredSnippets = ['/pages/demand/index', '/pages/my-demands/index', '/pages/demand-success/index']
   const sqlFiles = [

@@ -1467,6 +1467,19 @@ type MerchantLocationContextResp struct {
 	NearbyAvailable bool                `json:"nearbyAvailable"`
 }
 
+type MerchantMapEventReq struct {
+	MerchantId       string `json:"merchantId"`
+	TargetMerchantId string `json:"targetMerchantId,optional"`
+	VisitorKey       string `json:"visitorKey"`
+	SessionId        string `json:"sessionId"`
+	EventType        string `json:"eventType"`
+	Source           string `json:"source"`
+}
+
+type MerchantMapEventResp struct {
+	Recorded bool `json:"recorded"`
+}
+
 type MerchantMetricsSummaryResp struct {
 	MerchantId             string                   `json:"merchantId"`
 	PublishedResourceCount int64                    `json:"publishedResourceCount"`
