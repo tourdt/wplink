@@ -25,15 +25,67 @@
         <text class="map-radius">{{ radiusText }}</text>
       </view>
 
-      <view class="map-frame">
-        <map
-          class="merchant-map"
-          :latitude="mapCenter.latitude"
-          :longitude="mapCenter.longitude"
-          :markers="markers"
-          :scale="16"
-          @markertap="handleMarkerTap"
-        />
+      <view class="map-workspace">
+        <view class="map-frame">
+          <map
+            id="merchantLocationMap"
+            class="merchant-map"
+            :latitude="mapCenter.latitude"
+            :longitude="mapCenter.longitude"
+            :markers="markers"
+            :scale="mapScale"
+            @markertap="handleMarkerTap"
+          />
+        </view>
+
+        <view :class="['nearby-drawer', { expanded: nearbyDrawerOpen }]">
+          <view v-if="!context.nearbyAvailable" class="nearby-fallback">
+            <text class="nearby-fallback-text">周边商家加载失败，请重试</text>
+            <button class="nearby-retry" :disabled="loading" @click="retryNearby">
+              {{ loading ? '加载中' : '重试周边' }}
+            </button>
+          </view>
+
+          <button
+            v-else-if="context.nearby.length"
+            class="nearby-toggle"
+            @click="nearbyDrawerOpen ? closeNearbyDrawer() : openNearbyDrawer()"
+          >
+            <text class="nearby-title">周边已入驻商家</text>
+            <view class="nearby-toggle-meta">
+              <text class="nearby-count">{{ context.nearby.length }} 家</text>
+              <text class="nearby-chevron">{{ nearbyDrawerOpen ? '收起' : '展开' }}</text>
+            </view>
+          </button>
+
+          <text v-else class="nearby-empty">附近暂无其他入驻商家</text>
+
+          <scroll-view
+            v-if="nearbyDrawerOpen && context.nearbyAvailable && context.nearby.length"
+            class="nearby-list"
+            scroll-y
+            scroll-with-animation
+            :scroll-into-view="scrollIntoViewId"
+          >
+            <view
+              v-for="place in context.nearby"
+              :id="`nearby-${place.merchantId}`"
+              :key="place.merchantId"
+              :class="['nearby-item', { selected: place.merchantId === selectedNearbyMerchantId }]"
+              @click="selectNearbyMerchant(place.merchantId)"
+            >
+              <view class="nearby-item-heading">
+                <text class="nearby-name">{{ place.name }}</text>
+                <text class="nearby-distance">{{ place.distanceText || formatDistance(place.distanceMeters) }}</text>
+              </view>
+              <view v-if="nearbyTags(place).length" class="nearby-tags">
+                <text v-for="tag in nearbyTags(place)" :key="tag" class="nearby-tag">{{ tag }}</text>
+              </view>
+              <text class="nearby-address">{{ merchantAddress(place) }}</text>
+              <button class="nearby-detail" @click.stop="openNearbyMerchant(place)">查看商家</button>
+            </view>
+          </scroll-view>
+        </view>
       </view>
 
       <view class="merchant-sheet">
@@ -60,41 +112,13 @@
           <text class="navigate-label">导航到店</text>
           <text class="navigate-arrow">→</text>
         </button>
-
-        <view class="nearby-section">
-          <view class="nearby-heading">
-            <text class="nearby-title">周边已入驻档口</text>
-            <text class="nearby-count">{{ context.nearby.length }} 家</text>
-          </view>
-
-          <view v-if="!context.nearbyAvailable" class="nearby-fallback">
-            <text class="nearby-fallback-text">周边商家加载失败，请重试</text>
-            <button class="nearby-retry" :disabled="loading" @click="retryNearby">
-              {{ loading ? '加载中' : '重试周边' }}
-            </button>
-          </view>
-          <scroll-view v-else-if="context.nearby.length" class="nearby-list" scroll-x>
-            <view class="nearby-list-inner">
-              <button
-                v-for="place in context.nearby"
-                :key="place.merchantId || place.objectId"
-                :class="['nearby-item', { selected: place.merchantId === selectedNearbyMerchantId }]"
-                @click="selectNearbyMerchant(place)"
-              >
-                <text class="nearby-name">{{ place.name }}</text>
-                <text class="nearby-meta">{{ place.distanceText || formatDistance(place.distanceMeters) }}</text>
-              </button>
-            </view>
-          </scroll-view>
-          <text v-else class="nearby-empty">{{ radiusText }}内暂无其他已入驻档口</text>
-        </view>
       </view>
     </template>
   </view>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getMerchantLocationContext } from '../../api/sourcingMap'
 import {
@@ -108,6 +132,9 @@ const context = ref(normalizeMerchantLocationContext())
 const loading = ref(false)
 const errorText = ref('')
 const selectedNearbyMerchantId = ref('')
+const nearbyDrawerOpen = ref(false)
+const scrollIntoViewId = ref('')
+const mapScale = ref(16)
 
 const initialLoading = computed(() => loading.value && !context.value.current)
 const markers = computed(() => buildMerchantLocationMarkers(context.value, selectedNearbyMerchantId.value))
@@ -116,10 +143,7 @@ const mapCenter = computed(() => ({
   longitude: Number(context.value.current?.lng || 0),
 }))
 const currentAddress = computed(() => {
-  const current = context.value.current || {}
-  return [current.marketName, current.buildingName, current.floorNo, current.address]
-    .filter(Boolean)
-    .join(' · ') || '店铺地址待完善'
+  return merchantAddress(context.value.current, '店铺地址待完善')
 })
 const currentCategories = computed(() => {
   const current = context.value.current || {}
@@ -159,11 +183,17 @@ async function loadLocationContext({ preserveCurrent = false } = {}) {
     context.value = nextContext
     errorText.value = ''
     selectedNearbyMerchantId.value = ''
+    scrollIntoViewId.value = ''
+    nearbyDrawerOpen.value = false
+    mapScale.value = 16
   } catch (err) {
     console.error('加载商家位置上下文失败', { merchantId: merchantId.value, err })
     if (preserveCurrent && context.value.current) {
       // 周边信息只是辅助能力；重试失败时保留当前地图和导航，避免次要依赖阻断到店主流程。
-      context.value = { ...context.value, nearby: [], nearbyAvailable: false }
+      context.value = { ...context.value, nearbyAvailable: false }
+      nearbyDrawerOpen.value = false
+      selectedNearbyMerchantId.value = ''
+      scrollIntoViewId.value = ''
       uni.showToast({ title: '周边商家加载失败，请重试', icon: 'none' })
       return
     }
@@ -182,11 +212,72 @@ function handleMarkerTap(event) {
   const markerId = event?.detail?.markerId ?? event?.markerId
   const tappedMerchantId = merchantIdFromMarker(markerId, markers.value)
   if (!tappedMerchantId) return
-  selectedNearbyMerchantId.value = tappedMerchantId === context.value.current.merchantId ? '' : tappedMerchantId
+  if (tappedMerchantId === context.value.current.merchantId) {
+    closeNearbyDrawer()
+    return
+  }
+  selectNearbyMerchant(tappedMerchantId)
 }
 
-function selectNearbyMerchant(place) {
-  selectedNearbyMerchantId.value = String(place?.merchantId || '').trim()
+function openNearbyDrawer() {
+  if (!context.value.nearbyAvailable || !context.value.nearby.length) return
+  nearbyDrawerOpen.value = true
+}
+
+function closeNearbyDrawer() {
+  nearbyDrawerOpen.value = false
+  selectedNearbyMerchantId.value = ''
+  scrollIntoViewId.value = ''
+  mapScale.value = 16
+
+  const current = context.value.current
+  if (!current) return
+  // 关闭周边浏览后主动恢复当前档口中心，确保临时选择不会改变位置页的主商家上下文。
+  nextTick(() => {
+    uni.createMapContext('merchantLocationMap').moveToLocation({
+      latitude: Number(current.lat),
+      longitude: Number(current.lng),
+      fail(err) {
+        console.warn('恢复当前商家地图中心失败', { merchantId: current.merchantId, err })
+      },
+    })
+  })
+}
+
+function selectNearbyMerchant(merchantId) {
+  const normalizedMerchantId = String(merchantId || '').trim()
+  const place = context.value.nearby.find((item) => item.merchantId === normalizedMerchantId)
+  if (!place || !context.value.current) return
+
+  selectedNearbyMerchantId.value = normalizedMerchantId
+  nearbyDrawerOpen.value = true
+  scrollIntoViewId.value = `nearby-${normalizedMerchantId}`
+  mapScale.value = 14
+
+  // 列表选择只调整临时视野，同时纳入当前档口和周边档口，不能把周边商家替换成页面主上下文。
+  nextTick(() => {
+    uni.createMapContext('merchantLocationMap').includePoints({
+      points: [context.value.current, place].map((item) => ({
+        latitude: Number(item.lat),
+        longitude: Number(item.lng),
+      })),
+      padding: [72, 48, 72, 48],
+      fail(err) {
+        console.warn('调整周边商家地图视野失败', { merchantId: normalizedMerchantId, err })
+      },
+    })
+  })
+}
+
+function openNearbyMerchant(place) {
+  if (!String(place?.merchantId || '').trim()) return
+  uni.navigateTo({
+    url: `/pages/merchant/detail?id=${encodeURIComponent(place.merchantId)}`,
+    fail(err) {
+      console.warn('打开周边商家详情失败', { merchantId: place.merchantId, err })
+      uni.showToast({ title: '商家详情打开失败，请稍后重试', icon: 'none' })
+    },
+  })
 }
 
 function openCurrentLocation() {
@@ -220,6 +311,20 @@ function formatDistance(distanceMeters) {
   if (!Number.isFinite(meters) || meters <= 0) return '附近'
   return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`
 }
+
+function nearbyTags(place = {}) {
+  return [...new Set([
+    ...(place.categoryCodes || []),
+    ...(place.serviceTags || []),
+    ...(place.platformTags || []),
+  ].filter(Boolean))].slice(0, 3)
+}
+
+function merchantAddress(place = {}, fallback = '档口地址待完善') {
+  return [place.marketName, place.buildingName, place.floorNo, place.address]
+    .filter(Boolean)
+    .join(' · ') || fallback
+}
 </script>
 
 <style lang="scss" scoped>
@@ -230,8 +335,7 @@ function formatDistance(distanceMeters) {
 }
 
 .map-heading,
-.merchant-heading,
-.nearby-heading {
+.merchant-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -276,6 +380,10 @@ function formatDistance(distanceMeters) {
   border: 1rpx solid #cbd5e1;
   border-radius: 12rpx 12rpx 0 0;
   background: #dce5ef;
+}
+
+.map-workspace {
+  position: relative;
 }
 
 .merchant-map {
@@ -381,11 +489,39 @@ function formatDistance(distanceMeters) {
   font-weight: 400;
 }
 
-.nearby-section {
-  display: grid;
-  gap: 16rpx;
-  padding-top: 24rpx;
-  border-top: 1rpx solid $wplink-line;
+.nearby-drawer {
+  position: absolute;
+  right: 16rpx;
+  bottom: 16rpx;
+  left: 16rpx;
+  z-index: 5;
+  overflow: hidden;
+  border: 1rpx solid #cbd5e1;
+  border-radius: 10rpx;
+  background: $wplink-card;
+  box-shadow: 0 16rpx 38rpx rgba(6, 22, 37, 0.18);
+}
+
+.nearby-drawer.expanded {
+  max-height: 55vh;
+}
+
+.nearby-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 88rpx;
+  padding: 0 22rpx;
+  border-radius: 0;
+  background: $wplink-card;
+  text-align: left;
+}
+
+.nearby-toggle::after,
+.nearby-detail::after,
+.nearby-retry::after {
+  border: 0;
 }
 
 .nearby-title {
@@ -394,66 +530,113 @@ function formatDistance(distanceMeters) {
   font-weight: 750;
 }
 
+.nearby-toggle-meta,
+.nearby-item-heading,
+.nearby-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
 .nearby-count,
-.nearby-meta,
+.nearby-distance,
 .nearby-empty,
 .nearby-fallback-text {
   color: #64748b;
   font-size: 22rpx;
 }
 
-.nearby-list {
-  width: 100%;
-  white-space: nowrap;
+.nearby-chevron {
+  color: $wplink-warning;
+  font-size: 21rpx;
+  font-weight: 800;
 }
 
-.nearby-list-inner {
-  display: inline-flex;
-  gap: 12rpx;
-  padding-right: 20rpx;
+.nearby-list {
+  width: 100%;
+  max-height: calc(55vh - 88rpx);
+  border-top: 1rpx solid $wplink-line;
 }
 
 .nearby-item {
   display: grid;
-  justify-items: start;
-  gap: 5rpx;
-  min-width: 220rpx;
-  max-width: 280rpx;
-  padding: 16rpx 18rpx;
-  border: 1rpx solid #cbd5e1;
-  border-radius: 8rpx;
-  background: #f8fafc;
+  gap: 12rpx;
+  margin: 0 18rpx;
+  padding: 22rpx 4rpx;
+  border-bottom: 1rpx solid $wplink-line;
   text-align: left;
 }
 
 .nearby-item.selected {
-  border-color: #475569;
-  background: #e2e8f0;
+  margin: 0;
+  padding-right: 22rpx;
+  padding-left: 22rpx;
+  border-left: 5rpx solid $wplink-warning;
+  background: #f1f5f9;
 }
 
 .nearby-name {
-  display: block;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
-  color: #334155;
-  font-size: 24rpx;
-  font-weight: 700;
+  color: $wplink-primary;
+  font-size: 27rpx;
+  font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.nearby-fallback {
+.nearby-distance {
+  flex: none;
+  font-weight: 700;
+}
+
+.nearby-tags {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  padding: 18rpx;
-  border-radius: 8rpx;
-  background: #f1f5f9;
+  flex-wrap: wrap;
+  gap: 8rpx;
+}
+
+.nearby-tag {
+  padding: 5rpx 10rpx;
+  border: 1rpx solid #cbd5e1;
+  border-radius: 5rpx;
+  color: #475569;
+  font-size: 20rpx;
+  line-height: 1.2;
+}
+
+.nearby-address {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 22rpx;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nearby-detail {
+  min-height: 64rpx;
+  margin: 0;
+  padding: 0 18rpx;
+  border: 1rpx solid #94a3b8;
+  border-radius: 7rpx;
+  background: $wplink-card;
+  color: $wplink-primary;
+  font-size: 22rpx;
+  font-weight: 800;
+  line-height: 62rpx;
+}
+
+.nearby-fallback {
+  min-height: 88rpx;
+  padding: 0 22rpx;
 }
 
 .nearby-retry {
   flex: none;
+  margin: 0;
   padding: 10rpx 16rpx;
   border: 1rpx solid #94a3b8;
   border-radius: 7rpx;
@@ -465,9 +648,9 @@ function formatDistance(distanceMeters) {
 
 .nearby-empty {
   display: block;
-  padding: 18rpx;
-  border-radius: 8rpx;
-  background: #f8fafc;
+  min-height: 88rpx;
+  padding: 0 22rpx;
+  line-height: 88rpx;
 }
 
 .status-card {

@@ -47,7 +47,8 @@ test('merchant location page loads the context and keeps the current shop as map
     'getMerchantLocationContext',
     'normalizeMerchantLocationContext',
     'buildMerchantLocationMarkers',
-    ':scale="16"',
+    ':scale="mapScale"',
+    'const mapScale = ref(16)',
     '@markertap="handleMarkerTap"',
     '导航到店',
   ])
@@ -90,4 +91,35 @@ test('merchant location page exposes current shop details and a safe navigation 
     'uni.openLocation',
     '导航打开失败，请稍后重试',
   ])
+})
+
+test('merchant location page exposes the collapsed and half-screen nearby drawer states', () => {
+  expectTokens(source, [
+    '周边已入驻商家',
+    'nearby-drawer',
+    'openNearbyDrawer',
+    'closeNearbyDrawer',
+    'scroll-into-view',
+    '附近暂无其他入驻商家',
+    '周边商家加载失败，请重试',
+  ])
+  assert.match(source, /<scroll-view[\s\S]*scroll-y[\s\S]*:scroll-into-view="scrollIntoViewId"/)
+  assert.match(source, /max-height:\s*55vh/)
+})
+
+test('merchant location page links a nearby marker, list item, and merchant detail without replacing current context', () => {
+  expectTokens(source, [
+    'id="merchantLocationMap"',
+    'selectNearbyMerchant',
+    'openNearbyMerchant',
+    "uni.createMapContext('merchantLocationMap')",
+    'includePoints',
+    'scrollIntoViewId',
+    'nearbyTags(place)',
+    'slice(0, 3)',
+    '/pages/merchant/detail?id=',
+    'encodeURIComponent(place.merchantId)',
+    'mapScale.value = 16',
+  ])
+  assert.match(source, /:latitude="mapCenter\.latitude"[\s\S]*:longitude="mapCenter\.longitude"/)
 })

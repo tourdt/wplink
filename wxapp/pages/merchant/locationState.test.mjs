@@ -56,6 +56,36 @@ test('location context keeps valid nearby merchants and filters every invalid co
   assert.equal(context.nearbyAvailable, true)
 })
 
+test('location context preserves server order while excluding current, deduplicating, and limiting nearby merchants', () => {
+  const nearby = [
+    merchantPlace({ objectId: 'current-copy', merchantId: 'merchant-1', distanceMeters: 1 }),
+    merchantPlace({ objectId: 'object-2-first', merchantId: 'merchant-2', distanceMeters: 20 }),
+    merchantPlace({ objectId: 'object-2-later', merchantId: 'merchant-2', distanceMeters: 21 }),
+    ...Array.from({ length: 21 }, (_, index) => merchantPlace({
+      objectId: `object-${index + 3}`,
+      merchantId: `merchant-${index + 3}`,
+      distanceMeters: index + 30,
+    })),
+  ]
+
+  const context = normalizeMerchantLocationContext({
+    current: merchantPlace(),
+    nearby,
+    nearbyAvailable: true,
+  })
+
+  assert.deepEqual(
+    context.nearby.map((item) => item.merchantId),
+    [
+      'merchant-2', 'merchant-3', 'merchant-4', 'merchant-5', 'merchant-6',
+      'merchant-7', 'merchant-8', 'merchant-9', 'merchant-10', 'merchant-11',
+      'merchant-12', 'merchant-13', 'merchant-14', 'merchant-15', 'merchant-16',
+      'merchant-17', 'merchant-18', 'merchant-19', 'merchant-20', 'merchant-21',
+    ],
+  )
+  assert.equal(context.nearby[0].objectId, 'object-2-first')
+})
+
 test('location markers keep the current merchant as the fixed orange focus', () => {
   const context = normalizeMerchantLocationContext({
     current: merchantPlace(),

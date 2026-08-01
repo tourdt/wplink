@@ -16,9 +16,23 @@ const NEARBY_MARKER = {
 
 export function normalizeMerchantLocationContext(raw = {}) {
   const current = normalizeLocationPlace(raw.current)
-  const nearby = (Array.isArray(raw.nearby) ? raw.nearby : [])
-    .map(normalizeLocationPlace)
-    .filter(Boolean)
+  const currentMerchantId = String(current?.merchantId || '').trim()
+  const seenMerchantIds = new Set()
+  const nearby = []
+
+  // 周边结果沿用服务端距离顺序；这里只剔除当前档口和重复项，避免客户端重排造成距离认知偏差。
+  for (const rawPlace of (Array.isArray(raw.nearby) ? raw.nearby : [])) {
+    const place = normalizeLocationPlace(rawPlace)
+    const nearbyMerchantId = String(place?.merchantId || '').trim()
+    const shouldSkip = !place || !nearbyMerchantId || nearbyMerchantId === currentMerchantId ||
+      seenMerchantIds.has(nearbyMerchantId)
+    if (shouldSkip) {
+      continue
+    }
+    seenMerchantIds.add(nearbyMerchantId)
+    nearby.push(place)
+    if (nearby.length === 20) break
+  }
   const radiusMeters = Number(raw.radiusMeters)
 
   return {
