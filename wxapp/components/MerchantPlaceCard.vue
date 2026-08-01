@@ -23,8 +23,8 @@
 
     <template #actions>
       <button v-if="hasMerchantDetail(place)" class="detail-button" @click.stop="$emit('detail', place)">进入主页</button>
-      <button v-if="place.claimed && hasLocation" class="location-button" @click.stop="$emit('location', place)">查看位置</button>
-      <button v-else-if="hasLocation" class="navigate-button" @click.stop="$emit('navigate', place)">导航</button>
+      <button v-if="canOpenMerchantLocation" class="location-button" @click.stop="$emit('location', place)">查看位置</button>
+      <button v-else-if="!place.claimed && hasLocation" class="navigate-button" @click.stop="$emit('navigate', place)">导航</button>
       <button v-if="!place.claimed" class="claim-button" @click.stop="$emit('claim', place)">这是我的档口</button>
     </template>
   </MerchantListItem>
@@ -49,6 +49,7 @@ const props = defineProps({
 defineEmits(['select', 'detail', 'location', 'navigate', 'claim'])
 
 const hasLocation = computed(() => hasValidLocation(props.place))
+const canOpenMerchantLocation = computed(() => hasMerchantDetail(props.place) && hasLocation.value)
 const sourceLabel = computed(() => props.place.claimed ? '已入驻' : '待认领')
 const visibleTags = computed(() => [
   ...(props.place.categoryCodes || []),

@@ -86,8 +86,10 @@ test('claimed merchant cards open the homepage or independent location page', ()
     'function openMerchantDetail(place)',
     '@location="openMerchantLocation"',
     'function openMerchantLocation(place)',
+    'if (!hasMerchantDetail(place) || !hasValidLocation(place)) return',
+    "const merchantId = String(place.merchantId || '').trim()",
     '/pages/merchant/location?merchantId=',
-    'encodeURIComponent(place.merchantId)',
+    'encodeURIComponent(merchantId)',
     'uni.navigateTo({ url })',
   ])
 })

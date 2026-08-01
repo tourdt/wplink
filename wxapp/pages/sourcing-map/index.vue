@@ -227,9 +227,10 @@ function openMerchantDetail(place) {
 }
 
 function openMerchantLocation(place) {
-  if (!place.claimed || !place.merchantId || !hasValidLocation(place)) return
+  if (!hasMerchantDetail(place) || !hasValidLocation(place)) return
+  const merchantId = String(place.merchantId || '').trim()
   // 已入驻档口进入商家位置页；待认领点位没有可靠的商家上下文，只允许直接导航。
-  uni.navigateTo({ url: `/pages/merchant/location?merchantId=${encodeURIComponent(place.merchantId)}` })
+  uni.navigateTo({ url: `/pages/merchant/location?merchantId=${encodeURIComponent(merchantId)}` })
 }
 
 function openPlaceClaim(place) {

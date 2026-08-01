@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 
+import { hasMerchantDetail, hasValidLocation } from '../pages/sourcing-map/merchantPlaceState.js'
+
 const source = fs.readFileSync(path.resolve(new URL('.', import.meta.url).pathname, 'MerchantPlaceCard.vue'), 'utf8')
 
 test('merchant place card uses a booth doorplate hierarchy and distinguishes source state', () => {
@@ -19,11 +21,26 @@ test('merchant place card uses a booth doorplate hierarchy and distinguishes sou
 })
 
 test('merchant place card separates claimed location viewing from prelisted navigation', () => {
-  assert.match(source, /v-if="place\.claimed && hasLocation"[^>]*@click\.stop="\$emit\('location', place\)"[^>]*>查看位置<\/button>/)
-  assert.match(source, /v-else-if="hasLocation"[^>]*@click\.stop="\$emit\('navigate', place\)"[^>]*>导航<\/button>/)
+  assert.match(source, /v-if="canOpenMerchantLocation"[^>]*@click\.stop="\$emit\('location', place\)"[^>]*>查看位置<\/button>/)
+  assert.match(source, /v-else-if="!place\.claimed && hasLocation"[^>]*@click\.stop="\$emit\('navigate', place\)"[^>]*>导航<\/button>/)
   assert.match(source, /v-if="!place\.claimed" class="claim-button"/)
   assert.match(source, /defineEmits\(\['select', 'detail', 'location', 'navigate', 'claim'\]\)/)
   assert.doesNotMatch(source, /拨打电话|复制微信|makePhoneCall|setClipboardData/)
+})
+
+test('merchant location action requires claimed state, merchant id, and valid coordinates', () => {
+  assert.match(source, /const canOpenMerchantLocation = computed\(\(\) => hasMerchantDetail\(props\.place\) && hasLocation\.value\)/)
+
+  const cases = [
+    { place: { claimed: true, merchantId: '9', lat: '30.89912', lng: '120.20482' }, expected: true },
+    { place: { claimed: true, merchantId: '', lat: '30.89912', lng: '120.20482' }, expected: false },
+    { place: { claimed: true, merchantId: '9', lat: '', lng: '120.20482' }, expected: false },
+    { place: { claimed: false, merchantId: '9', lat: '30.89912', lng: '120.20482' }, expected: false },
+  ]
+
+  for (const { place, expected } of cases) {
+    assert.equal(hasMerchantDetail(place) && hasValidLocation(place), expected)
+  }
 })
 
 test('merchant place card only shows the incomplete-location state without location actions', () => {

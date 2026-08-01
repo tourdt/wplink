@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 
+import { hasValidLocation } from '../sourcing-map/merchantPlaceState.js'
+
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const sourcePath = path.join(root, 'pages/merchant/detail.vue')
 
@@ -61,13 +63,27 @@ test('merchant detail page renders address as a lightweight single-address block
   assert.match(source, /<text class="merchant-address-text">\{\{ merchantAddressLocation\.address \}\}<\/text>/)
   assert.doesNotMatch(source, /<map|merchant-address-map/)
   assert.match(source, /const merchantAddressLocation = computed\(\(\) => buildMerchantAddressLocation\(\)\)/)
-  assert.match(source, /function buildMerchantAddressLocation\(\) \{[\s\S]*const hasGps = Number\.isFinite\(latitude\) && Number\.isFinite\(longitude\)/)
+  assert.match(source, /import \{ hasValidLocation \} from '\.\.\/sourcing-map\/merchantPlaceState'/)
+  assert.match(source, /function buildMerchantAddressLocation\(\) \{[\s\S]*const rawLatitude = location\.latitude \?\? location\.lat \?\? ''[\s\S]*const rawLongitude = location\.longitude \?\? location\.lng \?\? ''[\s\S]*const hasGps = hasValidLocation\(\{ lat: rawLatitude, lng: rawLongitude \}\)/)
   assert.match(source, /function openMerchantLocation\(\) \{[\s\S]*merchant\.value\.id[\s\S]*merchantAddressLocation\.value\?\.hasGps[\s\S]*\/pages\/merchant\/location\?merchantId=\$\{encodeURIComponent\(merchant\.value\.id\)\}/)
   assert.doesNotMatch(source, /uni\.openLocation/)
   assert.match(source, /function copyMerchantAddress\(title = '地址已复制'\) \{[\s\S]*uni\.setClipboardData\(\{ data: location\.address \}\)/)
   assert.match(source, /\.merchant-address-section \{[\s\S]*display: grid;[\s\S]*gap: 14rpx;/)
   assert.match(source, /\.merchant-address-section \.section-head \{[\s\S]*margin-bottom: 0;/)
   assert.match(source, /\.merchant-address-text \{[\s\S]*display: block;[\s\S]*font-size: 30rpx;[\s\S]*line-height: 1\.55;[\s\S]*word-break: break-word;/)
+})
+
+test('merchant detail coordinates reject empty and out-of-range values before showing location', () => {
+  const cases = [
+    { location: { lat: '30.89912', lng: '120.20482' }, expected: true },
+    { location: { lat: '', lng: '120.20482' }, expected: false },
+    { location: { lat: '91', lng: '120.20482' }, expected: false },
+    { location: { lat: '30.89912', lng: '-181' }, expected: false },
+  ]
+
+  for (const { location, expected } of cases) {
+    assert.equal(hasValidLocation(location), expected)
+  }
 })
 
 test('merchant detail page only directs users to contact details in published supply and demand', () => {
