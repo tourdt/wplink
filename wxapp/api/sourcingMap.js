@@ -10,8 +10,10 @@ export function listMerchantPlaces(params = {}) {
 }
 
 export function getMerchantLocationContext(merchantId) {
+  // 商家 ID 属于单一路径段，先规范化再编码，避免特殊字符改变接口路径或查询语义。
+  const encodedMerchantId = encodeURIComponent(String(merchantId ?? '').trim())
   return request({
-    url: `/api/v1/map/merchants/${merchantId}/location-context`,
+    url: `/api/v1/map/merchants/${encodedMerchantId}/location-context`,
     method: 'GET',
     suppressErrorToast: true,
   })

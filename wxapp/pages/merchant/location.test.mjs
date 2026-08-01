@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
+import vm from 'node:vm'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = read('pages/merchant/location.vue')
@@ -19,6 +20,15 @@ function expectTokens(target, tokens) {
   }
 }
 
+function loadSourcingMapApi(request) {
+  const executableSource = apiSource
+    .replace("import request from './request'", '')
+    .replaceAll('export function ', 'function ')
+  const sandbox = { request }
+  vm.runInNewContext(`${executableSource}\nglobalThis.sourcingMapApi = { getMerchantLocationContext }`, sandbox)
+  return sandbox.sourcingMapApi
+}
+
 test('merchant location page is registered with its business title', () => {
   const page = pagesConfig.pages.find((item) => item.path === 'pages/merchant/location')
 
@@ -31,7 +41,6 @@ test('merchant location page is registered with its business title', () => {
 test('merchant location page loads the context and keeps the current shop as map focus', () => {
   expectTokens(apiSource, [
     'getMerchantLocationContext',
-    '/api/v1/map/merchants/${merchantId}/location-context',
     'suppressErrorToast: true',
   ])
   expectTokens(source, [
@@ -43,6 +52,23 @@ test('merchant location page loads the context and keeps the current shop as map
     '导航到店',
   ])
   assert.doesNotMatch(source, /show-location|uni\.getLocation|搜索此区域/)
+})
+
+test('merchant location API trims and encodes the merchant id as one path segment', async () => {
+  let requestOptions
+  const { getMerchantLocationContext } = loadSourcingMapApi((options) => {
+    requestOptions = options
+    return Promise.resolve({})
+  })
+
+  await getMerchantLocationContext(' merchant/a?b#c% ')
+
+  assert.match(
+    requestOptions.url,
+    /\/api\/v1\/map\/merchants\/merchant%2Fa%3Fb%23c%25\/location-context$/,
+  )
+  assert.equal(requestOptions.method, 'GET')
+  assert.equal(requestOptions.suppressErrorToast, true)
 })
 
 test('merchant location page distinguishes full context failure from nearby degradation', () => {
