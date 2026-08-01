@@ -79,33 +79,9 @@ test('resource card uses a readable four-line content layout', () => {
   assert.equal(source.includes('merchant-row'), false)
 })
 
-test('resource card provides a compact market-only layout', () => {
-  assert.match(source, /if \(props\.variant === 'market'\) return 'resource-card-market'/)
-  assert.match(source, /const isMarketVariant = computed\(\(\) => props\.variant === 'market'\)/)
-  assert.match(source, /const quantityText = computed\(\(\) => String\(props\.resource\.quantityText \|\| ''\)\.trim\(\)\)/)
-  assert.match(source, /const hasMarketTradeInfo = computed/)
-  assert.match(source, /<template v-if="isMarketVariant">[\s\S]*class="market-type-badge supply"[\s\S]*\{\{ resourceTypeLabel \}\}[\s\S]*class="market-title"[\s\S]*class="market-decision-line"[\s\S]*class="market-merchant-line"[\s\S]*<\/template>/)
-  assert.match(source, /<text v-if="isCompleted" class="market-completed-badge">已完成<\/text>/)
-  assert.match(source, /<text v-if="quantityText" class="market-quantity">\{\{ quantityText \}\}<\/text>/)
-  assert.match(source, /<text v-if="resource\.priceText" class="market-price">\{\{ resource\.priceText \}\}<\/text>/)
-  assert.match(source, /<text v-else class="market-trade-empty">交易信息待完善<\/text>/)
-  assert.match(source, /\.resource-card-market \{[\s\S]*padding: 20rpx;/)
-  assert.match(source, /\.resource-card-market \.thumb-wrap \{[\s\S]*width: 152rpx;[\s\S]*height: 152rpx;/)
-  assert.match(source, /\.market-type-badge\.supply \{[\s\S]*background: \$wplink-primary;/)
-  assert.match(source, /<template v-else>[\s\S]*class="direction-badge supply"[\s\S]*class="resource-meta"[\s\S]*class="location-text"[\s\S]*class="resource-labels"/)
-})
-
-test('demand card provides the matching compact market-only layout', () => {
-  assert.match(demandSource, /variant:\s*\{[\s\S]*type: String,[\s\S]*default: '',[\s\S]*\}/)
-  assert.match(demandSource, /const variantClass = computed\(\(\) => props\.variant === 'market' \? 'demand-card-market' : ''\)/)
-  assert.match(demandSource, /const isMarketVariant = computed\(\(\) => props\.variant === 'market'\)/)
-  assert.match(demandSource, /const quantityText = computed\(\(\) => String\(props\.resource\.quantityText \|\| ''\)\.trim\(\)\)/)
-  assert.match(demandSource, /<template v-if="isMarketVariant">[\s\S]*class="market-type-badge demand"[\s\S]*class="market-title"[\s\S]*class="market-decision-line"[\s\S]*class="market-merchant-line"[\s\S]*<\/template>/)
-  assert.match(demandSource, /<text v-if="isCompleted" class="market-completed-badge">已完成<\/text>/)
-  assert.match(demandSource, /\.demand-card-market \{[\s\S]*padding: 20rpx;/)
-  assert.match(demandSource, /\.demand-card-market \.thumb-wrap \{[\s\S]*width: 152rpx;[\s\S]*height: 152rpx;/)
-  assert.match(demandSource, /\.market-type-badge\.demand \{[\s\S]*background: \$wplink-warning;/)
-  assert.match(demandSource, /<template v-else>[\s\S]*class="direction-badge"[\s\S]*class="demand-meta"[\s\S]*class="location-text"[\s\S]*class="resource-labels"/)
+test('legacy detailed cards delegate compact market rendering to ResourceFeedCard', () => {
+  assert.doesNotMatch(source, /isMarketVariant|resource-card-market|market-card-main|market-type-badge/)
+  assert.doesNotMatch(demandSource, /isMarketVariant|demand-card-market|market-card-main|market-type-badge/)
 })
 
 test('resource card uses short freshness date in resource list', () => {

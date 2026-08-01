@@ -84,7 +84,7 @@ test('market page uses category groups instead of direction tabs', () => {
 })
 
 test('market page keeps a mixed feed without direction filter state', () => {
-  assert.match(source, /const RESOURCE_DIRECTION_DEMAND = 'demand'/)
+  assert.doesNotMatch(source, /RESOURCE_DIRECTION_DEMAND/)
   assert.doesNotMatch(source, /RESOURCE_DIRECTION_SUPPLY/)
   assert.doesNotMatch(source, /direction-filter-row/)
   assert.doesNotMatch(source, /direction-filter-button/)
@@ -95,38 +95,26 @@ test('market page keeps a mixed feed without direction filter state', () => {
   assert.doesNotMatch(source, /filters\.direction/)
 })
 
-test('market page renders mixed supply and demand result cards from item direction', () => {
-  for (const token of [
-    'DemandCard',
-    'ResourceCard',
-    'RESOURCE_DIRECTION_DEMAND',
-    '<template v-for="item in rows" :key="item.id">',
-    'v-if="item.direction === RESOURCE_DIRECTION_DEMAND"',
-    '<ResourceCard',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
-
+test('market page renders mixed supply and demand with the shared feed card', () => {
+  assert.match(source, /import ResourceFeedCard from '\.\.\/\.\.\/components\/ResourceFeedCard\.vue'/)
   assert.match(
     source,
-    /<DemandCard[\s\S]*v-if="item\.direction === RESOURCE_DIRECTION_DEMAND"[\s\S]*:resource="item"[\s\S]*variant="market"[\s\S]*@open="openResource"[\s\S]*\/>/,
+    /<ResourceExposure[\s\S]*v-for="item in rows"[\s\S]*:resource-id="item\.id"[\s\S]*source="list"[\s\S]*<ResourceFeedCard[\s\S]*:resource="item"[\s\S]*@open="openResource"/,
   )
-  assert.match(
-    source,
-    /<ResourceCard[\s\S]*v-else[\s\S]*:resource="item"[\s\S]*variant="market"[\s\S]*@open="openResource"[\s\S]*\/>/,
-  )
+  assert.doesNotMatch(source, /import DemandCard/)
+  assert.doesNotMatch(source, /import ResourceCard/)
+  assert.doesNotMatch(source, /RESOURCE_DIRECTION_DEMAND/)
+  assert.doesNotMatch(source, /variant="market"/)
 })
 
-test('market-only card layout does not leak into other resource feeds', () => {
-  for (const relativePath of [
-    'pages/search/index.vue',
-    'pages/home/index.vue',
-    'pages/favorites/index.vue',
-    'pages/topic/index.vue',
-  ]) {
-    const pageSource = fs.readFileSync(path.join(root, relativePath), 'utf8')
-    assert.equal(pageSource.includes('variant="market"'), false, `${relativePath} should keep its existing card layout`)
-  }
+test('legacy detailed cards no longer own the market-only layout', () => {
+  const resourceCardSource = fs.readFileSync(path.join(root, 'components/ResourceCard.vue'), 'utf8')
+  const demandCardSource = fs.readFileSync(path.join(root, 'components/DemandCard.vue'), 'utf8')
+
+  assert.equal(resourceCardSource.includes("props.variant === 'market'"), false)
+  assert.equal(resourceCardSource.includes('resource-card-market'), false)
+  assert.equal(demandCardSource.includes("props.variant === 'market'"), false)
+  assert.equal(demandCardSource.includes('demand-card-market'), false)
 })
 
 test('market page uses the custom title bar as the primary category channel switcher', () => {

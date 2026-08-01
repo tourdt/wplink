@@ -96,22 +96,14 @@
     </view>
 
     <view v-if="rows.length" class="result-list">
-      <template v-for="item in rows" :key="item.id">
-        <ResourceExposure :resource-id="item.id" source="list">
-          <DemandCard
-            v-if="item.direction === RESOURCE_DIRECTION_DEMAND"
-            :resource="item"
-            variant="market"
-            @open="openResource"
-          />
-          <ResourceCard
-            v-else
-            :resource="item"
-            variant="market"
-            @open="openResource"
-          />
-        </ResourceExposure>
-      </template>
+      <ResourceExposure
+        v-for="item in rows"
+        :key="item.id"
+        :resource-id="item.id"
+        source="list"
+      >
+        <ResourceFeedCard :resource="item" @open="openResource" />
+      </ResourceExposure>
       <text class="load-more-text">{{ loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了' }}</text>
     </view>
 
@@ -128,8 +120,7 @@
 <script setup>
 import { computed, nextTick, reactive, ref } from 'vue'
 import { onLoad, onPageScroll, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
-import DemandCard from '../../components/DemandCard.vue'
-import ResourceCard from '../../components/ResourceCard.vue'
+import ResourceFeedCard from '../../components/ResourceFeedCard.vue'
 import ResourceExposure from '../../components/ResourceExposure.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { groupResourceTypes } from '../../common/resourceCategories'
@@ -140,7 +131,6 @@ const resourceTypes = ref([{ label: '全部', value: '' }])
 const categoryGroups = ref([])
 const SEARCH_KEY = 'wplink_pending_search_keyword'
 const PAGE_TITLE = '供需市场'
-const RESOURCE_DIRECTION_DEMAND = 'demand'
 const NAV_BOTTOM_RPX = 12
 const headerMetrics = ref({
   statusBarHeight: 44,
