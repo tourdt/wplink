@@ -43,6 +43,10 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 		})
 		response.JSON(w, resp, err)
 	})
+	mux.HandleFunc("GET /api/v1/map/merchants/{merchantId}/location-context", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := publicLogic.GetMerchantLocationContext(r.Context(), r.PathValue("merchantId"))
+		response.JSON(w, resp, err)
+	})
 	mux.HandleFunc("GET /api/v1/map/scenes/{sceneCode}", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := publicLogic.GetScene(r.Context(), r.PathValue("sceneCode"))
 		response.JSON(w, resp, err)

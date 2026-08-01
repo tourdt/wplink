@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -58,6 +59,62 @@ func TestMapAPIRouterPassesMerchantDirectoryFilters(t *testing.T) {
 	}
 	if filter.Claimed == nil || !*filter.Claimed || filter.Bounds == nil || filter.Bounds.MaxLng != 120.3 {
 		t.Fatalf("filter = %#v, want claimed and geo bounds", filter)
+	}
+}
+
+func TestMapAPIRouterGetsMerchantLocationContext(t *testing.T) {
+	store := &fakeMapAPIStore{
+		fakeCityAPIStore: fakeCityAPIStore{},
+		merchantPlace: model.MerchantPlace{Object: model.MapObject{
+			ID: "object-1", MerchantID: "merchant-1", MerchantName: "小熊星球童装",
+			Lat: "30.8700000", Lng: "120.1200000",
+		}},
+		nearbyMerchantPlaces: []model.MerchantPlace{{
+			Object: model.MapObject{
+				ID: "object-2", MerchantID: "merchant-2", MerchantName: "布谷童装",
+				Lat: "30.8705000", Lng: "120.1200000",
+			},
+			DistanceMeters: 56,
+		}},
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/merchants/merchant-1/location-context", nil)
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	current := data["current"].(map[string]interface{})
+	nearby := data["nearby"].([]interface{})
+	nearbyItem := nearby[0].(map[string]interface{})
+	if current["merchantId"] != "merchant-1" || nearbyItem["merchantId"] != "merchant-2" {
+		t.Fatalf("data = %#v, want current and nearby merchants", data)
+	}
+	if data["radiusMeters"] != float64(1000) || data["nearbyAvailable"] != true {
+		t.Fatalf("data = %#v, want available nearby results within 1000m", data)
+	}
+}
+
+func TestMapAPIRouterGetsMerchantLocationContextWhenNearbyUnavailable(t *testing.T) {
+	store := &fakeMapAPIStore{
+		fakeCityAPIStore: fakeCityAPIStore{},
+		merchantPlace: model.MerchantPlace{Object: model.MapObject{
+			ID: "object-1", MerchantID: "merchant-1", MerchantName: "小熊星球童装",
+			Lat: "30.8700000", Lng: "120.1200000",
+		}},
+		nearbyMerchantPlacesErr: errors.New("nearby database timeout"),
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/merchants/merchant-1/location-context", nil)
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	current := data["current"].(map[string]interface{})
+	nearby := data["nearby"].([]interface{})
+	if current["merchantId"] != "merchant-1" || len(nearby) != 0 || data["nearbyAvailable"] != false {
+		t.Fatalf("data = %#v, want current merchant and unavailable nearby results", data)
 	}
 }
 
@@ -319,31 +376,35 @@ func TestMapAPIRouterReviewsAdminMapBindRequest(t *testing.T) {
 
 type fakeMapAPIStore struct {
 	fakeCityAPIStore
-	sceneFilter         model.ListMapScenesFilter
-	objectFilter        model.ListMapObjectsFilter
-	adminSceneCode      string
-	categoryFilter      model.ListMapCategoriesFilter
-	managedMerchants    map[string]bool
-	savedSceneInput     model.MapSceneInput
-	savedObjectInput    model.MapObjectInput
-	createdBindInput    model.MapBindRequestInput
-	reviewBindInput     model.ReviewMapBindRequestInput
-	mapReportInput      model.MapObjectReportInput
-	scenes              []model.MapScene
-	savedScene          model.MapScene
-	objects             []model.MapObject
-	objectTotal         int64
-	object              model.MapObject
-	categories          []model.MapCategory
-	bindingStatus       model.MapBindingStatus
-	bindCandidates      []model.MapBindCandidate
-	bindRequests        []model.MapBindRequest
-	createdBindRequest  model.MapBindRequest
-	reviewedBindRequest model.MapBindRequest
-	mapReportResult     model.MapObjectReportResult
-	merchantPlaceFilter model.MerchantPlaceFilter
-	merchantPlaces      []model.MerchantPlace
-	merchantPlaceTotal  int64
+	sceneFilter             model.ListMapScenesFilter
+	objectFilter            model.ListMapObjectsFilter
+	adminSceneCode          string
+	categoryFilter          model.ListMapCategoriesFilter
+	managedMerchants        map[string]bool
+	savedSceneInput         model.MapSceneInput
+	savedObjectInput        model.MapObjectInput
+	createdBindInput        model.MapBindRequestInput
+	reviewBindInput         model.ReviewMapBindRequestInput
+	mapReportInput          model.MapObjectReportInput
+	scenes                  []model.MapScene
+	savedScene              model.MapScene
+	objects                 []model.MapObject
+	objectTotal             int64
+	object                  model.MapObject
+	categories              []model.MapCategory
+	bindingStatus           model.MapBindingStatus
+	bindCandidates          []model.MapBindCandidate
+	bindRequests            []model.MapBindRequest
+	createdBindRequest      model.MapBindRequest
+	reviewedBindRequest     model.MapBindRequest
+	mapReportResult         model.MapObjectReportResult
+	merchantPlaceFilter     model.MerchantPlaceFilter
+	merchantPlaces          []model.MerchantPlace
+	merchantPlaceTotal      int64
+	merchantPlace           model.MerchantPlace
+	merchantPlaceErr        error
+	nearbyMerchantPlaces    []model.MerchantPlace
+	nearbyMerchantPlacesErr error
 }
 
 func (s *fakeMapAPIStore) ListPublishedScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error) {
@@ -380,6 +441,14 @@ func (s *fakeMapAPIStore) ListMerchantPlaces(ctx context.Context, filter model.M
 func (s *fakeMapAPIStore) CountMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) (int64, error) {
 	s.merchantPlaceFilter = filter
 	return s.merchantPlaceTotal, nil
+}
+
+func (s *fakeMapAPIStore) GetPublishedMerchantPlaceByMerchantID(ctx context.Context, merchantID string) (model.MerchantPlace, error) {
+	return s.merchantPlace, s.merchantPlaceErr
+}
+
+func (s *fakeMapAPIStore) ListNearbyMerchantPlaces(ctx context.Context, origin model.MerchantPlace, radiusMeters int64, limit int64) ([]model.MerchantPlace, error) {
+	return append([]model.MerchantPlace(nil), s.nearbyMerchantPlaces...), s.nearbyMerchantPlacesErr
 }
 
 func (s *fakeMapAPIStore) GetPublishedObject(ctx context.Context, objectID string) (model.MapObject, error) {
