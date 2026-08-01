@@ -102,7 +102,7 @@
           <text class="section-title">{{ homeFeedState.hasMerchants ? '新入驻商家' : '近期供需' }}</text>
         </view>
 
-        <view v-show="activeHomeFeedTab === 'merchants'" class="recent-merchant-list">
+        <view v-if="activeHomeFeedTab === 'merchants'" class="recent-merchant-list">
           <HomeRecentMerchantCard
             v-for="item in recentMerchants"
             :key="item.id"
@@ -112,7 +112,7 @@
           <button class="home-feed-more" @click="openSourcingMap()">查看更多商家</button>
         </view>
 
-        <view v-show="activeHomeFeedTab === 'resources'" class="home-resource-panel">
+        <view v-else class="home-resource-panel">
           <view class="recommend-card" v-if="displayRecommendCard" @click="openRecommendCard(displayRecommendCard)">
             <view>
               <text class="recommend-tag">{{ displayRecommendCard.tag || '热门场景' }}</text>
