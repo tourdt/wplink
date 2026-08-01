@@ -87,13 +87,22 @@
       </view>
 
       <view v-if="homeFeedReady && homeFeedState.hasAnyContent" class="home-feed-section">
-        <view v-if="homeFeedState.showSwitcher" class="home-feed-tabs">
+        <view
+          v-if="homeFeedState.showSwitcher"
+          class="home-feed-tabs"
+          role="tablist"
+          aria-label="首页内容"
+        >
           <button
             :class="['home-feed-tab', { active: activeHomeFeedTab === 'merchants' }]"
+            role="tab"
+            :aria-selected="activeHomeFeedTab === 'merchants'"
             @click="selectHomeFeedTab('merchants')"
           >新入驻商家</button>
           <button
             :class="['home-feed-tab', { active: activeHomeFeedTab === 'resources' }]"
+            role="tab"
+            :aria-selected="activeHomeFeedTab === 'resources'"
             @click="selectHomeFeedTab('resources')"
           >近期供需</button>
         </view>
@@ -726,22 +735,21 @@ function bannerTone(jumpType) {
 }
 
 .home-feed-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8rpx;
+  display: flex;
+  align-items: stretch;
+  gap: 36rpx;
   margin: 0 0 20rpx;
-  padding: 6rpx;
-  border: 1rpx solid rgba(148, 163, 184, 0.28);
-  border-radius: 16rpx;
-  background: #e8eeee;
+  border-bottom: 1rpx solid rgba(148, 163, 184, 0.28);
 }
 
 .home-feed-tab {
+  position: relative;
+  width: auto;
   min-height: 88rpx;
   margin: 0;
-  padding: 16rpx 8rpx;
+  padding: 16rpx 2rpx;
   border: 0;
-  border-radius: 12rpx;
+  border-radius: 0;
   background: transparent;
   color: $wplink-muted;
   font-size: 27rpx;
@@ -751,12 +759,31 @@ function bannerTone(jumpType) {
 }
 
 .home-feed-tab.active {
-  background: #ffffff;
+  background: transparent;
   color: $wplink-primary;
-  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.08);
+  box-shadow: none;
 }
 
-.home-feed-tab::after,
+.home-feed-tab::after {
+  position: absolute;
+  right: 2rpx;
+  bottom: -1rpx;
+  left: 2rpx;
+  height: 4rpx;
+  border: 0;
+  border-radius: 999rpx 999rpx 0 0;
+  background: transparent;
+  content: '';
+}
+
+.home-feed-tab.active::after {
+  background: $wplink-primary;
+}
+
+.home-feed-tab:active {
+  opacity: 0.72;
+}
+
 .home-feed-more::after {
   border: 0;
 }

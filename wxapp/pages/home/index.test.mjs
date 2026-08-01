@@ -49,8 +49,49 @@ test('home combines recent merchants and resources into a local tabbed feed', ()
   assert.match(source, /v-if="activeHomeFeedTab === 'merchants'" class="recent-merchant-list"/)
   assert.match(source, /v-else class="home-resource-panel"/)
   assert.doesNotMatch(source, /v-show="activeHomeFeedTab ===/)
-  assert.match(source, /\.home-feed-tab\s*\{[\s\S]*min-height:\s*88rpx/)
   assert.match(source, /\.home-feed-more\s*\{[\s\S]*min-height:\s*88rpx/)
+
+  const tabListTag = source.match(/<view\s+[^>]*class="home-feed-tabs"[^>]*>/)?.[0] || ''
+  const merchantTab = source.match(
+    /<button\n\s+:class="\['home-feed-tab', \{ active: activeHomeFeedTab === 'merchants' \}\]"[\s\S]*?<\/button>/,
+  )?.[0] || ''
+  const resourceTab = source.match(
+    /<button\n\s+:class="\['home-feed-tab', \{ active: activeHomeFeedTab === 'resources' \}\]"[\s\S]*?<\/button>/,
+  )?.[0] || ''
+
+  assert.match(tabListTag, /role="tablist"/)
+  assert.match(tabListTag, /aria-label="首页内容"/)
+  assert.match(merchantTab, /role="tab"/)
+  assert.match(merchantTab, /:aria-selected="activeHomeFeedTab === 'merchants'"/)
+  assert.match(merchantTab, /selectHomeFeedTab\('merchants'\)/)
+  assert.match(resourceTab, /role="tab"/)
+  assert.match(resourceTab, /:aria-selected="activeHomeFeedTab === 'resources'"/)
+  assert.match(resourceTab, /selectHomeFeedTab\('resources'\)/)
+
+  const tabsStyle = source.match(/\.home-feed-tabs\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const tabStyle = source.match(/\.home-feed-tab\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const activeTabStyle = source.match(/\.home-feed-tab\.active\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const indicatorStyle = source.match(/\.home-feed-tab::after\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const activeIndicatorStyle = source.match(/\.home-feed-tab\.active::after\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const pressedTabStyle = source.match(/\.home-feed-tab:active\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+
+  assert.match(tabsStyle, /display:\s*flex/)
+  assert.match(tabsStyle, /gap:\s*36rpx/)
+  assert.match(tabsStyle, /border-bottom:\s*1rpx solid/)
+  assert.doesNotMatch(tabsStyle, /grid-template-columns|background:|border-radius:|box-shadow:/)
+  assert.match(tabStyle, /position:\s*relative/)
+  assert.match(tabStyle, /width:\s*auto/)
+  assert.match(tabStyle, /min-height:\s*88rpx/)
+  assert.match(tabStyle, /background:\s*transparent/)
+  assert.match(activeTabStyle, /color:\s*\$wplink-primary/)
+  assert.doesNotMatch(activeTabStyle, /background:\s*#ffffff|box-shadow:\s*0\s+6rpx/)
+  assert.match(indicatorStyle, /height:\s*4rpx/)
+  assert.match(indicatorStyle, /right:\s*2rpx/)
+  assert.match(indicatorStyle, /left:\s*2rpx/)
+  assert.match(indicatorStyle, /background:\s*transparent/)
+  assert.match(activeIndicatorStyle, /background:\s*\$wplink-primary/)
+  assert.match(pressedTabStyle, /opacity:\s*0\.72/)
+  assert.doesNotMatch(`${tabStyle}\n${activeTabStyle}\n${pressedTabStyle}`, /transform:|transition:|animation:/)
 })
 
 test('home initializes the feed tab after parallel data loading without refetching on switch', () => {
