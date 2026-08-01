@@ -122,6 +122,12 @@
       }
     },
     {
+      "path": "pages/merchant/location",
+      "style": {
+        "navigationBarTitleText": "店铺位置"
+      }
+    },
+    {
       "path": "pages/merchant/profile",
       "style": {
         "navigationBarTitleText": "资料设置"

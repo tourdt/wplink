@@ -9,6 +9,14 @@ export function listMerchantPlaces(params = {}) {
   })
 }
 
+export function getMerchantLocationContext(merchantId) {
+  return request({
+    url: `/api/v1/map/merchants/${merchantId}/location-context`,
+    method: 'GET',
+    suppressErrorToast: true,
+  })
+}
+
 export function listMapScenes(params = {}) {
   return request({
     url: '/api/v1/map/scenes',

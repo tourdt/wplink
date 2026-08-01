@@ -35,6 +35,7 @@ const requiredPages = [
   'pages/resource/detail',
   'pages/resource/report',
   'pages/merchant/detail',
+  'pages/merchant/location',
   'pages/topic/index',
   'pages/webview/index',
 ]
