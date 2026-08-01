@@ -160,6 +160,7 @@ type MerchantPlaceItem {
 	Lat           string   `json:"lat,optional"`
 	Lng           string   `json:"lng,optional"`
 	DistanceText  string   `json:"distanceText,optional"`
+	DistanceMeters int64    `json:"distanceMeters,optional"`
 	RiskWarning   bool     `json:"riskWarning,optional"`
 }
 
@@ -168,6 +169,13 @@ type ListMerchantPlacesResp {
 	Total    int64               `json:"total"`
 	Page     int64               `json:"page"`
 	PageSize int64               `json:"pageSize"`
+}
+
+type MerchantLocationContextResp {
+	Current         MerchantPlaceItem   `json:"current"`
+	Nearby          []MerchantPlaceItem `json:"nearby"`
+	RadiusMeters    int64               `json:"radiusMeters"`
+	NearbyAvailable bool                `json:"nearbyAvailable"`
 }
 
 type MapObjectDetailResp {
@@ -426,6 +434,9 @@ type AdminSaveMapCategoryResp {
 service wplink-api {
 	@handler ListMerchantPlaces
 	get /map/merchant-places (ListMerchantPlacesReq) returns (ListMerchantPlacesResp)
+
+	@handler GetMerchantLocationContext
+	get /map/merchants/:merchantId/location-context returns (MerchantLocationContextResp)
 
 	@handler ListMapScenes
 	get /map/scenes (ListMapScenesReq) returns (ListMapScenesResp)

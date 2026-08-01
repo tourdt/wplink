@@ -1107,6 +1107,7 @@ type ListInteractionReq struct {
 
 type ListMapBindCandidatesReq struct {
 	MerchantId string `form:"merchantId"`
+	ObjectId   string `form:"objectId,optional"`
 	SceneCode  string `form:"sceneCode,optional"`
 	Keyword    string `form:"keyword,optional"`
 	Limit      int64  `form:"limit,optional"`
@@ -1155,6 +1156,29 @@ type ListMapScenesResp struct {
 
 type ListMerchantEntitlementsResp struct {
 	Items []MerchantEntitlementInfo `json:"items"`
+}
+
+type ListMerchantPlacesReq struct {
+	CityCode      string `form:"cityCode,optional"`
+	Keyword       string `form:"keyword,optional"`
+	Categories    string `form:"categories,optional"`
+	MerchantTypes string `form:"merchantTypes,optional"`
+	Claimed       string `form:"claimed,optional"`
+	Page          int64  `form:"page,optional"`
+	PageSize      int64  `form:"pageSize,optional"`
+	MinLat        string `form:"minLat,optional"`
+	MaxLat        string `form:"maxLat,optional"`
+	MinLng        string `form:"minLng,optional"`
+	MaxLng        string `form:"maxLng,optional"`
+	Lat           string `form:"lat,optional"`
+	Lng           string `form:"lng,optional"`
+}
+
+type ListMerchantPlacesResp struct {
+	Items    []MerchantPlaceItem `json:"items"`
+	Total    int64               `json:"total"`
+	Page     int64               `json:"page"`
+	PageSize int64               `json:"pageSize"`
 }
 
 type ListMessagesReq struct {
@@ -1436,12 +1460,43 @@ type MerchantLast7DaysMetrics struct {
 	ContactClickCount int64 `json:"contactClickCount"`
 }
 
+type MerchantLocationContextResp struct {
+	Current         MerchantPlaceItem   `json:"current"`
+	Nearby          []MerchantPlaceItem `json:"nearby"`
+	RadiusMeters    int64               `json:"radiusMeters"`
+	NearbyAvailable bool                `json:"nearbyAvailable"`
+}
+
 type MerchantMetricsSummaryResp struct {
 	MerchantId             string                   `json:"merchantId"`
 	PublishedResourceCount int64                    `json:"publishedResourceCount"`
 	ExpiringResourceCount  int64                    `json:"expiringResourceCount"`
 	DealtResourceCount     int64                    `json:"dealtResourceCount"`
 	Last7Days              MerchantLast7DaysMetrics `json:"last7Days"`
+}
+
+type MerchantPlaceItem struct {
+	ObjectId       string   `json:"objectId"`
+	MerchantId     string   `json:"merchantId,optional"`
+	Name           string   `json:"name"`
+	Code           string   `json:"code"`
+	MerchantType   string   `json:"merchantType,optional"`
+	CategoryCodes  []string `json:"categoryCodes"`
+	ServiceTags    []string `json:"serviceTags"`
+	PlatformTags   []string `json:"platformTags"`
+	CityCode       string   `json:"cityCode,optional"`
+	MarketName     string   `json:"marketName,optional"`
+	BuildingName   string   `json:"buildingName,optional"`
+	FloorNo        string   `json:"floorNo,optional"`
+	Address        string   `json:"address,optional"`
+	CoverUrl       string   `json:"coverUrl,optional"`
+	Claimed        bool     `json:"claimed"`
+	SourceType     string   `json:"sourceType"`
+	Lat            string   `json:"lat,optional"`
+	Lng            string   `json:"lng,optional"`
+	DistanceText   string   `json:"distanceText,optional"`
+	DistanceMeters int64    `json:"distanceMeters,optional"`
+	RiskWarning    bool     `json:"riskWarning,optional"`
 }
 
 type MerchantResourcesSummary struct {
