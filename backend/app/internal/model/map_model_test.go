@@ -206,3 +206,80 @@ func TestBuildMerchantPlaceFilterSQLCanSelectPrelistedBooths(t *testing.T) {
 		t.Fatalf("whereSQL = %q, want prelisted filter", whereSQL)
 	}
 }
+
+func TestRankNearbyMerchantPlacesFiltersRadiusOriginAndInvalidLocation(t *testing.T) {
+	origin := MerchantPlace{Object: MapObject{ID: "object-1", MerchantID: "merchant-1", Lat: "30.8700000", Lng: "120.1200000"}}
+	candidates := []MerchantPlace{
+		{Object: MapObject{ID: "object-1", MerchantID: "merchant-1", Lat: "30.8700000", Lng: "120.1200000"}},
+		{Object: MapObject{ID: "object-near", MerchantID: "merchant-2", Lat: "30.8705000", Lng: "120.1200000"}},
+		{Object: MapObject{ID: "object-far", MerchantID: "merchant-3", Lat: "30.8900000", Lng: "120.1200000"}},
+		{Object: MapObject{ID: "object-invalid", MerchantID: "merchant-4"}},
+		{Object: MapObject{ID: "object-no-merchant", Lat: "30.8701000", Lng: "120.1200000"}},
+	}
+
+	items := rankNearbyMerchantPlaces(origin, candidates, 1000, 20)
+	if len(items) != 1 || items[0].Object.MerchantID != "merchant-2" {
+		t.Fatalf("items = %#v", items)
+	}
+	if items[0].DistanceMeters < 50 || items[0].DistanceMeters > 60 {
+		t.Fatalf("distance = %d, want about 56m", items[0].DistanceMeters)
+	}
+}
+
+func TestRankNearbyMerchantPlacesSortsByDistanceThenObjectIDAndLimits(t *testing.T) {
+	origin := MerchantPlace{Object: MapObject{ID: "origin", MerchantID: "merchant-1", Lat: "30.8700000", Lng: "120.1200000"}}
+	candidates := []MerchantPlace{
+		{Object: MapObject{ID: "object-b", MerchantID: "merchant-3", Lat: "30.8705000", Lng: "120.1200000"}},
+		{Object: MapObject{ID: "object-nearest", MerchantID: "merchant-4", Lat: "30.8701000", Lng: "120.1200000"}},
+		{Object: MapObject{ID: "object-a", MerchantID: "merchant-2", Lat: "30.8705000", Lng: "120.1200000"}},
+	}
+
+	items := rankNearbyMerchantPlaces(origin, candidates, 1000, 2)
+	if len(items) != 2 {
+		t.Fatalf("len(items) = %d, want 2", len(items))
+	}
+	if items[0].Object.ID != "object-nearest" || items[1].Object.ID != "object-a" {
+		t.Fatalf("item IDs = [%q, %q], want [object-nearest, object-a]", items[0].Object.ID, items[1].Object.ID)
+	}
+}
+
+func TestBuildNearbyMerchantPlaceQueryScopesPublishedActiveBoothsInBoundingBox(t *testing.T) {
+	origin := MerchantPlace{Object: MapObject{MerchantID: "merchant-1", Lat: "30.8700000", Lng: "120.1200000"}}
+	query, args := buildNearbyMerchantPlaceQuery(origin, 1000)
+
+	for _, token := range []string{
+		"o.status = 'normal'",
+		"o.layer = 'booth'",
+		"s.status = 'published'",
+		"m.id IS NOT NULL",
+		"m.status = 'active'",
+		"o.lat IS NOT NULL",
+		"o.lng IS NOT NULL",
+		"o.lat BETWEEN $2 AND $3",
+		"o.lng BETWEEN $4 AND $5",
+		"o.merchant_id <> $1::bigint",
+	} {
+		if !strings.Contains(query, token) {
+			t.Fatalf("query = %q, want token %q", query, token)
+		}
+	}
+	if strings.Contains(query, "o.phone") || strings.Contains(query, "o.wechat") {
+		t.Fatalf("query = %q, must not read merchant contact fields", query)
+	}
+	if len(args) != 5 || args[0] != "merchant-1" {
+		t.Fatalf("args = %#v, want merchant ID and four bounding values", args)
+	}
+	minLat, minLatOK := args[1].(float64)
+	maxLat, maxLatOK := args[2].(float64)
+	minLng, minLngOK := args[3].(float64)
+	maxLng, maxLngOK := args[4].(float64)
+	if !minLatOK || !maxLatOK || !minLngOK || !maxLngOK {
+		t.Fatalf("bounding args = %#v, want float64 values", args[1:])
+	}
+	if minLat < 30.860 || minLat > 30.862 || maxLat < 30.878 || maxLat > 30.880 {
+		t.Fatalf("latitude bounds = [%f, %f], want about 1km around 30.87", minLat, maxLat)
+	}
+	if minLng < 120.109 || minLng > 120.111 || maxLng < 120.129 || maxLng > 120.131 {
+		t.Fatalf("longitude bounds = [%f, %f], want about 1km around 120.12", minLng, maxLng)
+	}
+}

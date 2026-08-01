@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
@@ -337,11 +338,12 @@ type MerchantPlaceFilter struct {
 }
 
 type MerchantPlace struct {
-	Object     MapObject
-	CityCode   string
-	SceneName  string
-	MarketName string
-	FloorNo    string
+	Object         MapObject
+	CityCode       string
+	SceneName      string
+	MarketName     string
+	FloorNo        string
+	DistanceMeters int64
 }
 
 type MapModel struct {
@@ -559,6 +561,60 @@ LEFT JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL AND m.sta
 	var total int64
 	err := m.db.QueryRowContext(ctx, query, args...).Scan(&total)
 	return total, err
+}
+
+func (m *MapModel) GetPublishedMerchantPlaceByMerchantID(ctx context.Context, merchantID string) (MerchantPlace, error) {
+	merchantID = strings.TrimSpace(merchantID)
+	query := `SELECT ` + joinedPrivateMerchantPlaceSelectColumns("o") + `,
+       COALESCE(city.code, ''), s.name, COALESCE(parent.name, ''), COALESCE(s.floor_no, '')
+FROM map_object o
+JOIN map_scene s ON s.code = o.scene_code
+LEFT JOIN map_scene parent ON parent.code = s.parent_code
+LEFT JOIN city_stations city ON city.id = s.city_station_id
+JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL
+WHERE o.merchant_id = $1::bigint
+  AND o.status = 'normal'
+  AND o.layer = 'booth'
+  AND s.status = 'published'
+  AND m.id IS NOT NULL
+  AND m.status = 'active'
+LIMIT 1`
+
+	item, err := scanMerchantPlace(m.db.QueryRowContext(ctx, query, merchantID))
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		logx.Errorf("查询商家已发布档口失败: merchantId=%s err=%+v", merchantID, err)
+	}
+	return item, err
+}
+
+func (m *MapModel) ListNearbyMerchantPlaces(ctx context.Context, origin MerchantPlace, radiusMeters int64, limit int64) ([]MerchantPlace, error) {
+	query, args := buildNearbyMerchantPlaceQuery(origin, radiusMeters)
+	if query == "" || limit <= 0 {
+		// 原点坐标或商家标识异常时返回空列表，避免退化成无边界查询并暴露不相关商家。
+		return []MerchantPlace{}, nil
+	}
+
+	rows, err := m.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		logx.Errorf("查询周边商家候选失败: merchantId=%s radiusMeters=%d limit=%d err=%+v", origin.Object.MerchantID, radiusMeters, limit, err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	candidates := make([]MerchantPlace, 0)
+	for rows.Next() {
+		item, scanErr := scanMerchantPlace(rows)
+		if scanErr != nil {
+			logx.Errorf("扫描周边商家候选失败: merchantId=%s radiusMeters=%d limit=%d err=%+v", origin.Object.MerchantID, radiusMeters, limit, scanErr)
+			return nil, scanErr
+		}
+		candidates = append(candidates, item)
+	}
+	if err := rows.Err(); err != nil {
+		logx.Errorf("遍历周边商家候选失败: merchantId=%s radiusMeters=%d limit=%d err=%+v", origin.Object.MerchantID, radiusMeters, limit, err)
+		return nil, err
+	}
+	return rankNearbyMerchantPlaces(origin, candidates, radiusMeters, limit), nil
 }
 
 func (m *MapModel) GetPublishedObject(ctx context.Context, objectID string) (MapObject, error) {
@@ -1409,6 +1465,114 @@ func buildMerchantPlaceFilterSQL(filter MerchantPlaceFilter) (string, []interfac
 	return " WHERE " + strings.Join(conditions, " AND "), args
 }
 
+func buildNearbyMerchantPlaceQuery(origin MerchantPlace, radiusMeters int64) (string, []interface{}) {
+	merchantID := strings.TrimSpace(origin.Object.MerchantID)
+	lat, lng, ok := parseMerchantPlaceCoordinates(origin)
+	if merchantID == "" || !ok || radiusMeters <= 0 {
+		return "", nil
+	}
+
+	const earthRadiusMeters = 6371000
+	angularRadius := float64(radiusMeters) / earthRadiusMeters
+	latitudeDelta := angularRadius * 180 / math.Pi
+	minLat := math.Max(-90, lat-latitudeDelta)
+	maxLat := math.Min(90, lat+latitudeDelta)
+
+	minLng, maxLng := -180.0, 180.0
+	cosLatitude := math.Cos(lat * math.Pi / 180)
+	if math.Abs(cosLatitude) > 1e-12 {
+		longitudeDelta := angularRadius * 180 / (math.Pi * math.Abs(cosLatitude))
+		if longitudeDelta < 180 && lng-longitudeDelta >= -180 && lng+longitudeDelta <= 180 {
+			minLng = lng - longitudeDelta
+			maxLng = lng + longitudeDelta
+		}
+	}
+
+	// 外接矩形只用于数据库粗筛，避免在 SQL 中重复复杂球面公式；最终半径仍由纯函数精确过滤。
+	// 靠近极点或跨越日期变更线时经度范围降级为全球范围，宁可多取候选也不漏掉真实邻近商家。
+	query := `SELECT ` + joinedPrivateMerchantPlaceSelectColumns("o") + `,
+       COALESCE(city.code, ''), s.name, COALESCE(parent.name, ''), COALESCE(s.floor_no, '')
+FROM map_object o
+JOIN map_scene s ON s.code = o.scene_code
+LEFT JOIN map_scene parent ON parent.code = s.parent_code
+LEFT JOIN city_stations city ON city.id = s.city_station_id
+JOIN merchants m ON m.id = o.merchant_id AND m.deleted_at IS NULL
+WHERE o.status = 'normal'
+  AND o.layer = 'booth'
+  AND s.status = 'published'
+  AND m.id IS NOT NULL
+  AND m.status = 'active'
+  AND o.merchant_id <> $1::bigint
+  AND o.lat IS NOT NULL
+  AND o.lng IS NOT NULL
+  AND o.lat BETWEEN -90 AND 90
+  AND o.lng BETWEEN -180 AND 180
+  AND o.lat BETWEEN $2 AND $3
+  AND o.lng BETWEEN $4 AND $5`
+	return query, []interface{}{merchantID, minLat, maxLat, minLng, maxLng}
+}
+
+func rankNearbyMerchantPlaces(origin MerchantPlace, candidates []MerchantPlace, radiusMeters int64, limit int64) []MerchantPlace {
+	originMerchantID := strings.TrimSpace(origin.Object.MerchantID)
+	originLat, originLng, ok := parseMerchantPlaceCoordinates(origin)
+	if originMerchantID == "" || !ok || radiusMeters <= 0 || limit <= 0 {
+		return []MerchantPlace{}
+	}
+
+	items := make([]MerchantPlace, 0, len(candidates))
+	for _, candidate := range candidates {
+		candidateMerchantID := strings.TrimSpace(candidate.Object.MerchantID)
+		if candidateMerchantID == "" || candidateMerchantID == originMerchantID {
+			// 周边区域只展示已入驻的其他商家，避免当前商家重复出现或混入平台预录档口。
+			continue
+		}
+		candidateLat, candidateLng, valid := parseMerchantPlaceCoordinates(candidate)
+		if !valid {
+			// 坐标缺失或越界的数据无法可靠计算距离，跳过比误导用户更安全。
+			continue
+		}
+		distance := geoDistanceMeters(originLat, originLng, candidateLat, candidateLng)
+		if distance > float64(radiusMeters) {
+			continue
+		}
+		candidate.DistanceMeters = int64(math.Round(distance))
+		items = append(items, candidate)
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].DistanceMeters != items[j].DistanceMeters {
+			return items[i].DistanceMeters < items[j].DistanceMeters
+		}
+		return items[i].Object.ID < items[j].Object.ID
+	})
+	if limit < int64(len(items)) {
+		items = items[:limit]
+	}
+	return items
+}
+
+func parseMerchantPlaceCoordinates(place MerchantPlace) (float64, float64, bool) {
+	lat, latErr := strconv.ParseFloat(strings.TrimSpace(place.Object.Lat), 64)
+	lng, lngErr := strconv.ParseFloat(strings.TrimSpace(place.Object.Lng), 64)
+	if latErr != nil || lngErr != nil || math.IsNaN(lat) || math.IsNaN(lng) || math.IsInf(lat, 0) || math.IsInf(lng, 0) {
+		return 0, 0, false
+	}
+	if lat < -90 || lat > 90 || lng < -180 || lng > 180 {
+		return 0, 0, false
+	}
+	return lat, lng, true
+}
+
+func geoDistanceMeters(lat1, lng1, lat2, lng2 float64) float64 {
+	const earthRadiusMeters = 6371000
+	lat1Rad, lat2Rad := lat1*math.Pi/180, lat2*math.Pi/180
+	deltaLat := (lat2 - lat1) * math.Pi / 180
+	deltaLng := (lng2 - lng1) * math.Pi / 180
+	a := math.Sin(deltaLat/2)*math.Sin(deltaLat/2) +
+		math.Cos(lat1Rad)*math.Cos(lat2Rad)*math.Sin(deltaLng/2)*math.Sin(deltaLng/2)
+	return earthRadiusMeters * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+}
+
 type rowScanner interface {
 	Scan(dest ...interface{}) error
 }
@@ -1548,9 +1712,23 @@ func mapObjectSelectColumns() string {
 }
 
 func joinedMapObjectSelectColumns(alias string) string {
+	return joinedMapObjectSelectColumnsWithContact(alias, true)
+}
+
+// joinedPrivateMerchantPlaceSelectColumns 保持 scanMerchantPlace 所需列序，但联系方式位置固定为空值。
+// 周边场景不需要联系方式，查询阶段就不读取 phone/wechat，避免敏感数据进入不必要的数据链路。
+func joinedPrivateMerchantPlaceSelectColumns(alias string) string {
+	return joinedMapObjectSelectColumnsWithContact(alias, false)
+}
+
+func joinedMapObjectSelectColumnsWithContact(alias string, includeContact bool) string {
 	prefix := strings.TrimSpace(alias)
 	if prefix != "" {
 		prefix += "."
+	}
+	contactColumns := "''::text, ''::text"
+	if includeContact {
+		contactColumns = "COALESCE(" + prefix + "phone, ''), COALESCE(" + prefix + "wechat, '')"
 	}
 	return prefix + `id::text, ` + prefix + `scene_code, COALESCE(` + prefix + `merchant_id::text, ''),
        COALESCE(m.name, ''), COALESCE(m.merchant_type, ''), COALESCE(m.verification_status, ''),
@@ -1561,7 +1739,7 @@ func joinedMapObjectSelectColumns(alias string) string {
        COALESCE(` + prefix + `max_x, 0)::float8, COALESCE(` + prefix + `max_y, 0)::float8,
        ` + prefix + `min_zoom::bigint, ` + prefix + `max_zoom::bigint,
        ` + prefix + `category_codes, ` + prefix + `service_tags, ` + prefix + `platform_tags, ` + prefix + `poi_service_tags,
-       COALESCE(` + prefix + `address, ''), COALESCE(` + prefix + `phone, ''), COALESCE(` + prefix + `wechat, ''),
+       COALESCE(` + prefix + `address, ''), ` + contactColumns + `,
        COALESCE(` + prefix + `lat::text, ''), COALESCE(` + prefix + `lng::text, ''),
        ` + prefix + `search_text, ` + prefix + `extra, ` + prefix + `sort::bigint, ` + prefix + `status, ` + prefix + `created_at, ` + prefix + `updated_at`
 }
