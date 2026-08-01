@@ -90,7 +90,7 @@ import { getMerchantFollowState, setMerchantFollow } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
 import { listResources } from '../../api/resource'
 import { getSession } from '../../store/session'
-import { hasValidLocation } from '../sourcing-map/merchantPlaceState'
+import { buildMerchantAddressLocation } from '../sourcing-map/merchantPlaceState'
 
 const merchant = ref({})
 const currentMerchantId = ref('')
@@ -112,8 +112,7 @@ const merchantTypeText = {
 }
 const merchantLogo = computed(() => merchant.value.logoUrl || '')
 const merchantImages = computed(() => merchant.value.images || [])
-const merchantLocation = computed(() => merchant.value.location || {})
-const merchantAddressLocation = computed(() => buildMerchantAddressLocation())
+const merchantAddressLocation = computed(() => buildMerchantAddressLocation(merchant.value))
 const resourcesSummary = computed(() => merchant.value.resourcesSummary || {})
 const isOwnMerchant = computed(() => Boolean(merchant.value.id) && merchant.value.id === ownMerchantId.value)
 const merchantInitial = computed(() => String(merchant.value.name || '商').slice(0, 1))
@@ -250,27 +249,6 @@ function previewMerchantImage(url) {
   })
 }
 
-function buildMerchantAddressLocation() {
-  const location = merchantLocation.value || {}
-  const rawLatitude = location.latitude ?? location.lat ?? ''
-  const rawLongitude = location.longitude ?? location.lng ?? ''
-  // 详情页与档口目录共用坐标规则，避免空字符串被转成 0 或越界坐标被误判为可查看位置。
-  const hasGps = hasValidLocation({ lat: rawLatitude, lng: rawLongitude })
-  const address = String(merchant.value.addressText || location.address || location.name || (hasGps ? '商家位置' : '')).trim()
-  if (!address) return null
-  const item = {
-    address,
-    hasGps,
-  }
-  if (!hasGps) return item
-  const latitude = Number(rawLatitude)
-  const longitude = Number(rawLongitude)
-  return {
-    ...item,
-    latitude,
-    longitude,
-  }
-}
 </script>
 
 <style lang="scss" scoped>

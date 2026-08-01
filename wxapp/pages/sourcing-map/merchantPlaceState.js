@@ -48,11 +48,30 @@ export function normalizeMerchantPlace(raw = {}) {
 }
 
 export function hasValidLocation(place = {}) {
-  const lat = Number(place.lat)
-  const lng = Number(place.lng)
-  return place.lat !== '' && place.lng !== '' &&
+  const rawLat = String(place.lat ?? '').trim()
+  const rawLng = String(place.lng ?? '').trim()
+  const lat = Number(rawLat)
+  const lng = Number(rawLng)
+  return rawLat !== '' && rawLng !== '' &&
     Number.isFinite(lat) && Number.isFinite(lng) &&
     lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
+}
+
+export function buildMerchantAddressLocation(merchant = {}) {
+  const location = merchant.location || {}
+  const rawLatitude = location.latitude ?? location.lat ?? ''
+  const rawLongitude = location.longitude ?? location.lng ?? ''
+  const hasGps = hasValidLocation({ lat: rawLatitude, lng: rawLongitude })
+  const address = String(merchant.addressText || location.address || location.name || (hasGps ? '商家位置' : '')).trim()
+  if (!address) return null
+
+  const item = { address, hasGps }
+  if (!hasGps) return item
+  return {
+    ...item,
+    latitude: Number(rawLatitude),
+    longitude: Number(rawLongitude),
+  }
 }
 
 export function merchantPlaceSourceLabel(place = {}) {

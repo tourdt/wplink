@@ -1421,12 +1421,11 @@ test('merchant detail page opens an independent location page when coordinates e
   const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
 
   for (const token of [
-    'merchantLocation',
+    'buildMerchantAddressLocation',
     'openMerchantLocation',
     '/pages/merchant/location',
     '查看位置',
     '地址',
-    'addressText',
   ]) {
     assert.match(source, new RegExp(token))
   }

@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 
-import { hasValidLocation } from '../sourcing-map/merchantPlaceState.js'
+import * as merchantPlaceState from '../sourcing-map/merchantPlaceState.js'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const sourcePath = path.join(root, 'pages/merchant/detail.vue')
@@ -62,9 +62,9 @@ test('merchant detail page renders address as a lightweight single-address block
   assert.match(source, /<button v-else class="address-action secondary" @click="copyMerchantAddress\(\)">复制<\/button>/)
   assert.match(source, /<text class="merchant-address-text">\{\{ merchantAddressLocation\.address \}\}<\/text>/)
   assert.doesNotMatch(source, /<map|merchant-address-map/)
-  assert.match(source, /const merchantAddressLocation = computed\(\(\) => buildMerchantAddressLocation\(\)\)/)
-  assert.match(source, /import \{ hasValidLocation \} from '\.\.\/sourcing-map\/merchantPlaceState'/)
-  assert.match(source, /function buildMerchantAddressLocation\(\) \{[\s\S]*const rawLatitude = location\.latitude \?\? location\.lat \?\? ''[\s\S]*const rawLongitude = location\.longitude \?\? location\.lng \?\? ''[\s\S]*const hasGps = hasValidLocation\(\{ lat: rawLatitude, lng: rawLongitude \}\)/)
+  assert.match(source, /import \{ buildMerchantAddressLocation \} from '\.\.\/sourcing-map\/merchantPlaceState'/)
+  assert.match(source, /const merchantAddressLocation = computed\(\(\) => buildMerchantAddressLocation\(merchant\.value\)\)/)
+  assert.doesNotMatch(source, /function buildMerchantAddressLocation\(/)
   assert.match(source, /function openMerchantLocation\(\) \{[\s\S]*merchant\.value\.id[\s\S]*merchantAddressLocation\.value\?\.hasGps[\s\S]*\/pages\/merchant\/location\?merchantId=\$\{encodeURIComponent\(merchant\.value\.id\)\}/)
   assert.doesNotMatch(source, /uni\.openLocation/)
   assert.match(source, /function copyMerchantAddress\(title = '地址已复制'\) \{[\s\S]*uni\.setClipboardData\(\{ data: location\.address \}\)/)
@@ -73,16 +73,39 @@ test('merchant detail page renders address as a lightweight single-address block
   assert.match(source, /\.merchant-address-text \{[\s\S]*display: block;[\s\S]*font-size: 30rpx;[\s\S]*line-height: 1\.55;[\s\S]*word-break: break-word;/)
 })
 
-test('merchant detail coordinates reject empty and out-of-range values before showing location', () => {
+test('merchant detail address builder rejects blank, non-finite, and out-of-range coordinates', () => {
+  assert.equal(typeof merchantPlaceState.buildMerchantAddressLocation, 'function')
+  const buildMerchantAddressLocation = merchantPlaceState.buildMerchantAddressLocation
   const cases = [
-    { location: { lat: '30.89912', lng: '120.20482' }, expected: true },
-    { location: { lat: '', lng: '120.20482' }, expected: false },
-    { location: { lat: '91', lng: '120.20482' }, expected: false },
-    { location: { lat: '30.89912', lng: '-181' }, expected: false },
+    {
+      merchant: { addressText: '织里商城 A-101', location: { lat: '30.89912', lng: '120.20482' } },
+      expected: { address: '织里商城 A-101', hasGps: true, latitude: 30.89912, longitude: 120.20482 },
+    },
+    {
+      merchant: { addressText: '织里商城 A-101', location: { lat: '   ', lng: '120.20482' } },
+      expected: { address: '织里商城 A-101', hasGps: false },
+    },
+    { merchant: { location: { lat: '\t', lng: '120.20482' } }, expected: null },
+    {
+      merchant: { addressText: '织里商城 A-101', location: { lat: Number.NaN, lng: '120.20482' } },
+      expected: { address: '织里商城 A-101', hasGps: false },
+    },
+    {
+      merchant: { addressText: '织里商城 A-101', location: { lat: Number.POSITIVE_INFINITY, lng: '120.20482' } },
+      expected: { address: '织里商城 A-101', hasGps: false },
+    },
+    {
+      merchant: { addressText: '织里商城 A-101', location: { lat: '91', lng: '120.20482' } },
+      expected: { address: '织里商城 A-101', hasGps: false },
+    },
+    {
+      merchant: { addressText: '织里商城 A-101', location: { lat: '30.89912', lng: '-181' } },
+      expected: { address: '织里商城 A-101', hasGps: false },
+    },
   ]
 
-  for (const { location, expected } of cases) {
-    assert.equal(hasValidLocation(location), expected)
+  for (const { merchant, expected } of cases) {
+    assert.deepEqual(buildMerchantAddressLocation(merchant), expected)
   }
 })
 
