@@ -29,7 +29,8 @@ test('home displays at most six recent onboarded merchants without blocking othe
   assert.match(source, /Promise\.all\(\[loadHomeOperationConfig\(\), loadHomeRecentMerchants\(\), loadHomeResources\(\)\]\)/)
   assert.match(source, /recentMerchants\.value = \(resp\.items \|\| \[\]\)\.slice\(0, RECENT_MERCHANT_LIMIT\)/)
   assert.match(source, /catch \{[\s\S]*recentMerchants\.value = \[\]/)
-  assert.match(source, /v-if="recentMerchants\.length" class="recent-merchant-section"/)
+  assert.match(source, /v-if="homeFeedReady && homeFeedState\.hasAnyContent" class="home-feed-section"/)
+  assert.match(source, /v-show="activeHomeFeedTab === 'merchants'" class="recent-merchant-list"/)
   assert.match(source, /v-for="item in recentMerchants"/)
   assert.match(source, /@open="openMerchant"/)
   assert.match(source, /function openSourcingMap\(\) \{[\s\S]*uni\.switchTab\(\{ url: '\/pages\/sourcing-map\/index' \}\)[\s\S]*\}/)
@@ -37,12 +38,36 @@ test('home displays at most six recent onboarded merchants without blocking othe
   assert.match(discoveryApiSource, /suppressErrorToast: true/)
 })
 
-test('home recent merchants appear between quick entries and recent resources', () => {
-  const quickEntryIndex = source.indexOf('class="quick-action-grid"')
-  const merchantSectionIndex = source.indexOf('class="recent-merchant-section"')
-  const resourceSectionIndex = source.indexOf('>近期供需<')
+test('home combines recent merchants and resources into a local tabbed feed', () => {
+  assert.match(source, /import \{ getHomeFeedState \} from '\.\/homeFeedState'/)
+  assert.match(source, /const activeHomeFeedTab = ref\(''\)/)
+  assert.match(source, /class="home-feed-tabs"/)
+  assert.match(source, />新入驻商家</)
+  assert.match(source, />近期供需</)
+  assert.match(source, /selectHomeFeedTab\('merchants'\)/)
+  assert.match(source, /selectHomeFeedTab\('resources'\)/)
+  assert.match(source, /v-show="activeHomeFeedTab === 'merchants'"/)
+  assert.match(source, /v-show="activeHomeFeedTab === 'resources'"/)
+  assert.doesNotMatch(source, /v-(?:else-)?if="activeHomeFeedTab ===/)
+  assert.match(source, /\.home-feed-tab\s*\{[\s\S]*min-height:\s*88rpx/)
+  assert.match(source, /\.home-feed-more\s*\{[\s\S]*min-height:\s*88rpx/)
+})
 
-  assert(quickEntryIndex >= 0, 'quick entry grid should exist')
-  assert(merchantSectionIndex > quickEntryIndex, 'recent merchants should follow quick entries')
-  assert(resourceSectionIndex > merchantSectionIndex, 'recent resources should follow recent merchants')
+test('home initializes the feed tab after parallel data loading without refetching on switch', () => {
+  assert.match(source, /await Promise\.all\(\[loadHomeOperationConfig\(\), loadHomeRecentMerchants\(\), loadHomeResources\(\)\]\)/)
+  assert.match(source, /const homeFeedReady = ref\(false\)/)
+  assert.match(source, /activeHomeFeedTab\.value = homeFeedState\.value\.defaultTab/)
+  assert.match(source, /homeFeedReady\.value = true/)
+  assert.match(source, /v-if="homeFeedReady && homeFeedState\.hasAnyContent"/)
+  assert.match(source, /function selectHomeFeedTab\(tab\)/)
+  const switchFunction = source.match(/function selectHomeFeedTab\(tab\) \{[\s\S]*?\n\}/)?.[0] || ''
+  assert.doesNotMatch(switchFunction, /loadHomeRecentMerchants|loadHomeResources|listHome/)
+})
+
+test('home degrades to one available feed and hides an empty feed container', () => {
+  assert.match(source, /v-if="homeFeedReady && homeFeedState\.hasAnyContent"/)
+  assert.match(source, /v-if="homeFeedState\.showSwitcher"/)
+  assert.match(source, /homeFeedState\.hasMerchants/)
+  assert.match(source, /homeFeedState\.value\.hasResources/)
+  assert.match(source, /v-for="item in recentMerchants"/)
 })

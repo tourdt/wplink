@@ -7,12 +7,11 @@ const source = fs.readFileSync(path.resolve(new URL('.', import.meta.url).pathna
 
 test('merchant place card uses a booth doorplate hierarchy and distinguishes source state', () => {
   for (const token of [
-    'merchant-place-card',
     'doorplate-code',
     'source-badge',
     '已入驻',
     '待认领',
-    'market-location',
+    'locationText',
     '位置待完善',
   ]) {
     assert.match(source, new RegExp(token))
@@ -27,9 +26,21 @@ test('merchant place card exposes navigation for valid coordinates and keeps cla
   assert.doesNotMatch(source, /拨打电话|复制微信|makePhoneCall|setClipboardData/)
 })
 
+test('merchant place card composes the shared list item and preserves map actions', () => {
+  assert.match(source, /import MerchantListItem from '\.\/MerchantListItem\.vue'/)
+  assert.match(source, /<MerchantListItem/)
+  assert.match(source, /#leading/)
+  assert.match(source, /#badge/)
+  assert.match(source, /#meta/)
+  assert.match(source, /#actions/)
+  assert.match(source, /@activate="\$emit\('select', place\)"/)
+  assert.match(source, /@click\.stop="\$emit\('detail', place\)"/)
+  assert.match(source, /@click\.stop="\$emit\('navigate', place\)"/)
+  assert.match(source, /@click\.stop="\$emit\('claim', place\)"/)
+})
+
 test('claimed merchant card exposes an explicit merchant homepage action', () => {
   assert.match(source, /v-if="hasMerchantDetail\(place\)" class="detail-button"/)
-  assert.match(source, /@click\.stop="\$emit\('detail', place\)"/)
   assert.match(source, />进入主页<\/button>/)
   assert.match(source, /defineEmits\(\['select', 'detail', 'navigate', 'claim'\]\)/)
 })
