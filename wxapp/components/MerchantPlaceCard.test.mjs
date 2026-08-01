@@ -18,12 +18,17 @@ test('merchant place card uses a booth doorplate hierarchy and distinguishes sou
   }
 })
 
-test('merchant place card exposes navigation for valid coordinates and keeps claim available for prelisted booths', () => {
-  assert.match(source, /v-if="hasLocation"/)
-  assert.match(source, /@click\.stop="\$emit\('navigate', place\)"/)
+test('merchant place card separates claimed location viewing from prelisted navigation', () => {
+  assert.match(source, /v-if="place\.claimed && hasLocation"[^>]*@click\.stop="\$emit\('location', place\)"[^>]*>查看位置<\/button>/)
+  assert.match(source, /v-else-if="hasLocation"[^>]*@click\.stop="\$emit\('navigate', place\)"[^>]*>导航<\/button>/)
   assert.match(source, /v-if="!place\.claimed" class="claim-button"/)
-  assert.doesNotMatch(source, /v-else-if="!place\.claimed"/)
+  assert.match(source, /defineEmits\(\['select', 'detail', 'location', 'navigate', 'claim'\]\)/)
   assert.doesNotMatch(source, /拨打电话|复制微信|makePhoneCall|setClipboardData/)
+})
+
+test('merchant place card only shows the incomplete-location state without location actions', () => {
+  assert.match(source, /hasLocation \? \(place\.distanceText \|\| '可导航到店'\) : '位置待完善'/)
+  assert.doesNotMatch(source, /v-else(?!-if)[^>]*>导航<\/button>/)
 })
 
 test('merchant place card composes the shared list item and preserves map actions', () => {
@@ -35,6 +40,7 @@ test('merchant place card composes the shared list item and preserves map action
   assert.match(source, /#actions/)
   assert.match(source, /@activate="\$emit\('select', place\)"/)
   assert.match(source, /@click\.stop="\$emit\('detail', place\)"/)
+  assert.match(source, /@click\.stop="\$emit\('location', place\)"/)
   assert.match(source, /@click\.stop="\$emit\('navigate', place\)"/)
   assert.match(source, /@click\.stop="\$emit\('claim', place\)"/)
 })
@@ -42,5 +48,5 @@ test('merchant place card composes the shared list item and preserves map action
 test('claimed merchant card exposes an explicit merchant homepage action', () => {
   assert.match(source, /v-if="hasMerchantDetail\(place\)" class="detail-button"/)
   assert.match(source, />进入主页<\/button>/)
-  assert.match(source, /defineEmits\(\['select', 'detail', 'navigate', 'claim'\]\)/)
+  assert.match(source, /defineEmits\(\['select', 'detail', 'location', 'navigate', 'claim'\]\)/)
 })

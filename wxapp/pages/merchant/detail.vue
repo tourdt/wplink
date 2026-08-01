@@ -50,19 +50,10 @@
     <view class="section merchant-address-section" v-if="merchantAddressLocation">
       <view class="section-head">
         <text class="section-title">地址</text>
-        <button v-if="merchantAddressLocation.hasGps" class="address-action" @click="openMerchantLocation">导航</button>
+        <button v-if="merchantAddressLocation.hasGps" class="address-action" @click="openMerchantLocation">查看位置</button>
         <button v-else class="address-action secondary" @click="copyMerchantAddress()">复制</button>
       </view>
       <text class="merchant-address-text">{{ merchantAddressLocation.address }}</text>
-      <map
-        v-if="merchantAddressLocation.hasGps"
-        class="merchant-address-map"
-        :latitude="merchantAddressLocation.latitude"
-        :longitude="merchantAddressLocation.longitude"
-        :markers="merchantAddressLocation.markers"
-        :scale="17"
-        @tap="openMerchantLocation"
-      />
     </view>
 
     <view class="section trust-note-section">
@@ -121,7 +112,6 @@ const merchantTypeText = {
 const merchantLogo = computed(() => merchant.value.logoUrl || '')
 const merchantImages = computed(() => merchant.value.images || [])
 const merchantLocation = computed(() => merchant.value.location || {})
-const hasMerchantLocation = computed(() => hasValidLocation(merchantLocation.value))
 const merchantAddressLocation = computed(() => buildMerchantAddressLocation())
 const resourcesSummary = computed(() => merchant.value.resourcesSummary || {})
 const isOwnMerchant = computed(() => Boolean(merchant.value.id) && merchant.value.id === ownMerchantId.value)
@@ -239,23 +229,9 @@ function openResource(resource) {
 }
 
 function openMerchantLocation() {
-  const location = merchantAddressLocation.value
-  if (!location?.hasGps) {
-    copyMerchantAddress()
-    return
-  }
-  uni.openLocation({
-    latitude: location.latitude,
-    longitude: location.longitude,
-    name: location.name || merchant.value.name || '商家位置',
-    address: location.address,
-    scale: 18,
-    fail() {
-      if (location.address) {
-        copyMerchantAddress('导航打开失败，已复制地址')
-      }
-    },
-  })
+  if (!merchant.value.id || !merchantAddressLocation.value?.hasGps) return
+  // 已入驻商家的坐标要进入独立位置页，确保用户始终处于明确的商家上下文中。
+  uni.navigateTo({ url: `/pages/merchant/location?merchantId=${encodeURIComponent(merchant.value.id)}` })
 }
 
 function copyMerchantAddress(title = '地址已复制') {
@@ -280,10 +256,8 @@ function buildMerchantAddressLocation() {
   const hasGps = Number.isFinite(latitude) && Number.isFinite(longitude)
   const address = String(merchant.value.addressText || location.address || location.name || (hasGps ? '商家位置' : '')).trim()
   if (!address) return null
-  const name = String(location.name || merchant.value.name || '商家位置').trim()
   const item = {
     address,
-    name,
     hasGps,
   }
   if (!hasGps) return item
@@ -291,20 +265,7 @@ function buildMerchantAddressLocation() {
     ...item,
     latitude,
     longitude,
-    markers: [{
-      id: 1,
-      latitude,
-      longitude,
-      title: address,
-    }],
   }
-}
-
-function hasValidLocation(location) {
-  if (!location) return false
-  const latitude = Number(location.latitude ?? location.lat)
-  const longitude = Number(location.longitude ?? location.lng)
-  return Number.isFinite(latitude) && Number.isFinite(longitude)
 }
 </script>
 
@@ -531,14 +492,6 @@ function hasValidLocation(location) {
   font-size: 30rpx;
   line-height: 1.55;
   word-break: break-word;
-}
-
-.merchant-address-map {
-  width: 100%;
-  height: 260rpx;
-  border-radius: 10rpx;
-  overflow: hidden;
-  background: #e2e8f0;
 }
 
 .section-content {

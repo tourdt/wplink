@@ -24,7 +24,7 @@
     {
       "path": "pages/sourcing-map/index",
       "style": {
-        "navigationBarTitleText": "拿货地图",
+        "navigationBarTitleText": "拿货档口",
         "enablePullDownRefresh": true
       }
     },
@@ -162,7 +162,7 @@
       },
       {
         "pagePath": "pages/sourcing-map/index",
-        "text": "拿货地图",
+        "text": "拿货档口",
         "iconPath": "static/tabbar/map.png",
         "selectedIconPath": "static/tabbar/map-active.png"
       },
