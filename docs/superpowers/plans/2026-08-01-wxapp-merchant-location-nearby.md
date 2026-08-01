@@ -35,7 +35,7 @@
 
 ---
 
-## 任务 1：增加商家位置上下文 API 契约
+## Task 1：增加商家位置上下文 API 契约
 
 **文件：**
 
@@ -120,7 +120,7 @@ git add backend/app/api/map.api backend/app/internal/types/types.go backend/app/
 git commit -m "feat: 定义商家位置上下文接口"
 ```
 
-## 任务 2：实现当前商家与周边商家模型查询
+## Task 2：实现当前商家与周边商家模型查询
 
 **文件：**
 
@@ -208,7 +208,7 @@ git add backend/app/internal/model/map_model.go backend/app/internal/model/map_m
 git commit -m "feat: 查询商家周边入驻档口"
 ```
 
-## 任务 3：接通位置上下文逻辑与公开路由
+## Task 3：接通位置上下文逻辑与公开路由
 
 **文件：**
 
@@ -295,7 +295,7 @@ git add backend/app/internal/logic/map/public_logic.go backend/app/internal/logi
 git commit -m "feat: 提供商家位置上下文接口"
 ```
 
-## 任务 4：将一级入口收敛为“拿货档口”列表
+## Task 4：将一级入口收敛为“拿货档口”列表
 
 **文件：**
 
@@ -378,7 +378,7 @@ git add wxapp/pages.json wxapp/pages/home/index.vue wxapp/pages/home/index.test.
 git commit -m "refactor: 将拿货地图收敛为档口列表"
 ```
 
-## 任务 5：建立商家位置页状态与当前商家地图
+## Task 5：建立商家位置页状态与当前商家地图
 
 **文件：**
 
@@ -486,7 +486,7 @@ git add wxapp/api/sourcingMap.js wxapp/pages/merchant/locationState.js wxapp/pag
 git commit -m "feat: 新增商家位置地图页"
 ```
 
-## 任务 6：实现周边半屏列表与 Marker 联动
+## Task 6：实现周边半屏列表与 Marker 联动
 
 **文件：**
 
@@ -556,7 +556,7 @@ git add wxapp/pages/merchant/location.vue wxapp/pages/merchant/location.test.mjs
 git commit -m "feat: 增加周边入驻商家列表"
 ```
 
-## 任务 7：建立地图事件后端记录链路
+## Task 7：建立地图事件后端记录链路
 
 **文件：**
 
@@ -683,7 +683,7 @@ git add backend/migrations/000033_merchant_map_events.up.sql backend/migrations/
 git commit -m "feat: 记录商家地图行为"
 ```
 
-## 任务 8：接入小程序地图行为埋点
+## Task 8：接入小程序地图行为埋点
 
 **文件：**
 
@@ -760,7 +760,7 @@ git add wxapp/api/metrics.js wxapp/common/merchantMapAnalytics.js wxapp/common/m
 git commit -m "feat: 接入商家地图行为埋点"
 ```
 
-## 任务 9：全量验证与真机验收
+## Task 9：全量验证与真机验收
 
 **文件：**
 
