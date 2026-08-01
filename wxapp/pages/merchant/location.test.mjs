@@ -45,7 +45,7 @@ function loadLocationPage({ getMerchantLocationContext, trackMerchantMapEvent, t
     computed(getter) {
       return { get value() { return getter() } }
     },
-    console,
+    console: { error() {}, warn() {} },
     getMerchantLocationContext,
     nextTick(callback) {
       callback()
@@ -81,6 +81,7 @@ function loadLocationPage({ getMerchantLocationContext, trackMerchantMapEvent, t
     openCurrentLocation,
     openNearbyDrawer,
     openNearbyMerchant,
+    retryNearby,
   }`, sandbox)
   sandbox.locationPage.loadHook = (...args) => loadHook(...args)
   return sandbox.locationPage
@@ -242,6 +243,54 @@ test('merchant location page records a view only after a valid location context 
   assert.deepEqual(invalidEvents, [])
 })
 
+test('merchant location page records one view across nearby retries but still records after initial recovery', async () => {
+  const events = []
+  const page = loadLocationPage({
+    getMerchantLocationContext: async () => locationContext(),
+    trackMerchantMapEvent(event) {
+      events.push(event)
+    },
+  })
+
+  await page.loadHook({ merchantId: 'merchant-main' })
+  page.retryNearby()
+  await settlePageRequests()
+  page.retryNearby()
+  await settlePageRequests()
+
+  assert.deepEqual(plain(events), [{
+    merchantId: 'merchant-main',
+    eventType: 'location_view',
+    source: 'merchant_location',
+  }])
+
+  let recoveryAttempt = 0
+  const recoveryEvents = []
+  const recoveryPage = loadLocationPage({
+    getMerchantLocationContext: async () => {
+      recoveryAttempt += 1
+      if (recoveryAttempt === 1) throw new Error('context unavailable')
+      return locationContext()
+    },
+    trackMerchantMapEvent(event) {
+      recoveryEvents.push(event)
+    },
+  })
+
+  await recoveryPage.loadHook({ merchantId: 'merchant-main' })
+  assert.deepEqual(recoveryEvents, [])
+  recoveryPage.retryNearby()
+  await settlePageRequests()
+  recoveryPage.retryNearby()
+  await settlePageRequests()
+
+  assert.deepEqual(plain(recoveryEvents), [{
+    merchantId: 'merchant-main',
+    eventType: 'location_view',
+    source: 'merchant_location',
+  }])
+})
+
 test('merchant location page records navigation immediately before opening the map without awaiting analytics', async () => {
   const timeline = []
   const page = loadLocationPage({
@@ -312,3 +361,7 @@ test('merchant location page records drawer transition, nearby marker, and nearb
     ['navigateTo', '/pages/merchant/detail?id=nearby-2'],
   ])
 })
+
+function settlePageRequests() {
+  return new Promise((resolve) => setImmediate(resolve))
+}

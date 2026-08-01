@@ -15,6 +15,7 @@ export function recordMerchantMapEvent(data) {
     method: 'POST',
     data,
     suppressErrorToast: true,
+    suppressUnauthorizedSideEffects: true,
   })
 }
 

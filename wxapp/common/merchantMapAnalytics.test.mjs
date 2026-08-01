@@ -7,7 +7,7 @@ import vm from 'node:vm'
 const VISITOR_STORAGE_KEY = 'wplink_map_visitor_key'
 const root = path.resolve(new URL('..', import.meta.url).pathname)
 
-async function loadAnalytics() {
+async function loadAnalytics({ clearSession = () => {}, redirectToLogin = () => {} } = {}) {
   const requestSource = fs.readFileSync(path.join(root, 'api/request.js'), 'utf8')
     .replace(/^import .*$/gm, '')
     .replace('export default function request', 'function request')
@@ -23,8 +23,8 @@ async function loadAnalytics() {
     buildApiUrl(baseUrl, apiPath) {
       return baseUrl ? `${baseUrl}${apiPath}` : apiPath
     },
-    clearSession() {},
-    redirectToLogin() {},
+    clearSession,
+    redirectToLogin,
     uni: globalThis.uni,
   }
   vm.runInNewContext(`${requestSource}\n${metricsSource}\n${analyticsSource}\n` +
@@ -32,7 +32,7 @@ async function loadAnalytics() {
   return sandbox.analytics
 }
 
-function installUniMock({ storage = new Map(), failRequest = false } = {}) {
+function installUniMock({ storage = new Map(), failRequest = false, unauthorizedRequest = false } = {}) {
   const requests = []
   const storageWrites = []
   const toasts = []
@@ -48,6 +48,13 @@ function installUniMock({ storage = new Map(), failRequest = false } = {}) {
       requests.push(options)
       if (failRequest) {
         options.fail(new Error('network unavailable'))
+        return
+      }
+      if (unauthorizedRequest) {
+        options.success({
+          statusCode: 401,
+          data: { errorCode: 'UNAUTHORIZED', msg: '登录已过期，请重新登录' },
+        })
         return
       }
       options.success({ statusCode: 204, data: {} })
@@ -168,4 +175,34 @@ test('map analytics failure stays silent and is attempted only once', async () =
   assert.equal(result, undefined)
   assert.equal(uniMock.requests.length, 1)
   assert.deepEqual(uniMock.toasts, [])
+})
+
+test('map analytics keeps an expired optional login session untouched when backend returns unauthorized', async () => {
+  const storage = new Map([
+    ['wplink_token', 'expired-token'],
+    [VISITOR_STORAGE_KEY, 'persisted-map-visitor'],
+  ])
+  const uniMock = installUniMock({ storage, unauthorizedRequest: true })
+  const authSideEffects = []
+  const { trackMerchantMapEvent } = await loadAnalytics({
+    clearSession() {
+      authSideEffects.push('clearSession')
+    },
+    redirectToLogin() {
+      authSideEffects.push('redirectToLogin')
+    },
+  })
+
+  trackMerchantMapEvent({
+    merchantId: 'merchant-main',
+    eventType: 'location_view',
+    source: 'merchant_location',
+  })
+  await settleRequests()
+
+  assert.equal(uniMock.requests.length, 1)
+  assert.equal(uniMock.requests[0].header.Authorization, 'Bearer expired-token')
+  assert.deepEqual(authSideEffects, [])
+  assert.deepEqual(uniMock.toasts, [])
+  assert.equal(storage.get('wplink_token'), 'expired-token')
 })

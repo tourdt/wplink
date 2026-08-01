@@ -138,6 +138,7 @@ const selectedNearbyMerchantId = ref('')
 const nearbyDrawerOpen = ref(false)
 const scrollIntoViewId = ref('')
 const mapScale = ref(16)
+let locationViewTracked = false
 
 const initialLoading = computed(() => loading.value && !context.value.current)
 const markers = computed(() => buildMerchantLocationMarkers(context.value, selectedNearbyMerchantId.value))
@@ -189,11 +190,15 @@ async function loadLocationContext({ preserveCurrent = false } = {}) {
     scrollIntoViewId.value = ''
     nearbyDrawerOpen.value = false
     mapScale.value = 16
-    trackMerchantMapEvent({
-      merchantId: merchantId.value,
-      eventType: 'location_view',
-      source: 'merchant_location',
-    })
+    if (!locationViewTracked) {
+      // 同一位置页的周边重试会复用上下文加载，只在首次获得有效坐标时记录一次页面查看。
+      locationViewTracked = true
+      trackMerchantMapEvent({
+        merchantId: merchantId.value,
+        eventType: 'location_view',
+        source: 'merchant_location',
+      })
+    }
   } catch (err) {
     console.error('加载商家位置上下文失败', { merchantId: merchantId.value, err })
     if (preserveCurrent && context.value.current) {
