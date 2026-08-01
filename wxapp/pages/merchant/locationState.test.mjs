@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import {
+import * as locationState from './locationState.js'
+
+const {
   buildMerchantLocationMarkers,
   merchantIdFromMarker,
   normalizeMerchantLocationContext,
-} from './locationState.js'
+} = locationState
 
 function merchantPlace(overrides = {}) {
   return {
@@ -84,6 +86,39 @@ test('location context preserves server order while excluding current, deduplica
     ],
   )
   assert.equal(context.nearby[0].objectId, 'object-2-first')
+})
+
+test('location context stores trimmed merchant ids for marker, drawer, and detail linkage', () => {
+  assert.equal(typeof locationState.nearbyMerchantDomId, 'function')
+  const context = normalizeMerchantLocationContext({
+    current: merchantPlace({ merchantId: ' merchant/current ' }),
+    nearby: [
+      merchantPlace({ objectId: 'current-copy', merchantId: 'merchant/current' }),
+      merchantPlace({ objectId: 'special-first', merchantId: ' merchant/a?b#c% ' }),
+      merchantPlace({ objectId: 'special-copy', merchantId: 'merchant/a?b#c%' }),
+    ],
+    nearbyAvailable: true,
+  })
+
+  assert.equal(context.current.merchantId, 'merchant/current')
+  assert.deepEqual(context.nearby.map((item) => item.merchantId), ['merchant/a?b#c%'])
+
+  const markers = buildMerchantLocationMarkers(context, 'merchant/a?b#c%')
+  assert.equal(markers[1].merchantId, 'merchant/a?b#c%')
+  assert.equal(markers[1].iconPath, '/static/map/marker-nearby-selected.png')
+  assert.equal(
+    locationState.nearbyMerchantDomId(context.nearby[0].merchantId),
+    'nearby-6d-65-72-63-68-61-6e-74-2f-61-3f-62-23-63-25',
+  )
+})
+
+test('nearby merchant main tags exclude platform display tags before applying the three-tag limit', () => {
+  assert.equal(typeof locationState.merchantMainTags, 'function')
+  assert.deepEqual(locationState.merchantMainTags({
+    categoryCodes: ['童装', '童装', '现货'],
+    serviceTags: ['支持拿样', '一件代发'],
+    platformTags: ['平台认证'],
+  }), ['童装', '现货', '支持拿样'])
 })
 
 test('location markers keep the current merchant as the fixed orange focus', () => {

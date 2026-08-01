@@ -69,7 +69,7 @@
           >
             <view
               v-for="place in context.nearby"
-              :id="`nearby-${place.merchantId}`"
+              :id="nearbyMerchantDomId(place.merchantId)"
               :key="place.merchantId"
               :class="['nearby-item', { selected: place.merchantId === selectedNearbyMerchantId }]"
               @click="selectNearbyMerchant(place.merchantId)"
@@ -78,8 +78,8 @@
                 <text class="nearby-name">{{ place.name }}</text>
                 <text class="nearby-distance">{{ place.distanceText || formatDistance(place.distanceMeters) }}</text>
               </view>
-              <view v-if="nearbyTags(place).length" class="nearby-tags">
-                <text v-for="tag in nearbyTags(place)" :key="tag" class="nearby-tag">{{ tag }}</text>
+              <view v-if="merchantMainTags(place).length" class="nearby-tags">
+                <text v-for="tag in merchantMainTags(place)" :key="tag" class="nearby-tag">{{ tag }}</text>
               </view>
               <text class="nearby-address">{{ merchantAddress(place) }}</text>
               <button class="nearby-detail" @click.stop="openNearbyMerchant(place)">查看商家</button>
@@ -123,7 +123,9 @@ import { onLoad } from '@dcloudio/uni-app'
 import { getMerchantLocationContext } from '../../api/sourcingMap'
 import {
   buildMerchantLocationMarkers,
+  merchantMainTags,
   merchantIdFromMarker,
+  nearbyMerchantDomId,
   normalizeMerchantLocationContext,
 } from './locationState'
 
@@ -251,7 +253,7 @@ function selectNearbyMerchant(merchantId) {
 
   selectedNearbyMerchantId.value = normalizedMerchantId
   nearbyDrawerOpen.value = true
-  scrollIntoViewId.value = `nearby-${normalizedMerchantId}`
+  scrollIntoViewId.value = nearbyMerchantDomId(normalizedMerchantId)
   mapScale.value = 14
 
   // 列表选择只调整临时视野，同时纳入当前档口和周边档口，不能把周边商家替换成页面主上下文。
@@ -270,11 +272,12 @@ function selectNearbyMerchant(merchantId) {
 }
 
 function openNearbyMerchant(place) {
-  if (!String(place?.merchantId || '').trim()) return
+  const normalizedMerchantId = String(place?.merchantId || '').trim()
+  if (!normalizedMerchantId) return
   uni.navigateTo({
-    url: `/pages/merchant/detail?id=${encodeURIComponent(place.merchantId)}`,
+    url: `/pages/merchant/detail?id=${encodeURIComponent(normalizedMerchantId)}`,
     fail(err) {
-      console.warn('打开周边商家详情失败', { merchantId: place.merchantId, err })
+      console.warn('打开周边商家详情失败', { merchantId: normalizedMerchantId, err })
       uni.showToast({ title: '商家详情打开失败，请稍后重试', icon: 'none' })
     },
   })
@@ -310,14 +313,6 @@ function formatDistance(distanceMeters) {
   const meters = Number(distanceMeters)
   if (!Number.isFinite(meters) || meters <= 0) return '附近'
   return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`
-}
-
-function nearbyTags(place = {}) {
-  return [...new Set([
-    ...(place.categoryCodes || []),
-    ...(place.serviceTags || []),
-    ...(place.platformTags || []),
-  ].filter(Boolean))].slice(0, 3)
 }
 
 function merchantAddress(place = {}, fallback = '档口地址待完善') {
@@ -503,6 +498,9 @@ function merchantAddress(place = {}, fallback = '档口地址待完善') {
 }
 
 .nearby-drawer.expanded {
+  display: flex;
+  flex-direction: column;
+  height: 55vh;
   max-height: 55vh;
 }
 
@@ -554,7 +552,10 @@ function merchantAddress(place = {}, fallback = '档口地址待完善') {
 }
 
 .nearby-list {
+  flex: 1;
+  min-height: 0;
   width: 100%;
+  height: calc(55vh - 88rpx);
   max-height: calc(55vh - 88rpx);
   border-top: 1rpx solid $wplink-line;
 }

@@ -105,6 +105,8 @@ test('merchant location page exposes the collapsed and half-screen nearby drawer
   ])
   assert.match(source, /<scroll-view[\s\S]*scroll-y[\s\S]*:scroll-into-view="scrollIntoViewId"/)
   assert.match(source, /max-height:\s*55vh/)
+  assert.match(source, /\.nearby-drawer\.expanded\s*\{[^}]*\n\s*height:\s*55vh/)
+  assert.match(source, /\.nearby-list\s*\{[^}]*\n\s*height:\s*calc\(55vh - 88rpx\)/)
 })
 
 test('merchant location page links a nearby marker, list item, and merchant detail without replacing current context', () => {
@@ -115,11 +117,14 @@ test('merchant location page links a nearby marker, list item, and merchant deta
     "uni.createMapContext('merchantLocationMap')",
     'includePoints',
     'scrollIntoViewId',
-    'nearbyTags(place)',
-    'slice(0, 3)',
+    'merchantMainTags(place)',
+    'nearbyMerchantDomId(place.merchantId)',
+    'scrollIntoViewId.value = nearbyMerchantDomId(normalizedMerchantId)',
     '/pages/merchant/detail?id=',
-    'encodeURIComponent(place.merchantId)',
+    'encodeURIComponent(normalizedMerchantId)',
     'mapScale.value = 16',
   ])
   assert.match(source, /:latitude="mapCenter\.latitude"[\s\S]*:longitude="mapCenter\.longitude"/)
+  assert.doesNotMatch(source, /:id="`nearby-\$\{place\.merchantId\}`"/)
+  assert.doesNotMatch(source, /platformTags/)
 })

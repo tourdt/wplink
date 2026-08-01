@@ -89,6 +89,24 @@ export function merchantIdFromMarker(markerId, markers = []) {
   return String(marker?.merchantId || '').trim()
 }
 
+export function nearbyMerchantDomId(merchantId) {
+  const normalizedMerchantId = String(merchantId || '').trim()
+  if (!normalizedMerchantId) return ''
+
+  // 商家 ID 可能包含空格或路径字符；按 Unicode 码点编码，生成仅含安全字符且可稳定反复计算的滚动节点 ID。
+  const encodedMerchantId = Array.from(normalizedMerchantId, (character) => {
+    return character.codePointAt(0).toString(16)
+  }).join('-')
+  return `nearby-${encodedMerchantId}`
+}
+
+export function merchantMainTags(place = {}) {
+  const tags = [...(place.categoryCodes || []), ...(place.serviceTags || [])]
+    .map((tag) => String(tag || '').trim())
+    .filter(Boolean)
+  return [...new Set(tags)].slice(0, 3)
+}
+
 function normalizeLocationPlace(raw) {
   if (!raw || typeof raw !== 'object') return null
   const place = normalizeMerchantPlace(raw)
@@ -96,6 +114,7 @@ function normalizeLocationPlace(raw) {
   const distanceMeters = Number(raw.distanceMeters)
   return {
     ...place,
+    merchantId: String(place.merchantId || '').trim(),
     distanceMeters: Number.isFinite(distanceMeters) && distanceMeters >= 0 ? distanceMeters : 0,
   }
 }
