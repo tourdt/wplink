@@ -273,6 +273,7 @@ func TestAPIRouterAdminPermissionRoutesUseTokenActor(t *testing.T) {
 	}
 }
 
+/*
 func TestAPIRouterUsesTokenSubjectAndMerchantPermissionForVerification(t *testing.T) {
 	store := newFakeFullAPIStore()
 	store.managedMerchants = map[string]bool{"merchant-1": true}
@@ -329,6 +330,7 @@ func TestAPIRouterUsesTokenSubjectAndMerchantPermissionForVerification(t *testin
 		t.Fatalf("billing status = %d body = %s, want disabled certification billing", billingRec.Code, billingRec.Body.String())
 	}
 }
+*/
 
 func TestAPIRouterMarksMerchantRoleMessageRead(t *testing.T) {
 	store := newFakeFullAPIStore()
@@ -693,7 +695,6 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "hot search keywords", method: http.MethodGet, path: "/api/v1/search/hot-keywords?cityCode=zhili"},
 		{name: "topic resources", method: http.MethodGet, path: "/api/v1/topics/topic-1/resources?cityCode=zhili"},
 		{name: "validate webview", method: http.MethodPost, path: "/api/v1/webview/validate", body: `{"url":"https://www.wplink.cn/activity"}`},
-		{name: "latest verification", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/verifications/latest"},
 		{name: "list entitlements", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/entitlements"},
 		{name: "list entitlement usage records", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/entitlements/entitlement-1/usage-records"},
 		{name: "list top vouchers", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/top-vouchers"},
@@ -713,8 +714,6 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 		{name: "list resource configs", method: http.MethodGet, path: "/api/v1/admin/resource-type-configs?cityCode=zhili"},
 		{name: "create resource config", method: http.MethodPost, path: "/api/v1/admin/resource-type-configs", body: `{"cityCode":"zhili","typeCode":"kids_brand_stock","typeName":"品牌库存","direction":"supply","groupCode":"kids_wholesale","groupName":"童装批发","defaultValidDays":15}`},
 		{name: "update resource config", method: http.MethodPost, path: "/api/v1/admin/resource-type-configs/config-1", body: `{"version":1,"fieldSchema":{},"requiredFields":["title"],"filterFields":["category"],"displayTemplate":{},"reviewRules":{},"sortWeights":{},"messageRules":{},"defaultValidDays":7,"status":"active"}`},
-		{name: "list pending verifications", method: http.MethodGet, path: "/api/v1/admin/verifications/pending"},
-		{name: "review verification", method: http.MethodPost, path: "/api/v1/admin/verifications/verification-1/review", body: `{"reviewerId":"user-1","action":"approve"}`},
 		{name: "grant entitlement", method: http.MethodPost, path: "/api/v1/admin/merchants/merchant-1/entitlements", body: `{"operatorId":"user-1","entitlementType":"publish_quota","sourceType":"manual","totalAmount":3,"reason":"测试发放"}`},
 		{name: "operation logs", method: http.MethodGet, path: "/api/v1/admin/operation-logs?objectType=resource"},
 		{name: "search logs", method: http.MethodGet, path: "/api/v1/admin/search-logs?cityCode=zhili&keyword=童装"},
@@ -752,48 +751,33 @@ func newFakeFullAPIStore() *fakeFullAPIStore {
 			publishConfig:  model.ResourcePublishConfig{ID: "config-1", TypeCode: "inventory", RequiredFields: []string{"merchantId", "cityCode", "typeCode", "title", "category", "contactName", "contactPhone"}, DefaultValidDays: 7},
 			merchantStatus: model.MerchantStatusActive,
 		},
-		latestVerificationErr: sql.ErrNoRows,
 	}
 }
 
 type fakeFullAPIStore struct {
 	fakeResourceAPIStore
-	updateMerchantPatch          model.UpdateMerchantPatch
-	submitVerificationInput      model.SubmitVerificationInput
-	latestVerificationMerchantID string
-	latestVerificationErr        error
-	messageFilter                model.ListMessagesFilter
-	readMessageUserID            string
-	readMessageRoleCode          string
-	readMessageRoleCodes         []string
-	redeemVoucherID              string
-	redeemResourceID             string
-	topVoucherMerchantIDs        map[string]string
-	grantEntitlementInput        model.GrantEntitlementInput
-	createVIPOrderInput          model.CreateVIPOrderInput
-	createQuotaPackOrderInput    model.CreateQuotaPackOrderInput
-	createVIPPaymentInput        model.CreateVIPPaymentOrderInput
-	markVIPOrderPaidInput        model.MarkVIPOrderPaidInput
-	markVerificationPaidInput    model.MarkVerificationPaymentPaidInput
-	saveVIPPlanInput             model.SaveAdminVIPPlanInput
-	saveQuotaPackInput           model.SaveAdminQuotaPackInput
-	saveVIPPromotionInput        model.SaveAdminVIPPromotionInput
-	adminOperatorFilter          model.AdminOperatorFilter
-	createAdminOperatorInput     model.AdminOperatorInput
-	updateAdminOperatorInput     model.AdminOperatorInput
-	statusAdminOperatorInput     model.AdminOperatorStatusInput
-	adminRoleModules             []string
-	adminRoleModuleInput         model.AdminRoleModulePermissionInput
-}
-
-func (s *fakeFullAPIStore) MarkVerificationPaymentPaid(ctx context.Context, input model.MarkVerificationPaymentPaidInput) (model.VerificationPaymentResult, error) {
-	s.markVerificationPaidInput = input
-	return model.VerificationPaymentResult{
-		OrderID:        "verification-payment-1",
-		VerificationID: "verification-1",
-		MerchantID:     "merchant-1",
-		Status:         model.PaymentOrderStatusPaid,
-	}, nil
+	updateMerchantPatch       model.UpdateMerchantPatch
+	messageFilter             model.ListMessagesFilter
+	readMessageUserID         string
+	readMessageRoleCode       string
+	readMessageRoleCodes      []string
+	redeemVoucherID           string
+	redeemResourceID          string
+	topVoucherMerchantIDs     map[string]string
+	grantEntitlementInput     model.GrantEntitlementInput
+	createVIPOrderInput       model.CreateVIPOrderInput
+	createQuotaPackOrderInput model.CreateQuotaPackOrderInput
+	createVIPPaymentInput     model.CreateVIPPaymentOrderInput
+	markVIPOrderPaidInput     model.MarkVIPOrderPaidInput
+	saveVIPPlanInput          model.SaveAdminVIPPlanInput
+	saveQuotaPackInput        model.SaveAdminQuotaPackInput
+	saveVIPPromotionInput     model.SaveAdminVIPPromotionInput
+	adminOperatorFilter       model.AdminOperatorFilter
+	createAdminOperatorInput  model.AdminOperatorInput
+	updateAdminOperatorInput  model.AdminOperatorInput
+	statusAdminOperatorInput  model.AdminOperatorStatusInput
+	adminRoleModules          []string
+	adminRoleModuleInput      model.AdminRoleModulePermissionInput
 }
 
 type fakeServerWechatPayGateway struct {
@@ -823,7 +807,7 @@ func (s *fakeAdminTokenService) ParseAdminToken(ctx context.Context, token strin
 }
 
 func (s *fakeFullAPIStore) GetMerchantDetail(ctx context.Context, merchantID string) (model.MerchantDetail, error) {
-	return model.MerchantDetail{ID: merchantID, Name: "织里云仓", MerchantType: "stockist", CityCode: "zhili", MainCategories: []string{"童装"}, VerificationStatus: "verified", ContactName: "周经理", ContactPhone: "18800000002", ContactWechat: "stock-demo", PhoneMasked: "188****0002", WechatMasked: "stock-demo", AddressText: "织里镇利济路88号", Location: model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"}, PublishedCount: 1}, nil
+	return model.MerchantDetail{ID: merchantID, Name: "织里云仓", MerchantType: "stockist", CityCode: "zhili", MainCategories: []string{"童装"}, ContactName: "周经理", ContactPhone: "18800000002", ContactWechat: "stock-demo", PhoneMasked: "188****0002", WechatMasked: "stock-demo", AddressText: "织里镇利济路88号", Location: model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"}, PublishedCount: 1}, nil
 }
 
 func (s *fakeFullAPIStore) UpdateMerchant(ctx context.Context, merchantID string, patch model.UpdateMerchantPatch) (string, error) {
@@ -832,7 +816,7 @@ func (s *fakeFullAPIStore) UpdateMerchant(ctx context.Context, merchantID string
 }
 
 func (s *fakeFullAPIStore) ListMerchants(ctx context.Context, filter model.ListMerchantsFilter) (model.ListMerchantsResult, error) {
-	return model.ListMerchantsResult{Items: []model.MerchantListItem{{ID: "merchant-1", Name: "织里云仓", MerchantType: "stockist", VerificationStatus: "verified", Status: model.MerchantStatusActive}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
+	return model.ListMerchantsResult{Items: []model.MerchantListItem{{ID: "merchant-1", Name: "织里云仓", MerchantType: "stockist", Status: model.MerchantStatusActive}}, Page: filter.Page, PageSize: filter.PageSize, Total: 1}, nil
 }
 
 func (s *fakeFullAPIStore) ListBannerTopics(ctx context.Context, filter model.BannerTopicFilter) ([]model.BannerTopicConfig, error) {
@@ -885,6 +869,7 @@ func (s *fakeFullAPIStore) UpdateHotSearchKeyword(ctx context.Context, configID 
 	return model.SaveHotSearchKeywordResult{ID: configID, UpdatedAt: "2026-06-28T10:00:00Z"}, nil
 }
 
+/*
 func (s *fakeFullAPIStore) SubmitVerification(ctx context.Context, input model.SubmitVerificationInput) (model.VerificationResult, error) {
 	s.submitVerificationInput = input
 	return model.VerificationResult{ID: "verification-1", Status: "pending"}, nil
@@ -917,6 +902,7 @@ func (s *fakeFullAPIStore) UpdateVerificationBillingConfig(ctx context.Context, 
 func (s *fakeFullAPIStore) ReviewVerification(ctx context.Context, input model.ReviewVerificationInput) (model.ReviewVerificationResult, error) {
 	return model.ReviewVerificationResult{ID: input.VerificationID, Status: "verified"}, nil
 }
+*/
 
 func (s *fakeFullAPIStore) ListMerchantEntitlements(ctx context.Context, merchantID string) ([]model.MerchantEntitlement, error) {
 	return []model.MerchantEntitlement{{ID: "entitlement-1", Type: "publish_quota", SourceType: "manual", Status: "active", TotalAmount: 3, RemainingAmount: 2}}, nil

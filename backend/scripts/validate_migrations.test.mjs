@@ -323,8 +323,6 @@ test('core domain prevents duplicate lifecycle messages across instances', () =>
     'uniq_messages_lifecycle_trigger',
     "'resource_expired'",
     "'resource_expiring'",
-    "'verification_expired'",
-    "'verification_expiring'",
   ]) {
     assert(source.includes(snippet), `core migration should include lifecycle idempotency snippet ${snippet}`)
   }

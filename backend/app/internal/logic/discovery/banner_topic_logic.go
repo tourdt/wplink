@@ -242,10 +242,9 @@ func (l *BannerTopicDiscoveryLogic) ListHomeResources(ctx context.Context, req L
 			PriceText:    item.PriceText,
 			QuantityText: item.QuantityText,
 			Merchant: HomeResourceMerchantBrief{
-				ID:                 item.Merchant.ID,
-				Name:               item.Merchant.Name,
-				VerificationStatus: item.Merchant.VerificationStatus,
-				VIPStatus:          normalizeHomeVIPStatus(item.Merchant.VIPStatus),
+				ID:        item.Merchant.ID,
+				Name:      item.Merchant.Name,
+				VIPStatus: normalizeHomeVIPStatus(item.Merchant.VIPStatus),
 			},
 			CreditTags:  append([]string(nil), item.CreditTags...),
 			RefreshedAt: item.RefreshedAt,

@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS merchants (
   location jsonb NOT NULL DEFAULT '{}'::jsonb,
   logo_url text,
   images jsonb NOT NULL DEFAULT '[]'::jsonb,
-  verification_status varchar(32) NOT NULL DEFAULT 'unverified',
   status varchar(32) NOT NULL DEFAULT 'active',
   last_active_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -51,7 +50,6 @@ CREATE TABLE IF NOT EXISTS merchants (
 );
 
 CREATE INDEX IF NOT EXISTS idx_merchants_city_type ON merchants(city_station_id, merchant_type);
-CREATE INDEX IF NOT EXISTS idx_merchants_verification_status ON merchants(verification_status);
 CREATE INDEX IF NOT EXISTS idx_merchants_last_active_at ON merchants(last_active_at);
 
 CREATE TABLE IF NOT EXISTS merchant_admin_bindings (
@@ -129,7 +127,6 @@ CREATE TABLE IF NOT EXISTS resources (
   contact_name varchar(64) NOT NULL,
   contact_phone varchar(32) NOT NULL,
   contact_wechat varchar(64),
-  is_verified boolean NOT NULL DEFAULT false,
   published_at timestamptz,
   refreshed_at timestamptz,
   top_started_at timestamptz,
@@ -171,28 +168,6 @@ CREATE TABLE IF NOT EXISTS resource_review_records (
 
 CREATE INDEX IF NOT EXISTS idx_resource_review_records_resource ON resource_review_records(resource_id);
 CREATE INDEX IF NOT EXISTS idx_resource_review_records_reviewer ON resource_review_records(reviewer_id);
-
-CREATE TABLE IF NOT EXISTS verifications (
-  id bigint PRIMARY KEY DEFAULT next_tsid(),
-  merchant_id bigint NOT NULL REFERENCES merchants(id),
-  resource_id bigint REFERENCES resources(id),
-  verification_type varchar(64) NOT NULL,
-  status varchar(32) NOT NULL DEFAULT 'pending',
-  applicant_user_id bigint NOT NULL REFERENCES users(id),
-  business_name varchar(128),
-  license_url text,
-  storefront_url text,
-  materials jsonb NOT NULL DEFAULT '{}'::jsonb,
-  review_note text,
-  reviewed_by bigint REFERENCES admin_operators(id),
-  submitted_at timestamptz NOT NULL DEFAULT now(),
-  reviewed_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_verifications_merchant_status ON verifications(merchant_id, status);
-CREATE INDEX IF NOT EXISTS idx_verifications_resource ON verifications(resource_id);
 
 CREATE TABLE IF NOT EXISTS credit_records (
   id bigint PRIMARY KEY DEFAULT next_tsid(),
@@ -397,7 +372,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_messages_lifecycle_trigger
     AND trigger_id IS NOT NULL
     AND trigger_type IN (
       'resource_expired',
-      'resource_expiring',
-      'verification_expired',
-      'verification_expiring'
+      'resource_expiring'
     );

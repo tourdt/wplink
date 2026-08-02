@@ -11,7 +11,6 @@ const (
 	AdminModuleResourceReview      = "resource_review"
 	AdminModuleResourceReports     = "resource_reports"
 	AdminModuleMerchants           = "merchants"
-	AdminModuleVerificationReview  = "verification_review"
 	AdminModuleEntitlements        = "entitlements"
 	AdminModuleBannerTopics        = "banner_topics"
 	AdminModuleHotSearchKeywords   = "hot_search_keywords"
@@ -29,7 +28,6 @@ var allAdminModules = []string{
 	AdminModuleResourceReview,
 	AdminModuleResourceReports,
 	AdminModuleMerchants,
-	AdminModuleVerificationReview,
 	AdminModuleEntitlements,
 	AdminModuleBannerTopics,
 	AdminModuleHotSearchKeywords,
@@ -45,7 +43,6 @@ var allAdminModules = []string{
 var defaultPlatformOperatorAdminModules = []string{
 	AdminModuleResourceReview,
 	AdminModuleResourceReports,
-	AdminModuleVerificationReview,
 }
 
 func CanAccessAdmin(roles []string) bool {

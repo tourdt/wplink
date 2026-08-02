@@ -34,7 +34,7 @@ func TestGetResourceReturnsPublishedDetail(t *testing.T) {
 				},
 			},
 			DisplayTemplate: model.JSONMap{"detail": []interface{}{"season", "allowLiveSale"}},
-			MerchantID:      "merchant-1", MerchantName: "织里样板童装厂", MerchantVerificationStatus: "verified", MerchantVIPStatus: model.VIPStatusActive,
+			MerchantID:      "merchant-1", MerchantName: "织里样板童装厂", MerchantVIPStatus: model.VIPStatusActive,
 			ContactName: "张老板", PhoneMasked: "138****0000", WechatMasked: "zhili_****",
 		},
 	}

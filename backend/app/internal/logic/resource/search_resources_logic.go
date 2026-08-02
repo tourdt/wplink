@@ -40,7 +40,7 @@ func NewSearchResourcesLogic(store SearchResourceStore) *SearchResourcesLogic {
 func (l *SearchResourcesLogic) SearchResources(ctx context.Context, req SearchResourcesReq) (ListResourcesResp, error) {
 	resp, err := l.listLogic.ListResources(ctx, ListResourcesReq{
 		CityCode: req.CityCode, GroupCode: req.GroupCode, TypeCode: req.TypeCode, Keyword: req.Keyword, Category: req.Category,
-		Direction: req.Direction, Tags: req.Tags, VerifiedOnly: req.VerifiedOnly, Page: req.Page, PageSize: req.PageSize,
+		Direction: req.Direction, Tags: req.Tags, Page: req.Page, PageSize: req.PageSize,
 	})
 	if err != nil {
 		return ListResourcesResp{}, err

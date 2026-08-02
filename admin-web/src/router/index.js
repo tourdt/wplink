@@ -7,7 +7,6 @@ const DashboardView = () => import('../views/DashboardView.vue')
 const ResourceReviewView = () => import('../views/ResourceReviewView.vue')
 const ResourceReportView = () => import('../views/ResourceReportView.vue')
 const MerchantView = () => import('../views/MerchantView.vue')
-const VerificationView = () => import('../views/VerificationView.vue')
 const EntitlementView = () => import('../views/EntitlementView.vue')
 const OperationLogView = () => import('../views/OperationLogView.vue')
 const SearchLogView = () => import('../views/SearchLogView.vue')
@@ -35,7 +34,6 @@ const routes = [
       { path: 'resources/pending', name: 'resourceReview', component: ResourceReviewView, meta: { moduleCode: 'resource_review' } },
       { path: 'resource-reports', name: 'resourceReports', component: ResourceReportView, meta: { moduleCode: 'resource_reports' } },
       { path: 'merchants', name: 'merchants', component: MerchantView, meta: { moduleCode: 'merchants' } },
-      { path: 'verifications', name: 'verifications', component: VerificationView, meta: { moduleCode: 'verification_review' } },
       { path: 'entitlements', name: 'entitlements', component: EntitlementView, meta: { moduleCode: 'entitlements' } },
       { path: 'banner-topics', name: 'bannerTopics', component: BannerTopicView, meta: { moduleCode: 'banner_topics' } },
       { path: 'hot-search-keywords', name: 'hotSearchKeywords', component: HotSearchKeywordView, meta: { moduleCode: 'hot_search_keywords' } },

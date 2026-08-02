@@ -10,10 +10,9 @@ import (
 func TestDashboardOverviewReturnsCountsAndTasks(t *testing.T) {
 	store := &fakeDashboardStore{
 		overview: model.AdminDashboardOverview{
-			PendingResourceCount:     2,
-			PendingVerificationCount: 1,
-			TodayContactCount:        8,
-			Tasks:                    []model.AdminDashboardTask{{Type: "resource", Title: "待审核资源", CityName: "织里"}},
+			PendingResourceCount: 2,
+			TodayContactCount:    8,
+			Tasks:                []model.AdminDashboardTask{{Type: "resource", Title: "待审核资源", CityName: "织里"}},
 		},
 	}
 	logic := NewDashboardLogic(store)

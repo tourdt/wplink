@@ -21,12 +21,11 @@ type ListMerchantsReq struct {
 }
 
 type MerchantListItem struct {
-	ID                 string `json:"id"`
-	Name               string `json:"name"`
-	MerchantType       string `json:"merchantType"`
-	VerificationStatus string `json:"verificationStatus"`
-	Status             string `json:"status"`
-	LastActiveAt       string `json:"lastActiveAt,omitempty"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	MerchantType string `json:"merchantType"`
+	Status       string `json:"status"`
+	LastActiveAt string `json:"lastActiveAt,omitempty"`
 }
 
 type ListMerchantsResp struct {
@@ -60,12 +59,11 @@ func (l *MerchantAdminLogic) ListMerchants(ctx context.Context, req ListMerchant
 	items := make([]MerchantListItem, 0, len(result.Items))
 	for _, item := range result.Items {
 		items = append(items, MerchantListItem{
-			ID:                 item.ID,
-			Name:               item.Name,
-			MerchantType:       item.MerchantType,
-			VerificationStatus: item.VerificationStatus,
-			Status:             item.Status,
-			LastActiveAt:       item.LastActiveAt,
+			ID:           item.ID,
+			Name:         item.Name,
+			MerchantType: item.MerchantType,
+			Status:       item.Status,
+			LastActiveAt: item.LastActiveAt,
 		})
 	}
 	return ListMerchantsResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil

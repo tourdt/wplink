@@ -32,9 +32,6 @@
         <el-table-column label="主要身份" width="120">
           <template #default="{ row }">{{ merchantTypeText[row.merchantType] || row.merchantType }}</template>
         </el-table-column>
-        <el-table-column label="认证状态" width="120">
-          <template #default="{ row }">{{ verificationText[row.verificationStatus] || row.verificationStatus }}</template>
-        </el-table-column>
         <el-table-column label="商家状态" width="120">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'warning'">
@@ -119,14 +116,6 @@ import { ElMessage } from '../plugins/elementPlus'
 import { createMerchant, getMerchant, listMerchants } from '../api/merchant'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { merchantIdentityOptions, merchantTypeText } from '../common/merchantIdentity'
-const verificationText = {
-  unverified: '未认证',
-  pending: '待审核',
-  verified: '已认证',
-  rejected: '已驳回',
-  expired: '已过期',
-}
-
 const filters = reactive({
   cityCode: defaultCityCode,
   merchantType: '',

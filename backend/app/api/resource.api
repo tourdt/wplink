@@ -48,7 +48,6 @@ type ListResourcesReq {
 	Keyword      string `form:"keyword,optional"`
 	Category     string `form:"category,optional"`
 	Tags         string `form:"tags,optional"`
-	VerifiedOnly bool   `form:"verifiedOnly,optional"`
 	Page         int64  `form:"page,optional"`
 	PageSize     int64  `form:"pageSize,optional"`
 }
@@ -56,7 +55,6 @@ type ListResourcesReq {
 type ResourceMerchantBrief {
 	Id                 string `json:"id"`
 	Name               string `json:"name"`
-	VerificationStatus string `json:"verificationStatus"`
 	VipStatus          string `json:"vipStatus"`
 }
 

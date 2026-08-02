@@ -86,9 +86,8 @@ type AdminDashboardOverviewReq {
 }
 
 type AdminDashboardMetrics {
-	PendingResourceCount     int64 `json:"pendingResourceCount"`
-	PendingVerificationCount int64 `json:"pendingVerificationCount"`
-	TodayContactCount        int64 `json:"todayContactCount"`
+	PendingResourceCount int64 `json:"pendingResourceCount"`
+	TodayContactCount    int64 `json:"todayContactCount"`
 }
 
 type AdminDashboardTask {
@@ -180,65 +179,6 @@ type AdminReviewResourceReportResp {
 	Message             string `json:"message"`
 }
 
-type AdminPendingVerificationItem {
-	Id               string                 `json:"id"`
-	MerchantId       string                 `json:"merchantId"`
-	MerchantName     string                 `json:"merchantName"`
-	VerificationType string                 `json:"verificationType"`
-	Status           string                 `json:"status"`
-	SubmittedAt      string                 `json:"submittedAt"`
-	BusinessName     string                 `json:"businessName"`
-	LicenseUrl       string                 `json:"licenseUrl"`
-	StorefrontUrl    string                 `json:"storefrontUrl"`
-	Materials        map[string]interface{} `json:"materials"`
-}
-
-type AdminPendingVerificationsReq {
-	Page     int64 `form:"page,optional"`
-	PageSize int64 `form:"pageSize,optional"`
-}
-
-type AdminPendingVerificationsResp {
-	Items    []AdminPendingVerificationItem `json:"items"`
-	Page     int64                          `json:"page"`
-	PageSize int64                          `json:"pageSize"`
-	Total    int64                          `json:"total"`
-}
-
-type AdminReviewVerificationReq {
-	Action     string `json:"action"`
-	ReviewNote string `json:"reviewNote,optional"`
-}
-
-type AdminReviewVerificationResp {
-	Id      string `json:"id"`
-	Status  string `json:"status"`
-	Message string `json:"message"`
-}
-
-type AdminVerificationBillingConfigReq {
-	CityCode      string `json:"cityCode,optional"`
-	ChargeEnabled bool   `json:"chargeEnabled"`
-	FeeAmount     int64  `json:"feeAmount"`
-	Currency      string `json:"currency,optional"`
-	FreeEnabled   bool   `json:"freeEnabled,optional"`
-	FreeStartAt   string `json:"freeStartAt,optional"`
-	FreeEndAt     string `json:"freeEndAt,optional"`
-	Notice        string `json:"notice,optional"`
-}
-
-type AdminVerificationBillingConfigResp {
-	CityCode      string `json:"cityCode"`
-	ChargeEnabled bool   `json:"chargeEnabled"`
-	FeeAmount     int64  `json:"feeAmount"`
-	Currency      string `json:"currency"`
-	FreeEnabled   bool   `json:"freeEnabled"`
-	FreeStartAt   string `json:"freeStartAt,optional"`
-	FreeEndAt     string `json:"freeEndAt,optional"`
-	Notice        string `json:"notice,optional"`
-	UpdatedAt     string `json:"updatedAt,optional"`
-}
-
 type AdminGrantEntitlementReq {
 	EntitlementType string `json:"entitlementType"`
 	SourceType      string `json:"sourceType"`
@@ -321,7 +261,6 @@ type AdminMerchantListItem {
 	Id                 string `json:"id"`
 	Name               string `json:"name"`
 	MerchantType       string `json:"merchantType"`
-	VerificationStatus string `json:"verificationStatus"`
 	Status             string `json:"status"`
 	LastActiveAt       string `json:"lastActiveAt,optional"`
 }
@@ -645,24 +584,6 @@ service wplink-api {
 
 	@handler AdminReviewResourceReport
 	post /resource-reports/:reportId/review (AdminReviewResourceReportReq) returns (AdminReviewResourceReportResp)
-}
-
-@server (
-	prefix: /api/v1/admin
-	group:  adminverification
-)
-service wplink-api {
-	@handler AdminListPendingVerifications
-	get /verifications/pending (AdminPendingVerificationsReq) returns (AdminPendingVerificationsResp)
-
-	@handler AdminReviewVerification
-	post /verifications/:verificationId/review (AdminReviewVerificationReq) returns (AdminReviewVerificationResp)
-
-	@handler AdminGetVerificationBillingConfig
-	get /verification-billing returns (AdminVerificationBillingConfigResp)
-
-	@handler AdminUpdateVerificationBillingConfig
-	post /verification-billing (AdminVerificationBillingConfigReq) returns (AdminVerificationBillingConfigResp)
 }
 
 @server (

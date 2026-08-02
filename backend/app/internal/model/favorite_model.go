@@ -156,7 +156,6 @@ SELECT
   COALESCE(r.quantity_text, ''),
   m.id::text,
   m.name,
-  m.verification_status,
   COALESCE(r.refreshed_at, r.published_at, r.created_at),
   r.dealt_at,
   COUNT(*) OVER() AS total
@@ -366,7 +365,6 @@ func scanResourceListRows(rows *sql.Rows, page int64, pageSize int64) (ListResou
 			&item.QuantityText,
 			&item.Merchant.ID,
 			&item.Merchant.Name,
-			&item.Merchant.VerificationStatus,
 			&refreshedAt,
 			&dealtAt,
 			&result.Total,

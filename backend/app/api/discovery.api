@@ -35,7 +35,6 @@ type HomeResourcesReq {
 type HomeResourceMerchantBrief {
 	Id                 string `json:"id"`
 	Name               string `json:"name"`
-	VerificationStatus string `json:"verificationStatus"`
 	VipStatus          string `json:"vipStatus"`
 }
 

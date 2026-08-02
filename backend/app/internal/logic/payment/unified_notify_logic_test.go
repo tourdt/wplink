@@ -9,14 +9,12 @@ import (
 )
 
 type fakeUnifiedWechatPayNotifyStore struct {
-	*fakeVerificationPaymentStore
 	*fakeContactUnlockPaymentStore
 	*fakeVIPPaymentStore
 }
 
 func newFakeUnifiedWechatPayNotifyStore() *fakeUnifiedWechatPayNotifyStore {
 	return &fakeUnifiedWechatPayNotifyStore{
-		fakeVerificationPaymentStore:  &fakeVerificationPaymentStore{},
 		fakeContactUnlockPaymentStore: &fakeContactUnlockPaymentStore{},
 		fakeVIPPaymentStore:           &fakeVIPPaymentStore{},
 	}
@@ -48,7 +46,7 @@ func TestUnifiedWechatPayNotifyRoutesContactUnlockPayment(t *testing.T) {
 		store.fakeContactUnlockPaymentStore.markInput.TransactionID != "wx-transaction-1" {
 		t.Fatalf("markInput = %#v, want contact unlock payment notification", store.fakeContactUnlockPaymentStore.markInput)
 	}
-	if store.fakeVerificationPaymentStore.markInput.OutTradeNo != "" || store.fakeVIPPaymentStore.markInput.OutTradeNo != "" {
+	if store.fakeVIPPaymentStore.markInput.OutTradeNo != "" {
 		t.Fatal("contact unlock notification must not be sent to another payment store")
 	}
 	if resp.Code != "SUCCESS" || resp.Message != "成功" {

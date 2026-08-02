@@ -8,7 +8,6 @@ DROP TABLE IF EXISTS merchant_entitlement_usage_records;
 DROP TABLE IF EXISTS merchant_entitlements;
 DROP TABLE IF EXISTS search_logs;
 DROP TABLE IF EXISTS credit_records;
-DROP TABLE IF EXISTS verifications;
 DROP TABLE IF EXISTS resource_review_records;
 DROP TABLE IF EXISTS resources;
 DROP TABLE IF EXISTS resource_type_configs;

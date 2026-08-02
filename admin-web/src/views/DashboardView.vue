@@ -41,7 +41,6 @@ const errorText = ref('')
 const overview = ref({
   metrics: {
     pendingResourceCount: 0,
-    pendingVerificationCount: 0,
     todayContactCount: 0,
   },
   tasks: [],
@@ -49,7 +48,6 @@ const overview = ref({
 
 const metrics = computed(() => [
   { label: '待审核供需信息', value: overview.value.metrics.pendingResourceCount, trend: '待运营处理' },
-  { label: '待认证商家', value: overview.value.metrics.pendingVerificationCount, trend: '待运营审核' },
   { label: '联系次数', value: overview.value.metrics.todayContactCount, trend: '今日联系行为' },
 ])
 const tasks = computed(() => overview.value.tasks || [])

@@ -31,7 +31,6 @@ type MapObjectItem {
 	Layer              string                 `json:"layer"`
 	DisplaySource      string                 `json:"displaySource"`
 	DisplayLevel       string                 `json:"displayLevel"`
-	IsVerifiedMerchant bool                   `json:"isVerifiedMerchant"`
 	Merchant           *MapObjectMerchantItem `json:"merchant,optional"`
 	GeometryType       string                 `json:"geometryType"`
 	Geometry           map[string]interface{} `json:"geometry"`
@@ -56,7 +55,6 @@ type MapObjectMerchantItem {
 	Id                 string   `json:"id"`
 	Name               string   `json:"name"`
 	MerchantType       string   `json:"merchantType"`
-	VerificationStatus string   `json:"verificationStatus"`
 	LogoUrl            string   `json:"logoUrl,optional"`
 	MainCategories     []string `json:"mainCategories"`
 }

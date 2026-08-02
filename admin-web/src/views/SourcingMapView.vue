@@ -285,15 +285,10 @@
                   placeholder="搜索商户名称"
                 >
                   <el-option v-for="merchant in merchantOptions" :key="merchant.id" :label="merchantOptionLabel(merchant)" :value="merchant.id">
-                    <div class="merchant-option">
-                      <span>{{ merchant.name || merchant.id }}</span>
-                      <el-tag size="small" :type="merchant.verificationStatus === 'verified' ? 'success' : 'info'">
-                        {{ merchant.verificationStatus === 'verified' ? '已认证' : '未认证' }}
-                      </el-tag>
-                    </div>
+                    <span>{{ merchant.name || merchant.id }}</span>
                   </el-option>
                 </el-select>
-                <p class="form-tip">未认证商户不会在小程序地图突出展示</p>
+                <p class="form-tip">绑定后可从地图点位进入商家主页</p>
               </el-form-item>
 
               <div v-if="isBoothObject" class="typed-field-group">
@@ -1338,7 +1333,6 @@ function ensureMerchantOption(data = {}) {
       id: merchantId,
       name: merchant?.name || `商户 ${merchantId}`,
       merchantType: merchant?.merchantType || '',
-      verificationStatus: merchant?.verificationStatus || '',
     },
     ...merchantOptions.value,
   ]
@@ -1362,8 +1356,7 @@ async function searchMerchantOptions(keyword = '') {
 }
 
 function merchantOptionLabel(merchant) {
-  const statusText = merchant?.verificationStatus === 'verified' ? '已认证' : '未认证'
-  return `${merchant?.name || merchant?.id || '商户'} · ${statusText}`
+  return merchant?.name || merchant?.id || '商户'
 }
 
 function uploadBackground(options) {

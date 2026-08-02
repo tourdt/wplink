@@ -28,7 +28,7 @@ func TestCanManageAdminPermissionsRequiresSuperAdmin(t *testing.T) {
 
 func TestResolveAdminModulesDefaultsPlatformOperatorToAuditModules(t *testing.T) {
 	modules := ResolveAdminModules([]string{RolePlatformOperator}, nil)
-	want := []string{AdminModuleResourceReview, AdminModuleResourceReports, AdminModuleVerificationReview}
+	want := []string{AdminModuleResourceReview, AdminModuleResourceReports}
 	if len(modules) != len(want) {
 		t.Fatalf("modules = %#v, want %#v", modules, want)
 	}

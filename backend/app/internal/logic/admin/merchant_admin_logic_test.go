@@ -11,7 +11,7 @@ func TestListMerchantsPassesFiltersToStore(t *testing.T) {
 	store := &fakeAdminMerchantStore{
 		result: model.ListMerchantsResult{
 			Items: []model.MerchantListItem{
-				{ID: "merchant-1", Name: "织里样板童装厂", MerchantType: "factory", VerificationStatus: "verified", Status: "active"},
+				{ID: "merchant-1", Name: "织里样板童装厂", MerchantType: "factory", Status: "active"},
 			},
 			Page:     1,
 			PageSize: 20,

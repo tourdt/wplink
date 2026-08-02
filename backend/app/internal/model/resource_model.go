@@ -212,10 +212,9 @@ type ResourceAuditDecisionInput struct {
 }
 
 type ResourceMerchantBrief struct {
-	ID                 string
-	Name               string
-	VerificationStatus string
-	VIPStatus          string
+	ID        string
+	Name      string
+	VIPStatus string
 }
 
 type ResourceListItem struct {
@@ -237,18 +236,17 @@ type ResourceListItem struct {
 }
 
 type ListResourcesFilter struct {
-	CityCode     string
-	MerchantID   string
-	GroupCode    string
-	TypeCode     string
-	Direction    string
-	Keyword      string
-	Category     string
-	Tags         []string
-	VerifiedOnly bool
-	Status       string
-	Page         int64
-	PageSize     int64
+	CityCode   string
+	MerchantID string
+	GroupCode  string
+	TypeCode   string
+	Direction  string
+	Keyword    string
+	Category   string
+	Tags       []string
+	Status     string
+	Page       int64
+	PageSize   int64
 }
 
 type ListResourcesResult struct {
@@ -259,32 +257,31 @@ type ListResourcesResult struct {
 }
 
 type ResourceDetail struct {
-	ID                         string
-	Status                     string
-	TypeCode                   string
-	Direction                  string
-	TypeName                   string
-	Title                      string
-	Category                   string
-	Description                string
-	PriceText                  string
-	QuantityText               string
-	Attributes                 JSONMap
-	FieldSchema                JSONMap
-	DisplayTemplate            JSONMap
-	CommercialRules            JSONMap
-	Tags                       []string
-	Images                     []string
-	MerchantID                 string
-	MerchantName               string
-	MerchantVerificationStatus string
-	MerchantVIPStatus          string
-	ContactName                string
-	PhoneMasked                string
-	WechatMasked               string
-	PublishedAt                string
-	ExpiresAt                  string
-	DealtAt                    string
+	ID                string
+	Status            string
+	TypeCode          string
+	Direction         string
+	TypeName          string
+	Title             string
+	Category          string
+	Description       string
+	PriceText         string
+	QuantityText      string
+	Attributes        JSONMap
+	FieldSchema       JSONMap
+	DisplayTemplate   JSONMap
+	CommercialRules   JSONMap
+	Tags              []string
+	Images            []string
+	MerchantID        string
+	MerchantName      string
+	MerchantVIPStatus string
+	ContactName       string
+	PhoneMasked       string
+	WechatMasked      string
+	PublishedAt       string
+	ExpiresAt         string
+	DealtAt           string
 }
 
 type ReviewResourceInput struct {
@@ -313,7 +310,6 @@ SELECT
   r.tags,
   m.id::text,
   m.name,
-  m.verification_status,
   CASE WHEN EXISTS (
     SELECT 1
     FROM merchant_vip_subscriptions mvs
@@ -345,14 +341,13 @@ WHERE r.deleted_at IS NULL
     OR m.name ILIKE '%' || $8 || '%'
     OR r.attributes::text ILIKE '%' || $8 || '%'
   )
-  AND ($9 = false OR r.is_verified = true OR m.verification_status = 'verified')
   AND (r.expires_at IS NULL OR r.expires_at > now())
   AND (r.dealt_at IS NULL OR r.dealt_at > now() - interval '7 days')
-  AND (cardinality($12::text[]) = 0 OR r.tags ?& $12::text[])
+  AND (cardinality($11::text[]) = 0 OR r.tags ?& $11::text[])
 ORDER BY
   CASE WHEN r.top_expires_at IS NOT NULL AND r.top_expires_at > now() THEN 1 ELSE 0 END DESC,
   COALESCE(r.refreshed_at, r.published_at, r.created_at) DESC
-LIMIT $10 OFFSET $11
+LIMIT $9 OFFSET $10
 `
 
 const reviewResourceSQL = `
@@ -409,7 +404,6 @@ SELECT
   r.images,
   m.id::text,
   m.name,
-  m.verification_status,
   CASE WHEN EXISTS (
     SELECT 1
     FROM merchant_vip_subscriptions mvs
@@ -454,7 +448,6 @@ SELECT
   r.images,
   m.id::text,
   m.name,
-  m.verification_status,
   r.contact_name,
   r.contact_phone,
   COALESCE(r.contact_wechat, ''),
@@ -1375,7 +1368,7 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	offset := (page - 1) * pageSize
 
-	rows, err := m.db.QueryContext(ctx, listResourcesSQL, filter.Status, filter.CityCode, filter.MerchantID, filter.GroupCode, filter.TypeCode, filter.Direction, filter.Category, filter.Keyword, filter.VerifiedOnly, pageSize, offset, pq.Array(filter.Tags))
+	rows, err := m.db.QueryContext(ctx, listResourcesSQL, filter.Status, filter.CityCode, filter.MerchantID, filter.GroupCode, filter.TypeCode, filter.Direction, filter.Category, filter.Keyword, pageSize, offset, pq.Array(filter.Tags))
 	if err != nil {
 		return ListResourcesResult{}, err
 	}
@@ -1402,7 +1395,6 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 			&tags,
 			&item.Merchant.ID,
 			&item.Merchant.Name,
-			&item.Merchant.VerificationStatus,
 			&item.Merchant.VIPStatus,
 			&refreshedAt,
 			&dealtAt,
@@ -1449,7 +1441,6 @@ func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resource
 		&images,
 		&detail.MerchantID,
 		&detail.MerchantName,
-		&detail.MerchantVerificationStatus,
 		&detail.MerchantVIPStatus,
 		&detail.ContactName,
 		&detail.PhoneMasked,
@@ -1503,7 +1494,6 @@ func (m *ResourceModel) GetOwnResourceDetail(ctx context.Context, merchantID str
 		&images,
 		&detail.MerchantID,
 		&detail.MerchantName,
-		&detail.MerchantVerificationStatus,
 		&detail.ContactName,
 		&detail.PhoneMasked,
 		&detail.WechatMasked,

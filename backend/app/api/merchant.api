@@ -18,14 +18,6 @@ type MerchantResourcesSummary {
 	DealtCount     int64 `json:"dealtCount"`
 }
 
-type MerchantVerificationInfo {
-	Status       string   `json:"status"`
-	Type         string   `json:"type"`
-	ReviewedAt   string   `json:"reviewedAt,optional"`
-	ExpiresAt    string   `json:"expiresAt,optional"`
-	CheckedItems []string `json:"checkedItems"`
-}
-
 type MerchantDetailResp {
 	Id                 string                   `json:"id"`
 	MerchantNo         string                   `json:"merchantNo"`
@@ -34,9 +26,7 @@ type MerchantDetailResp {
 	CityCode           string                   `json:"cityCode"`
 	MainCategories     []string                 `json:"mainCategories"`
 	ProfileStatus      string                   `json:"profileStatus"`
-	VerificationStatus string                   `json:"verificationStatus"`
 	VipStatus          string                   `json:"vipStatus"`
-	VerificationInfo   MerchantVerificationInfo `json:"verificationInfo,optional"`
 	CreditTags         []CreditTagInfo          `json:"creditTags"`
 	Contact            *MerchantContactInfo     `json:"contact,optional"`
 	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`

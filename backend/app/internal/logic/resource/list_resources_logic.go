@@ -13,24 +13,22 @@ type ListResourcesStore interface {
 }
 
 type ListResourcesReq struct {
-	CityCode     string
-	MerchantID   string
-	GroupCode    string
-	TypeCode     string
-	Direction    string
-	Keyword      string
-	Category     string
-	Tags         []string
-	VerifiedOnly bool
-	Page         int64
-	PageSize     int64
+	CityCode   string
+	MerchantID string
+	GroupCode  string
+	TypeCode   string
+	Direction  string
+	Keyword    string
+	Category   string
+	Tags       []string
+	Page       int64
+	PageSize   int64
 }
 
 type ResourceMerchantBrief struct {
-	ID                 string `json:"id"`
-	Name               string `json:"name"`
-	VerificationStatus string `json:"verificationStatus"`
-	VIPStatus          string `json:"vipStatus"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	VIPStatus string `json:"vipStatus"`
 }
 
 type ResourceListItem struct {
@@ -76,18 +74,17 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 		return ListResourcesResp{}, err
 	}
 	result, err := l.store.ListResources(ctx, model.ListResourcesFilter{
-		CityCode:     strings.TrimSpace(req.CityCode),
-		MerchantID:   strings.TrimSpace(req.MerchantID),
-		GroupCode:    strings.TrimSpace(req.GroupCode),
-		TypeCode:     strings.TrimSpace(req.TypeCode),
-		Direction:    direction,
-		Keyword:      strings.TrimSpace(req.Keyword),
-		Category:     strings.TrimSpace(req.Category),
-		Tags:         tags,
-		VerifiedOnly: req.VerifiedOnly,
-		Status:       model.ResourceStatusPublished,
-		Page:         req.Page,
-		PageSize:     req.PageSize,
+		CityCode:   strings.TrimSpace(req.CityCode),
+		MerchantID: strings.TrimSpace(req.MerchantID),
+		GroupCode:  strings.TrimSpace(req.GroupCode),
+		TypeCode:   strings.TrimSpace(req.TypeCode),
+		Direction:  direction,
+		Keyword:    strings.TrimSpace(req.Keyword),
+		Category:   strings.TrimSpace(req.Category),
+		Tags:       tags,
+		Status:     model.ResourceStatusPublished,
+		Page:       req.Page,
+		PageSize:   req.PageSize,
 	})
 	if err != nil {
 		return ListResourcesResp{}, err
@@ -108,10 +105,9 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 			QuantityText: item.QuantityText,
 			Tags:         append([]string(nil), item.Tags...),
 			Merchant: ResourceMerchantBrief{
-				ID:                 item.Merchant.ID,
-				Name:               item.Merchant.Name,
-				VerificationStatus: item.Merchant.VerificationStatus,
-				VIPStatus:          normalizeVIPStatus(item.Merchant.VIPStatus),
+				ID:        item.Merchant.ID,
+				Name:      item.Merchant.Name,
+				VIPStatus: normalizeVIPStatus(item.Merchant.VIPStatus),
 			},
 			CreditTags:  append([]string(nil), item.CreditTags...),
 			RefreshedAt: item.RefreshedAt,

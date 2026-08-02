@@ -13,7 +13,7 @@ func TestListResourcesSQLAllowsEmptyMerchantID(t *testing.T) {
 		"r.resource_type_snapshot ->> 'typeName'",
 		"r.resource_type_snapshot #>> '{displayTemplate,group,code}' = $4",
 		"($6 = '' OR r.direction = $6)",
-		"r.tags ?& $12::text[]",
+		"r.tags ?& $11::text[]",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(listResourcesSQL, snippet) {
@@ -44,8 +44,8 @@ func TestListResourcesSQLPrioritizesActiveTopResources(t *testing.T) {
 
 func TestListResourcesSQLUsesJSONBTagFilter(t *testing.T) {
 	requiredSnippets := []string{
-		"cardinality($12::text[]) = 0",
-		"r.tags ?& $12::text[]",
+		"cardinality($11::text[]) = 0",
+		"r.tags ?& $11::text[]",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(listResourcesSQL, snippet) {

@@ -16,9 +16,8 @@ type DashboardOverviewReq struct {
 }
 
 type DashboardMetrics struct {
-	PendingResourceCount     int64 `json:"pendingResourceCount"`
-	PendingVerificationCount int64 `json:"pendingVerificationCount"`
-	TodayContactCount        int64 `json:"todayContactCount"`
+	PendingResourceCount int64 `json:"pendingResourceCount"`
+	TodayContactCount    int64 `json:"todayContactCount"`
 }
 
 type DashboardTask struct {
@@ -48,9 +47,8 @@ func (l *DashboardLogic) GetOverview(ctx context.Context, req DashboardOverviewR
 	}
 	resp := DashboardOverviewResp{
 		Metrics: DashboardMetrics{
-			PendingResourceCount:     overview.PendingResourceCount,
-			PendingVerificationCount: overview.PendingVerificationCount,
-			TodayContactCount:        overview.TodayContactCount,
+			PendingResourceCount: overview.PendingResourceCount,
+			TodayContactCount:    overview.TodayContactCount,
 		},
 	}
 	for _, task := range overview.Tasks {

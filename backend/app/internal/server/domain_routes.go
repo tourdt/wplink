@@ -21,7 +21,6 @@ import (
 	messagelogic "wplink/backend/app/internal/logic/message"
 	metricslogic "wplink/backend/app/internal/logic/metrics"
 	paymentlogic "wplink/backend/app/internal/logic/payment"
-	verificationlogic "wplink/backend/app/internal/logic/verification"
 	viplogic "wplink/backend/app/internal/logic/vip"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/task"
@@ -43,21 +42,6 @@ type DiscoveryAPIStore interface {
 	adminlogic.BannerTopicAdminStore
 	adminlogic.HotSearchKeywordAdminStore
 }
-
-type VerificationAPIStore interface {
-	verificationlogic.VerificationStore
-	adminlogic.VerificationAdminStore
-}
-
-type VerificationBillingAPIStore interface {
-	adminlogic.VerificationBillingConfigStore
-}
-
-type VerificationPaymentAPIStore interface {
-	paymentlogic.VerificationPaymentStore
-}
-
-const publicMerchantVerificationDisabledMessage = "商家资质服务已下线，请在资料设置中完善公开资料"
 
 type ContactUnlockPaymentAPIStore interface {
 	paymentlogic.ContactUnlockPaymentStore
@@ -129,13 +113,6 @@ func registerOptionalDomainRoutes(mux *http.ServeMux, store any, userTokenServic
 	// 旧独立需求入口已从小程序和后台下线，这里不再注册旧 API，避免新客户端继续依赖已废弃流程。
 	if discoveryStore, ok := store.(DiscoveryAPIStore); ok {
 		registerDiscoveryRoutes(mux, discoveryStore)
-	}
-	if verificationStore, ok := store.(VerificationAPIStore); ok {
-		paymentStore, _ := store.(VerificationPaymentAPIStore)
-		registerVerificationRoutes(mux, verificationStore, paymentStore, userTokenService, adminTokenService, permissionStore, wechatPayGateway, wechatPayDevMock)
-	}
-	if billingStore, ok := store.(VerificationBillingAPIStore); ok {
-		registerVerificationBillingRoutes(mux, billingStore)
 	}
 	if entitlementStore, ok := store.(EntitlementAPIStore); ok {
 		registerEntitlementRoutes(mux, entitlementStore, userTokenService, adminTokenService, permissionStore)
@@ -393,6 +370,7 @@ func registerDiscoveryRoutes(mux *http.ServeMux, store DiscoveryAPIStore) {
 	})
 }
 
+/*
 func registerVerificationRoutes(mux *http.ServeMux, store VerificationAPIStore, paymentStore VerificationPaymentAPIStore, tokenService authlogic.TokenService, adminTokenService AdminTokenService, permissionStore MerchantPermissionStore, wechatPayGateway paymentlogic.WechatPayGateway, wechatPayDevMock bool) {
 	mux.HandleFunc("POST /api/v1/merchants/{merchantId}/verifications", func(w http.ResponseWriter, r *http.Request) {
 		merchantID := r.PathValue("merchantId")
@@ -481,6 +459,7 @@ func registerVerificationBillingRoutes(mux *http.ServeMux, store VerificationBil
 		response.JSON(w, resp, err)
 	})
 }
+*/
 
 func registerUnifiedWechatPayNotifyRoute(mux *http.ServeMux, store paymentlogic.UnifiedWechatPayNotifyStore, wechatPayGateway paymentlogic.WechatPayGateway) {
 	mux.HandleFunc("POST /api/v1/wechat-pay/notify", func(w http.ResponseWriter, r *http.Request) {

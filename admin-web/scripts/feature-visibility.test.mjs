@@ -79,7 +79,7 @@ test('admin navigation filters pages by configured module permissions', () => {
   assert.match(routeSource, /firstAccessibleRouteName/)
   assert.match(layoutSource, /auth\.canAccessModule\(item\.moduleCode\)/)
   assert.match(authSource, /modules: data\.modules \|\| \[\]/)
-  assert.match(moduleSource, /defaultPlatformOperatorModules = \['resource_review', 'resource_reports', 'verification_review'\]/)
+  assert.match(moduleSource, /defaultPlatformOperatorModules = \['resource_review', 'resource_reports'\]/)
   assert.match(moduleSource, /canAccessAdminModule/)
 })
 
@@ -523,8 +523,7 @@ test('sourcing map admin can bind map objects to merchants', () => {
     'merchantOptionLabel',
     'objectForm.merchantId',
     'merchantId: objectForm.merchantId',
-    '已认证',
-    '未认证商户不会在小程序地图突出展示',
+    '绑定后可从地图点位进入商家主页',
   ]) {
     assert.match(viewSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
@@ -897,18 +896,14 @@ test('admin city station filters use dropdown options', () => {
   assert.match(searchLogSource, /<el-option v-for="station in cityStationOptions"/)
   assert.equal(searchLogSource.includes('placeholder="zhili"'), false)
 
-  const verificationSource = fs.readFileSync(path.join(root, 'src/views/VerificationView.vue'), 'utf8')
-  assert.match(verificationSource, /<el-select[^>]+v-model="billingForm\.cityCode"/)
-  assert.equal(/<el-input[^>]+v-model(?:\.trim)?="billingForm\.cityCode"/.test(verificationSource), false)
 })
 
 test('admin merchant identity wording matches mini program copy', () => {
   const merchantSource = fs.readFileSync(path.join(root, 'src/views/MerchantView.vue'), 'utf8')
-  const verificationSource = fs.readFileSync(path.join(root, 'src/views/VerificationView.vue'), 'utf8')
   const entitlementSource = fs.readFileSync(path.join(root, 'src/views/EntitlementView.vue'), 'utf8')
   const bannerSource = fs.readFileSync(path.join(root, 'src/views/BannerTopicView.vue'), 'utf8')
   const identitySource = fs.readFileSync(path.join(root, 'src/common/merchantIdentity.js'), 'utf8')
-  const combinedSource = [merchantSource, verificationSource, entitlementSource, bannerSource, identitySource].join('\n')
+  const combinedSource = [merchantSource, entitlementSource, bannerSource, identitySource].join('\n')
 
   for (const token of ['主要身份', '个人', '场地/设备方', '源头工厂', '现货档口', '库存货源', '配套服务', '采购']) {
     assert.match(combinedSource, new RegExp(token))
@@ -940,36 +935,6 @@ test('admin merchant identity wording matches mini program copy', () => {
   ]) {
     assert.equal(merchantSource.includes(oldOption), false)
   }
-})
-
-test('verification review drawer shows submitted certification materials', () => {
-  const source = fs.readFileSync(path.join(root, 'src/views/VerificationView.vue'), 'utf8')
-
-  for (const token of [
-    '营业主体',
-    '统一社会信用代码',
-    '联系人姓名',
-    '联系电话',
-    '联系微信',
-    '经营地址',
-    '营业执照',
-    '门头/场地',
-    '经营实拍',
-    '授权证明',
-    '其他证明',
-    '未提交',
-  ]) {
-    assert.match(source, new RegExp(token))
-  }
-
-  assert.match(source, /materialInfoItems/)
-  assert.match(source, /materialImageItems/)
-  assert.match(source, /socialCreditCode/)
-  assert.match(source, /businessName/)
-  assert.match(source, /licenseUrl/)
-  assert.match(source, /storefrontUrl/)
-  assert.match(source, /sceneUrl/)
-  assert.match(source, /<el-image/)
 })
 
 test('resource type config edits category commercial rules', () => {

@@ -37,11 +37,9 @@ func (s *ResourceLifecycleScheduler) RunOnce(ctx context.Context) error {
 	}
 	if s.logger != nil {
 		s.logger.Printf(
-			"资源生命周期任务执行完成: expired=%d expiring=%d verificationExpired=%d verificationExpiring=%d",
+			"资源生命周期任务执行完成: expired=%d expiring=%d",
 			result.ExpiredCount,
 			result.ExpiringReminderCount,
-			result.VerificationExpiredCount,
-			result.VerificationExpiringReminderCount,
 		)
 	}
 	return nil

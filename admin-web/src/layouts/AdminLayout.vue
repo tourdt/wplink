@@ -42,7 +42,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { CircleCheck, DataLine, Document, Lock, MapLocation, Medal, Picture, Search, Setting, Shop, Ticket, Tickets, User, Warning } from '@element-plus/icons-vue'
+import { DataLine, Document, Lock, MapLocation, Medal, Picture, Search, Setting, Shop, Ticket, Tickets, User, Warning } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -52,7 +52,6 @@ const menuItems = [
   { index: '/resources/pending', label: '供需信息审核', icon: Tickets, moduleCode: 'resource_review' },
   { index: '/resource-reports', label: '举报审核', icon: Warning, moduleCode: 'resource_reports' },
   { index: '/merchants', label: '商家管理', icon: Shop, moduleCode: 'merchants' },
-  { index: '/verifications', label: '认证审核', icon: CircleCheck, moduleCode: 'verification_review' },
   { index: '/entitlements', label: '权益发放', icon: Ticket, moduleCode: 'entitlements' },
   { index: '/banner-topics', label: '首页运营位', icon: Picture, moduleCode: 'banner_topics' },
   { index: '/hot-search-keywords', label: '热门搜索词', icon: Search, moduleCode: 'hot_search_keywords' },

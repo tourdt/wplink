@@ -105,10 +105,9 @@ func resourceDetailRespFromModel(detail model.ResourceDetail) ResourceDetailResp
 		Tags:           append([]string(nil), detail.Tags...),
 		Images:         append([]string(nil), detail.Images...),
 		Merchant: ResourceMerchantBrief{
-			ID:                 detail.MerchantID,
-			Name:               detail.MerchantName,
-			VerificationStatus: detail.MerchantVerificationStatus,
-			VIPStatus:          normalizeVIPStatus(detail.MerchantVIPStatus),
+			ID:        detail.MerchantID,
+			Name:      detail.MerchantName,
+			VIPStatus: normalizeVIPStatus(detail.MerchantVIPStatus),
 		},
 		Contact: ResourceContactMasked{
 			Name:         detail.ContactName,

@@ -27,7 +27,6 @@ type FollowedMerchantItem {
 	Id                 string   `json:"id"`
 	Name               string   `json:"name"`
 	MerchantType       string   `json:"merchantType"`
-	VerificationStatus string   `json:"verificationStatus"`
 	MainCategories     []string `json:"mainCategories"`
 	LogoUrl            string   `json:"logoUrl,optional"`
 	FollowedAt         string   `json:"followedAt"`
@@ -46,7 +45,6 @@ type CreateSavedSearchReq {
 	TypeCode     string `json:"typeCode,optional"`
 	Keyword      string `json:"keyword,optional"`
 	Category     string `json:"category,optional"`
-	VerifiedOnly bool   `json:"verifiedOnly,optional"`
 }
 
 type SavedSearchResp {
@@ -60,7 +58,6 @@ type SavedSearchItem {
 	TypeCode     string `json:"typeCode"`
 	Keyword      string `json:"keyword"`
 	Category     string `json:"category"`
-	VerifiedOnly bool   `json:"verifiedOnly"`
 	CreatedAt    string `json:"createdAt"`
 }
 

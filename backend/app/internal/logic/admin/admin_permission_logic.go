@@ -390,7 +390,6 @@ func adminModuleItems() []AdminModuleItem {
 		permission.AdminModuleDashboard:           {Code: permission.AdminModuleDashboard, Label: "数据概览", Group: "概览"},
 		permission.AdminModuleResourceReview:      {Code: permission.AdminModuleResourceReview, Label: "供需信息审核", Group: "审核"},
 		permission.AdminModuleResourceReports:     {Code: permission.AdminModuleResourceReports, Label: "举报审核", Group: "审核"},
-		permission.AdminModuleVerificationReview:  {Code: permission.AdminModuleVerificationReview, Label: "认证审核", Group: "审核"},
 		permission.AdminModuleMerchants:           {Code: permission.AdminModuleMerchants, Label: "商家管理", Group: "运营"},
 		permission.AdminModuleEntitlements:        {Code: permission.AdminModuleEntitlements, Label: "权益发放", Group: "运营"},
 		permission.AdminModuleBannerTopics:        {Code: permission.AdminModuleBannerTopics, Label: "首页运营位", Group: "运营配置"},

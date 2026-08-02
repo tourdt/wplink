@@ -14,9 +14,8 @@ type AdminDashboardTask struct {
 }
 
 type AdminDashboardOverview struct {
-	PendingResourceCount     int64
-	PendingVerificationCount int64
-	TodayContactCount        int64
+	PendingResourceCount int64
+	TodayContactCount    int64
 	Tasks                    []AdminDashboardTask
 }
 
@@ -33,9 +32,8 @@ func (m *AdminDashboardModel) GetAdminDashboardOverview(ctx context.Context, cit
 	err := m.db.QueryRowContext(ctx, `
 SELECT
   (SELECT COUNT(*) FROM resources r JOIN city_stations cs ON cs.id = r.city_station_id WHERE r.status = 'manual_review' AND r.deleted_at IS NULL AND ($1 = '' OR cs.code = $1)),
-  (SELECT COUNT(*) FROM verifications v JOIN merchants m ON m.id = v.merchant_id JOIN city_stations cs ON cs.id = m.city_station_id WHERE v.status = 'pending' AND ($1 = '' OR cs.code = $1)),
   (SELECT COUNT(*) FROM resource_contact_events rce JOIN resources r ON r.id = rce.resource_id JOIN city_stations cs ON cs.id = r.city_station_id WHERE rce.created_at >= CURRENT_DATE AND ($1 = '' OR cs.code = $1))
-`, cityCode).Scan(&overview.PendingResourceCount, &overview.PendingVerificationCount, &overview.TodayContactCount)
+`, cityCode).Scan(&overview.PendingResourceCount, &overview.TodayContactCount)
 	if err != nil {
 		return AdminDashboardOverview{}, err
 	}
@@ -47,12 +45,6 @@ FROM (
   FROM resources r
   JOIN city_stations cs ON cs.id = r.city_station_id
   WHERE r.status = 'manual_review' AND r.deleted_at IS NULL AND ($1 = '' OR cs.code = $1)
-  UNION ALL
-  SELECT '认证审核' AS type, COALESCE(m.name, v.verification_type) AS title, cs.name AS city_name, v.submitted_at AS created_at
-  FROM verifications v
-  JOIN merchants m ON m.id = v.merchant_id
-  JOIN city_stations cs ON cs.id = m.city_station_id
-  WHERE v.status = 'pending' AND ($1 = '' OR cs.code = $1)
 ) pending_tasks
 ORDER BY created_at DESC
 LIMIT 10

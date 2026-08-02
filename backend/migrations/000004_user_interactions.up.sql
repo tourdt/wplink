@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS user_saved_searches (
   type_code varchar(64),
   keyword varchar(128),
   category varchar(64),
-  verified_only boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz

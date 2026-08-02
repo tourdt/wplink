@@ -20,32 +20,29 @@ type CreditTag struct {
 }
 
 type MerchantDetail struct {
-	ID                     string
-	MerchantNo             string
-	Name                   string
-	MerchantType           string
-	CityCode               string
-	MainCategories         []string
-	ProfileStatus          string
-	VerificationStatus     string
-	VIPStatus              string
-	VerificationReviewedAt string
-	VerificationExpiresAt  string
-	CreditTags             []CreditTag
-	ContactName            string
-	ContactPhone           string
-	ContactWechat          string
-	PhoneMasked            string
-	WechatMasked           string
-	PublishedCount         int64
-	DealtCount             int64
-	FollowerCount          int64
-	AddressText            string
-	Location               JSONMap
-	Description            string
-	LogoURL                string
-	Images                 []string
-	LastActiveAt           string
+	ID             string
+	MerchantNo     string
+	Name           string
+	MerchantType   string
+	CityCode       string
+	MainCategories []string
+	ProfileStatus  string
+	VIPStatus      string
+	CreditTags     []CreditTag
+	ContactName    string
+	ContactPhone   string
+	ContactWechat  string
+	PhoneMasked    string
+	WechatMasked   string
+	PublishedCount int64
+	DealtCount     int64
+	FollowerCount  int64
+	AddressText    string
+	Location       JSONMap
+	Description    string
+	LogoURL        string
+	Images         []string
+	LastActiveAt   string
 }
 
 type UpdateMerchantPatch struct {
@@ -73,12 +70,11 @@ type ListMerchantsFilter struct {
 }
 
 type MerchantListItem struct {
-	ID                 string
-	Name               string
-	MerchantType       string
-	VerificationStatus string
-	Status             string
-	LastActiveAt       string
+	ID           string
+	Name         string
+	MerchantType string
+	Status       string
+	LastActiveAt string
 }
 
 type HomeRecentMerchant struct {
@@ -111,8 +107,6 @@ func (m *MerchantModel) GetMerchantDetail(ctx context.Context, merchantID string
 	var categories JSONStringSlice
 	var images JSONStringSlice
 	var lastActive sql.NullTime
-	var verificationReviewedAt sql.NullTime
-	var verificationExpiresAt sql.NullTime
 
 	err := m.db.QueryRowContext(ctx, `
 SELECT
@@ -123,7 +117,6 @@ SELECT
   cs.code,
   m.main_categories,
   COALESCE(NULLIF(m.profile_status, ''), 'completed'),
-  m.verification_status,
   CASE WHEN EXISTS (
     SELECT 1
     FROM merchant_vip_subscriptions mvs
@@ -141,20 +134,6 @@ SELECT
   COALESCE(m.logo_url, ''),
   m.images,
   m.last_active_at,
-  (
-    SELECT v.reviewed_at
-    FROM verifications v
-    WHERE v.merchant_id = m.id AND v.status = 'verified'
-    ORDER BY v.reviewed_at DESC NULLS LAST, v.submitted_at DESC
-    LIMIT 1
-  ) AS verification_reviewed_at,
-  (
-    SELECT v.expires_at
-    FROM verifications v
-    WHERE v.merchant_id = m.id AND v.status = 'verified'
-    ORDER BY v.reviewed_at DESC NULLS LAST, v.submitted_at DESC
-    LIMIT 1
-  ) AS verification_expires_at,
   COUNT(r.id) FILTER (
     WHERE r.status = 'published'
       AND (r.expires_at IS NULL OR r.expires_at > now())
@@ -179,7 +158,6 @@ GROUP BY m.id, cs.code
 		&detail.CityCode,
 		&categories,
 		&detail.ProfileStatus,
-		&detail.VerificationStatus,
 		&detail.VIPStatus,
 		&detail.ContactName,
 		&detail.ContactPhone,
@@ -190,8 +168,6 @@ GROUP BY m.id, cs.code
 		&detail.LogoURL,
 		&images,
 		&lastActive,
-		&verificationReviewedAt,
-		&verificationExpiresAt,
 		&detail.PublishedCount,
 		&detail.DealtCount,
 		&detail.FollowerCount,
@@ -207,12 +183,6 @@ GROUP BY m.id, cs.code
 	detail.WechatMasked = maskWechat(detail.ContactWechat)
 	if lastActive.Valid {
 		detail.LastActiveAt = lastActive.Time.Format(time.RFC3339)
-	}
-	if verificationReviewedAt.Valid {
-		detail.VerificationReviewedAt = verificationReviewedAt.Time.Format(time.RFC3339)
-	}
-	if verificationExpiresAt.Valid {
-		detail.VerificationExpiresAt = verificationExpiresAt.Time.Format(time.RFC3339)
 	}
 
 	tags, err := m.listMerchantCreditTags(ctx, merchantID)
@@ -238,21 +208,13 @@ func (m *MerchantModel) UpdateMerchant(ctx context.Context, merchantID string, p
 	updatedAt := time.Now().UTC()
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
 		var oldMerchantType string
-		var oldVerificationStatus string
-		var hasPendingVerification bool
 		if err := tx.QueryRowContext(ctx, `
 SELECT
-  merchant_type,
-  verification_status,
-  EXISTS (
-    SELECT 1
-    FROM verifications
-    WHERE merchant_id = merchants.id AND status = 'pending'
-  ) AS has_pending_verification
+  merchant_type
 FROM merchants
 WHERE id = $1 AND deleted_at IS NULL
 FOR UPDATE
-`, merchantID).Scan(&oldMerchantType, &oldVerificationStatus, &hasPendingVerification); err != nil {
+`, merchantID).Scan(&oldMerchantType); err != nil {
 			return err
 		}
 
@@ -260,18 +222,13 @@ FOR UPDATE
 		if patch.MerchantType != "" {
 			nextMerchantType = patch.MerchantType
 		}
-		nextVerificationStatus := oldVerificationStatus
 		merchantTypeChanged := patch.MerchantType != "" && patch.MerchantType != oldMerchantType
-		if merchantTypeChanged && (oldVerificationStatus == "verified" || hasPendingVerification) {
-			nextVerificationStatus = "unverified"
-		}
 
 		result, err := tx.ExecContext(ctx, updateMerchantSQL,
 			merchantID,
 			patch.Name,
 			JSONStringSlice(patch.MainCategories),
 			nextMerchantType,
-			nextVerificationStatus,
 			patch.Description,
 			patch.LogoURL,
 			JSONStringSlice(patch.Images),
@@ -298,32 +255,15 @@ FOR UPDATE
 			return nil
 		}
 
-		// 主要身份影响认证含义；一旦从已认证或待审状态切换身份，需要撤销旧认证痕迹并要求重新认证。
-		if _, err := tx.ExecContext(ctx, `
-UPDATE verifications
-SET status = 'revoked', review_note = COALESCE(NULLIF(review_note, ''), '主要身份已变更，请按新身份重新提交认证'), reviewed_at = $2, updated_at = $2
-WHERE merchant_id = $1 AND status = 'pending'
-`, merchantID, updatedAt); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `
-UPDATE credit_records
-SET revoked_at = $2
-WHERE merchant_id = $1 AND source_type = 'verification' AND revoked_at IS NULL
-`, merchantID, updatedAt); err != nil {
-			return err
-		}
 		_, err = tx.ExecContext(ctx, `
 INSERT INTO merchant_type_change_logs (
   merchant_id,
   old_merchant_type,
   new_merchant_type,
-  old_verification_status,
-  new_verification_status,
   changed_at
 )
-VALUES ($1, $2, $3, $4, $5, $6)
-`, merchantID, oldMerchantType, patch.MerchantType, oldVerificationStatus, nextVerificationStatus, updatedAt)
+VALUES ($1, $2, $3, $4)
+`, merchantID, oldMerchantType, patch.MerchantType, updatedAt)
 		return err
 	})
 	if err != nil {
@@ -338,17 +278,16 @@ SET
   name = COALESCE(NULLIF($2, ''), name),
   main_categories = $3,
   merchant_type = $4,
-  verification_status = $5,
-  description = $6,
-  logo_url = $7,
-  images = $8,
-  updated_at = $9,
-  contact_name = COALESCE(NULLIF($10, ''), contact_name),
-  contact_phone = COALESCE(NULLIF($11, ''), contact_phone),
-  contact_wechat = COALESCE(NULLIF($12, ''), contact_wechat),
-  address_text = COALESCE(NULLIF($13, ''), address_text),
-  location = CASE WHEN $14 THEN $15 ELSE location END,
-  onboarded_at = COALESCE(onboarded_at, $9),
+  description = $5,
+  logo_url = $6,
+  images = $7,
+  updated_at = $8,
+  contact_name = COALESCE(NULLIF($9, ''), contact_name),
+  contact_phone = COALESCE(NULLIF($10, ''), contact_phone),
+  contact_wechat = COALESCE(NULLIF($11, ''), contact_wechat),
+  address_text = COALESCE(NULLIF($12, ''), address_text),
+  location = CASE WHEN $13 THEN $14 ELSE location END,
+  onboarded_at = COALESCE(onboarded_at, $8),
   profile_status = 'completed'
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -422,7 +361,6 @@ SELECT
   m.id::text,
   m.name,
   m.merchant_type,
-  m.verification_status,
   m.status,
   m.last_active_at,
   COUNT(*) OVER() AS total
@@ -446,7 +384,7 @@ WHERE m.deleted_at IS NULL
 	for rows.Next() {
 		var item MerchantListItem
 		var lastActive sql.NullTime
-		if err := rows.Scan(&item.ID, &item.Name, &item.MerchantType, &item.VerificationStatus, &item.Status, &lastActive, &total); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name, &item.MerchantType, &item.Status, &lastActive, &total); err != nil {
 			return ListMerchantsResult{}, err
 		}
 		if lastActive.Valid {

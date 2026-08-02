@@ -14,9 +14,6 @@
         <el-table-column label="主要身份" width="140">
           <template #default="{ row }">{{ merchantTypeText[row.merchantType] || row.merchantType }}</template>
         </el-table-column>
-        <el-table-column label="认证状态" width="120">
-          <template #default="{ row }">{{ row.verificationStatus === 'verified' ? '已认证' : '未认证' }}</template>
-        </el-table-column>
         <el-table-column label="状态" width="120">
           <template #default="{ row }">{{ row.status === 'active' ? '正常' : row.status }}</template>
         </el-table-column>

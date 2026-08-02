@@ -45,44 +45,6 @@ func TestResourceLifecycleTaskRemindsExpiringResources(t *testing.T) {
 	}
 }
 
-func TestResourceLifecycleTaskExpiresVerificationsAndCreatesMessages(t *testing.T) {
-	store := &fakeLifecycleStore{
-		expiredVerifications: []model.LifecycleResource{{ID: "verification-1", MerchantID: "merchant-1", Title: "源头工厂认证"}},
-	}
-	task := NewResourceLifecycleTask(store)
-
-	resp, err := task.Run(context.Background())
-	if err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-
-	if resp.VerificationExpiredCount != 1 || len(store.messages) != 1 || store.messages[0].MessageType != "verification_expired" {
-		t.Fatalf("resp = %#v, messages = %#v, want expired verification message", resp, store.messages)
-	}
-	if store.messages[0].TargetURL != "/pages/verification/index?merchantId=merchant-1" {
-		t.Fatalf("targetURL = %q, want merchant scoped verification page", store.messages[0].TargetURL)
-	}
-}
-
-func TestResourceLifecycleTaskRemindsExpiringVerifications(t *testing.T) {
-	store := &fakeLifecycleStore{
-		expiringVerifications: []model.LifecycleResource{{ID: "verification-2", MerchantID: "merchant-2", Title: "现货档口认证"}},
-	}
-	task := NewResourceLifecycleTask(store)
-
-	resp, err := task.Run(context.Background())
-	if err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-
-	if resp.VerificationExpiringReminderCount != 1 || len(store.messages) != 1 || store.messages[0].TriggerType != "verification_expiring" {
-		t.Fatalf("resp = %#v, messages = %#v, want expiring verification message", resp, store.messages)
-	}
-	if store.messages[0].TargetURL != "/pages/verification/index?merchantId=merchant-2" {
-		t.Fatalf("targetURL = %q, want merchant scoped verification page", store.messages[0].TargetURL)
-	}
-}
-
 func TestResourceLifecycleTaskDoesNotCountDuplicateMessage(t *testing.T) {
 	store := &fakeLifecycleStore{
 		expiring:         []model.LifecycleResource{{ID: "resource-2", MerchantID: "merchant-2", Title: "即将过期资源"}},
@@ -100,12 +62,10 @@ func TestResourceLifecycleTaskDoesNotCountDuplicateMessage(t *testing.T) {
 }
 
 type fakeLifecycleStore struct {
-	expired               []model.LifecycleResource
-	expiring              []model.LifecycleResource
-	expiredVerifications  []model.LifecycleResource
-	expiringVerifications []model.LifecycleResource
-	messages              []model.CreateMessageInput
-	messageDuplicate      bool
+	expired          []model.LifecycleResource
+	expiring         []model.LifecycleResource
+	messages         []model.CreateMessageInput
+	messageDuplicate bool
 }
 
 func (s *fakeLifecycleStore) MarkExpiredResources(ctx context.Context) ([]model.LifecycleResource, error) {
@@ -114,14 +74,6 @@ func (s *fakeLifecycleStore) MarkExpiredResources(ctx context.Context) ([]model.
 
 func (s *fakeLifecycleStore) ListResourcesExpiringSoon(ctx context.Context) ([]model.LifecycleResource, error) {
 	return s.expiring, nil
-}
-
-func (s *fakeLifecycleStore) MarkExpiredVerifications(ctx context.Context) ([]model.LifecycleResource, error) {
-	return s.expiredVerifications, nil
-}
-
-func (s *fakeLifecycleStore) ListVerificationsExpiringSoon(ctx context.Context) ([]model.LifecycleResource, error) {
-	return s.expiringVerifications, nil
 }
 
 func (s *fakeLifecycleStore) CreateMessage(ctx context.Context, input model.CreateMessageInput) (model.CreateMessageResult, error) {

@@ -688,7 +688,7 @@ func TestResourceAPIRouterGetsOwnUnpublishedResourceDetail(t *testing.T) {
 			ID: "resource-1", Status: model.ResourceStatusPending, TypeCode: "inventory", Title: "待审核童装库存",
 			Category: "童装卫衣", Description: "可拿样", PriceText: "18元/件", QuantityText: "3800件",
 			Attributes: model.JSONMap{"season": "春季"}, MerchantID: "merchant-1", MerchantName: "织里云仓",
-			MerchantVerificationStatus: "verified", ContactName: "周经理", PhoneMasked: "18800000002", WechatMasked: "stock-demo",
+			ContactName: "周经理", PhoneMasked: "18800000002", WechatMasked: "stock-demo",
 		},
 	}
 	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
@@ -1025,7 +1025,7 @@ func (s *fakeResourceAPIStore) ListResources(ctx context.Context, filter model.L
 		Items: []model.ResourceListItem{{
 			ID: "resource-1", TypeCode: "inventory", Title: "女童春款卫衣库存", Category: "童装卫衣",
 			CoverURL:  "https://img.example.com/list-cover.jpg",
-			PriceText: "18元/件", QuantityText: "3800件", Merchant: model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓", VerificationStatus: "verified"},
+			PriceText: "18元/件", QuantityText: "3800件", Merchant: model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓"},
 			Tags: []string{"急清", "支持看货"}, RefreshedAt: "2026-06-27T10:00:00Z",
 		}},
 		Page: filter.Page, PageSize: filter.PageSize, Total: 1,
@@ -1122,7 +1122,7 @@ func (s *fakeResourceAPIStore) GetPublishedResourceDetail(ctx context.Context, r
 		ID: resourceID, Status: model.ResourceStatusPublished, TypeCode: "inventory", Title: "女童春款卫衣库存",
 		Category: "童装卫衣", Description: "可拿样", PriceText: "18元/件", QuantityText: "3800件",
 		Attributes: model.JSONMap{"season": "春季"}, MerchantID: merchantID, MerchantName: "织里云仓",
-		MerchantVerificationStatus: "verified", ContactName: "周经理", PhoneMasked: "188****0002", WechatMasked: "stock-demo",
+		ContactName: "周经理", PhoneMasked: "188****0002", WechatMasked: "stock-demo",
 	}, nil
 }
 

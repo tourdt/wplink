@@ -34,10 +34,10 @@ func TestLoginSucceedsForEnabledOperatorWithValidPassword(t *testing.T) {
 	if resp.OperatorID != "operator-1" {
 		t.Fatalf("OperatorID = %q, want operator-1", resp.OperatorID)
 	}
-	if len(resp.Modules) != 3 || resp.Modules[0] != "resource_review" {
+	if len(resp.Modules) != 2 || resp.Modules[0] != "resource_review" {
 		t.Fatalf("Modules = %#v, want default audit modules", resp.Modules)
 	}
-	if len(issuer.credential.Modules) != 3 {
+	if len(issuer.credential.Modules) != 2 {
 		t.Fatalf("issued modules = %#v, want modules propagated to token issuer", issuer.credential.Modules)
 	}
 }

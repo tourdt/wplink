@@ -12,7 +12,6 @@ import (
 
 type fakePaymentReconciliationStore struct {
 	orders              []model.PendingPaymentOrder
-	verificationMark    model.MarkVerificationPaymentPaidInput
 	contactUnlockMark   model.MarkContactUnlockOrderPaidInput
 	vipMark             model.MarkVIPOrderPaidInput
 	closedBusinessType  string
@@ -30,11 +29,6 @@ func (s *fakePaymentReconciliationStore) MarkPaymentOrderClosed(ctx context.Cont
 	s.closedBusinessOrder = businessOrderID
 	s.closedOutTradeNo = outTradeNo
 	return s.markClosedErr
-}
-
-func (s *fakePaymentReconciliationStore) MarkVerificationPaymentPaid(ctx context.Context, input model.MarkVerificationPaymentPaidInput) (model.VerificationPaymentResult, error) {
-	s.verificationMark = input
-	return model.VerificationPaymentResult{OrderID: input.BusinessOrderID, Status: model.PaymentOrderStatusPaid}, nil
 }
 
 func (s *fakePaymentReconciliationStore) MarkContactUnlockOrderPaid(ctx context.Context, input model.MarkContactUnlockOrderPaidInput) (model.ContactUnlockPaymentResult, error) {

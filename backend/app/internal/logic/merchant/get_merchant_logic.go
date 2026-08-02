@@ -38,35 +38,25 @@ type MerchantResourcesSummary struct {
 	DealtCount     int64 `json:"dealtCount"`
 }
 
-type MerchantVerificationInfo struct {
-	Status       string   `json:"status"`
-	Type         string   `json:"type"`
-	ReviewedAt   string   `json:"reviewedAt,omitempty"`
-	ExpiresAt    string   `json:"expiresAt,omitempty"`
-	CheckedItems []string `json:"checkedItems"`
-}
-
 type MerchantDetailResp struct {
-	ID                 string                    `json:"id"`
-	MerchantNo         string                    `json:"merchantNo"`
-	Name               string                    `json:"name"`
-	MerchantType       string                    `json:"merchantType"`
-	CityCode           string                    `json:"cityCode"`
-	MainCategories     []string                  `json:"mainCategories"`
-	ProfileStatus      string                    `json:"profileStatus"`
-	VerificationStatus string                    `json:"verificationStatus"`
-	VIPStatus          string                    `json:"vipStatus"`
-	VerificationInfo   *MerchantVerificationInfo `json:"verificationInfo,omitempty"`
-	CreditTags         []CreditTagInfo           `json:"creditTags"`
-	Contact            *MerchantContactInfo      `json:"contact,omitempty"`
-	ResourcesSummary   MerchantResourcesSummary  `json:"resourcesSummary"`
-	HeatScore          int64                     `json:"heatScore"`
-	AddressText        string                    `json:"addressText,omitempty"`
-	Location           model.JSONMap             `json:"location,omitempty"`
-	Description        string                    `json:"description,omitempty"`
-	LogoURL            string                    `json:"logoUrl,omitempty"`
-	Images             []string                  `json:"images,omitempty"`
-	LastActiveAt       string                    `json:"lastActiveAt,omitempty"`
+	ID               string                   `json:"id"`
+	MerchantNo       string                   `json:"merchantNo"`
+	Name             string                   `json:"name"`
+	MerchantType     string                   `json:"merchantType"`
+	CityCode         string                   `json:"cityCode"`
+	MainCategories   []string                 `json:"mainCategories"`
+	ProfileStatus    string                   `json:"profileStatus"`
+	VIPStatus        string                   `json:"vipStatus"`
+	CreditTags       []CreditTagInfo          `json:"creditTags"`
+	Contact          *MerchantContactInfo     `json:"contact,omitempty"`
+	ResourcesSummary MerchantResourcesSummary `json:"resourcesSummary"`
+	HeatScore        int64                    `json:"heatScore"`
+	AddressText      string                   `json:"addressText,omitempty"`
+	Location         model.JSONMap            `json:"location,omitempty"`
+	Description      string                   `json:"description,omitempty"`
+	LogoURL          string                   `json:"logoUrl,omitempty"`
+	Images           []string                 `json:"images,omitempty"`
+	LastActiveAt     string                   `json:"lastActiveAt,omitempty"`
 }
 
 type GetMerchantLogic struct {
@@ -112,18 +102,16 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string, v
 		}
 	}
 	return MerchantDetailResp{
-		ID:                 detail.ID,
-		MerchantNo:         detail.MerchantNo,
-		Name:               detail.Name,
-		MerchantType:       detail.MerchantType,
-		CityCode:           detail.CityCode,
-		MainCategories:     append([]string(nil), detail.MainCategories...),
-		ProfileStatus:      normalizeMerchantProfileStatus(detail.ProfileStatus),
-		VerificationStatus: detail.VerificationStatus,
-		VIPStatus:          normalizeMerchantVIPStatus(detail.VIPStatus),
-		VerificationInfo:   buildMerchantVerificationInfo(detail),
-		CreditTags:         tags,
-		Contact:            contact,
+		ID:             detail.ID,
+		MerchantNo:     detail.MerchantNo,
+		Name:           detail.Name,
+		MerchantType:   detail.MerchantType,
+		CityCode:       detail.CityCode,
+		MainCategories: append([]string(nil), detail.MainCategories...),
+		ProfileStatus:  normalizeMerchantProfileStatus(detail.ProfileStatus),
+		VIPStatus:      normalizeMerchantVIPStatus(detail.VIPStatus),
+		CreditTags:     tags,
+		Contact:        contact,
 		ResourcesSummary: MerchantResourcesSummary{
 			PublishedCount: detail.PublishedCount,
 			DealtCount:     detail.DealtCount,
@@ -177,26 +165,9 @@ func normalizeMerchantProfileStatus(status string) string {
 	}
 }
 
-func buildMerchantVerificationInfo(detail model.MerchantDetail) *MerchantVerificationInfo {
-	if detail.VerificationStatus != "verified" {
-		return nil
-	}
-	// 商家主页只公开核验结论，不透出营业执照、信用代码、联系人等审核材料。
-	return &MerchantVerificationInfo{
-		Status:       detail.VerificationStatus,
-		Type:         detail.MerchantType,
-		ReviewedAt:   detail.VerificationReviewedAt,
-		ExpiresAt:    detail.VerificationExpiresAt,
-		CheckedItems: []string{"主体资质", "经营场地"},
-	}
-}
-
 func calculateMerchantHeatScore(detail model.MerchantDetail) int64 {
 	// 商家热度只做 0-100 的展示分，后续调整权重时不影响小程序展示范围。
 	score := detail.PublishedCount*8 + int64(len(detail.MainCategories))*2 + int64(len(detail.Images))*3
-	if detail.VerificationStatus == "verified" {
-		score += 15
-	}
 	followerScore := detail.FollowerCount * 2
 	if followerScore > 20 {
 		followerScore = 20

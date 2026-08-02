@@ -1,4 +1,4 @@
-export const defaultPlatformOperatorModules = ['resource_review', 'resource_reports', 'verification_review']
+export const defaultPlatformOperatorModules = ['resource_review', 'resource_reports']
 
 export function userModules(user) {
   if (user?.roles?.includes('super_admin')) {

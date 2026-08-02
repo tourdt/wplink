@@ -11,13 +11,11 @@ import (
 )
 
 const (
-	PaymentBusinessVerification  = "verification"
 	PaymentBusinessContactUnlock = "contact_unlock"
 	PaymentBusinessVIP           = "vip"
 )
 
 type UnifiedWechatPayNotifyStore interface {
-	MarkVerificationPaymentPaid(ctx context.Context, input model.MarkVerificationPaymentPaidInput) (model.VerificationPaymentResult, error)
 	MarkContactUnlockOrderPaid(ctx context.Context, input model.MarkContactUnlockOrderPaidInput) (model.ContactUnlockPaymentResult, error)
 	MarkVIPOrderPaid(ctx context.Context, input model.MarkVIPOrderPaidInput) (model.VIPPaymentResult, error)
 }
@@ -61,22 +59,6 @@ func (l *UnifiedWechatPayNotifyLogic) HandleNotification(ctx context.Context, no
 	}
 
 	switch businessType {
-	case PaymentBusinessVerification:
-		result, markErr := l.store.MarkVerificationPaymentPaid(ctx, model.MarkVerificationPaymentPaidInput{
-			BusinessOrderID: businessOrderID,
-			OutTradeNo:      notification.OutTradeNo,
-			TransactionID:   notification.TransactionID,
-			AmountTotal:     notification.AmountTotal,
-			SuccessTime:     notification.SuccessTime,
-			NotifyPayload:   model.JSONMap(notification.RawPayload),
-		})
-		if markErr != nil {
-			logx.Errorf("处理认证支付回调失败: businessOrderId=%s outTradeNo=%s err=%+v", businessOrderID, notification.OutTradeNo, markErr)
-			return WechatPayNotifyResp{}, markErr
-		}
-		if result.OrderID != businessOrderID {
-			return WechatPayNotifyResp{}, paymentOrderMismatchError(notification.OutTradeNo, businessOrderID, result.OrderID)
-		}
 	case PaymentBusinessContactUnlock:
 		result, markErr := l.store.MarkContactUnlockOrderPaid(ctx, model.MarkContactUnlockOrderPaidInput{
 			BusinessOrderID: businessOrderID,
@@ -129,7 +111,7 @@ func parsePaymentAttach(attach string) (string, string, error) {
 		return "", "", errx.New(errx.CodeValidationFailed, "支付通知业务标识不正确")
 	}
 	switch businessType {
-	case PaymentBusinessVerification, PaymentBusinessContactUnlock, PaymentBusinessVIP:
+	case PaymentBusinessContactUnlock, PaymentBusinessVIP:
 		return businessType, businessOrderID, nil
 	default:
 		return "", "", errx.New(errx.CodeValidationFailed, "支付通知业务类型不支持")
@@ -140,8 +122,6 @@ func validatePaymentBusinessPrefix(businessType string, outTradeNo string) error
 	outTradeNo = strings.ToUpper(strings.TrimSpace(outTradeNo))
 	matched := false
 	switch businessType {
-	case PaymentBusinessVerification:
-		matched = strings.HasPrefix(outTradeNo, "VP") && !strings.HasPrefix(outTradeNo, "VIP")
 	case PaymentBusinessContactUnlock:
 		matched = strings.HasPrefix(outTradeNo, "CU")
 	case PaymentBusinessVIP:

@@ -76,7 +76,7 @@ func TestListHomeResourcesUsesHomepageRule(t *testing.T) {
 			Items: []model.ResourceListItem{{
 				ID: "resource-1", Direction: model.ResourceDirectionSupply, TypeCode: "stock_clearance", TypeName: "库存清仓", Title: "女童卫衣库存",
 				Category: "童装卫衣", CoverURL: "https://img.example.com/home-cover.jpg", PriceText: "18元/件", QuantityText: "3000件",
-				Merchant:    model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓", VerificationStatus: "verified"},
+				Merchant:    model.ResourceMerchantBrief{ID: "merchant-1", Name: "织里云仓"},
 				RefreshedAt: "2026-07-14T10:00:00Z",
 			}},
 			Page: 1, PageSize: homeResourcesLimit, Total: 1,

@@ -69,7 +69,7 @@ func TestGetOwnResourceReturnsUnpublishedDetail(t *testing.T) {
 			ID: "resource-1", Status: model.ResourceStatusPending, TypeCode: "inventory", Title: "待审核童装库存",
 			Category: "童装卫衣", Description: "可拿样", PriceText: "18元/件", QuantityText: "3800件",
 			Attributes: model.JSONMap{"season": "春季"}, MerchantID: "merchant-1", MerchantName: "织里云仓",
-			MerchantVerificationStatus: "verified", ContactName: "周经理", PhoneMasked: "18800000002", WechatMasked: "stock-demo",
+			ContactName: "周经理", PhoneMasked: "18800000002", WechatMasked: "stock-demo",
 			Tags: []string{"春款"}, Images: []string{"https://img.example.com/resource.jpg"},
 		},
 	}

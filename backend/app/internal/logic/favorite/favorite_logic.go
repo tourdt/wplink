@@ -302,7 +302,7 @@ func resourcesRespFromModel(result model.ListResourcesResult) resource.ListResou
 		items = append(items, resource.ResourceListItem{
 			ID: item.ID, TypeCode: item.TypeCode, Title: item.Title, Category: item.Category, District: item.District,
 			CoverURL: item.CoverURL, PriceText: item.PriceText, QuantityText: item.QuantityText,
-			Merchant:   resource.ResourceMerchantBrief{ID: item.Merchant.ID, Name: item.Merchant.Name, VerificationStatus: item.Merchant.VerificationStatus},
+			Merchant:   resource.ResourceMerchantBrief{ID: item.Merchant.ID, Name: item.Merchant.Name},
 			CreditTags: append([]string(nil), item.CreditTags...), RefreshedAt: item.RefreshedAt,
 		})
 	}

@@ -435,8 +435,6 @@ func adminModuleFromPath(path string) string {
 		return permission.AdminModuleEntitlements
 	case strings.HasPrefix(path, "/api/v1/admin/merchants"):
 		return permission.AdminModuleMerchants
-	case strings.HasPrefix(path, "/api/v1/admin/verifications"), strings.HasPrefix(path, "/api/v1/admin/verification-billing"):
-		return permission.AdminModuleVerificationReview
 	case strings.HasPrefix(path, "/api/v1/admin/banner-topics"):
 		return permission.AdminModuleBannerTopics
 	case strings.HasPrefix(path, "/api/v1/admin/hot-search-keywords"):
@@ -1166,34 +1164,32 @@ func isContactUnlockAction(action string) bool {
 func listResourcesReqFromQuery(r *http.Request) resourcelogic.ListResourcesReq {
 	query := r.URL.Query()
 	return resourcelogic.ListResourcesReq{
-		CityCode:     query.Get("cityCode"),
-		MerchantID:   query.Get("merchantId"),
-		GroupCode:    query.Get("groupCode"),
-		TypeCode:     query.Get("typeCode"),
-		Direction:    query.Get("direction"),
-		Keyword:      query.Get("keyword"),
-		Category:     query.Get("category"),
-		Tags:         resourceTagsFromQuery(query),
-		VerifiedOnly: boolFromQuery(r, "verifiedOnly"),
-		Page:         int64FromQuery(r, "page"),
-		PageSize:     int64FromQuery(r, "pageSize"),
+		CityCode:   query.Get("cityCode"),
+		MerchantID: query.Get("merchantId"),
+		GroupCode:  query.Get("groupCode"),
+		TypeCode:   query.Get("typeCode"),
+		Direction:  query.Get("direction"),
+		Keyword:    query.Get("keyword"),
+		Category:   query.Get("category"),
+		Tags:       resourceTagsFromQuery(query),
+		Page:       int64FromQuery(r, "page"),
+		PageSize:   int64FromQuery(r, "pageSize"),
 	}
 }
 
 func searchResourcesReqFromQuery(r *http.Request) resourcelogic.SearchResourcesReq {
 	req := listResourcesReqFromQuery(r)
 	return resourcelogic.SearchResourcesReq{
-		UserID:       r.URL.Query().Get("userId"),
-		CityCode:     req.CityCode,
-		GroupCode:    req.GroupCode,
-		TypeCode:     req.TypeCode,
-		Direction:    req.Direction,
-		Keyword:      req.Keyword,
-		Category:     req.Category,
-		Tags:         append([]string(nil), req.Tags...),
-		VerifiedOnly: req.VerifiedOnly,
-		Page:         req.Page,
-		PageSize:     req.PageSize,
+		UserID:    r.URL.Query().Get("userId"),
+		CityCode:  req.CityCode,
+		GroupCode: req.GroupCode,
+		TypeCode:  req.TypeCode,
+		Direction: req.Direction,
+		Keyword:   req.Keyword,
+		Category:  req.Category,
+		Tags:      append([]string(nil), req.Tags...),
+		Page:      req.Page,
+		PageSize:  req.PageSize,
 	}
 }
 

@@ -16,13 +16,6 @@ export const merchantTypeText = {
   buyer: '采购',
 }
 
-export const verificationTypeText = {
-  factory: '源头工厂认证',
-  stall: '现货档口认证',
-  stockist: '库存货源认证',
-  service_provider: '配套服务认证',
-}
-
 export function merchantTypeLabel(type) {
   return merchantTypeText[type] || type
 }

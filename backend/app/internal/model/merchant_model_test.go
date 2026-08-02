@@ -24,7 +24,7 @@ func TestListHomeRecentMerchantsSQLScopesEligibleSelfOnboardedMerchants(t *testi
 }
 
 func TestUpdateMerchantSQLKeepsFirstOnboardedTime(t *testing.T) {
-	if !strings.Contains(updateMerchantSQL, "onboarded_at = COALESCE(onboarded_at, $9)") {
+	if !strings.Contains(updateMerchantSQL, "onboarded_at = COALESCE(onboarded_at, $8)") {
 		t.Fatalf("updateMerchantSQL must preserve the first onboarded time:\n%s", updateMerchantSQL)
 	}
 	if !strings.Contains(updateMerchantSQL, "profile_status = 'completed'") {
