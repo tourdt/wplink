@@ -735,7 +735,7 @@ test('publish pages split tab creation and independent editing', () => {
   assert.match(editSource, /const publishFormMode = computed\(\(\) => routeOptions\.resourceId \? 'edit' : 'create'\)/)
   assert.match(editSource, /<ResourcePublishForm[\s\S]*:mode="publishFormMode"[\s\S]*:initial-options="routeOptions"/)
   assert.equal(tabSource.includes('publish:pending-edit-context'), false)
-  assert.match(myResourcesSource, /async function openPublish\(\) \{[\s\S]*ensurePageMerchantProfile\(\)[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)/)
+  assert.match(myResourcesSource, /async function openPublish\(\) \{[\s\S]*ensurePageMerchantProfile\(\)[\s\S]*uni\.removeStorageSync\('wplink_pending_publish_type_code'\)[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)/)
 })
 
 test('publish success page highlights my resources as the primary action', () => {

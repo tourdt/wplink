@@ -507,6 +507,8 @@ function expireText(item) {
 
 async function openPublish() {
   if (!(await ensurePageMerchantProfile())) return
+  // 从我的发布新建时清理首页遗留的类型预选，确保用户先进入类型选择页而不是被 onShow 直接带到表单。
+  uni.removeStorageSync('wplink_pending_publish_type_code')
   uni.switchTab({ url: '/pages/publish/index' })
 }
 
