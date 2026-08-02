@@ -2,7 +2,7 @@
   <MerchantListItem
     :title="place.name"
     :subtitle="locationText"
-    :tags="visibleTags"
+    :tags="place.displayTags"
     :selected="selected"
     @activate="$emit('select', place)"
   >
@@ -51,10 +51,6 @@ defineEmits(['select', 'detail', 'location', 'navigate', 'claim'])
 const hasLocation = computed(() => hasValidLocation(props.place))
 const canOpenMerchantLocation = computed(() => hasMerchantDetail(props.place) && hasLocation.value)
 const sourceLabel = computed(() => props.place.claimed ? '已入驻' : '待认领')
-const visibleTags = computed(() => [
-  ...(props.place.categoryCodes || []),
-  ...(props.place.serviceTags || []),
-].slice(0, 3))
 const locationText = computed(() => [
   props.place.marketName,
   props.place.buildingName,

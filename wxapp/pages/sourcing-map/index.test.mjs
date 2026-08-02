@@ -28,7 +28,7 @@ function plain(value) {
 }
 
 function importedMerchantPlaceStateBindings() {
-  const match = source.match(/import\s*\{([\s\S]*?)\}\s*from\s*['"]\.\/merchantPlaceState['"]/)
+  const match = source.match(/import\s*\{([^}]*)\}\s*from\s*['"]\.\/merchantPlaceState['"]/)
   assert.ok(match, 'directory page should import merchant place state helpers')
 
   return Object.fromEntries(match[1]
@@ -38,7 +38,12 @@ function importedMerchantPlaceStateBindings() {
     .map((name) => [name, merchantPlaceState[name]]))
 }
 
-function loadDirectoryPage({ trackMerchantMapEvent, timeline }) {
+function loadDirectoryPage({
+  trackMerchantMapEvent,
+  timeline,
+  listMapCategories = async () => ({ items: [] }),
+  listMerchantPlaces = async () => ({ items: [], total: 0 }),
+}) {
   const script = source
     .match(/<script setup>([\s\S]*?)<\/script>/)?.[1]
     .replace(/import[\s\S]*?from\s+['"][^'"]+['"]\s*/g, '') || ''
@@ -51,8 +56,8 @@ function loadDirectoryPage({ trackMerchantMapEvent, timeline }) {
     getMerchantId() {
       return ''
     },
-    listMapCategories: async () => ({ items: [] }),
-    listMerchantPlaces: async () => ({ items: [], total: 0 }),
+    listMapCategories,
+    listMerchantPlaces,
     onLoad() {},
     onPullDownRefresh() {},
     onReachBottom() {},
@@ -71,7 +76,7 @@ function loadDirectoryPage({ trackMerchantMapEvent, timeline }) {
       },
     },
   }
-  vm.runInNewContext(`${script}\nglobalThis.directoryPage = { openMerchantLocation }`, sandbox)
+  vm.runInNewContext(`${script}\nglobalThis.directoryPage = { loadCategories, loadPlaces, openMerchantLocation, state: { categories, errorText, places } }`, sandbox)
   return sandbox.directoryPage
 }
 
@@ -195,4 +200,41 @@ test('merchant directory uses declared state imports and records its valid locat
   timeline.length = 0
   page.openMerchantLocation({ ...place, lat: '' })
   assert.deepEqual(timeline, [])
+})
+
+test('merchant directory translates configured tag codes before rendering cards', async () => {
+  const categoryTypes = []
+  const page = loadDirectoryPage({
+    trackMerchantMapEvent() {},
+    timeline: [],
+    async listMapCategories({ type }) {
+      categoryTypes.push(type)
+      return {
+        items: {
+          booth_category: [{ code: 'girl', name: '女童' }],
+          booth_service: [{ code: 'spot', name: '现货' }],
+          platform_tag: [{ code: 'hot', name: '热门推荐' }],
+        }[type] || [],
+      }
+    },
+    async listMerchantPlaces() {
+      return {
+        items: [{
+          objectId: 'A001',
+          name: '晨星童装',
+          categoryCodes: ['girl'],
+          serviceTags: ['spot'],
+          platformTags: ['hot'],
+        }],
+        total: 1,
+      }
+    },
+  })
+
+  await page.loadCategories()
+  await page.loadPlaces({ reset: true })
+
+  assert.deepEqual(plain(categoryTypes), ['booth_category', 'booth_service', 'platform_tag'])
+  assert.equal(page.state.errorText.value, '')
+  assert.deepEqual(plain(page.state.places.value[0].displayTags), ['女童', '现货', '热门推荐'])
 })

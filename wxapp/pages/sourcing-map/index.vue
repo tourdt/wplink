@@ -81,6 +81,7 @@ import {
   submitMapLocationCorrection,
 } from '../../api/sourcingMap'
 import {
+  buildMerchantTagLabels,
   buildMerchantPlaceQuery,
   hasMerchantDetail,
   hasValidLocation,
@@ -95,6 +96,7 @@ const keyword = ref('')
 const claimedFilter = ref('all')
 const categoryCodes = ref([])
 const categories = ref([])
+const tagCategories = ref([])
 const places = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -111,6 +113,7 @@ const sourceFilters = [
 ]
 const hasMore = computed(() => places.value.length < total.value)
 const hasConditions = computed(() => Boolean(keyword.value.trim() || claimedFilter.value !== 'all' || categoryCodes.value.length))
+const merchantTagLabels = computed(() => buildMerchantTagLabels(tagCategories.value))
 const loadMoreText = computed(() => {
   if (loading.value) return '正在加载'
   if (hasMore.value) return '继续上拉查看更多'
@@ -118,7 +121,8 @@ const loadMoreText = computed(() => {
 })
 
 onLoad(async () => {
-  await Promise.all([loadCategories(), loadPlaces({ reset: true })])
+  await loadCategories()
+  await loadPlaces({ reset: true })
   loadedOnce.value = true
 })
 
@@ -138,13 +142,17 @@ onReachBottom(() => {
 })
 
 async function loadCategories() {
-  try {
-    const resp = await listMapCategories({ type: 'booth_category' })
-    categories.value = (resp.items || []).slice(0, 8)
-  } catch (err) {
-    // 分类配置失败不阻断商家浏览，用户仍可通过搜索和入驻状态查找。
-    categories.value = []
-  }
+  const types = ['booth_category', 'booth_service', 'platform_tag']
+  const results = await Promise.all(types.map(async (type) => {
+    try {
+      return await listMapCategories({ type })
+    } catch (err) {
+      // 单类标签配置失败时保留其他配置与商家浏览，未映射标签会按原值展示。
+      return { items: [] }
+    }
+  }))
+  categories.value = (results[0].items || []).slice(0, 8)
+  tagCategories.value = results.flatMap((result) => result.items || [])
 }
 
 async function loadPlaces({ reset }) {
@@ -163,7 +171,17 @@ async function loadPlaces({ reset }) {
       pageSize: LIST_PAGE_SIZE,
     }))
     if (version !== requestVersion) return
-    const nextItems = (resp.items || []).map(normalizeMerchantPlace)
+    const nextItems = (resp.items || []).map((raw) => {
+      const place = normalizeMerchantPlace(raw)
+      return {
+        ...place,
+        displayTags: merchantTagLabels.value([
+          ...place.categoryCodes,
+          ...place.serviceTags,
+          ...place.platformTags,
+        ]).slice(0, 3),
+      }
+    })
     places.value = reset ? nextItems : [...places.value, ...nextItems]
     total.value = Number(resp.total || 0)
     page.value = targetPage
