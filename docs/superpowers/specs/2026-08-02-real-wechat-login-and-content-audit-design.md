@@ -1,0 +1,45 @@
+# 本地真实微信登录与内容审核设计
+
+## 目标
+
+彻底移除后端对 `local-dev-*` 登录凭证和 `dev:` 伪 OpenID 的支持。开发环境中，只有微信小程序实际产生的登录凭证才会进入微信 `code2Session`；内容审核只使用由该真实登录链路获得的 OpenID。
+
+## 范围
+
+- 删除 `Wechat.AllowDevCode` 配置项及示例配置中的该项。
+- 删除 `HTTPWechatSessionClient` 生成 `dev:local-dev-*` OpenID 的分支。
+- 识别历史 `local-dev-*` 凭证并在本地拒绝，不请求微信接口。
+- 保持现有真实微信登录、文字审核、图片异步审核和 API 请求/响应契约不变。
+- 更新相关单元测试，证明伪凭证不会产生或写入伪 OpenID，真实 code 仍使用微信响应的 OpenID。
+
+不调整数据库存量资源、不修改内容审核决策或重试策略，也不修改与本任务无关的支付对账代码。
+
+## 设计决策
+
+### 登录身份边界
+
+`HTTPWechatSessionClient.Code2Session` 在完成空值校验后，先检查 code 是否带有历史开发前缀 `local-dev-`。命中时记录不含 code 内容、OpenID、token 或密钥的错误日志，并返回统一的未授权用户提示“请在微信内重新登录”。
+
+其他非空 code 一律按照当前真实路径调用微信 `jscode2session`。后端只接受微信返回的 OpenID，不在本地合成身份标识。
+
+### 配置收敛
+
+移除 `Wechat.AllowDevCode`，避免未来通过配置重新启用伪身份路径。本地 `app.yaml` 保留 `ContentAudit.Enabled: true` 和真实的环境变量形式 AppID/AppSecret；运行本地真实联调时必须由部署环境提供测试小程序的凭证。
+
+### 内容审核
+
+无需修改 `WechatAuditor`：它已经从资源创建人读取 OpenID 并传给微信审核接口。由于登录层不再产生伪 OpenID，审核层将只处理真实微信身份。图片审核仍需配置微信可访问的 HTTPS 回调地址，文字审核可由本地服务直接发起。
+
+## 错误处理与日志
+
+- 历史开发凭证：本地拒绝、返回“请在微信内重新登录”；日志只记录 `isLegacyDevCode=true`。
+- 微信真实登录失败：沿用现有统一未授权提示和详细服务端错误日志。
+- 内容审核外部依赖失败：沿用现有 `audit_retry` 状态与重试逻辑，不把内部微信错误直接暴露给用户。
+
+## 验证标准
+
+1. 配置结构和示例配置中不再出现 `AllowDevCode`。
+2. `local-dev-*` 不会触发 HTTP 调用，且不会返回 `dev:` 前缀的 OpenID。
+3. 合法的普通 code 仍按真实 `jscode2session` 请求传递 AppID、AppSecret 和 code，并使用微信返回的 OpenID。
+4. 认证与内容审核相关 Go 单元测试通过；格式化和静态检查不引入异常。
+
