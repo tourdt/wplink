@@ -14,10 +14,6 @@
         <button class="search-button" :disabled="loading" @click="submitSearch">搜索</button>
       </view>
 
-      <view class="directory-summary">
-        <text class="result-count">{{ total }} 个档口</text>
-      </view>
-
       <scroll-view class="filter-scroll" scroll-x>
         <button
           v-for="filter in sourceFilters"
@@ -375,17 +371,6 @@ async function submitLocationCorrection(objectId) {
 .filter-chip::after,
 .state-button::after {
   border: 0;
-}
-
-.directory-summary {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18rpx;
-}
-
-.result-count {
-  color: #7a8799;
-  font-size: 22rpx;
 }
 
 .filter-scroll {

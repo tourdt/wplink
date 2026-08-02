@@ -104,6 +104,16 @@ test('merchant booth directory uses the merchant endpoint as its only view', () 
   assert.doesNotMatch(source, /viewMode|merchantTencentMap|searchCurrentMapRegion|搜索此区域/)
 })
 
+test('merchant booth directory omits redundant result count while keeping pagination total', () => {
+  assert.doesNotMatch(source, /\{\{\s*total\s*\}\}\s*个档口/)
+  assert.doesNotMatch(source, /directory-summary|result-count/)
+  expectTokens(source, [
+    'const total = ref(0)',
+    'const hasMore = computed(() => places.value.length < total.value)',
+    'total.value = Number(resp.total || 0)',
+  ])
+})
+
 test('sourcing map search only presents merchant places with source filters', () => {
   expectTokens(source, [
     '搜索商家、档口号或市场',
