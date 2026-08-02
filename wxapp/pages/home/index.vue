@@ -229,7 +229,7 @@ const sceneEntries = [
   { title: '住宅公寓', tone: 'red', icon: 'clearance', groupCode: 'housing', keyword: '住宅公寓' },
   { title: '厂房仓库', tone: 'teal', icon: 'factory', groupCode: 'factory_warehouse', keyword: '厂房仓库' },
   { title: '本地服务', tone: 'amber', icon: 'orders', groupCode: 'local_services', keyword: '本地服务' },
-  { title: '拿货地图', tone: 'green', icon: 'map', action: 'sourcing-map' },
+  { title: '拿货档口', tone: 'green', icon: 'map', action: 'sourcing-map' },
 ]
 const displayBanners = computed(() => {
   const bannerSource = banners.value.length ? banners.value : defaultBanners

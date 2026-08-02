@@ -190,7 +190,7 @@ test('home page keeps custom brand first screen structure', () => {
 	    '住宅公寓',
 	    '厂房仓库',
 	    '本地服务',
-	    '拿货地图',
+	    '拿货档口',
 	  ]) {
     assert.match(source, new RegExp(token))
   }
@@ -377,7 +377,7 @@ test('home quick actions map to supply and demand resource flows', () => {
   assert.match(source, /\{ title: '加工生产'[\s\S]*icon: 'factory'[\s\S]*groupCode: 'production'/)
   assert.doesNotMatch(source, /\{ title: '招聘求职'[\s\S]*groupCode: 'jobs'/)
   assert.match(source, /\{ title: '厂房仓库'[\s\S]*groupCode: 'factory_warehouse'/)
-  assert.match(source, /\{ title: '拿货地图'[\s\S]*icon: 'map'[\s\S]*action: 'sourcing-map'/)
+  assert.match(source, /\{ title: '拿货档口'[\s\S]*icon: 'map'[\s\S]*action: 'sourcing-map'/)
   assert.match(source, /\.quick-action-grid \{[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/)
   assert.match(source, /item\.icon === 'market'/)
   assert.match(source, /item\.icon === 'clearance'/)
@@ -1416,21 +1416,20 @@ test('merchant profile page hides sourcing map binding entry while keeping the p
   }
 })
 
-test('merchant detail page exposes map navigation when location exists', () => {
+test('merchant detail page opens an independent location page when coordinates exist', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
 
   for (const token of [
-    'merchantLocation',
-    'hasMerchantLocation',
+    'buildMerchantAddressLocation',
     'openMerchantLocation',
-    'uni.openLocation',
-    '导航',
+    '/pages/merchant/location',
+    '查看位置',
     '地址',
-    'addressText',
   ]) {
     assert.match(source, new RegExp(token))
   }
+  assert.doesNotMatch(source, /<map|uni\.openLocation/)
 })
 
 test('merchant detail page previews merchant images from tapped image', () => {

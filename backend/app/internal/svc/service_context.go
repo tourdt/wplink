@@ -17,6 +17,8 @@ import (
 	uploadlogic "wplink/backend/app/internal/logic/upload"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
+
+	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 type CityStore interface {
@@ -51,6 +53,7 @@ type APIStore struct {
 	*model.FavoriteModel
 	*model.MapModel
 	*model.PaymentReconciliationModel
+	model.MerchantMapEventsModel
 }
 
 type ServiceContext struct {
@@ -140,5 +143,6 @@ func newAPIStore(db *sql.DB) *APIStore {
 		FavoriteModel:              model.NewFavoriteModel(db),
 		MapModel:                   model.NewMapModel(db),
 		PaymentReconciliationModel: model.NewPaymentReconciliationModel(db),
+		MerchantMapEventsModel:     model.NewMerchantMapEventsModel(sqlx.NewSqlConnFromDB(db)),
 	}
 }

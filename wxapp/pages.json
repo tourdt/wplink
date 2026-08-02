@@ -24,7 +24,7 @@
     {
       "path": "pages/sourcing-map/index",
       "style": {
-        "navigationBarTitleText": "拿货地图",
+        "navigationBarTitleText": "拿货档口",
         "enablePullDownRefresh": true
       }
     },
@@ -122,6 +122,12 @@
       }
     },
     {
+      "path": "pages/merchant/location",
+      "style": {
+        "navigationBarTitleText": "店铺位置"
+      }
+    },
+    {
       "path": "pages/merchant/profile",
       "style": {
         "navigationBarTitleText": "资料设置"
@@ -162,7 +168,7 @@
       },
       {
         "pagePath": "pages/sourcing-map/index",
-        "text": "拿货地图",
+        "text": "拿货档口",
         "iconPath": "static/tabbar/map.png",
         "selectedIconPath": "static/tabbar/map-active.png"
       },

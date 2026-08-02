@@ -36,11 +36,13 @@ export default function request(options = {}) {
         }
         const message = res.data?.message || res.data?.msg || '请求失败，请稍后重试'
         const unauthorizedSession = isUnauthorizedSession(res)
-        if (unauthorizedSession) {
+        // 低优先级后台请求可显式静默 401；默认仍清理过期会话并引导用户重新登录。
+        const suppressUnauthorizedSideEffects = unauthorizedSession && options.suppressUnauthorizedSideEffects
+        if (unauthorizedSession && !suppressUnauthorizedSideEffects) {
           clearSession()
           redirectToLogin()
         }
-        if (unauthorizedSession || !options.suppressErrorToast) {
+        if (!suppressUnauthorizedSideEffects && (unauthorizedSession || !options.suppressErrorToast)) {
           uni.showToast({ title: message, icon: 'none' })
         }
         const error = new Error(message)

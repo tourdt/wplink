@@ -12,6 +12,7 @@ import (
 	"wplink/backend/app/internal/logic/adminauth"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
+	"wplink/backend/common/errx"
 )
 
 func TestAPIRouterLogsInAdmin(t *testing.T) {
@@ -44,6 +45,165 @@ func TestAPIRouterAdminLoginHidesRawInternalError(t *testing.T) {
 	if body["msg"] != "登录失败，请稍后重试" {
 		t.Fatalf("msg = %#v, want safe login failure message", body["msg"])
 	}
+}
+
+func TestMerchantMapEventRouterIsOnlyRegisteredForSupportedStore(t *testing.T) {
+	router := NewAPIRouter(&fakeCityAPIStore{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(validMerchantMapEventJSON("location_view")))
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d body = %s, want route omitted for unsupported store", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMerchantMapEventRouterRecordsAnonymousEvent(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(validMerchantMapEventJSON("location_view")))
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	if data["recorded"] != true {
+		t.Fatalf("recorded = %#v, want true", data["recorded"])
+	}
+	if store.mapEventInput.UserID != "" || store.mapEventInput.MerchantID != "101" {
+		t.Fatalf("map event input = %#v, want anonymous event for merchant 101", store.mapEventInput)
+	}
+}
+
+func TestMerchantMapEventRouterUsesTokenSubject(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(validMerchantMapEventJSON("location_view")))
+	req.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	if data["recorded"] != true || store.mapEventInput.UserID != "user-1" {
+		t.Fatalf("data/input = %#v/%#v, want recorded event attributed to token user", data, store.mapEventInput)
+	}
+}
+
+func TestMerchantMapEventRouterRejectsCredentialWhenTokenServiceMissing(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(validMerchantMapEventJSON("location_view")))
+	req.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(rec, req)
+
+	body := decodeEnvelope(t, rec, http.StatusUnauthorized)
+	if body["errorCode"] != errx.CodeUnauthorized || body["msg"] != "登录已过期，请重新登录" {
+		t.Fatalf("body = %#v, want expired login error when token service is unavailable", body)
+	}
+	if store.mapEventCalled {
+		t.Fatal("store called when request credential could not be verified")
+	}
+}
+
+func TestMerchantMapEventRouterRejectsExpiredTokenBeforeStore(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(validMerchantMapEventJSON("location_view")))
+	req.Header.Set("Authorization", "Bearer expired-token")
+	router.ServeHTTP(rec, req)
+
+	body := decodeEnvelope(t, rec, http.StatusUnauthorized)
+	if body["errorCode"] != errx.CodeUnauthorized || body["msg"] != "登录已过期，请重新登录" {
+		t.Fatalf("body = %#v, want expired login error", body)
+	}
+	if store.mapEventCalled {
+		t.Fatal("store called after token validation failed")
+	}
+}
+
+func TestMerchantMapEventRouterRejectsUnknownEvent(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(validMerchantMapEventJSON("merchant_open")))
+	router.ServeHTTP(rec, req)
+
+	body := decodeEnvelope(t, rec, http.StatusBadRequest)
+	if body["errorCode"] != errx.CodeValidationFailed || body["msg"] != "地图行为类型无效" {
+		t.Fatalf("body = %#v, want invalid map event type", body)
+	}
+	if store.mapEventCalled {
+		t.Fatal("store called for invalid event type")
+	}
+}
+
+func TestMerchantMapEventRouterHidesDatabaseError(t *testing.T) {
+	store := &fakeResourceAPIStore{mapEventErr: errors.New("pq: relation merchant_map_events does not exist")}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(validMerchantMapEventJSON("location_view")))
+	router.ServeHTTP(rec, req)
+
+	body := decodeEnvelope(t, rec, http.StatusInternalServerError)
+	if body["errorCode"] != errx.CodeInternalError || body["msg"] != "地图行为记录失败，请稍后重试" {
+		t.Fatalf("body = %#v, want safe map event persistence error", body)
+	}
+	if strings.Contains(rec.Body.String(), "merchant_map_events") || strings.Contains(rec.Body.String(), "pq:") {
+		t.Fatalf("response leaked database detail: %s", rec.Body.String())
+	}
+}
+
+func TestMerchantMapEventRouterRejectsPayloadBeyondFourKiBBeforeStore(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(strings.Repeat("x", 4097)))
+	router.ServeHTTP(rec, req)
+
+	body := decodeEnvelope(t, rec, http.StatusBadRequest)
+	if body["errorCode"] != errx.CodeValidationFailed || body["msg"] != "地图行为请求内容过大" {
+		t.Fatalf("body = %#v, want safe oversized map event error", body)
+	}
+	if store.mapEventCalled {
+		t.Fatal("store called for an oversized map event request")
+	}
+}
+
+func TestMerchantMapEventRouterRateLimitsOnlyAfterSixtyRequestsForClientAndVisitor(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store)
+
+	for attempt := 1; attempt <= 61; attempt++ {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(validMerchantMapEventJSON("location_view")))
+		req.RemoteAddr = "198.51.100.7:4321"
+		router.ServeHTTP(rec, req)
+
+		if attempt <= 60 {
+			decodeEnvelopeData(t, rec, http.StatusOK)
+			continue
+		}
+		body := decodeEnvelope(t, rec, http.StatusTooManyRequests)
+		if body["errorCode"] != errx.CodeRateLimited || body["msg"] != "操作频繁，请稍后再试" {
+			t.Fatalf("body = %#v, want rate limited response", body)
+		}
+	}
+	if store.mapEventCalls != 60 {
+		t.Fatalf("store calls = %d, want exactly 60", store.mapEventCalls)
+	}
+}
+
+func validMerchantMapEventJSON(eventType string) string {
+	return `{"merchantId":"101","visitorKey":"visitor-1","sessionId":"session-1","eventType":"` + eventType + `","source":"merchant_location"}`
 }
 
 func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
@@ -731,6 +891,16 @@ func (rawErrorAdminLoginService) Login(ctx context.Context, req adminauth.LoginR
 
 func decodeEnvelopeData(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int) map[string]interface{} {
 	t.Helper()
+	body := decodeEnvelope(t, rec, wantStatus)
+	data, ok := body["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("body = %#v, want data object", body)
+	}
+	return data
+}
+
+func decodeEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int) map[string]interface{} {
+	t.Helper()
 	if rec.Code != wantStatus {
 		t.Fatalf("status = %d body = %s, want %d", rec.Code, rec.Body.String(), wantStatus)
 	}
@@ -738,11 +908,7 @@ func decodeEnvelopeData(t *testing.T, rec *httptest.ResponseRecorder, wantStatus
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	data, ok := body["data"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("body = %#v, want data object", body)
-	}
-	return data
+	return body
 }
 
 type fakeResourceAPIStore struct {
@@ -780,6 +946,10 @@ type fakeResourceAPIStore struct {
 	publishedAuditResourceID         string
 	rejectedAuditResourceID          string
 	auditRejectReason                string
+	mapEventCalled                   bool
+	mapEventCalls                    int
+	mapEventInput                    model.MerchantMapEventInput
+	mapEventErr                      error
 }
 
 var _ ResourceAPIStore = (*fakeResourceAPIStore)(nil)
@@ -966,6 +1136,13 @@ func (s *fakeResourceAPIStore) GetResourceMerchantID(ctx context.Context, resour
 func (s *fakeResourceAPIStore) RecordResourceContactEvent(ctx context.Context, input model.ResourceContactEventInput) (model.ResourceContactEventResult, error) {
 	s.contactInput = input
 	return model.ResourceContactEventResult{ID: "event-1", MerchantID: "merchant-1"}, nil
+}
+
+func (s *fakeResourceAPIStore) RecordMerchantMapEvent(ctx context.Context, input model.MerchantMapEventInput) error {
+	s.mapEventCalled = true
+	s.mapEventCalls++
+	s.mapEventInput = input
+	return s.mapEventErr
 }
 
 func (s *fakeResourceAPIStore) UpsertResourceMetric(ctx context.Context, delta model.ResourceMetricDelta) error {

@@ -15,6 +15,11 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
+const (
+	merchantLocationRadiusMeters int64 = 1000
+	merchantLocationNearbyLimit  int64 = 20
+)
+
 type PublicStore interface {
 	ListPublishedScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error)
 	GetPublishedScene(ctx context.Context, sceneCode string) (model.MapScene, error)
@@ -26,6 +31,8 @@ type PublicStore interface {
 	ListCategories(ctx context.Context, filter model.ListMapCategoriesFilter) ([]model.MapCategory, error)
 	ListMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) ([]model.MerchantPlace, error)
 	CountMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) (int64, error)
+	GetPublishedMerchantPlaceByMerchantID(ctx context.Context, merchantID string) (model.MerchantPlace, error)
+	ListNearbyMerchantPlaces(ctx context.Context, origin model.MerchantPlace, radiusMeters int64, limit int64) ([]model.MerchantPlace, error)
 }
 
 type PublicLogic struct {
@@ -129,26 +136,34 @@ type ListMerchantPlacesResp struct {
 }
 
 type MerchantPlaceItem struct {
-	ObjectId      string   `json:"objectId"`
-	MerchantId    string   `json:"merchantId,omitempty"`
-	Name          string   `json:"name"`
-	Code          string   `json:"code"`
-	MerchantType  string   `json:"merchantType,omitempty"`
-	CategoryCodes []string `json:"categoryCodes"`
-	ServiceTags   []string `json:"serviceTags"`
-	PlatformTags  []string `json:"platformTags"`
-	CityCode      string   `json:"cityCode,omitempty"`
-	MarketName    string   `json:"marketName,omitempty"`
-	BuildingName  string   `json:"buildingName,omitempty"`
-	FloorNo       string   `json:"floorNo,omitempty"`
-	Address       string   `json:"address,omitempty"`
-	CoverUrl      string   `json:"coverUrl,omitempty"`
-	Claimed       bool     `json:"claimed"`
-	SourceType    string   `json:"sourceType"`
-	Lat           string   `json:"lat,omitempty"`
-	Lng           string   `json:"lng,omitempty"`
-	DistanceText  string   `json:"distanceText,omitempty"`
-	RiskWarning   bool     `json:"riskWarning,omitempty"`
+	ObjectId       string   `json:"objectId"`
+	MerchantId     string   `json:"merchantId,omitempty"`
+	Name           string   `json:"name"`
+	Code           string   `json:"code"`
+	MerchantType   string   `json:"merchantType,omitempty"`
+	CategoryCodes  []string `json:"categoryCodes"`
+	ServiceTags    []string `json:"serviceTags"`
+	PlatformTags   []string `json:"platformTags"`
+	CityCode       string   `json:"cityCode,omitempty"`
+	MarketName     string   `json:"marketName,omitempty"`
+	BuildingName   string   `json:"buildingName,omitempty"`
+	FloorNo        string   `json:"floorNo,omitempty"`
+	Address        string   `json:"address,omitempty"`
+	CoverUrl       string   `json:"coverUrl,omitempty"`
+	Claimed        bool     `json:"claimed"`
+	SourceType     string   `json:"sourceType"`
+	Lat            string   `json:"lat,omitempty"`
+	Lng            string   `json:"lng,omitempty"`
+	DistanceText   string   `json:"distanceText,omitempty"`
+	DistanceMeters int64    `json:"distanceMeters,omitempty"`
+	RiskWarning    bool     `json:"riskWarning,omitempty"`
+}
+
+type MerchantLocationContextResp struct {
+	Current         MerchantPlaceItem   `json:"current"`
+	Nearby          []MerchantPlaceItem `json:"nearby"`
+	RadiusMeters    int64               `json:"radiusMeters"`
+	NearbyAvailable bool                `json:"nearbyAvailable"`
 }
 
 type MapObjectItem struct {
@@ -273,6 +288,59 @@ func (l *PublicLogic) ListMerchantPlaces(ctx context.Context, req ListMerchantPl
 		Page:     page,
 		PageSize: pageSize,
 	}, nil
+}
+
+func (l *PublicLogic) GetMerchantLocationContext(ctx context.Context, merchantID string) (MerchantLocationContextResp, error) {
+	merchantID = strings.TrimSpace(merchantID)
+	if merchantID == "" {
+		return MerchantLocationContextResp{}, errx.New(errx.CodeValidationFailed, "该商家暂时无法查看")
+	}
+
+	current, err := l.store.GetPublishedMerchantPlaceByMerchantID(ctx, merchantID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return MerchantLocationContextResp{}, errx.New(errx.CodeResourceNotFound, "该商家暂时无法查看")
+		}
+		logx.Errorf("查询商家位置上下文原点失败: merchantId=%s err=%+v", merchantID, err)
+		return MerchantLocationContextResp{}, errx.New(errx.CodeInternalError, "该商家暂时无法查看")
+	}
+	if !validMerchantPlaceCoordinates(current) {
+		return MerchantLocationContextResp{}, errx.New(errx.CodeValidationFailed, "该商家位置待完善")
+	}
+
+	currentItem := mapMerchantPlaceItems([]model.MerchantPlace{current})[0]
+	nearby, err := l.store.ListNearbyMerchantPlaces(ctx, current, merchantLocationRadiusMeters, merchantLocationNearbyLimit)
+	if err != nil {
+		// 周边推荐是位置页的辅助能力，查询失败时保留当前商家，避免影响用户查看地址和导航。
+		logx.Errorf(
+			"查询商家位置上下文周边商家失败: merchantId=%s radiusMeters=%d limit=%d err=%+v",
+			merchantID,
+			merchantLocationRadiusMeters,
+			merchantLocationNearbyLimit,
+			err,
+		)
+		return MerchantLocationContextResp{
+			Current:         currentItem,
+			Nearby:          []MerchantPlaceItem{},
+			RadiusMeters:    merchantLocationRadiusMeters,
+			NearbyAvailable: false,
+		}, nil
+	}
+
+	return MerchantLocationContextResp{
+		Current:         currentItem,
+		Nearby:          mapMerchantPlaceItems(nearby),
+		RadiusMeters:    merchantLocationRadiusMeters,
+		NearbyAvailable: true,
+	}, nil
+}
+
+func validMerchantPlaceCoordinates(place model.MerchantPlace) bool {
+	lat, latErr := strconv.ParseFloat(strings.TrimSpace(place.Object.Lat), 64)
+	lng, lngErr := strconv.ParseFloat(strings.TrimSpace(place.Object.Lng), 64)
+	return latErr == nil && lngErr == nil &&
+		!math.IsNaN(lat) && !math.IsInf(lat, 0) && lat >= -90 && lat <= 90 &&
+		!math.IsNaN(lng) && !math.IsInf(lng, 0) && lng >= -180 && lng <= 180
 }
 
 func parseMerchantPlaceClaimed(value string) (*bool, error) {
@@ -596,21 +664,23 @@ func mapMerchantPlaceItems(places []model.MerchantPlace) []MerchantPlaceItem {
 		object := place.Object
 		claimed := strings.TrimSpace(object.MerchantID) != "" && strings.TrimSpace(object.MerchantName) != ""
 		item := MerchantPlaceItem{
-			ObjectId:      object.ID,
-			Name:          object.Name,
-			Code:          object.Code,
-			CategoryCodes: append([]string(nil), object.CategoryCodes...),
-			ServiceTags:   append([]string(nil), object.ServiceTags...),
-			PlatformTags:  append([]string(nil), object.PlatformTags...),
-			CityCode:      place.CityCode,
-			MarketName:    place.MarketName,
-			BuildingName:  place.SceneName,
-			FloorNo:       place.FloorNo,
-			Address:       object.Address,
-			Claimed:       claimed,
-			SourceType:    model.MerchantPlaceSourcePrelisted,
-			Lat:           object.Lat,
-			Lng:           object.Lng,
+			ObjectId:       object.ID,
+			Name:           object.Name,
+			Code:           object.Code,
+			CategoryCodes:  append([]string(nil), object.CategoryCodes...),
+			ServiceTags:    append([]string(nil), object.ServiceTags...),
+			PlatformTags:   append([]string(nil), object.PlatformTags...),
+			CityCode:       place.CityCode,
+			MarketName:     place.MarketName,
+			BuildingName:   place.SceneName,
+			FloorNo:        place.FloorNo,
+			Address:        object.Address,
+			Claimed:        claimed,
+			SourceType:     model.MerchantPlaceSourcePrelisted,
+			Lat:            object.Lat,
+			Lng:            object.Lng,
+			DistanceText:   formatMerchantPlaceDistance(place.DistanceMeters),
+			DistanceMeters: place.DistanceMeters,
 		}
 		if claimed {
 			item.MerchantId = strings.TrimSpace(object.MerchantID)
@@ -625,6 +695,16 @@ func mapMerchantPlaceItems(places []model.MerchantPlace) []MerchantPlaceItem {
 		items = append(items, item)
 	}
 	return items
+}
+
+func formatMerchantPlaceDistance(distanceMeters int64) string {
+	if distanceMeters <= 0 {
+		return ""
+	}
+	if distanceMeters < 1000 {
+		return fmt.Sprintf("%dm", distanceMeters)
+	}
+	return fmt.Sprintf("%.1fkm", float64(distanceMeters)/1000)
 }
 
 func mapAdminObjectItems(objects []model.MapObject) []MapObjectItem {

@@ -128,12 +128,14 @@ type fileSMSConfig struct {
 }
 
 type fileTasksConfig struct {
-	ResourceLifecycleInterval  configDuration `yaml:"ResourceLifecycleInterval"`
-	ContentAuditRetryInterval  configDuration `yaml:"ContentAuditRetryInterval"`
-	ContentAuditRetryBatchSize int64          `yaml:"ContentAuditRetryBatchSize"`
-	PaymentReconcileInterval   configDuration `yaml:"PaymentReconcileInterval"`
-	PaymentQueryDelay          configDuration `yaml:"PaymentQueryDelay"`
-	PaymentBatchSize           int64          `yaml:"PaymentBatchSize"`
+	ResourceLifecycleInterval       configDuration `yaml:"ResourceLifecycleInterval"`
+	ContentAuditRetryInterval       configDuration `yaml:"ContentAuditRetryInterval"`
+	ContentAuditRetryBatchSize      int64          `yaml:"ContentAuditRetryBatchSize"`
+	MerchantMapEventCleanupInterval configDuration `yaml:"MerchantMapEventCleanupInterval"`
+	MerchantMapEventRetentionDays   int            `yaml:"MerchantMapEventRetentionDays"`
+	PaymentReconcileInterval        configDuration `yaml:"PaymentReconcileInterval"`
+	PaymentQueryDelay               configDuration `yaml:"PaymentQueryDelay"`
+	PaymentBatchSize                int64          `yaml:"PaymentBatchSize"`
 }
 
 type fileStorageConfig struct {
@@ -243,12 +245,14 @@ func (c fileConfig) toConfig() Config {
 			DevCode:         c.SMS.DevCode,
 		},
 		Tasks: TasksConfig{
-			ResourceLifecycleInterval:  c.Tasks.ResourceLifecycleInterval.Duration(),
-			ContentAuditRetryInterval:  c.Tasks.ContentAuditRetryInterval.Duration(),
-			ContentAuditRetryBatchSize: c.Tasks.ContentAuditRetryBatchSize,
-			PaymentReconcileInterval:   c.Tasks.PaymentReconcileInterval.Duration(),
-			PaymentQueryDelay:          c.Tasks.PaymentQueryDelay.Duration(),
-			PaymentBatchSize:           c.Tasks.PaymentBatchSize,
+			ResourceLifecycleInterval:       c.Tasks.ResourceLifecycleInterval.Duration(),
+			ContentAuditRetryInterval:       c.Tasks.ContentAuditRetryInterval.Duration(),
+			ContentAuditRetryBatchSize:      c.Tasks.ContentAuditRetryBatchSize,
+			MerchantMapEventCleanupInterval: c.Tasks.MerchantMapEventCleanupInterval.Duration(),
+			MerchantMapEventRetentionDays:   c.Tasks.MerchantMapEventRetentionDays,
+			PaymentReconcileInterval:        c.Tasks.PaymentReconcileInterval.Duration(),
+			PaymentQueryDelay:               c.Tasks.PaymentQueryDelay.Duration(),
+			PaymentBatchSize:                c.Tasks.PaymentBatchSize,
 		},
 		Storage: StorageConfig{
 			Provider:            c.Storage.Provider,

@@ -58,6 +58,61 @@ test('redirects to login and clears session when API reports unauthorized sessio
   ])
 })
 
+test('rejects unauthorized background request without clearing session, toast, or login redirect', async () => {
+  const storage = new Map([
+    ['wplink_token', 'expired-token'],
+    ['wplink_user_id', 'user-1'],
+    ['wplink_merchant_id', 'merchant-1'],
+  ])
+  const removedKeys = []
+  const toasts = []
+  const navigations = []
+  let requestOptions
+
+  globalThis.uni = {
+    getStorageSync(key) {
+      return storage.get(key) || ''
+    },
+    removeStorageSync(key) {
+      removedKeys.push(key)
+      storage.delete(key)
+    },
+    request(options) {
+      requestOptions = options
+      options.success({
+        statusCode: 401,
+        data: {
+          errorCode: 'UNAUTHORIZED',
+          msg: '登录已过期，请重新登录',
+        },
+      })
+    },
+    showToast(options) {
+      toasts.push(options)
+    },
+    navigateTo(options) {
+      navigations.push(options)
+    },
+  }
+  globalThis.getCurrentPages = () => [{ route: 'pages/merchant/location', options: { merchantId: 'merchant-1' } }]
+
+  const requestModule = await loadWxappModule('api/request.js')
+  const request = requestModule.namespace.default
+
+  await assert.rejects(() => request({
+    url: '/api/v1/metrics/merchant-map-events',
+    method: 'POST',
+    suppressErrorToast: true,
+    suppressUnauthorizedSideEffects: true,
+  }), /登录已过期/)
+
+  assert.equal(requestOptions.header.Authorization, 'Bearer expired-token')
+  assert.deepEqual(removedKeys, [])
+  assert.equal(storage.get('wplink_token'), 'expired-token')
+  assert.deepEqual(toasts, [])
+  assert.deepEqual(navigations, [])
+})
+
 test('requires local login before sending protected API requests', async () => {
   const storage = new Map([['wplink_token', '   ']])
   const toasts = []

@@ -30,11 +30,25 @@ test('merchant place query trims filters and keeps list and map pagination expli
   })
 })
 
-test('merchant place location accepts only finite Tencent map coordinates', () => {
-  assert.equal(hasValidLocation({ lat: '30.89912', lng: '120.20482' }), true)
-  assert.equal(hasValidLocation({ lat: '', lng: '120.20482' }), false)
-  assert.equal(hasValidLocation({ lat: '91', lng: '120.20482' }), false)
-  assert.equal(hasValidLocation({ lat: 'NaN', lng: '120.20482' }), false)
+test('merchant place location rejects blank, non-finite, and out-of-range coordinates', () => {
+  const cases = [
+    { place: { lat: '30.89912', lng: '120.20482' }, expected: true },
+    { place: { lat: '', lng: '120.20482' }, expected: false },
+    { place: { lat: '   ', lng: '120.20482' }, expected: false },
+    { place: { lat: '\t', lng: '120.20482' }, expected: false },
+    { place: { lat: 'NaN', lng: '120.20482' }, expected: false },
+    { place: { lat: Number.NaN, lng: '120.20482' }, expected: false },
+    { place: { lat: Number.POSITIVE_INFINITY, lng: '120.20482' }, expected: false },
+    { place: { lat: '30.89912', lng: Number.NEGATIVE_INFINITY }, expected: false },
+    { place: { lat: '91', lng: '120.20482' }, expected: false },
+    { place: { lat: '-91', lng: '120.20482' }, expected: false },
+    { place: { lat: '30.89912', lng: '181' }, expected: false },
+    { place: { lat: '30.89912', lng: '-181' }, expected: false },
+  ]
+
+  for (const { place, expected } of cases) {
+    assert.equal(hasValidLocation(place), expected)
+  }
 })
 
 test('merchant places normalize claimed and prelisted labels without contact fields', () => {

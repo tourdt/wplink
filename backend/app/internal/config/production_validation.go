@@ -57,6 +57,8 @@ func ValidateForProduction(cfg Config) error {
 	validateProductionLog(cfg.Log, require, requirePositiveInt)
 	requirePositiveDuration("Tasks.ResourceLifecycleInterval", cfg.Tasks.ResourceLifecycleInterval)
 	requirePositiveDuration("Tasks.ContentAuditRetryInterval", cfg.Tasks.ContentAuditRetryInterval)
+	requirePositiveDuration("Tasks.MerchantMapEventCleanupInterval", cfg.Tasks.MerchantMapEventCleanupInterval)
+	requirePositiveInt("Tasks.MerchantMapEventRetentionDays", cfg.Tasks.MerchantMapEventRetentionDays)
 	if cfg.Tasks.ContentAuditRetryBatchSize <= 0 {
 		missing = append(missing, "Tasks.ContentAuditRetryBatchSize")
 	}

@@ -1,13 +1,18 @@
 package maplogic
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 func TestPublicMapLogicListsPublishedScenes(t *testing.T) {
@@ -77,6 +82,112 @@ func TestPublicMapLogicListsClaimedAndPrelistedMerchantPlacesWithoutContact(t *t
 	prelisted := resp.Items[1]
 	if prelisted.SourceType != "platform_prelisted" || prelisted.Claimed || prelisted.Name != "B008 童装档口" {
 		t.Fatalf("prelisted item = %#v, want platform identity", prelisted)
+	}
+}
+
+func TestPublicMapLogicGetsMerchantLocationContext(t *testing.T) {
+	store := &fakePublicMapStore{
+		merchantPlace: model.MerchantPlace{Object: model.MapObject{
+			ID: "object-1", MerchantID: "merchant-1", MerchantName: "小熊星球童装",
+			Lat: "30.8700000", Lng: "120.1200000",
+		}},
+		nearbyMerchantPlaces: []model.MerchantPlace{{
+			Object: model.MapObject{
+				ID: "object-2", MerchantID: "merchant-2", MerchantName: "布谷童装",
+				Lat: "30.8705000", Lng: "120.1200000",
+			},
+			DistanceMeters: 56,
+		}},
+	}
+
+	resp, err := NewPublicLogic(store).GetMerchantLocationContext(context.Background(), " merchant-1 ")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if store.merchantID != "merchant-1" {
+		t.Fatalf("merchantID = %q, want trimmed merchant-1", store.merchantID)
+	}
+	if store.nearbyRadiusMeters != 1000 || store.nearbyLimit != 20 {
+		t.Fatalf("nearby query radius=%d limit=%d, want 1000 and 20", store.nearbyRadiusMeters, store.nearbyLimit)
+	}
+	if resp.Current.MerchantId != "merchant-1" || len(resp.Nearby) != 1 || resp.RadiusMeters != 1000 || !resp.NearbyAvailable {
+		t.Fatalf("resp = %#v", resp)
+	}
+	if resp.Nearby[0].MerchantId != "merchant-2" || resp.Nearby[0].DistanceMeters != 56 || resp.Nearby[0].DistanceText != "56m" {
+		t.Fatalf("nearby = %#v", resp.Nearby[0])
+	}
+}
+
+func TestPublicMapLogicRejectsUnavailableMerchantLocationContext(t *testing.T) {
+	tests := []struct {
+		name       string
+		merchantID string
+		store      *fakePublicMapStore
+		wantCode   string
+		wantError  string
+	}{
+		{
+			name:       "empty merchant id",
+			merchantID: "  ",
+			store:      &fakePublicMapStore{},
+			wantCode:   errx.CodeValidationFailed,
+			wantError:  "该商家暂时无法查看",
+		},
+		{
+			name:       "merchant has no published place",
+			merchantID: "merchant-missing",
+			store:      &fakePublicMapStore{merchantPlaceErr: sql.ErrNoRows},
+			wantCode:   errx.CodeResourceNotFound,
+			wantError:  "该商家暂时无法查看",
+		},
+		{
+			name:       "merchant place coordinates invalid",
+			merchantID: "merchant-1",
+			store: &fakePublicMapStore{merchantPlace: model.MerchantPlace{Object: model.MapObject{
+				ID: "object-1", MerchantID: "merchant-1", MerchantName: "小熊星球童装", Lat: "NaN", Lng: "120.1200000",
+			}}},
+			wantCode:  errx.CodeValidationFailed,
+			wantError: "该商家位置待完善",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewPublicLogic(tt.store).GetMerchantLocationContext(context.Background(), tt.merchantID)
+			if err == nil || errx.CodeOf(err) != tt.wantCode || err.Error() != tt.wantError {
+				t.Fatalf("error = %v code=%s, want %s (%s)", err, errx.CodeOf(err), tt.wantError, tt.wantCode)
+			}
+		})
+	}
+}
+
+func TestPublicMapLogicKeepsCurrentMerchantWhenNearbyLookupFails(t *testing.T) {
+	store := &fakePublicMapStore{
+		merchantPlace: model.MerchantPlace{Object: model.MapObject{
+			ID: "object-1", MerchantID: "merchant-1", MerchantName: "小熊星球童装",
+			Lat: "30.8700000", Lng: "120.1200000",
+		}},
+		nearbyMerchantPlacesErr: errors.New("nearby database timeout"),
+	}
+	var logBuffer bytes.Buffer
+	logx.SetWriter(logx.NewWriter(&logBuffer))
+	t.Cleanup(func() {
+		_ = logx.Reset().Close()
+	})
+
+	resp, err := NewPublicLogic(store).GetMerchantLocationContext(context.Background(), "merchant-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Current.MerchantId != "merchant-1" || len(resp.Nearby) != 0 || resp.NearbyAvailable || resp.RadiusMeters != 1000 {
+		t.Fatalf("resp = %#v, want current merchant with unavailable nearby results", resp)
+	}
+	logText := logBuffer.String()
+	for _, field := range []string{"merchantId=merchant-1", "radiusMeters=1000", "limit=20"} {
+		if !strings.Contains(logText, field) {
+			t.Fatalf("log = %q, want field %q", logText, field)
+		}
 	}
 }
 
@@ -391,23 +502,31 @@ func TestPublicMapLogicListsNearbyPois(t *testing.T) {
 }
 
 type fakePublicMapStore struct {
-	sceneFilter         model.ListMapScenesFilter
-	objectFilter        model.ListMapObjectsFilter
-	countFilter         model.ListMapObjectsFilter
-	objectID            string
-	categoryFilter      model.ListMapCategoriesFilter
-	nearbySceneCode     string
-	nearbyTypes         []string
-	scenes              []model.MapScene
-	scene               model.MapScene
-	objects             []model.MapObject
-	objectTotal         int64
-	object              model.MapObject
-	nearby              []model.MapObject
-	categories          []model.MapCategory
-	merchantPlaceFilter model.MerchantPlaceFilter
-	merchantPlaces      []model.MerchantPlace
-	merchantPlaceTotal  int64
+	sceneFilter             model.ListMapScenesFilter
+	objectFilter            model.ListMapObjectsFilter
+	countFilter             model.ListMapObjectsFilter
+	objectID                string
+	categoryFilter          model.ListMapCategoriesFilter
+	nearbySceneCode         string
+	nearbyTypes             []string
+	scenes                  []model.MapScene
+	scene                   model.MapScene
+	objects                 []model.MapObject
+	objectTotal             int64
+	object                  model.MapObject
+	nearby                  []model.MapObject
+	categories              []model.MapCategory
+	merchantPlaceFilter     model.MerchantPlaceFilter
+	merchantPlaces          []model.MerchantPlace
+	merchantPlaceTotal      int64
+	merchantID              string
+	merchantPlace           model.MerchantPlace
+	merchantPlaceErr        error
+	nearbyMerchantPlaces    []model.MerchantPlace
+	nearbyMerchantPlacesErr error
+	nearbyOrigin            model.MerchantPlace
+	nearbyRadiusMeters      int64
+	nearbyLimit             int64
 }
 
 func (s *fakePublicMapStore) ListPublishedScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error) {
@@ -458,4 +577,16 @@ func (s *fakePublicMapStore) ListMerchantPlaces(ctx context.Context, filter mode
 func (s *fakePublicMapStore) CountMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) (int64, error) {
 	s.merchantPlaceFilter = filter
 	return s.merchantPlaceTotal, nil
+}
+
+func (s *fakePublicMapStore) GetPublishedMerchantPlaceByMerchantID(ctx context.Context, merchantID string) (model.MerchantPlace, error) {
+	s.merchantID = merchantID
+	return s.merchantPlace, s.merchantPlaceErr
+}
+
+func (s *fakePublicMapStore) ListNearbyMerchantPlaces(ctx context.Context, origin model.MerchantPlace, radiusMeters int64, limit int64) ([]model.MerchantPlace, error) {
+	s.nearbyOrigin = origin
+	s.nearbyRadiusMeters = radiusMeters
+	s.nearbyLimit = limit
+	return append([]model.MerchantPlace(nil), s.nearbyMerchantPlaces...), s.nearbyMerchantPlacesErr
 }

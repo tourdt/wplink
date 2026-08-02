@@ -20,6 +20,11 @@ test('home cold-start entries exclude recruitment and job seeking', () => {
   assert.doesNotMatch(source, /groupCode:\s*'jobs'/)
 })
 
+test('home names the merchant directory as taking-goods booths', () => {
+  assert.match(source, /\{ title: '拿货档口'[\s\S]*icon: 'map'[\s\S]*action: 'sourcing-map'/)
+  assert.doesNotMatch(source, /拿货地图/)
+})
+
 test('home displays at most six recent onboarded merchants without blocking other feeds', () => {
   const discoveryApiSource = fs.readFileSync(path.join(root, 'api/discovery.js'), 'utf8')
 

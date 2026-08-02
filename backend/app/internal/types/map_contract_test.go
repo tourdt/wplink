@@ -59,3 +59,17 @@ func TestMapObjectQueryTypesExposeViewportAndZoomFields(t *testing.T) {
 		})
 	}
 }
+
+func TestMerchantLocationContextTypesExposeCurrentNearbyAndDistance(t *testing.T) {
+	respType := reflect.TypeOf(MerchantLocationContextResp{})
+	for _, name := range []string{"Current", "Nearby", "RadiusMeters", "NearbyAvailable"} {
+		if _, ok := respType.FieldByName(name); !ok {
+			t.Fatalf("MerchantLocationContextResp missing %s", name)
+		}
+	}
+	itemType := reflect.TypeOf(MerchantPlaceItem{})
+	field, ok := itemType.FieldByName("DistanceMeters")
+	if !ok || string(field.Tag) != `json:"distanceMeters,optional"` {
+		t.Fatal("MerchantPlaceItem.DistanceMeters contract mismatch")
+	}
+}

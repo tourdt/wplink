@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	adminlogic "wplink/backend/app/internal/logic/admin"
 	"wplink/backend/app/internal/logic/adminauth"
@@ -249,6 +251,9 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 		response.JSON(w, resp, err)
 	})
 	registerLocationRoutes(mux, options.locationGeocoder)
+	if mapEventStore, ok := any(store).(metricslogic.MerchantMapEventStore); ok {
+		registerMerchantMapEventRoute(mux, mapEventStore, options.userTokenService)
+	}
 	if exposureStore, ok := any(store).(metricslogic.ResourceExposureStore); ok {
 		registerResourceExposureRoute(mux, exposureStore, options.userTokenService)
 	}
@@ -272,6 +277,47 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 		return requireAdminToken(mux, options.adminTokenService)
 	}
 	return mux
+}
+
+func registerMerchantMapEventRoute(mux *http.ServeMux, store metricslogic.MerchantMapEventStore, tokenService authlogic.TokenService) {
+	limiter := newMerchantMapEventRateLimiter(
+		merchantMapEventRateLimit,
+		merchantMapEventRateWindowSize,
+		merchantMapEventRateMaxKeys,
+		time.Now,
+	)
+	mux.HandleFunc("POST /api/v1/metrics/merchant-map-events", func(w http.ResponseWriter, r *http.Request) {
+		rawBody, err := readLimitedBody(r, merchantMapEventRequestBodyLimit)
+		if err != nil {
+			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "地图行为请求内容过大"))
+			return
+		}
+		var body metricslogic.RecordMerchantMapEventReq
+		decoder := json.NewDecoder(bytes.NewReader(rawBody))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&body); err != nil {
+			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "请求参数格式不正确"))
+			return
+		}
+		if !limiter.Allow(requestClientIP(r), body.VisitorKey) {
+			response.JSON(w, nil, errx.New(errx.CodeRateLimited, "操作频繁，请稍后再试"))
+			return
+		}
+		// 请求主动携带凭证时禁止静默降级为匿名；缺少解析服务意味着该凭证无法验证，应按登录过期处理。
+		if tokenService == nil && strings.TrimSpace(r.Header.Get("Authorization")) != "" {
+			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, "登录已过期，请重新登录"))
+			return
+		}
+		userID, err := optionalUserIDFromBearerToken(r, tokenService)
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		// 匿名请求保留空 userId；携带 token 时只信任服务端解析结果，禁止前端伪造事件归因。
+		body.UserID = userID
+		resp, err := metricslogic.NewRecordMerchantMapEventLogic(store).RecordMerchantMapEvent(r.Context(), body)
+		response.JSON(w, resp, err)
+	})
 }
 
 func registerResourceExposureRoute(mux *http.ServeMux, store metricslogic.ResourceExposureStore, tokenService authlogic.TokenService) {
