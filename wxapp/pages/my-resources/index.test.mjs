@@ -101,16 +101,16 @@ test('my resources hides the date row when no publish or expiry date exists', ()
   assert.doesNotMatch(source, /<text class="resource-meta">发布 \{\{ formatDateToDay\(item\.publishedAt\) \}\} · 到期 \{\{ formatDateToDay\(item\.expiresAt\) \}\}<\/text>/)
 })
 
-test('my resources publish action opens the standalone publish editor', () => {
-  assert.match(source, /async function openPublish\(\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}` \}\)[\s\S]*\}/)
-  assert.doesNotMatch(source, /async function openPublish\(\) \{[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)[\s\S]*\}/)
+test('my resources publish action opens the publish type selection tab', () => {
+  assert.match(source, /async function openPublish\(\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)[\s\S]*\}/)
+  assert.doesNotMatch(source, /async function openPublish\(\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}` \}\)/)
 })
 
 test('my resources prompts for merchant profile before list and publish actions', () => {
   assert.match(source, /import \{ ensureMerchantProfileReady \} from '\.\.\/\.\.\/common\/merchantProfileGuard'/)
   assert.match(source, /async function ensurePageMerchantProfile\(\) \{[\s\S]*if \(await ensureMerchantProfileReady\(merchantId\.value\)\) return true[\s\S]*rows\.value = \[\][\s\S]*return false[\s\S]*\}/)
   assert.match(source, /async function loadRows\(\{ reset = true \} = \{\}\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*const resp = await listMyResources/)
-  assert.match(source, /async function openPublish\(\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}` \}\)/)
+  assert.match(source, /async function openPublish\(\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)/)
   assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善发布者资料'/)
 })
 

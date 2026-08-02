@@ -143,7 +143,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/my-resources/index.vue',
     description: '我的发布管理动作和指标',
-    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'takeDownResource', 'deleteTakenDownResource', 'canDeleteTakenDown', 'openDraftEditor', 'openRejectedEditor', 'openPublishEditor', '/pages/publish/edit?merchantId=', 'uni.navigateTo', 'rejectReason', '驳回原因', 'getOwnResource', 'buildRepostInitialForm', 'repostInitialForm', 'wechatCopyCount', 'formatDateToDay', 'publish-fab', 'position: fixed', '再发类似', 'from=my-resources'],
+    checks: ['listMyResources', 'MetricStrip', 'refreshResource', 'takeDownResource', 'deleteTakenDownResource', 'canDeleteTakenDown', 'openDraftEditor', 'openRejectedEditor', 'openPublishEditor', '/pages/publish/edit?merchantId=', 'uni.navigateTo', 'uni.switchTab', "url: '/pages/publish/index'", 'rejectReason', '驳回原因', 'getOwnResource', 'buildRepostInitialForm', 'repostInitialForm', 'wechatCopyCount', 'formatDateToDay', 'publish-fab', 'position: fixed', '再发类似', 'from=my-resources'],
   },
   {
     file: 'pages/messages/index.vue',

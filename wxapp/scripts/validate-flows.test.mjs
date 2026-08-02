@@ -691,8 +691,8 @@ test('my resources draft resources open editor instead of direct submit', () => 
   assert.equal(source.includes('submitResource'), false)
   assert.equal(source.includes('已提交审核'), false)
   assert.equal(source.includes('publish:pending-edit-context'), false)
-  assert.match(source, /function openPublish\(\) \{[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/publish\/edit\?merchantId=\$\{merchantId\.value\}` \}\)[\s\S]*\}/)
-  assert.equal(source.includes("uni.switchTab({ url: '/pages/publish/index' })"), false)
+  assert.match(source, /async function openPublish\(\) \{[\s\S]*ensurePageMerchantProfile\(\)[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)[\s\S]*\}/)
+  assert.equal(source.includes("uni.switchTab({ url: '/pages/publish/index' })"), true)
 })
 
 test('my resources repost similar opens a new resource form with old resource defaults', () => {
@@ -718,6 +718,7 @@ test('publish pages split tab creation and independent editing', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const tabSource = fs.readFileSync(path.join(root, 'pages/publish/index.vue'), 'utf8')
   const editSource = fs.readFileSync(path.join(root, 'pages/publish/edit.vue'), 'utf8')
+  const myResourcesSource = fs.readFileSync(path.join(root, 'pages/my-resources/index.vue'), 'utf8')
 
   assert.equal(tabSource.includes('<ResourcePublishForm'), false)
   assert.match(tabSource, /PUBLISH_TYPE_KEY/)
@@ -734,6 +735,7 @@ test('publish pages split tab creation and independent editing', () => {
   assert.match(editSource, /const publishFormMode = computed\(\(\) => routeOptions\.resourceId \? 'edit' : 'create'\)/)
   assert.match(editSource, /<ResourcePublishForm[\s\S]*:mode="publishFormMode"[\s\S]*:initial-options="routeOptions"/)
   assert.equal(tabSource.includes('publish:pending-edit-context'), false)
+  assert.match(myResourcesSource, /async function openPublish\(\) \{[\s\S]*ensurePageMerchantProfile\(\)[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)/)
 })
 
 test('publish success page highlights my resources as the primary action', () => {

@@ -507,7 +507,7 @@ function expireText(item) {
 
 async function openPublish() {
   if (!(await ensurePageMerchantProfile())) return
-  uni.navigateTo({ url: `/pages/publish/edit?merchantId=${merchantId.value}` })
+  uni.switchTab({ url: '/pages/publish/index' })
 }
 
 function openResource(item) {
