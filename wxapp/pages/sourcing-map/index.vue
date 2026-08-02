@@ -86,6 +86,7 @@ import {
 } from '../../api/sourcingMap'
 import {
   buildMerchantPlaceQuery,
+  hasMerchantDetail,
   hasValidLocation,
   merchantDetailPath,
   normalizeMerchantPlace,

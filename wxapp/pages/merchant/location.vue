@@ -235,7 +235,7 @@ function handleMarkerTap(event) {
     eventType: 'nearby_marker_click',
     source: 'merchant_location',
   })
-  selectNearbyMerchant(tappedMerchantId)
+  focusNearbyMerchant(tappedMerchantId)
 }
 
 function openNearbyDrawer() {
@@ -268,8 +268,23 @@ function closeNearbyDrawer() {
   })
 }
 
-function selectNearbyMerchant(merchantId) {
-  const normalizedMerchantId = String(merchantId || '').trim()
+function selectNearbyMerchant(targetMerchantId) {
+  const normalizedMerchantId = String(targetMerchantId || '').trim()
+  const place = context.value.nearby.find((item) => item.merchantId === normalizedMerchantId)
+  if (!place || !context.value.current) return
+
+  // 只有用户真实点击半屏列表项才记录该事件；Marker 联动直接调用内部聚焦函数，避免两种入口混记。
+  trackMerchantMapEvent({
+    merchantId: merchantId.value,
+    targetMerchantId: normalizedMerchantId,
+    eventType: 'nearby_list_item_click',
+    source: 'merchant_location',
+  })
+  focusNearbyMerchant(normalizedMerchantId)
+}
+
+function focusNearbyMerchant(targetMerchantId) {
+  const normalizedMerchantId = String(targetMerchantId || '').trim()
   const place = context.value.nearby.find((item) => item.merchantId === normalizedMerchantId)
   if (!place || !context.value.current) return
 

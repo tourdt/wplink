@@ -116,6 +116,7 @@ test('merchant map event migration constrains attribution data and supports map 
   const upSource = fs.readFileSync(path.resolve(migrationsDir, upFileName), 'utf8')
   const downSource = fs.readFileSync(path.resolve(migrationsDir, downFileName), 'utf8')
   for (const column of [
+    'user_id',
     'merchant_id',
     'target_merchant_id',
     'event_type',
@@ -131,6 +132,7 @@ test('merchant map event migration constrains attribution data and supports map 
     'navigation_click',
     'nearby_drawer_open',
     'nearby_marker_click',
+    'nearby_list_item_click',
     'nearby_merchant_click',
   ]) {
     assert.match(upSource, new RegExp(`'${eventType}'`), `event CHECK should allow ${eventType}`)
@@ -149,6 +151,11 @@ test('merchant map event migration constrains attribution data and supports map 
     upSource,
     /CREATE INDEX IF NOT EXISTS idx_merchant_map_events_target_created[\s\S]*ON merchant_map_events\(target_merchant_id, created_at DESC\)/,
   )
+  assert.match(
+    upSource,
+    /CREATE INDEX IF NOT EXISTS idx_merchant_map_events_user_created[\s\S]*ON merchant_map_events\(user_id, created_at DESC\)[\s\S]*WHERE user_id IS NOT NULL/,
+  )
+  assert.match(downSource, /DROP INDEX IF EXISTS idx_merchant_map_events_user_created/)
   assert.match(downSource, /DROP INDEX IF EXISTS idx_merchant_map_events_target_created/)
   assert.match(downSource, /DROP INDEX IF EXISTS idx_merchant_map_events_merchant_event_created/)
   assert.match(downSource, /DROP TABLE IF EXISTS merchant_map_events/)

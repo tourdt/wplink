@@ -32,7 +32,7 @@ async function loadAnalytics({ clearSession = () => {}, redirectToLogin = () => 
   return sandbox.analytics
 }
 
-function installUniMock({ storage = new Map(), failRequest = false, unauthorizedRequest = false } = {}) {
+function installUniMock({ storage = new Map(), failRequest = false, unauthorizedRequest = false, rateLimitedRequest = false } = {}) {
   const requests = []
   const storageWrites = []
   const toasts = []
@@ -54,6 +54,13 @@ function installUniMock({ storage = new Map(), failRequest = false, unauthorized
         options.success({
           statusCode: 401,
           data: { errorCode: 'UNAUTHORIZED', msg: '登录已过期，请重新登录' },
+        })
+        return
+      }
+      if (rateLimitedRequest) {
+        options.success({
+          statusCode: 429,
+          data: { errorCode: 'RATE_LIMITED', msg: '操作频繁，请稍后再试' },
         })
         return
       }
@@ -111,6 +118,23 @@ test('map analytics persists one bounded visitor key and reuses one bounded in-p
     visitorKey: uniMock.requests[0].data.visitorKey,
     sessionId: uniMock.requests[0].data.sessionId,
   })
+})
+
+test('map analytics allows the distinct nearby list item click and normalizes its target', async () => {
+  const uniMock = installUniMock()
+  const { trackMerchantMapEvent } = await loadAnalytics()
+
+  trackMerchantMapEvent({
+    merchantId: ' 101 ',
+    targetMerchantId: ' 102 ',
+    eventType: 'nearby_list_item_click',
+    source: 'merchant_location',
+  })
+  await settleRequests()
+
+  assert.equal(uniMock.requests.length, 1)
+  assert.equal(uniMock.requests[0].data.merchantId, '101')
+  assert.equal(uniMock.requests[0].data.targetMerchantId, '102')
 })
 
 test('map analytics keeps using the persisted visitor key on a later module session', async () => {
@@ -173,6 +197,21 @@ test('map analytics failure stays silent and is attempted only once', async () =
   await settleRequests()
 
   assert.equal(result, undefined)
+  assert.equal(uniMock.requests.length, 1)
+  assert.deepEqual(uniMock.toasts, [])
+})
+
+test('map analytics keeps a rate-limited event silent without retrying', async () => {
+  const uniMock = installUniMock({ rateLimitedRequest: true })
+  const { trackMerchantMapEvent } = await loadAnalytics()
+
+  trackMerchantMapEvent({
+    merchantId: '101',
+    eventType: 'location_view',
+    source: 'merchant_location',
+  })
+  await settleRequests()
+
   assert.equal(uniMock.requests.length, 1)
   assert.deepEqual(uniMock.toasts, [])
 })

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"wplink/backend/app/internal/adminweb"
 	"wplink/backend/app/internal/config"
@@ -69,6 +70,23 @@ func main() {
 	if lifecycleScheduler.Enabled() {
 		logx.Infof("资源生命周期自动任务已启用: interval=%s", cfg.Tasks.ResourceLifecycleInterval)
 		lifecycleScheduler.Start(appCtx)
+	}
+	mapEventCleanupScheduler := task.NewMerchantMapEventCleanupScheduler(
+		task.NewMerchantMapEventCleanupTask(
+			svcCtx.APIStore,
+			cfg.Tasks.MerchantMapEventRetentionDays,
+			time.Now,
+		),
+		cfg.Tasks.MerchantMapEventCleanupInterval,
+		log.Default(),
+	)
+	if mapEventCleanupScheduler.Enabled() {
+		logx.Infof(
+			"商家地图行为清理任务已启用: interval=%s retentionDays=%d",
+			cfg.Tasks.MerchantMapEventCleanupInterval,
+			cfg.Tasks.MerchantMapEventRetentionDays,
+		)
+		mapEventCleanupScheduler.Start(appCtx)
 	}
 	contentAuditRetryScheduler := task.NewContentAuditRetryScheduler(
 		task.NewContentAuditRetryTask(

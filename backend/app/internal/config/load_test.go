@@ -90,6 +90,8 @@ WechatPay:
 
 Tasks:
   ResourceLifecycleInterval: 1h
+  MerchantMapEventCleanupInterval: 24h
+  MerchantMapEventRetentionDays: 90
   PaymentReconcileInterval: 1m
   PaymentQueryDelay: 2m
   PaymentBatchSize: 100
@@ -166,6 +168,9 @@ Storage:
 	}
 	if cfg.Tasks.ResourceLifecycleInterval != time.Hour {
 		t.Fatalf("tasks = %#v, want resource lifecycle interval", cfg.Tasks)
+	}
+	if cfg.Tasks.MerchantMapEventCleanupInterval != 24*time.Hour || cfg.Tasks.MerchantMapEventRetentionDays != 90 {
+		t.Fatalf("tasks = %#v, want daily map event cleanup with 90-day retention", cfg.Tasks)
 	}
 	if cfg.Storage.Provider != "qiniu-kodo" || cfg.Storage.UploadExpire != 15*time.Minute || cfg.Storage.MaxFileSizeBytes != 10485760 {
 		t.Fatalf("storage = %#v, want qiniu config", cfg.Storage)

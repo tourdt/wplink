@@ -3,6 +3,7 @@ module wplink/backend
 go 1.23.0
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/lib/pq v1.10.6
 	github.com/zeromicro/go-zero v1.7.6
 	golang.org/x/crypto v0.35.0

@@ -8,6 +8,7 @@ const ALLOWED_EVENTS = new Set([
   'navigation_click',
   'nearby_drawer_open',
   'nearby_marker_click',
+  'nearby_list_item_click',
   'nearby_merchant_click',
 ])
 const ALLOWED_SOURCES = new Set(['directory', 'merchant_detail', 'merchant_location'])

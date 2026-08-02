@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	adminlogic "wplink/backend/app/internal/logic/admin"
 	"wplink/backend/app/internal/logic/adminauth"
@@ -278,10 +280,27 @@ func newAPIRouterWithOptions(store CityAPIStore, options apiRouterOptions) http.
 }
 
 func registerMerchantMapEventRoute(mux *http.ServeMux, store metricslogic.MerchantMapEventStore, tokenService authlogic.TokenService) {
+	limiter := newMerchantMapEventRateLimiter(
+		merchantMapEventRateLimit,
+		merchantMapEventRateWindowSize,
+		merchantMapEventRateMaxKeys,
+		time.Now,
+	)
 	mux.HandleFunc("POST /api/v1/metrics/merchant-map-events", func(w http.ResponseWriter, r *http.Request) {
+		rawBody, err := readLimitedBody(r, merchantMapEventRequestBodyLimit)
+		if err != nil {
+			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "地图行为请求内容过大"))
+			return
+		}
 		var body metricslogic.RecordMerchantMapEventReq
-		if err := decodeJSONBody(r, &body); err != nil {
-			response.JSON(w, nil, err)
+		decoder := json.NewDecoder(bytes.NewReader(rawBody))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&body); err != nil {
+			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "请求参数格式不正确"))
+			return
+		}
+		if !limiter.Allow(requestClientIP(r), body.VisitorKey) {
+			response.JSON(w, nil, errx.New(errx.CodeRateLimited, "操作频繁，请稍后再试"))
 			return
 		}
 		// 请求主动携带凭证时禁止静默降级为匿名；缺少解析服务意味着该凭证无法验证，应按登录过期处理。

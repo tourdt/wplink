@@ -82,6 +82,7 @@ function loadLocationPage({ getMerchantLocationContext, trackMerchantMapEvent, t
     openNearbyDrawer,
     openNearbyMerchant,
     retryNearby,
+    selectNearbyMerchant,
   }`, sandbox)
   sandbox.locationPage.loadHook = (...args) => loadHook(...args)
   return sandbox.locationPage
@@ -312,7 +313,7 @@ test('merchant location page records navigation immediately before opening the m
   ])
 })
 
-test('merchant location page records drawer transition, nearby marker, and nearby merchant jump at their real actions', async () => {
+test('merchant location page records drawer, marker, list item, and merchant jump as distinct real actions', async () => {
   const timeline = []
   const page = loadLocationPage({
     getMerchantLocationContext: async () => locationContext(),
@@ -348,6 +349,18 @@ test('merchant location page records drawer transition, nearby marker, and nearb
       source: 'merchant_location',
     }],
   ])
+
+  timeline.length = 0
+  page.selectNearbyMerchant(' nearby-2 ')
+  assert.deepEqual(plain(timeline), [[
+    'track',
+    {
+      merchantId: 'merchant-main',
+      targetMerchantId: 'nearby-2',
+      eventType: 'nearby_list_item_click',
+      source: 'merchant_location',
+    },
+  ]])
 
   timeline.length = 0
   page.openNearbyMerchant({ merchantId: ' nearby-2 ' })

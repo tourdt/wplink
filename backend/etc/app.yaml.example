@@ -75,6 +75,9 @@ SMS:
 
 Tasks:
   ResourceLifecycleInterval: 1h
+  # 地图行为属于低优先级分析数据，每日清理并只保留最近 90 天。
+  MerchantMapEventCleanupInterval: 24h
+  MerchantMapEventRetentionDays: 90
   PaymentReconcileInterval: 1m
   PaymentQueryDelay: 2m
   PaymentBatchSize: 100

@@ -95,12 +95,14 @@ type SMSConfig struct {
 }
 
 type TasksConfig struct {
-	ResourceLifecycleInterval  time.Duration
-	ContentAuditRetryInterval  time.Duration
-	ContentAuditRetryBatchSize int64
-	PaymentReconcileInterval   time.Duration
-	PaymentQueryDelay          time.Duration
-	PaymentBatchSize           int64
+	ResourceLifecycleInterval       time.Duration
+	ContentAuditRetryInterval       time.Duration
+	ContentAuditRetryBatchSize      int64
+	MerchantMapEventCleanupInterval time.Duration
+	MerchantMapEventRetentionDays   int
+	PaymentReconcileInterval        time.Duration
+	PaymentQueryDelay               time.Duration
+	PaymentBatchSize                int64
 }
 
 type StorageConfig struct {

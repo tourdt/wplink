@@ -576,7 +576,7 @@ git commit -m "feat: 增加周边入驻商家列表"
 **接口：**
 
 - 产出：`POST /api/v1/metrics/merchant-map-events`。
-- 允许：`location_entry_click`、`location_view`、`navigation_click`、`nearby_drawer_open`、`nearby_marker_click`、`nearby_merchant_click`。
+- 允许：`location_entry_click`、`location_view`、`navigation_click`、`nearby_drawer_open`、`nearby_marker_click`、`nearby_list_item_click`、`nearby_merchant_click`。
 - 允许来源：`directory`、`merchant_detail`、`merchant_location`。
 
 - [ ] **步骤 1：写 migration 失败测试**
@@ -602,7 +602,7 @@ CREATE TABLE IF NOT EXISTS merchant_map_events (
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT chk_merchant_map_event_type CHECK (event_type IN (
     'location_entry_click', 'location_view', 'navigation_click', 'nearby_drawer_open',
-    'nearby_marker_click', 'nearby_merchant_click'
+    'nearby_marker_click', 'nearby_list_item_click', 'nearby_merchant_click'
   )),
   CONSTRAINT chk_merchant_map_event_source CHECK (source IN (
     'directory', 'merchant_detail', 'merchant_location'
@@ -704,7 +704,7 @@ git commit -m "feat: 记录商家地图行为"
 
 - [ ] **步骤 1：写失败的埋点测试**
 
-断言 visitor key 持久化且不超过 96 字符、会话内复用 session ID、空商家 ID、未知事件或未知来源不请求、请求失败不重试。页面测试断言六类事件分别位于目录/商家主页位置入口、上下文成功、导航、抽屉打开、周边 Marker 点击和周边商家跳转处。
+断言 visitor key 持久化且不超过 96 字符、会话内复用 session ID、空商家 ID、未知事件或未知来源不请求、请求失败不重试。页面测试断言七类事件分别位于目录/商家主页位置入口、上下文成功、导航、抽屉打开、周边 Marker 点击、周边列表项点击和周边商家跳转处；Marker 内部联动不得触发列表项事件。
 
 - [ ] **步骤 2：运行测试确认 RED**
 
@@ -743,9 +743,9 @@ export function trackMerchantMapEvent({ merchantId, targetMerchantId = '', event
 
 存储键固定为 `wplink_map_visitor_key`。
 
-- [ ] **步骤 4：在目录、商家主页和位置页接入六类事件**
+- [ ] **步骤 4：在目录、商家主页和位置页接入七类事件**
 
-目录和商家主页在真正调用 `uni.navigateTo` 前记录 `location_entry_click`，来源分别为 `directory`、`merchant_detail`；上下文成功且坐标有效后记录 `location_view`；点击导航前记录 `navigation_click`；抽屉确实从关闭变打开后记录 `nearby_drawer_open`；Marker 和查看商家分别携带目标商家 ID。位置页内事件来源统一为 `merchant_location`。不得等待埋点 Promise 后再导航或跳转。
+目录和商家主页在真正调用 `uni.navigateTo` 前记录 `location_entry_click`，来源分别为 `directory`、`merchant_detail`；上下文成功且坐标有效后记录 `location_view`；点击导航前记录 `navigation_click`；抽屉确实从关闭变打开后记录 `nearby_drawer_open`；Marker、周边列表项和查看商家分别记录 `nearby_marker_click`、`nearby_list_item_click`、`nearby_merchant_click` 并携带目标商家 ID。Marker 触发的内部列表联动不得混记 `nearby_list_item_click`。位置页内事件来源统一为 `merchant_location`。不得等待埋点 Promise 后再导航或跳转。
 
 - [ ] **步骤 5：运行测试确认 GREEN**
 

@@ -23,7 +23,7 @@ func TestValidateForProductionRejectsMissingCriticalConfig(t *testing.T) {
 		t.Fatal("ValidateForProduction() error = nil, want missing config error")
 	}
 	message := err.Error()
-	for _, want := range []string{"Postgres.DSN", "AdminAuth.TokenSecret", "UserAuth.TokenSecret", "Wechat.AppID", "Wechat.AppSecret", "SMS.Provider", "Storage.AccessKeyID", "Tasks.ResourceLifecycleInterval", "Log.Mode", "Log.Path", "Log.KeepDays"} {
+	for _, want := range []string{"Postgres.DSN", "AdminAuth.TokenSecret", "UserAuth.TokenSecret", "Wechat.AppID", "Wechat.AppSecret", "SMS.Provider", "Storage.AccessKeyID", "Tasks.ResourceLifecycleInterval", "Tasks.MerchantMapEventCleanupInterval", "Tasks.MerchantMapEventRetentionDays", "Log.Mode", "Log.Path", "Log.KeepDays"} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("error = %q, want mention %s", message, want)
 		}
@@ -54,7 +54,13 @@ func TestValidateForProductionAcceptsRequiredConfig(t *testing.T) {
 			PublicBaseURL:       "https://cdn.example.com",
 			AllowedContentTypes: []string{"image/png"},
 		},
-		Tasks: TasksConfig{ResourceLifecycleInterval: time.Hour, ContentAuditRetryInterval: time.Minute, ContentAuditRetryBatchSize: 20},
+		Tasks: TasksConfig{
+			ResourceLifecycleInterval:       time.Hour,
+			ContentAuditRetryInterval:       time.Minute,
+			ContentAuditRetryBatchSize:      20,
+			MerchantMapEventCleanupInterval: 24 * time.Hour,
+			MerchantMapEventRetentionDays:   90,
+		},
 	}
 
 	if err := ValidateForProduction(cfg); err != nil {
@@ -166,6 +172,22 @@ func TestValidateForProductionRequiresContentAudit(t *testing.T) {
 	}
 }
 
+func TestValidateForProductionRequiresPositiveMerchantMapEventRetentionTask(t *testing.T) {
+	cfg := requiredProductionConfig()
+	cfg.Tasks.MerchantMapEventCleanupInterval = 0
+	cfg.Tasks.MerchantMapEventRetentionDays = 0
+
+	err := ValidateForProduction(cfg)
+	if err == nil {
+		t.Fatal("ValidateForProduction() error = nil, want map event retention task config error")
+	}
+	for _, want := range []string{"Tasks.MerchantMapEventCleanupInterval", "Tasks.MerchantMapEventRetentionDays"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q, want mention %s", err, want)
+		}
+	}
+}
+
 func TestValidateForProductionRejectsAdminMasterPassword(t *testing.T) {
 	cfg := requiredProductionConfig()
 	cfg.AdminAuth.MasterPassword = "a123456"
@@ -246,7 +268,13 @@ func requiredProductionConfig() Config {
 			PublicBaseURL:       "https://cdn.example.com",
 			AllowedContentTypes: []string{"image/png"},
 		},
-		Tasks: TasksConfig{ResourceLifecycleInterval: time.Hour, ContentAuditRetryInterval: time.Minute, ContentAuditRetryBatchSize: 20},
+		Tasks: TasksConfig{
+			ResourceLifecycleInterval:       time.Hour,
+			ContentAuditRetryInterval:       time.Minute,
+			ContentAuditRetryBatchSize:      20,
+			MerchantMapEventCleanupInterval: 24 * time.Hour,
+			MerchantMapEventRetentionDays:   90,
+		},
 	}
 }
 

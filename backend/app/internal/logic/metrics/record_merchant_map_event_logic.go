@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"wplink/backend/app/internal/model"
@@ -11,12 +12,13 @@ import (
 )
 
 var allowedMerchantMapEventTypes = map[string]struct{}{
-	"location_entry_click":  {},
-	"location_view":         {},
-	"navigation_click":      {},
-	"nearby_drawer_open":    {},
-	"nearby_marker_click":   {},
-	"nearby_merchant_click": {},
+	"location_entry_click":   {},
+	"location_view":          {},
+	"navigation_click":       {},
+	"nearby_drawer_open":     {},
+	"nearby_marker_click":    {},
+	"nearby_list_item_click": {},
+	"nearby_merchant_click":  {},
 }
 
 var allowedMerchantMapEventSources = map[string]struct{}{
@@ -26,8 +28,9 @@ var allowedMerchantMapEventSources = map[string]struct{}{
 }
 
 var merchantMapEventsRequiringTarget = map[string]struct{}{
-	"nearby_marker_click":   {},
-	"nearby_merchant_click": {},
+	"nearby_marker_click":    {},
+	"nearby_list_item_click": {},
+	"nearby_merchant_click":  {},
 }
 
 type MerchantMapEventStore interface {
@@ -66,6 +69,11 @@ func (l *RecordMerchantMapEventLogic) RecordMerchantMapEvent(ctx context.Context
 		EventType:        strings.TrimSpace(req.EventType),
 		Source:           strings.TrimSpace(req.Source),
 	}
+	if !isPositiveBigintID(input.MerchantID) ||
+		(input.TargetMerchantID != "" && !isPositiveBigintID(input.TargetMerchantID)) {
+		// 商家 ID 在进入带 ::bigint 转换的 SQL 前完成校验，避免匿名接口被非法值制造数据库错误日志。
+		return RecordMerchantMapEventResp{}, errx.New(errx.CodeValidationFailed, "地图行为商家参数无效")
+	}
 	if _, ok := allowedMerchantMapEventTypes[input.EventType]; !ok {
 		return RecordMerchantMapEventResp{}, errx.New(errx.CodeValidationFailed, "地图行为类型无效")
 	}
@@ -87,4 +95,17 @@ func (l *RecordMerchantMapEventLogic) RecordMerchantMapEvent(ctx context.Context
 	}
 
 	return RecordMerchantMapEventResp{Recorded: true}, nil
+}
+
+func isPositiveBigintID(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, char := range value {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	return err == nil && parsed > 0
 }

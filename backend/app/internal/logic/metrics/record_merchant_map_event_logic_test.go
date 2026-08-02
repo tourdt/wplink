@@ -20,8 +20,9 @@ func TestRecordMerchantMapEventAcceptsSupportedEvents(t *testing.T) {
 		{name: "位置页浏览", eventType: "location_view"},
 		{name: "导航点击", eventType: "navigation_click"},
 		{name: "周边抽屉打开", eventType: "nearby_drawer_open"},
-		{name: "周边标记点击", eventType: "nearby_marker_click", targetMerchantID: "target-1"},
-		{name: "周边商家点击", eventType: "nearby_merchant_click", targetMerchantID: "target-1"},
+		{name: "周边标记点击", eventType: "nearby_marker_click", targetMerchantID: "102"},
+		{name: "周边列表项点击", eventType: "nearby_list_item_click", targetMerchantID: "102"},
+		{name: "周边商家点击", eventType: "nearby_merchant_click", targetMerchantID: "102"},
 	}
 
 	for _, tt := range tests {
@@ -30,8 +31,8 @@ func TestRecordMerchantMapEventAcceptsSupportedEvents(t *testing.T) {
 			logic := NewRecordMerchantMapEventLogic(store)
 
 			resp, err := logic.RecordMerchantMapEvent(context.Background(), RecordMerchantMapEventReq{
-				UserID:           " user-1 ",
-				MerchantID:       " merchant-1 ",
+				UserID:           " 201 ",
+				MerchantID:       " 101 ",
 				TargetMerchantID: " " + tt.targetMerchantID + " ",
 				VisitorKey:       " visitor-1 ",
 				SessionID:        " session-1 ",
@@ -45,8 +46,8 @@ func TestRecordMerchantMapEventAcceptsSupportedEvents(t *testing.T) {
 				t.Fatal("Recorded = false, want true")
 			}
 			want := model.MerchantMapEventInput{
-				UserID:           "user-1",
-				MerchantID:       "merchant-1",
+				UserID:           "201",
+				MerchantID:       "101",
 				TargetMerchantID: tt.targetMerchantID,
 				VisitorKey:       "visitor-1",
 				SessionID:        "session-1",
@@ -116,8 +117,43 @@ func TestRecordMerchantMapEventRejectsInvalidVisitorOrSession(t *testing.T) {
 	}
 }
 
+func TestRecordMerchantMapEventRejectsInvalidMerchantIDsBeforeStore(t *testing.T) {
+	tests := []struct {
+		name             string
+		merchantID       string
+		targetMerchantID string
+	}{
+		{name: "入口商家为空", merchantID: ""},
+		{name: "入口商家为零", merchantID: "0"},
+		{name: "入口商家为负数", merchantID: "-1"},
+		{name: "入口商家含小数", merchantID: "1.5"},
+		{name: "入口商家含字母", merchantID: "merchant-1"},
+		{name: "入口商家超过 bigint", merchantID: "9223372036854775808"},
+		{name: "目标商家为零", merchantID: "101", targetMerchantID: "0"},
+		{name: "目标商家含字母", merchantID: "101", targetMerchantID: "target-1"},
+		{name: "目标商家超过 bigint", merchantID: "101", targetMerchantID: "9223372036854775808"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &fakeMerchantMapEventStore{}
+			logic := NewRecordMerchantMapEventLogic(store)
+			req := validMerchantMapEventReq("location_view")
+			req.MerchantID = tt.merchantID
+			req.TargetMerchantID = tt.targetMerchantID
+
+			_, err := logic.RecordMerchantMapEvent(context.Background(), req)
+
+			assertMerchantMapEventError(t, err, errx.CodeValidationFailed, "地图行为商家参数无效")
+			if store.called {
+				t.Fatal("store called for an invalid merchant id")
+			}
+		})
+	}
+}
+
 func TestRecordMerchantMapEventRequiresTargetForNearbyClicks(t *testing.T) {
-	for _, eventType := range []string{"nearby_marker_click", "nearby_merchant_click"} {
+	for _, eventType := range []string{"nearby_marker_click", "nearby_list_item_click", "nearby_merchant_click"} {
 		t.Run(eventType, func(t *testing.T) {
 			store := &fakeMerchantMapEventStore{}
 			logic := NewRecordMerchantMapEventLogic(store)
@@ -146,7 +182,7 @@ func TestRecordMerchantMapEventHidesDatabaseError(t *testing.T) {
 
 func validMerchantMapEventReq(eventType string) RecordMerchantMapEventReq {
 	return RecordMerchantMapEventReq{
-		MerchantID: "merchant-1",
+		MerchantID: "101",
 		VisitorKey: "visitor-1",
 		SessionID:  "session-1",
 		EventType:  eventType,

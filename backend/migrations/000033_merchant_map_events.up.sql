@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS merchant_map_events (
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT chk_merchant_map_event_type CHECK (event_type IN (
     'location_entry_click', 'location_view', 'navigation_click', 'nearby_drawer_open',
-    'nearby_marker_click', 'nearby_merchant_click'
+    'nearby_marker_click', 'nearby_list_item_click', 'nearby_merchant_click'
   )),
   CONSTRAINT chk_merchant_map_event_source CHECK (source IN (
     'directory', 'merchant_detail', 'merchant_location'
@@ -25,3 +25,8 @@ CREATE INDEX IF NOT EXISTS idx_merchant_map_events_merchant_event_created
 CREATE INDEX IF NOT EXISTS idx_merchant_map_events_target_created
   ON merchant_map_events(target_merchant_id, created_at DESC)
   WHERE target_merchant_id IS NOT NULL;
+
+-- 账号软注销需要按用户快速定位并匿名化历史事件；匿名记录不进入索引。
+CREATE INDEX IF NOT EXISTS idx_merchant_map_events_user_created
+  ON merchant_map_events(user_id, created_at DESC)
+  WHERE user_id IS NOT NULL;

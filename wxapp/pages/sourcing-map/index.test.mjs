@@ -27,12 +27,23 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
+function importedMerchantPlaceStateBindings() {
+  const match = source.match(/import\s*\{([\s\S]*?)\}\s*from\s*['"]\.\/merchantPlaceState['"]/)
+  assert.ok(match, 'directory page should import merchant place state helpers')
+
+  return Object.fromEntries(match[1]
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name) => [name, merchantPlaceState[name]]))
+}
+
 function loadDirectoryPage({ trackMerchantMapEvent, timeline }) {
   const script = source
     .match(/<script setup>([\s\S]*?)<\/script>/)?.[1]
     .replace(/import[\s\S]*?from\s+['"][^'"]+['"]\s*/g, '') || ''
   const sandbox = {
-    ...merchantPlaceState,
+    ...importedMerchantPlaceStateBindings(),
     DEFAULT_CITY_CODE: 'zhili',
     computed(getter) {
       return { get value() { return getter() } }
@@ -144,7 +155,7 @@ test('legacy canvas implementation is preserved outside the registered user path
   assert.ok(!pagesConfig.pages.some((entry) => entry.path === 'pages/sourcing-map/legacy-canvas'))
 })
 
-test('merchant directory records its valid location entry immediately before navigation', () => {
+test('merchant directory uses declared state imports and records its valid location entry immediately before navigation', () => {
   const timeline = []
   const page = loadDirectoryPage({
     trackMerchantMapEvent(event) {

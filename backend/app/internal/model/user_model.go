@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -229,6 +230,11 @@ WHERE user_id = $1 AND withdrawn_at IS NULL
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE resource_contact_events SET user_id = NULL WHERE user_id = $1`, userID); err != nil {
 			return err
+		}
+		// 地图搜索、导航和周边点击仍需保留聚合价值，但注销后不得继续关联到具体用户。
+		// 该更新必须与账号软删除共用事务，失败时整体回滚，避免出现“账号已注销但行为仍可识别”的中间状态。
+		if _, err := tx.ExecContext(ctx, `UPDATE merchant_map_events SET user_id = NULL WHERE user_id = $1`, userID); err != nil {
+			return fmt.Errorf("匿名化商家地图行为失败: %w", err)
 		}
 		_, err := tx.ExecContext(ctx, `
 UPDATE users

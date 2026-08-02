@@ -71,8 +71,8 @@ func TestMerchantMapEventRouterRecordsAnonymousEvent(t *testing.T) {
 	if data["recorded"] != true {
 		t.Fatalf("recorded = %#v, want true", data["recorded"])
 	}
-	if store.mapEventInput.UserID != "" || store.mapEventInput.MerchantID != "merchant-1" {
-		t.Fatalf("map event input = %#v, want anonymous event for merchant-1", store.mapEventInput)
+	if store.mapEventInput.UserID != "" || store.mapEventInput.MerchantID != "101" {
+		t.Fatalf("map event input = %#v, want anonymous event for merchant 101", store.mapEventInput)
 	}
 }
 
@@ -161,8 +161,49 @@ func TestMerchantMapEventRouterHidesDatabaseError(t *testing.T) {
 	}
 }
 
+func TestMerchantMapEventRouterRejectsPayloadBeyondFourKiBBeforeStore(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(strings.Repeat("x", 4097)))
+	router.ServeHTTP(rec, req)
+
+	body := decodeEnvelope(t, rec, http.StatusBadRequest)
+	if body["errorCode"] != errx.CodeValidationFailed || body["msg"] != "地图行为请求内容过大" {
+		t.Fatalf("body = %#v, want safe oversized map event error", body)
+	}
+	if store.mapEventCalled {
+		t.Fatal("store called for an oversized map event request")
+	}
+}
+
+func TestMerchantMapEventRouterRateLimitsOnlyAfterSixtyRequestsForClientAndVisitor(t *testing.T) {
+	store := &fakeResourceAPIStore{}
+	router := NewAPIRouter(store)
+
+	for attempt := 1; attempt <= 61; attempt++ {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(validMerchantMapEventJSON("location_view")))
+		req.RemoteAddr = "198.51.100.7:4321"
+		router.ServeHTTP(rec, req)
+
+		if attempt <= 60 {
+			decodeEnvelopeData(t, rec, http.StatusOK)
+			continue
+		}
+		body := decodeEnvelope(t, rec, http.StatusTooManyRequests)
+		if body["errorCode"] != errx.CodeRateLimited || body["msg"] != "操作频繁，请稍后再试" {
+			t.Fatalf("body = %#v, want rate limited response", body)
+		}
+	}
+	if store.mapEventCalls != 60 {
+		t.Fatalf("store calls = %d, want exactly 60", store.mapEventCalls)
+	}
+}
+
 func validMerchantMapEventJSON(eventType string) string {
-	return `{"merchantId":"merchant-1","visitorKey":"visitor-1","sessionId":"session-1","eventType":"` + eventType + `","source":"merchant_location"}`
+	return `{"merchantId":"101","visitorKey":"visitor-1","sessionId":"session-1","eventType":"` + eventType + `","source":"merchant_location"}`
 }
 
 func TestResourceAPIRouterRunsPublishReviewSearchContactFlow(t *testing.T) {
@@ -906,6 +947,7 @@ type fakeResourceAPIStore struct {
 	rejectedAuditResourceID          string
 	auditRejectReason                string
 	mapEventCalled                   bool
+	mapEventCalls                    int
 	mapEventInput                    model.MerchantMapEventInput
 	mapEventErr                      error
 }
@@ -1098,6 +1140,7 @@ func (s *fakeResourceAPIStore) RecordResourceContactEvent(ctx context.Context, i
 
 func (s *fakeResourceAPIStore) RecordMerchantMapEvent(ctx context.Context, input model.MerchantMapEventInput) error {
 	s.mapEventCalled = true
+	s.mapEventCalls++
 	s.mapEventInput = input
 	return s.mapEventErr
 }
