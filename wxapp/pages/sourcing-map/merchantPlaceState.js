@@ -1,6 +1,17 @@
 const SOURCE_CLAIMED = 'merchant_claimed'
 const SOURCE_PRELISTED = 'platform_prelisted'
 
+export function buildMerchantTagLabels(categories = []) {
+  const names = new Map()
+  for (const category of categories) {
+    const code = String(category?.code || '').trim()
+    const name = String(category?.name || '').trim()
+    if (code && name) names.set(code, name)
+  }
+
+  return (tags = []) => cleanList(tags).map((tag) => names.get(tag) || tag)
+}
+
 export function buildMerchantPlaceQuery(filters = {}) {
   const query = {
     cityCode: String(filters.cityCode || '').trim(),

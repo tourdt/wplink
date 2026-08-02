@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  buildMerchantTagLabels,
   buildMerchantPlaceQuery,
   hasMerchantDetail,
   hasValidLocation,
@@ -9,6 +10,15 @@ import {
   merchantPlaceSourceLabel,
   normalizeMerchantPlace,
 } from './merchantPlaceState.js'
+
+test('merchant tag labels translate configured codes and retain unmapped labels', () => {
+  const labels = buildMerchantTagLabels([
+    { code: 'girl', name: '女童' },
+    { code: 'spot', name: '现货' },
+  ])
+
+  assert.deepEqual(labels(['girl', 'spot', '新标签']), ['女童', '现货', '新标签'])
+})
 
 test('merchant place query trims filters and keeps list and map pagination explicit', () => {
   assert.deepEqual(buildMerchantPlaceQuery({
