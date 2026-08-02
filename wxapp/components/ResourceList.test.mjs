@@ -20,3 +20,10 @@ test('resource list empty state is centered in the list display area', () => {
   assert.match(cssBlock('.empty-text'), /padding-bottom:\s*80rpx;/)
   assert.match(cssBlock('.empty-text'), /text-align:\s*center;/)
 })
+
+test('resource list renders the feed card only for the feed variant', () => {
+  assert.match(source, /import ResourceFeedCard from '\.\/ResourceFeedCard\.vue'/)
+  assert.match(source, /<ResourceFeedCard\s+v-if="variant === 'feed'"/)
+  assert.match(source, /<ResourceCard\s+v-else/)
+  assert.match(source, /:variant="variant"/)
+})

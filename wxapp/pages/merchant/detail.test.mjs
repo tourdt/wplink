@@ -74,6 +74,7 @@ test('merchant detail page keeps full resources at the bottom without overview c
   assert.match(source, /class="section resource-list-section"/)
   assert.match(source, />公开供应</)
   assert.doesNotMatch(source, />全部公开供应</)
+  assert.match(source, /<ResourceList[\s\S]*exposure-source="merchant"[\s\S]*variant="feed"[\s\S]*:resources="merchantResources"/)
   assert.match(source, /:empty-text="merchantResourcesEmptyText"/)
 
   const profileIndex = source.indexOf('class="profile-panel"')

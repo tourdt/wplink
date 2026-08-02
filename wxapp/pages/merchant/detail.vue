@@ -69,6 +69,7 @@
       </view>
       <ResourceList
         exposure-source="merchant"
+        variant="feed"
         :resources="merchantResources"
         :empty-text="merchantResourcesEmptyText"
         :loading="merchantResourcesLoading"

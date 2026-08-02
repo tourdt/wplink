@@ -8,7 +8,13 @@
         :resource-id="item.id"
         :source="exposureSource"
       >
+        <ResourceFeedCard
+          v-if="variant === 'feed'"
+          :resource="item"
+          @open="emit('open', $event)"
+        />
         <ResourceCard
+          v-else
           :resource="item"
           :variant="variant"
           @open="emit('open', $event)"
@@ -25,6 +31,7 @@
 <script setup>
 import ResourceCard from './ResourceCard.vue'
 import ResourceExposure from './ResourceExposure.vue'
+import ResourceFeedCard from './ResourceFeedCard.vue'
 
 defineProps({
   resources: {
