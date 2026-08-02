@@ -1392,7 +1392,7 @@ func buildMapObjectFilterSQL(filter ListMapObjectsFilter) (string, []interface{}
 	}
 	if v := strings.TrimSpace(filter.Keyword); v != "" {
 		args = append(args, v)
-		conditions = append(conditions, fmt.Sprintf("(o.code ILIKE '%%' || $%d || '%%' OR o.name ILIKE '%%' || $%d || '%%' OR o.search_text ILIKE '%%' || $%d || '%%' OR (m.verification_status = 'verified' AND m.name ILIKE '%%' || $%d || '%%'))", len(args), len(args), len(args), len(args)))
+		conditions = append(conditions, fmt.Sprintf("(o.code ILIKE '%%' || $%d || '%%' OR o.name ILIKE '%%' || $%d || '%%' OR o.search_text ILIKE '%%' || $%d || '%%' OR m.name ILIKE '%%' || $%d || '%%')", len(args), len(args), len(args), len(args)))
 	}
 	if v := strings.TrimSpace(filter.Status); v != "" {
 		args = append(args, v)
@@ -1731,7 +1731,7 @@ func joinedMapObjectSelectColumnsWithContact(alias string, includeContact bool) 
 		contactColumns = "COALESCE(" + prefix + "phone, ''), COALESCE(" + prefix + "wechat, '')"
 	}
 	return prefix + `id::text, ` + prefix + `scene_code, COALESCE(` + prefix + `merchant_id::text, ''),
-       COALESCE(m.name, ''), COALESCE(m.merchant_type, ''), COALESCE(m.verification_status, ''),
+       COALESCE(m.name, ''), COALESCE(m.merchant_type, ''), ''::text,
        COALESCE(m.logo_url, ''), COALESCE(m.main_categories, '[]'::jsonb),
        ` + prefix + `code, ` + prefix + `name, ` + prefix + `type, ` + prefix + `layer, ` + prefix + `geometry_type, ` + prefix + `geometry,
        COALESCE(` + prefix + `center_x, 0)::float8, COALESCE(` + prefix + `center_y, 0)::float8,

@@ -10,8 +10,19 @@ if (!fs.existsSync(scriptPath)) {
 
 const sql = fs.readFileSync(scriptPath, 'utf8')
 const resourceInsertStart = sql.indexOf('INSERT INTO resources (')
-const resourceInsertEnd = sql.indexOf('INSERT INTO verifications', resourceInsertStart)
+const resourceInsertEnd = sql.indexOf('INSERT INTO merchant_entitlements', resourceInsertStart)
 assert(resourceInsertStart >= 0 && resourceInsertEnd > resourceInsertStart, '缺少完整的 resources 演示数据区块')
+
+for (const retiredVerificationContent of [
+  'verification_status',
+  'is_verified',
+  'INSERT INTO verifications',
+  'verification_bonus',
+  '认证',
+  '"verified"',
+]) {
+  assert(!sql.includes(retiredVerificationContent), `演示种子不应保留认证内容: ${retiredVerificationContent}`)
+}
 
 const resourceSql = sql.slice(resourceInsertStart, resourceInsertEnd)
 for (const column of [
@@ -176,8 +187,6 @@ for (const association of [
 }
 
 const requiredSnippets = [
-  '认证工厂',
-  '认证库存商',
   '服务商',
   '采购商',
   'type_code',

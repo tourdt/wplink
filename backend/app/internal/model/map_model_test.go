@@ -207,6 +207,18 @@ func TestBuildMerchantPlaceFilterSQLCanSelectPrelistedBooths(t *testing.T) {
 	}
 }
 
+func TestMerchantPlaceQueryDoesNotDependOnRetiredVerificationStatus(t *testing.T) {
+	selectColumns := joinedMapObjectSelectColumns("o")
+	if strings.Contains(selectColumns, "verification_status") {
+		t.Fatalf("商家目录查询不应读取已移除的认证字段: %s", selectColumns)
+	}
+
+	whereSQL, _ := buildMapObjectFilterSQL(ListMapObjectsFilter{Keyword: "童装"})
+	if strings.Contains(whereSQL, "verification_status") {
+		t.Fatalf("地图关键词查询不应读取已移除的认证字段: %s", whereSQL)
+	}
+}
+
 func TestRankNearbyMerchantPlacesFiltersRadiusOriginAndInvalidLocation(t *testing.T) {
 	origin := MerchantPlace{Object: MapObject{ID: "object-1", MerchantID: "merchant-1", Lat: "30.8700000", Lng: "120.1200000"}}
 	candidates := []MerchantPlace{

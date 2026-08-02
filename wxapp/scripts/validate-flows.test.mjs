@@ -1398,6 +1398,27 @@ test('merchant profile page supports map based address selection', () => {
   assert.equal(source.includes(':disabled="Boolean(merchantId)" placeholder="请输入地址"'), false)
 })
 
+test('merchant profile map selection writes a detailed address and reverse-geocodes empty results', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+
+  assert.match(source, /import \{ reverseGeocodeLocation \} from '\.\.\/\.\.\/api\/location'/)
+  assert.match(source, /success: async \(result\) => \{[\s\S]*await resolveMerchantLocationAddress\(result, latitude, longitude\)[\s\S]*form\.addressText = resolvedAddress\.address/)
+  assert.match(source, /async function resolveMerchantLocationAddress\(result, latitude, longitude\) \{[\s\S]*buildMerchantLocationAddressText\(result\)[\s\S]*reverseGeocodeMerchantLocation\(latitude, longitude, selectedName\)/)
+  assert.match(source, /function buildMerchantLocationAddressText\(result\) \{[\s\S]*if \(address && name && !address\.includes\(name\) && !name\.includes\(address\)\) \{[\s\S]*return `\$\{address\}\$\{name\}`/)
+})
+
+test('merchant profile clears stale map coordinates when the address is edited manually', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+
+  assert.match(source, /v-model="form\.addressText"[^>]*@input="handleAddressTextInput"/)
+  assert.match(source, /const addressLocationNeedsReselection = ref\(false\)/)
+  assert.match(source, /addressLocationNeedsReselection \? '地址已修改，请重新地图选择' : '可选地图定位'/)
+  assert.match(source, /function handleAddressTextInput\(event\) \{[\s\S]*form\.addressText = String\(event\?\.detail\?\.value \?\? ''\)[\s\S]*if \(!hasValidLocation\(form\.location\)\) return[\s\S]*form\.location = \{\}[\s\S]*addressLocationNeedsReselection\.value = true/)
+  assert.match(source, /form\.addressText = resolvedAddress\.address[\s\S]*addressLocationNeedsReselection\.value = false/)
+})
+
 test('merchant profile page hides sourcing map binding entry while keeping the page registered', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')

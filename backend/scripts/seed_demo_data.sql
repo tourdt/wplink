@@ -8,8 +8,8 @@ SELECT u.id, u.phone, u.openid, u.nickname, cs.id, 'active', now()
 FROM city_stations cs
 CROSS JOIN (
   VALUES
-    (8010000000000000002, '19900000002', 'demo_factory_admin_openid', '认证工厂管理员'),
-    (8010000000000000003, '19900000003', 'demo_stockist_admin_openid', '认证库存商管理员'),
+    (8010000000000000002, '19900000002', 'demo_factory_admin_openid', '童装工厂管理员'),
+    (8010000000000000003, '19900000003', 'demo_stockist_admin_openid', '库存商管理员'),
     (8010000000000000004, '19900000004', 'demo_service_admin_openid', '服务商管理员'),
     (8010000000000000005, '19900000005', 'demo_buyer_openid', '采购商买家'),
     (8010000000000000006, '19900000006', 'demo_material_admin_openid', '面辅料商管理员'),
@@ -55,7 +55,6 @@ INSERT INTO merchants (
   contact_wechat,
   address_text,
   images,
-  verification_status,
   status,
   last_active_at
 )
@@ -71,7 +70,6 @@ SELECT
   m.contact_wechat,
   m.address_text,
   m.images::jsonb,
-  m.verification_status,
   'active',
   now()
 FROM city_stations cs
@@ -82,26 +80,24 @@ CROSS JOIN (
       '湖州织里晨星童装厂',
       'factory',
       '["童装","卫衣","套装"]',
-      '认证工厂，主做童装卫衣和套装，可承接小单快反。',
+      '主做童装卫衣和套装，可承接小单快反。',
       '陈厂长',
       '18800000001',
       'factory-demo',
       '织里镇利济路88号',
-      '[]',
-      'verified'
+      '[]'
     ),
     (
       8020000000000000002,
       '织里云仓尾货',
       'stockist',
       '["童装","库存尾货"]',
-      '认证库存商，长期处理整包库存和直播货盘。',
+      '长期处理整包库存和直播货盘。',
       '周经理',
       '18800000002',
       'stock-demo',
       '织里童装城3区',
-      '[]',
-      'verified'
+      '[]'
     ),
     (
       8020000000000000003,
@@ -113,8 +109,7 @@ CROSS JOIN (
       '18800000003',
       'service-demo',
       '织里镇阿祥路19号',
-      '[]',
-      'verified'
+      '[]'
     ),
     (
       8020000000000000004,
@@ -126,8 +121,7 @@ CROSS JOIN (
       '18800000004',
       'buyer-demo',
       '杭州市滨江区',
-      '[]',
-      'unverified'
+      '[]'
     ),
     (
       8020000000000000005,
@@ -139,8 +133,7 @@ CROSS JOIN (
       '18800000005',
       'material-demo',
       '织里镇吴兴大道面辅料市场',
-      '[]',
-      'verified'
+      '[]'
     ),
     (
       8020000000000000006,
@@ -152,10 +145,9 @@ CROSS JOIN (
       '18800000006',
       'property-demo',
       '织里镇利济路产业服务中心',
-      '[]',
-      'verified'
+      '[]'
     )
-) AS m(id, name, merchant_type, main_categories, description, contact_name, contact_phone, contact_wechat, address_text, images, verification_status)
+) AS m(id, name, merchant_type, main_categories, description, contact_name, contact_phone, contact_wechat, address_text, images)
 WHERE cs.code = 'zhili'
 ON CONFLICT (id) DO UPDATE SET
   city_station_id = EXCLUDED.city_station_id,
@@ -168,7 +160,6 @@ ON CONFLICT (id) DO UPDATE SET
   contact_wechat = EXCLUDED.contact_wechat,
   address_text = EXCLUDED.address_text,
   images = EXCLUDED.images,
-  verification_status = EXCLUDED.verification_status,
   status = EXCLUDED.status,
   last_active_at = EXCLUDED.last_active_at,
   updated_at = now();
@@ -206,7 +197,6 @@ INSERT INTO resources (
   contact_name,
   contact_phone,
   contact_wechat,
-  is_verified,
   published_at,
   refreshed_at,
   top_started_at,
@@ -255,7 +245,6 @@ SELECT
   r.contact_name,
   r.contact_phone,
   r.contact_wechat,
-  r.is_verified,
   r.published_at,
   r.refreshed_at,
   r.top_started_at,
@@ -276,7 +265,7 @@ CROSS JOIN (
     (8030000000000000004, 8020000000000000004, 'buy_kids_goods', 'published', '求购中大童夏款混批尾货', '混款', '杭州', '单件 10-25 元', '3000 件', '', '采购商求购中大童夏款混批尾货，接受断码并要求一周内交付。', '{"targetCategory":"混款","demandQuantityText":"3000 件","budgetRange":"单件 10-25 元","expectedDelivery":"7 天内","acceptTailStock":true,"purchaseArea":"杭州"}', '["求购","中大童","尾货"]', '王采购', '18800000004', 'buyer-demo', false, now() - interval '2 days', now() - interval '5 hours', NULL, NULL, now() + interval '7 days', NULL, NULL, NULL, NULL, 8010000000000000005),
     (8030000000000000005, 8020000000000000005, 'fabric_supply', 'published', '320 克纯棉卫衣布现货', '卫衣布', '织里', '26 元/公斤', '现货 8 吨', '/static/home/factory-hero.jpg', '纯棉卫衣布现货，多色可选，适合秋冬童装。', '{"fabricType":"卫衣布","fabricComposition":"纯棉","widthWeight":"185cm / 320g","fabricPriceText":"26 元/公斤","inStockText":"现货 8 吨","colorCount":16}', '["面料","卫衣布","现货"]', '赵经理', '18800000005', 'material-demo', true, now() - interval '5 days', now() - interval '6 hours', NULL, NULL, now() + interval '15 days', NULL, NULL, NULL, NULL, 8010000000000000006),
     (8030000000000000006, 8020000000000000005, 'accessory_supply', 'published', '童装吊牌洗标当天打样', '吊牌', '织里', '0.12 元/套起', '日产 10 万套', '', '童装吊牌、洗标和包装辅料支持当天打样。', '{"accessoryType":"吊牌","materialSpec":"350g 白卡覆膜","stockQuantityText":"日产 10 万套","accessoryPriceText":"0.12 元/套起","minOrderText":"1000 套"}', '["辅料","吊牌","当天打样"]', '赵经理', '18800000005', 'material-demo', true, now() - interval '4 days', now() - interval '7 hours', NULL, NULL, now() + interval '15 days', NULL, NULL, NULL, NULL, 8010000000000000006),
-    (8030000000000000007, 8020000000000000001, 'processing_accept', 'published', '童装卫衣工厂本周空档接单', '卫衣', '织里', '按工艺核价', '日产 1200 件', '', '认证工厂本周有空档，可承接童装卫衣来料加工。', '{"processCategory":"卫衣","dailyCapacity":"日产 1200 件","processingMode":"来料加工","processingPriceText":"按工艺核价","availableSchedule":"本周可排","acceptSmallOrders":true}', '["认证工厂","快反","本周可排"]', '陈厂长', '18800000001', 'factory-demo', true, now() - interval '1 day', now() - interval '30 minutes', now() - interval '1 hours', now() + interval '24 hours', now() + interval '15 days', NULL, NULL, NULL, NULL, 8010000000000000002),
+    (8030000000000000007, 8020000000000000001, 'processing_accept', 'published', '童装卫衣工厂本周空档接单', '卫衣', '织里', '按工艺核价', '日产 1200 件', '', '童装工厂本周有空档，可承接童装卫衣来料加工。', '{"processCategory":"卫衣","dailyCapacity":"日产 1200 件","processingMode":"来料加工","processingPriceText":"按工艺核价","availableSchedule":"本周可排","acceptSmallOrders":true}', '["源头工厂","快反","本周可排"]', '陈厂长', '18800000001', 'factory-demo', true, now() - interval '1 day', now() - interval '30 minutes', now() - interval '1 hours', now() + interval '24 hours', now() + interval '15 days', NULL, NULL, NULL, NULL, 8010000000000000002),
     (8030000000000000008, 8020000000000000004, 'find_factory', 'published', '寻找女童防晒衣加工厂', '童装', '杭州', '面议', '5000 件', '', '采购商寻找织里工厂承接女童防晒衣订单，交期二十天。', '{"targetCategory":"童装","orderQuantity":"5000 件","deliveryDeadline":"20 天","processingMode":"包工包料","budgetRange":"面议","sampleRequired":true}', '["订单","招加工厂","需要打样"]', '王采购', '18800000004', 'buyer-demo', false, now() - interval '1 day', now() - interval '2 hours', NULL, NULL, now() + interval '10 days', NULL, NULL, NULL, NULL, 8010000000000000005),
     (8030000000000000009, 8020000000000000003, 'production_support', 'published', '童装裁床整烫配套服务', '裁床', '织里', '按件计费', '织里及周边', '', '提供童装裁床、整烫和检品配套，当天响应。', '{"supportType":"裁床","serviceArea":"织里及周边","supportPriceText":"按件计费","responseTime":"当天响应","equipmentAvailable":true}', '["生产配套","裁床","当天响应"]', '李经理', '18800000003', 'service-demo', true, now() - interval '6 days', now() - interval '8 hours', NULL, NULL, now() + interval '15 days', NULL, NULL, NULL, NULL, 8010000000000000004),
     (8030000000000000010, 8020000000000000001, 'job_hiring', 'taken_down', '历史平车工招聘信息', '平车工', '织里', '计件 0.8-1.2 元', '8 人', '', '招聘入口下线前的历史平车工招聘演示。', '{"position":"平车工","payText":"计件 0.8-1.2 元","headcount":8,"workLocation":"织里镇利济路 88 号","includeMealsHousing":true,"settlementMode":"计件"}', '["历史招聘","平车工"]', '陈厂长', '18800000001', 'factory-demo', true, now() - interval '30 days', now() - interval '10 days', NULL, NULL, now() + interval '1 day', NULL, now() - interval '5 days', NULL, '冷启动阶段暂停招聘入口', 8010000000000000002),
@@ -304,7 +293,7 @@ CROSS JOIN (
     (8030000000000000032, 8020000000000000005, 'fabric_supply', 'audit_retry', '内容审核重试中的面料现货', '针织', '织里', '19 元/公斤', '现货 3 吨', '', '外部内容审核暂时失败，等待后台任务重试。', '{"fabricType":"针织","fabricComposition":"棉氨","widthWeight":"175cm / 220g","fabricPriceText":"19 元/公斤","inStockText":"现货 3 吨","colorCount":8}', '["审核重试","针织面料"]', '赵经理', '18800000005', 'material-demo', true, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 8010000000000000006),
     (8030000000000000033, 8020000000000000001, 'factory_direct', 'rejected', '资料不完整的货源演示', '童装', '织里', '面议', '起批待确认', '', '资料不完整并已被驳回的工厂货源演示。', '{"productCategory":"童装","factoryPriceText":"面议","minOrderText":"起批待确认","factoryAdvantage":"源头工厂","supportsDropship":false,"deliveryArea":"织里"}', '["已驳回","资料不完整"]', '陈厂长', '18800000001', 'factory-demo', true, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '缺少清晰价格和联系方式确认材料', NULL, 8010000000000000002),
     (8030000000000000034, 8020000000000000002, 'secondhand_sale', 'published', '已成交超过七天的旧设备', '设备', '织里', '成交价 3 万元', '2 台', '', '成交超过七天的旧设备，用于验证公开列表自动隐藏。', '{"itemType":"设备","conditionLevel":"正常使用","secondhandPriceText":"成交价 3 万元","secondhandQuantityText":"2 台","pickupLocation":"织里镇仓储区"}', '["历史成交","二手设备"]', '周经理', '18800000002', 'stock-demo', true, now() - interval '20 days', now() - interval '12 days', NULL, NULL, now() + interval '10 days', now() - interval '10 days', NULL, NULL, NULL, 8010000000000000003)
-) AS r(id, merchant_id, type_code, status, title, category, district, price_text, quantity_text, cover_url, description, attributes, tags, contact_name, contact_phone, contact_wechat, is_verified, published_at, refreshed_at, top_started_at, top_expires_at, expires_at, dealt_at, taken_down_at, reject_reason, take_down_reason, created_by_user_id)
+) AS r(id, merchant_id, type_code, status, title, category, district, price_text, quantity_text, cover_url, description, attributes, tags, contact_name, contact_phone, contact_wechat, seed_status, published_at, refreshed_at, top_started_at, top_expires_at, expires_at, dealt_at, taken_down_at, reject_reason, take_down_reason, created_by_user_id)
 WHERE cs.code = 'zhili'
   AND rtc.type_code = r.type_code
 ON CONFLICT (id) DO UPDATE SET
@@ -328,7 +317,6 @@ ON CONFLICT (id) DO UPDATE SET
   contact_name = EXCLUDED.contact_name,
   contact_phone = EXCLUDED.contact_phone,
   contact_wechat = EXCLUDED.contact_wechat,
-  is_verified = EXCLUDED.is_verified,
   published_at = EXCLUDED.published_at,
   refreshed_at = EXCLUDED.refreshed_at,
   top_started_at = EXCLUDED.top_started_at,
@@ -341,33 +329,15 @@ ON CONFLICT (id) DO UPDATE SET
   created_by_user_id = EXCLUDED.created_by_user_id,
   updated_at = now();
 
-INSERT INTO verifications (id, merchant_id, verification_type, status, applicant_user_id, business_name, license_url, storefront_url, materials, review_note, reviewed_by, reviewed_at)
-VALUES
-  (8040000000000000001, 8020000000000000001, 'factory', 'verified', 8010000000000000002, '湖州织里晨星童装厂', 'https://example.com/demo/factory-license.jpg', 'https://example.com/demo/factory-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days'),
-  (8040000000000000002, 8020000000000000002, 'stockist', 'verified', 8010000000000000003, '织里云仓尾货', 'https://example.com/demo/stock-license.jpg', 'https://example.com/demo/stock-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days'),
-  (8040000000000000003, 8020000000000000003, 'service_provider', 'verified', 8010000000000000004, '织里快印包装服务商', 'https://example.com/demo/service-license.jpg', 'https://example.com/demo/service-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days'),
-  (8040000000000000004, 8020000000000000005, 'material_supplier', 'verified', 8010000000000000006, '织里面辅料现货中心', 'https://example.com/demo/material-license.jpg', 'https://example.com/demo/material-store.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days'),
-  (8040000000000000005, 8020000000000000006, 'property_service', 'verified', 8010000000000000007, '织里产业物业服务中心', 'https://example.com/demo/property-license.jpg', 'https://example.com/demo/property-office.jpg', '{"demo":true}'::jsonb, '演示认证通过', 8009000000000000001, now() - interval '5 days')
-ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, review_note = EXCLUDED.review_note, reviewed_at = EXCLUDED.reviewed_at;
-
-INSERT INTO credit_records (id, merchant_id, source_type, tag_code, tag_label, description, visibility, created_by)
-VALUES
-  (8041000000000000001, 8020000000000000001, 'verification', 'factory_verified', '认证工厂', '演示认证信用标签', 'public', 8009000000000000001),
-  (8041000000000000002, 8020000000000000002, 'verification', 'stockist_verified', '认证库存商', '演示认证信用标签', 'public', 8009000000000000001),
-  (8041000000000000003, 8020000000000000003, 'verification', 'service_provider_verified', '认证服务商', '演示认证信用标签', 'public', 8009000000000000001),
-  (8041000000000000004, 8020000000000000005, 'verification', 'material_supplier_verified', '认证面辅料商', '演示认证信用标签', 'public', 8009000000000000001),
-  (8041000000000000005, 8020000000000000006, 'verification', 'property_service_verified', '认证物业服务商', '演示认证信用标签', 'public', 8009000000000000001)
-ON CONFLICT (id) DO UPDATE SET tag_label = EXCLUDED.tag_label, description = EXCLUDED.description, revoked_at = NULL;
-
 INSERT INTO merchant_entitlements (id, merchant_id, entitlement_type, source_type, total_amount, remaining_amount, allowed_type_codes, top_duration_hours, expires_at, status)
 VALUES
-  (8042000000000000001, 8020000000000000001, 'publish_quota', 'verification_bonus', 20, 18, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
-  (8042000000000000002, 8020000000000000002, 'refresh_quota', 'verification_bonus', 30, 27, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
-  (8042000000000000003, 8020000000000000003, 'publish_quota', 'verification_bonus', 20, 16, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
+  (8042000000000000001, 8020000000000000001, 'publish_quota', 'demo_seed', 20, 18, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
+  (8042000000000000002, 8020000000000000002, 'refresh_quota', 'demo_seed', 30, 27, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
+  (8042000000000000003, 8020000000000000003, 'publish_quota', 'demo_seed', 20, 16, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
   (8042000000000000004, 8020000000000000004, 'publish_quota', 'demo_debug', 20, 14, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
-  (8042000000000000005, 8020000000000000005, 'publish_quota', 'verification_bonus', 20, 17, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
-  (8042000000000000006, 8020000000000000006, 'publish_quota', 'verification_bonus', 20, 11, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
-  (8043000000000000001, 8020000000000000002, 'top_voucher', 'verification_bonus', 1, 1, '["stock_clearance","factory_direct"]'::jsonb, 24, now() + interval '20 days', 'active')
+  (8042000000000000005, 8020000000000000005, 'publish_quota', 'demo_seed', 20, 17, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
+  (8042000000000000006, 8020000000000000006, 'publish_quota', 'demo_seed', 20, 11, '[]'::jsonb, 0, now() + interval '30 days', 'active'),
+  (8043000000000000001, 8020000000000000002, 'top_voucher', 'demo_seed', 1, 1, '["stock_clearance","factory_direct"]'::jsonb, 24, now() + interval '20 days', 'active')
 ON CONFLICT (id) DO UPDATE SET
   entitlement_type = EXCLUDED.entitlement_type,
   source_type = EXCLUDED.source_type,
@@ -598,7 +568,7 @@ VALUES
     5,
     '["girl","baby"]'::jsonb,
     '["spot","factory","sample"]'::jsonb,
-    '["verified","hot"]'::jsonb,
+    '["hot"]'::jsonb,
     '[]'::jsonb,
     '织里镇利济路88号',
     '18800000001',
@@ -627,7 +597,7 @@ VALUES
     5,
     '["girl","middle_child"]'::jsonb,
     '["spot","dropship"]'::jsonb,
-    '["verified","hot"]'::jsonb,
+    '["hot"]'::jsonb,
     '[]'::jsonb,
     '织里童装城3区',
     '18800000002',
@@ -656,7 +626,7 @@ VALUES
     5,
     '["boy","middle_child"]'::jsonb,
     '["spot","factory","dropship"]'::jsonb,
-    '["verified"]'::jsonb,
+    '[]'::jsonb,
     '[]'::jsonb,
     '织里镇利济路90号',
     '18800000001',
@@ -714,12 +684,12 @@ VALUES
     5,
     '["boy","girl"]'::jsonb,
     '["factory","sample"]'::jsonb,
-    '["verified"]'::jsonb,
+    '[]'::jsonb,
     '[]'::jsonb,
     '利济路中段 B216',
     '18800000001',
     'factory-demo',
-    'B216 森屿套装工厂 B216 男童 女童 源头工厂 支持打样 实地认证 利济路中段 factory-demo',
+    'B216 森屿套装工厂 B216 男童 女童 源头工厂 支持打样 利济路中段 factory-demo',
     '{"demo":true,"floor":"2F","openHours":"08:00-20:30","services":["来图打样","快反排单","工厂验厂"]}'::jsonb,
     23,
     'normal'
@@ -743,12 +713,12 @@ VALUES
     5,
     '["baby"]'::jsonb,
     '["spot","dropship"]'::jsonb,
-    '["verified"]'::jsonb,
+    '[]'::jsonb,
     '[]'::jsonb,
     '利济路南侧仓储区 D018',
     '18800000002',
     'stock-demo',
-    'D018 棉朵婴童仓 D018 婴童 现货 一件代发 实地认证 利济路南侧仓储区 stock-demo',
+    'D018 棉朵婴童仓 D018 婴童 现货 一件代发 利济路南侧仓储区 stock-demo',
     '{"demo":true,"floor":"仓库","openHours":"09:00-18:30","services":["整包出货","云仓代发","库存清点"]}'::jsonb,
     24,
     'normal'

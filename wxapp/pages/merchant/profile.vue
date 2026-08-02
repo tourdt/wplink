@@ -123,11 +123,11 @@
           <view class="form-field">
             <text class="field-label">经营地址</text>
             <view class="address-row">
-              <input v-model="form.addressText" class="field" placeholder="请输入经营地址" />
+              <input v-model="form.addressText" class="field" placeholder="请输入经营地址" @input="handleAddressTextInput" />
               <button class="map-button" @click="chooseMerchantLocation">地图选择</button>
             </view>
             <view class="location-status">
-              <text>{{ locationSelected ? '已选地图位置' : '可选地图定位' }}</text>
+              <text>{{ locationSelected ? '已选地图位置' : (addressLocationNeedsReselection ? '地址已修改，请重新地图选择' : '可选地图定位') }}</text>
               <button v-if="locationSelected" class="location-clear-button" @click="clearMerchantLocation">清除位置</button>
             </view>
           </view>
@@ -151,6 +151,7 @@ import UniGridItem from '../../components/uni-ui/uni-grid-item/uni-grid-item.vue
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { validateMerchantName } from '../../common/merchantName'
 import { bindWechatPhone } from '../../api/auth'
+import { reverseGeocodeLocation } from '../../api/location'
 import { getMerchant, updateMerchant } from '../../api/merchant'
 import { createImageFileFromPath, uploadSelectedImage } from '../../common/upload'
 import {
@@ -181,6 +182,7 @@ const merchantId = ref('')
 const submitting = ref(false)
 const phoneAuthorizing = ref(false)
 const contactSectionOpen = ref(false)
+const addressLocationNeedsReselection = ref(false)
 const mainCategoriesText = ref('')
 const pendingLogoFile = ref(null)
 const merchantImageEntries = ref([])
@@ -241,6 +243,7 @@ async function loadMerchant() {
     form.contactWechat = sanitizeContactWechatValue(contact.wechat || '')
     form.addressText = detail.addressText || ''
     form.location = detail.location || {}
+    addressLocationNeedsReselection.value = false
     form.description = detail.description || ''
     form.logoUrl = detail.logoUrl || ''
     mainCategoriesText.value = (detail.mainCategories || []).join(',')
@@ -317,21 +320,28 @@ async function submitMerchantProfile() {
 
 function chooseMerchantLocation() {
   uni.chooseLocation({
-    success: (result) => {
+    success: async (result) => {
       const latitude = Number(result.latitude)
       const longitude = Number(result.longitude)
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
         uni.showToast({ title: '未获取到有效地图位置', icon: 'none' })
         return
       }
-      // 地图坐标用于发布者资料页导航；文字地址仍保留给用户手动修正。
+      const resolvedAddress = await resolveMerchantLocationAddress(result, latitude, longitude)
+      if (!resolvedAddress.address) {
+        // 地图拖动到非 POI 点位时，微信可能只返回经纬度；不保存空地址，避免资料页显示无意义的位置。
+        uni.showToast({ title: '未获取到详细地址，请搜索具体地点后重试', icon: 'none' })
+        return
+      }
+      // 地图坐标用于发布者资料页导航，完整地址同步写入输入框，方便用户核对和补充。
       form.location = {
         latitude,
         longitude,
-        name: result.name || '',
-        address: result.address || '',
+        name: resolvedAddress.name,
+        address: resolvedAddress.address,
       }
-      form.addressText = result.address || result.name || form.addressText
+      form.addressText = resolvedAddress.address
+      addressLocationNeedsReselection.value = false
       uni.showToast({ title: '地图位置已保存', icon: 'none' })
     },
     fail: (err) => {
@@ -341,8 +351,75 @@ function chooseMerchantLocation() {
   })
 }
 
+function handleAddressTextInput(event) {
+  form.addressText = String(event?.detail?.value ?? '')
+  if (!hasValidLocation(form.location)) return
+
+  // 手工修改文字地址后，原地图点位已无法证明仍对应当前地址，必须重新选点以免向买家展示错误导航位置。
+  form.location = {}
+  addressLocationNeedsReselection.value = true
+}
+
+async function resolveMerchantLocationAddress(result, latitude, longitude) {
+  const selectedAddress = buildMerchantLocationAddressText(result)
+  const selectedName = normalizeMerchantLocationText(result?.name)
+  if (selectedAddress) {
+    return { address: selectedAddress, name: selectedName }
+  }
+  return reverseGeocodeMerchantLocation(latitude, longitude, selectedName)
+}
+
+async function reverseGeocodeMerchantLocation(latitude, longitude, selectedName) {
+  uni.showLoading({ title: '解析地址中', mask: false })
+  try {
+    const result = await reverseGeocodeLocation({ latitude, longitude })
+    const address = buildMerchantLocationAddressText(result)
+    if (address) {
+      return {
+        address,
+        name: normalizeMerchantLocationText(result?.name) || selectedName,
+      }
+    }
+    console.warn('商家资料地图地址反查未返回详细地址', { latitude, longitude })
+  } catch (err) {
+    // 地址反查异常不暴露服务端细节；记录坐标和错误信息，便于定位地图服务或网络问题。
+    console.warn('商家资料地图地址反查失败', {
+      latitude,
+      longitude,
+      errMsg: err?.message || err?.errMsg || String(err || ''),
+    })
+  } finally {
+    uni.hideLoading()
+  }
+  return { address: '', name: selectedName }
+}
+
+function buildMerchantLocationAddressText(result) {
+  const address = normalizeMerchantLocationText(result?.address)
+  const name = normalizeMerchantLocationText(result?.name)
+  if (address && name && !address.includes(name) && !name.includes(address)) {
+    return `${address}${name}`
+  }
+  return address || name
+}
+
+function normalizeMerchantLocationText(value) {
+  const text = String(value || '').trim()
+  if (!text || isCoordinateMerchantLocationText(text)) return ''
+  return text
+}
+
+function isCoordinateMerchantLocationText(text) {
+  const value = String(text || '').trim()
+  if (!value) return false
+  if (/^-?\d+(\.\d+)?\s*[,，]\s*-?\d+(\.\d+)?$/.test(value)) return true
+  if (/^(gps|经纬度|坐标|地图位置)[:：\s(（-]*-?\d+(\.\d+)?/i.test(value)) return true
+  return /纬度[:：]?\s*-?\d+(\.\d+)?[\s,，;；]+经度[:：]?\s*-?\d+(\.\d+)?/.test(value)
+}
+
 function clearMerchantLocation() {
   form.location = {}
+  addressLocationNeedsReselection.value = false
 }
 
 async function uploadMerchantImage() {

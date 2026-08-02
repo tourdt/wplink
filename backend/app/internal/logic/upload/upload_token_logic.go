@@ -53,10 +53,14 @@ func (l *UploadTokenLogic) CreateUploadToken(_ context.Context, req CreateUpload
 	expiresAt := time.Now().Add(expire).UTC()
 	objectKey := buildObjectKey(req.Purpose, req.FileName)
 	policy := map[string]interface{}{
-		"scope":      l.cfg.Bucket + ":" + objectKey,
-		"deadline":   expiresAt.Unix(),
-		"mimeLimit":  strings.TrimSpace(req.ContentType),
-		"fsizeLimit": req.FileSize,
+		"scope":     l.cfg.Bucket + ":" + objectKey,
+		"deadline":  expiresAt.Unix(),
+		"mimeLimit": strings.TrimSpace(req.ContentType),
+	}
+	if l.cfg.MaxFileSizeBytes > 0 {
+		// 微信头像选择回调可能只提供临时路径而没有准确字节数，
+		// 因此上传策略统一使用服务端配置上限，避免把占位大小写成 1 字节导致真实图片被对象存储拒绝。
+		policy["fsizeLimit"] = l.cfg.MaxFileSizeBytes
 	}
 	policyBytes, err := json.Marshal(policy)
 	if err != nil {
