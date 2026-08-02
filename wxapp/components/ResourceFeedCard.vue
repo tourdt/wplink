@@ -4,7 +4,11 @@
     role="button"
     @click="$emit('open', resource)"
   >
-    <text v-if="cardModel.isCompleted" class="feed-completed-watermark">已完成</text>
+    <view v-if="cardModel.isCompleted" class="feed-completed-stamp">
+      <view class="feed-completed-stamp-ring"></view>
+      <text class="feed-completed-stamp-stars">✦</text>
+      <text class="feed-completed-stamp-label">已完成</text>
+    </view>
     <view class="feed-thumb-wrap">
       <image
         class="feed-thumb"
@@ -12,11 +16,10 @@
         mode="aspectFill"
       />
       <text
-        :class="['feed-type-badge', { demand: cardModel.isDemand, 'with-completed': cardModel.isCompleted }]"
+        :class="['feed-type-badge', { demand: cardModel.isDemand }]"
       >
         {{ cardModel.resourceTypeLabel || cardModel.directionLabel }}
       </text>
-      <text v-if="cardModel.isCompleted" class="feed-completed-badge">已完成</text>
     </view>
 
     <view class="feed-card-main">
@@ -94,8 +97,7 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   height: 100%;
 }
 
-.feed-type-badge,
-.feed-completed-badge {
+.feed-type-badge {
   position: absolute;
   top: 8rpx;
   z-index: 1;
@@ -118,21 +120,12 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   white-space: nowrap;
 }
 
-.feed-type-badge.with-completed {
-  max-width: 68rpx;
-}
-
 .feed-type-badge:not(.demand) {
   background: $wplink-primary;
 }
 
 .feed-type-badge.demand {
   background: $wplink-warning;
-}
-
-.feed-completed-badge {
-  right: 8rpx;
-  background: rgba(71, 85, 105, 0.92);
 }
 
 .feed-card-main {
@@ -143,18 +136,55 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   min-width: 0;
 }
 
-.feed-completed-watermark {
+.feed-completed-stamp {
   position: absolute;
   top: 50%;
-  left: 50%;
+  left: 57%;
   z-index: 0;
-  color: rgba(71, 85, 105, 0.14);
-  font-size: 76rpx;
-  font-weight: 800;
-  line-height: 1;
+  width: 164rpx;
+  height: 122rpx;
+  color: rgba(71, 85, 105, 0.24);
   pointer-events: none;
-  transform: translate(-50%, -50%) rotate(-18deg);
-  white-space: nowrap;
+  transform: translate(-50%, -50%);
+}
+
+.feed-completed-stamp-ring {
+  position: absolute;
+  top: 10rpx;
+  left: 44rpx;
+  width: 104rpx;
+  height: 104rpx;
+  border: 4rpx solid currentColor;
+  border-radius: 50%;
+}
+
+.feed-completed-stamp-stars {
+  position: absolute;
+  top: 18rpx;
+  left: 68rpx;
+  color: currentColor;
+  font-size: 18rpx;
+  letter-spacing: 18rpx;
+  text-shadow: -28rpx 0 currentColor, 28rpx 0 currentColor;
+}
+
+.feed-completed-stamp-label {
+  position: absolute;
+  top: 40rpx;
+  left: 0;
+  display: grid;
+  width: 164rpx;
+  height: 56rpx;
+  place-items: center;
+  border: 4rpx solid currentColor;
+  border-radius: 8rpx;
+  background: rgba(255, 255, 255, 0.72);
+  color: currentColor;
+  font-size: 40rpx;
+  font-weight: 800;
+  letter-spacing: 4rpx;
+  line-height: 1;
+  transform: rotate(-13deg);
 }
 
 .feed-title,

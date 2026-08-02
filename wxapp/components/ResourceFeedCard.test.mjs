@@ -29,13 +29,13 @@ test('resource feed card preserves the click contract and compact visual hierarc
   assert.match(source, /\.feed-type-badge:not\(\.demand\) \{[\s\S]*background: \$wplink-primary;/)
 })
 
-test('resource feed card overlays completed resources with a readable non-interactive watermark', () => {
-  assert.match(
-    source,
-    /<text v-if="cardModel\.isCompleted" class="feed-completed-watermark">已完成<\/text>/,
-  )
-  assert.match(source, /\.resource-feed-card \{[\s\S]*position: relative;/)
-  assert.match(source, /\.feed-completed-watermark \{[\s\S]*position: absolute;[\s\S]*pointer-events: none;/)
-  assert.match(source, /\.feed-completed-watermark \{[\s\S]*font-size: 76rpx;[\s\S]*transform: translate\(-50%, -50%\) rotate\(-18deg\);/)
-  assert.match(source, /\.feed-thumb-wrap,[\s\S]*\.feed-card-main \{[\s\S]*position: relative;[\s\S]*z-index: 1;/)
+test('resource feed card renders a subtle completed stamp without a duplicate cover badge', () => {
+  assert.match(source, /<view v-if="cardModel\.isCompleted" class="feed-completed-stamp">/)
+  assert.match(source, /class="feed-completed-stamp-ring"/)
+  assert.match(source, /class="feed-completed-stamp-stars">✦<\/text>/)
+  assert.match(source, /class="feed-completed-stamp-label">已完成<\/text>/)
+  assert.match(source, /\.feed-completed-stamp \{[\s\S]*pointer-events: none;/)
+  assert.match(source, /\.feed-completed-stamp-label \{[\s\S]*transform: rotate\(-13deg\);/)
+  assert.doesNotMatch(source, /feed-completed-badge/)
+  assert.doesNotMatch(source, /with-completed/)
 })
