@@ -4,6 +4,7 @@
     role="button"
     @click="$emit('open', resource)"
   >
+    <text v-if="cardModel.isCompleted" class="feed-completed-watermark">已完成</text>
     <view class="feed-thumb-wrap">
       <image
         class="feed-thumb"
@@ -54,6 +55,7 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
 
 <style lang="scss" scoped>
 .resource-feed-card {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 12rpx;
@@ -70,8 +72,13 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   transform: translateY(1rpx);
 }
 
-.feed-thumb-wrap {
+.feed-thumb-wrap,
+.feed-card-main {
   position: relative;
+  z-index: 1;
+}
+
+.feed-thumb-wrap {
   box-sizing: border-box;
   flex: 0 0 152rpx;
   width: 152rpx;
@@ -134,6 +141,20 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   align-self: stretch;
   align-content: space-between;
   min-width: 0;
+}
+
+.feed-completed-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 0;
+  color: rgba(71, 85, 105, 0.14);
+  font-size: 76rpx;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-18deg);
+  white-space: nowrap;
 }
 
 .feed-title,

@@ -28,3 +28,14 @@ test('resource feed card preserves the click contract and compact visual hierarc
   assert.match(source, /\.feed-type-badge\.demand \{[\s\S]*background: \$wplink-warning;/)
   assert.match(source, /\.feed-type-badge:not\(\.demand\) \{[\s\S]*background: \$wplink-primary;/)
 })
+
+test('resource feed card overlays completed resources with a readable non-interactive watermark', () => {
+  assert.match(
+    source,
+    /<text v-if="cardModel\.isCompleted" class="feed-completed-watermark">已完成<\/text>/,
+  )
+  assert.match(source, /\.resource-feed-card \{[\s\S]*position: relative;/)
+  assert.match(source, /\.feed-completed-watermark \{[\s\S]*position: absolute;[\s\S]*pointer-events: none;/)
+  assert.match(source, /\.feed-completed-watermark \{[\s\S]*font-size: 76rpx;[\s\S]*transform: translate\(-50%, -50%\) rotate\(-18deg\);/)
+  assert.match(source, /\.feed-thumb-wrap,[\s\S]*\.feed-card-main \{[\s\S]*position: relative;[\s\S]*z-index: 1;/)
+})
