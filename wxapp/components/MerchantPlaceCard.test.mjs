@@ -20,6 +20,11 @@ test('merchant place card uses a booth doorplate hierarchy and distinguishes sou
   }
 })
 
+test('merchant place card renders the localized display tags provided by the directory', () => {
+  assert.match(source, /:tags="place\.displayTags"/)
+  assert.doesNotMatch(source, /\(props\.place\.categoryCodes \|\| \[\]\)/)
+})
+
 test('merchant place card separates claimed location viewing from prelisted navigation', () => {
   assert.match(source, /v-if="canOpenMerchantLocation"[^>]*@click\.stop="\$emit\('location', place\)"[^>]*>查看位置<\/button>/)
   assert.match(source, /v-else-if="!place\.claimed && hasLocation"[^>]*@click\.stop="\$emit\('navigate', place\)"[^>]*>导航<\/button>/)
