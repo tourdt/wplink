@@ -1,8 +1,10 @@
 export function createResourceDetailAuxiliaryLoader({
   getFavoriteState,
+  getMerchantProfile,
   hasAuthToken,
   listRelatedResources,
   setFavorited,
+  setMerchantProfile,
   setRelatedResources,
   setShareImageUrl,
 }) {
@@ -14,6 +16,7 @@ export function createResourceDetailAuxiliaryLoader({
     currentResourceId = String(resourceId || '')
     setRelatedResources([])
     setFavorited(false)
+    setMerchantProfile({})
     setShareImageUrl('')
     return { generation: currentGeneration, resourceId: currentResourceId }
   }
@@ -27,7 +30,8 @@ export function createResourceDetailAuxiliaryLoader({
   function run(context, {
     initializeSharing,
     isOwnResource,
-    loadMerchantProfile,
+    merchantId,
+    onMerchantProfileLoaded,
     recordResourceDetailView,
   }) {
     // 旧生命周期即使在详情主体请求完成后才恢复，也不能清空或覆盖当前详情的推荐状态。
@@ -36,7 +40,7 @@ export function createResourceDetailAuxiliaryLoader({
     // 分享入口不等待商家资料、推荐、浏览或收藏等低优先级请求。
     initializeSharing(context)
     const auxiliaryTasks = [
-      Promise.resolve().then(() => loadMerchantProfile(context)),
+      loadMerchantProfileForContext(context, merchantId, onMerchantProfileLoaded),
       loadRelatedResourcesForContext(context, isOwnResource),
     ]
     if (!isOwnResource) {
@@ -46,6 +50,24 @@ export function createResourceDetailAuxiliaryLoader({
       )
     }
     return Promise.allSettled(auxiliaryTasks)
+  }
+
+  async function loadMerchantProfileForContext(context, merchantId, onLoaded = () => {}) {
+    if (!isCurrent(context)) return false
+    if (!merchantId) {
+      setMerchantProfile({})
+      return false
+    }
+    try {
+      const profile = await getMerchantProfile(merchantId)
+      if (!isCurrent(context)) return false
+      setMerchantProfile(profile || {})
+      onLoaded(context)
+      return true
+    } catch (err) {
+      if (isCurrent(context)) setMerchantProfile({})
+      return false
+    }
   }
 
   async function loadFavoriteStateForContext(context) {
@@ -80,5 +102,5 @@ export function createResourceDetailAuxiliaryLoader({
     }
   }
 
-  return { begin, isCurrent, run }
+  return { begin, isCurrent, loadMerchantProfile: loadMerchantProfileForContext, run }
 }

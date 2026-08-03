@@ -41,6 +41,17 @@ export function createResourceShareCoverRenderer({
   return { request }
 }
 
+export function buildResourceShareRenderContext(context, resource = {}, merchantProfile = {}) {
+  return {
+    ...context,
+    merchant: {
+      ...(resource.merchant || {}),
+      ...(merchantProfile || {}),
+    },
+    resource,
+  }
+}
+
 function isSameContext(left, right) {
   return Boolean(left && right)
     && left.generation === right.generation

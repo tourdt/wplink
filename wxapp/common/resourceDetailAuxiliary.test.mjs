@@ -21,9 +21,11 @@ async function flushTasks() {
 function createLoader(overrides = {}) {
   return createResourceDetailAuxiliaryLoader({
     getFavoriteState: async () => ({ favorited: false }),
+    getMerchantProfile: async () => ({}),
     hasAuthToken: () => false,
     listRelatedResources: async () => ({ items: [] }),
     setFavorited() {},
+    setMerchantProfile() {},
     setRelatedResources() {},
     setShareImageUrl() {},
     ...overrides,
@@ -33,7 +35,8 @@ function createLoader(overrides = {}) {
 function createAuxiliaryDeps(overrides = {}) {
   return {
     initializeSharing() {},
-    loadMerchantProfile: async () => {},
+    merchantId: '',
+    onMerchantProfileLoaded() {},
     recordResourceDetailView: async () => {},
     ...overrides,
   }
@@ -105,6 +108,10 @@ test('public detail keeps sharing independent while all auxiliary requests settl
   const calls = []
   const relatedUpdates = []
   const loader = createLoader({
+    getMerchantProfile() {
+      calls.push('merchant')
+      return merchant.promise
+    },
     listRelatedResources(resourceId, params, options) {
       relatedCalls.push({ options, params, resourceId })
       return related.promise
@@ -120,10 +127,8 @@ test('public detail keeps sharing independent while all auxiliary requests settl
       calls.push('share')
     },
     isOwnResource: false,
-    loadMerchantProfile() {
-      calls.push('merchant')
-      return merchant.promise
-    },
+    merchantId: 'merchant-public',
+    onMerchantProfileLoaded() {},
     recordResourceDetailView() {
       calls.push('view')
       return view.promise
@@ -143,7 +148,7 @@ test('public detail keeps sharing independent while all auxiliary requests settl
   view.resolve()
   const results = await run
 
-  assert.equal(results.filter((result) => result.status === 'rejected').length, 1)
+  assert.equal(results.filter((result) => result.status === 'rejected').length, 0)
   assert.deepEqual(relatedUpdates.at(-1), [{ id: 'related-public' }])
 })
 
@@ -152,6 +157,10 @@ test('own detail requires authentication for related resources without public-on
   const relatedCalls = []
   const calls = []
   const loader = createLoader({
+    async getMerchantProfile() {
+      calls.push('merchant')
+      return {}
+    },
     listRelatedResources(resourceId, params, options) {
       relatedCalls.push({ options, params, resourceId })
       return related.promise
@@ -165,9 +174,8 @@ test('own detail requires authentication for related resources without public-on
       calls.push('share')
     },
     isOwnResource: true,
-    loadMerchantProfile() {
-      calls.push('merchant')
-    },
+    merchantId: 'merchant-own',
+    onMerchantProfileLoaded() {},
     recordResourceDetailView() {
       calls.push('view')
     },

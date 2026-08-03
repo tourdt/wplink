@@ -201,7 +201,10 @@ import { createQuotaPackOrder, createVIPPayment, listQuotaPacks } from '../../ap
 import { requireLogin } from '../../common/auth'
 import { createResourceDetailAuxiliaryLoader } from '../../common/resourceDetailAuxiliary'
 import { buildResourceDetailPresentation } from '../../common/resourceDetailState'
-import { createResourceShareCoverRenderer } from '../../common/resourceShareCoverRenderer'
+import {
+  buildResourceShareRenderContext,
+  createResourceShareCoverRenderer,
+} from '../../common/resourceShareCoverRenderer'
 import {
   RESOURCE_SHARE_COVER_CANVAS_ID,
   RESOURCE_SHARE_COVER_SIZE,
@@ -219,12 +222,18 @@ const favorited = ref(false)
 const shareImageUrl = ref('')
 const detailAuxiliaryLoader = createResourceDetailAuxiliaryLoader({
   getFavoriteState: getResourceFavoriteState,
+  getMerchantProfile(merchantId) {
+    return getMerchant(merchantId, { suppressErrorToast: true })
+  },
   hasAuthToken() {
     return Boolean(getSession().token)
   },
   listRelatedResources,
   setFavorited(value) {
     favorited.value = Boolean(value)
+  },
+  setMerchantProfile(profile) {
+    merchantProfile.value = profile || {}
   },
   setRelatedResources(items) {
     relatedResources.value = Array.isArray(items) ? items : []
@@ -415,7 +424,8 @@ onLoad(async (options) => {
   await detailAuxiliaryLoader.run(loadContext, {
     initializeSharing: initializeResourceSharing,
     isOwnResource: isOwnResource.value,
-    loadMerchantProfile,
+    merchantId: (resource.value.merchant || {}).id,
+    onMerchantProfileLoaded: scheduleShareCoverRender,
     recordResourceDetailView,
   })
 })
@@ -442,7 +452,8 @@ async function loadOwnResourceIfCurrentMerchant(resourceId, loadContext) {
     await detailAuxiliaryLoader.run(loadContext, {
       initializeSharing: initializeResourceSharing,
       isOwnResource: true,
-      loadMerchantProfile,
+      merchantId: (resource.value.merchant || {}).id,
+      onMerchantProfileLoaded: scheduleShareCoverRender,
       recordResourceDetailView,
     })
     return true
@@ -455,7 +466,11 @@ async function reloadOwnResource() {
   if (!resource.value.id || !ownerMerchantId.value) return
   resource.value = await getOwnResource(resource.value.id, ownerMerchantId.value, { suppressErrorToast: true })
   updateNavigationTitle()
-  await loadMerchantProfile()
+  await detailAuxiliaryLoader.loadMerchantProfile(
+    currentDetailLoadContext,
+    (resource.value.merchant || {}).id,
+    scheduleShareCoverRender,
+  )
 }
 
 function initializeResourceSharing(loadContext) {
@@ -475,21 +490,6 @@ function previewGalleryImage(index = selectedGalleryIndex.value) {
     current,
     urls: galleryImages.value,
   })
-}
-
-async function loadMerchantProfile(loadContext) {
-  if (loadContext && !detailAuxiliaryLoader.isCurrent(loadContext)) return
-  const merchantId = (resource.value.merchant || {}).id
-  if (!merchantId) {
-    if (!loadContext || detailAuxiliaryLoader.isCurrent(loadContext)) merchantProfile.value = {}
-    return
-  }
-  try {
-    const profile = await getMerchant(merchantId, { suppressErrorToast: true })
-    if (!loadContext || detailAuxiliaryLoader.isCurrent(loadContext)) merchantProfile.value = profile
-  } catch (err) {
-    if (!loadContext || detailAuxiliaryLoader.isCurrent(loadContext)) merchantProfile.value = {}
-  }
 }
 
 async function toggleFavorite() {
@@ -1038,11 +1038,11 @@ function scheduleShareCoverRender(loadContext) {
   if (!shareCanvasReady || !detailAuxiliaryLoader.isCurrent(loadContext)) return
   if (!resource.value.id || String(resource.value.id) !== loadContext.resourceId) return
   clearTimeout(shareCoverRenderTimer)
-  const renderContext = {
-    ...loadContext,
-    merchant: merchantInfo.value,
-    resource: resource.value,
-  }
+  const renderContext = buildResourceShareRenderContext(
+    loadContext,
+    resource.value,
+    merchantProfile.value,
+  )
   // 等待供需信息主图和隐藏 canvas 完成一次视图更新，避免刚加载详情时导出空白封面。
   shareCoverRenderTimer = setTimeout(() => {
     shareCoverRenderTimer = null
