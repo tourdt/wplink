@@ -333,7 +333,7 @@ export const defaultFlowChecks = [
       'goAfterLogin',
       'switchTab',
       'redirectTo',
-      'localDevLoginCode',
+      'getWechatLoginCode',
       '登录后同步收藏、消息和发布记录',
     ],
   },

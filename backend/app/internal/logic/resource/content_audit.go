@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -16,6 +17,13 @@ const (
 	ContentAuditDecisionReview = "review"
 	ContentAuditDecisionRisky  = "risky"
 )
+
+// ErrLegacyWechatAuditIdentity 表示历史开发环境生成的伪 OpenID，不能提交给真实微信审核接口。
+var ErrLegacyWechatAuditIdentity = errors.New("legacy wechat content audit identity")
+
+func IsLegacyWechatOpenID(openID string) bool {
+	return strings.HasPrefix(strings.TrimSpace(openID), "dev:local-dev-")
+}
 
 type ContentAuditInput struct {
 	ResourceID    string

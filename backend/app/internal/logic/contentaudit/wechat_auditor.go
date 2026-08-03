@@ -86,6 +86,11 @@ func (a *WechatAuditor) AuditResource(ctx context.Context, input resourcelogic.C
 	if a == nil || !a.cfg.Enabled {
 		return resourcelogic.ContentAuditResult{Decision: resourcelogic.ContentAuditDecisionPass}, nil
 	}
+	if resourcelogic.IsLegacyWechatOpenID(input.OpenID) {
+		// 历史开发身份不属于真实小程序，若继续调用微信会反复触发 invalid openid 并污染重试队列。
+		logx.Errorf("微信内容安全拒绝历史开发身份: merchantId=%s resourceId=%s typeCode=%s", input.MerchantID, input.ResourceID, input.TypeCode)
+		return resourcelogic.ContentAuditResult{}, resourcelogic.ErrLegacyWechatAuditIdentity
+	}
 	if strings.TrimSpace(input.OpenID) == "" {
 		return resourcelogic.ContentAuditResult{}, fmt.Errorf("微信内容安全需要用户 openid")
 	}

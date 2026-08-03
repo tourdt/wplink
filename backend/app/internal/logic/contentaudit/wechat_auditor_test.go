@@ -3,6 +3,7 @@ package contentaudit
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +13,30 @@ import (
 	"wplink/backend/app/internal/config"
 	resourcelogic "wplink/backend/app/internal/logic/resource"
 )
+
+func TestWechatAuditorRejectsLegacyDevOpenIDWithoutCallingWechat(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	auditor := NewWechatAuditor(
+		config.WechatConfig{AppID: "wx-app", AppSecret: "secret"},
+		config.ContentAuditConfig{Enabled: true, TextScene: 3, RequestTimeout: time.Second},
+		"",
+		server.Client(),
+	).WithURLs(server.URL+"/token", server.URL+"/msg", "")
+
+	_, err := auditor.AuditResource(context.Background(), resourcelogic.ContentAuditInput{OpenID: "dev:local-dev-123"})
+	if !errors.Is(err, resourcelogic.ErrLegacyWechatAuditIdentity) {
+		t.Fatalf("AuditResource() error = %v, want legacy identity error", err)
+	}
+	if called {
+		t.Fatal("wechat content audit endpoint was called for legacy dev openid")
+	}
+}
 
 func TestWechatAuditorReturnsRiskyTextDecision(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -610,6 +610,42 @@ func TestCreateResourceQueuesRetryWhenAuditDependencyFails(t *testing.T) {
 	}
 }
 
+func TestCreateResourceRejectsLegacyWechatAuditIdentity(t *testing.T) {
+	store := &fakeCreateResourceStore{
+		config: model.ResourcePublishConfig{
+			ID:             "config-1",
+			TypeCode:       "inventory",
+			RequiredFields: []string{"title", "category", "quantityText", "contactPhone"},
+		},
+		result:     model.CreateResourceResult{ID: "resource-1", Status: model.ResourceStatusPending},
+		userOpenID: "dev:local-dev-123",
+	}
+	logic := NewCreateResourceLogic(store, &fakeContentAuditor{err: ErrLegacyWechatAuditIdentity})
+
+	resp, err := logic.CreateResource(context.Background(), CreateResourceReq{
+		MerchantID:    "merchant-1",
+		CityCode:      "zhili",
+		TypeCode:      "inventory",
+		Title:         "女童春款卫衣库存整包清",
+		Category:      "童装",
+		QuantityText:  "3200 件",
+		Description:   "整包优先，可现场看货。",
+		Contact:       ResourceContactReq{Name: "张老板", Phone: "13800000000"},
+		CreatedByUser: "user-1",
+		CreatedByRole: "merchant_admin",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateResource() error = %v", err)
+	}
+	if resp.Status != model.ResourceStatusRejected || store.rejectedResourceID != "resource-1" {
+		t.Fatalf("resp = %#v rejectedResourceID = %q, want rejected resource", resp, store.rejectedResourceID)
+	}
+	if resp.Message != "微信登录身份已失效，请重新登录后重新编辑并提交" || store.rejectReason != resp.Message {
+		t.Fatalf("resp = %#v rejectReason = %q, want re-login guidance", resp, store.rejectReason)
+	}
+}
+
 func TestCreateResourceQueuesRetryWhenCreatedByUserIsMissing(t *testing.T) {
 	store := &fakeCreateResourceStore{
 		config: model.ResourcePublishConfig{
