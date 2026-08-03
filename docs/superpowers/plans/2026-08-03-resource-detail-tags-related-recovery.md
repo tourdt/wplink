@@ -14,6 +14,8 @@
 - 展示标签只过滤与页面可见 `typeName` 完全相同的项；不得再按 `category` 或包含关系删除标签。
 - 没有特征标签时，以非空且不等于 `typeName` 的 `category` 作为唯一兜底标签。
 - 推荐结果只能包含公开发布、未删除、未过期且商家状态有效的资源，并排除当前资源。
+- 已发布源资源允许匿名请求；未发布源资源必须携带有效用户凭证，且用户能够管理源资源所属商家。
+- 未发布源资源鉴权失败时统一返回“资源不存在或暂不可查看”，不得暴露源资源是否存在、状态、类型或所属商家。
 - 推荐顺序固定为：相同 `typeCode`、相同 `displayTemplate.group.code`、相同 `direction`，每层沿用置顶及刷新时间排序。
 - 推荐默认 3 条，最大 6 条；结果必须稳定去重。
 - 公开详情与本人详情都加载推荐；浏览统计、收藏、商家资料及推荐彼此失败隔离。
@@ -190,6 +192,7 @@ git commit -m "fix: restore resource detail presentation tags"
 - 修改：`backend/scripts/api_contract.test.mjs`
 
 **接口：**
+- 产出源上下文接口：`GetRelatedResourceSource(ctx context.Context, resourceID string) (model.RelatedResourceSource, error)`，仅包含鉴权及推荐所需的 `Status`、`MerchantID`、`TypeCode`、`Direction`、`GroupCode`。
 - 产出模型接口：`ListRelatedResources(ctx context.Context, resourceID string, limit int64) ([]model.ResourceListItem, error)`
 - 产出逻辑接口：`ListRelatedResources(ctx context.Context, resourceID string, req RelatedResourcesReq) (RelatedResourcesResp, error)`
 - 产出 HTTP 接口：`GET /api/v1/resources/:resourceId/related?pageSize=3`
@@ -212,7 +215,7 @@ required := []string{
 }
 ```
 
-同时断言 SQL 不要求源资源为 `published`，使本人私有详情能够以其类型快照寻找公开候选；接口响应不得返回源资源字段。
+同时断言 SQL 不要求源资源为 `published`，使通过鉴权的本人私有详情能够以其类型快照寻找公开候选；接口响应不得返回源资源字段。增加源上下文 SQL 测试，确认只读取资源状态、所属商家和推荐计算所需字段，不返回描述、联系方式等私有内容。
 
 - [ ] **Step 2：运行模型测试并确认 RED**
 
@@ -225,7 +228,7 @@ GOCACHE=/private/tmp/wplink-detail-recovery-go-cache GOTMPDIR=/private/tmp/wplin
 
 - [ ] **Step 3：实现单查询推荐模型**
 
-在 `resource_model.go` 定义 `listRelatedResourcesSQL` 与方法。SQL 使用 `source` CTE 获取当前资源的 `type_code`、`direction`、`displayTemplate.group.code`，候选只选择公开有效资源；用 `CASE` 生成优先级并按以下顺序排序：
+在 `resource_model.go` 定义 `RelatedResourceSource`、`getRelatedResourceSourceSQL`、`listRelatedResourcesSQL` 与对应方法。先由最小源上下文查询支持路由鉴权；推荐 SQL 使用 `source` CTE 获取当前资源的 `type_code`、`direction`、`displayTemplate.group.code`，候选只选择公开有效资源；用 `CASE` 生成优先级并按以下顺序排序：
 
 ```sql
 ORDER BY
@@ -293,9 +296,11 @@ type RelatedResourcesResp struct {
 
 ```go
 func TestResourceAPIRouterListsRelatedResources(t *testing.T)
+func TestResourceAPIRouterListsRelatedResourcesForPrivateSourceOwner(t *testing.T)
+func TestResourceAPIRouterHidesPrivateRelatedSourceFromAnonymousAndNonOwner(t *testing.T)
 ```
 
-请求 `/api/v1/resources/resource-1/related?pageSize=3`，断言 fake store 收到 `resource-1` 和限制 3，响应 `items` 保持推荐顺序。扩展 fake store 实现 `ListRelatedResources`。
+公开源测试匿名请求 `/api/v1/resources/resource-1/related?pageSize=3`，断言 fake store 收到 `resource-1` 和限制 3，响应 `items` 保持推荐顺序。私有源测试分别覆盖未登录、非所属商家管理者与所属商家管理者；前两者统一返回“资源不存在或暂不可查看”，且不得调用候选查询，管理者请求成功。扩展 fake store 实现 `GetRelatedResourceSource`、`ListRelatedResources`，并复用现有 `UserCanManageMerchant` fake 能力。
 
 在 `backend/scripts/api_contract.test.mjs` 的资源 API 契约测试中断言 `.api` 包含 `RelatedResourcesReq`、`RelatedResourcesResp` 与路由。
 
@@ -334,7 +339,14 @@ get /resources/:resourceId/related (RelatedResourcesReq) returns (RelatedResourc
 
 - [ ] **Step 12：注册自定义服务器路由**
 
-在 `ResourceAPIStore` 嵌入 `resourcelogic.RelatedResourcesStore`，在公开资源详情路由附近增加 GET handler：读取 `resourceId`、`pageSize`，调用 `NewListRelatedResourcesLogic(store).ListRelatedResources` 并通过现有 `response.JSON` 返回。
+在 `ResourceAPIStore` 嵌入 `resourcelogic.RelatedResourcesStore`，在公开资源详情路由附近增加 GET handler：
+
+1. 读取 `resourceId`、`pageSize`，通过 `GetRelatedResourceSource` 获取最小上下文；不存在时返回统一不可查看错误。
+2. 源资源为 `published` 时直接继续，允许匿名请求。
+3. 源资源非 `published` 时解析有效用户凭证并调用 `UserCanManageMerchant`；未登录、凭证无效或无管理权限均返回“资源不存在或暂不可查看”，不执行候选查询。
+4. 鉴权通过后调用 `NewListRelatedResourcesLogic(store).ListRelatedResources`，通过现有 `response.JSON` 返回。
+
+读取源上下文或权限查询出现内部错误时记录包含 `resourceId` 与根错误的中文诊断日志，对前端只返回安全错误。禁止复用会在依赖为空时放行的管理接口辅助函数。
 
 - [ ] **Step 13：运行 API 与后端目标测试并确认 GREEN**
 
@@ -472,7 +484,7 @@ if (!isOwnResource.value) {
 await Promise.allSettled(auxiliaryTasks)
 ```
 
-分享菜单和封面调度不依赖这些辅助请求。`loadRelatedResources(resourceId)` 必须先清空旧状态，再使用 `{ pageSize: 3 }` 与 `{ suppressErrorToast: true }` 调用 API；捕获失败后保持空数组且不弹全局错误。删除按 `typeCode` 调用公开列表的旧实现。
+分享菜单和封面调度不依赖这些辅助请求。`loadRelatedResources(resourceId)` 必须先清空旧状态，再使用 `{ pageSize: 3 }` 与 `{ suppressErrorToast: true, requireAuth: isOwnResource.value }` 调用 API：本人详情明确携带登录凭证，公开详情保持可匿名；捕获失败后保持空数组且不弹全局错误。删除按 `typeCode` 调用公开列表的旧实现。
 
 - [ ] **Step 8：运行页面与 API 测试并确认 GREEN**
 
