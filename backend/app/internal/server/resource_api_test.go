@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -993,6 +994,79 @@ func TestResourceAPIRouterHidesPrivateRelatedSourceFromAnonymousAndNonOwner(t *t
 	}
 }
 
+func TestResourceAPIRouterHidesMissingRelatedSourceBeforeCandidateQuery(t *testing.T) {
+	store := &fakeResourceAPIStore{relatedSourceErr: sql.ErrNoRows}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-missing/related", nil))
+
+	body := decodeEnvelope(t, rec, http.StatusNotFound)
+	if body["msg"] != "资源不存在或暂不可查看" || store.relatedCalls != 0 {
+		t.Fatalf("body/calls = %#v/%d, want hidden missing source and no candidate query", body, store.relatedCalls)
+	}
+}
+
+func TestResourceAPIRouterHidesRelatedSourceLookupFailureBeforeCandidateQuery(t *testing.T) {
+	store := &fakeResourceAPIStore{relatedSourceErr: errors.New("pq: related source lookup failed")}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil))
+
+	body := decodeEnvelope(t, rec, http.StatusInternalServerError)
+	if body["msg"] != "相关推荐加载失败，请稍后重试" || strings.Contains(rec.Body.String(), "pq:") || store.relatedCalls != 0 {
+		t.Fatalf("body/calls = %#v/%d, want safe source failure and no candidate query", body, store.relatedCalls)
+	}
+}
+
+func TestResourceAPIRouterHidesPrivateRelatedSourceWhenTokenServiceMissing(t *testing.T) {
+	store := &fakeResourceAPIStore{relatedSource: model.RelatedResourceSource{Status: model.ResourceStatusPending, MerchantID: "merchant-1"}}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil))
+
+	body := decodeEnvelope(t, rec, http.StatusNotFound)
+	if body["msg"] != "资源不存在或暂不可查看" || store.relatedCalls != 0 {
+		t.Fatalf("body/calls = %#v/%d, want hidden private source and no candidate query", body, store.relatedCalls)
+	}
+}
+
+func TestResourceAPIRouterHidesPrivateRelatedSourceWhenPermissionStoreMissing(t *testing.T) {
+	store := &fakeResourceAPIStore{relatedSource: model.RelatedResourceSource{Status: model.ResourceStatusPending, MerchantID: "merchant-1"}}
+	mux := http.NewServeMux()
+	registerResourceRoutes(mux, store, &fakeUserTokenService{}, nil, nil, nil, false, nil, nil, "")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil)
+	req.Header.Set("Authorization", "Bearer user-token")
+	mux.ServeHTTP(rec, req)
+
+	body := decodeEnvelope(t, rec, http.StatusNotFound)
+	if body["msg"] != "资源不存在或暂不可查看" || store.relatedCalls != 0 {
+		t.Fatalf("body/calls = %#v/%d, want hidden private source and no candidate query", body, store.relatedCalls)
+	}
+}
+
+func TestResourceAPIRouterHidesPrivateRelatedSourcePermissionFailureBeforeCandidateQuery(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		relatedSource:      model.RelatedResourceSource{Status: model.ResourceStatusPending, MerchantID: "merchant-1"},
+		managedMerchantErr: errors.New("permission store timeout"),
+	}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil)
+	req.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(rec, req)
+
+	body := decodeEnvelope(t, rec, http.StatusInternalServerError)
+	if body["msg"] != "相关推荐加载失败，请稍后重试" || strings.Contains(rec.Body.String(), "timeout") || store.relatedCalls != 0 {
+		t.Fatalf("body/calls = %#v/%d, want safe permission failure and no candidate query", body, store.relatedCalls)
+	}
+}
+
 type fakeResourceAPIStore struct {
 	fakeCityAPIStore
 
@@ -1019,6 +1093,7 @@ type fakeResourceAPIStore struct {
 	ownDetailMerchantID              string
 	ownDetailResourceID              string
 	managedMerchants                 map[string]bool
+	managedMerchantErr               error
 	resourceMerchantIDs              map[string]string
 	resourceStatuses                 map[string]string
 	updatedResourceID                string
@@ -1055,6 +1130,9 @@ func (s *fakeResourceAPIStore) GetMerchantContactPhone(ctx context.Context, merc
 }
 
 func (s *fakeResourceAPIStore) UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error) {
+	if s.managedMerchantErr != nil {
+		return false, s.managedMerchantErr
+	}
 	return s.managedMerchants[merchantID], nil
 }
 

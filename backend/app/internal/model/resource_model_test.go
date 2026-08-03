@@ -50,6 +50,38 @@ func TestListRelatedResourcesSQLRanksAndFiltersCandidates(t *testing.T) {
 	}
 }
 
+func TestListRelatedResourcesSQLExcludesUnrelatedCandidatesAndUsesStableOrder(t *testing.T) {
+	requiredFilter := []string{
+		"candidate.type_code = source.type_code",
+		"source.group_code <> ''",
+		"candidate.resource_type_snapshot #>> '{displayTemplate,group,code}' = source.group_code",
+		"candidate.direction = source.direction",
+	}
+	for _, snippet := range requiredFilter {
+		if !strings.Contains(listRelatedResourcesSQL, snippet) {
+			t.Fatalf("listRelatedResourcesSQL missing related-candidate filter %q:\n%s", snippet, listRelatedResourcesSQL)
+		}
+	}
+	if strings.Contains(listRelatedResourcesSQL, "ELSE 4") {
+		t.Fatalf("listRelatedResourcesSQL must not return a fourth, unrelated candidate tier:\n%s", listRelatedResourcesSQL)
+	}
+
+	order := []string{
+		"END ASC,",
+		"CASE WHEN candidate.top_expires_at IS NOT NULL AND candidate.top_expires_at > now() THEN 1 ELSE 0 END DESC,",
+		"COALESCE(candidate.refreshed_at, candidate.published_at, candidate.created_at) DESC,",
+		"candidate.id DESC",
+	}
+	previousIndex := -1
+	for _, snippet := range order {
+		index := strings.Index(listRelatedResourcesSQL, snippet)
+		if index <= previousIndex {
+			t.Fatalf("listRelatedResourcesSQL must keep stable ORDER BY %q after index %d:\n%s", snippet, previousIndex, listRelatedResourcesSQL)
+		}
+		previousIndex = index
+	}
+}
+
 func TestGetRelatedResourceSourceSQLOnlyReadsAuthorizationAndRankingFields(t *testing.T) {
 	required := []string{
 		"r.status",

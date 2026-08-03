@@ -416,12 +416,19 @@ WHERE candidate.deleted_at IS NULL
   AND merchant.status = 'active'
   AND (candidate.expires_at IS NULL OR candidate.expires_at > now())
   AND (candidate.dealt_at IS NULL OR candidate.dealt_at > now() - interval '7 days')
+  AND (
+    candidate.type_code = source.type_code
+    OR (
+      source.group_code <> ''
+      AND candidate.resource_type_snapshot #>> '{displayTemplate,group,code}' = source.group_code
+    )
+    OR candidate.direction = source.direction
+  )
 ORDER BY
   CASE
     WHEN candidate.type_code = source.type_code THEN 1
     WHEN candidate.resource_type_snapshot #>> '{displayTemplate,group,code}' = source.group_code THEN 2
     WHEN candidate.direction = source.direction THEN 3
-    ELSE 4
   END ASC,
   CASE WHEN candidate.top_expires_at IS NOT NULL AND candidate.top_expires_at > now() THEN 1 ELSE 0 END DESC,
   COALESCE(candidate.refreshed_at, candidate.published_at, candidate.created_at) DESC,
