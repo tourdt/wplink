@@ -1593,6 +1593,17 @@ test('resource detail related resources reuse the market feed card', () => {
   assert.match(listSource, /<ResourceFeedCard\s+v-if="variant === 'feed'"/)
 })
 
+test('resource detail recommendations use the dedicated endpoint without blocking the detail', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
+
+  assert.match(source, /listRelatedResources/)
+  assert.doesNotMatch(source, /listResources\(\{ typeCode: resource\.value\.typeCode/)
+  assert.match(source, /relatedResources\.value = \[\]/)
+  assert.match(source, /Promise\.allSettled/)
+  assert.match(source, /loadRelatedResources\(options\.id\)/)
+})
+
 test('resource detail contact bar secondary buttons look independent', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')

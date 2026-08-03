@@ -191,7 +191,7 @@ import {
   deleteTakenDownResource,
   getOwnResource,
   getResource,
-  listResources,
+  listRelatedResources,
   recordResourceContact,
   recordResourceDetailView,
   refreshResource,
@@ -237,6 +237,7 @@ const fallbackTopServicePacks = [
 let shareCanvasReady = false
 let shareCoverRenderTimer = null
 let shareCoverRendering = false
+let activeResourceId = ''
 const merchantTypeText = {
   individual: '个人',
   rental_provider: '场地/设备方',
@@ -352,6 +353,9 @@ function updateNavigationTitle() {
 
 onLoad(async (options) => {
   if (!options.id) return
+  // 路由切换时立即清空旧推荐，并以当前详情 ID 拦截迟到响应，避免短暂展示上一条内容的推荐。
+  activeResourceId = String(options.id)
+  relatedResources.value = []
   // 从“我的发布”进入时允许查看待审核、草稿、已下架等非公开状态，避免误提示供应已下架。
   ownerMerchantId.value = options.merchantId || ''
   isOwnResource.value = options.from === 'my-resources' || Boolean(ownerMerchantId.value)
@@ -369,14 +373,20 @@ onLoad(async (options) => {
     selectedGalleryIndex.value = 0
     return
   }
-  await loadMerchantProfile()
   enableShareMenu()
   scheduleShareCoverRender()
+  const auxiliaryTasks = [
+    loadMerchantProfile(),
+    loadRelatedResources(options.id),
+  ]
   if (!isOwnResource.value) {
-    await recordResourceDetailView(options.id)
-    await loadFavoriteState(options.id)
-    await loadRelatedResources()
+    auxiliaryTasks.push(
+      recordResourceDetailView(options.id),
+      loadFavoriteState(options.id),
+    )
   }
+  // 商家资料、推荐、浏览和收藏互不依赖；其中任一失败都不能影响详情主体与其他辅助数据。
+  await Promise.allSettled(auxiliaryTasks)
 })
 
 onReady(() => {
@@ -395,9 +405,14 @@ async function loadOwnResourceIfCurrentMerchant(resourceId) {
     resourceUnavailable.value = false
     selectedGalleryIndex.value = 0
     updateNavigationTitle()
-    await loadMerchantProfile()
     enableShareMenu()
     scheduleShareCoverRender()
+    const auxiliaryTasks = [
+      loadMerchantProfile(),
+      loadRelatedResources(resourceId),
+    ]
+    // 由公开链接回退到本人详情后，不记录公开浏览，也不读取自己的收藏状态。
+    await Promise.allSettled(auxiliaryTasks)
     return true
   } catch (err) {
     return false
@@ -606,10 +621,24 @@ function copyResourceAddress(item, title = '地址已复制') {
   uni.showToast({ title, icon: 'none' })
 }
 
-async function loadRelatedResources() {
-  if (!resource.value.typeCode) return
-  const resp = await listResources({ typeCode: resource.value.typeCode, page: 1, pageSize: 4 })
-  relatedResources.value = (resp.items || []).filter((item) => item.id !== resource.value.id).slice(0, 3)
+async function loadRelatedResources(resourceId) {
+  relatedResources.value = []
+  if (!resourceId) return
+  try {
+    const resp = await listRelatedResources(
+      resourceId,
+      { pageSize: 3 },
+      {
+        suppressErrorToast: true,
+        requireAuth: isOwnResource.value,
+      },
+    )
+    if (activeResourceId !== String(resourceId)) return
+    relatedResources.value = Array.isArray(resp.items) ? resp.items : []
+  } catch (err) {
+    // 推荐接口失败时保持空列表，避免全局错误提示打断详情阅读。
+    if (activeResourceId === String(resourceId)) relatedResources.value = []
+  }
 }
 
 function openRelatedResource(item) {

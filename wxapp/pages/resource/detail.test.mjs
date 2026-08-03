@@ -191,6 +191,20 @@ test('resource detail renders related resources with the market feed card varian
   assert.match(source, /<view v-if="relatedResources\.length" class="related-section">[\s\S]*<ResourceList[\s\S]*:resources="relatedResources"[\s\S]*variant="feed"[\s\S]*@open="openRelatedResource"/)
 })
 
+test('resource detail loads related resources independently for public and own entries', () => {
+  const publicOnlyTasks = source.match(/if \(!isOwnResource\.value\) \{\s*auxiliaryTasks\.push\(([\s\S]*?)\)\s*\}/)?.[0] || ''
+
+  assert.match(source, /listRelatedResources/)
+  assert.doesNotMatch(source, /listResources\(\{ typeCode: resource\.value\.typeCode/)
+  assert.match(source, /relatedResources\.value = \[\]/)
+  assert.match(source, /Promise\.allSettled/)
+  assert.match(source, /loadRelatedResources\(options\.id\)/)
+  assert.match(source, /listRelatedResources\(\s*resourceId,\s*\{ pageSize: 3 \},\s*\{\s*suppressErrorToast: true,\s*requireAuth: isOwnResource\.value,\s*\},\s*\)/)
+  assert.match(publicOnlyTasks, /recordResourceDetailView\(options\.id\)/)
+  assert.match(publicOnlyTasks, /loadFavoriteState\(options\.id\)/)
+  assert.doesNotMatch(publicOnlyTasks, /loadRelatedResources/)
+})
+
 test('resource detail opens dedicated report page from more sheet', () => {
   assert.match(source, /function openResourceReportPage\(\) \{[\s\S]*if \(!resource\.value\.id \|\| isOwnResource\.value\) return[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*resourceId=\$\{encodeURIComponent\(resource\.value\.id\)\}[\s\S]*\/pages\/resource\/report\?\$\{params\.join\('&'\)\}[\s\S]*\}/)
   assert.doesNotMatch(source, /reportResource\(resource\.value\.id/)

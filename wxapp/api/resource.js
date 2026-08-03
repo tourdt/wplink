@@ -45,6 +45,19 @@ export function listResources(params = {}, options = {}) {
   })
 }
 
+export function listRelatedResources(resourceId, params = {}, options = {}) {
+  const encodedId = encodeURIComponent(String(resourceId || '').trim())
+  return request({
+    url: `/api/v1/resources/${encodedId}/related`,
+    method: 'GET',
+    data: params,
+    ...options,
+  }).then((response) => ({
+    ...response,
+    items: Array.isArray(response?.items) ? response.items : [],
+  }))
+}
+
 export function searchResources(params = {}) {
   return request({
     url: '/api/v1/resource-search',

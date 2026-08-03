@@ -56,6 +56,28 @@ test('resource detail APIs standardize missing presentation lists to empty array
   })
 })
 
+test('related resource API encodes resource id and standardizes missing items', async () => {
+  const calls = []
+  const api = await loadResourceApi(async (options) => {
+    calls.push(options)
+    return {}
+  })
+
+  const result = await api.listRelatedResources(
+    'resource/1',
+    { pageSize: 3 },
+    { suppressErrorToast: true },
+  )
+
+  assert.deepEqual(result, { items: [] })
+  assert.deepEqual(calls, [{
+    url: '/api/v1/resources/resource%2F1/related',
+    method: 'GET',
+    data: { pageSize: 3 },
+    suppressErrorToast: true,
+  }])
+})
+
 async function loadResourceApi(requestImpl) {
   const source = fs.readFileSync(resourceApiPath, 'utf8')
   const module = new vm.SourceTextModule(source, {
