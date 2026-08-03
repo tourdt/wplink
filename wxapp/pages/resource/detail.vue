@@ -10,7 +10,7 @@
     </view>
 
     <view v-else class="detail-content">
-      <view class="detail-gallery">
+      <view v-if="galleryImages.length" class="detail-gallery">
         <swiper
           v-if="galleryImages.length > 1"
           class="gallery-main gallery-swiper"
@@ -25,24 +25,7 @@
             <image class="gallery-slide-image" :src="url" mode="aspectFill" @click="previewGalleryImage(index)" />
           </swiper-item>
         </swiper>
-        <image
-          v-else-if="mainImage"
-          class="gallery-main"
-          :src="mainImage"
-          mode="aspectFill"
-          @click="previewGalleryImage(0)"
-        />
-        <view v-else :class="['gallery-main', 'gallery-placeholder', isDemandResource ? 'demand' : '']">
-          <view class="placeholder-copy">
-            <view class="placeholder-head">
-              <text class="placeholder-badge">{{ noImageBadgeText }}</text>
-              <text class="placeholder-type">{{ detailPresentation.typeName }}</text>
-            </view>
-            <text class="placeholder-title">{{ noImageStateTitle }}</text>
-            <text class="placeholder-desc">{{ noImageHintText }}</text>
-          </view>
-          <button v-if="canEditOwnResourceWithoutImage" class="placeholder-edit-button" @click.stop="openPublishEditor">补充图片</button>
-        </view>
+        <image v-else class="gallery-main" :src="mainImage" mode="aspectFill" @click="previewGalleryImage(0)" />
       </view>
 
       <view class="detail-summary-card">
@@ -320,12 +303,6 @@ const mainImage = computed(() => galleryImages.value[selectedGalleryIndex.value]
 const detailPresentation = computed(() => buildResourceDetailPresentation(resource.value))
 const resourceNoun = computed(() => detailPresentation.value.noun)
 const isDemandResource = computed(() => detailPresentation.value.isDemand)
-const noImageBadgeText = computed(() => `${resourceNoun.value}信息`)
-const noImageStateTitle = computed(() => `${resourceNoun.value}暂无图片`)
-const noImageHintText = computed(() => {
-  if (isOwnResource.value) return '当前未上传图片，补充后详情展示会更完整。'
-  return `重点${resourceNoun.value}信息已整理在下方详情中。`
-})
 const attributeLabelByKey = computed(() => {
   const labels = {}
   for (const item of resource.value.attributeItems || []) {
@@ -355,7 +332,6 @@ const isExpiredResource = computed(() => {
 })
 const isDealtResource = computed(() => resource.value.status === 'dealt' || Boolean(resource.value.dealtAt))
 const canShareOwnResource = computed(() => resource.value.status === 'published' && !isExpiredResource.value && !resource.value.dealtAt)
-const canEditOwnResourceWithoutImage = computed(() => isOwnResource.value && ['draft', 'rejected'].includes(resource.value.status))
 const managementTitle = computed(() => statusText[resource.value.status] || `${resourceNoun.value}管理`)
 const managementNotice = computed(() => {
   if (resource.value.status === 'pending') return `${resourceNoun.value}正在自动安全检测，检测通过后会公开展示。当前暂不能刷新、下架或分享。`
@@ -1339,94 +1315,6 @@ onShareTimeline(() => {
   width: 100%;
   height: 100%;
   display: block;
-}
-
-.gallery-placeholder {
-  display: grid;
-  gap: 22rpx;
-  box-sizing: border-box;
-  height: auto;
-  min-height: 240rpx;
-  padding: 28rpx;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 247, 237, 0.86)),
-    repeating-linear-gradient(135deg, rgba(194, 58, 0, 0.08) 0 14rpx, transparent 14rpx 30rpx),
-    #f8fafc;
-  border: 1rpx solid rgba(194, 58, 0, 0.16);
-}
-
-.gallery-placeholder.demand {
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(236, 253, 245, 0.78)),
-    repeating-linear-gradient(135deg, rgba(21, 128, 61, 0.08) 0 14rpx, transparent 14rpx 30rpx),
-    #f8fafc;
-  border-color: rgba(21, 128, 61, 0.16);
-}
-
-.placeholder-copy {
-  display: grid;
-  gap: 14rpx;
-  min-width: 0;
-}
-
-.placeholder-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12rpx;
-  min-width: 0;
-}
-
-.placeholder-badge {
-  flex: 0 0 auto;
-  padding: 6rpx 12rpx;
-  border-radius: 8rpx;
-  background: rgba(6, 22, 37, 0.86);
-  color: $wplink-card;
-  font-size: 22rpx;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.placeholder-type {
-  min-width: 0;
-  color: #475569;
-  font-size: 26rpx;
-  font-weight: 700;
-  line-height: 1.35;
-  word-break: break-word;
-}
-
-.placeholder-title {
-  color: $wplink-primary;
-  font-size: 38rpx;
-  font-weight: 700;
-  line-height: 1.28;
-  word-break: break-word;
-}
-
-.placeholder-desc {
-  color: #64748b;
-  font-size: 26rpx;
-  line-height: 1.5;
-  word-break: break-word;
-}
-
-.placeholder-edit-button {
-  justify-self: start;
-  min-width: 172rpx;
-  height: 64rpx;
-  padding: 0 22rpx;
-  border-radius: 10rpx;
-  background: $wplink-primary;
-  color: $wplink-card;
-  font-size: 24rpx;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-.placeholder-edit-button::after {
-  border: 0;
 }
 
 .tag-row {
