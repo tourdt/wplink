@@ -472,7 +472,17 @@ test('my page separates guest and logged-in account states without merchant bind
     '我的主页',
     '查看对外展示资料',
     '我的权益',
-    '暂无可领取权益',
+    'openBenefitOverview',
+    '/pages/vip/index',
+    'publishQuotaRemaining === 0',
+    'refreshQuotaRemaining === 0',
+    'publishQuotaLow',
+    'refreshQuotaLow',
+    'quota-purchase-primary',
+    'openQuotaPurchase',
+    'buildQuotaPurchaseUrl',
+    'QUOTA_TYPE_PUBLISH',
+    'QUOTA_TYPE_REFRESH',
     'ensureMerchantProfileReady',
     'openMessages',
     'requireLogin',
@@ -483,6 +493,7 @@ test('my page separates guest and logged-in account states without merchant bind
   for (const hiddenToken of ['保存身份', '商家 ID', '用户 ID：', '主页配置', 'merchant-actions', '权益提醒', '手机号绑定', '登录后可用', '同步收藏关注', '接收审核和联系消息', '我的需求', 'openMyDemands', '登录后管理收藏和发布记录', '已登录，可管理收藏和消息', 'VIP 权益', '查看额度和限时特价', 'openVIP', '/pages/vip/index?merchantId=']) {
     assert.equal(source.includes(hiddenToken), false)
   }
+  assert.equal(source.includes('暂无可领取权益'), false)
 })
 
 test('my page presents merchant workspace and grouped service entries', () => {
@@ -1744,6 +1755,23 @@ test('reports missing API call in required page flow', () => {
   ])
 
   assert.deepEqual(issues, ['pages/home/index.vue 缺少 首页加载运营配置: listHomeOperationConfig'])
+})
+
+test('reports retired toast copy in required page flow', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'wplink-wxapp-flow-'))
+  fs.mkdirSync(path.join(root, 'pages/my'), { recursive: true })
+  fs.writeFileSync(path.join(root, 'pages/my/index.vue'), '<template>暂无可领取权益</template>')
+
+  const issues = validateFlows(root, [
+    {
+      file: 'pages/my/index.vue',
+      checks: [],
+      absentChecks: ['暂无可领取权益'],
+      description: '我的页权益入口',
+    },
+  ])
+
+  assert.deepEqual(issues, ['pages/my/index.vue 不应包含 我的页权益入口: 暂无可领取权益'])
 })
 
 function collectSourceFiles(dir, extensions) {

@@ -313,14 +313,25 @@ export const defaultFlowChecks = [
       'benefitOverviewDesc',
       '我的权益',
       '完成新手任务可获得更多发布和刷新次数',
+      'openBenefitOverview',
+      '/pages/vip/index',
+      'publishQuotaRemaining === 0',
+      'refreshQuotaRemaining === 0',
+      'publishQuotaLow',
+      'refreshQuotaLow',
+      'quota-purchase-primary',
+      'openQuotaPurchase',
+      'buildQuotaPurchaseUrl',
+      'QUOTA_TYPE_PUBLISH',
+      'QUOTA_TYPE_REFRESH',
       '我的主页',
       '查看对外展示资料',
-      '暂无可领取权益',
       '我的发布',
       '状态、数据、推广',
       '/pages/merchant/detail?id=',
       '/pages/my-resources/index',
     ],
+    absentChecks: ['暂无可领取权益'],
   },
   {
     file: 'pages/login/index.vue',
@@ -352,6 +363,11 @@ export function validateFlows(root, checks = defaultFlowChecks) {
     for (const snippet of flow.checks) {
       if (!source.includes(snippet)) {
         issues.push(`${flow.file} 缺少 ${flow.description}: ${snippet}`)
+      }
+    }
+    for (const snippet of flow.absentChecks || []) {
+      if (source.includes(snippet)) {
+        issues.push(`${flow.file} 不应包含 ${flow.description}: ${snippet}`)
       }
     }
   }
