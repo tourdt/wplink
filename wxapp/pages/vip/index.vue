@@ -72,6 +72,7 @@ const merchantId = ref('')
 const plans = ref([])
 const quotaPacks = ref([])
 const selectedPlanCode = ref('yearly')
+const selectedQuotaType = ref('')
 const activeTab = ref('vip')
 const paying = ref(false)
 const payingPackCode = ref('')
@@ -91,12 +92,14 @@ const displayPlans = computed(() => {
 
 const displayAddOnPacks = computed(() => {
   const packs = quotaPacks.value.filter((item) => !isTopVoucherPack(item))
-  return packs.length > 0 ? packs : fallbackQuotaPacks
+  return sortQuotaPacksBySelectedType(packs.length > 0 ? packs : fallbackQuotaPacks)
 })
 
 onLoad((options = {}) => {
   merchantId.value = options.merchantId || getSession().merchantId || ''
+  selectedQuotaType.value = options.quotaType || ''
   if (options.tab === 'addons') activeTab.value = 'addons'
+  if (options.quotaType) activeTab.value = 'addons'
   loadVIPData()
 })
 
@@ -147,7 +150,7 @@ async function openSelectedPlan() {
   paying.value = true
   try {
     const order = await createVIPOrder(merchantId.value, { planCode: selectedPlanCode.value })
-    await payOrder(order, 'VIP 已开通')
+    await payOrder(order)
   } catch (err) {
     uni.showToast({ title: err.message || '支付未完成，请稍后重试', icon: 'none' })
   } finally {
@@ -164,7 +167,7 @@ async function openQuotaPack(item) {
   payingPackCode.value = item.code
   try {
     const order = await createQuotaPackOrder(merchantId.value, item.code)
-    await payOrder(order, '次数包已到账')
+    await payOrder(order)
   } catch (err) {
     uni.showToast({ title: err.message || '支付未完成，请稍后重试', icon: 'none' })
   } finally {
@@ -172,10 +175,11 @@ async function openQuotaPack(item) {
   }
 }
 
-async function payOrder(order, paidTitle) {
+async function payOrder(order) {
   const resp = await createVIPPayment(merchantId.value, order.orderId)
   if (resp.status === 'paid') {
-    uni.showToast({ title: paidTitle, icon: 'none' })
+    await loadVIPData()
+    uni.showToast({ title: '支付已完成，权益到账后会自动更新', icon: 'none' })
     return
   }
   const payment = resp.payment || {}
@@ -183,7 +187,8 @@ async function payOrder(order, paidTitle) {
     throw new Error('支付参数无效，请稍后重试')
   }
   await requestWechatPayment(payment)
-  uni.showToast({ title: '支付成功，权益更新中', icon: 'none' })
+  await loadVIPData()
+  uni.showToast({ title: '支付已完成，权益到账后会自动更新', icon: 'none' })
 }
 
 function requestWechatPayment(payment) {
@@ -219,12 +224,31 @@ function isTopVoucherPack(item) {
   return Boolean(benefits.topVoucherCount)
 }
 
+function quotaPackType(item) {
+  const benefits = item.benefits || {}
+  if (benefits.publishQuota) return 'publish_quota'
+  if (benefits.refreshQuota) return 'refresh_quota'
+  return ''
+}
+
+function sortQuotaPacksBySelectedType(items) {
+  if (!selectedQuotaType.value) return items
+
+  const matchingItems = []
+  const remainingItems = []
+  items.forEach((item) => {
+    if (quotaPackType(item) === selectedQuotaType.value) matchingItems.push(item)
+    else remainingItems.push(item)
+  })
+  return [...matchingItems, ...remainingItems]
+}
+
 function packPriceText(item) {
   return formatPrice(item.salePriceCent || item.standardPriceCent)
 }
 
 function packSaleLabel(item) {
-  return item.saleLabel || ''
+  return shouldShowPlanSaleLabel(item) ? item.saleLabel : ''
 }
 
 function isPackDiscounted(item) {
@@ -258,12 +282,11 @@ function planDisplayName(plan) {
 }
 
 function planSaleLabel(plan) {
-  const labels = {
-    monthly: '限时特价',
-    half_year: '限时特价',
-    yearly: '限时特价',
-  }
-  return labels[plan.code] || plan.saleLabel || ''
+  return shouldShowPlanSaleLabel(plan) ? plan.saleLabel : ''
+}
+
+function shouldShowPlanSaleLabel(plan) {
+  return Boolean(plan.saleLabel) && isPackDiscounted(plan)
 }
 
 function formatPrice(value) {
