@@ -1726,10 +1726,9 @@ type ResourceListItem struct {
 }
 
 type ResourceMerchantBrief struct {
-	Id                 string `json:"id"`
-	Name               string `json:"name"`
-	VerificationStatus string `json:"verificationStatus"`
-	VipStatus          string `json:"vipStatus"`
+	Id        string `json:"id"`
+	Name      string `json:"name"`
+	VipStatus string `json:"vipStatus"`
 }
 
 type ResourceMetricsDailyItem struct {

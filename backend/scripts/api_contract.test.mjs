@@ -152,6 +152,7 @@ test('api contract exposes list cover image through public resource APIs', () =>
 
 test('resource api contract exposes related resource recommendations', () => {
   const resourceApiSource = fs.readFileSync(path.join(apiDir, 'resource.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
 
   for (const snippet of [
     'type RelatedResourcesReq',
@@ -161,6 +162,15 @@ test('resource api contract exposes related resource recommendations', () => {
     'get /resources/:resourceId/related (RelatedResourcesReq) returns (RelatedResourcesResp)',
   ]) {
     assert(resourceApiSource.includes(snippet), `resource.api should contain ${snippet}`)
+  }
+
+  const apiMerchant = resourceApiSource.match(/type ResourceMerchantBrief \{([\s\S]*?)\n\}/)?.[1] || ''
+  const generatedMerchant = typesSource.match(/type ResourceMerchantBrief struct \{([\s\S]*?)\n\}/)?.[1] || ''
+  for (const [name, contract] of [['resource.api', apiMerchant], ['generated types', generatedMerchant]]) {
+    for (const field of ['json:"id"', 'json:"name"', 'json:"vipStatus"']) {
+      assert(contract.includes(field), `${name} ResourceMerchantBrief should contain ${field}`)
+    }
+    assert(!contract.includes('verificationStatus'), `${name} ResourceMerchantBrief should not contain verificationStatus`)
   }
 })
 

@@ -414,6 +414,7 @@ JOIN merchants merchant ON merchant.id = candidate.merchant_id
 WHERE candidate.deleted_at IS NULL
   AND candidate.status = 'published'
   AND merchant.status = 'active'
+  AND merchant.deleted_at IS NULL
   AND (candidate.expires_at IS NULL OR candidate.expires_at > now())
   AND (candidate.dealt_at IS NULL OR candidate.dealt_at > now() - interval '7 days')
   AND (

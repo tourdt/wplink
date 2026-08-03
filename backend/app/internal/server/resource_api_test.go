@@ -923,7 +923,7 @@ func TestResourceAPIRouterListsRelatedResources(t *testing.T) {
 	router := NewAPIRouter(store)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related?pageSize=3", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/1/related?pageSize=3", nil)
 	router.ServeHTTP(rec, req)
 
 	data := decodeEnvelopeData(t, rec, http.StatusOK)
@@ -934,8 +934,46 @@ func TestResourceAPIRouterListsRelatedResources(t *testing.T) {
 	if items[0].(map[string]interface{})["id"] != "same-type" || items[1].(map[string]interface{})["id"] != "same-group" {
 		t.Fatalf("items = %#v, want ranked store order", items)
 	}
-	if store.relatedResourceID != "resource-1" || store.relatedLimit != 3 {
-		t.Fatalf("related query = %q/%d, want resource-1/3", store.relatedResourceID, store.relatedLimit)
+	merchant, ok := items[0].(map[string]interface{})["merchant"].(map[string]interface{})
+	if !ok || len(merchant) != 3 || merchant["id"] != "merchant-2" || merchant["name"] != "" || merchant["vipStatus"] != model.VIPStatusNone {
+		t.Fatalf("merchant = %#v, want runtime fields to match ResourceMerchantBrief contract", merchant)
+	}
+	if _, exists := merchant["verificationStatus"]; exists {
+		t.Fatalf("merchant = %#v, runtime JSON must not expose undeclared verificationStatus", merchant)
+	}
+	if store.relatedResourceID != "1" || store.relatedLimit != 3 {
+		t.Fatalf("related query = %q/%d, want 1/3", store.relatedResourceID, store.relatedLimit)
+	}
+}
+
+func TestResourceAPIRouterRejectsInvalidBigintRelatedResourceIDBeforeStores(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+	}{
+		{name: "blank", resourceID: "%20"},
+		{name: "not numeric", resourceID: "abc"},
+		{name: "zero", resourceID: "0"},
+		{name: "negative", resourceID: "-1"},
+		{name: "bigint overflow", resourceID: "9223372036854775808"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &fakeResourceAPIStore{}
+			router := NewAPIRouter(store)
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/"+tt.resourceID+"/related", nil)
+			router.ServeHTTP(rec, req)
+
+			body := decodeEnvelope(t, rec, http.StatusNotFound)
+			if body["msg"] != "资源不存在或暂不可查看" {
+				t.Fatalf("body = %#v, want hidden invalid resource", body)
+			}
+			if store.relatedSourceCalls != 0 || store.relatedCalls != 0 {
+				t.Fatalf("source/candidate calls = %d/%d, want 0/0", store.relatedSourceCalls, store.relatedCalls)
+			}
+		})
 	}
 }
 
@@ -948,7 +986,7 @@ func TestResourceAPIRouterListsRelatedResourcesForPrivateSourceOwner(t *testing.
 	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/1/related", nil)
 	req.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(rec, req)
 
@@ -977,7 +1015,7 @@ func TestResourceAPIRouterHidesPrivateRelatedSourceFromAnonymousAndNonOwner(t *t
 			router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
 
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/1/related", nil)
 			if tc.withToken {
 				req.Header.Set("Authorization", "Bearer "+tc.token)
 			}
@@ -999,7 +1037,7 @@ func TestResourceAPIRouterHidesMissingRelatedSourceBeforeCandidateQuery(t *testi
 	router := NewAPIRouter(store)
 
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-missing/related", nil))
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/resources/999/related", nil))
 
 	body := decodeEnvelope(t, rec, http.StatusNotFound)
 	if body["msg"] != "资源不存在或暂不可查看" || store.relatedCalls != 0 {
@@ -1012,7 +1050,7 @@ func TestResourceAPIRouterHidesRelatedSourceLookupFailureBeforeCandidateQuery(t 
 	router := NewAPIRouter(store)
 
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil))
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/resources/1/related", nil))
 
 	body := decodeEnvelope(t, rec, http.StatusInternalServerError)
 	if body["msg"] != "相关推荐加载失败，请稍后重试" || strings.Contains(rec.Body.String(), "pq:") || store.relatedCalls != 0 {
@@ -1025,7 +1063,7 @@ func TestResourceAPIRouterHidesPrivateRelatedSourceWhenTokenServiceMissing(t *te
 	router := NewAPIRouter(store)
 
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil))
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/resources/1/related", nil))
 
 	body := decodeEnvelope(t, rec, http.StatusNotFound)
 	if body["msg"] != "资源不存在或暂不可查看" || store.relatedCalls != 0 {
@@ -1039,7 +1077,7 @@ func TestResourceAPIRouterHidesPrivateRelatedSourceWhenPermissionStoreMissing(t 
 	registerResourceRoutes(mux, store, &fakeUserTokenService{}, nil, nil, nil, false, nil, nil, "")
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/1/related", nil)
 	req.Header.Set("Authorization", "Bearer user-token")
 	mux.ServeHTTP(rec, req)
 
@@ -1057,7 +1095,7 @@ func TestResourceAPIRouterHidesPrivateRelatedSourcePermissionFailureBeforeCandid
 	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/1/related", nil)
 	req.Header.Set("Authorization", "Bearer user-token")
 	router.ServeHTTP(rec, req)
 
@@ -1109,6 +1147,7 @@ type fakeResourceAPIStore struct {
 	mapEventErr                      error
 	relatedSource                    model.RelatedResourceSource
 	relatedSourceErr                 error
+	relatedSourceCalls               int
 	relatedItems                     []model.ResourceListItem
 	relatedResourceID                string
 	relatedLimit                     int64
@@ -1199,6 +1238,7 @@ func (s *fakeResourceAPIStore) ListResources(ctx context.Context, filter model.L
 }
 
 func (s *fakeResourceAPIStore) GetRelatedResourceSource(ctx context.Context, resourceID string) (model.RelatedResourceSource, error) {
+	s.relatedSourceCalls++
 	if s.relatedSourceErr != nil {
 		return model.RelatedResourceSource{}, s.relatedSourceErr
 	}

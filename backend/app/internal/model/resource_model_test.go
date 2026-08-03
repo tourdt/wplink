@@ -34,6 +34,7 @@ func TestListRelatedResourcesSQLRanksAndFiltersCandidates(t *testing.T) {
 		"candidate.id <> source.id",
 		"candidate.status = 'published'",
 		"merchant.status = 'active'",
+		"merchant.deleted_at IS NULL",
 		"candidate.type_code = source.type_code THEN 1",
 		"candidate.resource_type_snapshot #>> '{displayTemplate,group,code}' = source.group_code THEN 2",
 		"candidate.direction = source.direction THEN 3",

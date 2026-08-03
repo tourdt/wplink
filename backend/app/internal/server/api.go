@@ -706,7 +706,11 @@ func registerResourceRoutes(
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/resources/{resourceId}/related", func(w http.ResponseWriter, r *http.Request) {
-		resourceID := strings.TrimSpace(r.PathValue("resourceId"))
+		resourceID, err := resourcelogic.NormalizeRelatedResourceID(r.PathValue("resourceId"))
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
 		source, err := store.GetRelatedResourceSource(r.Context(), resourceID)
 		if errors.Is(err, sql.ErrNoRows) {
 			response.JSON(w, nil, errx.New(errx.CodeResourceNotFound, "资源不存在或暂不可查看"))
