@@ -1,0 +1,1 @@
+import{h as t}from"./index-BKFDUtju.js";function r(e){return t.get(`/api/v1/city-stations/${e}/resource-types`)}function i(e={}){return t.get("/api/v1/admin/resource-type-configs",{params:e})}function n(e){return t.post("/api/v1/admin/resource-type-configs",e)}function c(e,s){return t.post(`/api/v1/admin/resource-type-configs/${e}`,s)}export{i as a,n as c,r as l,c as u};
