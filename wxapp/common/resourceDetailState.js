@@ -1,5 +1,5 @@
 const DEMAND_TYPE_PATTERN = /^(buy_|find_|seek_)/
-const FULL_WIDTH_LABEL_PATTERN = /(地址|位置|区域|地点|交期|时效|范围|要求|工艺|备注|说明|时间|条件|方式)/
+const FULL_WIDTH_LABEL_PATTERN = /(地址|备注|说明|交期|时效|要求)/
 
 // 详情页统一使用服务端摘要字段，避免按二级类型在页面中分支，新增类型可直接复用。
 export function buildResourceDetailPresentation(resource = {}) {
@@ -42,7 +42,7 @@ function isDemandResource(resource) {
 }
 
 function shouldUseFullWidthSpec(label, value) {
-  return FULL_WIDTH_LABEL_PATTERN.test(normalizeText(label)) || /\r?\n/.test(String(value)) || Array.from(normalizeText(value)).length > 12
+  return FULL_WIDTH_LABEL_PATTERN.test(normalizeText(label)) || /\r?\n/.test(String(value)) || Array.from(normalizeText(value)).length > 20
 }
 
 function normalizeText(value) {

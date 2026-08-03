@@ -40,11 +40,7 @@
         <view v-if="resourceFeatureTags.length" class="tag-row">
           <text v-for="tag in resourceFeatureTags" :key="tag" class="tag feature">{{ tag }}</text>
         </view>
-      </view>
-
-      <view v-if="resource.description" class="description-card">
-        <text class="section-title">补充说明</text>
-        <text class="desc">{{ resource.description }}</text>
+        <text v-if="resource.description" class="desc">{{ resource.description }}</text>
       </view>
 
       <view v-if="specItems.length" class="resource-card">
@@ -1240,7 +1236,6 @@ onShareTimeline(() => {
 }
 
 .detail-summary-card,
-.description-card,
 .resource-card,
 .merchant-card,
 .address-section,

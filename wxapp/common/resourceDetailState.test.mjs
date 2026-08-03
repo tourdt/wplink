@@ -51,16 +51,20 @@ test('places demand quantity, budget, and attributes in unified spec order', () 
   ])
 })
 
-test('marks long and semantic detail values as full width', () => {
+test('keeps short service scope in two columns and expands only allowed labels or long values', () => {
   const items = buildDetailSpecItems([
     { label: '数量', value: '3200 件' },
     { label: '交期要求', value: '20 天内完成并支持首批打样确认' },
     { label: '服务范围', value: '织里及周边' },
+    { label: '工艺', value: '锁边' },
+    { label: '生产能力', value: '可承接秋冬童装羽绒服针织衫梭织裤装订单并支持来样打版' },
   ])
 
   assert.deepEqual(items, [
     { label: '数量', value: '3200 件', fullWidth: false },
     { label: '交期要求', value: '20 天内完成并支持首批打样确认', fullWidth: true },
-    { label: '服务范围', value: '织里及周边', fullWidth: true },
+    { label: '服务范围', value: '织里及周边', fullWidth: false },
+    { label: '工艺', value: '锁边', fullWidth: false },
+    { label: '生产能力', value: '可承接秋冬童装羽绒服针织衫梭织裤装订单并支持来样打版', fullWidth: true },
   ])
 })
