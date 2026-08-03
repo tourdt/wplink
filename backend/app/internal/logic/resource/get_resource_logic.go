@@ -34,6 +34,7 @@ type ResourcePresentationField struct {
 
 type ResourcePresentation struct {
 	Fields []ResourcePresentationField `json:"fields"`
+	Tags   []string                    `json:"tags"`
 }
 
 type ResourceContactAccess struct {
@@ -224,7 +225,31 @@ func buildResourcePresentation(detail model.ResourceDetail) (ResourcePresentatio
 			Layout: config.Layout,
 		})
 	}
-	return ResourcePresentation{Fields: fields}, nil
+	return ResourcePresentation{
+		Fields: fields,
+		Tags:   filterResourcePresentationTags(detail.Tags, detail.TypeName, detail.Category),
+	}, nil
+}
+
+func filterResourcePresentationTags(tags []string, typeName string, category string) []string {
+	filtered := make([]string, 0, len(tags))
+	seen := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
+		if tag == "" {
+			continue
+		}
+		if _, exists := seen[tag]; exists {
+			continue
+		}
+		seen[tag] = struct{}{}
+
+		// 详情页已单独展示资源类型和分类，隐藏完全相同或被其完整包含的标签，避免重复传达同一信息。
+		if tag == typeName || tag == category || strings.Contains(typeName, tag) || strings.Contains(category, tag) {
+			continue
+		}
+		filtered = append(filtered, tag)
+	}
+	return filtered
 }
 
 func parseResourcePresentationFieldConfigs(value interface{}) ([]resourcePresentationFieldConfig, error) {

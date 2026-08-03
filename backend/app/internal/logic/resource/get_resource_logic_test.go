@@ -5,11 +5,25 @@ import (
 	"database/sql"
 	"errors"
 	"math"
+	"reflect"
 	"testing"
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
 )
+
+func TestFilterResourcePresentationTagsHidesRedundantTagsAndKeepsOriginalOrder(t *testing.T) {
+	got := filterResourcePresentationTags(
+		[]string{"", "现货", "库存出售", "库存", "童装", "现货", "可议", "供货"},
+		"库存出售",
+		"童装供货",
+	)
+	want := []string{"现货", "可议"}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("filterResourcePresentationTags() = %#v, want %#v", got, want)
+	}
+}
 
 func TestGetResourceRejectsEmptyID(t *testing.T) {
 	logic := NewGetResourceLogic(&fakeGetResourceStore{})
