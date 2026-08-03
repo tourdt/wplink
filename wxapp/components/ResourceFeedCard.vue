@@ -4,6 +4,7 @@
     role="button"
     @click="$emit('open', resource)"
   >
+    <text v-if="cardModel.isCompleted" class="feed-dealt-corner-badge">已成交</text>
     <view class="feed-thumb-wrap">
       <image
         class="feed-thumb"
@@ -11,11 +12,10 @@
         mode="aspectFill"
       />
       <text
-        :class="['feed-type-badge', { demand: cardModel.isDemand, 'with-dealt': cardModel.isCompleted }]"
+        :class="['feed-type-badge', { demand: cardModel.isDemand }]"
       >
         {{ cardModel.resourceTypeLabel || cardModel.directionLabel }}
       </text>
-      <text v-if="cardModel.isCompleted" class="feed-dealt-badge">已成交</text>
     </view>
 
     <view class="feed-card-main">
@@ -54,6 +54,7 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
 
 <style lang="scss" scoped>
 .resource-feed-card {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 12rpx;
@@ -91,7 +92,6 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   position: absolute;
   top: 8rpx;
   z-index: 1;
-  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   height: 36rpx;
@@ -119,25 +119,23 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   background: $wplink-warning;
 }
 
-.feed-type-badge.with-dealt {
-  max-width: calc(100% - 99rpx);
-}
-
-.feed-dealt-badge {
+.feed-dealt-corner-badge {
   position: absolute;
-  top: 8rpx;
-  right: 8rpx;
-  z-index: 1;
+  top: 12rpx;
+  right: -48rpx;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
-  height: 42rpx;
-  padding: 0 10rpx;
-  border-radius: 8rpx;
+  justify-content: center;
+  width: 160rpx;
+  height: 48rpx;
   background: rgba(51, 65, 85, 0.94);
   color: #ffffff;
-  font-size: 21rpx;
+  font-size: 22rpx;
   font-weight: 700;
   line-height: 1;
+  pointer-events: none;
+  transform: rotate(45deg);
 }
 
 .feed-card-main {

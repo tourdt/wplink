@@ -29,13 +29,11 @@ test('resource feed card preserves the click contract and compact visual hierarc
   assert.match(source, /\.feed-type-badge:not\(\.demand\) \{[\s\S]*background: \$wplink-primary;/)
 })
 
-test('resource feed card gives dealt resources one prominent cover badge without a card watermark', () => {
-  assert.match(
-    source,
-    /:class="\['feed-type-badge', \{ demand: cardModel\.isDemand, 'with-dealt': cardModel\.isCompleted \}\]"/,
-  )
-  assert.match(source, /<text v-if="cardModel\.isCompleted" class="feed-dealt-badge">已成交<\/text>/)
-  assert.match(source, /\.feed-type-badge\.with-dealt \{[\s\S]*max-width: calc\(100% - 99rpx\);/)
-  assert.match(source, /\.feed-dealt-badge \{[\s\S]*height: 42rpx;[\s\S]*font-size: 21rpx;/)
+test('resource feed card gives dealt resources one corner sash without a card watermark', () => {
+  assert.match(source, /:class="\['feed-type-badge', \{ demand: cardModel\.isDemand \}\]"/)
+  assert.match(source, /<text v-if="cardModel\.isCompleted" class="feed-dealt-corner-badge">已成交<\/text>/)
+  assert.match(source, /\.resource-feed-card \{[\s\S]*position: relative;[\s\S]*overflow: hidden;/)
+  assert.match(source, /\.feed-dealt-corner-badge \{[\s\S]*right: -48rpx;[\s\S]*transform: rotate\(45deg\);/)
   assert.doesNotMatch(source, /feed-completed-stamp/)
+  assert.doesNotMatch(source, /with-dealt/)
 })
