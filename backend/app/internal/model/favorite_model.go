@@ -215,7 +215,7 @@ SELECT
   m.id::text,
   m.name,
   m.merchant_type,
-  m.verification_status,
+  m.profile_status,
   m.main_categories,
   COALESCE(m.logo_url, ''),
   ufm.updated_at,

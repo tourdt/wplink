@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/zeromicro/go-zero/core/logx"
+
 	"wplink/backend/app/internal/logic/resource"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
@@ -208,7 +210,9 @@ func (l *InteractionLogic) ListFollowedMerchants(ctx context.Context, userID str
 	}
 	result, err := l.store.ListFollowedMerchants(ctx, userID, model.ListInteractionFilter{Page: req.Page, PageSize: req.PageSize})
 	if err != nil {
-		return ListFollowedMerchantsResp{}, err
+		// 数据库查询错误仅记录在服务端，避免把表结构等内部信息暴露给小程序。
+		logx.Errorf("加载关注商家失败: userId=%s page=%d pageSize=%d err=%+v", userID, req.Page, req.PageSize, err)
+		return ListFollowedMerchantsResp{}, errx.New(errx.CodeInternalError, "关注商家加载失败，请稍后重试")
 	}
 	items := make([]FollowedMerchantItem, 0, len(result.Items))
 	for _, item := range result.Items {

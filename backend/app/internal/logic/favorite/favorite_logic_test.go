@@ -2,6 +2,7 @@ package favorite
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -95,6 +96,15 @@ func TestListFollowedMerchantsIncludesLogoUrl(t *testing.T) {
 	}
 }
 
+func TestListFollowedMerchantsHidesDatabaseError(t *testing.T) {
+	logic := NewInteractionLogic(&fakeInteractionStore{followedMerchantsErr: errors.New("column merchants.verification_status does not exist")})
+
+	_, err := logic.ListFollowedMerchants(context.Background(), "user-1", ListInteractionReq{Page: 1, PageSize: 20})
+	if errx.CodeOf(err) != errx.CodeInternalError || errx.PublicMessage(err) != "关注商家加载失败，请稍后重试" {
+		t.Fatalf("ListFollowedMerchants() error = %v, want friendly internal error", err)
+	}
+}
+
 func TestCreateSavedSearchRequiresSearchCondition(t *testing.T) {
 	logic := NewInteractionLogic(&fakeInteractionStore{})
 
@@ -125,6 +135,7 @@ type fakeInteractionStore struct {
 	savedSearchInput          model.SavedSearchInput
 	savedSearchResult         model.SavedSearchResult
 	followedMerchantsResult   model.ListFollowedMerchantsResult
+	followedMerchantsErr      error
 	resourceOwnedByUser       bool
 	setResourceFavoriteCalled bool
 }
@@ -157,6 +168,9 @@ func (s *fakeInteractionStore) GetMerchantFollowState(ctx context.Context, userI
 }
 
 func (s *fakeInteractionStore) ListFollowedMerchants(ctx context.Context, userID string, filter model.ListInteractionFilter) (model.ListFollowedMerchantsResult, error) {
+	if s.followedMerchantsErr != nil {
+		return model.ListFollowedMerchantsResult{}, s.followedMerchantsErr
+	}
 	if s.followedMerchantsResult.Items != nil {
 		return s.followedMerchantsResult, nil
 	}
