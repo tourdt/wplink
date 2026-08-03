@@ -264,6 +264,8 @@ type ResourceDetail struct {
 	TypeName          string
 	Title             string
 	Category          string
+	CityCode          string
+	District          string
 	Description       string
 	PriceText         string
 	QuantityText      string
@@ -393,6 +395,8 @@ SELECT
   r.resource_type_snapshot ->> 'typeName',
   r.title,
   r.category,
+  cs.code,
+  COALESCE(r.district, ''),
   r.description,
   COALESCE(r.price_text, ''),
   COALESCE(r.quantity_text, ''),
@@ -420,6 +424,7 @@ SELECT
   r.dealt_at
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
+JOIN city_stations cs ON cs.id = r.city_station_id
 WHERE r.id = $1
   AND r.status = 'published'
   AND m.status = 'active'
@@ -437,6 +442,8 @@ SELECT
   r.resource_type_snapshot ->> 'typeName',
   r.title,
   r.category,
+  cs.code,
+  COALESCE(r.district, ''),
   r.description,
   COALESCE(r.price_text, ''),
   COALESCE(r.quantity_text, ''),
@@ -456,6 +463,7 @@ SELECT
   r.dealt_at
 FROM resources r
 JOIN merchants m ON m.id = r.merchant_id
+JOIN city_stations cs ON cs.id = r.city_station_id
 WHERE r.id = $1
   AND r.merchant_id = $2
   AND r.deleted_at IS NULL
@@ -1430,6 +1438,8 @@ func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resource
 		&detail.TypeName,
 		&detail.Title,
 		&detail.Category,
+		&detail.CityCode,
+		&detail.District,
 		&detail.Description,
 		&detail.PriceText,
 		&detail.QuantityText,
@@ -1483,6 +1493,8 @@ func (m *ResourceModel) GetOwnResourceDetail(ctx context.Context, merchantID str
 		&detail.TypeName,
 		&detail.Title,
 		&detail.Category,
+		&detail.CityCode,
+		&detail.District,
 		&detail.Description,
 		&detail.PriceText,
 		&detail.QuantityText,

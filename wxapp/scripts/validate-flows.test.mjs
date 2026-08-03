@@ -339,7 +339,7 @@ test('publish form renders type fields from schema instead of fixed category pur
   assert.match(formSource, /displayTemplate\?\.summary/)
 })
 
-test('resource cards and detail display configured summaries with unified detail specs', () => {
+test('resource cards display configured summaries and detail renders backend presentation fields', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const resourceCardSource = fs.readFileSync(path.join(root, 'components/ResourceCard.vue'), 'utf8')
   const demandCardSource = fs.readFileSync(path.join(root, 'components/DemandCard.vue'), 'utf8')
@@ -359,15 +359,20 @@ test('resource cards and detail display configured summaries with unified detail
 
   assert.match(detailSource, /resourceFeatureTags/)
   assert.match(detailSource, /buildResourceDetailPresentation/)
-  assert.match(detailSource, /buildResourceDetailSpecItems/)
-  assert.match(detailSource, /const specItems = computed\(\(\) => buildResourceDetailSpecItems\(resource\.value, attributeSpecItems\.value\)\)/)
+  assert.match(detailSource, /v-for="item in resource\.presentation\.fields"/)
+  assert.match(detailSource, /item\.layout === 'full'/)
+  assert.doesNotMatch(detailSource, /buildResourceDetailSpecItems/)
+  assert.doesNotMatch(detailSource, /attributeSpecItems/)
+  assert.doesNotMatch(detailSource, /summarySourceKeys/)
+  assert.doesNotMatch(detailSource, /fullWidth/)
   assert.doesNotMatch(detailSource, /summary-title/)
   assert.doesNotMatch(detailSource, /summary-facts/)
   assert.doesNotMatch(detailSource, /summary-fact/)
   assert.doesNotMatch(detailSource, /detailPresentation\.headline/)
   assert.doesNotMatch(detailSource, /detailPresentation\.facts/)
-  assert.match(detailSource, /<text class="desc">\{\{ resource\.description/)
-  assert.match(detailSource, /<text class="section-title">补充说明<\/text>/)
+  assert.match(detailSource, /<view class="detail-summary-card">[\s\S]*<text v-if="resource\.description" class="desc">\{\{ resource\.description/)
+  assert.doesNotMatch(detailSource, /description-card/)
+  assert.doesNotMatch(detailSource, /<text class="section-title">补充说明<\/text>/)
   assert.equal(detailSource.includes('<text class="section-title">供应说明</text>'), false)
   assert.equal(detailSource.includes('summaryFactItems'), false)
   assert.equal(detailSource.includes('detail-price'), false)

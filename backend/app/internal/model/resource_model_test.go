@@ -102,6 +102,28 @@ func TestPublishedResourceDetailSQLReturnsTypeSnapshotAndHidesInactiveMerchants(
 	}
 }
 
+func TestResourceDetailSQLLoadsCityCodeThroughCityStation(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+	}{
+		{name: "published detail", query: publishedResourceDetailSQL},
+		{name: "own detail", query: ownResourceDetailSQL},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, snippet := range []string{"cs.code", "JOIN city_stations cs ON cs.id = r.city_station_id"} {
+				if !strings.Contains(tt.query, snippet) {
+					t.Fatalf("resource detail SQL missing %q:\n%s", snippet, tt.query)
+				}
+			}
+			if strings.Contains(tt.query, "r.city_code") {
+				t.Fatalf("resource detail SQL references nonexistent resources.city_code:\n%s", tt.query)
+			}
+		})
+	}
+}
+
 func TestListMyResourcesSQLSupportsGroupedStatusFilters(t *testing.T) {
 	requiredSnippets := []string{
 		"$2 = 'needs_action' AND r.status IN ('draft', 'pending', 'manual_review', 'audit_retry', 'rejected')",

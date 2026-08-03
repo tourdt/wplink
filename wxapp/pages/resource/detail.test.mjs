@@ -68,15 +68,13 @@ test('resource detail keeps publish status out of the description card', () => {
   assert.match(source, /const managementTitle = computed\(\(\) => statusText\[resource\.value\.status\] \|\| `\$\{resourceNoun\.value\}管理`\)/)
 })
 
-test('resource detail places automatic summary before description, specs, and merchant', () => {
+test('resource detail places automatic summary before specs and merchant', () => {
   const summaryIndex = source.indexOf('class="detail-summary-card"')
-  const descriptionIndex = source.indexOf('class="description-card"')
   const merchantIndex = source.indexOf('class="merchant-card"')
   const specIndex = source.indexOf('详细参数')
 
   assert.ok(summaryIndex >= 0)
-  assert.ok(descriptionIndex > summaryIndex)
-  assert.ok(specIndex > descriptionIndex)
+  assert.ok(specIndex > summaryIndex)
   assert.ok(merchantIndex > specIndex)
   assert.doesNotMatch(source, /summary-title/)
   assert.doesNotMatch(source, /summary-facts/)
@@ -97,14 +95,14 @@ test('resource detail displays only publish feature tags in the automatic summar
   assert.match(source, /\.tag\.feature \{[\s\S]*background: #fff7ed;[\s\S]*color: \$wplink-warning;/)
 })
 
-test('resource detail displays user description as a supplemental section below automatic summary', () => {
+test('resource detail displays a non-empty user description after tags in the summary card', () => {
   const galleryIndex = source.indexOf('class="detail-gallery"')
   const summaryIndex = source.indexOf('class="detail-summary-card"')
-  const descriptionIndex = source.indexOf('class="description-card"')
 
   assert.ok(summaryIndex > galleryIndex)
-  assert.ok(descriptionIndex > summaryIndex)
-  assert.match(source, /<view v-if="resource\.description" class="description-card">[\s\S]*<text class="section-title">补充说明<\/text>[\s\S]*<text class="desc">\{\{ resource\.description \}\}<\/text>/)
+  assert.match(source, /<view class="detail-summary-card">[\s\S]*<view v-if="resourceFeatureTags\.length" class="tag-row">[\s\S]*<\/view>[\s\S]*<text v-if="resource\.description" class="desc">\{\{ resource\.description \}\}<\/text>[\s\S]*<\/view>/)
+  assert.doesNotMatch(source, /description-card/)
+  assert.doesNotMatch(source, /补充说明/)
   assert.match(source, /\.desc \{[\s\S]*background: #f8fafc;[\s\S]*font-size: 28rpx;[\s\S]*line-height: 1\.6;/)
   assert.equal(source.includes('class="favorite-button"'), false)
   assert.equal(source.includes('.favorite-button'), false)
@@ -228,22 +226,15 @@ test('resource detail supports WeChat group and timeline sharing with generated 
   assert.match(source, /\.share-cover-canvas \{[\s\S]*position: fixed;[\s\S]*left: -9999px;[\s\S]*width: 600px;[\s\S]*height: 480px;/)
 })
 
-test('resource detail renders configured attribute items as specs', () => {
-  assert.match(source, /const attributeSpecItems = computed\(\(\) =>/)
-  assert.match(source, /resource\.value\.attributeItems \|\| \[\]/)
-  assert.match(source, /!addressAttributeKeys\.value\.has\(item\.key\)/)
-  assert.match(source, /label: item\.label/)
-  assert.match(source, /value: item\.value/)
-  assert.doesNotMatch(source, /summaryFactItems/)
-  assert.doesNotMatch(source, /summarySpecCompareValues/)
-  assert.doesNotMatch(source, /isDuplicateSummarySpecItem/)
-  assert.doesNotMatch(source, /const summarySpecItems = computed\(\(\) =>/)
-  assert.doesNotMatch(source, /const attributeSpecValues = computed\(\(\) =>/)
-  assert.match(source, /const specItems = computed\(\(\) => buildResourceDetailSpecItems\(resource\.value, attributeSpecItems\.value\)\)/)
-  assert.doesNotMatch(source, /\.\.\.summarySpecItems\.value/)
-  assert.doesNotMatch(source, /\{ label: '更新时间', value: resource\.value\.refreshedAt \|\| '近期更新' \}/)
-  assert.doesNotMatch(source, /\{ label: '刷新', value: resource\.value\.refreshedAt/)
-  assert.match(source, /:class="\['spec-item', item\.fullWidth \? 'full-width' : ''\]"/)
+test('resource detail renders backend presentation fields without local deduplication or layout inference', () => {
+  assert.match(source, /<view v-if="resource\.presentation\.fields\.length" class="resource-card">/)
+  assert.match(source, /v-for="item in resource\.presentation\.fields" :key="item\.key"/)
+  assert.match(source, /:class="\['spec-item', item\.layout === 'full' \? 'full-width' : ''\]"/)
+  assert.doesNotMatch(source, /buildResourceDetailSpecItems/)
+  assert.doesNotMatch(source, /attributeSpecItems/)
+  assert.doesNotMatch(source, /addressAttributeKeys/)
+  assert.doesNotMatch(source, /summarySourceKeys/)
+  assert.doesNotMatch(source, /fullWidth/)
   assert.match(source, /\.spec-item\.full-width \{[\s\S]*grid-column: 1 \/ -1;/)
 })
 
@@ -256,7 +247,6 @@ test('resource detail renders address attributes as a dedicated navigation secti
   assert.match(source, /<button v-else class="address-action secondary" @click="copyResourceAddress\(item\)">复制<\/button>/)
   assert.match(source, /<text class="resource-address-text">\{\{ item\.address \}\}<\/text>[\s\S]*<map[\s\S]*v-if="item\.hasGps"[\s\S]*class="resource-address-map"[\s\S]*:latitude="item\.latitude"[\s\S]*:longitude="item\.longitude"[\s\S]*@tap="openResourceAddressLocation\(item\)"/)
   assert.match(source, /const resourceAddressLocations = computed\(\(\) => \{[\s\S]*Object\.entries\(attributes\)[\s\S]*buildResourceAddressLocation/)
-  assert.match(source, /const addressAttributeKeys = computed\(\(\) => new Set\(resourceAddressLocations\.value\.map\(\(item\) => item\.key\)\)\)/)
   assert.match(source, /function buildResourceAddressLocation\(key, value, index\) \{[\s\S]*isResourceAddressAttributeValue\(value\)[\s\S]*const hasGps = Number\.isFinite\(latitude\) && Number\.isFinite\(longitude\)[\s\S]*if \(!hasGps\) return item[\s\S]*markers/)
   assert.match(source, /function isResourceAddressAttributeValue\(value\) \{[\s\S]*\['address', 'name', 'latitude', 'longitude', 'lat', 'lng'\]/)
   assert.match(source, /function openResourceAddressLocation\(item\) \{[\s\S]*uni\.openLocation\(\{[\s\S]*latitude: item\.latitude[\s\S]*longitude: item\.longitude[\s\S]*scale: 18/)

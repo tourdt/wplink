@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"math"
 	"strings"
 	"testing"
 
@@ -105,6 +106,10 @@ func TestCreateResourceTypeConfigPassesGroupAndDefaultsToStore(t *testing.T) {
 	group, _ := store.createInput.DisplayTemplate["group"].(map[string]interface{})
 	if group["code"] != "kids_wholesale" || group["name"] != "童装批发" {
 		t.Fatalf("group = %#v, want kids_wholesale/童装批发", group)
+	}
+	presentationFields, ok := store.createInput.DisplayTemplate["fields"].([]interface{})
+	if !ok || len(presentationFields) != 0 {
+		t.Fatalf("displayTemplate.fields = %#v, want editable empty field list", store.createInput.DisplayTemplate["fields"])
 	}
 	if store.createInput.RequiredFields[0] != "title" || store.createInput.RequiredFields[1] != "contactPhone" {
 		t.Fatalf("required fields = %#v, want default title/contactPhone", store.createInput.RequiredFields)
@@ -344,6 +349,70 @@ func TestUpdateResourceTypeConfigRejectsInvalidSummarySource(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "摘要字段") {
 		t.Fatalf("error = %v, want summary validation message", err)
+	}
+}
+
+func TestUpdateResourceTypeConfigAcceptsPresentationFields(t *testing.T) {
+	store := &fakeResourceTypeConfigStore{updatedAt: "2026-08-03T10:00:00+08:00"}
+	logic := NewResourceTypeConfigLogic(store)
+	fields := []interface{}{
+		map[string]interface{}{"source": "serviceType", "label": "服务类型", "role": "core", "layout": "half", "order": float64(10)},
+		map[string]interface{}{"source": "description", "label": "详细说明", "role": "detail", "layout": "full", "order": float64(20)},
+		map[string]interface{}{"source": "direction", "label": "供需方向", "role": "detail", "layout": "half", "order": float64(30)},
+	}
+
+	_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+		Version:          1,
+		DefaultValidDays: 10,
+		Status:           "active",
+		FieldSchema: map[string]interface{}{
+			"fields": []interface{}{
+				map[string]interface{}{"key": "serviceType", "label": "服务类型", "type": "text"},
+			},
+		},
+		DisplayTemplate: map[string]interface{}{"fields": fields},
+	})
+	if err != nil {
+		t.Fatalf("UpdateResourceTypeConfig() error = %v, want presentation fields accepted", err)
+	}
+	got, ok := store.patch.DisplayTemplate["fields"].([]interface{})
+	if !ok || len(got) != 3 {
+		t.Fatalf("displayTemplate.fields = %#v, want saved editable fields", store.patch.DisplayTemplate["fields"])
+	}
+}
+
+func TestUpdateResourceTypeConfigRejectsInvalidPresentationFieldConfig(t *testing.T) {
+	tests := []struct {
+		name      string
+		field     map[string]interface{}
+		wantError string
+	}{
+		{name: "undefined source", field: map[string]interface{}{"source": "missing", "label": "缺失字段", "role": "detail", "layout": "half", "order": float64(10)}, wantError: "来源字段"},
+		{name: "private contact source", field: map[string]interface{}{"source": "contactPhone", "label": "联系电话", "role": "detail", "layout": "half", "order": float64(10)}, wantError: "来源字段"},
+		{name: "unsupported role", field: map[string]interface{}{"source": "serviceType", "label": "服务类型", "role": "summary", "layout": "half", "order": float64(10)}, wantError: "角色"},
+		{name: "unsupported layout", field: map[string]interface{}{"source": "serviceType", "label": "服务类型", "role": "detail", "layout": "grid", "order": float64(10)}, wantError: "布局"},
+		{name: "non integer order", field: map[string]interface{}{"source": "serviceType", "label": "服务类型", "role": "detail", "layout": "half", "order": float64(1.5)}, wantError: "顺序"},
+		{name: "overflow order", field: map[string]interface{}{"source": "serviceType", "label": "服务类型", "role": "detail", "layout": "half", "order": math.Exp2(63)}, wantError: "顺序"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logic := NewResourceTypeConfigLogic(&fakeResourceTypeConfigStore{})
+			_, err := logic.UpdateResourceTypeConfig(context.Background(), "config-1", UpdateResourceTypeConfigReq{
+				Version:          1,
+				DefaultValidDays: 10,
+				Status:           "active",
+				FieldSchema: map[string]interface{}{
+					"fields": []interface{}{
+						map[string]interface{}{"key": "serviceType", "label": "服务类型", "type": "text"},
+					},
+				},
+				DisplayTemplate: map[string]interface{}{"fields": []interface{}{tt.field}},
+			})
+			if errx.CodeOf(err) != errx.CodeValidationFailed || !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("UpdateResourceTypeConfig() error = %v, want validation containing %q", err, tt.wantError)
+			}
+		})
 	}
 }
 

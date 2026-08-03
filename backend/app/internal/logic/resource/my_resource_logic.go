@@ -259,7 +259,12 @@ func (l *GetOwnResourceLogic) Get(ctx context.Context, req GetOwnResourceReq) (R
 		}
 		return ResourceDetailResp{}, err
 	}
-	return resourceDetailRespFromModel(detail), nil
+	resp, err := resourceDetailRespFromModel(detail)
+	if err != nil {
+		logx.Errorf("解析本人资源详情展示配置失败: merchantId=%s resourceId=%s typeCode=%s err=%+v", merchantID, resourceID, detail.TypeCode, err)
+		return ResourceDetailResp{}, errx.New(errx.CodeInternalError, "资源详情展示配置异常，请稍后重试")
+	}
+	return resp, nil
 }
 
 type RefreshResourceLogic struct {

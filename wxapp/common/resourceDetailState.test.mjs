@@ -1,10 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  buildDetailSpecItems,
-  buildResourceDetailPresentation,
-  buildResourceDetailSpecItems,
-} from './resourceDetailState.js'
+import { buildResourceDetailPresentation } from './resourceDetailState.js'
 
 test('builds demand direction and type presentation without summary facts', () => {
   const presentation = buildResourceDetailPresentation({
@@ -33,34 +29,4 @@ test('recognizes legacy demand type codes', () => {
   assert.equal(presentation.isDemand, true)
   assert.equal(presentation.noun, '需求')
   assert.equal(presentation.typeName, '我要求租')
-})
-
-test('places demand quantity, budget, and attributes in unified spec order', () => {
-  const items = buildResourceDetailSpecItems({
-    direction: 'demand',
-    quantityText: '5000 件',
-    priceText: '面议',
-  }, [
-    { label: '交期要求', value: '20 天内完成' },
-  ])
-
-  assert.deepEqual(items, [
-    { label: '数量/面积', value: '5000 件', fullWidth: false },
-    { label: '预算/报价', value: '面议', fullWidth: false },
-    { label: '交期要求', value: '20 天内完成', fullWidth: true },
-  ])
-})
-
-test('marks long and semantic detail values as full width', () => {
-  const items = buildDetailSpecItems([
-    { label: '数量', value: '3200 件' },
-    { label: '交期要求', value: '20 天内完成并支持首批打样确认' },
-    { label: '服务范围', value: '织里及周边' },
-  ])
-
-  assert.deepEqual(items, [
-    { label: '数量', value: '3200 件', fullWidth: false },
-    { label: '交期要求', value: '20 天内完成并支持首批打样确认', fullWidth: true },
-    { label: '服务范围', value: '织里及周边', fullWidth: true },
-  ])
 })

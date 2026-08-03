@@ -1646,12 +1646,6 @@ type RepostSimilarResp struct {
 	Message string `json:"message"`
 }
 
-type ResourceAttributeItem struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
-	Value string `json:"value"`
-}
-
 type ResourceContactAccess struct {
 	Mode             string `json:"mode"`
 	PriceCent        int64  `json:"priceCent"`
@@ -1675,26 +1669,24 @@ type ResourceContactReq struct {
 }
 
 type ResourceDetailResp struct {
-	Id             string                  `json:"id"`
-	Status         string                  `json:"status"`
-	TypeCode       string                  `json:"typeCode"`
-	Direction      string                  `json:"direction"`
-	TypeName       string                  `json:"typeName,optional"`
-	Title          string                  `json:"title"`
-	Category       string                  `json:"category"`
-	Description    string                  `json:"description"`
-	PriceText      string                  `json:"priceText,optional"`
-	QuantityText   string                  `json:"quantityText,optional"`
-	Attributes     map[string]interface{}  `json:"attributes"`
-	AttributeItems []ResourceAttributeItem `json:"attributeItems"`
-	Tags           []string                `json:"tags"`
-	Images         []string                `json:"images"`
-	Merchant       ResourceMerchantBrief   `json:"merchant"`
-	Contact        ResourceContactMasked   `json:"contact"`
-	ContactAccess  ResourceContactAccess   `json:"contactAccess"`
-	PublishedAt    string                  `json:"publishedAt,optional"`
-	ExpiresAt      string                  `json:"expiresAt,optional"`
-	DealtAt        string                  `json:"dealtAt,optional"`
+	Id            string                 `json:"id"`
+	Status        string                 `json:"status"`
+	TypeCode      string                 `json:"typeCode"`
+	Direction     string                 `json:"direction"`
+	TypeName      string                 `json:"typeName,optional"`
+	Title         string                 `json:"title"`
+	Category      string                 `json:"category"`
+	Description   string                 `json:"description"`
+	Attributes    map[string]interface{} `json:"attributes"`
+	Presentation  ResourcePresentation   `json:"presentation"`
+	Tags          []string               `json:"tags"`
+	Images        []string               `json:"images"`
+	Merchant      ResourceMerchantBrief  `json:"merchant"`
+	Contact       ResourceContactMasked  `json:"contact"`
+	ContactAccess ResourceContactAccess  `json:"contactAccess"`
+	PublishedAt   string                 `json:"publishedAt,optional"`
+	ExpiresAt     string                 `json:"expiresAt,optional"`
+	DealtAt       string                 `json:"dealtAt,optional"`
 }
 
 type ResourceExposureItem struct {
@@ -1757,6 +1749,17 @@ type ResourceMetricsSummary struct {
 	PhoneClickCount   int64 `json:"phoneClickCount"`
 	WechatCopyCount   int64 `json:"wechatCopyCount"`
 	DealFeedbackCount int64 `json:"dealFeedbackCount"`
+}
+
+type ResourcePresentation struct {
+	Fields []ResourcePresentationField `json:"fields"`
+}
+
+type ResourcePresentationField struct {
+	Key    string `json:"key"`
+	Label  string `json:"label"`
+	Value  string `json:"value"`
+	Layout string `json:"layout"`
 }
 
 type ResourceTypeConfigInfo struct {
