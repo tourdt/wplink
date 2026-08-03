@@ -4,11 +4,6 @@
     role="button"
     @click="$emit('open', resource)"
   >
-    <view v-if="cardModel.isCompleted" class="feed-completed-stamp">
-      <view class="feed-completed-stamp-ring"></view>
-      <text class="feed-completed-stamp-stars">✦</text>
-      <text class="feed-completed-stamp-label">已完成</text>
-    </view>
     <view class="feed-thumb-wrap">
       <image
         class="feed-thumb"
@@ -16,10 +11,11 @@
         mode="aspectFill"
       />
       <text
-        :class="['feed-type-badge', { demand: cardModel.isDemand }]"
+        :class="['feed-type-badge', { demand: cardModel.isDemand, 'with-dealt': cardModel.isCompleted }]"
       >
         {{ cardModel.resourceTypeLabel || cardModel.directionLabel }}
       </text>
+      <text v-if="cardModel.isCompleted" class="feed-dealt-badge">已成交</text>
     </view>
 
     <view class="feed-card-main">
@@ -58,7 +54,6 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
 
 <style lang="scss" scoped>
 .resource-feed-card {
-  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 12rpx;
@@ -75,13 +70,8 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   transform: translateY(1rpx);
 }
 
-.feed-thumb-wrap,
-.feed-card-main {
-  position: relative;
-  z-index: 1;
-}
-
 .feed-thumb-wrap {
+  position: relative;
   box-sizing: border-box;
   flex: 0 0 152rpx;
   width: 152rpx;
@@ -101,6 +91,7 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   position: absolute;
   top: 8rpx;
   z-index: 1;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   height: 36rpx;
@@ -128,63 +119,33 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   background: $wplink-warning;
 }
 
+.feed-type-badge.with-dealt {
+  max-width: calc(100% - 99rpx);
+}
+
+.feed-dealt-badge {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  height: 42rpx;
+  padding: 0 10rpx;
+  border-radius: 8rpx;
+  background: rgba(51, 65, 85, 0.94);
+  color: #ffffff;
+  font-size: 21rpx;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .feed-card-main {
   display: grid;
   flex: 1;
   align-self: stretch;
   align-content: space-between;
   min-width: 0;
-}
-
-.feed-completed-stamp {
-  position: absolute;
-  top: 50%;
-  left: 57%;
-  z-index: 0;
-  width: 164rpx;
-  height: 122rpx;
-  color: rgba(71, 85, 105, 0.24);
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-}
-
-.feed-completed-stamp-ring {
-  position: absolute;
-  top: 10rpx;
-  left: 44rpx;
-  width: 104rpx;
-  height: 104rpx;
-  border: 4rpx solid currentColor;
-  border-radius: 50%;
-}
-
-.feed-completed-stamp-stars {
-  position: absolute;
-  top: 18rpx;
-  left: 68rpx;
-  color: currentColor;
-  font-size: 18rpx;
-  letter-spacing: 18rpx;
-  text-shadow: -28rpx 0 currentColor, 28rpx 0 currentColor;
-}
-
-.feed-completed-stamp-label {
-  position: absolute;
-  top: 40rpx;
-  left: 0;
-  display: grid;
-  width: 164rpx;
-  height: 56rpx;
-  place-items: center;
-  border: 4rpx solid currentColor;
-  border-radius: 8rpx;
-  background: rgba(255, 255, 255, 0.72);
-  color: currentColor;
-  font-size: 40rpx;
-  font-weight: 800;
-  letter-spacing: 4rpx;
-  line-height: 1;
-  transform: rotate(-13deg);
 }
 
 .feed-title,
