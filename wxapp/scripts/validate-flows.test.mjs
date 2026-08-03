@@ -339,7 +339,7 @@ test('publish form renders type fields from schema instead of fixed category pur
   assert.match(formSource, /displayTemplate\?\.summary/)
 })
 
-test('resource cards and detail display configured summaries without fixed category quantity wording', () => {
+test('resource cards and detail display configured summaries with unified detail specs', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const resourceCardSource = fs.readFileSync(path.join(root, 'components/ResourceCard.vue'), 'utf8')
   const demandCardSource = fs.readFileSync(path.join(root, 'components/DemandCard.vue'), 'utf8')
@@ -359,7 +359,13 @@ test('resource cards and detail display configured summaries without fixed categ
 
   assert.match(detailSource, /resourceFeatureTags/)
   assert.match(detailSource, /buildResourceDetailPresentation/)
-  assert.match(detailSource, /detailPresentation\.facts/)
+  assert.match(detailSource, /buildResourceDetailSpecItems/)
+  assert.match(detailSource, /const specItems = computed\(\(\) => buildResourceDetailSpecItems\(resource\.value, attributeSpecItems\.value\)\)/)
+  assert.doesNotMatch(detailSource, /summary-title/)
+  assert.doesNotMatch(detailSource, /summary-facts/)
+  assert.doesNotMatch(detailSource, /summary-fact/)
+  assert.doesNotMatch(detailSource, /detailPresentation\.headline/)
+  assert.doesNotMatch(detailSource, /detailPresentation\.facts/)
   assert.match(detailSource, /<text class="desc">\{\{ resource\.description/)
   assert.match(detailSource, /<text class="section-title">补充说明<\/text>/)
   assert.equal(detailSource.includes('<text class="section-title">供应说明</text>'), false)

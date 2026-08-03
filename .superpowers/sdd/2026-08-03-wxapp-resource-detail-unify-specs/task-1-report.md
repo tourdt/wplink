@@ -51,3 +51,23 @@ cd wxapp && npm run check
 - 空值与 `fullWidth` 判定均由已有 `buildDetailSpecItems` 负责，未复制或改变规则。
 - 详情页不再引用 `detailPresentation.headline` 或 `.facts`，相关模板和样式均已删除。
 - 工作区差异仅覆盖本任务指定的四个代码/测试文件及本报告；`git diff --check` 无输出。
+
+## 后续校验修复记录
+
+### 根因与 RED
+
+最终全量校验发现 `wxapp/scripts/validate-flows.test.mjs` 仍断言已移除的 `detailPresentation.facts`。在当前实现上运行：
+
+```bash
+node --test wxapp/scripts/validate-flows.test.mjs
+```
+
+结果：68 项中 67 项通过、1 项失败；失败断言为 `/detailPresentation\.facts/`，说明流程校验的旧契约未同步，不是实现缺失。
+
+### 修复与 GREEN
+
+仅修改该流程校验：断言详情页使用 `buildResourceDetailSpecItems(resource.value, attributeSpecItems.value)`，且不再含自动标题、事实卡片及 `detailPresentation.headline`/`.facts`。
+
+重新运行 `node --test wxapp/scripts/validate-flows.test.mjs`：68/68 通过。
+
+随后从 `wxapp` 目录运行 `npm run check`：退出码 0；页面校验、流程校验、全量测试（339/339）和微信小程序构建均通过。构建仅输出项目既有 Sass 弃用警告，无阻塞错误。
