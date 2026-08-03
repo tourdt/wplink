@@ -51,7 +51,7 @@ test('my page prompts before opening merchant-only entries without profile', () 
   assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善发布者资料'/)
 })
 
-test('my page shows compact entitlement overview without exposing the unreleased VIP package', () => {
+test('my page shows compact entitlement overview with entitlement center access', () => {
   const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
 
   assert.match(source, /import \{ getMerchantEntitlements \} from '\.\.\/\.\.\/api\/entitlement'/)
@@ -72,8 +72,7 @@ test('my page shows compact entitlement overview without exposing the unreleased
   assert.doesNotMatch(source, /<text class="action-title">VIP 权益<\/text>/)
   assert.doesNotMatch(source, /<text class="action-meta">查看额度和限时特价<\/text>/)
   assert.doesNotMatch(source, /function openVIP\(\)/)
-  assert.doesNotMatch(source, /\/pages\/vip\/index/)
-  assert.match(source, /async function openBenefitOverview\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(activeGrowthCampaign\.value\.code\) \{[\s\S]*await openGrowthEntitlement\(\)[\s\S]*return[\s\S]*uni\.showToast\(\{ title: '暂无可领取权益', icon: 'none' \}\)/)
+  assert.match(source, /async function openBenefitOverview\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/vip\/index' \}\)/)
   assert.doesNotMatch(source, /quota-summary/)
   assert.doesNotMatch(source, /entitlement-section/)
   assert.doesNotMatch(source, /免费额度/)
@@ -85,6 +84,20 @@ test('my page shows compact entitlement overview without exposing the unreleased
   assert.doesNotMatch(source, /<text class="action-title">商家认证<\/text>/)
   assert.doesNotMatch(source, /openMerchantVerification/)
   assert.doesNotMatch(source, /getLatestVerification/)
+})
+
+test('my page highlights quota purchases at zero and low balances', () => {
+  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
+
+  assert.match(source, /import \{ QUOTA_TYPE_PUBLISH, QUOTA_TYPE_REFRESH, buildQuotaPurchaseUrl \} from '\.\.\/\.\.\/common\/entitlementPurchase'/)
+  assert.match(source, /const QUOTA_LOW_THRESHOLD = 2/)
+  assert.match(source, /const publishQuotaLow = computed\(\(\) => publishQuotaRemaining\.value > 0 && publishQuotaRemaining\.value <= QUOTA_LOW_THRESHOLD\)/)
+  assert.match(source, /const refreshQuotaLow = computed\(\(\) => refreshQuotaRemaining\.value > 0 && refreshQuotaRemaining\.value <= QUOTA_LOW_THRESHOLD\)/)
+  assert.match(source, /v-if="publishQuotaRemaining === 0"[\s\S]*购买发布次数/)
+  assert.match(source, /v-else-if="publishQuotaLow"[\s\S]*即将用完 · 去补充/)
+  assert.match(source, /v-if="refreshQuotaRemaining === 0"[\s\S]*购买刷新次数/)
+  assert.match(source, /function openQuotaPurchase\(quotaType\)[\s\S]*buildQuotaPurchaseUrl\(quotaType\)/)
+  assert.doesNotMatch(source, /暂无可领取权益/)
 })
 
 test('my page keeps messages reachable after messages leaves the tab bar', () => {
@@ -124,6 +137,7 @@ test('my page uses growth campaign data in compact entitlement overview', () => 
   assert.match(loadGrowthSource, /if \(!token\.value\) \{/)
   assert.doesNotMatch(loadGrowthSource, /merchantId\.value/)
   assert.match(source, /getActiveGrowthCampaigns\(\{ suppressErrorToast: true \}\)/)
+  assert.match(source, /v-if="activeGrowthCampaign\.code" class="benefit-growth-action" @click\.stop="openGrowthEntitlement">免费获得<\/text>/)
   assert.match(source, /async function openGrowthEntitlement\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(!\(await ensureMerchantProfileReady\(merchantId\.value\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/my\/growth-entitlement\?merchantId=\$\{merchantId\.value\}` \}\)/)
 })
 

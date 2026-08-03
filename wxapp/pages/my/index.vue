@@ -30,16 +30,23 @@
           <text class="benefit-title">我的权益</text>
           <text class="benefit-desc">{{ benefitOverviewDesc }}</text>
         </view>
-        <text class="benefit-action">查看</text>
+        <view class="benefit-actions">
+          <text v-if="activeGrowthCampaign.code" class="benefit-growth-action" @click.stop="openGrowthEntitlement">免费获得</text>
+          <text class="benefit-action">查看</text>
+        </view>
       </view>
       <view class="benefit-stats">
         <view class="benefit-stat">
           <text class="benefit-value">{{ publishQuotaRemaining }}</text>
           <text class="benefit-label">发布次数</text>
+          <text v-if="publishQuotaRemaining === 0" class="quota-purchase-action quota-purchase-primary" @click.stop="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">购买发布次数</text>
+          <text v-else-if="publishQuotaLow" class="quota-purchase-action" @click.stop="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">即将用完 · 去补充</text>
         </view>
         <view class="benefit-stat">
           <text class="benefit-value">{{ refreshQuotaRemaining }}</text>
           <text class="benefit-label">刷新次数</text>
+          <text v-if="refreshQuotaRemaining === 0" class="quota-purchase-action quota-purchase-primary" @click.stop="openQuotaPurchase(QUOTA_TYPE_REFRESH)">购买刷新次数</text>
+          <text v-else-if="refreshQuotaLow" class="quota-purchase-action" @click.stop="openQuotaPurchase(QUOTA_TYPE_REFRESH)">即将用完 · 去补充</text>
         </view>
       </view>
       <text v-if="benefitExpiryReminder" class="benefit-expiry">{{ benefitExpiryReminder }}</text>
@@ -101,12 +108,14 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { buildLoginUrl, requireLogin } from '../../common/auth'
 import { ensureMerchantProfileReady } from '../../common/merchantProfileGuard'
 import { formatDateToDay } from '../../common/date'
+import { QUOTA_TYPE_PUBLISH, QUOTA_TYPE_REFRESH, buildQuotaPurchaseUrl } from '../../common/entitlementPurchase'
 import { getSession } from '../../store/session'
 import { getMerchantEntitlements } from '../../api/entitlement'
 import { getActiveGrowthCampaigns } from '../../api/growthCampaign'
 import { getMerchant } from '../../api/merchant'
 
 const BENEFIT_EXPIRY_SOON_DAYS = 7
+const QUOTA_LOW_THRESHOLD = 2
 
 const token = ref('')
 const merchantId = ref('')
@@ -139,6 +148,8 @@ const accountStatusClass = computed(() => `status-${accountStatus.value}`)
 const benefitOverviewVisible = computed(() => Boolean(isLoggedIn.value))
 const publishQuotaRemaining = computed(() => entitlementRemaining('publish_quota'))
 const refreshQuotaRemaining = computed(() => entitlementRemaining('refresh_quota'))
+const publishQuotaLow = computed(() => publishQuotaRemaining.value > 0 && publishQuotaRemaining.value <= QUOTA_LOW_THRESHOLD)
+const refreshQuotaLow = computed(() => refreshQuotaRemaining.value > 0 && refreshQuotaRemaining.value <= QUOTA_LOW_THRESHOLD)
 const activeGrowthCampaign = computed(() => growthCampaigns.value[0] || {})
 const benefitExpiryReminder = computed(() => {
   const candidates = merchantEntitlements.value
@@ -279,12 +290,13 @@ async function openMerchantHome() {
 
 async function openBenefitOverview() {
   if (!requireLogin()) return
-  if (activeGrowthCampaign.value.code) {
-    await openGrowthEntitlement()
-    return
-  }
-  // VIP 套餐首发暂不开放；无成长活动时只展示当前额度，不把用户导向未发布页面。
-  uni.showToast({ title: '暂无可领取权益', icon: 'none' })
+  // 权益中心入口不再依赖成长活动，用户始终可查看套餐与当前权益。
+  uni.navigateTo({ url: '/pages/vip/index' })
+}
+
+function openQuotaPurchase(quotaType) {
+  if (!requireLogin()) return
+  uni.navigateTo({ url: buildQuotaPurchaseUrl(quotaType) })
 }
 
 async function openGrowthEntitlement() {
@@ -456,6 +468,19 @@ async function openGrowthEntitlement() {
   font-weight: 700;
 }
 
+.benefit-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.benefit-growth-action {
+  color: $wplink-success;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
 .benefit-stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -482,6 +507,22 @@ async function openGrowthEntitlement() {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.3;
+}
+
+.quota-purchase-action {
+  justify-self: start;
+  margin-top: 8rpx;
+  color: $wplink-accent;
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.quota-purchase-primary {
+  padding: 6rpx 12rpx;
+  border-radius: 999rpx;
+  background: $wplink-accent;
+  color: $wplink-card;
 }
 
 .benefit-expiry {
