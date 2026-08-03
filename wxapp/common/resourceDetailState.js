@@ -5,20 +5,22 @@ const FULL_WIDTH_LABEL_PATTERN = /(地址|位置|区域|地点|交期|时效|范
 export function buildResourceDetailPresentation(resource = {}) {
   const isDemand = isDemandResource(resource)
   const typeName = normalizeText(resource.typeName) || normalizeText(resource.category) || '供需信息'
-  const summaryParts = [resource.category, resource.quantityText, resource.priceText]
-    .map(normalizeText)
-    .filter(Boolean)
 
   return {
     isDemand,
     noun: isDemand ? '需求' : '供应',
     typeName,
-    headline: normalizeText(resource.title) || summaryParts.join('｜') || typeName,
-    facts: [
-      { key: 'quantity', label: '数量/面积', value: normalizeText(resource.quantityText) },
-      { key: 'price', label: isDemand ? '预算/报价' : '价格/报价', value: normalizeText(resource.priceText) },
-    ].filter((item) => item.value),
   }
+}
+
+// 核心数量和报价与后台配置属性统一展示，空值和长文本规则复用详情参数处理逻辑。
+export function buildResourceDetailSpecItems(resource = {}, attributeItems = []) {
+  const isDemand = isDemandResource(resource)
+  return buildDetailSpecItems([
+    { label: '数量/面积', value: resource.quantityText },
+    { label: isDemand ? '预算/报价' : '价格/报价', value: resource.priceText },
+    ...attributeItems,
+  ])
 }
 
 // 长文本和语义上需要完整阅读的参数使用整行，短参数仍保持双列信息密度。

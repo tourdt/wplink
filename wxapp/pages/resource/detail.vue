@@ -37,13 +37,6 @@
           <text :class="['direction-badge', detailPresentation.isDemand ? 'demand' : '']">{{ resourceNoun }}</text>
           <text class="summary-type">{{ detailPresentation.typeName }}</text>
         </view>
-        <text class="summary-title">{{ detailPresentation.headline }}</text>
-        <view v-if="detailPresentation.facts.length" class="summary-facts">
-          <view v-for="item in detailPresentation.facts" :key="item.key" class="summary-fact">
-            <text class="summary-fact-label">{{ item.label }}</text>
-            <text class="summary-fact-value">{{ item.value }}</text>
-          </view>
-        </view>
         <view v-if="resourceFeatureTags.length" class="tag-row">
           <text v-for="tag in resourceFeatureTags" :key="tag" class="tag feature">{{ tag }}</text>
         </view>
@@ -211,8 +204,8 @@ import {
 import { createQuotaPackOrder, createVIPPayment, listQuotaPacks } from '../../api/vip'
 import { requireLogin } from '../../common/auth'
 import {
-  buildDetailSpecItems,
   buildResourceDetailPresentation,
+  buildResourceDetailSpecItems,
 } from '../../common/resourceDetailState'
 import {
   RESOURCE_SHARE_COVER_CANVAS_ID,
@@ -323,7 +316,7 @@ const attributeSpecItems = computed(() => (resource.value.attributeItems || [])
     label: item.label,
     value: item.value,
   })))
-const specItems = computed(() => buildDetailSpecItems(attributeSpecItems.value))
+const specItems = computed(() => buildResourceDetailSpecItems(resource.value, attributeSpecItems.value))
 const isExpiredResource = computed(() => {
   if (resource.value.status === 'expired') return true
   if (!resource.value.expiresAt) return false
@@ -1346,8 +1339,7 @@ onShareTimeline(() => {
   padding: 28rpx 24rpx;
 }
 
-.summary-kicker,
-.summary-facts {
+.summary-kicker {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
@@ -1367,8 +1359,7 @@ onShareTimeline(() => {
   background: $wplink-warning;
 }
 
-.summary-type,
-.summary-fact-label {
+.summary-type {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.4;
@@ -1377,32 +1368,6 @@ onShareTimeline(() => {
 .summary-type {
   align-self: center;
   font-weight: 700;
-}
-
-.summary-title {
-  color: $wplink-primary;
-  font-size: 36rpx;
-  font-weight: 700;
-  line-height: 1.35;
-  word-break: break-word;
-}
-
-.summary-fact {
-  display: grid;
-  flex: 1 1 200rpx;
-  gap: 4rpx;
-  min-width: 0;
-  padding: 14rpx 16rpx;
-  border-radius: 10rpx;
-  background: #f8fafc;
-}
-
-.summary-fact-value {
-  color: $wplink-warning;
-  font-size: 30rpx;
-  font-weight: 700;
-  line-height: 1.35;
-  word-break: break-word;
 }
 
 .completed-notice {

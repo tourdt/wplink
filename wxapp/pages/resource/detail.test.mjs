@@ -78,8 +78,11 @@ test('resource detail places automatic summary before description, specs, and me
   assert.ok(descriptionIndex > summaryIndex)
   assert.ok(specIndex > descriptionIndex)
   assert.ok(merchantIndex > specIndex)
-  assert.match(source, /<text class="summary-title">\{\{ detailPresentation\.headline \}\}<\/text>/)
-  assert.match(source, /v-for="item in detailPresentation\.facts"/)
+  assert.doesNotMatch(source, /summary-title/)
+  assert.doesNotMatch(source, /summary-facts/)
+  assert.doesNotMatch(source, /summary-fact/)
+  assert.doesNotMatch(source, /detailPresentation\.headline/)
+  assert.doesNotMatch(source, /detailPresentation\.facts/)
 })
 
 test('resource detail displays only publish feature tags in the automatic summary card', () => {
@@ -236,7 +239,7 @@ test('resource detail renders configured attribute items as specs', () => {
   assert.doesNotMatch(source, /isDuplicateSummarySpecItem/)
   assert.doesNotMatch(source, /const summarySpecItems = computed\(\(\) =>/)
   assert.doesNotMatch(source, /const attributeSpecValues = computed\(\(\) =>/)
-  assert.match(source, /const specItems = computed\(\(\) => buildDetailSpecItems\(attributeSpecItems\.value\)\)/)
+  assert.match(source, /const specItems = computed\(\(\) => buildResourceDetailSpecItems\(resource\.value, attributeSpecItems\.value\)\)/)
   assert.doesNotMatch(source, /\.\.\.summarySpecItems\.value/)
   assert.doesNotMatch(source, /\{ label: '更新时间', value: resource\.value\.refreshedAt \|\| '近期更新' \}/)
   assert.doesNotMatch(source, /\{ label: '刷新', value: resource\.value\.refreshedAt/)
