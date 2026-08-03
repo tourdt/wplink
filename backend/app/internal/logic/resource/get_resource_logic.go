@@ -234,7 +234,9 @@ func buildResourcePresentation(detail model.ResourceDetail) (ResourcePresentatio
 func filterResourcePresentationTags(tags []string, typeName string, category string) []string {
 	filtered := make([]string, 0, len(tags))
 	seen := make(map[string]struct{}, len(tags))
-	for _, tag := range tags {
+	for _, rawTag := range tags {
+		// 历史或导入数据可能包含首尾空格；仅为展示过滤归一化局部值，不能改写详情原始标签。
+		tag := strings.TrimSpace(rawTag)
 		if tag == "" {
 			continue
 		}
@@ -244,7 +246,10 @@ func filterResourcePresentationTags(tags []string, typeName string, category str
 		seen[tag] = struct{}{}
 
 		// 详情页已单独展示资源类型和分类，隐藏完全相同或被其完整包含的标签，避免重复传达同一信息。
-		if tag == typeName || tag == category || strings.Contains(typeName, tag) || strings.Contains(category, tag) {
+		if tag == typeName || tag == category {
+			continue
+		}
+		if strings.Contains(typeName, tag) || strings.Contains(category, tag) {
 			continue
 		}
 		filtered = append(filtered, tag)
