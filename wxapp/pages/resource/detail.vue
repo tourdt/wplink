@@ -119,7 +119,7 @@
         </view>
         <ResourceList
           :resources="relatedResources"
-          variant="compact"
+          variant="feed"
           empty-text="暂无同类供应"
           @open="openRelatedResource"
         />

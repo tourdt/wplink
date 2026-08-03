@@ -1556,15 +1556,15 @@ test('resource detail merchant row uses profile logo without extra title', () =>
   assert.equal(source.includes('查看商家认证、发布记录和信用信息'), false)
 })
 
-test('resource detail related resources use reusable resource list', () => {
+test('resource detail related resources reuse the market feed card', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
-  const cardSource = fs.readFileSync(path.join(root, 'components/ResourceCard.vue'), 'utf8')
+  const listSource = fs.readFileSync(path.join(root, 'components/ResourceList.vue'), 'utf8')
 
   for (const token of [
     "import ResourceList from '../../components/ResourceList.vue'",
     ':resources="relatedResources"',
-    'variant="compact"',
+    'variant="feed"',
     'empty-text="暂无同类供应"',
     '@open="openRelatedResource"',
   ]) {
@@ -1572,12 +1572,7 @@ test('resource detail related resources use reusable resource list', () => {
   }
 
   assert.equal(source.includes('<ResourceCard v-for="item in relatedResources"'), false)
-  assert.match(cardSource, /props\.variant === 'compact'[\s\S]*'resource-card-compact'/)
-  assert.match(cardSource, /\.resource-card-compact \.thumb-wrap \{[\s\S]*width: 144rpx;[\s\S]*height: 144rpx;/)
-  assert.match(cardSource, /<text class="resource-title">[\s\S]*<text class="resource-meta">[\s\S]*<text v-if="resource\.priceText" class="resource-price">[\s\S]*<view class="merchant-line">/)
-  assert.equal(cardSource.includes('meta-price-line'), false)
-  assert.equal(cardSource.includes('平台核实'), false)
-  assert.equal(cardSource.includes('查看详情'), false)
+  assert.match(listSource, /<ResourceFeedCard\s+v-if="variant === 'feed'"/)
 })
 
 test('resource detail contact bar secondary buttons look independent', () => {

@@ -203,6 +203,10 @@ test('resource detail groups low-frequency contact actions behind more sheet', (
   assert.equal(source.includes('grid-template-columns: repeat(4, 1fr);'), false)
 })
 
+test('resource detail renders related resources with the market feed card variant', () => {
+  assert.match(source, /<view v-if="relatedResources\.length" class="related-section">[\s\S]*<ResourceList[\s\S]*:resources="relatedResources"[\s\S]*variant="feed"[\s\S]*@open="openRelatedResource"/)
+})
+
 test('resource detail opens dedicated report page from more sheet', () => {
   assert.match(source, /function openResourceReportPage\(\) \{[\s\S]*if \(!resource\.value\.id \|\| isOwnResource\.value\) return[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*resourceId=\$\{encodeURIComponent\(resource\.value\.id\)\}[\s\S]*\/pages\/resource\/report\?\$\{params\.join\('&'\)\}[\s\S]*\}/)
   assert.doesNotMatch(source, /reportResource\(resource\.value\.id/)

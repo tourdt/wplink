@@ -22,12 +22,13 @@
 **Files:**
 - Modify: `wxapp/pages/resource/detail.test.mjs`
 - Modify: `wxapp/pages/resource/detail.vue:115-125`
+- Modify: `wxapp/scripts/validate-flows.test.mjs`
 
 **Interfaces:**
 - Consumes: `ResourceList` 的 `variant="feed"` 约定；该组件会渲染 `ResourceFeedCard`。
 - Produces: 同类推荐区传入 `variant="feed"`，继续通过 `@open="openRelatedResource"` 打开推荐详情。
 
-- [ ] **Step 1: 写入失败测试**
+- [x] **Step 1: 写入失败测试**
 
 在 `wxapp/pages/resource/detail.test.mjs` 的同类推荐相关断言旁新增测试，限定推荐区域使用 feed 变体并保留原有数据与跳转绑定：
 
@@ -37,13 +38,13 @@ test('resource detail renders related resources with the market feed card varian
 })
 ```
 
-- [ ] **Step 2: 运行测试，确认当前失败**
+- [x] **Step 2: 运行测试，确认当前失败**
 
 Run: `npm --prefix wxapp test -- pages/resource/detail.test.mjs`
 
 Expected: FAIL，因为详情页当前仍包含 `variant="compact"`，新增断言找不到 `variant="feed"`。
 
-- [ ] **Step 3: 写入最小页面改动**
+- [x] **Step 3: 写入最小页面改动**
 
 在 `wxapp/pages/resource/detail.vue` 的同类推荐 `ResourceList` 上，将：
 
@@ -59,19 +60,19 @@ variant="feed"
 
 不要更改 `:resources="relatedResources"`、`empty-text` 或 `@open="openRelatedResource"`。
 
-- [ ] **Step 4: 运行测试，确认通过**
+- [x] **Step 4: 运行测试，确认通过**
 
 Run: `npm --prefix wxapp test -- pages/resource/detail.test.mjs`
 
 Expected: PASS，包含新增的同类推荐 feed 变体断言。
 
-- [ ] **Step 5: 运行页面结构校验**
+- [x] **Step 5: 运行页面结构校验**
 
 Run: `npm --prefix wxapp run validate:pages`
 
 Expected: PASS，详情页和页面配置校验无错误。
 
-- [ ] **Step 6: 提交本任务文件**
+- [x] **Step 6: 提交本任务文件**
 
 ```bash
 git add wxapp/pages/resource/detail.vue wxapp/pages/resource/detail.test.mjs
