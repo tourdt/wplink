@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**目标：** 用图片右上角“已成交”角标替换供需列表的整卡印章水印，使资源状态更适合快速扫读。
+**目标：** 用整卡右上角的斜向“已成交”角标替换供需列表的整卡印章水印，使资源状态更适合快速扫读。
 
-**架构：** 只修改 `ResourceFeedCard` 模板、SCSS 和源码断言。继续使用现有 `cardModel.isCompleted` 作为已成交判断，不改数据模型；已成交时渲染右上角角标，并收窄左上类型标签的最大宽度避免重叠。
+**架构：** 只修改 `ResourceFeedCard` 模板、SCSS 和源码断言。继续使用现有 `cardModel.isCompleted` 作为已成交判断，不改数据模型；已成交时渲染贴合卡片外轮廓的右上斜角标，图片左上类型标签不再收窄。
 
 **技术栈：** Vue 3、uni-app、SCSS、Node.js `node:test`
 
@@ -13,7 +13,7 @@
 - `dealtAt` 有值时才显示“已成交”角标；未成交资源不显示状态角标。
 - 删除 `feed-completed-stamp` 及所有印章子元素和样式。
 - 不修改后端接口、状态机、页面调用、资源点击或类型标签数据来源。
-- 类型标签必须在已成交时省略过长文案，且不得与右上角角标重叠。
+- 类型标签保留图片内完整可用宽度，不因整卡角标而收窄。
 - 先写失败测试并确认因新角标尚未实现而失败，再写最小实现。
 
 ## 文件结构
@@ -33,7 +33,7 @@
 **接口：**
 
 - 输入：现有 `cardModel.isCompleted: boolean`。
-- 输出：已成交资源渲染 `<text class="feed-dealt-badge">已成交</text>`；类型标签带 `with-dealt` 类以收窄空间。
+- 输出：已成交资源渲染 `<text class="feed-dealt-corner-badge">已成交</text>`；类型标签不增加成交状态类。
 - 兼容性：继续使用 `<ResourceFeedCard :resource="item" @open="openResource" />` 和既有 `open(resource)` 事件。
 
 - [ ] **步骤 1：编写失败测试**
@@ -41,15 +41,13 @@
 将当前印章测试替换为：
 
 ```js
-test('resource feed card gives dealt resources one prominent cover badge without a card watermark', () => {
-  assert.match(
-    source,
-    /:class="\['feed-type-badge', \{ demand: cardModel\.isDemand, 'with-dealt': cardModel\.isCompleted \}\]"/,
-  )
-  assert.match(source, /<text v-if="cardModel\.isCompleted" class="feed-dealt-badge">已成交<\\/text>/)
-  assert.match(source, /\.feed-type-badge\.with-dealt \{[\s\S]*max-width: calc\(100% - 99rpx\);/)
-  assert.match(source, /\.feed-dealt-badge \{[\s\S]*height: 42rpx;[\s\S]*font-size: 21rpx;/)
+test('resource feed card gives dealt resources one corner sash without a card watermark', () => {
+  assert.match(source, /:class="\['feed-type-badge', \{ demand: cardModel\.isDemand \}\]"/)
+  assert.match(source, /<text v-if="cardModel\.isCompleted" class="feed-dealt-corner-badge">已成交<\\/text>/)
+  assert.match(source, /\.resource-feed-card \{[\s\S]*position: relative;[\s\S]*overflow: hidden;/)
+  assert.match(source, /\.feed-dealt-corner-badge \{[\s\S]*right: -48rpx;[\s\S]*transform: rotate\(45deg\);/)
   assert.doesNotMatch(source, /feed-completed-stamp/)
+  assert.doesNotMatch(source, /with-dealt/)
 })
 ```
 
@@ -66,39 +64,41 @@ node --experimental-vm-modules --test components/ResourceFeedCard.test.mjs
 
 - [ ] **步骤 3：实现最小角标模板与样式**
 
-删除 `feed-completed-stamp` 模板和全部相关 SCSS。将类型角标改为：
+删除 `feed-completed-stamp` 模板和全部相关 SCSS。保留类型角标原有结构，并在其后加入整卡右上角斜角标：
 
 ```vue
 <text
-  :class="['feed-type-badge', { demand: cardModel.isDemand, 'with-dealt': cardModel.isCompleted }]"
+  :class="['feed-type-badge', { demand: cardModel.isDemand }]"
 >
   {{ cardModel.resourceTypeLabel || cardModel.directionLabel }}
 </text>
-<text v-if="cardModel.isCompleted" class="feed-dealt-badge">已成交</text>
+<text v-if="cardModel.isCompleted" class="feed-dealt-corner-badge">已成交</text>
 ```
 
-在 `.feed-type-badge` 增加 `box-sizing: border-box`，并新增：
+恢复 `.resource-feed-card` 的定位上下文以承载斜角标，并新增：
 
 ```scss
-.feed-type-badge.with-dealt {
-  max-width: calc(100% - 99rpx);
+.resource-feed-card {
+  position: relative;
 }
 
-.feed-dealt-badge {
+.feed-dealt-corner-badge {
   position: absolute;
-  top: 8rpx;
-  right: 8rpx;
-  z-index: 1;
+  top: 12rpx;
+  right: -48rpx;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
-  height: 42rpx;
-  padding: 0 10rpx;
-  border-radius: 8rpx;
+  justify-content: center;
+  width: 160rpx;
+  height: 48rpx;
   background: rgba(51, 65, 85, 0.94);
   color: #ffffff;
-  font-size: 21rpx;
+  font-size: 22rpx;
   font-weight: 700;
   line-height: 1;
+  pointer-events: none;
+  transform: rotate(45deg);
 }
 ```
 
