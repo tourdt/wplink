@@ -95,6 +95,43 @@ func TestGetResourceBuildsSortedPresentationFieldsWithConfiguredLayouts(t *testi
 	}
 }
 
+func TestGetResourcePresentationPrefersTrustedTopLevelValuesOverCollidingAttributes(t *testing.T) {
+	store := &fakeGetResourceStore{detail: model.ResourceDetail{
+		ID: "resource-1", MerchantID: "merchant-trusted", CityCode: "zhili", District: "织里镇", Title: "可信标题",
+		Attributes: model.JSONMap{
+			"merchantId": "merchant-forged",
+			"cityCode":   "forged-city",
+			"district":   "伪造区域",
+			"title":      "伪造标题",
+			"season":     "春季",
+		},
+		DisplayTemplate: model.JSONMap{"fields": []interface{}{
+			map[string]interface{}{"source": "merchantId", "label": "商家", "role": "detail", "layout": "half", "order": float64(10)},
+			map[string]interface{}{"source": "cityCode", "label": "城市", "role": "detail", "layout": "half", "order": float64(20)},
+			map[string]interface{}{"source": "district", "label": "区域", "role": "detail", "layout": "half", "order": float64(30)},
+			map[string]interface{}{"source": "title", "label": "标题", "role": "detail", "layout": "full", "order": float64(40)},
+			map[string]interface{}{"source": "season", "label": "季节", "role": "detail", "layout": "half", "order": float64(50)},
+		}},
+	}}
+	logic := NewGetResourceLogic(store)
+
+	resp, err := logic.GetResource(context.Background(), "resource-1")
+	if err != nil {
+		t.Fatalf("GetResource() error = %v", err)
+	}
+
+	want := []ResourcePresentationField{
+		{Key: "merchantId", Label: "商家", Value: "merchant-trusted", Layout: "half"},
+		{Key: "cityCode", Label: "城市", Value: "zhili", Layout: "half"},
+		{Key: "district", Label: "区域", Value: "织里镇", Layout: "half"},
+		{Key: "title", Label: "标题", Value: "可信标题", Layout: "full"},
+		{Key: "season", Label: "季节", Value: "春季", Layout: "half"},
+	}
+	if !presentationFieldsEqual(resp.Presentation.Fields, want) {
+		t.Fatalf("presentation.fields = %#v, want trusted top-level values and dynamic attribute %#v", resp.Presentation.Fields, want)
+	}
+}
+
 func TestGetResourceOmitsDuplicateEmptyAndAddressPresentationFields(t *testing.T) {
 	store := &fakeGetResourceStore{
 		detail: model.ResourceDetail{

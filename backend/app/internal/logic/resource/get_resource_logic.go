@@ -267,9 +267,7 @@ func parseResourcePresentationFieldConfigs(value interface{}) ([]resourcePresent
 }
 
 func resourcePresentationSourceValue(detail model.ResourceDetail, source string) (interface{}, bool) {
-	if value, ok := detail.Attributes[source]; ok {
-		return value, true
-	}
+	// 顶层字段来自数据库可信列和资源类型快照，必须优先于用户可填写的 attributes，避免同名属性伪造标题、区域或商家等核心信息。
 	switch source {
 	case "merchantId":
 		return detail.MerchantID, true
@@ -300,7 +298,8 @@ func resourcePresentationSourceValue(detail model.ResourceDetail, source string)
 	case "images":
 		return detail.Images, true
 	default:
-		return nil, false
+		value, ok := detail.Attributes[source]
+		return value, ok
 	}
 }
 
