@@ -100,6 +100,7 @@ function normalizeResourceDetail(detail) {
     presentation: {
       ...presentation,
       fields: Array.isArray(presentation.fields) ? presentation.fields : [],
+      tags: Array.isArray(presentation.tags) ? presentation.tags : [],
     },
   }
 }
