@@ -13,7 +13,7 @@ test('resource detail gallery uses banner swiper and full screen preview', () =>
   assert.doesNotMatch(source, /:current="selectedGalleryIndex"/)
   assert.match(source, /<swiper-item[\s\S]*v-for="\(\s*url,\s*index\s*\) in galleryImages"/)
   assert.match(source, /@click="previewGalleryImage\(index\)"/)
-  assert.match(source, /v-else-if="mainImage"[\s\S]*@click="previewGalleryImage\(0\)"/)
+  assert.match(source, /<image v-else class="gallery-main" :src="mainImage" mode="aspectFill" @click="previewGalleryImage\(0\)" \/>/)
   assert.match(source, /function handleGalleryChange\(event\) \{[\s\S]*selectedGalleryIndex\.value = current[\s\S]*\}/)
   assert.match(source, /function previewGalleryImage\(index = selectedGalleryIndex\.value\) \{[\s\S]*uni\.previewImage\(\{[\s\S]*current,[\s\S]*urls: galleryImages\.value[\s\S]*\}\)/)
   assert.equal(source.includes('gallery-strip'), false)
@@ -21,23 +21,11 @@ test('resource detail gallery uses banner swiper and full screen preview', () =>
   assert.equal(source.includes('selectGalleryImage'), false)
 })
 
-test('resource detail replaces empty image area with an informative no-image cover', () => {
-  assert.match(source, /import \{[\s\S]*buildResourceDetailPresentation[\s\S]*\} from '\.\.\/\.\.\/common\/resourceDetailState'/)
-  assert.match(source, /<view v-else :class="\['gallery-main', 'gallery-placeholder', isDemandResource \? 'demand' : ''\]">/)
-  assert.match(source, /<text class="placeholder-badge">\{\{ noImageBadgeText \}\}<\/text>/)
-  assert.match(source, /<text class="placeholder-type">\{\{ detailPresentation\.typeName \}\}<\/text>/)
-  assert.match(source, /<text class="placeholder-title">\{\{ noImageStateTitle \}\}<\/text>/)
-  assert.match(source, /<button v-if="canEditOwnResourceWithoutImage" class="placeholder-edit-button" @click\.stop="openPublishEditor">补充图片<\/button>/)
-  assert.match(source, /const detailPresentation = computed\(\(\) => buildResourceDetailPresentation\(resource\.value\)\)/)
-  assert.match(source, /const isDemandResource = computed\(\(\) => detailPresentation\.value\.isDemand\)/)
-  assert.match(source, /const noImageStateTitle = computed\(\(\) => `\$\{resourceNoun\.value\}暂无图片`\)/)
-  assert.match(source, /重点\$\{resourceNoun\.value\}信息已整理在下方详情中/)
-  assert.match(source, /\.gallery-placeholder \{[\s\S]*height: auto;[\s\S]*min-height: 240rpx;[\s\S]*\}/)
-  assert.equal(source.includes('noImageSummaryItems'), false)
-  assert.equal(source.includes('placeholder-summary'), false)
-  assert.equal(source.includes('可先联系发布方确认品类、数量、预算和交付时间'), false)
-  assert.equal(source.includes('联系商家前，建议确认实物、数量、价格和交付方式'), false)
-  assert.equal(source.includes("{{ resource.category || '供应实拍' }}"), false)
+test('resource detail hides the gallery when no image is available', () => {
+  assert.match(source, /<view v-if="galleryImages\.length" class="detail-gallery">/)
+  assert.doesNotMatch(source, /gallery-placeholder/)
+  assert.doesNotMatch(source, /noImageBadgeText/)
+  assert.doesNotMatch(source, /canEditOwnResourceWithoutImage/)
 })
 
 test('resource detail updates navigation title by supply or demand direction', () => {
