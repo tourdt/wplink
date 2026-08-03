@@ -539,6 +539,40 @@ test('resource type migrations resolve to a self-contained final publish config'
     checkFieldList('filter_fields', config.filterFields)
     checkFieldList('display_template.list', config.displayTemplate.list || [])
     checkFieldList('display_template.detail', config.displayTemplate.detail || [])
+
+    if (!Array.isArray(config.displayTemplate.fields)) {
+      issues.push(`${config.typeCode} ${config.typeName}: 缺少 display_template.fields`)
+      continue
+    }
+    const addressSources = new Set((config.fieldSchema.fields || [])
+      .filter((field) => field.type === 'address')
+      .map((field) => field.key))
+    const presentationSources = new Set()
+    for (const [index, field] of config.displayTemplate.fields.entries()) {
+      const fieldLabel = `${config.typeCode} ${config.typeName}: display_template.fields[${index}]`
+      if (!allowedFields.has(field?.source)) {
+        issues.push(`${fieldLabel}.source 引用未定义字段 ${field?.source}`)
+      }
+      if (presentationSources.has(field?.source)) {
+        issues.push(`${fieldLabel}.source 重复配置 ${field?.source}`)
+      }
+      presentationSources.add(field?.source)
+      if (addressSources.has(field?.source)) {
+        issues.push(`${fieldLabel}.source 不应引用独立展示的地址字段 ${field?.source}`)
+      }
+      if (!String(field?.label || '').trim()) {
+        issues.push(`${fieldLabel}.label 不能为空`)
+      }
+      if (!['core', 'core_price', 'detail'].includes(field?.role)) {
+        issues.push(`${fieldLabel}.role 不支持 ${field?.role}`)
+      }
+      if (!['half', 'full'].includes(field?.layout)) {
+        issues.push(`${fieldLabel}.layout 不支持 ${field?.layout}`)
+      }
+      if (!Number.isInteger(field?.order)) {
+        issues.push(`${fieldLabel}.order 必须是整数`)
+      }
+    }
   }
 
   assert.deepEqual(issues, [])

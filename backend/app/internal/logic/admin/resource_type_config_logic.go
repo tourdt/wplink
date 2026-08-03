@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"wplink/backend/app/internal/model"
@@ -123,10 +124,39 @@ var baseResourceConfigFields = map[string]struct{}{
 	"tags":          {},
 }
 
+// 详情展示来源只开放公开且能从资源详情模型读取的顶层字段；联系方式继续由独立解锁模型控制，不能进入普通展示字段。
+var baseResourcePresentationSourceFields = map[string]struct{}{
+	"merchantId":   {},
+	"cityCode":     {},
+	"typeCode":     {},
+	"typeName":     {},
+	"direction":    {},
+	"title":        {},
+	"category":     {},
+	"district":     {},
+	"quantityText": {},
+	"priceText":    {},
+	"description":  {},
+	"contactName":  {},
+	"images":       {},
+	"tags":         {},
+}
+
 var resourceSummaryTargetFields = map[string]struct{}{
 	"category":     {},
 	"quantityText": {},
 	"priceText":    {},
+}
+
+var supportedResourcePresentationRoles = map[string]struct{}{
+	"core":       {},
+	"core_price": {},
+	"detail":     {},
+}
+
+var supportedResourcePresentationLayouts = map[string]struct{}{
+	"half": {},
+	"full": {},
 }
 
 const defaultResourceTypeStatus = "active"
@@ -287,6 +317,10 @@ func buildCreateResourceTypeConfigInput(req CreateResourceTypeConfigReq) (model.
 	if displayTemplate["detail"] == nil {
 		displayTemplate["detail"] = []interface{}{}
 	}
+	if displayTemplate["fields"] == nil {
+		// 新类型始终初始化可编辑的详情展示字段数组，避免管理端首次配置时区分 nil 与空数组。
+		displayTemplate["fields"] = []interface{}{}
+	}
 
 	patch := UpdateResourceTypeConfigReq{
 		FieldSchema:      fieldSchema,
@@ -356,6 +390,16 @@ func validateResourceTypeConfigPatch(req UpdateResourceTypeConfigReq) error {
 		}
 	}
 	if err := validateDisplaySummaryTemplate(req.DisplayTemplate["summary"], allowedFields); err != nil {
+		return err
+	}
+	presentationSourceFields := make(map[string]struct{}, len(baseResourcePresentationSourceFields)+len(dynamicFields))
+	for field := range baseResourcePresentationSourceFields {
+		presentationSourceFields[field] = struct{}{}
+	}
+	for field := range dynamicFields {
+		presentationSourceFields[field] = struct{}{}
+	}
+	if err := validateDisplayPresentationFields(req.DisplayTemplate["fields"], presentationSourceFields); err != nil {
 		return err
 	}
 	return nil
@@ -462,6 +506,69 @@ func validateDisplaySummaryTemplate(value interface{}, allowedFields map[string]
 		}
 	}
 	return nil
+}
+
+func validateDisplayPresentationFields(value interface{}, allowedFields map[string]struct{}) error {
+	if value == nil {
+		return nil
+	}
+	fields, ok := configList(value)
+	if !ok {
+		return errx.New(errx.CodeValidationFailed, "详情展示字段配置格式不正确")
+	}
+	for index, entry := range fields {
+		field, ok := configMap(entry)
+		if !ok {
+			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("第 %d 个详情展示字段配置格式不正确", index+1))
+		}
+		fieldName := fmt.Sprintf("第 %d 个详情展示字段", index+1)
+		source, err := requiredConfigString(field, "source", fieldName, "来源字段")
+		if err != nil {
+			return err
+		}
+		if err := validateReferencedConfigField(fieldName+"的来源字段", source, allowedFields); err != nil {
+			return err
+		}
+		if _, err := requiredConfigString(field, "label", fieldName, "展示名称"); err != nil {
+			return err
+		}
+		role, err := requiredConfigString(field, "role", fieldName, "展示角色")
+		if err != nil {
+			return err
+		}
+		if _, ok := supportedResourcePresentationRoles[role]; !ok {
+			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("%s的展示角色不正确，请使用 core、core_price 或 detail", fieldName))
+		}
+		layout, err := requiredConfigString(field, "layout", fieldName, "展示布局")
+		if err != nil {
+			return err
+		}
+		if _, ok := supportedResourcePresentationLayouts[layout]; !ok {
+			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("%s的展示布局不正确，请使用 half 或 full", fieldName))
+		}
+		if _, ok := resourcePresentationOrder(field["order"]); !ok {
+			return errx.New(errx.CodeValidationFailed, fmt.Sprintf("%s的展示顺序必须是整数", fieldName))
+		}
+	}
+	return nil
+}
+
+func resourcePresentationOrder(value interface{}) (int64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed), true
+	case int32:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	case float64:
+		if math.IsNaN(typed) || math.IsInf(typed, 0) || math.Trunc(typed) != typed || typed < math.MinInt64 || typed >= 1<<63 {
+			return 0, false
+		}
+		return int64(typed), true
+	default:
+		return 0, false
+	}
 }
 
 func validateResourceFieldSchema(fieldSchema map[string]interface{}) (map[string]struct{}, error) {

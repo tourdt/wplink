@@ -72,6 +72,15 @@ type CreateVIPOrderResp {
 
 type CreateVIPPaymentReq {}
 
+// WechatPayParams 是 VIP 与供需联系方式解锁共用的微信支付调起参数。
+type WechatPayParams {
+	TimeStamp string `json:"timeStamp"`
+	NonceStr  string `json:"nonceStr"`
+	Package   string `json:"package"`
+	SignType  string `json:"signType"`
+	PaySign   string `json:"paySign"`
+}
+
 type CreateVIPPaymentResp {
 	OrderId string          `json:"orderId"`
 	Status  string          `json:"status"`
