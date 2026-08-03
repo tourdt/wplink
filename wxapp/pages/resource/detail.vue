@@ -43,12 +43,12 @@
         <text v-if="resource.description" class="desc">{{ resource.description }}</text>
       </view>
 
-      <view v-if="specItems.length" class="resource-card">
+      <view v-if="resource.presentation.fields.length" class="resource-card">
         <view class="section-head">
           <text class="section-title">详细参数</text>
         </view>
         <view class="spec-list">
-          <view v-for="item in specItems" :key="item.label" :class="['spec-item', item.fullWidth ? 'full-width' : '']">
+          <view v-for="item in resource.presentation.fields" :key="item.key" :class="['spec-item', item.layout === 'full' ? 'full-width' : '']">
             <text class="spec-label">{{ item.label }}</text>
             <text class="spec-value">{{ item.value }}</text>
           </view>
@@ -199,10 +199,7 @@ import {
 } from '../../api/resource'
 import { createQuotaPackOrder, createVIPPayment, listQuotaPacks } from '../../api/vip'
 import { requireLogin } from '../../common/auth'
-import {
-  buildResourceDetailPresentation,
-  buildResourceDetailSpecItems,
-} from '../../common/resourceDetailState'
+import { buildResourceDetailPresentation } from '../../common/resourceDetailState'
 import {
   RESOURCE_SHARE_COVER_CANVAS_ID,
   RESOURCE_SHARE_COVER_SIZE,
@@ -213,7 +210,7 @@ import {
 } from '../../common/resourceShare'
 import { getSession } from '../../store/session'
 
-const resource = ref({})
+const resource = ref({ presentation: { fields: [] } })
 const merchantProfile = ref({})
 const relatedResources = ref([])
 const favorited = ref(false)
@@ -292,28 +289,12 @@ const mainImage = computed(() => galleryImages.value[selectedGalleryIndex.value]
 const detailPresentation = computed(() => buildResourceDetailPresentation(resource.value))
 const resourceNoun = computed(() => detailPresentation.value.noun)
 const isDemandResource = computed(() => detailPresentation.value.isDemand)
-const attributeLabelByKey = computed(() => {
-  const labels = {}
-  for (const item of resource.value.attributeItems || []) {
-    if (item?.key && item?.label) labels[item.key] = item.label
-  }
-  return labels
-})
 const resourceAddressLocations = computed(() => {
   const attributes = resource.value.attributes || {}
   return Object.entries(attributes)
     .map(([key, value], index) => buildResourceAddressLocation(key, value, index))
     .filter(Boolean)
 })
-const addressAttributeKeys = computed(() => new Set(resourceAddressLocations.value.map((item) => item.key)))
-const attributeSpecItems = computed(() => (resource.value.attributeItems || [])
-  .filter((item) => item?.label && item?.value !== undefined && item?.value !== '' && !addressAttributeKeys.value.has(item.key))
-  .map((item) => ({
-    key: item.key,
-    label: item.label,
-    value: item.value,
-  })))
-const specItems = computed(() => buildResourceDetailSpecItems(resource.value, attributeSpecItems.value))
 const isExpiredResource = computed(() => {
   if (resource.value.status === 'expired') return true
   if (!resource.value.expiresAt) return false
@@ -573,7 +554,7 @@ function buildResourceAddressLocation(key, value, index) {
   const latitude = Number(value.latitude ?? value.lat)
   const longitude = Number(value.longitude ?? value.lng)
   const hasGps = Number.isFinite(latitude) && Number.isFinite(longitude)
-  const label = attributeLabelByKey.value[key] || '地址'
+  const label = '地址'
   const item = {
     key,
     label,

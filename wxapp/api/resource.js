@@ -76,7 +76,7 @@ export function getResource(resourceId, options = {}) {
     url: `/api/v1/resources/${resourceId}`,
     method: 'GET',
     ...options,
-  })
+  }).then(normalizeResourceDetail)
 }
 
 export function getOwnResource(resourceId, merchantId, options = {}) {
@@ -86,7 +86,22 @@ export function getOwnResource(resourceId, merchantId, options = {}) {
     method: 'GET',
     ...options,
     requireAuth: true,
-  })
+  }).then(normalizeResourceDetail)
+}
+
+// 详情页只消费后端 presentation；空列表在 API 边界收敛，避免页面生命周期内重复兜底。
+function normalizeResourceDetail(detail) {
+  const resourceDetail = detail && typeof detail === 'object' ? detail : {}
+  const presentation = resourceDetail.presentation && typeof resourceDetail.presentation === 'object'
+    ? resourceDetail.presentation
+    : {}
+  return {
+    ...resourceDetail,
+    presentation: {
+      ...presentation,
+      fields: Array.isArray(presentation.fields) ? presentation.fields : [],
+    },
+  }
 }
 
 export function recordResourceDetailView(resourceId) {

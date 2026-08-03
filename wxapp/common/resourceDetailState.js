@@ -1,7 +1,6 @@
 const DEMAND_TYPE_PATTERN = /^(buy_|find_|seek_)/
-const FULL_WIDTH_LABEL_PATTERN = /(地址|备注|说明|交期|时效|要求)/
 
-// 详情页统一使用服务端摘要字段，避免按二级类型在页面中分支，新增类型可直接复用。
+// 详情页仅在此统一供需方向和类型文案；详细参数完全由后端 presentation.fields 决定。
 export function buildResourceDetailPresentation(resource = {}) {
   const isDemand = isDemandResource(resource)
   const typeName = normalizeText(resource.typeName) || normalizeText(resource.category) || '供需信息'
@@ -13,40 +12,11 @@ export function buildResourceDetailPresentation(resource = {}) {
   }
 }
 
-// 核心数量和报价与后台配置属性统一展示，空值和长文本规则复用详情参数处理逻辑。
-export function buildResourceDetailSpecItems(resource = {}, attributeItems = []) {
-  const isDemand = isDemandResource(resource)
-  const summarySourceKeys = new Set(['quantityText', 'priceText']
-    .map((field) => normalizeText(resource.summarySourceKeys?.[field]))
-    .filter(Boolean))
-  return buildDetailSpecItems([
-    { label: '数量/面积', value: resource.quantityText },
-    { label: isDemand ? '预算/报价' : '价格/报价', value: resource.priceText },
-    // 仅按配置来源键排除已提升为核心参数的属性，避免误删同名但不同来源的业务字段。
-    ...attributeItems.filter((item) => !summarySourceKeys.has(normalizeText(item?.key))),
-  ])
-}
-
-// 长文本和语义上需要完整阅读的参数使用整行，短参数仍保持双列信息密度。
-export function buildDetailSpecItems(attributeItems = []) {
-  return attributeItems
-    .filter((item) => normalizeText(item?.label) && normalizeText(item?.value))
-    .map((item) => ({
-      label: normalizeText(item.label),
-      value: normalizeText(item.value),
-      fullWidth: shouldUseFullWidthSpec(item.label, item.value),
-    }))
-}
-
 function isDemandResource(resource) {
   const direction = normalizeText(resource.direction)
   if (direction === 'demand') return true
   const typeCode = normalizeText(resource.typeCode)
   return DEMAND_TYPE_PATTERN.test(typeCode) || typeCode.endsWith('_buy') || typeCode === 'job_seeking'
-}
-
-function shouldUseFullWidthSpec(label, value) {
-  return FULL_WIDTH_LABEL_PATTERN.test(normalizeText(label)) || /\r?\n/.test(String(value)) || Array.from(normalizeText(value)).length > 20
 }
 
 function normalizeText(value) {
