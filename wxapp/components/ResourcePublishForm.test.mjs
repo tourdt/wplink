@@ -140,3 +140,9 @@ test('resource publish form supports configured multi tag selection', () => {
   assert.match(source, /\.tag-option-grid \{[\s\S]*flex-wrap: wrap;/)
   assert.match(source, /\.tag-option\.active \{[\s\S]*border-color: \$wplink-warning;/)
 })
+
+test('resource publish form directs publish quota shortages to purchase', () => {
+  assert.match(source, /import \{ QUOTA_TYPE_PUBLISH, buildQuotaPurchaseUrl, confirmQuotaPurchase \} from '\.\.\/common\/entitlementPurchase'/)
+  assert.match(source, /async function handlePublishQuotaError\(err\) \{[\s\S]*err\?\.code !== 'QUOTA_NOT_ENOUGH'[\s\S]*return false[\s\S]*await confirmQuotaPurchase\(QUOTA_TYPE_PUBLISH\)[\s\S]*uni\.navigateTo\(\{ url: buildQuotaPurchaseUrl\(QUOTA_TYPE_PUBLISH\) \}\)[\s\S]*return true[\s\S]*\}/)
+  assert.match(source, /async function submit\(\) \{[\s\S]*try \{[\s\S]*catch \(err\) \{[\s\S]*if \(await handlePublishQuotaError\(err\)\) return[\s\S]*throw err[\s\S]*\}/)
+})

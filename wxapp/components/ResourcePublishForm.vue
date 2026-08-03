@@ -195,6 +195,7 @@ import { getMerchant } from '../api/merchant'
 import { createResource, createResourceDraft, getEditableResource, submitResource, updateResourceDraft } from '../api/resource'
 import { chooseImageFile, uploadSelectedImage } from '../common/upload'
 import { flattenGroupedResourceTypes, groupResourceTypes } from '../common/resourceCategories'
+import { QUOTA_TYPE_PUBLISH, buildQuotaPurchaseUrl, confirmQuotaPurchase } from '../common/entitlementPurchase'
 
 const props = defineProps({
   initialOptions: {
@@ -508,25 +509,40 @@ async function submit() {
     return
   }
   saveMerchantId(form.merchantId)
-  if (editingResourceId.value) {
-    const images = await uploadPendingResourceImages()
-    if (!editSavedAsDraft.value || editingResourceStatus.value !== 'draft') {
-      // 驳回资源或有未保存改动的草稿，提交审核前先落库为草稿，保证审核使用的是当前编辑内容。
-      await saveResourceDraftPayload(images)
+  try {
+    if (editingResourceId.value) {
+      const images = await uploadPendingResourceImages()
+      if (!editSavedAsDraft.value || editingResourceStatus.value !== 'draft') {
+        // 驳回资源或有未保存改动的草稿，提交审核前先落库为草稿，保证审核使用的是当前编辑内容。
+        await saveResourceDraftPayload(images)
+      }
+      const resp = await submitResource(editingResourceId.value, form.merchantId)
+      openPublishSuccess(resp)
+      clearPublishLocalDraft()
+      resetPublishForm()
+      uni.showToast({ title: publishSubmitToast(resp), icon: 'none' })
+      return
     }
-    const resp = await submitResource(editingResourceId.value, form.merchantId)
+    const images = await uploadPendingResourceImages()
+    const resp = await createResource(buildResourcePublishPayload(images))
     openPublishSuccess(resp)
     clearPublishLocalDraft()
     resetPublishForm()
     uni.showToast({ title: publishSubmitToast(resp), icon: 'none' })
-    return
+  } catch (err) {
+    if (await handlePublishQuotaError(err)) return
+    throw err
   }
-  const images = await uploadPendingResourceImages()
-  const resp = await createResource(buildResourcePublishPayload(images))
-  openPublishSuccess(resp)
-  clearPublishLocalDraft()
-  resetPublishForm()
-  uni.showToast({ title: publishSubmitToast(resp), icon: 'none' })
+}
+
+async function handlePublishQuotaError(err) {
+  // 仅拦截额度不足；过期、已完成和网络错误仍由请求层提示，不能误导用户去购买。
+  if (err?.code !== 'QUOTA_NOT_ENOUGH') return false
+  const confirmed = await confirmQuotaPurchase(QUOTA_TYPE_PUBLISH)
+  if (confirmed) {
+    uni.navigateTo({ url: buildQuotaPurchaseUrl(QUOTA_TYPE_PUBLISH) })
+  }
+  return true
 }
 
 function openPublishSuccess(result = {}) {

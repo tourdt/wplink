@@ -73,6 +73,7 @@ import { deleteTakenDownResource, getOwnResource, listMyResources, refreshResour
 import { createQuotaPackOrder, createVIPPayment, listQuotaPacks } from '../../api/vip'
 import { formatDateToDay } from '../../common/date'
 import { resourceTypeLabel } from '../../common/resourceCategories'
+import { QUOTA_TYPE_REFRESH, buildQuotaPurchaseUrl, confirmQuotaPurchase } from '../../common/entitlementPurchase'
 
 const DEFAULT_RESOURCE_COVER = '/static/resource/default-resource-cover.png'
 
@@ -194,9 +195,24 @@ function selectStatus(status) {
 }
 
 async function refresh(item) {
-  await refreshResource(item.id, merchantId.value)
-  uni.showToast({ title: '已刷新', icon: 'none' })
-  await loadRows({ reset: true })
+  try {
+    await refreshResource(item.id, merchantId.value)
+    uni.showToast({ title: '已刷新', icon: 'none' })
+    await loadRows({ reset: true })
+  } catch (err) {
+    if (await handleRefreshQuotaError(err)) return
+    throw err
+  }
+}
+
+async function handleRefreshQuotaError(err) {
+  // 仅拦截额度不足；过期、已完成和网络错误仍由请求层提示，不能误导用户去购买。
+  if (err?.code !== 'QUOTA_NOT_ENOUGH') return false
+  const confirmed = await confirmQuotaPurchase(QUOTA_TYPE_REFRESH)
+  if (confirmed) {
+    uni.navigateTo({ url: buildQuotaPurchaseUrl(QUOTA_TYPE_REFRESH) })
+  }
+  return true
 }
 
 async function topResource(item) {

@@ -146,3 +146,9 @@ test('my resources restores top voucher actions for merchants', () => {
   assert.doesNotMatch(source, /暂无可用置顶券，请先购买/)
   assert.doesNotMatch(source, /tab=top/)
 })
+
+test('my resources directs refresh quota shortages to purchase', () => {
+  assert.match(source, /import \{ QUOTA_TYPE_REFRESH, buildQuotaPurchaseUrl, confirmQuotaPurchase \} from '\.\.\/\.\.\/common\/entitlementPurchase'/)
+  assert.match(source, /async function handleRefreshQuotaError\(err\) \{[\s\S]*err\?\.code !== 'QUOTA_NOT_ENOUGH'[\s\S]*return false[\s\S]*await confirmQuotaPurchase\(QUOTA_TYPE_REFRESH\)[\s\S]*uni\.navigateTo\(\{ url: buildQuotaPurchaseUrl\(QUOTA_TYPE_REFRESH\) \}\)[\s\S]*return true[\s\S]*\}/)
+  assert.match(source, /async function refresh\(item\) \{[\s\S]*try \{[\s\S]*catch \(err\) \{[\s\S]*if \(await handleRefreshQuotaError\(err\)\) return[\s\S]*throw err[\s\S]*\}/)
+})
