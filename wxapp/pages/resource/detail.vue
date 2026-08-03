@@ -199,6 +199,7 @@ import {
 } from '../../api/resource'
 import { createQuotaPackOrder, createVIPPayment, listQuotaPacks } from '../../api/vip'
 import { requireLogin } from '../../common/auth'
+import { createResourceDetailAuxiliaryLoader } from '../../common/resourceDetailAuxiliary'
 import { buildResourceDetailPresentation } from '../../common/resourceDetailState'
 import {
   RESOURCE_SHARE_COVER_CANVAS_ID,
@@ -213,6 +214,12 @@ import { getSession } from '../../store/session'
 const resource = ref({ presentation: { fields: [], tags: [] } })
 const merchantProfile = ref({})
 const relatedResources = ref([])
+const detailAuxiliaryLoader = createResourceDetailAuxiliaryLoader({
+  listRelatedResources,
+  setRelatedResources(items) {
+    relatedResources.value = Array.isArray(items) ? items : []
+  },
+})
 const favorited = ref(false)
 const isOwnResource = ref(false)
 const ownerMerchantId = ref('')
@@ -237,7 +244,6 @@ const fallbackTopServicePacks = [
 let shareCanvasReady = false
 let shareCoverRenderTimer = null
 let shareCoverRendering = false
-let activeResourceId = ''
 const merchantTypeText = {
   individual: '个人',
   rental_provider: '场地/设备方',
@@ -353,40 +359,38 @@ function updateNavigationTitle() {
 
 onLoad(async (options) => {
   if (!options.id) return
-  // 路由切换时立即清空旧推荐，并以当前详情 ID 拦截迟到响应，避免短暂展示上一条内容的推荐。
-  activeResourceId = String(options.id)
-  relatedResources.value = []
+  // 每次进入详情都创建递增 generation；旧生命周期只能自行结束，不能再改动当前页面数据。
+  const loadContext = detailAuxiliaryLoader.begin(options.id)
   // 从“我的发布”进入时允许查看待审核、草稿、已下架等非公开状态，避免误提示供应已下架。
   ownerMerchantId.value = options.merchantId || ''
   isOwnResource.value = options.from === 'my-resources' || Boolean(ownerMerchantId.value)
   resourceUnavailable.value = false
   selectedGalleryIndex.value = 0
   try {
-    resource.value = isOwnResource.value ? await getOwnResource(options.id, ownerMerchantId.value, { suppressErrorToast: true }) : await getResource(options.id, { suppressErrorToast: true })
+    const detail = isOwnResource.value
+      ? await getOwnResource(options.id, ownerMerchantId.value, { suppressErrorToast: true })
+      : await getResource(options.id, { suppressErrorToast: true })
+    if (!detailAuxiliaryLoader.isCurrent(loadContext)) return
+    resource.value = detail
     updateNavigationTitle()
   } catch (err) {
-    if (!isOwnResource.value && await loadOwnResourceIfCurrentMerchant(options.id)) {
+    if (!detailAuxiliaryLoader.isCurrent(loadContext)) return
+    if (!isOwnResource.value && await loadOwnResourceIfCurrentMerchant(options.id, loadContext)) {
       return
     }
+    if (!detailAuxiliaryLoader.isCurrent(loadContext)) return
     resourceUnavailable.value = true
     resource.value = {}
     selectedGalleryIndex.value = 0
     return
   }
-  enableShareMenu()
-  scheduleShareCoverRender()
-  const auxiliaryTasks = [
-    loadMerchantProfile(),
-    loadRelatedResources(options.id),
-  ]
-  if (!isOwnResource.value) {
-    auxiliaryTasks.push(
-      recordResourceDetailView(options.id),
-      loadFavoriteState(options.id),
-    )
-  }
-  // 商家资料、推荐、浏览和收藏互不依赖；其中任一失败都不能影响详情主体与其他辅助数据。
-  await Promise.allSettled(auxiliaryTasks)
+  await detailAuxiliaryLoader.run(loadContext, {
+    initializeSharing: initializeResourceSharing,
+    isOwnResource: isOwnResource.value,
+    loadFavoriteState,
+    loadMerchantProfile,
+    recordResourceDetailView,
+  })
 })
 
 onReady(() => {
@@ -395,24 +399,26 @@ onReady(() => {
   scheduleShareCoverRender()
 })
 
-async function loadOwnResourceIfCurrentMerchant(resourceId) {
+async function loadOwnResourceIfCurrentMerchant(resourceId, loadContext) {
   const session = getSession()
   if (!session.merchantId) return false
   try {
+    const detail = await getOwnResource(resourceId, session.merchantId, { suppressErrorToast: true })
+    if (!detailAuxiliaryLoader.isCurrent(loadContext)) return false
     ownerMerchantId.value = session.merchantId
-    resource.value = await getOwnResource(resourceId, session.merchantId, { suppressErrorToast: true })
+    resource.value = detail
     isOwnResource.value = true
     resourceUnavailable.value = false
     selectedGalleryIndex.value = 0
     updateNavigationTitle()
-    enableShareMenu()
-    scheduleShareCoverRender()
-    const auxiliaryTasks = [
-      loadMerchantProfile(),
-      loadRelatedResources(resourceId),
-    ]
     // 由公开链接回退到本人详情后，不记录公开浏览，也不读取自己的收藏状态。
-    await Promise.allSettled(auxiliaryTasks)
+    await detailAuxiliaryLoader.run(loadContext, {
+      initializeSharing: initializeResourceSharing,
+      isOwnResource: true,
+      loadFavoriteState,
+      loadMerchantProfile,
+      recordResourceDetailView,
+    })
     return true
   } catch (err) {
     return false
@@ -424,6 +430,11 @@ async function reloadOwnResource() {
   resource.value = await getOwnResource(resource.value.id, ownerMerchantId.value, { suppressErrorToast: true })
   updateNavigationTitle()
   await loadMerchantProfile()
+}
+
+function initializeResourceSharing() {
+  enableShareMenu()
+  scheduleShareCoverRender()
 }
 
 function handleGalleryChange(event) {
@@ -440,16 +451,18 @@ function previewGalleryImage(index = selectedGalleryIndex.value) {
   })
 }
 
-async function loadMerchantProfile() {
+async function loadMerchantProfile(loadContext) {
+  if (loadContext && !detailAuxiliaryLoader.isCurrent(loadContext)) return
   const merchantId = (resource.value.merchant || {}).id
   if (!merchantId) {
-    merchantProfile.value = {}
+    if (!loadContext || detailAuxiliaryLoader.isCurrent(loadContext)) merchantProfile.value = {}
     return
   }
   try {
-    merchantProfile.value = await getMerchant(merchantId, { suppressErrorToast: true })
+    const profile = await getMerchant(merchantId, { suppressErrorToast: true })
+    if (!loadContext || detailAuxiliaryLoader.isCurrent(loadContext)) merchantProfile.value = profile
   } catch (err) {
-    merchantProfile.value = {}
+    if (!loadContext || detailAuxiliaryLoader.isCurrent(loadContext)) merchantProfile.value = {}
   }
 }
 
@@ -619,26 +632,6 @@ function copyResourceAddress(item, title = '地址已复制') {
   if (!item?.address) return
   uni.setClipboardData({ data: item.address })
   uni.showToast({ title, icon: 'none' })
-}
-
-async function loadRelatedResources(resourceId) {
-  relatedResources.value = []
-  if (!resourceId) return
-  try {
-    const resp = await listRelatedResources(
-      resourceId,
-      { pageSize: 3 },
-      {
-        suppressErrorToast: true,
-        requireAuth: isOwnResource.value,
-      },
-    )
-    if (activeResourceId !== String(resourceId)) return
-    relatedResources.value = Array.isArray(resp.items) ? resp.items : []
-  } catch (err) {
-    // 推荐接口失败时保持空列表，避免全局错误提示打断详情阅读。
-    if (activeResourceId === String(resourceId)) relatedResources.value = []
-  }
 }
 
 function openRelatedResource(item) {

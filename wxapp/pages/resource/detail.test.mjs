@@ -35,8 +35,8 @@ test('resource detail updates navigation title by supply or demand direction', (
   assert.equal(source.includes('供需详情'), false)
   assert.equal(JSON.stringify(detailPage).includes('供需详情'), false)
   assert.match(source, /function updateNavigationTitle\(\) \{[\s\S]*uni\.setNavigationBarTitle\(\{[\s\S]*title: isDemandResource\.value \? '需求详情' : '供应详情'[\s\S]*\}\)[\s\S]*\}/)
-  assert.match(source, /resource\.value = isOwnResource\.value \? await getOwnResource[\s\S]*updateNavigationTitle\(\)/)
-  assert.match(source, /async function loadOwnResourceIfCurrentMerchant\(resourceId\) \{[\s\S]*resource\.value = await getOwnResource[\s\S]*updateNavigationTitle\(\)/)
+  assert.match(source, /const detail = isOwnResource\.value[\s\S]*await getOwnResource[\s\S]*resource\.value = detail[\s\S]*updateNavigationTitle\(\)/)
+  assert.match(source, /async function loadOwnResourceIfCurrentMerchant\(resourceId, loadContext\) \{[\s\S]*const detail = await getOwnResource[\s\S]*resource\.value = detail[\s\S]*updateNavigationTitle\(\)/)
   assert.match(source, /async function reloadOwnResource\(\) \{[\s\S]*resource\.value = await getOwnResource[\s\S]*updateNavigationTitle\(\)/)
   assert.match(source, /onReady\(\(\) => \{[\s\S]*if \(resource\.value\.id\) updateNavigationTitle\(\)[\s\S]*\}\)/)
 })
@@ -191,18 +191,13 @@ test('resource detail renders related resources with the market feed card varian
   assert.match(source, /<view v-if="relatedResources\.length" class="related-section">[\s\S]*<ResourceList[\s\S]*:resources="relatedResources"[\s\S]*variant="feed"[\s\S]*@open="openRelatedResource"/)
 })
 
-test('resource detail loads related resources independently for public and own entries', () => {
-  const publicOnlyTasks = source.match(/if \(!isOwnResource\.value\) \{\s*auxiliaryTasks\.push\(([\s\S]*?)\)\s*\}/)?.[0] || ''
-
+test('resource detail delegates related resource lifecycle to the generation-aware loader', () => {
   assert.match(source, /listRelatedResources/)
   assert.doesNotMatch(source, /listResources\(\{ typeCode: resource\.value\.typeCode/)
-  assert.match(source, /relatedResources\.value = \[\]/)
-  assert.match(source, /Promise\.allSettled/)
-  assert.match(source, /loadRelatedResources\(options\.id\)/)
-  assert.match(source, /listRelatedResources\(\s*resourceId,\s*\{ pageSize: 3 \},\s*\{\s*suppressErrorToast: true,\s*requireAuth: isOwnResource\.value,\s*\},\s*\)/)
-  assert.match(publicOnlyTasks, /recordResourceDetailView\(options\.id\)/)
-  assert.match(publicOnlyTasks, /loadFavoriteState\(options\.id\)/)
-  assert.doesNotMatch(publicOnlyTasks, /loadRelatedResources/)
+  assert.match(source, /createResourceDetailAuxiliaryLoader/)
+  assert.match(source, /const loadContext = detailAuxiliaryLoader\.begin\(options\.id\)/)
+  assert.match(source, /await detailAuxiliaryLoader\.run\(loadContext, \{[\s\S]*initializeSharing: initializeResourceSharing,[\s\S]*isOwnResource: isOwnResource\.value/)
+  assert.match(source, /detailAuxiliaryLoader\.isCurrent\(loadContext\)/)
 })
 
 test('resource detail opens dedicated report page from more sheet', () => {

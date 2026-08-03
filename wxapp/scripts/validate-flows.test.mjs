@@ -1599,9 +1599,9 @@ test('resource detail recommendations use the dedicated endpoint without blockin
 
   assert.match(source, /listRelatedResources/)
   assert.doesNotMatch(source, /listResources\(\{ typeCode: resource\.value\.typeCode/)
-  assert.match(source, /relatedResources\.value = \[\]/)
-  assert.match(source, /Promise\.allSettled/)
-  assert.match(source, /loadRelatedResources\(options\.id\)/)
+  assert.match(source, /createResourceDetailAuxiliaryLoader/)
+  assert.match(source, /detailAuxiliaryLoader\.begin\(options\.id\)/)
+  assert.match(source, /detailAuxiliaryLoader\.run\(loadContext/)
 })
 
 test('resource detail contact bar secondary buttons look independent', () => {
