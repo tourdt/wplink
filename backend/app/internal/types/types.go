@@ -1753,6 +1753,7 @@ type ResourceMetricsSummary struct {
 
 type ResourcePresentation struct {
 	Fields []ResourcePresentationField `json:"fields"`
+	Tags   []string                    `json:"tags"`
 }
 
 type ResourcePresentationField struct {

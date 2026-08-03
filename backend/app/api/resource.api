@@ -159,6 +159,7 @@ type ResourcePresentationField {
 
 type ResourcePresentation {
 	Fields []ResourcePresentationField `json:"fields"`
+	Tags   []string                    `json:"tags"`
 }
 
 type EditableResourceContact {

@@ -5,11 +5,62 @@ import (
 	"database/sql"
 	"errors"
 	"math"
+	"reflect"
 	"testing"
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
 )
+
+func TestFilterResourcePresentationTagsHidesRedundantTagsAndKeepsOriginalOrder(t *testing.T) {
+	got := filterResourcePresentationTags(
+		[]string{"", "现货", "库存出售", "库存", "童装", "现货", "可议", "供货"},
+		"库存出售",
+		"童装供货",
+	)
+	want := []string{"现货", "可议"}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("filterResourcePresentationTags() = %#v, want %#v", got, want)
+	}
+}
+
+func TestFilterResourcePresentationTagsTrimsForFilteringAndKeepsNormalizedOrder(t *testing.T) {
+	got := filterResourcePresentationTags(
+		[]string{"  ", " 童装 ", "现货", " 现货 ", "童装面料", "可混批"},
+		"工厂直供",
+		"童装",
+	)
+	want := []string{"现货", "童装面料", "可混批"}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("filterResourcePresentationTags() = %#v, want %#v", got, want)
+	}
+}
+
+func TestGetResourceKeepsOriginalTagsWhilePresentationTagsAreFiltered(t *testing.T) {
+	store := &fakeGetResourceStore{detail: model.ResourceDetail{
+		ID:       "resource-1",
+		TypeName: "工厂直供",
+		Category: "童装",
+		Tags:     []string{" 童装 ", "现货", " 现货 ", "童装面料", "可混批"},
+	}}
+	logic := NewGetResourceLogic(store)
+
+	resp, err := logic.GetResource(context.Background(), "resource-1")
+	if err != nil {
+		t.Fatalf("GetResource() error = %v", err)
+	}
+
+	wantPresentationTags := []string{"现货", "童装面料", "可混批"}
+	if !reflect.DeepEqual(resp.Presentation.Tags, wantPresentationTags) {
+		t.Fatalf("presentation.tags = %#v, want %#v", resp.Presentation.Tags, wantPresentationTags)
+	}
+	wantOriginalTags := []string{" 童装 ", "现货", " 现货 ", "童装面料", "可混批"}
+	if !reflect.DeepEqual(resp.Tags, wantOriginalTags) {
+		t.Fatalf("tags = %#v, want original tags %#v", resp.Tags, wantOriginalTags)
+	}
+}
 
 func TestGetResourceRejectsEmptyID(t *testing.T) {
 	logic := NewGetResourceLogic(&fakeGetResourceStore{})

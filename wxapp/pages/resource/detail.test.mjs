@@ -83,14 +83,14 @@ test('resource detail places automatic summary before specs and merchant', () =>
   assert.doesNotMatch(source, /detailPresentation\.facts/)
 })
 
-test('resource detail displays only publish feature tags in the automatic summary card', () => {
-  assert.match(source, /const resourceFeatureTags = computed\(\(\) => normalizeResourceFeatureTags\(resource\.value\.tags\)\)/)
+test('resource detail displays only backend presentation tags in the automatic summary card', () => {
+  assert.match(source, /const resourceFeatureTags = computed\(\(\) => resource\.value\.presentation\.tags\)/)
   assert.doesNotMatch(source, /const hasDetailTags = computed/)
   assert.match(source, /<view class="detail-summary-card">[\s\S]*<view v-if="resourceFeatureTags\.length" class="tag-row">/)
   assert.match(source, /<text v-for="tag in resourceFeatureTags" :key="tag" class="tag feature">\{\{ tag \}\}<\/text>/)
   assert.doesNotMatch(source, /<text v-if="resource\.refreshedAt" class="tag">/)
   assert.doesNotMatch(source, /<text v-if="isOwnResource && resource\.status" class="tag">/)
-  assert.match(source, /function normalizeResourceFeatureTags\(tags = \[\]\)/)
+  assert.doesNotMatch(source, /function normalizeResourceFeatureTags/)
   assert.match(source, /\.tag \{[\s\S]*border: 1rpx solid rgba\(100, 116, 139, 0\.22\);[\s\S]*font-weight: 700;/)
   assert.match(source, /\.tag\.feature \{[\s\S]*background: #fff7ed;[\s\S]*color: \$wplink-warning;/)
 })

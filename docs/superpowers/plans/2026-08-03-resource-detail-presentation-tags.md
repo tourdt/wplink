@@ -6,7 +6,7 @@
 
 **设计依据：** `docs/superpowers/specs/2026-08-03-resource-detail-presentation-tags-design.md`
 
-## 任务 1：后端生成展示标签
+## Task 1：后端生成展示标签
 
 **涉及文件：**
 - 修改：`backend/app/api/resource.api`
@@ -20,7 +20,7 @@
 4. 在资源详情展示模型构建处实现过滤：去除空标签与重复项；当标签等于 `typeName`/`category`，或被其完整包含时隐藏；其他标签按原始顺序保留。该纯映射逻辑不引入新的错误分支或外部调用。
 5. 重新运行同一 Go 测试，确认 GREEN。
 
-## 任务 2：前端消费展示标签
+## Task 2：前端消费展示标签
 
 **涉及文件：**
 - 修改：`wxapp/api/resource.js`
@@ -33,7 +33,7 @@
 4. 详情页标签区只读取 `resource.presentation.tags`；保留现有“没有可展示标签时不渲染标签行”的结构。
 5. 重新运行对应 Node 测试，确认 GREEN。
 
-## 任务 3：回归验证与交付
+## Task 3：回归验证与交付
 
 **涉及范围：** 本次改动文件及资源详情相关契约测试。
 
