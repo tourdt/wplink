@@ -11,7 +11,9 @@ export function createResourceShareCoverRenderer({
 
   function request(context) {
     if (!isCurrent(context)) return
-    if (rendering && isSameContext(renderingContext, context)) return
+    // 同一详情的摘要与完整商家资料会形成不同快照；仅同一快照对象才是重复请求。
+    // 单槽 pending 会继续覆盖为最新快照，避免忙碌期间丢更新或积累无界渲染任务。
+    if (context === renderingContext || context === pendingContext) return
     pendingContext = context
     void runLatest()
   }
@@ -50,10 +52,4 @@ export function buildResourceShareRenderContext(context, resource = {}, merchant
     },
     resource,
   }
-}
-
-function isSameContext(left, right) {
-  return Boolean(left && right)
-    && left.generation === right.generation
-    && left.resourceId === right.resourceId
 }
