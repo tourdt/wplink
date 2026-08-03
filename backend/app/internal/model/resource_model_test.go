@@ -82,6 +82,57 @@ func TestListRelatedResourcesSQLExcludesUnrelatedCandidatesAndUsesStableOrder(t 
 	}
 }
 
+func TestListRelatedResourcesSQLKeepsSimilarityPredicateAndCasePriorityAligned(t *testing.T) {
+	whereClause := sqlSection(t, listRelatedResourcesSQL, "WHERE candidate.deleted_at IS NULL", "\nORDER BY")
+	wherePredicate := normalizeSQLWhitespace(whereClause)
+	expectedPredicate := normalizeSQLWhitespace(`
+AND (
+  candidate.type_code = source.type_code
+  OR (
+    source.group_code <> ''
+    AND candidate.resource_type_snapshot #>> '{displayTemplate,group,code}' = source.group_code
+  )
+  OR candidate.direction = source.direction
+)
+`)
+	if !strings.Contains(wherePredicate, expectedPredicate) {
+		t.Fatalf("candidate similarity predicate must remain in WHERE filters:\n%s", whereClause)
+	}
+
+	priorityCase := sqlSection(t, listRelatedResourcesSQL, "ORDER BY\n  CASE", "\n  END ASC,")
+	priorityCase = normalizeSQLWhitespace(priorityCase)
+	branches := []string{
+		"WHEN candidate.type_code = source.type_code THEN 1",
+		"WHEN source.group_code <> '' AND candidate.resource_type_snapshot #>> '{displayTemplate,group,code}' = source.group_code THEN 2",
+		"WHEN candidate.direction = source.direction THEN 3",
+	}
+	previousIndex := -1
+	for _, branch := range branches {
+		index := strings.Index(priorityCase, branch)
+		if index <= previousIndex {
+			t.Fatalf("priority CASE must keep type, non-empty group, direction order; missing or misplaced %q:\n%s", branch, priorityCase)
+		}
+		previousIndex = index
+	}
+}
+
+func sqlSection(t *testing.T, query string, startMarker string, endMarker string) string {
+	t.Helper()
+	start := strings.Index(query, startMarker)
+	if start < 0 {
+		t.Fatalf("SQL missing section start %q:\n%s", startMarker, query)
+	}
+	endOffset := strings.Index(query[start:], endMarker)
+	if endOffset < 0 {
+		t.Fatalf("SQL missing section end %q after %q:\n%s", endMarker, startMarker, query)
+	}
+	return query[start : start+endOffset+len(endMarker)]
+}
+
+func normalizeSQLWhitespace(query string) string {
+	return strings.Join(strings.Fields(query), " ")
+}
+
 func TestGetRelatedResourceSourceSQLOnlyReadsAuthorizationAndRankingFields(t *testing.T) {
 	required := []string{
 		"r.status",
