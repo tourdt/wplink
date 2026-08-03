@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"wplink/backend/app/internal/config"
+	"wplink/backend/common/errx"
 )
 
 func TestWechatSessionClientExchangesCode(t *testing.T) {
@@ -98,38 +99,44 @@ func (c ioNopCloser) Close() error {
 	return nil
 }
 
-func TestWechatSessionClientAllowsDevCodeOnlyWhenConfigured(t *testing.T) {
-	client := NewWechatSessionClient(config.WechatConfig{AllowDevCode: true}, "", nil)
-
-	session, err := client.Code2Session(context.Background(), "local-dev-123")
-	if err != nil {
-		t.Fatalf("Code2Session() error = %v", err)
-	}
-	if session.OpenID != "dev:local-dev-123" {
-		t.Fatalf("openid = %q, want dev openid", session.OpenID)
-	}
-}
-
-func TestWechatSessionClientCallsWechatForDevCodeWhenNotAllowed(t *testing.T) {
+func TestWechatSessionClientRejectsLegacyDevLoginCodeWithoutCallingWechat(t *testing.T) {
 	called := false
 	httpClient := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		called = true
-		if r.URL.Query().Get("js_code") != "local-dev-123" {
-			t.Fatalf("js_code = %q, want local-dev code forwarded when disabled", r.URL.Query().Get("js_code"))
-		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       ioNopCloser{Buffer: bytes.NewBufferString(`{"errcode":40029,"errmsg":"invalid code"}`)},
+			Body:       ioNopCloser{Buffer: bytes.NewBufferString(`{"openid":"openid-1"}`)},
 			Header:     make(http.Header),
 		}, nil
 	})}
 
 	client := NewWechatSessionClient(config.WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"}, "https://wechat.example.test/session", httpClient)
 	_, err := client.Code2Session(context.Background(), "local-dev-123")
-	if err == nil {
-		t.Fatal("Code2Session() error = nil, want unauthorized error")
+	if errx.CodeOf(err) != errx.CodeUnauthorized || errx.PublicMessage(err) != "请在微信内重新登录" {
+		t.Fatalf("Code2Session() error = %v, want local unauthorized error", err)
 	}
-	if !called {
-		t.Fatal("wechat client was not called, want dev code forwarded when AllowDevCode is false")
+	if called {
+		t.Fatal("wechat session endpoint was called for legacy dev code")
+	}
+}
+
+func TestWechatSessionClientRejectsLegacyDevPhoneCodeWithoutCallingWechat(t *testing.T) {
+	called := false
+	httpClient := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		called = true
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       ioNopCloser{Buffer: bytes.NewBufferString(`{"access_token":"access-token"}`)},
+			Header:     make(http.Header),
+		}, nil
+	})}
+
+	client := NewWechatSessionClient(config.WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"}, "https://wechat.example.test/session", httpClient)
+	_, err := client.GetPhoneNumber(context.Background(), "local-dev-phone-18800000000")
+	if errx.CodeOf(err) != errx.CodeUnauthorized || errx.PublicMessage(err) != "请在微信内重新授权手机号" {
+		t.Fatalf("GetPhoneNumber() error = %v, want local unauthorized error", err)
+	}
+	if called {
+		t.Fatal("wechat phone endpoint was called for legacy dev code")
 	}
 }
