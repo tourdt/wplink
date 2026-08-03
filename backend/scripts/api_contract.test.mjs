@@ -150,6 +150,20 @@ test('api contract exposes list cover image through public resource APIs', () =>
   assert(discoveryApiSource.includes('type TopicResourceItem'), 'topic resource item keeps a cover image')
 })
 
+test('resource api contract exposes related resource recommendations', () => {
+  const resourceApiSource = fs.readFileSync(path.join(apiDir, 'resource.api'), 'utf8')
+
+  for (const snippet of [
+    'type RelatedResourcesReq',
+    'type RelatedResourcesResp',
+    'PageSize int64 `form:"pageSize,optional"`',
+    'Items []ResourceListItem `json:"items"`',
+    'get /resources/:resourceId/related (RelatedResourcesReq) returns (RelatedResourcesResp)',
+  ]) {
+    assert(resourceApiSource.includes(snippet), `resource.api should contain ${snippet}`)
+  }
+})
+
 test('discovery api exposes public recent merchants without contact fields', () => {
   const discoveryApiSource = fs.readFileSync(path.join(apiDir, 'discovery.api'), 'utf8')
   const typesSource = fs.readFileSync(typesFile, 'utf8')

@@ -92,29 +92,33 @@ func (l *ListResourcesLogic) ListResources(ctx context.Context, req ListResource
 
 	items := make([]ResourceListItem, 0, len(result.Items))
 	for _, item := range result.Items {
-		items = append(items, ResourceListItem{
-			ID:           item.ID,
-			Direction:    item.Direction,
-			TypeCode:     item.TypeCode,
-			TypeName:     item.TypeName,
-			Title:        item.Title,
-			Category:     item.Category,
-			CoverURL:     item.CoverURL,
-			District:     item.District,
-			PriceText:    item.PriceText,
-			QuantityText: item.QuantityText,
-			Tags:         append([]string(nil), item.Tags...),
-			Merchant: ResourceMerchantBrief{
-				ID:        item.Merchant.ID,
-				Name:      item.Merchant.Name,
-				VIPStatus: normalizeVIPStatus(item.Merchant.VIPStatus),
-			},
-			CreditTags:  append([]string(nil), item.CreditTags...),
-			RefreshedAt: item.RefreshedAt,
-			DealtAt:     item.DealtAt,
-		})
+		items = append(items, resourceListItemFromModel(item))
 	}
 	return ListResourcesResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil
+}
+
+func resourceListItemFromModel(item model.ResourceListItem) ResourceListItem {
+	return ResourceListItem{
+		ID:           item.ID,
+		Direction:    item.Direction,
+		TypeCode:     item.TypeCode,
+		TypeName:     item.TypeName,
+		Title:        item.Title,
+		Category:     item.Category,
+		CoverURL:     item.CoverURL,
+		District:     item.District,
+		PriceText:    item.PriceText,
+		QuantityText: item.QuantityText,
+		Tags:         append([]string(nil), item.Tags...),
+		Merchant: ResourceMerchantBrief{
+			ID:        item.Merchant.ID,
+			Name:      item.Merchant.Name,
+			VIPStatus: normalizeVIPStatus(item.Merchant.VIPStatus),
+		},
+		CreditTags:  append([]string(nil), item.CreditTags...),
+		RefreshedAt: item.RefreshedAt,
+		DealtAt:     item.DealtAt,
+	}
 }
 
 func normalizeVIPStatus(status string) string {

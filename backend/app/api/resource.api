@@ -83,6 +83,14 @@ type ListResourcesResp {
 	Total    int64              `json:"total"`
 }
 
+type RelatedResourcesReq {
+	PageSize int64 `form:"pageSize,optional"`
+}
+
+type RelatedResourcesResp {
+	Items []ResourceListItem `json:"items"`
+}
+
 type SearchResourcesReq {
 	CityCode     string `form:"cityCode,optional"`
 	GroupCode    string `form:"groupCode,optional"`
@@ -325,6 +333,9 @@ service wplink-api {
 
 	@handler ListResources
 	get /resources (ListResourcesReq) returns (ListResourcesResp)
+
+	@handler ListRelatedResources
+	get /resources/:resourceId/related (RelatedResourcesReq) returns (RelatedResourcesResp)
 
 	@handler SearchResources
 	get /resource-search (SearchResourcesReq) returns (ListResourcesResp)

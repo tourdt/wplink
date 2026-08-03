@@ -235,6 +235,15 @@ type ResourceListItem struct {
 	DealtAt      string
 }
 
+// RelatedResourceSource 仅保存访问控制与同类推荐排序所需的源资源信息，避免公开接口提前读取私有详情字段。
+type RelatedResourceSource struct {
+	Status     string
+	MerchantID string
+	TypeCode   string
+	Direction  string
+	GroupCode  string
+}
+
 type ListResourcesFilter struct {
 	CityCode   string
 	MerchantID string
@@ -350,6 +359,74 @@ ORDER BY
   CASE WHEN r.top_expires_at IS NOT NULL AND r.top_expires_at > now() THEN 1 ELSE 0 END DESC,
   COALESCE(r.refreshed_at, r.published_at, r.created_at) DESC
 LIMIT $9 OFFSET $10
+`
+
+const getRelatedResourceSourceSQL = `
+SELECT
+  r.status,
+  r.merchant_id::text,
+  r.type_code,
+  r.direction,
+  COALESCE(r.resource_type_snapshot #>> '{displayTemplate,group,code}', '')
+FROM resources r
+WHERE r.id = $1
+  AND r.deleted_at IS NULL
+`
+
+const listRelatedResourcesSQL = `
+WITH source AS (
+  SELECT
+    r.id,
+    r.type_code,
+    r.direction,
+    COALESCE(r.resource_type_snapshot #>> '{displayTemplate,group,code}', '') AS group_code
+  FROM resources r
+  WHERE r.id = $1
+    AND r.deleted_at IS NULL
+)
+SELECT
+  candidate.id::text,
+  candidate.direction,
+  candidate.type_code,
+  candidate.resource_type_snapshot ->> 'typeName',
+  candidate.title,
+  candidate.category,
+  COALESCE(NULLIF(candidate.cover_url, ''), candidate.images ->> 0, ''),
+  COALESCE(candidate.district, ''),
+  COALESCE(candidate.price_text, ''),
+  COALESCE(candidate.quantity_text, ''),
+  candidate.tags,
+  merchant.id::text,
+  merchant.name,
+  CASE WHEN EXISTS (
+    SELECT 1
+    FROM merchant_vip_subscriptions mvs
+    WHERE mvs.merchant_id = merchant.id
+      AND mvs.status = 'active'
+      AND mvs.starts_at <= now()
+      AND mvs.expires_at > now()
+  ) THEN 'active' ELSE 'none' END AS vip_status,
+  COALESCE(candidate.refreshed_at, candidate.published_at, candidate.created_at),
+  candidate.dealt_at
+FROM source
+JOIN resources candidate ON candidate.id <> source.id
+JOIN merchants merchant ON merchant.id = candidate.merchant_id
+WHERE candidate.deleted_at IS NULL
+  AND candidate.status = 'published'
+  AND merchant.status = 'active'
+  AND (candidate.expires_at IS NULL OR candidate.expires_at > now())
+  AND (candidate.dealt_at IS NULL OR candidate.dealt_at > now() - interval '7 days')
+ORDER BY
+  CASE
+    WHEN candidate.type_code = source.type_code THEN 1
+    WHEN candidate.resource_type_snapshot #>> '{displayTemplate,group,code}' = source.group_code THEN 2
+    WHEN candidate.direction = source.direction THEN 3
+    ELSE 4
+  END ASC,
+  CASE WHEN candidate.top_expires_at IS NOT NULL AND candidate.top_expires_at > now() THEN 1 ELSE 0 END DESC,
+  COALESCE(candidate.refreshed_at, candidate.published_at, candidate.created_at) DESC,
+  candidate.id DESC
+LIMIT $2
 `
 
 const reviewResourceSQL = `
@@ -1421,6 +1498,64 @@ func (m *ResourceModel) ListResources(ctx context.Context, filter ListResourcesF
 		return ListResourcesResult{}, err
 	}
 	return ListResourcesResult{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
+}
+
+func (m *ResourceModel) GetRelatedResourceSource(ctx context.Context, resourceID string) (RelatedResourceSource, error) {
+	var source RelatedResourceSource
+	err := m.db.QueryRowContext(ctx, getRelatedResourceSourceSQL, resourceID).Scan(
+		&source.Status,
+		&source.MerchantID,
+		&source.TypeCode,
+		&source.Direction,
+		&source.GroupCode,
+	)
+	return source, err
+}
+
+func (m *ResourceModel) ListRelatedResources(ctx context.Context, resourceID string, limit int64) ([]ResourceListItem, error) {
+	rows, err := m.db.QueryContext(ctx, listRelatedResourcesSQL, resourceID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]ResourceListItem, 0)
+	for rows.Next() {
+		var item ResourceListItem
+		var tags JSONStringSlice
+		var refreshedAt time.Time
+		var dealtAt sql.NullTime
+		if err := rows.Scan(
+			&item.ID,
+			&item.Direction,
+			&item.TypeCode,
+			&item.TypeName,
+			&item.Title,
+			&item.Category,
+			&item.CoverURL,
+			&item.District,
+			&item.PriceText,
+			&item.QuantityText,
+			&tags,
+			&item.Merchant.ID,
+			&item.Merchant.Name,
+			&item.Merchant.VIPStatus,
+			&refreshedAt,
+			&dealtAt,
+		); err != nil {
+			return nil, err
+		}
+		item.Tags = []string(tags)
+		item.RefreshedAt = refreshedAt.Format(time.RFC3339)
+		if dealtAt.Valid {
+			item.DealtAt = dealtAt.Time.Format(time.RFC3339)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 func (m *ResourceModel) GetPublishedResourceDetail(ctx context.Context, resourceID string) (ResourceDetail, error) {

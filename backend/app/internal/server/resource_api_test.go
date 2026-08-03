@@ -911,6 +911,88 @@ func decodeEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int
 	return body
 }
 
+func TestResourceAPIRouterListsRelatedResources(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		relatedSource: model.RelatedResourceSource{Status: model.ResourceStatusPublished, MerchantID: "merchant-1", TypeCode: "inventory", Direction: model.ResourceDirectionSupply},
+		relatedItems: []model.ResourceListItem{
+			{ID: "same-type", Title: "同类型资源", Merchant: model.ResourceMerchantBrief{ID: "merchant-2"}},
+			{ID: "same-group", Title: "同分组资源", Merchant: model.ResourceMerchantBrief{ID: "merchant-3"}},
+		},
+	}
+	router := NewAPIRouter(store)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related?pageSize=3", nil)
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	items, ok := data["items"].([]interface{})
+	if !ok || len(items) != 2 {
+		t.Fatalf("items = %#v, want two related resources", data["items"])
+	}
+	if items[0].(map[string]interface{})["id"] != "same-type" || items[1].(map[string]interface{})["id"] != "same-group" {
+		t.Fatalf("items = %#v, want ranked store order", items)
+	}
+	if store.relatedResourceID != "resource-1" || store.relatedLimit != 3 {
+		t.Fatalf("related query = %q/%d, want resource-1/3", store.relatedResourceID, store.relatedLimit)
+	}
+}
+
+func TestResourceAPIRouterListsRelatedResourcesForPrivateSourceOwner(t *testing.T) {
+	store := &fakeResourceAPIStore{
+		relatedSource:    model.RelatedResourceSource{Status: model.ResourceStatusPending, MerchantID: "merchant-1", TypeCode: "inventory", Direction: model.ResourceDirectionSupply},
+		relatedItems:     []model.ResourceListItem{{ID: "same-type", Title: "同类型资源", Merchant: model.ResourceMerchantBrief{ID: "merchant-2"}}},
+		managedMerchants: map[string]bool{"merchant-1": true},
+	}
+	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil)
+	req.Header.Set("Authorization", "Bearer user-token")
+	router.ServeHTTP(rec, req)
+
+	data := decodeEnvelopeData(t, rec, http.StatusOK)
+	if store.relatedLimit != 3 || len(data["items"].([]interface{})) != 1 {
+		t.Fatalf("data/query = %#v/%d, want private owner's related result with default limit", data, store.relatedLimit)
+	}
+}
+
+func TestResourceAPIRouterHidesPrivateRelatedSourceFromAnonymousAndNonOwner(t *testing.T) {
+	cases := []struct {
+		name      string
+		token     string
+		withToken bool
+	}{
+		{name: "anonymous"},
+		{name: "invalid token", token: "expired-token", withToken: true},
+		{name: "non owner", token: "user-token", withToken: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeResourceAPIStore{
+				relatedSource:    model.RelatedResourceSource{Status: model.ResourceStatusDraft, MerchantID: "merchant-1", TypeCode: "inventory", Direction: model.ResourceDirectionSupply},
+				managedMerchants: map[string]bool{},
+			}
+			router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/resource-1/related", nil)
+			if tc.withToken {
+				req.Header.Set("Authorization", "Bearer "+tc.token)
+			}
+			router.ServeHTTP(rec, req)
+
+			body := decodeEnvelope(t, rec, http.StatusNotFound)
+			if body["msg"] != "资源不存在或暂不可查看" {
+				t.Fatalf("body = %#v, want hidden private source message", body)
+			}
+			if store.relatedCalls != 0 {
+				t.Fatalf("related candidate calls = %d, want 0 for hidden source", store.relatedCalls)
+			}
+		})
+	}
+}
+
 type fakeResourceAPIStore struct {
 	fakeCityAPIStore
 
@@ -950,6 +1032,12 @@ type fakeResourceAPIStore struct {
 	mapEventCalls                    int
 	mapEventInput                    model.MerchantMapEventInput
 	mapEventErr                      error
+	relatedSource                    model.RelatedResourceSource
+	relatedSourceErr                 error
+	relatedItems                     []model.ResourceListItem
+	relatedResourceID                string
+	relatedLimit                     int64
+	relatedCalls                     int
 }
 
 var _ ResourceAPIStore = (*fakeResourceAPIStore)(nil)
@@ -1030,6 +1118,20 @@ func (s *fakeResourceAPIStore) ListResources(ctx context.Context, filter model.L
 		}},
 		Page: filter.Page, PageSize: filter.PageSize, Total: 1,
 	}, nil
+}
+
+func (s *fakeResourceAPIStore) GetRelatedResourceSource(ctx context.Context, resourceID string) (model.RelatedResourceSource, error) {
+	if s.relatedSourceErr != nil {
+		return model.RelatedResourceSource{}, s.relatedSourceErr
+	}
+	return s.relatedSource, nil
+}
+
+func (s *fakeResourceAPIStore) ListRelatedResources(ctx context.Context, resourceID string, limit int64) ([]model.ResourceListItem, error) {
+	s.relatedCalls++
+	s.relatedResourceID = resourceID
+	s.relatedLimit = limit
+	return s.relatedItems, nil
 }
 
 func (s *fakeResourceAPIStore) RecordSearchLog(ctx context.Context, input model.SearchLogInput) error {

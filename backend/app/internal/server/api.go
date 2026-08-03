@@ -27,6 +27,8 @@ import (
 	"wplink/backend/app/internal/session"
 	"wplink/backend/common/errx"
 	"wplink/backend/common/response"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type CityAPIStore interface {
@@ -38,6 +40,7 @@ type ResourceAPIStore interface {
 	resourcelogic.CreateResourceStore
 	resourcelogic.SubmitResourceStore
 	resourcelogic.ListResourcesStore
+	resourcelogic.RelatedResourcesStore
 	resourcelogic.SearchResourceStore
 	resourcelogic.GetResourceStore
 	resourcelogic.ContactUnlockOrderStore
@@ -47,6 +50,11 @@ type ResourceAPIStore interface {
 	metricslogic.ContactStore
 	metricslogic.MetricUpsertStore
 	paymentlogic.ContactUnlockPaymentStore
+	RelatedResourceSourceStore
+}
+
+type RelatedResourceSourceStore interface {
+	GetRelatedResourceSource(ctx context.Context, resourceID string) (model.RelatedResourceSource, error)
 }
 
 type MerchantPermissionStore interface {
@@ -695,6 +703,41 @@ func registerResourceRoutes(
 	})
 	mux.HandleFunc("GET /api/v1/resources", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := resourcelogic.NewListResourcesLogic(store).ListResources(r.Context(), listResourcesReqFromQuery(r))
+		response.JSON(w, resp, err)
+	})
+	mux.HandleFunc("GET /api/v1/resources/{resourceId}/related", func(w http.ResponseWriter, r *http.Request) {
+		resourceID := strings.TrimSpace(r.PathValue("resourceId"))
+		source, err := store.GetRelatedResourceSource(r.Context(), resourceID)
+		if errors.Is(err, sql.ErrNoRows) {
+			response.JSON(w, nil, errx.New(errx.CodeResourceNotFound, "资源不存在或暂不可查看"))
+			return
+		}
+		if err != nil {
+			logx.Errorf("读取相关推荐源资源失败: resourceId=%s err=%+v", resourceID, err)
+			response.JSON(w, nil, errx.New(errx.CodeInternalError, "相关推荐加载失败，请稍后重试"))
+			return
+		}
+		if strings.TrimSpace(source.Status) != model.ResourceStatusPublished {
+			// 非公开源资源不得借推荐接口泄露存在性；只有归属商家的有效登录用户才能继续查询公开候选。
+			subject, authErr := userSubjectFromBearerToken(r, tokenService)
+			if authErr != nil || permissionStore == nil {
+				response.JSON(w, nil, errx.New(errx.CodeResourceNotFound, "资源不存在或暂不可查看"))
+				return
+			}
+			canManage, permissionErr := permissionStore.UserCanManageMerchant(r.Context(), subject.UserID, source.MerchantID)
+			if permissionErr != nil {
+				logx.Errorf("校验相关推荐源资源权限失败: resourceId=%s userId=%s merchantId=%s err=%+v", resourceID, subject.UserID, source.MerchantID, permissionErr)
+				response.JSON(w, nil, errx.New(errx.CodeInternalError, "相关推荐加载失败，请稍后重试"))
+				return
+			}
+			if !canManage {
+				response.JSON(w, nil, errx.New(errx.CodeResourceNotFound, "资源不存在或暂不可查看"))
+				return
+			}
+		}
+		resp, err := resourcelogic.NewListRelatedResourcesLogic(store).ListRelatedResources(r.Context(), resourceID, resourcelogic.RelatedResourcesReq{
+			PageSize: int64FromQuery(r, "pageSize"),
+		})
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/resource-search", func(w http.ResponseWriter, r *http.Request) {

@@ -29,6 +29,47 @@ func TestListResourcesSQLHidesInactiveMerchants(t *testing.T) {
 	}
 }
 
+func TestListRelatedResourcesSQLRanksAndFiltersCandidates(t *testing.T) {
+	required := []string{
+		"candidate.id <> source.id",
+		"candidate.status = 'published'",
+		"merchant.status = 'active'",
+		"candidate.type_code = source.type_code THEN 1",
+		"candidate.resource_type_snapshot #>> '{displayTemplate,group,code}' = source.group_code THEN 2",
+		"candidate.direction = source.direction THEN 3",
+		"candidate.expires_at IS NULL OR candidate.expires_at > now()",
+		"LIMIT $2",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(listRelatedResourcesSQL, snippet) {
+			t.Fatalf("listRelatedResourcesSQL missing %q:\n%s", snippet, listRelatedResourcesSQL)
+		}
+	}
+	if strings.Contains(listRelatedResourcesSQL, "source.status = 'published'") {
+		t.Fatalf("listRelatedResourcesSQL should support an authorized private source:\n%s", listRelatedResourcesSQL)
+	}
+}
+
+func TestGetRelatedResourceSourceSQLOnlyReadsAuthorizationAndRankingFields(t *testing.T) {
+	required := []string{
+		"r.status",
+		"r.merchant_id::text",
+		"r.type_code",
+		"r.direction",
+		"r.resource_type_snapshot #>> '{displayTemplate,group,code}'",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(getRelatedResourceSourceSQL, snippet) {
+			t.Fatalf("getRelatedResourceSourceSQL missing %q:\n%s", snippet, getRelatedResourceSourceSQL)
+		}
+	}
+	for _, forbidden := range []string{"description", "contact_name", "contact_phone", "contact_wechat"} {
+		if strings.Contains(getRelatedResourceSourceSQL, forbidden) {
+			t.Fatalf("getRelatedResourceSourceSQL must not read private field %q:\n%s", forbidden, getRelatedResourceSourceSQL)
+		}
+	}
+}
+
 func TestListResourcesSQLPrioritizesActiveTopResources(t *testing.T) {
 	requiredSnippets := []string{
 		"r.top_expires_at",

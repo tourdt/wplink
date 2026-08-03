@@ -1628,6 +1628,14 @@ type RefreshResourceResp struct {
 	RemainingRefreshQuota int64  `json:"remainingRefreshQuota"`
 }
 
+type RelatedResourcesReq struct {
+	PageSize int64 `form:"pageSize,optional"`
+}
+
+type RelatedResourcesResp struct {
+	Items []ResourceListItem `json:"items"`
+}
+
 type ReportResourceReq struct {
 	ReasonCode string                 `json:"reasonCode"`
 	ReasonText string                 `json:"reasonText,optional"`
