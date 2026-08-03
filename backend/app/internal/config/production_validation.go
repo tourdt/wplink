@@ -81,9 +81,6 @@ func ValidateForProduction(cfg Config) error {
 	if cfg.AdminAuth.TokenSecret == cfg.UserAuth.TokenSecret {
 		return fmt.Errorf("生产配置 AdminAuth.TokenSecret 与 UserAuth.TokenSecret 必须相互独立")
 	}
-	if cfg.Wechat.AllowDevCode {
-		return fmt.Errorf("生产配置不允许启用 Wechat.AllowDevCode")
-	}
 	if strings.TrimSpace(cfg.AdminAuth.MasterPassword) != "" {
 		return fmt.Errorf("生产配置不允许启用 AdminAuth.MasterPassword")
 	}

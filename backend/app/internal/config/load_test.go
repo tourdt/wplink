@@ -41,7 +41,6 @@ UserAuth:
 Wechat:
   AppID: "${WECHAT_APP_ID}"
   AppSecret: "${WECHAT_APP_SECRET}"
-  AllowDevCode: true
 
 TencentMap:
   Key: "${TENCENT_MAP_KEY}"
@@ -133,7 +132,7 @@ Storage:
 	if cfg.UserAuth.TokenSecret != "user-secret-token" || cfg.UserAuth.TokenTTL != 12*time.Hour {
 		t.Fatalf("user auth = %#v, want independent env token and ttl", cfg.UserAuth)
 	}
-	if cfg.Wechat.AppID != "wx-local" || cfg.Wechat.AppSecret != "wechat-secret" || !cfg.Wechat.AllowDevCode {
+	if cfg.Wechat.AppID != "wx-local" || cfg.Wechat.AppSecret != "wechat-secret" {
 		t.Fatalf("wechat = %#v, want env app config", cfg.Wechat)
 	}
 	if cfg.TencentMap.Key != "map-key" || cfg.TencentMap.RequestTimeout != 4*time.Second {
@@ -282,10 +281,10 @@ AdminAuth:
 	}
 }
 
-func TestDevelopmentAppConfigPlaceholdersExistInDeployEnvExample(t *testing.T) {
-	configBytes, err := os.ReadFile(filepath.Join("..", "..", "..", "etc", "app.yaml"))
+func TestProductionAppConfigPlaceholdersExistInDeployEnvExample(t *testing.T) {
+	configBytes, err := os.ReadFile(filepath.Join("..", "..", "..", "etc", "app.production.yaml.example"))
 	if err != nil {
-		t.Fatalf("read app.yaml: %v", err)
+		t.Fatalf("read app.production.yaml.example: %v", err)
 	}
 	envBytes, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "deploy", "wplink.env.example"))
 	if err != nil {
@@ -308,13 +307,13 @@ func TestDevelopmentAppConfigPlaceholdersExistInDeployEnvExample(t *testing.T) {
 	for _, match := range matches {
 		name := match[1]
 		if _, ok := envKeys[name]; !ok {
-			t.Fatalf("backend/etc/app.yaml references %s but deploy/wplink.env.example does not define it", name)
+			t.Fatalf("backend/etc/app.production.yaml.example references %s but deploy/wplink.env.example does not define it", name)
 		}
 	}
 }
 
-func TestDevelopmentAppConfigAllowsLocalWechatDevCode(t *testing.T) {
-	cfg, err := Load(filepath.Join("..", "..", "..", "etc", "app.yaml"))
+func TestDevelopmentAppConfigUsesRealWechatAudit(t *testing.T) {
+	cfg, err := Load(filepath.Join("..", "..", "..", "etc", "app.yaml.example"))
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -322,8 +321,43 @@ func TestDevelopmentAppConfigAllowsLocalWechatDevCode(t *testing.T) {
 	if cfg.RuntimeMode != "development" {
 		t.Fatalf("RuntimeMode = %q, want development", cfg.RuntimeMode)
 	}
-	if !cfg.Wechat.AllowDevCode {
-		t.Fatal("Wechat.AllowDevCode = false, want true for local wxapp login")
+	if !cfg.ContentAudit.Enabled || !cfg.ContentAudit.MediaEnabled {
+		t.Fatalf("ContentAudit = %#v, want real text and image audit enabled for local testing", cfg.ContentAudit)
+	}
+}
+
+func TestLoadRejectsDeprecatedWechatAllowDevCode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yaml")
+	if err := os.WriteFile(path, []byte(`
+Wechat:
+  AppID: "wx-app"
+  AppSecret: "secret"
+  AllowDevCode: true
+`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	_, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "AllowDevCode") {
+		t.Fatalf("Load() error = %v, want deprecated field rejection", err)
+	}
+}
+
+func TestWechatConfigAndDocumentationDoNotReferenceLegacyDevCode(t *testing.T) {
+	paths := []string{
+		filepath.Join("..", "..", "..", "etc", "app.yaml.example"),
+		filepath.Join("..", "..", "..", "etc", "app.production.yaml.example"),
+		filepath.Join("..", "..", "..", "..", "docs", "product", "deployment-config.md"),
+		filepath.Join("..", "..", "..", "..", "docs", "product", "production-release-checklist.md"),
+	}
+	for _, path := range paths {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if strings.Contains(string(content), "AllowDevCode") || strings.Contains(string(content), "local-dev-") {
+			t.Fatalf("%s still references legacy WeChat development login", path)
+		}
 	}
 }
 

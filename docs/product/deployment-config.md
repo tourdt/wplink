@@ -5,7 +5,7 @@
 ## 文件
 
 - `backend/etc/app.yaml.example`：后端配置模板，包含 HTTP、PostgreSQL、后台 token、自动任务和七牛 Kodo 对象存储配置。
-- `backend/etc/app.production.yaml.example`：生产配置模板，默认 `RuntimeMode: production`，关闭微信开发 code 和短信 dev provider。
+- `backend/etc/app.production.yaml.example`：生产配置模板，默认 `RuntimeMode: production`，使用真实微信链路并关闭短信 dev provider。
 - `.env.example`：环境变量示例，供 CI、构建脚本或服务器环境文件参考。
 - `deploy/wplink.env.example`：服务器 `/etc/wplink/wplink.env` 示例。
 - `deploy/nginx/wplink.conf`：Nginx 反向代理示例；后台静态文件由 Go 服务在 `/admin/` 下提供。
@@ -77,7 +77,7 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 
 ## 生产必填配置
 
-正式运营建议设置 `RuntimeMode: production`。该模式会在服务启动前校验以下关键配置，缺失或开启开发登录 fallback 时直接失败：
+正式运营建议设置 `RuntimeMode: production`。该模式会在服务启动前校验以下关键配置，缺失时直接失败：
 
 - `Postgres.DSN`、`Postgres.MaxOpenConns`、`Postgres.MaxIdleConns`、`Postgres.ConnMaxLifetime`、`Postgres.ConnMaxIdleTime`
 - `AdminAuth.TokenSecret`
@@ -89,7 +89,7 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 
 ## 微信与短信
 
-微信登录已通过 `jscode2session` 获取 openid；本地开发可设置 `Wechat.AllowDevCode: true` 使用 `local-dev-*` code，生产模式禁止开启该选项。
+微信登录通过 `jscode2session` 获取 OpenID，手机号授权也直接调用微信接口。本地、测试和生产环境均须使用测试或正式小程序实际生成的 code，并配置与该小程序匹配的 `Wechat.AppID`、`Wechat.AppSecret`。文字审核会直接调用微信内容安全接口；启用图片审核时，测试和生产环境都须配置微信可访问的 HTTPS 回调地址 `/api/v1/wechat/content-audit/media-callback`。
 
 短信验证码支持两种落地方式：
 
