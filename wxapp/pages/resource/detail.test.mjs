@@ -22,17 +22,16 @@ test('resource detail gallery uses banner swiper and full screen preview', () =>
 })
 
 test('resource detail replaces empty image area with an informative no-image cover', () => {
-  assert.match(source, /import \{ resourceTypeLabel as resolveResourceTypeLabel \} from '\.\.\/\.\.\/common\/resourceCategories'/)
+  assert.match(source, /import \{[\s\S]*buildResourceDetailPresentation[\s\S]*\} from '\.\.\/\.\.\/common\/resourceDetailState'/)
   assert.match(source, /<view v-else :class="\['gallery-main', 'gallery-placeholder', isDemandResource \? 'demand' : ''\]">/)
   assert.match(source, /<text class="placeholder-badge">\{\{ noImageBadgeText \}\}<\/text>/)
-  assert.match(source, /<text class="placeholder-type">\{\{ resourceTypeDisplay \}\}<\/text>/)
+  assert.match(source, /<text class="placeholder-type">\{\{ detailPresentation\.typeName \}\}<\/text>/)
   assert.match(source, /<text class="placeholder-title">\{\{ noImageStateTitle \}\}<\/text>/)
   assert.match(source, /<button v-if="canEditOwnResourceWithoutImage" class="placeholder-edit-button" @click\.stop="openPublishEditor">补充图片<\/button>/)
-  assert.match(source, /const resourceTypeDisplay = computed\(\(\) => resolveResourceTypeLabel\(resource\.value\) \|\| resource\.value\.category \|\| '供需信息'\)/)
-  assert.match(source, /const isDemandResource = computed\(\(\) => \{[\s\S]*direction === 'demand'[\s\S]*\/\^\(buy_\|find_\|seek_\)\/[\s\S]*typeCode === 'job_seeking'[\s\S]*\}\)/)
-  assert.match(source, /const noImageStateTitle = computed\(\(\) => \(isDemandResource\.value \? '需求暂无图片' : '暂无实拍图片'\)\)/)
-  assert.match(source, /重点需求信息已整理在下方详情中/)
-  assert.match(source, /重点供需信息已整理在下方详情中/)
+  assert.match(source, /const detailPresentation = computed\(\(\) => buildResourceDetailPresentation\(resource\.value\)\)/)
+  assert.match(source, /const isDemandResource = computed\(\(\) => detailPresentation\.value\.isDemand\)/)
+  assert.match(source, /const noImageStateTitle = computed\(\(\) => `\$\{resourceNoun\.value\}暂无图片`\)/)
+  assert.match(source, /重点\$\{resourceNoun\.value\}信息已整理在下方详情中/)
   assert.match(source, /\.gallery-placeholder \{[\s\S]*height: auto;[\s\S]*min-height: 240rpx;[\s\S]*\}/)
   assert.equal(source.includes('noImageSummaryItems'), false)
   assert.equal(source.includes('placeholder-summary'), false)
@@ -56,7 +55,7 @@ test('resource detail updates navigation title by supply or demand direction', (
 
 test('resource detail keeps contact reminder friendly and visually quiet', () => {
   assert.match(source, /<text class="section-title">友情提示<\/text>/)
-  assert.match(source, /<text class="section-content contact-tip-content">联系商家前，建议先确认实物、价格、数量和交付方式。<\/text>/)
+  assert.match(source, /<text class="section-content contact-tip-content">联系\{\{ resourceNoun \}\}方前，建议先确认实物、价格、数量和交付方式。<\/text>/)
   assert.match(source, /\.contact-tip-content \{[\s\S]*font-size: 26rpx;[\s\S]*line-height: 1\.5;[\s\S]*\}/)
   assert.equal(source.includes('平台已记录联系行为'), false)
   assert.equal(source.includes('<text class="section-title">联系提示</text>'), false)
@@ -75,33 +74,30 @@ test('resource detail does not show merchant endorsement copy in the description
   assert.doesNotMatch(source, /认证商家/)
 })
 
-test('resource detail does not mix publish status into the description card', () => {
+test('resource detail keeps publish status out of the description card', () => {
   assert.doesNotMatch(source, /<text v-if="isOwnResource && resource\.status" class="tag">/)
   assert.doesNotMatch(source, /<text v-if="resource\.status" class="tag">/)
-  assert.match(source, /const managementTitle = computed\(\(\) => statusText\[resource\.value\.status\] \|\| '供应管理'\)/)
+  assert.match(source, /const managementTitle = computed\(\(\) => statusText\[resource\.value\.status\] \|\| `\$\{resourceNoun\.value\}管理`\)/)
 })
 
-test('resource detail keeps the description card before merchant and specs', () => {
-  const summaryIndex = source.indexOf('class="summary-card"')
+test('resource detail places automatic summary before description, specs, and merchant', () => {
+  const summaryIndex = source.indexOf('class="detail-summary-card"')
+  const descriptionIndex = source.indexOf('class="description-card"')
   const merchantIndex = source.indexOf('class="merchant-card"')
   const specIndex = source.indexOf('详细参数')
 
   assert.ok(summaryIndex >= 0)
-  assert.ok(merchantIndex > summaryIndex)
-  assert.ok(specIndex > merchantIndex)
-  assert.match(source, /<view class="summary-card">[\s\S]*<text class="desc">[\s\S]*<view v-if="resourceFeatureTags\.length" class="tag-row">/)
-  assert.equal(source.includes('<text class="section-title">供应说明</text>'), false)
-  assert.equal(source.includes('resourceTitleText'), false)
-  assert.equal(source.includes('detail-title'), false)
-  assert.equal(source.includes('summaryFactItems'), false)
-  assert.equal(source.includes('detail-price'), false)
-  assert.equal(source.includes('summary-type'), false)
+  assert.ok(descriptionIndex > summaryIndex)
+  assert.ok(specIndex > descriptionIndex)
+  assert.ok(merchantIndex > specIndex)
+  assert.match(source, /<text class="summary-title">\{\{ detailPresentation\.headline \}\}<\/text>/)
+  assert.match(source, /v-for="item in detailPresentation\.facts"/)
 })
 
-test('resource detail displays only publish feature tags in the description card', () => {
+test('resource detail displays only publish feature tags in the automatic summary card', () => {
   assert.match(source, /const resourceFeatureTags = computed\(\(\) => normalizeResourceFeatureTags\(resource\.value\.tags\)\)/)
   assert.doesNotMatch(source, /const hasDetailTags = computed/)
-  assert.match(source, /<view class="summary-card">[\s\S]*<view v-if="resourceFeatureTags\.length" class="tag-row">/)
+  assert.match(source, /<view class="detail-summary-card">[\s\S]*<view v-if="resourceFeatureTags\.length" class="tag-row">/)
   assert.match(source, /<text v-for="tag in resourceFeatureTags" :key="tag" class="tag feature">\{\{ tag \}\}<\/text>/)
   assert.doesNotMatch(source, /<text v-if="resource\.refreshedAt" class="tag">/)
   assert.doesNotMatch(source, /<text v-if="isOwnResource && resource\.status" class="tag">/)
@@ -110,16 +106,15 @@ test('resource detail displays only publish feature tags in the description card
   assert.match(source, /\.tag\.feature \{[\s\S]*background: #fff7ed;[\s\S]*color: \$wplink-warning;/)
 })
 
-test('resource detail merges description and summary directly below the gallery', () => {
+test('resource detail displays user description as a supplemental section below automatic summary', () => {
   const galleryIndex = source.indexOf('class="detail-gallery"')
-  const summaryIndex = source.indexOf('class="summary-card"')
-  const descriptionIndex = source.indexOf('class="desc"')
+  const summaryIndex = source.indexOf('class="detail-summary-card"')
+  const descriptionIndex = source.indexOf('class="description-card"')
 
   assert.ok(summaryIndex > galleryIndex)
   assert.ok(descriptionIndex > summaryIndex)
-  assert.match(source, /<view class="summary-card">[\s\S]*<text class="desc">\{\{ resource\.description \|\| '商家暂未填写详细描述，建议联系前确认数量、尺码、看样方式和交付时间。' \}\}<\/text>/)
+  assert.match(source, /<view v-if="resource\.description" class="description-card">[\s\S]*<text class="section-title">补充说明<\/text>[\s\S]*<text class="desc">\{\{ resource\.description \}\}<\/text>/)
   assert.match(source, /\.desc \{[\s\S]*background: #f8fafc;[\s\S]*font-size: 28rpx;[\s\S]*line-height: 1\.6;/)
-  assert.equal(source.includes('class="description-card"'), false)
   assert.equal(source.includes('class="favorite-button"'), false)
   assert.equal(source.includes('.favorite-button'), false)
   assert.equal(source.includes('.detail-head-row'), false)
@@ -139,9 +134,9 @@ test('own resource detail keeps share and management actions in the bottom bar',
 
 test('pending own resource management sheet explains automatic safety state', () => {
   assert.match(source, /const contentAuditStatuses = new Set\(\['pending', 'manual_review', 'audit_retry'\]\)/)
-  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*resource\.value\.status === 'pending'[\s\S]*供应正在自动安全检测，检测通过后会公开展示。当前暂不能刷新、下架或分享。[\s\S]*\}\)/)
+  assert.match(source, /const managementNotice = computed\(\(\) => \{[\s\S]*resource\.value\.status === 'pending'[\s\S]*\$\{resourceNoun\.value\}正在自动安全检测[\s\S]*\}\)/)
   assert.match(source, /resource\.value\.status === 'audit_retry'[\s\S]*系统正在自动重试安全检测/)
-  assert.match(source, /resource\.value\.status === 'manual_review'[\s\S]*供应处于异常处理中/)
+  assert.match(source, /resource\.value\.status === 'manual_review'[\s\S]*\$\{resourceNoun\.value\}处于异常处理中/)
   assert.match(source, /const managementActions = computed\(\(\) => \{[\s\S]*if \(isContentAuditStatus\(resource\.value\.status\)\) return \[\][\s\S]*\}\)/)
   assert.match(source, /<view v-if="showManagementSheet" class="sheet-mask" @click="closeManagementSheet">/)
   assert.match(source, /<text class="sheet-title">\{\{ managementTitle \}\}<\/text>/)
@@ -253,14 +248,12 @@ test('resource detail renders configured attribute items as specs', () => {
   assert.doesNotMatch(source, /isDuplicateSummarySpecItem/)
   assert.doesNotMatch(source, /const summarySpecItems = computed\(\(\) =>/)
   assert.doesNotMatch(source, /const attributeSpecValues = computed\(\(\) =>/)
-  assert.match(source, /const specItems = computed\(\(\) => \[/)
-  assert.match(source, /\.\.\.attributeSpecItems\.value/)
+  assert.match(source, /const specItems = computed\(\(\) => buildDetailSpecItems\(attributeSpecItems\.value\)\)/)
   assert.doesNotMatch(source, /\.\.\.summarySpecItems\.value/)
   assert.doesNotMatch(source, /\{ label: '更新时间', value: resource\.value\.refreshedAt \|\| '近期更新' \}/)
   assert.doesNotMatch(source, /\{ label: '刷新', value: resource\.value\.refreshedAt/)
-  assert.equal(source.includes("{ label: '品类', value: resource.value.category || '待沟通' }"), false)
-  assert.equal(source.includes("{ label: '数量', value: resource.value.quantityText || '待沟通' }"), false)
-  assert.equal(source.includes("{ label: '价格', value: resource.value.priceText || '面议' }"), false)
+  assert.match(source, /:class="\['spec-item', item\.fullWidth \? 'full-width' : ''\]"/)
+  assert.match(source, /\.spec-item\.full-width \{[\s\S]*grid-column: 1 \/ -1;/)
 })
 
 test('resource detail renders address attributes as a dedicated navigation section', () => {
@@ -286,7 +279,7 @@ test('resource detail renders address attributes as a dedicated navigation secti
 test('resource detail restores top voucher management action', () => {
   assert.match(source, /import \{ listTopVouchers, redeemTopVoucher \} from '\.\.\/\.\.\/api\/entitlement'/)
   assert.match(source, /import \{ createQuotaPackOrder, createVIPPayment, listQuotaPacks \} from '\.\.\/\.\.\/api\/vip'/)
-  assert.match(source, /供应展示中，可按需刷新、置顶或下架。/)
+  assert.match(source, /\$\{resourceNoun\.value\}展示中，可按需刷新、置顶或下架。/)
   assert.match(source, /key: 'top'/)
   assert.match(source, /label: '置顶'/)
   assert.match(source, /async function topOwnResource\(\)/)
