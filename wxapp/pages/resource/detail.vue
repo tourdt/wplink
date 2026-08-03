@@ -36,7 +36,7 @@
           <view class="placeholder-copy">
             <view class="placeholder-head">
               <text class="placeholder-badge">{{ noImageBadgeText }}</text>
-              <text class="placeholder-type">{{ resourceTypeDisplay }}</text>
+              <text class="placeholder-type">{{ detailPresentation.typeName }}</text>
             </view>
             <text class="placeholder-title">{{ noImageStateTitle }}</text>
             <text class="placeholder-desc">{{ noImageHintText }}</text>
@@ -45,27 +45,30 @@
         </view>
       </view>
 
-      <view class="summary-card">
+      <view class="detail-summary-card">
         <view v-if="isDealtResource" class="completed-notice">
           <text class="completed-notice-title">该供需已完成</text>
           <text class="completed-notice-desc">内容将在完成后保留 7 天供参考，期间不再支持联系或购买推广服务。</text>
         </view>
-        <text class="desc">{{ resource.description || '商家暂未填写详细描述，建议联系前确认数量、尺码、看样方式和交付时间。' }}</text>
+        <view class="summary-kicker">
+          <text :class="['direction-badge', detailPresentation.isDemand ? 'demand' : '']">{{ resourceNoun }}</text>
+          <text class="summary-type">{{ detailPresentation.typeName }}</text>
+        </view>
+        <text class="summary-title">{{ detailPresentation.headline }}</text>
+        <view v-if="detailPresentation.facts.length" class="summary-facts">
+          <view v-for="item in detailPresentation.facts" :key="item.key" class="summary-fact">
+            <text class="summary-fact-label">{{ item.label }}</text>
+            <text class="summary-fact-value">{{ item.value }}</text>
+          </view>
+        </view>
         <view v-if="resourceFeatureTags.length" class="tag-row">
           <text v-for="tag in resourceFeatureTags" :key="tag" class="tag feature">{{ tag }}</text>
         </view>
       </view>
 
-      <view v-if="showMerchantHomeEntry" class="merchant-card" @click="openMerchant">
-        <image v-if="merchantAvatarUrl" class="merchant-avatar" :src="merchantAvatarUrl" mode="aspectFill" />
-        <view v-else class="merchant-avatar merchant-avatar-placeholder">
-          <text>{{ merchantAvatarText }}</text>
-        </view>
-        <view class="merchant-info">
-          <MerchantBadge :merchant="merchantInfo" />
-          <text class="merchant-hint">{{ merchantBusinessText }}</text>
-        </view>
-        <text class="merchant-arrow">›</text>
+      <view v-if="resource.description" class="description-card">
+        <text class="section-title">补充说明</text>
+        <text class="desc">{{ resource.description }}</text>
       </view>
 
       <view v-if="specItems.length" class="resource-card">
@@ -73,7 +76,7 @@
           <text class="section-title">详细参数</text>
         </view>
         <view class="spec-list">
-          <view v-for="item in specItems" :key="item.label" class="spec-item">
+          <view v-for="item in specItems" :key="item.label" :class="['spec-item', item.fullWidth ? 'full-width' : '']">
             <text class="spec-label">{{ item.label }}</text>
             <text class="spec-value">{{ item.value }}</text>
           </view>
@@ -107,9 +110,16 @@
         </view>
       </view>
 
-      <view class="trust-card">
-        <text class="section-title">友情提示</text>
-        <text class="section-content contact-tip-content">联系商家前，建议先确认实物、价格、数量和交付方式。</text>
+      <view v-if="showMerchantHomeEntry" class="merchant-card" @click="openMerchant">
+        <image v-if="merchantAvatarUrl" class="merchant-avatar" :src="merchantAvatarUrl" mode="aspectFill" />
+        <view v-else class="merchant-avatar merchant-avatar-placeholder">
+          <text>{{ merchantAvatarText }}</text>
+        </view>
+        <view class="merchant-info">
+          <MerchantBadge :merchant="merchantInfo" />
+          <text class="merchant-hint">{{ merchantBusinessText }}</text>
+        </view>
+        <text class="merchant-arrow">›</text>
       </view>
 
       <view v-if="relatedResources.length" class="related-section">
@@ -120,9 +130,14 @@
         <ResourceList
           :resources="relatedResources"
           variant="feed"
-          empty-text="暂无同类供应"
+          :empty-text="`暂无同类${resourceNoun}`"
           @open="openRelatedResource"
         />
+      </view>
+
+      <view class="trust-card">
+        <text class="section-title">友情提示</text>
+        <text class="section-content contact-tip-content">联系{{ resourceNoun }}方前，建议先确认实物、价格、数量和交付方式。</text>
       </view>
 
       <view v-if="showManagementSheet" class="sheet-mask" @click="closeManagementSheet">
@@ -212,7 +227,10 @@ import {
 } from '../../api/resource'
 import { createQuotaPackOrder, createVIPPayment, listQuotaPacks } from '../../api/vip'
 import { requireLogin } from '../../common/auth'
-import { resourceTypeLabel as resolveResourceTypeLabel } from '../../common/resourceCategories'
+import {
+  buildDetailSpecItems,
+  buildResourceDetailPresentation,
+} from '../../common/resourceDetailState'
 import {
   RESOURCE_SHARE_COVER_CANVAS_ID,
   RESOURCE_SHARE_COVER_SIZE,
@@ -299,20 +317,14 @@ const galleryImages = computed(() => {
   return [...cover, ...images].filter(Boolean)
 })
 const mainImage = computed(() => galleryImages.value[selectedGalleryIndex.value] || galleryImages.value[0] || '')
-const resourceTypeDisplay = computed(() => resolveResourceTypeLabel(resource.value) || resource.value.category || '供需信息')
-const isDemandResource = computed(() => {
-  const direction = String(resource.value.direction || '').trim()
-  if (direction === 'demand') return true
-  const typeCode = String(resource.value.typeCode || '').trim()
-  // 公开详情兼容历史响应可能缺少 direction 的情况，避免求购/求租类无图时仍显示供应口径。
-  return /^(buy_|find_|seek_)/.test(typeCode) || typeCode.endsWith('_buy') || typeCode === 'job_seeking'
-})
-const noImageBadgeText = computed(() => (isDemandResource.value ? '需求信息' : '供需信息'))
-const noImageStateTitle = computed(() => (isDemandResource.value ? '需求暂无图片' : '暂无实拍图片'))
+const detailPresentation = computed(() => buildResourceDetailPresentation(resource.value))
+const resourceNoun = computed(() => detailPresentation.value.noun)
+const isDemandResource = computed(() => detailPresentation.value.isDemand)
+const noImageBadgeText = computed(() => `${resourceNoun.value}信息`)
+const noImageStateTitle = computed(() => `${resourceNoun.value}暂无图片`)
 const noImageHintText = computed(() => {
   if (isOwnResource.value) return '当前未上传图片，补充后详情展示会更完整。'
-  if (isDemandResource.value) return '重点需求信息已整理在下方详情中。'
-  return '重点供需信息已整理在下方详情中。'
+  return `重点${resourceNoun.value}信息已整理在下方详情中。`
 })
 const attributeLabelByKey = computed(() => {
   const labels = {}
@@ -334,9 +346,7 @@ const attributeSpecItems = computed(() => (resource.value.attributeItems || [])
     label: item.label,
     value: item.value,
   })))
-const specItems = computed(() => [
-  ...attributeSpecItems.value,
-])
+const specItems = computed(() => buildDetailSpecItems(attributeSpecItems.value))
 const isExpiredResource = computed(() => {
   if (resource.value.status === 'expired') return true
   if (!resource.value.expiresAt) return false
@@ -346,17 +356,17 @@ const isExpiredResource = computed(() => {
 const isDealtResource = computed(() => resource.value.status === 'dealt' || Boolean(resource.value.dealtAt))
 const canShareOwnResource = computed(() => resource.value.status === 'published' && !isExpiredResource.value && !resource.value.dealtAt)
 const canEditOwnResourceWithoutImage = computed(() => isOwnResource.value && ['draft', 'rejected'].includes(resource.value.status))
-const managementTitle = computed(() => statusText[resource.value.status] || '供应管理')
+const managementTitle = computed(() => statusText[resource.value.status] || `${resourceNoun.value}管理`)
 const managementNotice = computed(() => {
-  if (resource.value.status === 'pending') return '供应正在自动安全检测，检测通过后会公开展示。当前暂不能刷新、下架或分享。'
+  if (resource.value.status === 'pending') return `${resourceNoun.value}正在自动安全检测，检测通过后会公开展示。当前暂不能刷新、下架或分享。`
   if (resource.value.status === 'audit_retry') return '系统正在自动重试安全检测，请稍后查看结果。当前暂不能刷新、下架或分享。'
-  if (resource.value.status === 'manual_review') return '供应处于异常处理中，平台仅处理系统无法自动判断的少量情况。'
+  if (resource.value.status === 'manual_review') return `${resourceNoun.value}处于异常处理中，平台仅处理系统无法自动判断的少量情况。`
   if (resource.value.status === 'draft') return '草稿可继续编辑，完善后再提交发布。'
-  if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : '供应未通过安全检测，可编辑后重新提交发布。'
-  if (isExpiredResource.value) return '供应已过期，建议再发类似供应后重新发布。'
+  if (resource.value.status === 'rejected') return resource.value.rejectReason ? `驳回原因：${resource.value.rejectReason}` : `${resourceNoun.value}未通过安全检测，可编辑后重新提交发布。`
+  if (isExpiredResource.value) return `${resourceNoun.value}已过期，建议再发类似${resourceNoun.value}后重新发布。`
   if (isDealtResource.value) return '供需已完成，将保留 7 天供参考，期间不能联系、刷新或置顶。'
-  if (resource.value.status === 'taken_down') return '供应已下架，不再公开展示。'
-  return '供应展示中，可按需刷新、置顶或下架。'
+  if (resource.value.status === 'taken_down') return `${resourceNoun.value}已下架，不再公开展示。`
+  return `${resourceNoun.value}展示中，可按需刷新、置顶或下架。`
 })
 const managementActions = computed(() => {
   if (isContentAuditStatus(resource.value.status)) return []
@@ -501,14 +511,14 @@ async function loadFavoriteState(resourceId) {
 async function toggleFavorite() {
   if (!resource.value.id) return false
   if (isOwnResource.value) {
-    uni.showToast({ title: '不能收藏自己发布的供应', icon: 'none' })
+    uni.showToast({ title: `不能收藏自己发布的${resourceNoun.value}`, icon: 'none' })
     return false
   }
   try {
     // 收藏状态以服务端返回为准，避免弱网下本地乐观更新和真实状态不一致。
     const resp = await setResourceFavorite(resource.value.id, !favorited.value)
     favorited.value = Boolean(resp.favorited)
-    uni.showToast({ title: favorited.value ? '已收藏供应' : '已取消收藏', icon: 'none' })
+    uni.showToast({ title: favorited.value ? `已收藏${resourceNoun.value}` : '已取消收藏', icon: 'none' })
     return true
   } catch (err) {
     uni.showToast({ title: err.message || '收藏失败，请稍后重试', icon: 'none' })
@@ -697,7 +707,7 @@ function closeContactMoreSheet() {
 
 function shareOwnResource() {
   if (canShareOwnResource.value) return
-  uni.showToast({ title: '供应审核通过后可分享', icon: 'none' })
+  uni.showToast({ title: `${resourceNoun.value}审核通过后可分享`, icon: 'none' })
 }
 
 async function handleManagementAction(action) {
@@ -761,8 +771,8 @@ async function topOwnResource() {
 
 async function takeDownOwnResource() {
   const confirmed = await confirmManagementAction({
-    title: '下架供应',
-    content: '下架后供应将不再公开展示，确认下架吗？',
+    title: `下架${resourceNoun.value}`,
+    content: `下架后${resourceNoun.value}将不再公开展示，确认下架吗？`,
     confirmText: '下架',
     confirmColor: '#c2410c',
   })
@@ -789,8 +799,8 @@ function isAvailableTopVoucher(voucher) {
 function confirmTopVoucherUse(voucher) {
   return new Promise((resolve) => {
     uni.showModal({
-      title: '置顶供应',
-      content: `将消耗 1 张置顶券，置顶 ${topDurationText(voucher)}，确认使用吗？`,
+      title: `置顶${resourceNoun.value}`,
+      content: `将消耗 1 张置顶券，置顶当前${resourceNoun.value} ${topDurationText(voucher)}，确认使用吗？`,
       confirmText: '置顶',
       confirmColor: '#061625',
       success: (res) => resolve(Boolean(res.confirm)),
@@ -898,7 +908,7 @@ function confirmTopServicePurchase(pack) {
   return new Promise((resolve) => {
     uni.showModal({
       title: '购买置顶服务',
-      content: `将购买 ${topServicePurchaseText(pack).join('，')}，支付成功后直接置顶当前供应，确认继续吗？`,
+      content: `将购买 ${topServicePurchaseText(pack).join('，')}，支付成功后直接置顶当前${resourceNoun.value}，确认继续吗？`,
       confirmText: '购买',
       cancelText: '取消',
       success: (res) => resolve(Boolean(res.confirm)),
@@ -961,8 +971,8 @@ function buildRepostInitialForm(detail) {
 
 async function deleteOwnResource() {
   const confirmed = await confirmManagementAction({
-    title: '删除供应',
-    content: '删除后将不再显示在我的发布中，确认删除吗？',
+    title: `删除${resourceNoun.value}`,
+    content: `删除后将不再显示在我的发布中，确认删除吗？`,
     confirmText: '删除',
     confirmColor: '#c2410c',
   })
@@ -1260,7 +1270,8 @@ onShareTimeline(() => {
   background: $wplink-bg;
 }
 
-.summary-card,
+.detail-summary-card,
+.description-card,
 .resource-card,
 .merchant-card,
 .address-section,
@@ -1442,9 +1453,68 @@ onShareTimeline(() => {
   color: $wplink-warning;
 }
 
-.summary-card {
+.detail-summary-card {
   gap: 16rpx;
   padding: 28rpx 24rpx;
+}
+
+.summary-kicker,
+.summary-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.direction-badge {
+  padding: 6rpx 12rpx;
+  border-radius: 8rpx;
+  background: $wplink-primary;
+  color: $wplink-card;
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.direction-badge.demand {
+  background: $wplink-warning;
+}
+
+.summary-type,
+.summary-fact-label {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.summary-type {
+  align-self: center;
+  font-weight: 700;
+}
+
+.summary-title {
+  color: $wplink-primary;
+  font-size: 36rpx;
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.summary-fact {
+  display: grid;
+  flex: 1 1 200rpx;
+  gap: 4rpx;
+  min-width: 0;
+  padding: 14rpx 16rpx;
+  border-radius: 10rpx;
+  background: #f8fafc;
+}
+
+.summary-fact-value {
+  color: $wplink-warning;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .completed-notice {
@@ -1499,6 +1569,10 @@ onShareTimeline(() => {
   padding: 16rpx;
   border-radius: 10rpx;
   background: #f8fafc;
+}
+
+.spec-item.full-width {
+  grid-column: 1 / -1;
 }
 
 .spec-label {

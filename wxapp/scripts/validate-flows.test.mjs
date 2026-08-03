@@ -358,11 +358,14 @@ test('resource cards and detail display configured summaries without fixed categ
   assert.match(demandCardSource, /v-if="resource\.priceText"/)
 
   assert.match(detailSource, /resourceFeatureTags/)
+  assert.match(detailSource, /buildResourceDetailPresentation/)
+  assert.match(detailSource, /detailPresentation\.facts/)
   assert.match(detailSource, /<text class="desc">\{\{ resource\.description/)
+  assert.match(detailSource, /<text class="section-title">补充说明<\/text>/)
   assert.equal(detailSource.includes('<text class="section-title">供应说明</text>'), false)
   assert.equal(detailSource.includes('summaryFactItems'), false)
   assert.equal(detailSource.includes('detail-price'), false)
-  assert.equal(detailSource.includes('summary-type'), false)
+  assert.match(detailSource, /summary-type/)
   assert.equal(detailSource.includes('summarySpecItems'), false)
   assert.equal(detailSource.includes('attributeSpecValues'), false)
   assert.equal(detailSource.includes("{ label: '品类', value: resource.value.category || '待沟通' }"), false)
@@ -1569,7 +1572,7 @@ test('resource detail related resources reuse the market feed card', () => {
     "import ResourceList from '../../components/ResourceList.vue'",
     ':resources="relatedResources"',
     'variant="feed"',
-    'empty-text="暂无同类供应"',
+    ':empty-text="`暂无同类${resourceNoun}`"',
     '@open="openRelatedResource"',
   ]) {
     assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
