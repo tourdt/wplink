@@ -9,7 +9,6 @@ import (
 )
 
 const (
-	PaymentBusinessVerification  = "verification"
 	PaymentBusinessContactUnlock = "contact_unlock"
 	PaymentBusinessVIP           = "vip"
 )
@@ -38,18 +37,6 @@ func (m *PaymentReconciliationModel) ListPendingPaymentOrders(ctx context.Contex
 	rows, err := m.db.QueryContext(ctx, `
 SELECT business_type, business_order_id, out_trade_no, amount_total, created_at, expires_at
 FROM (
-  SELECT
-    'verification'::text AS business_type,
-    id::text AS business_order_id,
-    out_trade_no,
-    amount_total::bigint,
-    created_at,
-    NULL::timestamptz AS expires_at
-  FROM verification_payment_orders
-  WHERE status = 'pending' AND created_at <= $1
-
-  UNION ALL
-
   SELECT
     'contact_unlock'::text,
     id::text,
@@ -104,11 +91,6 @@ LIMIT $2
 func (m *PaymentReconciliationModel) MarkPaymentOrderClosed(ctx context.Context, businessType string, businessOrderID string, outTradeNo string) error {
 	var query string
 	switch strings.TrimSpace(businessType) {
-	case PaymentBusinessVerification:
-		query = `
-UPDATE verification_payment_orders
-SET status = 'closed', closed_at = COALESCE(closed_at, now()), updated_at = now()
-WHERE id = $1 AND out_trade_no = $2 AND status = 'pending'`
 	case PaymentBusinessContactUnlock:
 		query = `
 UPDATE resource_contact_unlock_orders
