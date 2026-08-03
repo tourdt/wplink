@@ -198,6 +198,10 @@ test('resource detail delegates related resource lifecycle to the generation-awa
   assert.match(source, /const loadContext = detailAuxiliaryLoader\.begin\(options\.id\)/)
   assert.match(source, /await detailAuxiliaryLoader\.run\(loadContext, \{[\s\S]*initializeSharing: initializeResourceSharing,[\s\S]*isOwnResource: isOwnResource\.value/)
   assert.match(source, /detailAuxiliaryLoader\.isCurrent\(loadContext\)/)
+  assert.match(source, /getFavoriteState: getResourceFavoriteState/)
+  assert.match(source, /setFavorited\(value\) \{[\s\S]*favorited\.value = Boolean\(value\)/)
+  assert.match(source, /setShareImageUrl\(imageUrl\) \{[\s\S]*shareImageUrl\.value = imageUrl \|\| ''/)
+  assert.doesNotMatch(source, /async function loadFavoriteState/)
 })
 
 test('resource detail opens dedicated report page from more sheet', () => {
@@ -227,6 +231,10 @@ test('resource detail supports WeChat group and timeline sharing with generated 
   assert.match(source, /RESOURCE_SHARE_COVER_CANVAS_ID/)
   assert.match(source, /RESOURCE_SHARE_COVER_SIZE/)
   assert.match(source, /const shareImageUrl = ref\(''\)/)
+  assert.match(source, /createResourceShareCoverRenderer/)
+  assert.match(source, /scheduleShareCoverRender\(loadContext\)/)
+  assert.match(source, /shareCoverRenderer\.request\(renderContext\)/)
+  assert.match(source, /renderShareCoverForContext\(renderContext\)/)
   assert.match(source, /<canvas[\s\S]*canvas-id="resourceShareCoverCanvas"[\s\S]*class="share-cover-canvas"[\s\S]*:width="shareCoverCanvasSize\.width"[\s\S]*:height="shareCoverCanvasSize\.height"/)
   assert.match(source, /uni\.showShareMenu\(\{[\s\S]*menus: \['shareAppMessage', 'shareTimeline'\][\s\S]*\}\)/)
   assert.match(source, /uni\.canvasToTempFilePath\(\{[\s\S]*canvasId: RESOURCE_SHARE_COVER_CANVAS_ID[\s\S]*success: \(res\) => resolve\(res\.tempFilePath \|\| ''\)/)

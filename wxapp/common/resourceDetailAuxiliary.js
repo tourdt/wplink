@@ -1,4 +1,11 @@
-export function createResourceDetailAuxiliaryLoader({ listRelatedResources, setRelatedResources }) {
+export function createResourceDetailAuxiliaryLoader({
+  getFavoriteState,
+  hasAuthToken,
+  listRelatedResources,
+  setFavorited,
+  setRelatedResources,
+  setShareImageUrl,
+}) {
   let currentGeneration = 0
   let currentResourceId = ''
 
@@ -6,6 +13,8 @@ export function createResourceDetailAuxiliaryLoader({ listRelatedResources, setR
     currentGeneration += 1
     currentResourceId = String(resourceId || '')
     setRelatedResources([])
+    setFavorited(false)
+    setShareImageUrl('')
     return { generation: currentGeneration, resourceId: currentResourceId }
   }
 
@@ -18,7 +27,6 @@ export function createResourceDetailAuxiliaryLoader({ listRelatedResources, setR
   function run(context, {
     initializeSharing,
     isOwnResource,
-    loadFavoriteState,
     loadMerchantProfile,
     recordResourceDetailView,
   }) {
@@ -26,7 +34,7 @@ export function createResourceDetailAuxiliaryLoader({ listRelatedResources, setR
     if (!isCurrent(context)) return Promise.resolve([])
 
     // 分享入口不等待商家资料、推荐、浏览或收藏等低优先级请求。
-    initializeSharing()
+    initializeSharing(context)
     const auxiliaryTasks = [
       Promise.resolve().then(() => loadMerchantProfile(context)),
       loadRelatedResourcesForContext(context, isOwnResource),
@@ -34,10 +42,21 @@ export function createResourceDetailAuxiliaryLoader({ listRelatedResources, setR
     if (!isOwnResource) {
       auxiliaryTasks.push(
         Promise.resolve().then(() => recordResourceDetailView(context.resourceId)),
-        Promise.resolve().then(() => loadFavoriteState(context.resourceId)),
+        loadFavoriteStateForContext(context),
       )
     }
     return Promise.allSettled(auxiliaryTasks)
+  }
+
+  async function loadFavoriteStateForContext(context) {
+    // 收藏按钮会基于当前布尔值执行相反操作，因此无 token 或旧响应都不能沿用上一详情状态。
+    if (!isCurrent(context) || !hasAuthToken()) return
+    try {
+      const response = await getFavoriteState(context.resourceId)
+      if (isCurrent(context)) setFavorited(Boolean(response?.favorited))
+    } catch (err) {
+      if (isCurrent(context)) setFavorited(false)
+    }
   }
 
   async function loadRelatedResourcesForContext(context, isOwnResource) {

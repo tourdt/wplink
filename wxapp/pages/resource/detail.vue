@@ -201,6 +201,7 @@ import { createQuotaPackOrder, createVIPPayment, listQuotaPacks } from '../../ap
 import { requireLogin } from '../../common/auth'
 import { createResourceDetailAuxiliaryLoader } from '../../common/resourceDetailAuxiliary'
 import { buildResourceDetailPresentation } from '../../common/resourceDetailState'
+import { createResourceShareCoverRenderer } from '../../common/resourceShareCoverRenderer'
 import {
   RESOURCE_SHARE_COVER_CANVAS_ID,
   RESOURCE_SHARE_COVER_SIZE,
@@ -214,13 +215,40 @@ import { getSession } from '../../store/session'
 const resource = ref({ presentation: { fields: [], tags: [] } })
 const merchantProfile = ref({})
 const relatedResources = ref([])
+const favorited = ref(false)
+const shareImageUrl = ref('')
 const detailAuxiliaryLoader = createResourceDetailAuxiliaryLoader({
+  getFavoriteState: getResourceFavoriteState,
+  hasAuthToken() {
+    return Boolean(getSession().token)
+  },
   listRelatedResources,
+  setFavorited(value) {
+    favorited.value = Boolean(value)
+  },
   setRelatedResources(items) {
     relatedResources.value = Array.isArray(items) ? items : []
   },
+  setShareImageUrl(imageUrl) {
+    shareImageUrl.value = imageUrl || ''
+  },
 })
-const favorited = ref(false)
+const shareCoverRenderer = createResourceShareCoverRenderer({
+  getFallbackCover(context) {
+    return getResourceShareCoverSource(context.resource)
+  },
+  isCurrent: detailAuxiliaryLoader.isCurrent,
+  onError(err, context) {
+    console.warn('供需信息分享封面生成失败', {
+      resourceId: context.resourceId,
+      message: err?.message || String(err),
+    })
+  },
+  renderCover: renderShareCoverForContext,
+  setShareImageUrl(imageUrl) {
+    shareImageUrl.value = imageUrl || ''
+  },
+})
 const isOwnResource = ref(false)
 const ownerMerchantId = ref('')
 const resourceUnavailable = ref(false)
@@ -228,7 +256,6 @@ const selectedGalleryIndex = ref(0)
 const showManagementSheet = ref(false)
 const managementBusy = ref(false)
 const topServicePacks = ref([])
-const shareImageUrl = ref('')
 const shareCoverCanvasSize = RESOURCE_SHARE_COVER_SIZE
 // 底部只保留高频联系动作，分享和举报收进更多操作，减少详情页主路径干扰。
 const showContactMoreSheet = ref(false)
@@ -243,7 +270,7 @@ const fallbackTopServicePacks = [
 ]
 let shareCanvasReady = false
 let shareCoverRenderTimer = null
-let shareCoverRendering = false
+let currentDetailLoadContext = null
 const merchantTypeText = {
   individual: '个人',
   rental_provider: '场地/设备方',
@@ -361,6 +388,7 @@ onLoad(async (options) => {
   if (!options.id) return
   // 每次进入详情都创建递增 generation；旧生命周期只能自行结束，不能再改动当前页面数据。
   const loadContext = detailAuxiliaryLoader.begin(options.id)
+  currentDetailLoadContext = loadContext
   // 从“我的发布”进入时允许查看待审核、草稿、已下架等非公开状态，避免误提示供应已下架。
   ownerMerchantId.value = options.merchantId || ''
   isOwnResource.value = options.from === 'my-resources' || Boolean(ownerMerchantId.value)
@@ -387,7 +415,6 @@ onLoad(async (options) => {
   await detailAuxiliaryLoader.run(loadContext, {
     initializeSharing: initializeResourceSharing,
     isOwnResource: isOwnResource.value,
-    loadFavoriteState,
     loadMerchantProfile,
     recordResourceDetailView,
   })
@@ -396,7 +423,7 @@ onLoad(async (options) => {
 onReady(() => {
   shareCanvasReady = true
   if (resource.value.id) updateNavigationTitle()
-  scheduleShareCoverRender()
+  scheduleShareCoverRender(currentDetailLoadContext)
 })
 
 async function loadOwnResourceIfCurrentMerchant(resourceId, loadContext) {
@@ -415,7 +442,6 @@ async function loadOwnResourceIfCurrentMerchant(resourceId, loadContext) {
     await detailAuxiliaryLoader.run(loadContext, {
       initializeSharing: initializeResourceSharing,
       isOwnResource: true,
-      loadFavoriteState,
       loadMerchantProfile,
       recordResourceDetailView,
     })
@@ -432,9 +458,9 @@ async function reloadOwnResource() {
   await loadMerchantProfile()
 }
 
-function initializeResourceSharing() {
+function initializeResourceSharing(loadContext) {
   enableShareMenu()
-  scheduleShareCoverRender()
+  scheduleShareCoverRender(loadContext)
 }
 
 function handleGalleryChange(event) {
@@ -463,16 +489,6 @@ async function loadMerchantProfile(loadContext) {
     if (!loadContext || detailAuxiliaryLoader.isCurrent(loadContext)) merchantProfile.value = profile
   } catch (err) {
     if (!loadContext || detailAuxiliaryLoader.isCurrent(loadContext)) merchantProfile.value = {}
-  }
-}
-
-async function loadFavoriteState(resourceId) {
-  if (!getSession().token) return
-  try {
-    const resp = await getResourceFavoriteState(resourceId)
-    favorited.value = Boolean(resp.favorited)
-  } catch (err) {
-    favorited.value = false
   }
 }
 
@@ -1018,34 +1034,27 @@ function enableShareMenu() {
   })
 }
 
-function scheduleShareCoverRender() {
-  if (!shareCanvasReady || !resource.value.id) return
+function scheduleShareCoverRender(loadContext) {
+  if (!shareCanvasReady || !detailAuxiliaryLoader.isCurrent(loadContext)) return
+  if (!resource.value.id || String(resource.value.id) !== loadContext.resourceId) return
   clearTimeout(shareCoverRenderTimer)
+  const renderContext = {
+    ...loadContext,
+    merchant: merchantInfo.value,
+    resource: resource.value,
+  }
   // 等待供需信息主图和隐藏 canvas 完成一次视图更新，避免刚加载详情时导出空白封面。
   shareCoverRenderTimer = setTimeout(() => {
     shareCoverRenderTimer = null
-    renderShareCover()
+    if (detailAuxiliaryLoader.isCurrent(renderContext)) shareCoverRenderer.request(renderContext)
   }, 80)
 }
 
-async function renderShareCover() {
-  if (shareCoverRendering || !shareCanvasReady || !resource.value.id) return
-  shareCoverRendering = true
-  try {
-    const poster = buildResourceSharePosterModel(resource.value, merchantInfo.value)
-    const ctx = uni.createCanvasContext(RESOURCE_SHARE_COVER_CANVAS_ID)
-    await drawResourceShareCover(ctx, poster)
-    const tempFilePath = await exportShareCoverImage()
-    shareImageUrl.value = tempFilePath || getResourceShareCoverSource(resource.value)
-  } catch (err) {
-    console.warn('供需信息分享封面生成失败', {
-      resourceId: resource.value.id,
-      message: err?.message || String(err),
-    })
-    shareImageUrl.value = getResourceShareCoverSource(resource.value)
-  } finally {
-    shareCoverRendering = false
-  }
+async function renderShareCoverForContext(renderContext) {
+  const poster = buildResourceSharePosterModel(renderContext.resource, renderContext.merchant)
+  const ctx = uni.createCanvasContext(RESOURCE_SHARE_COVER_CANVAS_ID)
+  await drawResourceShareCover(ctx, poster)
+  return exportShareCoverImage()
 }
 
 async function drawResourceShareCover(ctx, poster) {
