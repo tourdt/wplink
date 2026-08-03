@@ -184,6 +184,22 @@ func (l *CreateResourceLogic) applyAutoAuditResult(ctx context.Context, auditSto
 }
 
 func applyResourceAutoAuditResult(ctx context.Context, auditStore ResourceAutoAuditStore, action string, resourceID string, input ContentAuditInput, result ContentAuditResult, err error) (autoAuditOutcome, error) {
+	if errors.Is(err, ErrLegacyWechatAuditIdentity) {
+		// 旧开发环境身份不可能通过真实微信审核，直接驳回并要求重新登录，避免无意义重试。
+		reason := "微信登录身份已失效，请重新登录后重新编辑并提交"
+		if _, rejectErr := auditStore.RejectResourceAfterAudit(ctx, resourceID, reason); rejectErr != nil {
+			logx.Errorf("历史微信审核身份自动驳回失败: action=%s resourceId=%s err=%+v", action, resourceID, rejectErr)
+			return autoAuditOutcome{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
+		}
+		recordResourceAuditDecision(ctx, auditStore, model.ResourceAuditDecisionInput{
+			ResourceID: resourceID,
+			Action:     action,
+			Decision:   "legacy_identity",
+			Reason:     reason,
+		})
+		logx.Infof("资源内容审核拒绝历史微信身份: action=%s merchantId=%s resourceId=%s typeCode=%s", action, input.MerchantID, resourceID, input.TypeCode)
+		return autoAuditOutcome{ID: resourceID, Status: model.ResourceStatusRejected, Message: reason}, nil
+	}
 	if err != nil {
 		reason := "内容审核服务暂时不可用，系统将自动重试"
 		stateStore, ok := auditStore.(ResourceAuditStateStore)

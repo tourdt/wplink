@@ -46,9 +46,8 @@ type UserAuthConfig struct {
 }
 
 type WechatConfig struct {
-	AppID        string `yaml:"AppID"`
-	AppSecret    string `yaml:"AppSecret"`
-	AllowDevCode bool   `yaml:"AllowDevCode"`
+	AppID     string `yaml:"AppID"`
+	AppSecret string `yaml:"AppSecret"`
 }
 
 type TencentMapConfig struct {

@@ -21,12 +21,11 @@ test('login restores merchant id from managed merchants after token is saved', (
   assert.match(source, /saveMerchantId\(''\)/)
 })
 
-test('login uses stable local dev code when connected to local api', () => {
+test('login always obtains a real WeChat code and rejects missing codes', () => {
   const source = fs.readFileSync(path.join(root, 'pages/login/index.vue'), 'utf8')
 
-  assert.match(source, /API_BASE_URL,[\s\S]*DEFAULT_CITY_CODE,[\s\S]*from '\.\.\/\.\.\/common\/constants'/)
-  assert.match(source, /if \(shouldUseLocalDevLoginCode\(\)\) \{[\s\S]*resolve\(localDevLoginCode\(\)\)/)
-  assert.match(source, /function shouldUseLocalDevLoginCode\(\)/)
-  assert.match(source, /127\\\.0\\\.0\\\.1/)
-  assert.match(source, /localhost/)
+  assert.doesNotMatch(source, /local-dev-|localDevLoginCode|shouldUseLocalDevLoginCode|API_BASE_URL/)
+  assert.match(source, /uni\.login\(\{[\s\S]*provider: 'weixin'/)
+  assert.match(source, /success: \(res\) => \{[\s\S]*if \(res\.code\) \{[\s\S]*resolve\(res\.code\)[\s\S]*reject\(new Error\('未获取到微信登录凭证，请重试'\)\)/)
+  assert.match(source, /fail: \(\) => \{[\s\S]*reject\(new Error\('微信登录暂不可用，请稍后重试'\)\)/)
 })

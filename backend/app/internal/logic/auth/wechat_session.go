@@ -20,6 +20,11 @@ const defaultWechatCode2SessionURL = "https://api.weixin.qq.com/sns/jscode2sessi
 const defaultWechatAccessTokenURL = "https://api.weixin.qq.com/cgi-bin/token"
 const defaultWechatPhoneNumberURL = "https://api.weixin.qq.com/wxa/business/getuserphonenumber"
 
+// isLegacyWechatDevCode 识别已废弃的本地开发凭证，防止伪造身份进入真实微信审核链路。
+func isLegacyWechatDevCode(code string) bool {
+	return strings.HasPrefix(strings.TrimSpace(code), "local-dev-")
+}
+
 type WechatSession struct {
 	OpenID  string
 	UnionID string
@@ -75,8 +80,9 @@ func (c *HTTPWechatSessionClient) Code2Session(ctx context.Context, code string)
 	if code == "" {
 		return WechatSession{}, errx.New(errx.CodeValidationFailed, "请提供微信登录凭证")
 	}
-	if c.cfg.AllowDevCode && strings.HasPrefix(code, "local-dev-") {
-		return WechatSession{OpenID: "dev:" + code}, nil
+	if isLegacyWechatDevCode(code) {
+		logx.Errorf("微信登录拒绝历史开发凭证: isLegacyDevCode=true")
+		return WechatSession{}, errx.New(errx.CodeUnauthorized, "请在微信内重新登录")
 	}
 	if strings.TrimSpace(c.cfg.AppID) == "" || strings.TrimSpace(c.cfg.AppSecret) == "" {
 		return WechatSession{}, errx.New(errx.CodeInternalError, "微信登录服务未配置，请稍后重试")
@@ -117,11 +123,11 @@ func (c *HTTPWechatSessionClient) Code2Session(ctx context.Context, code string)
 		return WechatSession{}, errx.New(errx.CodeInternalError, "微信登录响应异常，请稍后重试")
 	}
 	if data.ErrCode != 0 {
-		logx.Errorf("微信登录接口返回错误: errCode=%d errMsg=%s isDevCode=%t allowDevCode=%t", data.ErrCode, data.ErrMsg, strings.HasPrefix(code, "local-dev-"), c.cfg.AllowDevCode)
+		logx.Errorf("微信登录接口返回错误: errCode=%d errMsg=%s", data.ErrCode, data.ErrMsg)
 		return WechatSession{}, errx.New(errx.CodeUnauthorized, "微信登录凭证无效，请重新登录")
 	}
 	if strings.TrimSpace(data.OpenID) == "" {
-		logx.Errorf("微信登录接口未返回 openid: isDevCode=%t allowDevCode=%t", strings.HasPrefix(code, "local-dev-"), c.cfg.AllowDevCode)
+		logx.Errorf("微信登录接口未返回 openid")
 		return WechatSession{}, errx.New(errx.CodeUnauthorized, "微信登录凭证无效，请重新登录")
 	}
 	return WechatSession{OpenID: data.OpenID, UnionID: data.UnionID}, nil
@@ -132,12 +138,9 @@ func (c *HTTPWechatSessionClient) GetPhoneNumber(ctx context.Context, code strin
 	if code == "" {
 		return WechatPhoneNumber{}, errx.New(errx.CodeValidationFailed, "请授权微信手机号")
 	}
-	if c.cfg.AllowDevCode && strings.HasPrefix(code, "local-dev-phone-") {
-		phone := sanitizeWechatPhoneNumber(strings.TrimPrefix(code, "local-dev-phone-"))
-		if phone == "" {
-			phone = "18800000000"
-		}
-		return WechatPhoneNumber{PhoneNumber: phone, PurePhoneNumber: phone, CountryCode: "86"}, nil
+	if isLegacyWechatDevCode(code) {
+		logx.Errorf("微信手机号授权拒绝历史开发凭证: isLegacyDevCode=true")
+		return WechatPhoneNumber{}, errx.New(errx.CodeUnauthorized, "请在微信内重新授权手机号")
 	}
 	if strings.TrimSpace(c.cfg.AppID) == "" || strings.TrimSpace(c.cfg.AppSecret) == "" {
 		return WechatPhoneNumber{}, errx.New(errx.CodeInternalError, "微信手机号服务未配置，请手动填写")
@@ -187,11 +190,11 @@ func (c *HTTPWechatSessionClient) GetPhoneNumber(ctx context.Context, code strin
 		return WechatPhoneNumber{}, errx.New(errx.CodeInternalError, "微信手机号响应异常，请手动填写")
 	}
 	if data.ErrCode != 0 {
-		logx.Errorf("微信手机号接口返回错误: errCode=%d errMsg=%s allowDevCode=%t", data.ErrCode, data.ErrMsg, c.cfg.AllowDevCode)
+		logx.Errorf("微信手机号接口返回错误: errCode=%d errMsg=%s", data.ErrCode, data.ErrMsg)
 		return WechatPhoneNumber{}, errx.New(errx.CodeInternalError, "手机号获取失败，请手动填写")
 	}
 	if strings.TrimSpace(data.PhoneInfo.PurePhoneNumber) == "" && strings.TrimSpace(data.PhoneInfo.PhoneNumber) == "" {
-		logx.Errorf("微信手机号接口未返回号码: allowDevCode=%t", c.cfg.AllowDevCode)
+		logx.Errorf("微信手机号接口未返回号码")
 		return WechatPhoneNumber{}, errx.New(errx.CodeInternalError, "手机号获取失败，请手动填写")
 	}
 	return WechatPhoneNumber{
@@ -244,14 +247,4 @@ func (c *HTTPWechatSessionClient) getAccessToken(ctx context.Context) (string, e
 		return "", errx.New(errx.CodeInternalError, "手机号获取失败，请手动填写")
 	}
 	return data.AccessToken, nil
-}
-
-func sanitizeWechatPhoneNumber(value string) string {
-	var builder strings.Builder
-	for _, r := range value {
-		if r >= '0' && r <= '9' {
-			builder.WriteRune(r)
-		}
-	}
-	return builder.String()
 }

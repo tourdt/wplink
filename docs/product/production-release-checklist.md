@@ -41,7 +41,6 @@ bash deploy/scripts/build-release.sh
 `/etc/wplink/app.yaml` 应基于 `backend/etc/app.production.yaml.example`，并保持：
 
 - `RuntimeMode: production`
-- `Wechat.AllowDevCode: false`
 - `SMS.Provider: "http"`
 - `SMS.DevCode: ""`
 

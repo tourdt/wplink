@@ -22,7 +22,6 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import {
-  API_BASE_URL,
   DEFAULT_CITY_CODE,
   PRIVACY_POLICY_VERSION,
   USER_AGREEMENT_VERSION,
@@ -123,36 +122,21 @@ function safeDecode(value) {
 }
 
 function getWechatLoginCode() {
-  return new Promise((resolve) => {
-    if (shouldUseLocalDevLoginCode()) {
-      // 连接本地 API 时后端通常未配置真实微信密钥，固定使用开发 code，避免微信开发者工具返回的一次性 code 触发后端 jscode2session 失败。
-      resolve(localDevLoginCode())
-      return
-    }
+  return new Promise((resolve, reject) => {
     uni.login({
       provider: 'weixin',
       success: (res) => {
-        resolve(res.code || localDevLoginCode())
+        if (res.code) {
+          resolve(res.code)
+          return
+        }
+        reject(new Error('未获取到微信登录凭证，请重试'))
       },
-      // 本地 H5/模拟环境可能没有微信登录能力，使用开发 code 仍可完成后端链路验收。
       fail: () => {
-        resolve(localDevLoginCode())
+        reject(new Error('微信登录暂不可用，请稍后重试'))
       },
     })
   })
-}
-
-function shouldUseLocalDevLoginCode() {
-  return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(String(API_BASE_URL || ''))
-}
-
-function localDevLoginCode() {
-  const key = 'wplink_dev_login_code'
-  const existing = uni.getStorageSync(key)
-  if (existing) return existing
-  const code = `local-dev-${Date.now()}`
-  uni.setStorageSync(key, code)
-  return code
 }
 </script>
 
