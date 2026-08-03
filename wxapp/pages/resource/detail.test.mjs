@@ -49,6 +49,16 @@ test('resource detail keeps contact reminder friendly and visually quiet', () =>
   assert.equal(source.includes('<text class="section-title">联系提示</text>'), false)
 })
 
+test('resource detail places the friendly tip after merchant and before related resources', () => {
+  const merchantIndex = source.indexOf('class="merchant-card"')
+  const tipIndex = source.indexOf('class="trust-card"')
+  const relatedIndex = source.indexOf('class="related-section"')
+
+  assert.ok(merchantIndex >= 0)
+  assert.ok(tipIndex > merchantIndex)
+  assert.ok(relatedIndex > tipIndex)
+})
+
 test('resource detail only shows merchant home entry after merchant profile is completed', () => {
   assert.match(source, /const showMerchantHomeEntry = computed\(\(\) => \{[\s\S]*merchantInfo\.value\.profileStatus === 'completed'[\s\S]*\}\)/)
   assert.match(source, /<view v-if="showMerchantHomeEntry" class="merchant-card" @click="openMerchant">/)

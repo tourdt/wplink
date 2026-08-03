@@ -94,6 +94,11 @@
         <text class="merchant-arrow">›</text>
       </view>
 
+      <view class="trust-card">
+        <text class="section-title">友情提示</text>
+        <text class="section-content contact-tip-content">联系{{ resourceNoun }}方前，建议先确认实物、价格、数量和交付方式。</text>
+      </view>
+
       <view v-if="relatedResources.length" class="related-section">
         <view class="section-head">
           <text class="section-title">同类推荐</text>
@@ -105,11 +110,6 @@
           :empty-text="`暂无同类${resourceNoun}`"
           @open="openRelatedResource"
         />
-      </view>
-
-      <view class="trust-card">
-        <text class="section-title">友情提示</text>
-        <text class="section-content contact-tip-content">联系{{ resourceNoun }}方前，建议先确认实物、价格、数量和交付方式。</text>
       </view>
 
       <view v-if="showManagementSheet" class="sheet-mask" @click="closeManagementSheet">
