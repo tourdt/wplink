@@ -117,8 +117,20 @@ SET field_schema = rtc.field_schema || cfg.tag_config::jsonb,
     updated_at = now()
 FROM (
   VALUES
+    ('factory_direct', '{"tagOptions":["源头工厂","小单快反","来样定制","长期供货","现货","支持拿样"],"maxTags":8}'),
+    ('spot_wholesale', '{"tagOptions":["现货","可混批","支持拿样","整包","断码","尾季"],"maxTags":8}'),
+    ('stock_clearance', '{"tagOptions":["现货","可混批","支持看货","整包","断码","轻瑕"],"maxTags":8}'),
+    ('buy_kids_goods', '{"tagOptions":["急采","可接受断码","可接受尾货","长期采购","预算明确","可自提"],"maxTags":8}'),
+    ('fabric_supply', '{"tagOptions":["现货","可寄样","支持定制","小单起订","颜色齐全","长期供货"],"maxTags":8}'),
+    ('accessory_supply', '{"tagOptions":["现货","可寄样","支持定制","小单起订","款式齐全","长期供货"],"maxTags":8}'),
+    ('processing_accept', '{"tagOptions":["小单快反","来样加工","包工包料","可打样","交期稳定","长期合作"],"maxTags":8}'),
+    ('find_factory', '{"tagOptions":["急找工厂","小单优先","包工包料","来样加工","长期合作","交期明确"],"maxTags":8}'),
+    ('production_support', '{"tagOptions":["上门服务","快速响应","长期合作","可开票","支持定制"],"maxTags":8}'),
+    ('job_hiring', '{"tagOptions":["急招","包吃住","计件工资","长期招聘","熟练工优先"],"maxTags":8}'),
+    ('job_seeking', '{"tagOptions":["随时到岗","熟练工","接受计件","可长期","可夜班"],"maxTags":8}'),
     ('sample_rental', '{"tagOptions":["交通便利","带车位","靠近商圈","可短租","随时入驻","拎包可用"],"maxTags":8}'),
     ('shop_office_rental', '{"tagOptions":["交通便利","带车位","靠近商圈","电梯房","一楼临街","可短租","随时入驻"],"maxTags":8}'),
+    ('shop_sale', '{"tagOptions":["一楼临街","交通便利","带车位","靠近商圈","产权清晰","可议价"],"maxTags":8}'),
     ('seek_shop_office', '{"tagOptions":["交通便利","带车位","靠近商圈","电梯房","一楼临街","急租","可长期租"],"maxTags":8}'),
     ('apartment_rental', '{"tagOptions":["交通便利","带车位","靠近商圈","电梯房","家具家电齐全","拎包入住","可短租"],"maxTags":8}'),
     ('housing_sale', '{"tagOptions":["交通便利","带车位","靠近商圈","电梯房","采光好","南北通透","产权清晰"],"maxTags":8}'),
@@ -126,7 +138,13 @@ FROM (
     ('factory_warehouse_rental', '{"tagOptions":["交通便利","带车位","货车可进","近高速","可分租","层高充足","有三相电"],"maxTags":8}'),
     ('workshop_rental', '{"tagOptions":["交通便利","带设备","货车可进","可短租","拎包开工","有三相电"],"maxTags":8}'),
     ('factory_sale', '{"tagOptions":["交通便利","带车位","货车可进","近高速","有三相电","产权清晰"],"maxTags":8}'),
-    ('seek_factory_warehouse', '{"tagOptions":["交通便利","带车位","货车可进","近高速","需要三相电","急租","可长期租"],"maxTags":8}')
+    ('seek_factory_warehouse', '{"tagOptions":["交通便利","带车位","货车可进","近高速","需要三相电","急租","可长期租"],"maxTags":8}'),
+    ('secondhand_sale', '{"tagOptions":["现货","成色良好","可现场看","可议价","支持自提"],"maxTags":8}'),
+    ('secondhand_buy', '{"tagOptions":["急购","可接受二手","预算明确","可自提","长期求购"],"maxTags":8}'),
+    ('education_training', '{"tagOptions":["小班教学","上门辅导","可试听","可预约","长期招生"],"maxTags":8}'),
+    ('appliance_repair', '{"tagOptions":["上门维修","快速响应","可预约","配件齐全","可开票"],"maxTags":8}'),
+    ('moving_cleaning', '{"tagOptions":["上门服务","快速响应","可预约","可开票","周末可约"],"maxTags":8}'),
+    ('other_local_service', '{"tagOptions":["上门服务","快速响应","可预约","可开票","长期服务"],"maxTags":8}')
 ) AS cfg(type_code, tag_config)
 WHERE rtc.city_station_id = (
     SELECT id FROM city_stations WHERE code = 'zhili'

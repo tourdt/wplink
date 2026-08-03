@@ -224,6 +224,25 @@ test('resource type seed tag update keeps update target references out of from j
   assert.match(seedSql, /WHERE\s+rtc\.city_station_id\s*=\s*\(\s*SELECT id FROM city_stations WHERE code = 'zhili'\s*\)/i)
 })
 
+test('resource type seed gives every active type non-empty publish tag options', () => {
+  const seedSql = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')
+  const tagConfigValues = seedSql.match(/UPDATE resource_type_configs rtc[\s\S]*?FROM \(\s*VALUES([\s\S]*?)\) AS cfg\(type_code, tag_config\)/)
+
+  assert(tagConfigValues, 'seed should contain the resource type tag configuration VALUES block')
+
+  const tagConfigs = new Map(
+    [...tagConfigValues[1].matchAll(/\('([^']+)',\s*'(\{"tagOptions":\[[^\]]*\],"maxTags":\d+\})'\)/g)]
+      .map(([, typeCode, rawConfig]) => [typeCode, JSON.parse(rawConfig)]),
+  )
+
+  for (const typeCode of expectedResourceTypeCodes) {
+    const config = tagConfigs.get(typeCode)
+    assert(config, `${typeCode} should have publish tag options`)
+    assert(Array.isArray(config.tagOptions) && config.tagOptions.length > 0, `${typeCode} should have non-empty tagOptions`)
+    assert.equal(config.maxTags, 8, `${typeCode} should limit publish tags to 8`)
+  }
+})
+
 test('core resource schema supports unified demand direction without retired demand tables', () => {
   const coreSql = fs.readFileSync(path.resolve(migrationsDir, '000002_core_domain.up.sql'), 'utf8')
   const seedSql = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')

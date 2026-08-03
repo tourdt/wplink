@@ -12,38 +12,37 @@ import (
 	"wplink/backend/common/errx"
 )
 
-func TestFilterResourcePresentationTagsHidesRedundantTagsAndKeepsOriginalOrder(t *testing.T) {
-	got := filterResourcePresentationTags(
-		[]string{"", "现货", "库存出售", "库存", "童装", "现货", "可议", "供货"},
-		"库存出售",
-		"童装供货",
-	)
-	want := []string{"现货", "可议"}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("filterResourcePresentationTags() = %#v, want %#v", got, want)
+func TestFilterResourcePresentationTagsOnlyRemovesExactVisibleTypeAndFallsBackToCategory(t *testing.T) {
+	tests := []struct {
+		name     string
+		tags     []string
+		typeName string
+		category string
+		want     []string
+	}{
+		{name: "only exact visible type is removed", tags: []string{"求购尾货", "急采"}, typeName: "求购尾货", category: "童装", want: []string{"急采"}},
+		{name: "category remains when it is not the visible type", tags: []string{"童装"}, typeName: "求购尾货", category: "童装", want: []string{"童装"}},
+		{name: "contained feature remains", tags: []string{"尾货", "可接受断码"}, typeName: "求购尾货", category: "童装尾货", want: []string{"尾货", "可接受断码"}},
+		{name: "category is fallback for legacy empty tags", tags: nil, typeName: "求购尾货", category: "童装", want: []string{"童装"}},
+		{name: "no duplicate fallback", tags: nil, typeName: "童装", category: "童装", want: []string{}},
 	}
-}
 
-func TestFilterResourcePresentationTagsTrimsForFilteringAndKeepsNormalizedOrder(t *testing.T) {
-	got := filterResourcePresentationTags(
-		[]string{"  ", " 童装 ", "现货", " 现货 ", "童装面料", "可混批"},
-		"工厂直供",
-		"童装",
-	)
-	want := []string{"现货", "童装面料", "可混批"}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("filterResourcePresentationTags() = %#v, want %#v", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := filterResourcePresentationTags(tt.tags, tt.typeName, tt.category)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("filterResourcePresentationTags() = %#v, want %#v", got, tt.want)
+			}
+		})
 	}
 }
 
 func TestGetResourceKeepsOriginalTagsWhilePresentationTagsAreFiltered(t *testing.T) {
 	store := &fakeGetResourceStore{detail: model.ResourceDetail{
 		ID:       "resource-1",
-		TypeName: "工厂直供",
+		TypeName: "求购尾货",
 		Category: "童装",
-		Tags:     []string{" 童装 ", "现货", " 现货 ", "童装面料", "可混批"},
+		Tags:     []string{" 童装 ", "急采", " 急采 ", "可接受断码"},
 	}}
 	logic := NewGetResourceLogic(store)
 
@@ -52,11 +51,11 @@ func TestGetResourceKeepsOriginalTagsWhilePresentationTagsAreFiltered(t *testing
 		t.Fatalf("GetResource() error = %v", err)
 	}
 
-	wantPresentationTags := []string{"现货", "童装面料", "可混批"}
+	wantPresentationTags := []string{"童装", "急采", "可接受断码"}
 	if !reflect.DeepEqual(resp.Presentation.Tags, wantPresentationTags) {
 		t.Fatalf("presentation.tags = %#v, want %#v", resp.Presentation.Tags, wantPresentationTags)
 	}
-	wantOriginalTags := []string{" 童装 ", "现货", " 现货 ", "童装面料", "可混批"}
+	wantOriginalTags := []string{" 童装 ", "急采", " 急采 ", "可接受断码"}
 	if !reflect.DeepEqual(resp.Tags, wantOriginalTags) {
 		t.Fatalf("tags = %#v, want original tags %#v", resp.Tags, wantOriginalTags)
 	}

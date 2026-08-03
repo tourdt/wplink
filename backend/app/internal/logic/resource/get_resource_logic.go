@@ -234,25 +234,24 @@ func buildResourcePresentation(detail model.ResourceDetail) (ResourcePresentatio
 func filterResourcePresentationTags(tags []string, typeName string, category string) []string {
 	filtered := make([]string, 0, len(tags))
 	seen := make(map[string]struct{}, len(tags))
+	visibleType := strings.TrimSpace(typeName)
 	for _, rawTag := range tags {
 		// 历史或导入数据可能包含首尾空格；仅为展示过滤归一化局部值，不能改写详情原始标签。
 		tag := strings.TrimSpace(rawTag)
-		if tag == "" {
+		if tag == "" || tag == visibleType {
 			continue
 		}
 		if _, exists := seen[tag]; exists {
 			continue
 		}
 		seen[tag] = struct{}{}
-
-		// 详情页已单独展示资源类型和分类，隐藏完全相同或被其完整包含的标签，避免重复传达同一信息。
-		if tag == typeName || tag == category {
-			continue
-		}
-		if strings.Contains(typeName, tag) || strings.Contains(category, tag) {
-			continue
-		}
 		filtered = append(filtered, tag)
+	}
+
+	// 旧资源可能尚未保存标签，使用分类补齐展示；分类与已展示类型相同时不重复展示。
+	fallback := strings.TrimSpace(category)
+	if len(filtered) == 0 && fallback != "" && fallback != visibleType {
+		filtered = append(filtered, fallback)
 	}
 	return filtered
 }
