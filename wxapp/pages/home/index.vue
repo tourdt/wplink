@@ -87,8 +87,6 @@
       </view>
 
       <view v-if="homeFeedReady && homeFeedState.hasAnyContent" class="home-feed-section">
-        <text class="home-feed-kicker">织里商机 · 持续更新</text>
-
         <view
           v-if="homeFeedState.showSwitcher"
           class="home-feed-tabs"
@@ -741,16 +739,6 @@ function bannerTone(jumpType) {
 
 .home-feed-section {
   margin-bottom: 12rpx;
-}
-
-.home-feed-kicker {
-  display: block;
-  margin-bottom: 8rpx;
-  color: $wplink-muted;
-  font-size: 22rpx;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: 1rpx;
 }
 
 .home-feed-tabs {

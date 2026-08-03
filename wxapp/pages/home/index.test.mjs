@@ -46,7 +46,7 @@ test('home displays at most six recent onboarded merchants without blocking othe
 test('home presents the active feed as an editorial channel title', () => {
   assert.match(source, /import \{ getHomeFeedState \} from '\.\/homeFeedState'/)
   assert.match(source, /const activeHomeFeedTab = ref\(''\)/)
-  assert.match(source, />织里商机 · 持续更新</)
+  assert.doesNotMatch(source, /织里商机 · 持续更新/)
   assert.match(source, /v-if="activeHomeFeedTab === 'merchants'" class="recent-merchant-list"/)
   assert.match(source, /v-else class="home-resource-panel"/)
   assert.doesNotMatch(source, /v-show="activeHomeFeedTab ===/)
@@ -82,7 +82,6 @@ test('home presents the active feed as an editorial channel title', () => {
   assert.doesNotMatch(singleHead, /role="tab"|aria-selected|@click|home-feed-channel-arrow/)
   assert.doesNotMatch(source, /home-feed-woven-label/)
 
-  const kickerStyle = source.match(/\.home-feed-kicker\s*\{([\s\S]*?)\n\}/)?.[1] || ''
   const tabsStyle = source.match(/\.home-feed-tabs\s*\{([\s\S]*?)\n\}/)?.[1] || ''
   const tabStyle = source.match(/\.home-feed-tab\s*\{([\s\S]*?)\n\}/)?.[1] || ''
   const titleStyle = source.match(/\.home-feed-channel-title\s*\{([\s\S]*?)\n\}/)?.[1] || ''
@@ -92,11 +91,7 @@ test('home presents the active feed as an editorial channel title', () => {
   const pressedSwitchStyle = source.match(/\.home-feed-channel-switch:active\s*\{([\s\S]*?)\n\}/)?.[1] || ''
   const singleHeadStyle = source.match(/\.home-feed-single-head\s*\{([\s\S]*?)\n\}/)?.[1] || ''
 
-  assert.match(kickerStyle, /margin-bottom:\s*8rpx/)
-  assert.match(kickerStyle, /font-size:\s*22rpx/)
-  assert.match(kickerStyle, /font-weight:\s*600/)
-  assert.match(kickerStyle, /letter-spacing:\s*1rpx/)
-  assert.match(kickerStyle, /color:\s*\$wplink-muted/)
+  assert.doesNotMatch(source, /home-feed-kicker/)
   assert.match(tabsStyle, /display:\s*flex/)
   assert.match(tabsStyle, /align-items:\s*stretch/)
   assert.match(tabsStyle, /justify-content:\s*space-between/)
