@@ -34,6 +34,7 @@ test('resource feed card gives dealt resources one corner sash without a card wa
   assert.match(source, /<text v-if="cardModel\.isCompleted" class="feed-dealt-corner-badge">已成交<\/text>/)
   assert.match(source, /\.resource-feed-card \{[\s\S]*position: relative;[\s\S]*overflow: hidden;/)
   assert.match(source, /\.feed-dealt-corner-badge \{[\s\S]*right: -48rpx;[\s\S]*transform: rotate\(45deg\);/)
+  assert.match(source, /\.feed-dealt-corner-badge \{[\s\S]*background: rgba\(15, 118, 110, 0\.92\);/)
   assert.doesNotMatch(source, /feed-completed-stamp/)
   assert.doesNotMatch(source, /with-dealt/)
 })

@@ -129,7 +129,7 @@ const cardModel = computed(() => buildResourceFeedCardModel(props.resource))
   justify-content: center;
   width: 160rpx;
   height: 48rpx;
-  background: rgba(51, 65, 85, 0.94);
+  background: rgba(15, 118, 110, 0.92);
   color: #ffffff;
   font-size: 22rpx;
   font-weight: 700;
