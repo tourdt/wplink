@@ -71,3 +71,30 @@ node --test wxapp/scripts/validate-flows.test.mjs
 重新运行 `node --test wxapp/scripts/validate-flows.test.mjs`：68/68 通过。
 
 随后从 `wxapp` 目录运行 `npm run check`：退出码 0；页面校验、流程校验、全量测试（339/339）和微信小程序构建均通过。构建仅输出项目既有 Sass 弃用警告，无阻塞错误。
+
+## 摘要同源参数去重修复
+
+### 根因与 RED
+
+类型配置的 `displayTemplate.summary` 已将 `quantityText`、`priceText` 映射到属性键（例如 `minOrderText`、`factoryPriceText`），但资源详情响应此前没有返回这些来源键。客户端只能合并核心摘要与全部 `attributeItems`，因此会重复展示同一属性；按标签或值去重又会误删同名但不同来源的业务字段。
+
+新增真实结构回归测试后：
+
+- `node --test common/resourceDetailState.test.mjs` 失败，仍输出 `demandQuantityText` 和 `budgetRange` 两个同源属性；
+- `go test ./app/internal/logic/resource` 失败，`ResourceDetailResp` 不含 `SummarySourceKeys`。
+
+### 修复与 GREEN
+
+- 后端详情响应从 `displayTemplate.summary` 解析并返回 `summarySourceKeys.quantityText` 与 `summarySourceKeys.priceText`；公开和自有详情均复用该响应构造流程。
+- 小程序将属性 `key` 传入详情参数构建器，仅排除键命中上述两个来源键的属性；同标签但不同键的属性保留。
+- 更新 `resource.api` 与生成类型定义以公开该响应契约。尝试以 `goctl api go` 再生时被既有 `resource.api` 的未解析 `WechatPayParams`（第 299 行）阻止，因此仅同步了这一已知字段到现有生成类型文件，未扩大无关改动。
+
+验证结果：
+
+```bash
+cd backend && go test ./app/internal/logic/resource
+cd wxapp && node --test common/resourceDetailState.test.mjs pages/resource/detail.test.mjs
+cd wxapp && npm run check
+```
+
+后端聚焦测试通过；前端聚焦测试 28/28 通过；小程序全量检查退出码 0、全量测试 340/340 通过并完成构建。构建仅有既有 Sass 弃用警告。

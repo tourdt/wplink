@@ -309,6 +309,7 @@ const addressAttributeKeys = computed(() => new Set(resourceAddressLocations.val
 const attributeSpecItems = computed(() => (resource.value.attributeItems || [])
   .filter((item) => item?.label && item?.value !== undefined && item?.value !== '' && !addressAttributeKeys.value.has(item.key))
   .map((item) => ({
+    key: item.key,
     label: item.label,
     value: item.value,
   })))

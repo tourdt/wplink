@@ -193,6 +193,7 @@ type ResourceDetailResp {
 	Description    string                  `json:"description"`
 	PriceText      string                  `json:"priceText,optional"`
 	QuantityText   string                  `json:"quantityText,optional"`
+	SummarySourceKeys map[string]string     `json:"summarySourceKeys,optional"`
 	Attributes     map[string]interface{}  `json:"attributes"`
 	AttributeItems []ResourceAttributeItem `json:"attributeItems"`
 	Tags           []string                `json:"tags"`

@@ -40,26 +40,27 @@ type ResourceContactAccess struct {
 }
 
 type ResourceDetailResp struct {
-	ID             string                  `json:"id"`
-	Status         string                  `json:"status"`
-	TypeCode       string                  `json:"typeCode"`
-	Direction      string                  `json:"direction"`
-	TypeName       string                  `json:"typeName,omitempty"`
-	Title          string                  `json:"title"`
-	Category       string                  `json:"category"`
-	Description    string                  `json:"description"`
-	PriceText      string                  `json:"priceText,omitempty"`
-	QuantityText   string                  `json:"quantityText,omitempty"`
-	Attributes     model.JSONMap           `json:"attributes"`
-	AttributeItems []ResourceAttributeItem `json:"attributeItems"`
-	Tags           []string                `json:"tags"`
-	Images         []string                `json:"images"`
-	Merchant       ResourceMerchantBrief   `json:"merchant"`
-	Contact        ResourceContactMasked   `json:"contact"`
-	ContactAccess  ResourceContactAccess   `json:"contactAccess"`
-	PublishedAt    string                  `json:"publishedAt,omitempty"`
-	ExpiresAt      string                  `json:"expiresAt,omitempty"`
-	DealtAt        string                  `json:"dealtAt,omitempty"`
+	ID                string                  `json:"id"`
+	Status            string                  `json:"status"`
+	TypeCode          string                  `json:"typeCode"`
+	Direction         string                  `json:"direction"`
+	TypeName          string                  `json:"typeName,omitempty"`
+	Title             string                  `json:"title"`
+	Category          string                  `json:"category"`
+	Description       string                  `json:"description"`
+	PriceText         string                  `json:"priceText,omitempty"`
+	QuantityText      string                  `json:"quantityText,omitempty"`
+	SummarySourceKeys map[string]string       `json:"summarySourceKeys,omitempty"`
+	Attributes        model.JSONMap           `json:"attributes"`
+	AttributeItems    []ResourceAttributeItem `json:"attributeItems"`
+	Tags              []string                `json:"tags"`
+	Images            []string                `json:"images"`
+	Merchant          ResourceMerchantBrief   `json:"merchant"`
+	Contact           ResourceContactMasked   `json:"contact"`
+	ContactAccess     ResourceContactAccess   `json:"contactAccess"`
+	PublishedAt       string                  `json:"publishedAt,omitempty"`
+	ExpiresAt         string                  `json:"expiresAt,omitempty"`
+	DealtAt           string                  `json:"dealtAt,omitempty"`
 }
 
 type GetResourceLogic struct {
@@ -90,20 +91,21 @@ func (l *GetResourceLogic) GetResource(ctx context.Context, resourceID string) (
 
 func resourceDetailRespFromModel(detail model.ResourceDetail) ResourceDetailResp {
 	return ResourceDetailResp{
-		ID:             detail.ID,
-		Status:         detail.Status,
-		TypeCode:       detail.TypeCode,
-		Direction:      detail.Direction,
-		TypeName:       detail.TypeName,
-		Title:          detail.Title,
-		Category:       detail.Category,
-		Description:    detail.Description,
-		PriceText:      detail.PriceText,
-		QuantityText:   detail.QuantityText,
-		Attributes:     detail.Attributes,
-		AttributeItems: buildResourceAttributeItems(detail),
-		Tags:           append([]string(nil), detail.Tags...),
-		Images:         append([]string(nil), detail.Images...),
+		ID:                detail.ID,
+		Status:            detail.Status,
+		TypeCode:          detail.TypeCode,
+		Direction:         detail.Direction,
+		TypeName:          detail.TypeName,
+		Title:             detail.Title,
+		Category:          detail.Category,
+		Description:       detail.Description,
+		PriceText:         detail.PriceText,
+		QuantityText:      detail.QuantityText,
+		SummarySourceKeys: resourceSummarySourceKeys(detail.DisplayTemplate),
+		Attributes:        detail.Attributes,
+		AttributeItems:    buildResourceAttributeItems(detail),
+		Tags:              append([]string(nil), detail.Tags...),
+		Images:            append([]string(nil), detail.Images...),
 		Merchant: ResourceMerchantBrief{
 			ID:        detail.MerchantID,
 			Name:      detail.MerchantName,
@@ -119,6 +121,27 @@ func resourceDetailRespFromModel(detail model.ResourceDetail) ResourceDetailResp
 		ExpiresAt:     detail.ExpiresAt,
 		DealtAt:       detail.DealtAt,
 	}
+}
+
+// summarySourceKeys 标记被摘要字段复用的属性键，客户端据此避免在详细参数中重复展示同一份数据。
+func resourceSummarySourceKeys(displayTemplate model.JSONMap) map[string]string {
+	summary, ok := displayTemplate["summary"].(map[string]interface{})
+	if !ok {
+		if typed, ok := displayTemplate["summary"].(model.JSONMap); ok {
+			summary = map[string]interface{}(typed)
+		}
+	}
+	keys := make(map[string]string, 2)
+	for _, field := range []string{"quantityText", "priceText"} {
+		source, _ := summary[field].(string)
+		if source = strings.TrimSpace(source); source != "" {
+			keys[field] = source
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	return keys
 }
 
 func contactAccessFromCommercialRules(values model.JSONMap, unlocked bool) ResourceContactAccess {

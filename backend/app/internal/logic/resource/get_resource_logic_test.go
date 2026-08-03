@@ -71,6 +71,31 @@ func TestGetResourceReturnsPublishedDetail(t *testing.T) {
 	}
 }
 
+func TestGetResourceReturnsQuantityAndPriceSummarySourceKeys(t *testing.T) {
+	store := &fakeGetResourceStore{
+		detail: model.ResourceDetail{
+			ID: "resource-1", Status: "published", TypeCode: "factory_direct", Direction: model.ResourceDirectionSupply,
+			DisplayTemplate: model.JSONMap{
+				"summary": model.JSONMap{
+					"category":     "productCategory",
+					"quantityText": "minOrderText",
+					"priceText":    "factoryPriceText",
+				},
+			},
+		},
+	}
+	logic := NewGetResourceLogic(store)
+
+	resp, err := logic.GetResource(context.Background(), "resource-1")
+	if err != nil {
+		t.Fatalf("GetResource() error = %v", err)
+	}
+
+	if resp.SummarySourceKeys["quantityText"] != "minOrderText" || resp.SummarySourceKeys["priceText"] != "factoryPriceText" {
+		t.Fatalf("summarySourceKeys = %#v, want quantity and price source keys", resp.SummarySourceKeys)
+	}
+}
+
 func TestGetResourceDisplaysAddressAttributeText(t *testing.T) {
 	store := &fakeGetResourceStore{
 		detail: model.ResourceDetail{

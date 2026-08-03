@@ -16,10 +16,14 @@ export function buildResourceDetailPresentation(resource = {}) {
 // 核心数量和报价与后台配置属性统一展示，空值和长文本规则复用详情参数处理逻辑。
 export function buildResourceDetailSpecItems(resource = {}, attributeItems = []) {
   const isDemand = isDemandResource(resource)
+  const summarySourceKeys = new Set(['quantityText', 'priceText']
+    .map((field) => normalizeText(resource.summarySourceKeys?.[field]))
+    .filter(Boolean))
   return buildDetailSpecItems([
     { label: '数量/面积', value: resource.quantityText },
     { label: isDemand ? '预算/报价' : '价格/报价', value: resource.priceText },
-    ...attributeItems,
+    // 仅按配置来源键排除已提升为核心参数的属性，避免误删同名但不同来源的业务字段。
+    ...attributeItems.filter((item) => !summarySourceKeys.has(normalizeText(item?.key))),
   ])
 }
 

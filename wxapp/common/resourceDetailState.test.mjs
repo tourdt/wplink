@@ -51,6 +51,30 @@ test('places demand quantity, budget, and attributes in unified spec order', () 
   ])
 })
 
+test('omits only attributes whose keys are the core summary sources', () => {
+  const items = buildResourceDetailSpecItems({
+    direction: 'demand',
+    quantityText: '5000 件',
+    priceText: '面议',
+    summarySourceKeys: {
+      quantityText: 'demandQuantityText',
+      priceText: 'budgetRange',
+    },
+  }, [
+    { key: 'demandQuantityText', label: '需求数量', value: '5000 件' },
+    { key: 'budgetRange', label: '预算范围', value: '面议' },
+    { key: 'deliveryBudgetNote', label: '预算范围', value: '含运费预算另议' },
+    { key: 'deliveryTime', label: '交期要求', value: '20 天内完成' },
+  ])
+
+  assert.deepEqual(items, [
+    { label: '数量/面积', value: '5000 件', fullWidth: false },
+    { label: '预算/报价', value: '面议', fullWidth: false },
+    { label: '预算范围', value: '含运费预算另议', fullWidth: false },
+    { label: '交期要求', value: '20 天内完成', fullWidth: true },
+  ])
+})
+
 test('keeps short service scope in two columns and expands only allowed labels or long values', () => {
   const items = buildDetailSpecItems([
     { label: '数量', value: '3200 件' },

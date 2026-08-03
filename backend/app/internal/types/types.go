@@ -1675,26 +1675,27 @@ type ResourceContactReq struct {
 }
 
 type ResourceDetailResp struct {
-	Id             string                  `json:"id"`
-	Status         string                  `json:"status"`
-	TypeCode       string                  `json:"typeCode"`
-	Direction      string                  `json:"direction"`
-	TypeName       string                  `json:"typeName,optional"`
-	Title          string                  `json:"title"`
-	Category       string                  `json:"category"`
-	Description    string                  `json:"description"`
-	PriceText      string                  `json:"priceText,optional"`
-	QuantityText   string                  `json:"quantityText,optional"`
-	Attributes     map[string]interface{}  `json:"attributes"`
-	AttributeItems []ResourceAttributeItem `json:"attributeItems"`
-	Tags           []string                `json:"tags"`
-	Images         []string                `json:"images"`
-	Merchant       ResourceMerchantBrief   `json:"merchant"`
-	Contact        ResourceContactMasked   `json:"contact"`
-	ContactAccess  ResourceContactAccess   `json:"contactAccess"`
-	PublishedAt    string                  `json:"publishedAt,optional"`
-	ExpiresAt      string                  `json:"expiresAt,optional"`
-	DealtAt        string                  `json:"dealtAt,optional"`
+	Id                string                  `json:"id"`
+	Status            string                  `json:"status"`
+	TypeCode          string                  `json:"typeCode"`
+	Direction         string                  `json:"direction"`
+	TypeName          string                  `json:"typeName,optional"`
+	Title             string                  `json:"title"`
+	Category          string                  `json:"category"`
+	Description       string                  `json:"description"`
+	PriceText         string                  `json:"priceText,optional"`
+	QuantityText      string                  `json:"quantityText,optional"`
+	SummarySourceKeys map[string]string       `json:"summarySourceKeys,optional"`
+	Attributes        map[string]interface{}  `json:"attributes"`
+	AttributeItems    []ResourceAttributeItem `json:"attributeItems"`
+	Tags              []string                `json:"tags"`
+	Images            []string                `json:"images"`
+	Merchant          ResourceMerchantBrief   `json:"merchant"`
+	Contact           ResourceContactMasked   `json:"contact"`
+	ContactAccess     ResourceContactAccess   `json:"contactAccess"`
+	PublishedAt       string                  `json:"publishedAt,optional"`
+	ExpiresAt         string                  `json:"expiresAt,optional"`
+	DealtAt           string                  `json:"dealtAt,optional"`
 }
 
 type ResourceExposureItem struct {
