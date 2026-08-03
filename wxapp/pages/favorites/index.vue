@@ -12,7 +12,7 @@
     </view>
 
     <view v-if="activeTab === 'resources' && favoriteResources.length" class="content-list">
-      <ResourceCard v-for="item in favoriteResources" :key="item.id" :resource="item" @open="openResource" />
+      <ResourceFeedCard v-for="item in favoriteResources" :key="item.id" :resource="item" @open="openResource" />
     </view>
 
     <view v-if="activeTab === 'merchants' && followedMerchants.length" class="content-list">
@@ -46,7 +46,7 @@
 import { computed, ref } from 'vue'
 import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import MerchantBadge from '../../components/MerchantBadge.vue'
-import ResourceCard from '../../components/ResourceCard.vue'
+import ResourceFeedCard from '../../components/ResourceFeedCard.vue'
 import { listFavoriteResources, listFollowedMerchants } from '../../api/favorite'
 
 const tabs = [

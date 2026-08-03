@@ -24,3 +24,9 @@ test('topic empty state is centered in the list display area', () => {
   assert.match(source, /<text class="empty-desc">专题供应更新中，可先浏览供需页。<\/text>/)
   assert.doesNotMatch(source, /可以先去供需页按类型继续浏览，平台会持续更新专题供应。/)
 })
+
+test('topic resources use the shared feed card inside exposure tracking', () => {
+  assert.match(source, /import ResourceFeedCard from '\.\.\/\.\.\/components\/ResourceFeedCard\.vue'/)
+  assert.match(source, /<ResourceExposure v-for="item in rows" :key="item\.id" :resource-id="item\.id" source="topic">[\s\S]*<ResourceFeedCard :resource="item" @open="openResource" \/>/)
+  assert.doesNotMatch(source, /import ResourceCard/)
+})

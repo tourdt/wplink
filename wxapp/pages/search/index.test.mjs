@@ -30,8 +30,7 @@ test('search page keeps the main tools and removes explanatory copy', () => {
     'class="search-bar"',
     'class="channel-title-button"',
     'class="hot-row"',
-    'ResourceCard',
-    'DemandCard',
+    'ResourceFeedCard',
     'groupResourceTypes',
     'groupFilterOptions',
     'channelTitle',
@@ -146,8 +145,8 @@ test('search page matches the market inline category panel behavior', () => {
 })
 
 test('search page keeps mixed results without direction filter state', () => {
-  assert.match(source, /const RESOURCE_DIRECTION_DEMAND = 'demand'/)
   assert.match(source, /const filters = reactive\(\{[\s\S]*typeCode: '',[\s\S]*tags: \[\],[\s\S]*\}\)/)
+  assert.doesNotMatch(source, /RESOURCE_DIRECTION_DEMAND/)
   assert.doesNotMatch(source, /RESOURCE_DIRECTION_SUPPLY/)
   assert.doesNotMatch(source, /direction-filter-row/)
   assert.doesNotMatch(source, /direction-filter-button/)
@@ -267,15 +266,12 @@ test('search page submits group and type filters to search API', () => {
   assert.doesNotMatch(source, /direction: activeDirection\.value/)
 })
 
-test('search page renders mixed supply and demand result cards from item direction', () => {
-  for (const token of [
-    '<template v-for="item in rows" :key="item.id">',
-    'v-if="item.direction === RESOURCE_DIRECTION_DEMAND"',
-    '<ResourceCard v-else',
-    'RESOURCE_DIRECTION_DEMAND',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+test('search page renders mixed results with the shared feed card', () => {
+  assert.match(source, /import ResourceFeedCard from '\.\.\/\.\.\/components\/ResourceFeedCard\.vue'/)
+  assert.match(source, /<ResourceExposure :resource-id="item\.id" source="search">[\s\S]*<ResourceFeedCard :resource="item" @open="openResource" \/>/)
+  assert.doesNotMatch(source, /import DemandCard/)
+  assert.doesNotMatch(source, /import ResourceCard/)
+  assert.doesNotMatch(source, /RESOURCE_DIRECTION_DEMAND/)
 })
 
 test('search page supports load more pagination', () => {

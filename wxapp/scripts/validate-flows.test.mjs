@@ -231,7 +231,7 @@ test('resource tab separates recommendation discovery from keyword search page',
     assert.equal(resourceSource.includes(removedToken), false)
   }
 
-  for (const token of ['searchResources', '暂无匹配内容', 'emptyPrimaryActionLabel', 'selectGroup', 'groupResourceTypes', 'DemandCard']) {
+  for (const token of ['searchResources', '暂无匹配内容', 'emptyPrimaryActionLabel', 'selectGroup', 'groupResourceTypes', 'ResourceFeedCard']) {
     assert.match(searchSource, new RegExp(token))
   }
   for (const removedToken of ['direction-filter-row', 'directionFilterOptions', 'chooseResourceDirection', 'filters.direction', "direction: ''", 'normalizeResourceDirection']) {
@@ -239,6 +239,9 @@ test('resource tab separates recommendation discovery from keyword search page',
   }
   assert.equal(searchSource.includes('activeDirection'), false)
   for (const removedToken of ['提交采购需求', 'openDemand', '/pages/demand/index']) {
+    assert.equal(searchSource.includes(removedToken), false)
+  }
+  for (const removedToken of ['DemandCard', 'ResourceCard', 'RESOURCE_DIRECTION_DEMAND']) {
     assert.equal(searchSource.includes(removedToken), false)
   }
   for (const removedToken of ['createSavedSearch', 'listSavedSearches', 'applySavedSearch', 'saveCurrentSearch', '保存搜索']) {
@@ -250,6 +253,7 @@ test('resource tab separates recommendation discovery from keyword search page',
   for (const removedToken of ['searches', 'savedSearches', 'applySavedSearch', 'deleteSavedSearch', '暂无保存搜索']) {
     assert.equal(favoritesSource.includes(removedToken), false)
   }
+  assert.match(favoritesSource, /<ResourceFeedCard v-for="item in favoriteResources"[\s\S]*@open="openResource"/)
 })
 
 test('publish page supports custom select fields from resource type schema', () => {
@@ -422,7 +426,7 @@ test('topic empty state does not expose demand submission in MVP', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/topic/index.vue'), 'utf8')
 
-  for (const token of ['getTopicResources', 'ResourceCard', 'Banner 专题', 'topicStats', '继续浏览供应', 'openSearch']) {
+  for (const token of ['getTopicResources', 'ResourceFeedCard', 'Banner 专题', 'topicStats', '继续浏览供应', 'openSearch']) {
     assert.match(source, new RegExp(token))
   }
 

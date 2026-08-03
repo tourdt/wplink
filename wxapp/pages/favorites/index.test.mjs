@@ -25,3 +25,9 @@ test('favorites empty state is centered in the list display area', () => {
   assert.doesNotMatch(source, /看到合适的工厂直批、库存出售或加工生产信息后点收藏/)
   assert.doesNotMatch(source, /关注常合作或感兴趣的发布者/)
 })
+
+test('favorites resource list uses the shared feed card', () => {
+  assert.match(source, /import ResourceFeedCard from '\.\.\/\.\.\/components\/ResourceFeedCard\.vue'/)
+  assert.match(source, /<ResourceFeedCard v-for="item in favoriteResources" :key="item\.id" :resource="item" @open="openResource" \/>/)
+  assert.doesNotMatch(source, /import ResourceCard/)
+})

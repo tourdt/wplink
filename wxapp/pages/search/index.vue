@@ -124,8 +124,7 @@
     <view v-if="rows.length" class="result-list">
       <template v-for="item in rows" :key="item.id">
         <ResourceExposure :resource-id="item.id" source="search">
-          <DemandCard v-if="item.direction === RESOURCE_DIRECTION_DEMAND" :resource="item" @open="openResource" />
-          <ResourceCard v-else :resource="item" @open="openResource" />
+          <ResourceFeedCard :resource="item" @open="openResource" />
         </ResourceExposure>
       </template>
       <text class="load-more-text">{{ loading ? '加载中...' : hasMore ? '上拉加载更多' : '没有更多了' }}</text>
@@ -165,8 +164,7 @@
 <script setup>
 import { computed, nextTick, reactive, ref } from 'vue'
 import { onLoad, onPageScroll, onReachBottom, onShow } from '@dcloudio/uni-app'
-import DemandCard from '../../components/DemandCard.vue'
-import ResourceCard from '../../components/ResourceCard.vue'
+import ResourceFeedCard from '../../components/ResourceFeedCard.vue'
 import ResourceExposure from '../../components/ResourceExposure.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { loadHotSearchKeywords } from '../../common/hotSearchKeywords'
@@ -178,7 +176,6 @@ const resourceTypes = ref([{ label: '全部', value: '' }])
 const categoryGroups = ref([])
 const hotKeywords = ref([])
 const SEARCH_KEY = 'wplink_pending_search_keyword'
-const RESOURCE_DIRECTION_DEMAND = 'demand'
 const NAV_BOTTOM_RPX = 12
 const MAX_SEARCH_TAGS = 8
 const headerMetrics = ref({

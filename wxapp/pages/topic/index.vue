@@ -25,7 +25,7 @@
 
     <view v-if="rows.length" class="result-list">
       <ResourceExposure v-for="item in rows" :key="item.id" :resource-id="item.id" source="topic">
-        <ResourceCard :resource="item" @open="openResource" />
+        <ResourceFeedCard :resource="item" @open="openResource" />
       </ResourceExposure>
     </view>
 
@@ -40,7 +40,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import ResourceCard from '../../components/ResourceCard.vue'
+import ResourceFeedCard from '../../components/ResourceFeedCard.vue'
 import ResourceExposure from '../../components/ResourceExposure.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import { getTopicResources } from '../../api/discovery'

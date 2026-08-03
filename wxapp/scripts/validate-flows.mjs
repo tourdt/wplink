@@ -51,7 +51,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/search/index.vue',
     description: '独立搜索和频道化无结果动作',
-    checks: ['listCityResourceTypes', 'groupResourceTypes', 'searchResources', 'ResourceCard', 'DemandCard', 'selectGroup', '暂无匹配内容', 'hotKeywords', 'emptyPrimaryActionLabel'],
+    checks: ['listCityResourceTypes', 'groupResourceTypes', 'searchResources', 'ResourceFeedCard', 'selectGroup', '暂无匹配内容', 'hotKeywords', 'emptyPrimaryActionLabel'],
   },
   {
     file: 'pages/resource/detail.vue',
@@ -190,6 +190,7 @@ export const defaultFlowChecks = [
       'merchantAvatarUrl',
       'merchantAvatarText',
       'merchantBusinessText',
+      'ResourceFeedCard',
       'merchant-avatar',
       'merchant-arrow',
     ],
@@ -197,7 +198,7 @@ export const defaultFlowChecks = [
   {
     file: 'pages/topic/index.vue',
     description: '专题供应和继续浏览兜底',
-    checks: ['getTopicResources', 'ResourceCard', 'openSearch', 'Banner 专题', 'topicStats', '继续浏览供应'],
+    checks: ['getTopicResources', 'ResourceFeedCard', 'openSearch', 'Banner 专题', 'topicStats', '继续浏览供应'],
   },
   {
     file: 'pages/webview/index.vue',
