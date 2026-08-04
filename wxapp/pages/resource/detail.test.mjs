@@ -181,9 +181,10 @@ test('resource detail groups low-frequency contact actions behind more sheet', (
   assert.match(source, /const showContactMoreSheet = ref\(false\)/)
   assert.match(source, /<view v-if="showContactMoreSheet" class="sheet-mask" @click="closeContactMoreSheet">/)
   assert.doesNotMatch(contactMoreSheet, /收藏、分享给同行或反馈问题资源。/)
-  assert.match(contactMoreSheet, /@click="reportResourceFromMore"/)
-  assert.match(contactMoreSheet, /@click="favoriteResourceFromMore"/)
-  assert.match(contactMoreSheet, /open-type="share" @click="shareResourceFromMore"/)
+  assert.doesNotMatch(contactMoreSheet, /class="sheet-desc"/)
+  assert.match(contactMoreSheet, /<button class="management-action danger" @click="reportResourceFromMore">[\s\S]*report\.svg[\s\S]*<text class="action-label">举报<\/text>[\s\S]*<\/button>/)
+  assert.match(contactMoreSheet, /<button class="management-action" @click="favoriteResourceFromMore">[\s\S]*bookmark\.svg[\s\S]*<text class="action-label">\{\{ favorited \? '取消收藏' : '收藏' \}\}<\/text>[\s\S]*<\/button>/)
+  assert.match(contactMoreSheet, /<button class="management-action" open-type="share" @click="shareResourceFromMore">[\s\S]*share\.svg[\s\S]*<text class="action-label">分享给朋友<\/text>[\s\S]*<\/button>/)
   assert.ok(contactMoreSheet.indexOf('reportResourceFromMore') < contactMoreSheet.indexOf('favoriteResourceFromMore'))
   assert.ok(contactMoreSheet.indexOf('favoriteResourceFromMore') < contactMoreSheet.indexOf('shareResourceFromMore'))
   assert.match(source, /\{ key: 'edit', label: '编辑', icon: actionIconPaths\.edit \}/)
@@ -207,9 +208,12 @@ test('resource detail groups low-frequency contact actions behind more sheet', (
 })
 
 test('resource detail action sheet close buttons align with their title areas', () => {
-  assert.match(source, /\.sheet-head \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) 120rpx;[\s\S]*align-items: center;/)
+  const sheetHead = source.match(/\.sheet-head \{[^}]*\}/)?.[0] || ''
+
+  assert.match(sheetHead, /grid-template-columns: minmax\(0, 1fr\) 120rpx;/)
+  assert.match(sheetHead, /align-items: center;/)
   assert.match(source, /<text v-if="!managementActions\.length" class="sheet-desc">\{\{ managementNotice \}\}<\/text>/)
-  assert.doesNotMatch(source, /\.sheet-head \{[\s\S]*align-items: start;/)
+  assert.doesNotMatch(sheetHead, /align-items: start;/)
 })
 
 test('resource detail action icons are bundled local svg assets', () => {
