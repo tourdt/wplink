@@ -25,7 +25,7 @@
         </view>
       </view>
 
-      <button class="primary-button" :disabled="paying || !selectedPlanCode" @click="openSelectedPlan">
+      <button class="primary-button" :disabled="paying || !selectedPlanCode" :loading="paying" @click="openSelectedPlan">
         {{ paying ? '正在开通' : '立即开通 VIP' }}
       </button>
     </view>
@@ -43,7 +43,7 @@
               <text class="pack-price">{{ packPriceText(item) }}</text>
             </view>
             <text v-if="isPackDiscounted(item)" class="standard-price pack-standard-price">{{ formatPrice(item.standardPriceCent) }}</text>
-            <button class="pack-button" :disabled="payingPackCode === item.code" @click="openQuotaPack(item)">
+            <button class="pack-button" :disabled="payingPackCode === item.code" :loading="payingPackCode === item.code" @click="openQuotaPack(item)">
               {{ payingPackCode === item.code ? '购买中' : packActionText(item) }}
             </button>
           </view>
@@ -142,6 +142,7 @@ function switchTab(tab) {
 }
 
 async function openSelectedPlan() {
+  if (paying.value) return
   if (!requireLogin()) return
   if (!merchantId.value) {
     uni.showToast({ title: '请先登录后再开通 VIP', icon: 'none' })
@@ -159,6 +160,7 @@ async function openSelectedPlan() {
 }
 
 async function openQuotaPack(item) {
+  if (payingPackCode.value) return
   if (!requireLogin()) return
   if (!merchantId.value) {
     uni.showToast({ title: '请先登录后再购买次数包', icon: 'none' })

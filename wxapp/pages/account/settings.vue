@@ -16,7 +16,7 @@
     </view>
 
     <button class="secondary-button" @click="logout">退出登录</button>
-    <button class="danger-button" :disabled="deleting" @click="confirmDeleteAccount">
+    <button class="danger-button" :disabled="deleting" :loading="deleting" @click="confirmDeleteAccount">
       {{ deleting ? '正在注销...' : '注销账号' }}
     </button>
     <text class="danger-hint">注销后无法恢复；个人资料将匿名化，必要的安全和交易记录依法保留。</text>

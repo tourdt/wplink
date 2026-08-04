@@ -5,7 +5,7 @@
       <view class="search-shell">
         <input v-model="keyword" class="search-input" placeholder="搜索档口、配套、路段" confirm-type="search" @confirm="submitSearch" />
         <button class="filter-toggle-button" @click="toggleFiltersExpanded">{{ filterToggleText }}</button>
-        <button class="search-button" :disabled="objectLoading" @click="submitSearch">搜索</button>
+        <button class="search-button" :disabled="objectLoading" :loading="objectLoading" @click="submitSearch">搜索</button>
       </view>
 
       <scroll-view class="compact-filter-row" scroll-x>
@@ -67,7 +67,7 @@
     <view v-else-if="sceneUnavailable" class="state-card">
       <text class="state-title">地图暂未开放</text>
       <text class="state-desc">{{ sceneErrorText }}</text>
-      <button class="primary-button" @click="loadScenes">重新加载</button>
+      <button class="primary-button" :disabled="loading" :loading="loading" @click="loadScenes">重新加载</button>
     </view>
 
     <view v-else class="map-content">
@@ -77,7 +77,7 @@
           <text>{{ mapObjectCountText }}</text>
         </view>
         <view class="map-service-controls">
-          <button class="map-service-button" :disabled="loading || objectLoading" @click="refreshCurrentMapData">刷新</button>
+          <button class="map-service-button" :disabled="loading || objectLoading" :loading="loading || objectLoading" @click="refreshCurrentMapData">刷新</button>
           <button class="map-service-button" @click="resetMapViewport">归位</button>
         </view>
         <view
@@ -175,8 +175,8 @@
         </view>
         <text class="contact-policy-tip">联系方式仅随有效供需信息展示</text>
         <view class="report-actions">
-          <button class="secondary-button" :disabled="reportSubmitting" @click="submitSelectedObjectLocationCorrection">位置纠错</button>
-          <button class="secondary-button risk" :disabled="reportSubmitting" @click="submitSelectedObjectRiskReport">举报问题</button>
+          <button class="secondary-button" :disabled="reportSubmitting" :loading="reportAction === 'location'" @click="submitSelectedObjectLocationCorrection">位置纠错</button>
+          <button class="secondary-button risk" :disabled="reportSubmitting" :loading="reportAction === 'risk'" @click="submitSelectedObjectRiskReport">举报问题</button>
         </view>
         <view v-if="nearbyPois.length" class="nearby-section">
           <text class="nearby-title">附近配套</text>
@@ -327,7 +327,8 @@ const loadedObjectKeyword = ref('')
 const mapCategories = ref([])
 const selectedObject = ref(null)
 const selectedObjectId = ref('')
-const reportSubmitting = ref(false)
+const reportAction = ref('')
+const reportSubmitting = computed(() => Boolean(reportAction.value))
 const nearbyPois = ref([])
 const mapTransform = ref({ scale: 1, offsetX: 0, offsetY: 0 })
 const mapViewportSize = ref({ width: 375, height: 500 })
@@ -1288,6 +1289,7 @@ function openSelectedObjectLocation() {
 
 function submitSelectedObjectLocationCorrection() {
   openSelectedObjectReport({
+    action: 'location',
     reasons: locationCorrectionReasons,
     submit: submitMapLocationCorrection,
     warningKey: 'locationWarning',
@@ -1296,13 +1298,14 @@ function submitSelectedObjectLocationCorrection() {
 
 function submitSelectedObjectRiskReport() {
   openSelectedObjectReport({
+    action: 'risk',
     reasons: riskReportReasons,
     submit: submitMapRiskReport,
     warningKey: 'riskWarning',
   })
 }
 
-function openSelectedObjectReport({ reasons, submit, warningKey }) {
+function openSelectedObjectReport({ action, reasons, submit, warningKey }) {
   const objectId = mapObjectIdentity(selectedObject.value)
   if (!objectId || reportSubmitting.value || !requireLogin()) return
 
@@ -1311,7 +1314,7 @@ function openSelectedObjectReport({ reasons, submit, warningKey }) {
     async success({ tapIndex }) {
       const reason = reasons[tapIndex]
       if (!reason) return
-      reportSubmitting.value = true
+      reportAction.value = action
       try {
         const resp = await submit(objectId, { reasonCode: reason.code })
         if (resp?.item?.warningTriggered) {
@@ -1323,7 +1326,7 @@ function openSelectedObjectReport({ reasons, submit, warningKey }) {
           duration: 2400,
         })
       } finally {
-        reportSubmitting.value = false
+        reportAction.value = ''
       }
     },
   })

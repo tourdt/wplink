@@ -22,7 +22,7 @@
       </ResourceExposure>
     </view>
 
-    <button v-if="hasMore || loading" class="load-more" :disabled="loading" @click="emit('load-more')">
+    <button v-if="hasMore || loading" class="load-more" :disabled="loading" :loading="loading" @click="emit('load-more')">
       {{ loading ? loadingText : loadMoreText }}
     </button>
   </view>

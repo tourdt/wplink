@@ -23,7 +23,7 @@
     <view class="publish-category-section">
       <view class="section-headline">
         <text class="direction-section-title">选择发布大类</text>
-        <button class="reload-button" :disabled="loadingCategories" @click="loadPublishCategories">刷新</button>
+        <button class="reload-button" :disabled="loadingCategories" :loading="loadingCategories" @click="loadPublishCategories">{{ loadingCategories ? '刷新中' : '刷新' }}</button>
       </view>
       <text class="category-helper">按童装批发、厂房仓库、本地服务等场景选择，系统会自动匹配供应或需求表单。</text>
       <view v-if="categoryGroups.length" class="publish-category-list">

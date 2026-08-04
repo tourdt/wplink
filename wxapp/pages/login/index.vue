@@ -11,7 +11,7 @@
         <text class="policy-text">和</text>
         <text class="policy-link" @click.stop="openLegal('privacy')">《隐私政策》</text>
       </view>
-      <button class="login-button" :disabled="loggingIn" @click="loginWithWechatAccount">
+      <button class="login-button" :disabled="loggingIn" :loading="loggingIn" @click="loginWithWechatAccount">
         {{ loggingIn ? '登录中' : '微信登录' }}
       </button>
     </view>
@@ -40,6 +40,7 @@ onLoad((options = {}) => {
 })
 
 async function loginWithWechatAccount() {
+  if (loggingIn.value) return
   if (!agreedToPolicies.value) {
     uni.showToast({ title: '请先阅读并同意用户协议和隐私政策', icon: 'none' })
     return
