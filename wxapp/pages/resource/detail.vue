@@ -1784,20 +1784,27 @@ onShareTimeline(() => {
 }
 
 .management-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  justify-content: space-around;
   gap: 14rpx;
 }
 
 .management-action {
+  display: flex;
+  flex: 0 1 200rpx;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  width: 200rpx;
   min-width: 0;
-  height: 76rpx;
-  padding: 0 12rpx;
-  border: 1rpx solid $wplink-line;
-  border-radius: 10rpx;
-  background: #f8fafc;
+  min-height: 132rpx;
+  padding: 12rpx 6rpx;
+  border: 0;
+  border-radius: 12rpx;
+  background: transparent;
   color: $wplink-primary;
-  font-size: 26rpx;
+  font-size: 24rpx;
   font-weight: 700;
   line-height: 1.25;
 }
@@ -1806,16 +1813,36 @@ onShareTimeline(() => {
   border: 0;
 }
 
-.management-action.primary {
-  border-color: $wplink-primary;
-  background: $wplink-primary;
-  color: $wplink-card;
+.action-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76rpx;
+  height: 76rpx;
+  box-sizing: border-box;
+  border: 1rpx solid $wplink-line;
+  border-radius: 50%;
+  background: $wplink-card;
+  box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.08);
+}
+
+.action-icon {
+  width: 40rpx;
+  height: 40rpx;
+}
+
+.action-label {
+  color: inherit;
+  white-space: nowrap;
 }
 
 .management-action.danger {
-  border-color: #fecdd3;
-  background: #fff8f8;
   color: #be123c;
+}
+
+.management-action.danger .action-icon-wrap {
+  background: #fff7f8;
+  border-color: #f2ced3;
 }
 
 .primary-button {

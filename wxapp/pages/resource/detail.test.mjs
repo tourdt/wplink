@@ -211,6 +211,15 @@ test('resource detail action icons are bundled local svg assets', () => {
   }
 })
 
+test('resource detail action sheets use centered icon-over-label layout', () => {
+  assert.match(source, /\.management-actions \{[\s\S]*display: flex;[\s\S]*justify-content: space-around;[\s\S]*gap: 14rpx;/)
+  assert.match(source, /\.management-action \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*width: 200rpx;[\s\S]*min-height: 132rpx;/)
+  assert.match(source, /\.action-icon-wrap \{[\s\S]*width: 76rpx;[\s\S]*height: 76rpx;[\s\S]*border-radius: 50%;/)
+  assert.match(source, /\.action-icon \{[\s\S]*width: 40rpx;[\s\S]*height: 40rpx;/)
+  assert.match(source, /\.management-action\.danger \.action-icon-wrap \{[\s\S]*background: #fff7f8;[\s\S]*border-color: #f2ced3;/)
+  assert.doesNotMatch(source, /\.management-action\.primary/)
+})
+
 test('resource detail renders related resources with the market feed card variant', () => {
   assert.match(source, /<view v-if="relatedResources\.length" class="related-section">[\s\S]*<ResourceList[\s\S]*:resources="relatedResources"[\s\S]*variant="feed"[\s\S]*@open="openRelatedResource"/)
 })
