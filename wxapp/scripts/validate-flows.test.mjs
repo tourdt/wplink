@@ -472,8 +472,15 @@ test('my page separates guest and logged-in account states without merchant bind
     '我的主页',
     '查看对外展示资料',
     '我的权益',
-    'openBenefitOverview',
-    '/pages/vip/index',
+    '权益明细',
+    '剩余次数可用于发布和刷新供需信息',
+    'benefitGrowthTitle',
+    '做任务，免费得次数',
+    '完成任务，奖励自动到账',
+    'benefit-stat-low',
+    'benefit-stat-empty',
+    'benefit-growth-banner',
+    'openGrowthEntitlement',
     'entitlementLoadState',
     'entitlementRequestId',
     'entitlementQuotaReady',
@@ -485,7 +492,6 @@ test('my page separates guest and logged-in account states without merchant bind
     'requestId !== entitlementRequestId.value',
     'publishQuotaLow',
     'refreshQuotaLow',
-    'quota-purchase-primary',
     'openQuotaPurchase',
     'buildQuotaPurchaseUrl',
     'QUOTA_TYPE_PUBLISH',
@@ -497,7 +503,7 @@ test('my page separates guest and logged-in account states without merchant bind
     assert.match(source, new RegExp(token))
   }
 
-  for (const hiddenToken of ['保存身份', '商家 ID', '用户 ID：', '主页配置', 'merchant-actions', '权益提醒', '手机号绑定', '登录后可用', '同步收藏关注', '接收审核和联系消息', '我的需求', 'openMyDemands', '登录后管理收藏和发布记录', '已登录，可管理收藏和消息', 'VIP 权益', '查看额度和限时特价', 'openVIP', '/pages/vip/index?merchantId=']) {
+  for (const hiddenToken of ['保存身份', '商家 ID', '用户 ID：', '主页配置', 'merchant-actions', '权益提醒', '手机号绑定', '登录后可用', '同步收藏关注', '接收审核和联系消息', '我的需求', 'openMyDemands', '登录后管理收藏和发布记录', '已登录，可管理收藏和消息', 'VIP 权益', '查看额度和限时特价', 'openVIP', '/pages/vip/index?merchantId=', 'benefitOverviewDesc', 'openBenefitOverview', 'quota-purchase-primary']) {
     assert.equal(source.includes(hiddenToken), false)
   }
   assert.equal(source.includes('暂无可领取权益'), false)

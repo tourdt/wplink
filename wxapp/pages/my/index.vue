@@ -24,30 +24,54 @@
       <button v-if="!isLoggedIn" class="login-button" @click.stop="openLogin">微信登录</button>
     </view>
 
-    <view v-if="benefitOverviewVisible" class="benefit-overview-card section-card" @click="openBenefitOverview">
+    <view v-if="benefitOverviewVisible" class="benefit-overview-card section-card">
       <view class="benefit-head">
         <view class="benefit-title-wrap">
           <text class="benefit-title">我的权益</text>
-          <text class="benefit-desc">{{ benefitOverviewDesc }}</text>
+          <text class="benefit-desc">剩余次数可用于发布和刷新供需信息</text>
         </view>
-        <view class="benefit-actions">
-          <text v-if="activeGrowthCampaign.code" class="benefit-growth-action" @click.stop="openGrowthEntitlement">免费获得</text>
-          <text class="benefit-action">查看</text>
-        </view>
+        <text class="benefit-detail-action" @click="openGrowthEntitlement">权益明细 ›</text>
       </view>
       <view class="benefit-stats">
-        <view class="benefit-stat">
-          <text class="benefit-value">{{ publishQuotaDisplay }}</text>
-          <text class="benefit-label">发布次数</text>
-          <text v-if="entitlementQuotaReady && publishQuotaRemaining === 0" class="quota-purchase-action quota-purchase-primary" @click.stop="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">购买发布次数</text>
-          <text v-else-if="entitlementQuotaReady && publishQuotaLow" class="quota-purchase-action" @click.stop="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">即将用完 · 去补充</text>
+        <view
+          class="benefit-stat"
+          :class="{
+            'benefit-stat-low': entitlementQuotaReady && publishQuotaLow,
+            'benefit-stat-empty': entitlementQuotaReady && publishQuotaRemaining === 0,
+          }"
+        >
+          <text class="benefit-label">可发布</text>
+          <view class="benefit-value-row">
+            <text class="benefit-value">{{ publishQuotaDisplay }}</text>
+            <text v-if="entitlementQuotaReady" class="benefit-unit">次</text>
+          </view>
+          <text v-if="entitlementQuotaReady && publishQuotaRemaining === 0" class="quota-purchase-action" @click="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">购买发布次数 ›</text>
+          <text v-else-if="entitlementQuotaReady && publishQuotaLow" class="quota-purchase-action quota-purchase-low" @click="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">即将用完 · 去补充 ›</text>
+          <text v-else-if="entitlementQuotaReady" class="benefit-status">可正常使用</text>
         </view>
-        <view class="benefit-stat">
-          <text class="benefit-value">{{ refreshQuotaDisplay }}</text>
-          <text class="benefit-label">刷新次数</text>
-          <text v-if="entitlementQuotaReady && refreshQuotaRemaining === 0" class="quota-purchase-action quota-purchase-primary" @click.stop="openQuotaPurchase(QUOTA_TYPE_REFRESH)">购买刷新次数</text>
-          <text v-else-if="entitlementQuotaReady && refreshQuotaLow" class="quota-purchase-action" @click.stop="openQuotaPurchase(QUOTA_TYPE_REFRESH)">即将用完 · 去补充</text>
+        <view
+          class="benefit-stat"
+          :class="{
+            'benefit-stat-low': entitlementQuotaReady && refreshQuotaLow,
+            'benefit-stat-empty': entitlementQuotaReady && refreshQuotaRemaining === 0,
+          }"
+        >
+          <text class="benefit-label">可刷新</text>
+          <view class="benefit-value-row">
+            <text class="benefit-value">{{ refreshQuotaDisplay }}</text>
+            <text v-if="entitlementQuotaReady" class="benefit-unit">次</text>
+          </view>
+          <text v-if="entitlementQuotaReady && refreshQuotaRemaining === 0" class="quota-purchase-action" @click="openQuotaPurchase(QUOTA_TYPE_REFRESH)">购买刷新次数 ›</text>
+          <text v-else-if="entitlementQuotaReady && refreshQuotaLow" class="quota-purchase-action quota-purchase-low" @click="openQuotaPurchase(QUOTA_TYPE_REFRESH)">即将用完 · 去补充 ›</text>
+          <text v-else-if="entitlementQuotaReady" class="benefit-status">可正常使用</text>
         </view>
+      </view>
+      <view v-if="activeGrowthCampaign.code" class="benefit-growth-banner">
+        <view class="benefit-growth-main">
+          <text class="benefit-growth-title">{{ benefitGrowthTitle }}</text>
+          <text class="benefit-growth-desc">完成任务，奖励自动到账</text>
+        </view>
+        <text class="benefit-growth-button" @click="openGrowthEntitlement">去完成</text>
       </view>
       <text v-if="benefitExpiryReminder" class="benefit-expiry">{{ benefitExpiryReminder }}</text>
     </view>
@@ -157,6 +181,13 @@ const refreshQuotaDisplay = computed(() => entitlementQuotaReady.value ? refresh
 const publishQuotaLow = computed(() => publishQuotaRemaining.value > 0 && publishQuotaRemaining.value <= QUOTA_LOW_THRESHOLD)
 const refreshQuotaLow = computed(() => refreshQuotaRemaining.value > 0 && refreshQuotaRemaining.value <= QUOTA_LOW_THRESHOLD)
 const activeGrowthCampaign = computed(() => growthCampaigns.value[0] || {})
+const benefitGrowthTitle = computed(() => {
+  // 权益未知时使用中性免费任务文案，不能把接口故障误表达为“次数已用完”。
+  if (!entitlementQuotaReady.value) return '做任务，免费得次数'
+  return publishQuotaRemaining.value === 0 || refreshQuotaRemaining.value === 0
+    ? '也可以免费获取'
+    : '做任务，免费得次数'
+})
 const benefitExpiryReminder = computed(() => {
   if (!entitlementQuotaReady.value) return ''
   const candidates = merchantEntitlements.value
@@ -169,16 +200,6 @@ const benefitExpiryReminder = computed(() => {
   const amount = Number(nearest.remainingAmount || 0)
   return `最近到期：${entitlementLabel(nearest.type)} ${amount} 次，${formatDateToDay(nearest.expiresAt, '')} 到期`
 })
-const benefitOverviewDesc = computed(() => {
-  if (merchantProfile.value.vipStatus === 'active') {
-    return '现有发布和刷新次数可继续使用'
-  }
-  if (activeGrowthCampaign.value.code) {
-    return activeGrowthCampaign.value.hint || '完成新手任务可获得更多发布和刷新次数'
-  }
-  return '查看当前可用的发布和刷新次数'
-})
-
 onLoad(() => {
   syncSession()
 })
@@ -303,13 +324,6 @@ async function openMerchantHome() {
   if (!requireLogin()) return
   if (!(await ensureMerchantProfileReady(merchantId.value))) return
   uni.navigateTo({ url: `/pages/merchant/detail?id=${merchantId.value}` })
-}
-
-async function openBenefitOverview() {
-  if (!requireLogin()) return
-  // 已登录但未绑定商户时先引导完善资料，避免进入购买页后因缺少商户身份无法下单。
-  if (!(await ensureMerchantProfileReady(merchantId.value))) return
-  uni.navigateTo({ url: '/pages/vip/index' })
 }
 
 function openQuotaPurchase(quotaType) {
@@ -534,13 +548,6 @@ async function openGrowthEntitlement() {
   font-size: 22rpx;
   font-weight: 700;
   line-height: 1.4;
-}
-
-.quota-purchase-primary {
-  padding: 6rpx 12rpx;
-  border-radius: 999rpx;
-  background: $wplink-accent;
-  color: $wplink-card;
 }
 
 .benefit-expiry {
