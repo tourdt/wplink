@@ -89,27 +89,88 @@ type ResourceAuditRetryStore interface {
 	ResourceAuditStateStore
 }
 
-func RetryResourceContentAudit(ctx context.Context, store ResourceAuditRetryStore, auditor ContentAuditor, resourceID string) (autoAuditOutcome, error) {
-	snapshot, err := store.GetResourceAuditSnapshot(ctx, resourceID)
+type ResourceAuditLeaseStore interface {
+	GetLeasedResourceAuditSnapshot(context.Context, model.ResourceAuditGuard) (model.ResourceAuditSnapshot, error)
+	CreateLeasedResourceContentAuditTasks(context.Context, model.ResourceAuditGuard, []model.ResourceContentAuditTaskInput) error
+	PublishLeasedResourceAfterAudit(context.Context, model.ResourceAuditGuard) (model.ReviewResourceResult, error)
+	RejectLeasedResourceAfterAudit(context.Context, model.ResourceAuditGuard, string) (model.ReviewResourceResult, error)
+	MarkLeasedResourceAuditRetry(context.Context, model.ResourceAuditGuard, string) (int64, error)
+	MarkLeasedResourceManualReview(context.Context, model.ResourceAuditGuard, string) error
+}
+
+// leasedResourceAuditAdapter 将现有自动审核状态机限制在一个不可变租约内，避免重试路径误用无 guard 的公开方法。
+type leasedResourceAuditAdapter struct {
+	store ResourceAuditLeaseStore
+	guard model.ResourceAuditGuard
+}
+
+func (a leasedResourceAuditAdapter) GetResourceAuditSnapshot(ctx context.Context, _ string) (model.ResourceAuditSnapshot, error) {
+	return a.store.GetLeasedResourceAuditSnapshot(ctx, a.guard)
+}
+
+func (a leasedResourceAuditAdapter) CreateResourceContentAuditTasks(ctx context.Context, _ string, tasks []model.ResourceContentAuditTaskInput) error {
+	return a.store.CreateLeasedResourceContentAuditTasks(ctx, a.guard, tasks)
+}
+
+func (a leasedResourceAuditAdapter) PublishResourceAfterAudit(ctx context.Context, _ string) (model.ReviewResourceResult, error) {
+	return a.store.PublishLeasedResourceAfterAudit(ctx, a.guard)
+}
+
+func (a leasedResourceAuditAdapter) RejectResourceAfterAudit(ctx context.Context, _ string, reason string) (model.ReviewResourceResult, error) {
+	return a.store.RejectLeasedResourceAfterAudit(ctx, a.guard, reason)
+}
+
+func (a leasedResourceAuditAdapter) MarkResourceAuditRetry(ctx context.Context, _ string, reason string) (int64, error) {
+	return a.store.MarkLeasedResourceAuditRetry(ctx, a.guard, reason)
+}
+
+func (a leasedResourceAuditAdapter) MarkResourceManualReview(ctx context.Context, _ string, reason string) error {
+	return a.store.MarkLeasedResourceManualReview(ctx, a.guard, reason)
+}
+
+func (a leasedResourceAuditAdapter) RecordResourceAuditDecision(ctx context.Context, input model.ResourceAuditDecisionInput) error {
+	decisionStore, ok := a.store.(ResourceAuditDecisionStore)
+	if !ok {
+		return nil
+	}
+	return decisionStore.RecordResourceAuditDecision(ctx, input)
+}
+
+func RetryResourceContentAudit(
+	ctx context.Context,
+	store ResourceAuditLeaseStore,
+	auditor ContentAuditor,
+	guard model.ResourceAuditGuard,
+) (autoAuditOutcome, error) {
+	guard.ResourceID = strings.TrimSpace(guard.ResourceID)
+	if guard.ResourceID == "" {
+		return autoAuditOutcome{}, errors.New("内容审核重试资源标识不能为空")
+	}
+	guard.ProcessingBy = strings.TrimSpace(guard.ProcessingBy)
+	if guard.ProcessingBy == "" {
+		return autoAuditOutcome{}, errors.New("内容审核重试实例标识不能为空")
+	}
+	adapter := leasedResourceAuditAdapter{store: store, guard: guard}
+	snapshot, err := adapter.GetResourceAuditSnapshot(ctx, guard.ResourceID)
 	if err != nil {
 		return autoAuditOutcome{}, err
 	}
 	if strings.TrimSpace(snapshot.OpenID) == "" {
 		reason := "资源缺少微信审核身份，已转人工复核"
-		if err := store.MarkResourceManualReview(ctx, resourceID, reason); err != nil {
+		if err := adapter.MarkResourceManualReview(ctx, guard.ResourceID, reason); err != nil {
 			return autoAuditOutcome{}, err
 		}
-		recordResourceAuditDecision(ctx, store, model.ResourceAuditDecisionInput{
-			ResourceID: resourceID,
+		recordResourceAuditDecision(ctx, adapter, model.ResourceAuditDecisionInput{
+			ResourceID: guard.ResourceID,
 			Action:     "retry_resource_audit",
 			Decision:   "manual_review",
 			Reason:     reason,
 		})
-		return autoAuditOutcome{ID: resourceID, Status: model.ResourceStatusManualReview, Message: "内容审核中"}, nil
+		return autoAuditOutcome{ID: guard.ResourceID, Status: model.ResourceStatusManualReview, Message: "内容审核中"}, nil
 	}
 	input := contentAuditInputFromSnapshot(snapshot)
 	result, auditErr := auditor.AuditResource(ctx, input)
-	return applyResourceAutoAuditResult(ctx, store, "retry_resource_audit", resourceID, input, result, auditErr)
+	return applyResourceAutoAuditResult(ctx, adapter, "retry_resource_audit", guard.ResourceID, input, result, auditErr)
 }
 
 func recordResourceAuditDecision(ctx context.Context, store any, input model.ResourceAuditDecisionInput) {

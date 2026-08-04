@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -35,6 +36,7 @@ const (
 var (
 	ErrPublishQuotaInsufficient = errors.New("publish quota insufficient")
 	ErrPublishDisabled          = errors.New("publish disabled")
+	ErrResourceAuditLeaseLost   = errors.New("资源审核租约已失效")
 )
 
 const consumePublishQuotaSQL = `
@@ -200,6 +202,13 @@ type ResourceAuditRetryClaim struct {
 	ResourceID   string
 	RetryCount   int64
 	ManualReview bool
+	ProcessingBy string
+}
+
+// ResourceAuditGuard 标识一次审核重试所持有的业务租约，所有结果写入都必须同时匹配资源和实例。
+type ResourceAuditGuard struct {
+	ResourceID   string
+	ProcessingBy string
 }
 
 type ResourceAuditDecisionInput struct {
@@ -469,6 +478,25 @@ SET
   updated_at = $2::timestamptz
 WHERE resources.id = $1
   AND resources.status = 'pending'
+RETURNING resources.id::text, resources.status
+`
+
+const publishLeasedResourceAfterAuditSQL = `
+UPDATE resources
+SET
+  status = 'published',
+  published_at = $2::timestamptz,
+  refreshed_at = $2::timestamptz,
+  expires_at = $2::timestamptz + make_interval(days => GREATEST((resources.resource_type_snapshot ->> 'defaultValidDays')::int, 1)),
+  reject_reason = NULL,
+  audit_lease_until = NULL,
+  audit_processing_by = NULL,
+  updated_at = $2::timestamptz
+WHERE resources.id = $1
+  AND resources.status = 'audit_retry'
+  AND resources.audit_processing_by = $3
+  AND resources.audit_lease_until > NOW()
+  AND resources.deleted_at IS NULL
 RETURNING resources.id::text, resources.status
 `
 
@@ -934,10 +962,7 @@ func (m *ResourceModel) SubmitResourceForReview(ctx context.Context, resourceID 
 }
 
 func (m *ResourceModel) GetResourceAuditSnapshot(ctx context.Context, resourceID string) (ResourceAuditSnapshot, error) {
-	var snapshot ResourceAuditSnapshot
-	var tags JSONStringSlice
-	var images JSONStringSlice
-	err := m.db.QueryRowContext(ctx, `
+	return scanResourceAuditSnapshot(m.db.QueryRowContext(ctx, `
 SELECT
   r.id::text,
   r.merchant_id::text,
@@ -959,7 +984,50 @@ FROM resources r
 WHERE r.id = $1
   AND r.status IN ('draft', 'pending', 'audit_retry')
   AND r.deleted_at IS NULL
-`, resourceID).Scan(
+`, resourceID))
+}
+
+func (m *ResourceModel) GetLeasedResourceAuditSnapshot(ctx context.Context, guard ResourceAuditGuard) (ResourceAuditSnapshot, error) {
+	snapshot, err := scanResourceAuditSnapshot(m.db.QueryRowContext(ctx, `
+SELECT
+  r.id::text,
+  r.merchant_id::text,
+  r.type_code,
+  COALESCE(u.wechat_openid, ''),
+  r.title,
+  r.category,
+  COALESCE(r.district, ''),
+  COALESCE(r.price_text, ''),
+  COALESCE(r.quantity_text, ''),
+  COALESCE(r.description, ''),
+  r.attributes,
+  r.tags,
+  r.images,
+  COALESCE(r.contact_name, ''),
+  COALESCE(r.contact_wechat, '')
+FROM resources r
+	LEFT JOIN users u ON u.id = r.created_by_user_id AND u.deleted_at IS NULL
+WHERE r.id = $1
+  AND r.status = 'audit_retry'
+  AND r.audit_processing_by = $2
+  AND r.audit_lease_until > NOW()
+  AND r.deleted_at IS NULL
+`, guard.ResourceID, guard.ProcessingBy))
+	if errors.Is(err, sql.ErrNoRows) {
+		return ResourceAuditSnapshot{}, ErrResourceAuditLeaseLost
+	}
+	return snapshot, err
+}
+
+type resourceAuditSnapshotScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanResourceAuditSnapshot(row resourceAuditSnapshotScanner) (ResourceAuditSnapshot, error) {
+	var snapshot ResourceAuditSnapshot
+	var tags JSONStringSlice
+	var images JSONStringSlice
+	err := row.Scan(
 		&snapshot.ID,
 		&snapshot.MerchantID,
 		&snapshot.TypeCode,
@@ -998,6 +1066,33 @@ RETURNING audit_retry_count
 	return retryCount, err
 }
 
+func (m *ResourceModel) MarkLeasedResourceAuditRetry(ctx context.Context, guard ResourceAuditGuard, reason string) (int64, error) {
+	var retryCount int64
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		if err := lockResourceAuditLease(ctx, tx, guard); err != nil {
+			return err
+		}
+		err := tx.QueryRowContext(ctx, `
+UPDATE resources
+SET
+  status = 'audit_retry',
+  audit_retry_at = NOW() + make_interval(secs => LEAST((30 * power(2, audit_retry_count))::int, 1800)),
+  audit_last_error = NULLIF($3, ''),
+  audit_lease_until = NULL,
+  audit_processing_by = NULL,
+  updated_at = NOW()
+WHERE id = $1
+  AND status = 'audit_retry'
+  AND audit_processing_by = $2
+  AND audit_lease_until > NOW()
+  AND deleted_at IS NULL
+RETURNING audit_retry_count
+`, guard.ResourceID, guard.ProcessingBy, reason).Scan(&retryCount)
+		return resourceAuditLeaseError(err)
+	})
+	return retryCount, err
+}
+
 func (m *ResourceModel) RecordResourceAuditDecision(ctx context.Context, input ResourceAuditDecisionInput) error {
 	_, err := m.db.ExecContext(ctx, `
 INSERT INTO resource_content_audit_runs (
@@ -1032,6 +1127,66 @@ WHERE id = $1
 	return err
 }
 
+func (m *ResourceModel) MarkLeasedResourceManualReview(ctx context.Context, guard ResourceAuditGuard, reason string) error {
+	return WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		if err := lockResourceAuditLease(ctx, tx, guard); err != nil {
+			return err
+		}
+		result, err := tx.ExecContext(ctx, `
+UPDATE resources
+SET
+  status = 'manual_review',
+  audit_retry_at = NULL,
+  audit_last_error = NULLIF($3, ''),
+  audit_lease_until = NULL,
+  audit_processing_by = NULL,
+  updated_at = NOW()
+WHERE id = $1
+  AND status = 'audit_retry'
+  AND audit_processing_by = $2
+  AND audit_lease_until > NOW()
+  AND deleted_at IS NULL
+`, guard.ResourceID, guard.ProcessingBy, reason)
+		return resourceAuditLeaseResult(result, err)
+	})
+}
+
+func lockResourceAuditLease(ctx context.Context, tx *sql.Tx, guard ResourceAuditGuard) error {
+	var held int
+	err := tx.QueryRowContext(ctx, `
+SELECT 1
+FROM resources
+WHERE id = $1
+  AND status = 'audit_retry'
+  AND audit_processing_by = $2
+  AND audit_lease_until > NOW()
+  AND deleted_at IS NULL
+FOR UPDATE
+`, guard.ResourceID, guard.ProcessingBy).Scan(&held)
+	return resourceAuditLeaseError(err)
+}
+
+func resourceAuditLeaseError(err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrResourceAuditLeaseLost
+	}
+	return err
+}
+
+func resourceAuditLeaseResult(result sql.Result, err error) error {
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrResourceAuditLeaseLost
+	}
+	return nil
+}
+
 func (m *ResourceModel) MarkStaleContentAuditTasksForRetry(ctx context.Context, staleBefore time.Time) (int64, error) {
 	result, err := m.db.ExecContext(ctx, `
 WITH stale_resources AS (
@@ -1054,6 +1209,8 @@ SET
   status = 'audit_retry',
   audit_retry_at = now(),
   audit_last_error = '图片审核回调超时',
+  audit_lease_until = NULL,
+  audit_processing_by = NULL,
   updated_at = now()
 WHERE id IN (SELECT resource_id FROM stale_resources)
 `, staleBefore)
@@ -1063,7 +1220,20 @@ WHERE id IN (SELECT resource_id FROM stale_resources)
 	return result.RowsAffected()
 }
 
-func (m *ResourceModel) ClaimDueResourceAuditRetries(ctx context.Context, batchSize int64, maxRetries int64) ([]ResourceAuditRetryClaim, error) {
+func (m *ResourceModel) ClaimDueResourceAuditRetries(
+	ctx context.Context,
+	batchSize int64,
+	maxRetries int64,
+	processingBy string,
+	leaseDuration time.Duration,
+) ([]ResourceAuditRetryClaim, error) {
+	processingBy = strings.TrimSpace(processingBy)
+	if processingBy == "" {
+		return nil, errors.New("内容审核重试实例标识不能为空")
+	}
+	if leaseDuration <= 0 {
+		return nil, errors.New("内容审核重试租约时长必须大于 0")
+	}
 	if batchSize <= 0 {
 		batchSize = 20
 	}
@@ -1075,7 +1245,8 @@ WITH candidates AS (
   SELECT id
   FROM resources
   WHERE status = 'audit_retry'
-    AND audit_retry_at <= now()
+    AND audit_retry_at <= NOW()
+    AND (audit_lease_until IS NULL OR audit_lease_until <= NOW())
     AND deleted_at IS NULL
   ORDER BY audit_retry_at ASC, updated_at ASC
   LIMIT $1
@@ -1084,17 +1255,22 @@ WITH candidates AS (
 claimed AS (
   UPDATE resources r
   SET
-    status = CASE WHEN r.audit_retry_count >= $2 THEN 'manual_review' ELSE 'pending' END,
+    status = CASE WHEN r.audit_retry_count >= $2 THEN 'manual_review' ELSE 'audit_retry' END,
+    audit_processing_by = CASE WHEN r.audit_retry_count >= $2 THEN NULL ELSE $3 END,
+    audit_lease_until = CASE
+      WHEN r.audit_retry_count >= $2 THEN NULL
+      ELSE NOW() + ($4 * INTERVAL '1 millisecond')
+    END,
     audit_retry_count = CASE WHEN r.audit_retry_count >= $2 THEN r.audit_retry_count ELSE r.audit_retry_count + 1 END,
-    audit_retry_at = NULL,
-    updated_at = now()
+    audit_retry_at = CASE WHEN r.audit_retry_count >= $2 THEN NULL ELSE r.audit_retry_at END,
+    updated_at = NOW()
   WHERE r.id IN (SELECT id FROM candidates)
-  RETURNING r.id::text, r.audit_retry_count, r.status
+  RETURNING r.id::text, r.audit_retry_count, r.status, r.audit_processing_by
 )
-SELECT id, audit_retry_count, status = 'manual_review'
+SELECT id, audit_retry_count, status = 'manual_review', COALESCE(audit_processing_by, '')
 FROM claimed
 ORDER BY id
-`, batchSize, maxRetries)
+`, batchSize, maxRetries, processingBy, leaseDuration.Milliseconds())
 	if err != nil {
 		return nil, err
 	}
@@ -1102,7 +1278,7 @@ ORDER BY id
 	var claims []ResourceAuditRetryClaim
 	for rows.Next() {
 		var claim ResourceAuditRetryClaim
-		if err := rows.Scan(&claim.ResourceID, &claim.RetryCount, &claim.ManualReview); err != nil {
+		if err := rows.Scan(&claim.ResourceID, &claim.RetryCount, &claim.ManualReview, &claim.ProcessingBy); err != nil {
 			return nil, err
 		}
 		claims = append(claims, claim)
@@ -1112,19 +1288,47 @@ ORDER BY id
 
 func (m *ResourceModel) CreateResourceContentAuditTasks(ctx context.Context, resourceID string, tasks []ResourceContentAuditTaskInput) error {
 	return WithTx(ctx, m.db, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM resource_content_audit_tasks WHERE resource_id = $1`, resourceID); err != nil {
+		return createResourceContentAuditTasksTx(ctx, tx, resourceID, tasks)
+	})
+}
+
+func (m *ResourceModel) CreateLeasedResourceContentAuditTasks(ctx context.Context, guard ResourceAuditGuard, tasks []ResourceContentAuditTaskInput) error {
+	return WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		if err := lockResourceAuditLease(ctx, tx, guard); err != nil {
 			return err
 		}
-		for _, task := range tasks {
-			if _, err := tx.ExecContext(ctx, `
+		if err := createResourceContentAuditTasksTx(ctx, tx, guard.ResourceID, tasks); err != nil {
+			return err
+		}
+		result, err := tx.ExecContext(ctx, `
+UPDATE resources
+SET status = 'pending',
+    audit_lease_until = NULL,
+    audit_processing_by = NULL,
+    updated_at = NOW()
+WHERE id = $1
+  AND status = 'audit_retry'
+  AND audit_processing_by = $2
+  AND audit_lease_until > NOW()
+  AND deleted_at IS NULL
+`, guard.ResourceID, guard.ProcessingBy)
+		return resourceAuditLeaseResult(result, err)
+	})
+}
+
+func createResourceContentAuditTasksTx(ctx context.Context, tx *sql.Tx, resourceID string, tasks []ResourceContentAuditTaskInput) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM resource_content_audit_tasks WHERE resource_id = $1`, resourceID); err != nil {
+		return err
+	}
+	for _, task := range tasks {
+		if _, err := tx.ExecContext(ctx, `
 INSERT INTO resource_content_audit_tasks (resource_id, trace_id, audit_type, media_url, status)
 VALUES ($1, $2, $3, $4, 'pending')
 `, resourceID, task.TraceID, task.AuditType, task.MediaURL); err != nil {
-				return err
-			}
+			return err
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 func (m *ResourceModel) CompleteResourceContentAuditTask(ctx context.Context, input ResourceContentAuditTaskResultInput) (ResourceContentAuditTaskCompletion, error) {
@@ -1158,63 +1362,179 @@ WHERE resource_id = $1
 }
 
 func (m *ResourceModel) PublishResourceAfterAudit(ctx context.Context, resourceID string) (ReviewResourceResult, error) {
-	now := time.Now().UTC()
-	var result ReviewResourceResult
-	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
-		var merchantID string
-		var title string
-		var commercialRules JSONMap
-		if err := tx.QueryRowContext(ctx, `
+	lock := func(ctx context.Context, tx *sql.Tx) (resourceAuditPublishSource, error) {
+		var source resourceAuditPublishSource
+		err := tx.QueryRowContext(ctx, `
 SELECT r.merchant_id::text, r.title, r.resource_type_snapshot -> 'commercialRules'
 FROM resources r
 WHERE r.id = $1
   AND r.status = 'pending'
   AND r.deleted_at IS NULL
 FOR UPDATE
-`, resourceID).Scan(&merchantID, &title, &commercialRules); err != nil {
+`, resourceID).Scan(&source.MerchantID, &source.Title, &source.CommercialRules)
+		return source, err
+	}
+	write := func(ctx context.Context, tx *sql.Tx, now time.Time, result *ReviewResourceResult) error {
+		return tx.QueryRowContext(ctx, publishResourceAfterAuditSQL, resourceID, now).Scan(&result.ID, &result.Status)
+	}
+	return m.publishResourceAfterAudit(ctx, resourceID, lock, write)
+}
+
+func (m *ResourceModel) PublishLeasedResourceAfterAudit(ctx context.Context, guard ResourceAuditGuard) (ReviewResourceResult, error) {
+	lock := func(ctx context.Context, tx *sql.Tx) (resourceAuditPublishSource, error) {
+		var source resourceAuditPublishSource
+		err := tx.QueryRowContext(ctx, `
+SELECT r.merchant_id::text, r.title, r.resource_type_snapshot -> 'commercialRules'
+FROM resources r
+WHERE r.id = $1
+  AND r.status = 'audit_retry'
+  AND r.audit_processing_by = $2
+  AND r.audit_lease_until > NOW()
+  AND r.deleted_at IS NULL
+FOR UPDATE
+`, guard.ResourceID, guard.ProcessingBy).Scan(&source.MerchantID, &source.Title, &source.CommercialRules)
+		return source, resourceAuditLeaseError(err)
+	}
+	write := func(ctx context.Context, tx *sql.Tx, now time.Time, result *ReviewResourceResult) error {
+		err := tx.QueryRowContext(ctx, publishLeasedResourceAfterAuditSQL, guard.ResourceID, now, guard.ProcessingBy).
+			Scan(&result.ID, &result.Status)
+		return resourceAuditLeaseError(err)
+	}
+	return m.publishResourceAfterAudit(ctx, guard.ResourceID, lock, write)
+}
+
+type resourceAuditPublishSource struct {
+	MerchantID      string
+	Title           string
+	CommercialRules JSONMap
+}
+
+type resourceAuditPublishLock func(context.Context, *sql.Tx) (resourceAuditPublishSource, error)
+type resourceAuditPublishWrite func(context.Context, *sql.Tx, time.Time, *ReviewResourceResult) error
+
+func (m *ResourceModel) publishResourceAfterAudit(
+	ctx context.Context,
+	resourceID string,
+	lock resourceAuditPublishLock,
+	write resourceAuditPublishWrite,
+) (ReviewResourceResult, error) {
+	now := time.Now().UTC()
+	var result ReviewResourceResult
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		source, err := lock(ctx, tx)
+		if err != nil {
 			return err
 		}
-		switch PublishModeFromCommercialRules(commercialRules) {
+		switch PublishModeFromCommercialRules(source.CommercialRules) {
 		case ResourcePublishModeDisabled:
 			return ErrPublishDisabled
 		case ResourcePublishModeFree:
 			// 免费发布分类通过自动审核后直接上架，不消耗发布额度。
 		default:
-			if err := consumePublishQuotaTx(ctx, tx, merchantID, resourceID); err != nil {
+			if err := consumePublishQuotaTx(ctx, tx, source.MerchantID, resourceID); err != nil {
 				return err
 			}
 		}
-		if err := tx.QueryRowContext(ctx, publishResourceAfterAuditSQL, resourceID, now).Scan(&result.ID, &result.Status); err != nil {
+		if err := write(ctx, tx, now, &result); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `
+		_, err = tx.ExecContext(ctx, `
 INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
 VALUES ($1, 'resource_review', 'resource_auto_approve', $2, '资源已自动发布', $3, $4, 'unread')
-`, "merchant:"+merchantID, resourceID, title+" 已通过内容审核并公开展示", MerchantMyResourcesTargetURL(merchantID))
+`, "merchant:"+source.MerchantID, resourceID, source.Title+" 已通过内容审核并公开展示", MerchantMyResourcesTargetURL(source.MerchantID))
 		return err
 	})
 	return result, err
 }
 
 func (m *ResourceModel) RejectResourceAfterAudit(ctx context.Context, resourceID string, reason string) (ReviewResourceResult, error) {
-	var result ReviewResourceResult
-	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
-		var merchantID string
-		var title string
-		if err := tx.QueryRowContext(ctx, `
+	lock := func(ctx context.Context, tx *sql.Tx) (resourceAuditRejectSource, error) {
+		var source resourceAuditRejectSource
+		err := tx.QueryRowContext(ctx, `
+SELECT r.merchant_id::text, r.title
+FROM resources r
+WHERE r.id = $1
+  AND r.status = 'pending'
+  AND r.deleted_at IS NULL
+FOR UPDATE
+`, resourceID).Scan(&source.MerchantID, &source.Title)
+		return source, err
+	}
+	write := func(ctx context.Context, tx *sql.Tx, result *ReviewResourceResult) error {
+		return tx.QueryRowContext(ctx, `
 UPDATE resources
 SET status = 'rejected', reject_reason = $2, updated_at = now()
 WHERE id = $1
   AND status = 'pending'
   AND deleted_at IS NULL
-RETURNING id::text, merchant_id::text, title, status
-`, resourceID, reason).Scan(&result.ID, &merchantID, &title, &result.Status); err != nil {
+RETURNING id::text, status
+`, resourceID, reason).Scan(&result.ID, &result.Status)
+	}
+	return m.rejectResourceAfterAudit(ctx, resourceID, reason, lock, write)
+}
+
+func (m *ResourceModel) RejectLeasedResourceAfterAudit(ctx context.Context, guard ResourceAuditGuard, reason string) (ReviewResourceResult, error) {
+	lock := func(ctx context.Context, tx *sql.Tx) (resourceAuditRejectSource, error) {
+		var source resourceAuditRejectSource
+		err := tx.QueryRowContext(ctx, `
+SELECT r.merchant_id::text, r.title
+FROM resources r
+WHERE r.id = $1
+  AND r.status = 'audit_retry'
+  AND r.audit_processing_by = $2
+  AND r.audit_lease_until > NOW()
+  AND r.deleted_at IS NULL
+FOR UPDATE
+`, guard.ResourceID, guard.ProcessingBy).Scan(&source.MerchantID, &source.Title)
+		return source, resourceAuditLeaseError(err)
+	}
+	write := func(ctx context.Context, tx *sql.Tx, result *ReviewResourceResult) error {
+		err := tx.QueryRowContext(ctx, `
+UPDATE resources
+SET status = 'rejected', reject_reason = $3,
+    audit_lease_until = NULL,
+    audit_processing_by = NULL,
+    updated_at = NOW()
+WHERE id = $1
+  AND status = 'audit_retry'
+  AND audit_processing_by = $2
+  AND audit_lease_until > NOW()
+  AND deleted_at IS NULL
+RETURNING id::text, status
+`, guard.ResourceID, guard.ProcessingBy, reason).Scan(&result.ID, &result.Status)
+		return resourceAuditLeaseError(err)
+	}
+	return m.rejectResourceAfterAudit(ctx, guard.ResourceID, reason, lock, write)
+}
+
+type resourceAuditRejectSource struct {
+	MerchantID string
+	Title      string
+}
+
+type resourceAuditRejectLock func(context.Context, *sql.Tx) (resourceAuditRejectSource, error)
+type resourceAuditRejectWrite func(context.Context, *sql.Tx, *ReviewResourceResult) error
+
+func (m *ResourceModel) rejectResourceAfterAudit(
+	ctx context.Context,
+	resourceID string,
+	reason string,
+	lock resourceAuditRejectLock,
+	write resourceAuditRejectWrite,
+) (ReviewResourceResult, error) {
+	var result ReviewResourceResult
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		source, err := lock(ctx, tx)
+		if err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `
+		if err := write(ctx, tx, &result); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `
 INSERT INTO messages (recipient_role_code, message_type, trigger_type, trigger_id, title, content, target_url, status)
 VALUES ($1, 'resource_review', 'resource_auto_reject', $2, '资源审核未通过', $3, $4, 'unread')
-`, "merchant:"+merchantID, resourceID, title+" "+reason, MerchantMyResourcesTargetURL(merchantID))
+`, "merchant:"+source.MerchantID, resourceID, source.Title+" "+reason, MerchantMyResourcesTargetURL(source.MerchantID))
 		return err
 	})
 	return result, err
