@@ -5,7 +5,7 @@
       <view class="search-shell">
         <input v-model="keyword" class="search-input" placeholder="搜索档口、配套、路段" confirm-type="search" @confirm="submitSearch" />
         <button class="filter-toggle-button" @click="toggleFiltersExpanded">{{ filterToggleText }}</button>
-        <button class="search-button" :disabled="objectLoading" @click="submitSearch">搜索</button>
+        <button class="search-button" :disabled="objectLoading" :loading="objectLoading" @click="submitSearch">{{ objectLoading ? '搜索中' : '搜索' }}</button>
       </view>
 
       <scroll-view class="compact-filter-row" scroll-x>
@@ -67,7 +67,7 @@
     <view v-else-if="sceneUnavailable" class="state-card">
       <text class="state-title">地图暂未开放</text>
       <text class="state-desc">{{ sceneErrorText }}</text>
-      <button class="primary-button" @click="loadScenes">重新加载</button>
+      <button class="primary-button" :disabled="loading" :loading="loading" @click="loadScenes">{{ loading ? '加载中' : '重新加载' }}</button>
     </view>
 
     <view v-else class="map-content">
@@ -77,7 +77,7 @@
           <text>{{ mapObjectCountText }}</text>
         </view>
         <view class="map-service-controls">
-          <button class="map-service-button" :disabled="loading || objectLoading" @click="refreshCurrentMapData">刷新</button>
+          <button class="map-service-button" :disabled="loading || objectLoading" :loading="loading || objectLoading" @click="refreshCurrentMapData">{{ loading || objectLoading ? '刷新中' : '刷新' }}</button>
           <button class="map-service-button" @click="resetMapViewport">归位</button>
         </view>
         <view
@@ -175,8 +175,8 @@
         </view>
         <text class="contact-policy-tip">联系方式仅随有效供需信息展示</text>
         <view class="report-actions">
-          <button class="secondary-button" :disabled="reportSubmitting" @click="submitSelectedObjectLocationCorrection">位置纠错</button>
-          <button class="secondary-button risk" :disabled="reportSubmitting" @click="submitSelectedObjectRiskReport">举报问题</button>
+          <button class="secondary-button" :disabled="reportSubmitting" :loading="reportAction === 'location'" @click="submitSelectedObjectLocationCorrection">{{ reportAction === 'location' ? '纠错中' : '位置纠错' }}</button>
+          <button class="secondary-button risk" :disabled="reportSubmitting" :loading="reportAction === 'risk'" @click="submitSelectedObjectRiskReport">{{ reportAction === 'risk' ? '举报中' : '举报问题' }}</button>
         </view>
         <view v-if="nearbyPois.length" class="nearby-section">
           <text class="nearby-title">附近配套</text>
@@ -327,7 +327,8 @@ const loadedObjectKeyword = ref('')
 const mapCategories = ref([])
 const selectedObject = ref(null)
 const selectedObjectId = ref('')
-const reportSubmitting = ref(false)
+const reportAction = ref('')
+const reportSubmitting = computed(() => Boolean(reportAction.value))
 const nearbyPois = ref([])
 const mapTransform = ref({ scale: 1, offsetX: 0, offsetY: 0 })
 const mapViewportSize = ref({ width: 375, height: 500 })
@@ -352,6 +353,7 @@ let pendingCanvasRenderOptions = null
 // 点位加载和搜索/筛选可能并发，只应用最后一次请求，避免旧响应覆盖新结果。
 let objectRequestSeq = 0
 let visibleObjectRequestSeq = 0
+const pendingObjectRequests = new Map()
 
 const selectedSceneName = computed(() => selectedScene.value ? selectedScene.value.name : DEFAULT_SCENE_NAME)
 const selectedSceneBackground = computed(() => selectedScene.value ? selectedScene.value.backgroundUrl : '')
@@ -479,6 +481,7 @@ async function refreshCurrentMapData() {
 }
 
 async function loadScenes(options = {}) {
+  if (loading.value) return
   loading.value = true
   sceneErrorText.value = '地图数据发布后可在这里查看档口和配套点位。'
   try {
@@ -579,22 +582,39 @@ async function loadSceneObjects(options = {}) {
     loadedObjectKeyword.value = ''
     return
   }
-  const requestId = ++objectRequestSeq
   const showLoading = !options.silent
+  const term = keyword.value.trim()
+  const query = term
+    ? {
+        ...buildObjectQueryParams(),
+        sceneCode: selectedSceneCode.value,
+        keyword: term,
+        limit: MAP_OBJECT_SEARCH_LIMIT,
+      }
+    : { sceneCode: selectedSceneCode.value }
+  // 对象请求签名只描述服务端查询身份；不同入口命中同一查询时复用网络 Promise，交互选项仍由最新版本消费者处理。
+  const signature = JSON.stringify({
+    mode: term ? 'search' : 'list',
+    sceneCode: selectedSceneCode.value,
+    keyword: term,
+    query,
+  })
+  let request = pendingObjectRequests.get(signature)
+  if (!request) {
+    request = Promise.resolve()
+      .then(() => (term ? searchMapObjects(query) : listMapObjects(query.sceneCode)))
+      .finally(() => {
+        if (pendingObjectRequests.get(signature) === request) pendingObjectRequests.delete(signature)
+      })
+    pendingObjectRequests.set(signature, request)
+  }
+  const requestId = ++objectRequestSeq
   if (showLoading) {
     visibleObjectRequestSeq = requestId
     objectLoading.value = true
   }
   try {
-    const term = keyword.value.trim()
-    const resp = term
-      ? await searchMapObjects({
-          ...buildObjectQueryParams(),
-          sceneCode: selectedSceneCode.value,
-          keyword: term,
-          limit: MAP_OBJECT_SEARCH_LIMIT,
-        })
-      : await listMapObjects(selectedSceneCode.value)
+    const resp = await request
     if (requestId !== objectRequestSeq) return
     const items = resp.items || []
     const total = normalizeResponseTotal(resp.total, items.length)
@@ -638,7 +658,7 @@ async function submitSearch() {
 
 async function clearSearch() {
   keyword.value = ''
-  if (loadedObjectKeyword.value) {
+  if (loadedObjectKeyword.value || objectLoading.value) {
     await loadSceneObjects({ focusFirst: hasActiveFilters.value })
     return
   }
@@ -674,7 +694,7 @@ function toggleFiltersExpanded() {
 }
 
 async function clearMapConditions() {
-  const wasSearchLoaded = Boolean(loadedObjectKeyword.value)
+  const wasSearchLoaded = Boolean(loadedObjectKeyword.value || objectLoading.value)
   keyword.value = ''
   activeFilters.value = defaultActiveFilters()
   if (wasSearchLoaded) {
@@ -1288,6 +1308,7 @@ function openSelectedObjectLocation() {
 
 function submitSelectedObjectLocationCorrection() {
   openSelectedObjectReport({
+    action: 'location',
     reasons: locationCorrectionReasons,
     submit: submitMapLocationCorrection,
     warningKey: 'locationWarning',
@@ -1296,13 +1317,14 @@ function submitSelectedObjectLocationCorrection() {
 
 function submitSelectedObjectRiskReport() {
   openSelectedObjectReport({
+    action: 'risk',
     reasons: riskReportReasons,
     submit: submitMapRiskReport,
     warningKey: 'riskWarning',
   })
 }
 
-function openSelectedObjectReport({ reasons, submit, warningKey }) {
+function openSelectedObjectReport({ action, reasons, submit, warningKey }) {
   const objectId = mapObjectIdentity(selectedObject.value)
   if (!objectId || reportSubmitting.value || !requireLogin()) return
 
@@ -1311,7 +1333,7 @@ function openSelectedObjectReport({ reasons, submit, warningKey }) {
     async success({ tapIndex }) {
       const reason = reasons[tapIndex]
       if (!reason) return
-      reportSubmitting.value = true
+      reportAction.value = action
       try {
         const resp = await submit(objectId, { reasonCode: reason.code })
         if (resp?.item?.warningTriggered) {
@@ -1323,7 +1345,7 @@ function openSelectedObjectReport({ reasons, submit, warningKey }) {
           duration: 2400,
         })
       } finally {
-        reportSubmitting.value = false
+        reportAction.value = ''
       }
     },
   })

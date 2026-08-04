@@ -136,8 +136,8 @@
     </view>
     <view class="fixed-save-spacer" />
     <view class="fixed-save-bar">
-      <button class="primary-button" :disabled="submitting" @click="submitMerchantProfile">
-        {{ saveButtonText }}
+      <button class="primary-button" :disabled="submitting" :loading="submitting" @click="submitMerchantProfile">
+        {{ submitting ? '保存中' : saveButtonText }}
       </button>
     </view>
   </view>
@@ -266,6 +266,7 @@ function changeMerchantType(event) {
 }
 
 async function submitMerchantProfile() {
+  if (submitting.value) return
   const mainCategories = parseList(mainCategoriesText.value)
   const normalizedContactPhone = sanitizeContactPhoneValue(form.contactPhone)
   const normalizedWechat = sanitizeContactWechatValue(form.contactWechat)

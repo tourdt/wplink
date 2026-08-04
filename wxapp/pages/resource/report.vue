@@ -57,6 +57,7 @@
         class="submit-button"
         :class="{ disabled: submitting }"
         :disabled="submitting"
+        :loading="submitting"
         @click="submitReport"
       >
         {{ submitting ? '提交中' : '提交举报' }}

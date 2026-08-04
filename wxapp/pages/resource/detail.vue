@@ -126,12 +126,14 @@
               v-for="action in managementActions"
               :key="action.key"
               :class="['management-action', action.danger ? 'danger' : '']"
+              :loading="isManagementActionLoading(action.key)"
+              :disabled="managementBusy"
               @click="handleManagementAction(action.key)"
             >
               <view class="action-icon-wrap">
                 <image class="action-icon" :src="action.icon" mode="aspectFit" />
               </view>
-              <text class="action-label">{{ action.label }}</text>
+              <text class="action-label">{{ managementActionLabel(action) }}</text>
             </button>
           </view>
           <text v-else class="empty-management">暂无可操作功能</text>
@@ -153,11 +155,11 @@
               </view>
               <text class="action-label">举报</text>
             </button>
-            <button class="management-action" @click="favoriteResourceFromMore">
+            <button class="management-action" @click="favoriteResourceFromMore" :loading="favoriteBusy" :disabled="favoriteBusy">
               <view class="action-icon-wrap">
                 <image class="action-icon" src="/static/action-icons/bookmark.svg" mode="aspectFit" />
               </view>
-              <text class="action-label">{{ favorited ? '取消收藏' : '收藏' }}</text>
+              <text class="action-label">{{ favoriteBusy ? (favorited ? '取消收藏中' : '收藏中') : (favorited ? '取消收藏' : '收藏') }}</text>
             </button>
             <button class="management-action" open-type="share" @click="shareResourceFromMore">
               <view class="action-icon-wrap">
@@ -176,8 +178,17 @@
 
       <view v-else-if="!isDealtResource" class="contact-bar">
         <button class="more-button" @click="openContactMoreSheet">更多</button>
-        <button @click="copyWechat">复制微信</button>
-        <button class="primary-button" @click="callPhone">{{ contactButtonText }}</button>
+        <button
+          @click="copyWechat"
+          :loading="contactAction === 'wechat'"
+          :disabled="contactAction !== ''"
+        >{{ contactAction === 'wechat' ? contactBusyText : '复制微信' }}</button>
+        <button
+          class="primary-button"
+          @click="callPhone"
+          :loading="contactAction === 'phone'"
+          :disabled="contactAction !== ''"
+        >{{ contactAction === 'phone' ? contactBusyText : contactButtonText }}</button>
       </view>
       <view v-else class="completed-action-bar">
         <text>该供需已完成，联系方式已关闭</text>
@@ -280,7 +291,12 @@ const ownerMerchantId = ref('')
 const resourceUnavailable = ref(false)
 const selectedGalleryIndex = ref(0)
 const showManagementSheet = ref(false)
-const managementBusy = ref(false)
+const managementAction = ref('')
+// 管理操作在确认阶段仍保持互斥，避免重复弹窗或并发写入；只有查询和真正写入才显示旋转反馈。
+const managementActionPhase = ref('')
+const managementBusy = computed(() => Boolean(managementAction.value))
+const favoriteBusy = ref(false)
+const contactAction = ref('')
 const topServicePacks = ref([])
 const shareCoverCanvasSize = RESOURCE_SHARE_COVER_SIZE
 // 底部只保留高频联系动作，分享和举报收进更多操作，减少详情页主路径干扰。
@@ -320,6 +336,11 @@ const statusText = {
 const contentAuditStatuses = new Set(['pending', 'manual_review', 'audit_retry'])
 const resourceFeatureTags = computed(() => resource.value.presentation.tags)
 const contactAccess = computed(() => resource.value.contactAccess || {})
+const contactBusyText = computed(() => {
+  if (contactAccess.value.unlocked) return '查询中'
+  const mode = contactAccess.value.mode
+  return mode === 'paid' || mode === 'paid_or_vip' || mode === 'vip_only' ? '解锁中' : '查询中'
+})
 // 底部主按钮执行的是电话解锁和拨号，按钮文案保持动作导向，避免展示“登录后免费查看”等规则说明。
 const contactButtonText = computed(() => '拨打电话')
 const merchantInfo = computed(() => ({
@@ -523,6 +544,9 @@ async function toggleFavorite() {
     uni.showToast({ title: `不能收藏自己发布的${resourceNoun.value}`, icon: 'none' })
     return false
   }
+  if (!requireLogin()) return false
+  if (favoriteBusy.value) return false
+  favoriteBusy.value = true
   try {
     // 收藏状态以服务端返回为准，避免弱网下本地乐观更新和真实状态不一致。
     const resp = await setResourceFavorite(resource.value.id, !favorited.value)
@@ -532,15 +556,24 @@ async function toggleFavorite() {
   } catch (err) {
     uni.showToast({ title: err.message || '收藏失败，请稍后重试', icon: 'none' })
     return false
+  } finally {
+    favoriteBusy.value = false
   }
 }
 
 async function recordContact(action) {
+  if (!canRecordContact(action)) return false
+  return requestResourceContact(action)
+}
+
+function canRecordContact(action) {
   if (!resource.value.id) return false
-  if (isOwnResource.value) {
-    return false
-  }
+  if (isOwnResource.value) return false
   if (isContactUnlockAction(action) && !requireLogin()) return false
+  return true
+}
+
+async function requestResourceContact(action) {
   try {
     const resp = await recordResourceContact(resource.value.id, action)
     return resp || {}
@@ -576,9 +609,7 @@ async function unlockPaidContact(action) {
     const resp = await recordResourceContact(resource.value.id, action)
     return resp || {}
   } catch (err) {
-    if (err?.message) {
-      uni.showToast({ title: err.message, icon: 'none' })
-    }
+    uni.showToast({ title: friendlyPaymentFailureMessage(err, '支付失败，请稍后重试'), icon: 'none' })
     return false
   }
 }
@@ -601,11 +632,20 @@ function requestContactUnlockPayment(payment) {
   })
 }
 
+function friendlyPaymentFailureMessage(err, fallback) {
+  // uni.requestPayment 的 errMsg 是平台内部错误文本，不能直接展示；仅识别取消，其余统一使用业务友好提示。
+  const platformMessage = String(err?.errMsg || '').toLowerCase()
+  const message = String(err?.message || '').trim()
+  if (platformMessage.includes('cancel')) return '已取消支付'
+  if (platformMessage) return fallback
+  return message || fallback
+}
+
 async function openMerchant() {
   if (!showMerchantHomeEntry.value) return
   const merchantId = (resource.value.merchant || {}).id
   if (!merchantId) return
-  await recordContact('merchant_home')
+  reportContactInBackground('merchant_home')
   uni.navigateTo({ url: `/pages/merchant/detail?id=${merchantId}` })
 }
 
@@ -697,6 +737,11 @@ function openManagementSheet() {
 }
 
 function closeManagementSheet() {
+  if (managementBusy.value) return
+  hideManagementSheet()
+}
+
+function hideManagementSheet() {
   showManagementSheet.value = false
 }
 
@@ -715,12 +760,13 @@ function shareOwnResource() {
 
 async function handleManagementAction(action) {
   if (managementBusy.value) return
-  managementBusy.value = true
+  if (action === 'edit') {
+    openPublishEditor()
+    return
+  }
+  managementAction.value = action
+  managementActionPhase.value = action === 'top' ? 'querying' : 'writing'
   try {
-    if (action === 'edit') {
-      openPublishEditor()
-      return
-    }
     if (action === 'refresh') {
       await refreshOwnResource()
       return
@@ -730,6 +776,15 @@ async function handleManagementAction(action) {
       return
     }
     if (action === 'take-down') {
+      managementActionPhase.value = 'prompting'
+      const confirmed = await confirmManagementAction({
+        title: `下架${resourceNoun.value}`,
+        content: `下架后${resourceNoun.value}将不再公开展示，确认下架吗？`,
+        confirmText: '下架',
+        confirmColor: '#c2410c',
+      })
+      if (!confirmed) return
+      managementActionPhase.value = 'writing'
       await takeDownOwnResource()
       return
     }
@@ -738,11 +793,38 @@ async function handleManagementAction(action) {
       return
     }
     if (action === 'delete') {
+      managementActionPhase.value = 'prompting'
+      const confirmed = await confirmManagementAction({
+        title: `删除${resourceNoun.value}`,
+        content: `删除后将不再显示在我的发布中，确认删除吗？`,
+        confirmText: '删除',
+        confirmColor: '#c2410c',
+      })
+      if (!confirmed) return
+      managementActionPhase.value = 'writing'
       await deleteOwnResource()
     }
   } finally {
-    managementBusy.value = false
+    managementAction.value = ''
+    managementActionPhase.value = ''
   }
+}
+
+function isManagementActionLoading(action) {
+  return managementAction.value === action && managementActionPhase.value !== 'prompting'
+}
+
+function managementActionLabel(action) {
+  if (managementAction.value !== action.key) return action.label
+  if (managementActionPhase.value === 'querying') return '查询中'
+  if (managementActionPhase.value === 'prompting') return action.label
+  return {
+    refresh: '刷新中',
+    top: '置顶中',
+    'take-down': '下架中',
+    repost: '准备中',
+    delete: '删除中',
+  }[action.key] || action.label
 }
 
 function openPublishEditor() {
@@ -754,8 +836,8 @@ function openPublishEditor() {
 async function refreshOwnResource() {
   await refreshResource(resource.value.id, ownerMerchantId.value)
   uni.showToast({ title: '已刷新', icon: 'none' })
-  closeManagementSheet()
   await reloadOwnResource()
+  hideManagementSheet()
 }
 
 async function topOwnResource() {
@@ -764,26 +846,21 @@ async function topOwnResource() {
     await purchaseTopService()
     return
   }
+  managementActionPhase.value = 'prompting'
   const confirmed = await confirmTopVoucherUse(voucher)
   if (!confirmed) return
+  managementActionPhase.value = 'writing'
   await redeemTopVoucher(voucher.id, resource.value.id, ownerMerchantId.value)
   uni.showToast({ title: '已置顶', icon: 'none' })
-  closeManagementSheet()
   await reloadOwnResource()
+  hideManagementSheet()
 }
 
 async function takeDownOwnResource() {
-  const confirmed = await confirmManagementAction({
-    title: `下架${resourceNoun.value}`,
-    content: `下架后${resourceNoun.value}将不再公开展示，确认下架吗？`,
-    confirmText: '下架',
-    confirmColor: '#c2410c',
-  })
-  if (!confirmed) return
   await takeDownResource(resource.value.id, ownerMerchantId.value, '商家主动下架')
   uni.showToast({ title: '已下架', icon: 'none' })
-  closeManagementSheet()
   await reloadOwnResource()
+  hideManagementSheet()
 }
 
 async function getAvailableTopVoucher() {
@@ -819,18 +896,22 @@ function topDurationText(voucher) {
 }
 
 async function purchaseTopService() {
+  managementActionPhase.value = 'querying'
   const pack = await chooseTopServicePack()
   if (!pack) return
+  managementActionPhase.value = 'prompting'
   const confirmed = await confirmTopServicePurchase(pack)
   if (!confirmed) return
-  closeManagementSheet()
+  managementActionPhase.value = 'writing'
   try {
+    // 置顶购买的互斥状态必须覆盖订单、原生支付与支付后的详情刷新，避免重复下单或过早隐藏反馈。
     const order = await createQuotaPackOrder(ownerMerchantId.value, pack.code, { resourceId: resource.value.id })
     await payTopServiceOrder(order)
     uni.showToast({ title: '置顶服务已购买，置顶生效中', icon: 'none' })
     await reloadOwnResource()
+    hideManagementSheet()
   } catch (err) {
-    uni.showToast({ title: err?.message || '置顶服务购买失败，请稍后重试', icon: 'none' })
+    uni.showToast({ title: friendlyPaymentFailureMessage(err, '置顶服务购买失败，请稍后重试'), icon: 'none' })
   }
 }
 
@@ -842,6 +923,7 @@ async function chooseTopServicePack() {
   }
   if (packs.length === 1) return packs[0]
   return new Promise((resolve) => {
+    managementActionPhase.value = 'prompting'
     uni.showActionSheet({
       itemList: packs.map(topServiceOptionText),
       success: (res) => resolve(packs[res.tapIndex] || null),
@@ -947,7 +1029,7 @@ function requestWechatPayment(payment) {
 async function repostOwnResource() {
   const detail = await getOwnResource(resource.value.id, ownerMerchantId.value)
   uni.setStorageSync('publish:repost-initial-form', buildRepostInitialForm(detail))
-  closeManagementSheet()
+  hideManagementSheet()
   uni.navigateTo({ url: `/pages/publish/edit?merchantId=${ownerMerchantId.value}&repost=1` })
 }
 
@@ -973,16 +1055,9 @@ function buildRepostInitialForm(detail) {
 }
 
 async function deleteOwnResource() {
-  const confirmed = await confirmManagementAction({
-    title: `删除${resourceNoun.value}`,
-    content: `删除后将不再显示在我的发布中，确认删除吗？`,
-    confirmText: '删除',
-    confirmColor: '#c2410c',
-  })
-  if (!confirmed) return
   await deleteTakenDownResource(resource.value.id, ownerMerchantId.value)
   uni.showToast({ title: '已删除', icon: 'none' })
-  closeManagementSheet()
+  hideManagementSheet()
   resourceUnavailable.value = true
 }
 
@@ -1000,33 +1075,55 @@ function confirmManagementAction(options) {
 }
 
 async function callPhone() {
-  const resp = await recordContact('phone')
-  if (!resp) return
-  if (resp.phone) {
-    uni.makePhoneCall({ phoneNumber: resp.phone })
-    return
-  }
-  uni.showToast({ title: '商家暂未填写电话', icon: 'none' })
+  if (!canRecordContact('phone')) return
+  return runContactAction('phone', async () => {
+    const resp = await requestResourceContact('phone')
+    if (!resp) return
+    if (resp.phone) {
+      uni.makePhoneCall({ phoneNumber: resp.phone })
+      return
+    }
+    uni.showToast({ title: '商家暂未填写电话', icon: 'none' })
+  })
 }
 
 async function copyWechat() {
-  const resp = await recordContact('wechat')
-  if (!resp) return
-  if (resp.wechat) {
-    uni.setClipboardData({ data: resp.wechat })
-    uni.showToast({ title: '微信号已复制', icon: 'none' })
-    return
+  if (!canRecordContact('wechat')) return
+  return runContactAction('wechat', async () => {
+    const resp = await requestResourceContact('wechat')
+    if (!resp) return
+    if (resp.wechat) {
+      uni.setClipboardData({ data: resp.wechat })
+      uni.showToast({ title: '微信号已复制', icon: 'none' })
+      return
+    }
+    uni.showToast({ title: '商家暂未填写微信，可电话联系', icon: 'none' })
+  })
+}
+
+async function runContactAction(action, operation) {
+  if (contactAction.value) return
+  // 电话和微信共享同一条解锁链，串行执行可避免连续点击重复创建联系方式订单或重复唤起支付。
+  contactAction.value = action
+  try {
+    return await operation()
+  } finally {
+    contactAction.value = ''
   }
-  uni.showToast({ title: '商家暂未填写微信，可电话联系', icon: 'none' })
 }
 
-async function shareResource() {
+function reportContactInBackground(action) {
+  // 访问和分享统计属于 best-effort 后台记录，失败不得打断已开始的跳转或面板关闭流程。
+  void recordContact(action).catch(() => {})
+}
+
+function shareResource() {
   if (isOwnResource.value) return
-  await recordContact('share')
+  reportContactInBackground('share')
 }
 
-async function shareResourceFromMore() {
-  await shareResource()
+function shareResourceFromMore() {
+  shareResource()
   closeContactMoreSheet()
 }
 
@@ -1245,7 +1342,7 @@ function flushCanvas(ctx) {
 
 function trackShareFromMenu() {
   if (isOwnResource.value || !resource.value.id) return
-  recordContact('share').catch(() => {})
+  reportContactInBackground('share')
 }
 
 onShareAppMessage((shareEvent) => {

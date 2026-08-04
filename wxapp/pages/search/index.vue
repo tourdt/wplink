@@ -15,7 +15,7 @@
     <view class="search-toolbar" :style="searchToolbarStyle">
       <view class="search-bar">
         <input v-model="keyword" class="search-input" :placeholder="searchPlaceholder" @confirm="search" />
-        <button class="search-button" @click="search">搜索</button>
+        <button class="search-button" :disabled="loading" :loading="loading" @click="search">{{ loading ? '搜索中' : '搜索' }}</button>
       </view>
 
       <view :class="['filter-shell', showAllTypeButton ? 'has-type-panel-button' : '']" @click.stop>

@@ -19,7 +19,7 @@
         <text class="field-label">档口关键词</text>
         <view class="search-row">
           <input v-model="keyword" class="field" placeholder="档口编号、名称或地址" @confirm="searchCandidates" />
-          <button class="search-button" :disabled="candidateLoading" @click="searchCandidates">搜索</button>
+          <button class="search-button" :disabled="candidateLoading" :loading="candidateLoading" @click="searchCandidates">{{ candidateLoading ? '搜索中' : '搜索' }}</button>
         </view>
       </view>
     </view>
@@ -53,7 +53,7 @@
 
     <view v-if="!boundObject" class="fixed-submit-spacer" />
     <view v-if="!boundObject" class="fixed-submit-bar">
-      <button class="primary-button" :disabled="submitting || !selectedObjectId" @click="submitBindingRequest">确认绑定</button>
+      <button class="primary-button" :disabled="submitting || !selectedObjectId" :loading="submitting" @click="submitBindingRequest">{{ submitting ? '绑定中' : '确认绑定' }}</button>
     </view>
   </view>
 </template>
@@ -147,6 +147,7 @@ function changeScene(event) {
 }
 
 async function searchCandidates() {
+  if (candidateLoading.value) return
   if (!merchantId.value) return
   candidateLoading.value = true
   try {
@@ -184,6 +185,7 @@ function selectCandidate(item) {
 }
 
 async function submitBindingRequest() {
+  if (submitting.value) return
   if (!selectedObjectId.value) {
     uni.showToast({ title: '请选择要绑定的档口', icon: 'none' })
     return

@@ -13,12 +13,22 @@
 - 不修改后端接口、数据库、API 返回结构或公共请求协议。
 - 不在 `wxapp/api/request.js` 中默认调用全局 `uni.showLoading`。
 - 前台业务按钮必须同时具备原生 `loading`、`disabled`、进行时中文文案和处理函数忙碌短路。
-- 确认型操作在用户确认后才进入 loading；校验失败、未登录和取消确认不进入 loading。
+- 确认型操作在用户确认后才进入写入 loading；校验失败、未登录和取消确认不进入写入 loading。确认前若必须请求服务端查询权益或套餐，可在 `querying` 阶段显示“查询中”，但 `prompting` 阶段只保持互斥锁、不显示旋转，取消后不得进入 `writing`。
 - loading 覆盖上传、业务请求、支付和结果刷新完整链路，并在 `finally` 恢复。
 - 列表资源写操作同一时刻只允许一个，未操作记录保持可浏览但不可并行发起写操作。
 - 曝光、浏览、分享、商家主页点击和消息已读等后台记录不显示 loading，也不延迟主流程。
 - 错误提示保持中文、具体、可操作，不暴露原始服务端或支付内部信息。
 - 只修改与加载反馈直接相关的代码，不引入 UI 组件库或全局状态库。
+
+## 用户裁决：行为测试优先
+
+用户确认统一采用真实行为测试。本节优先于后续任务中原先列出的源码正则断言示例：
+
+- 模板反馈使用仓库已有的 `@vue/compiler-sfc`、Vue 和 `@vue/server-renderer` 编译并渲染真实 `<template>`，断言按钮最终收到 `loading`、`disabled` 和进行时文案。
+- 处理函数使用现有 VM 加载模式或提取出的纯状态执行器，实际连续触发两次操作，断言服务端函数只调用一次。
+- 实际让服务端函数成功、失败或被支付取消，断言对应状态最终恢复，且原有成功、失败和跳转行为不变。
+- 不安装 `@vue/test-utils`、`jsdom` 或新的测试依赖；不新增仅匹配 Vue 源码文字的测试。
+- 每个任务仍遵循先写失败测试、确认因缺少行为而失败、再写最小实现的红绿循环。
 
 ---
 
@@ -418,6 +428,30 @@ Expected: PASS，0 failed。
 ```bash
 git add wxapp/pages/resource/detail.vue wxapp/pages/resource/detail.test.mjs
 git commit -m "feat(wxapp): 增加供需详情操作加载状态"
+```
+
+### Task 6 补充：确认与置顶的分阶段反馈修复
+
+**Files:**
+- Modify: `wxapp/pages/my-resources/index.vue`
+- Modify: `wxapp/pages/my-resources/index.test.mjs`
+- Modify: `wxapp/pages/resource/detail.vue`
+- Modify: `wxapp/pages/resource/detail.test.mjs`
+
+**目标：** 保留资源 ID 与动作名组成的互斥锁，并增加最小 `phase`。`querying` 用于置顶券和套餐查询，显示“查询中”；`prompting` 用于套餐选择和风险确认，只禁用不旋转；`writing` 覆盖核销、订单、支付及结果刷新，显示动作进行时文案。
+
+- [ ] 详情下架、删除从 `prompting` 开始；取消时不访问写入接口，也绝不进入 `writing`。
+- [ ] 列表下架保持既有无确认流程；不要新增确认弹窗。
+- [ ] 列表和详情置顶的券查询、套餐查询均在 `querying` 显示查询反馈；套餐选择、券使用确认和购买确认均在 `prompting` 保持锁。
+- [ ] 用户确认后才切换为 `writing`；支付取消、请求失败或刷新完成均在 `finally` 释放动作和阶段。
+- [ ] 采用真实页面脚本与模板渲染测试，覆盖查询、确认、写入和连续点击，不新增源码正则合同。
+
+验证：
+
+```bash
+cd wxapp
+node --test pages/my-resources/index.test.mjs pages/resource/detail.test.mjs common/resourceDetailState.test.mjs common/resourceDetailAuxiliary.test.mjs common/entitlementPurchase.test.mjs
+npm run validate:flows
 ```
 
 ### Task 5: 补齐关注 loading，并让后台记录不阻塞跳转

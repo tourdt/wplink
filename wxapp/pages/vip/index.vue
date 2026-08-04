@@ -1,8 +1,8 @@
 <template>
   <view class="vip-page">
     <view class="vip-tabs">
-      <button :class="['vip-tab', activeTab === 'vip' ? 'active' : '']" @click="switchTab('vip')">VIP权益包</button>
-      <button :class="['vip-tab', activeTab === 'addons' ? 'active' : '']" @click="switchTab('addons')">购买次数</button>
+      <button :class="['vip-tab', activeTab === 'vip' ? 'active' : '']" :disabled="purchaseBusy" @click="switchTab('vip')">VIP权益包</button>
+      <button :class="['vip-tab', activeTab === 'addons' ? 'active' : '']" :disabled="purchaseBusy" @click="switchTab('addons')">购买次数</button>
     </view>
 
     <view v-if="activeTab === 'vip'" class="tab-panel">
@@ -10,7 +10,7 @@
         <view
           v-for="plan in displayPlans"
           :key="plan.code"
-          :class="['plan-card', selectedPlanCode === plan.code ? 'selected' : '']"
+          :class="['plan-card', selectedPlanCode === plan.code ? 'selected' : '', purchaseBusy ? 'disabled' : '']"
           @click="selectPlan(plan.code)"
         >
           <view class="plan-main">
@@ -25,7 +25,7 @@
         </view>
       </view>
 
-      <button class="primary-button" :disabled="paying || !selectedPlanCode" @click="openSelectedPlan">
+      <button class="primary-button" :disabled="purchaseBusy || !selectedPlanCode" :loading="paying" @click="openSelectedPlan">
         {{ paying ? '正在开通' : '立即开通 VIP' }}
       </button>
     </view>
@@ -43,7 +43,7 @@
               <text class="pack-price">{{ packPriceText(item) }}</text>
             </view>
             <text v-if="isPackDiscounted(item)" class="standard-price pack-standard-price">{{ formatPrice(item.standardPriceCent) }}</text>
-            <button class="pack-button" :disabled="payingPackCode === item.code" @click="openQuotaPack(item)">
+            <button class="pack-button" :disabled="purchaseBusy" :loading="payingPackCode === item.code" @click="openQuotaPack(item)">
               {{ payingPackCode === item.code ? '购买中' : packActionText(item) }}
             </button>
           </view>
@@ -76,6 +76,8 @@ const selectedQuotaType = ref('')
 const activeTab = ref('vip')
 const paying = ref(false)
 const payingPackCode = ref('')
+// VIP 与次数包共用订单和支付链，必须串行购买，避免跨 tab 或不同套餐重复下单。
+const purchaseBusy = computed(() => paying.value || Boolean(payingPackCode.value))
 const fallbackQuotaPacks = [
   { code: 'publish_5', name: '发布次数包', standardPriceCent: 2500, actionText: '¥25 购买', description: '临时多发供需', benefits: { publishQuota: 5 } },
   { code: 'refresh_10', name: '刷新次数包', standardPriceCent: 1900, actionText: '¥19 购买', description: '让信息回到前面', benefits: { refreshQuota: 10 } },
@@ -134,19 +136,23 @@ async function loadQuotaPacks() {
 }
 
 function selectPlan(code) {
+  if (purchaseBusy.value) return
   selectedPlanCode.value = code
 }
 
 function switchTab(tab) {
+  if (purchaseBusy.value) return
   activeTab.value = tab
 }
 
 async function openSelectedPlan() {
+  if (purchaseBusy.value) return
   if (!requireLogin()) return
   if (!merchantId.value) {
     uni.showToast({ title: '请先登录后再开通 VIP', icon: 'none' })
     return
   }
+  if (purchaseBusy.value) return
   paying.value = true
   try {
     const order = await createVIPOrder(merchantId.value, { planCode: selectedPlanCode.value })
@@ -159,11 +165,13 @@ async function openSelectedPlan() {
 }
 
 async function openQuotaPack(item) {
+  if (purchaseBusy.value) return
   if (!requireLogin()) return
   if (!merchantId.value) {
     uni.showToast({ title: '请先登录后再购买次数包', icon: 'none' })
     return
   }
+  if (purchaseBusy.value) return
   payingPackCode.value = item.code
   try {
     const order = await createQuotaPackOrder(merchantId.value, item.code)

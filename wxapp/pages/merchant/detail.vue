@@ -11,7 +11,7 @@
           </view>
         </view>
         <button v-if="isOwnMerchant" class="follow-button" @click="openMerchantEditor">编辑</button>
-        <button v-else class="follow-button" @click="toggleFollow">{{ followed ? '已关注' : '关注' }}</button>
+        <button v-else class="follow-button" :disabled="followBusy" :loading="followBusy" @click="toggleFollow">{{ followBusy ? (followed ? '取消关注中' : '关注中') : followed ? '已关注' : '关注' }}</button>
       </view>
 
       <view class="hero-stats">
@@ -90,6 +90,7 @@ import ResourceList from '../../components/ResourceList.vue'
 import { getMerchantFollowState, setMerchantFollow } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
 import { listResources } from '../../api/resource'
+import { requireLogin } from '../../common/auth'
 import { trackMerchantMapEvent } from '../../common/merchantMapAnalytics'
 import { getSession } from '../../store/session'
 import { buildMerchantAddressLocation } from '../sourcing-map/merchantPlaceState'
@@ -102,6 +103,7 @@ const merchantResourcePageSize = 10
 const merchantResourceTotal = ref(0)
 const merchantResourcesLoading = ref(false)
 const followed = ref(false)
+const followBusy = ref(false)
 const ownMerchantId = ref('')
 const merchantTypeText = {
   individual: '个人',
@@ -210,7 +212,11 @@ function resetMerchantResources() {
 }
 
 async function toggleFollow() {
-  if (!merchant.value.id) return
+  if (!merchant.value.id || isOwnMerchant.value) return
+  if (!requireLogin()) return
+  if (followBusy.value) return
+  // 关注写入尚未完成时锁定按钮，避免连续点击产生重复的关注状态变更。
+  followBusy.value = true
   try {
     // 关注商家用于后续复访和提醒，当前只改变关注列表，不触发营销消息。
     const resp = await setMerchantFollow(merchant.value.id, !followed.value)
@@ -218,6 +224,8 @@ async function toggleFollow() {
     uni.showToast({ title: followed.value ? '已关注' : '已取消关注', icon: 'none' })
   } catch (err) {
     uni.showToast({ title: err.message || '操作失败，请稍后重试', icon: 'none' })
+  } finally {
+    followBusy.value = false
   }
 }
 

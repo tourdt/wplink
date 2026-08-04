@@ -11,7 +11,7 @@
             @confirm="submitSearch"
           />
         </view>
-        <button class="search-button" :disabled="loading" @click="submitSearch">搜索</button>
+        <button class="search-button" :disabled="loading" :loading="loading" @click="submitSearch">{{ loading ? '搜索中' : '搜索' }}</button>
       </view>
 
       <scroll-view class="filter-scroll" scroll-x>
@@ -42,7 +42,7 @@
       <view v-else-if="errorText && !places.length" class="state-card error">
         <text class="state-title">商家列表加载失败，请重试</text>
         <text class="state-desc">{{ errorText }}</text>
-        <button class="state-button" @click="loadPlaces({ reset: true })">重新加载</button>
+        <button class="state-button" :disabled="loading" :loading="loading" @click="loadPlaces({ reset: true })">{{ loading ? '加载中' : '重新加载' }}</button>
       </view>
       <view v-else-if="!places.length" class="state-card">
         <text class="state-title">暂无匹配商家</text>
@@ -103,7 +103,9 @@ const page = ref(1)
 const loading = ref(false)
 const errorText = ref('')
 const loadedOnce = ref(false)
+const navigationCorrectionBusy = ref(false)
 let requestVersion = 0
+const pendingPlaceRequests = new Map()
 let shouldAskNavigationFeedback = false
 
 const sourceFilters = [
@@ -155,69 +157,82 @@ async function loadCategories() {
   tagCategories.value = results.flatMap((result) => result.items || [])
 }
 
-async function loadPlaces({ reset }) {
-  if (loading.value && !reset) return
-  const version = ++requestVersion
+function loadPlaces({ reset }) {
   const targetPage = reset ? 1 : page.value + 1
+  const query = buildMerchantPlaceQuery({
+    cityCode: DEFAULT_CITY_CODE,
+    keyword: keyword.value,
+    categories: categoryCodes.value,
+    claimed: claimedFilter.value,
+    page: targetPage,
+    pageSize: LIST_PAGE_SIZE,
+  })
+  // 签名覆盖分页语义和 API 的完整实参；相同查询复用网络 Promise，签名变化仍可并发并由版本号决定落地结果。
+  const signature = JSON.stringify({ reset: Boolean(reset), page: targetPage, query })
+  let request = pendingPlaceRequests.get(signature)
+  if (!request) {
+    request = Promise.resolve()
+      .then(() => listMerchantPlaces(query))
+      .finally(() => {
+        if (pendingPlaceRequests.get(signature) === request) pendingPlaceRequests.delete(signature)
+      })
+    pendingPlaceRequests.set(signature, request)
+  }
+  const version = ++requestVersion
   loading.value = true
   if (reset) errorText.value = ''
-  try {
-    const resp = await listMerchantPlaces(buildMerchantPlaceQuery({
-      cityCode: DEFAULT_CITY_CODE,
-      keyword: keyword.value,
-      categories: categoryCodes.value,
-      claimed: claimedFilter.value,
-      page: targetPage,
-      pageSize: LIST_PAGE_SIZE,
-    }))
-    if (version !== requestVersion) return
-    const nextItems = (resp.items || []).map((raw) => {
-      const place = normalizeMerchantPlace(raw)
-      return {
-        ...place,
-        displayTags: merchantTagLabels.value([
-          ...place.categoryCodes,
-          ...place.serviceTags,
-          ...place.platformTags,
-        ]).slice(0, 3),
+  return (async () => {
+    try {
+      const resp = await request
+      if (version !== requestVersion) return
+      const nextItems = (resp.items || []).map((raw) => {
+        const place = normalizeMerchantPlace(raw)
+        return {
+          ...place,
+          displayTags: merchantTagLabels.value([
+            ...place.categoryCodes,
+            ...place.serviceTags,
+            ...place.platformTags,
+          ]).slice(0, 3),
+        }
+      })
+      places.value = reset ? nextItems : [...places.value, ...nextItems]
+      total.value = Number(resp.total || 0)
+      page.value = targetPage
+    } catch (err) {
+      if (version !== requestVersion) return
+      errorText.value = err.message || '网络连接不稳定，请稍后重试'
+      if (reset) {
+        places.value = []
+        total.value = 0
       }
-    })
-    places.value = reset ? nextItems : [...places.value, ...nextItems]
-    total.value = Number(resp.total || 0)
-    page.value = targetPage
-  } catch (err) {
-    if (version !== requestVersion) return
-    errorText.value = err.message || '网络连接不稳定，请稍后重试'
-    if (reset) {
-      places.value = []
-      total.value = 0
+    } finally {
+      if (version === requestVersion) loading.value = false
     }
-  } finally {
-    if (version === requestVersion) loading.value = false
-  }
+  })()
 }
 
 function submitSearch() {
-  loadPlaces({ reset: true })
+  return loadPlaces({ reset: true })
 }
 
 function selectSourceFilter(value) {
   claimedFilter.value = value
-  loadPlaces({ reset: true })
+  return loadPlaces({ reset: true })
 }
 
 function toggleCategory(code) {
   categoryCodes.value = categoryCodes.value.includes(code)
     ? categoryCodes.value.filter((item) => item !== code)
     : [...categoryCodes.value, code]
-  loadPlaces({ reset: true })
+  return loadPlaces({ reset: true })
 }
 
 function clearConditions() {
   keyword.value = ''
   claimedFilter.value = 'all'
   categoryCodes.value = []
-  loadPlaces({ reset: true })
+  return loadPlaces({ reset: true })
 }
 
 function handlePlaceSelect(place) {
@@ -300,6 +315,10 @@ function promptNavigationFeedback() {
 
 async function submitLocationCorrection(objectId) {
   if (!requireLogin()) return
+  if (navigationCorrectionBusy.value) return
+  // 导航返回后的纠错没有页面按钮承载状态，使用局部遮罩明确反馈并阻止重复提交。
+  navigationCorrectionBusy.value = true
+  uni.showLoading({ title: '提交中', mask: true })
   try {
     await submitMapLocationCorrection(objectId, {
       reasonCode: 'navigation_inaccurate',
@@ -308,6 +327,9 @@ async function submitLocationCorrection(objectId) {
     uni.showToast({ title: '反馈已提交', icon: 'none' })
   } catch (err) {
     uni.showToast({ title: err.message || '反馈提交失败，请重试', icon: 'none' })
+  } finally {
+    uni.hideLoading()
+    navigationCorrectionBusy.value = false
   }
 }
 
