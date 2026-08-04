@@ -180,9 +180,15 @@ test('resource detail groups low-frequency contact actions behind more sheet', (
   assert.match(source, /const showContactMoreSheet = ref\(false\)/)
   assert.match(source, /<view v-if="showContactMoreSheet" class="sheet-mask" @click="closeContactMoreSheet">/)
   assert.match(source, /<text class="sheet-desc">收藏、分享给同行或反馈问题资源。<\/text>/)
-  assert.match(source, /<button class="management-action" @click="favoriteResourceFromMore">\{\{ favorited \? '取消收藏' : '收藏' \}\}<\/button>/)
-  assert.match(source, /<button class="management-action primary" open-type="share" @click="shareResourceFromMore">分享给朋友<\/button>/)
-  assert.match(source, /<button class="management-action danger" @click="reportResourceFromMore">举报<\/button>/)
+  assert.match(source, /<button class="management-action" @click="favoriteResourceFromMore">[\s\S]*bookmark\.svg[\s\S]*\{\{ favorited \? '取消收藏' : '收藏' \}\}[\s\S]*<\/button>/)
+  assert.match(source, /<button class="management-action" open-type="share" @click="shareResourceFromMore">[\s\S]*share\.svg[\s\S]*分享给朋友[\s\S]*<\/button>/)
+  assert.match(source, /<button class="management-action danger" @click="reportResourceFromMore">[\s\S]*report\.svg[\s\S]*举报[\s\S]*<\/button>/)
+  assert.match(source, /\{ key: 'edit', label: '编辑', icon: actionIconPaths\.edit \}/)
+  assert.match(source, /\{ key: 'repost', label: '再发类似', icon: actionIconPaths\.repost \}/)
+  assert.match(source, /\{ key: 'delete', label: '删除', icon: actionIconPaths\.delete, danger: true \}/)
+  assert.match(source, /\{ key: 'refresh', label: '刷新', icon: actionIconPaths\.refresh \}/)
+  assert.match(source, /\{ key: 'top', label: '置顶', icon: actionIconPaths\.top \}/)
+  assert.match(source, /\{ key: 'take-down', label: '下架', icon: actionIconPaths\.takeDown, danger: true \}/)
   assert.match(source, /async function favoriteResourceFromMore\(\) \{[\s\S]*const success = await toggleFavorite\(\)[\s\S]*if \(success\) closeContactMoreSheet\(\)[\s\S]*\}/)
   assert.match(source, /async function shareResourceFromMore\(\) \{[\s\S]*await shareResource\(\)[\s\S]*closeContactMoreSheet\(\)[\s\S]*\}/)
   assert.match(source, /async function reportResourceFromMore\(\) \{[\s\S]*closeContactMoreSheet\(\)[\s\S]*openResourceReportPage\(\)[\s\S]*\}/)
@@ -195,6 +201,14 @@ test('resource detail groups low-frequency contact actions behind more sheet', (
   assert.equal(contactBar.includes('reportCurrentResource'), false)
   assert.match(source, /grid-template-columns: 104rpx minmax\(0, 1fr\) minmax\(0, 1\.35fr\);/)
   assert.equal(source.includes('grid-template-columns: repeat(4, 1fr);'), false)
+})
+
+test('resource detail action icons are bundled local svg assets', () => {
+  for (const name of ['bookmark', 'share', 'report', 'edit', 'refresh', 'top', 'take-down', 'repost', 'delete']) {
+    const icon = fs.readFileSync(path.join(root, 'static/action-icons', `${name}.svg`), 'utf8')
+    assert.match(icon, /<svg/)
+    assert.match(icon, /viewBox="0 0 24 24"/)
+  }
 })
 
 test('resource detail renders related resources with the market feed card variant', () => {

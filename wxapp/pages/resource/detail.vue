@@ -125,10 +125,13 @@
             <button
               v-for="action in managementActions"
               :key="action.key"
-              :class="['management-action', action.primary ? 'primary' : '', action.danger ? 'danger' : '']"
+              :class="['management-action', action.danger ? 'danger' : '']"
               @click="handleManagementAction(action.key)"
             >
-              {{ action.label }}
+              <view class="action-icon-wrap">
+                <image class="action-icon" :src="action.icon" mode="aspectFit" />
+              </view>
+              <text class="action-label">{{ action.label }}</text>
             </button>
           </view>
           <text v-else class="empty-management">暂无可操作功能</text>
@@ -145,9 +148,24 @@
             <button class="sheet-close" @click="closeContactMoreSheet">关闭</button>
           </view>
           <view class="management-actions">
-            <button class="management-action" @click="favoriteResourceFromMore">{{ favorited ? '取消收藏' : '收藏' }}</button>
-            <button class="management-action primary" open-type="share" @click="shareResourceFromMore">分享给朋友</button>
-            <button class="management-action danger" @click="reportResourceFromMore">举报</button>
+            <button class="management-action" @click="favoriteResourceFromMore">
+              <view class="action-icon-wrap">
+                <image class="action-icon" src="/static/action-icons/bookmark.svg" mode="aspectFit" />
+              </view>
+              <text class="action-label">{{ favorited ? '取消收藏' : '收藏' }}</text>
+            </button>
+            <button class="management-action" open-type="share" @click="shareResourceFromMore">
+              <view class="action-icon-wrap">
+                <image class="action-icon" src="/static/action-icons/share.svg" mode="aspectFit" />
+              </view>
+              <text class="action-label">分享给朋友</text>
+            </button>
+            <button class="management-action danger" @click="reportResourceFromMore">
+              <view class="action-icon-wrap">
+                <image class="action-icon" src="/static/action-icons/report.svg" mode="aspectFit" />
+              </view>
+              <text class="action-label">举报</text>
+            </button>
           </view>
         </view>
       </view>
@@ -347,6 +365,14 @@ const isExpiredResource = computed(() => {
 const isDealtResource = computed(() => resource.value.status === 'dealt' || Boolean(resource.value.dealtAt))
 const canShareOwnResource = computed(() => resource.value.status === 'published' && !isExpiredResource.value && !resource.value.dealtAt)
 const managementTitle = computed(() => statusText[resource.value.status] || `${resourceNoun.value}管理`)
+const actionIconPaths = {
+  edit: '/static/action-icons/edit.svg',
+  repost: '/static/action-icons/repost.svg',
+  delete: '/static/action-icons/delete.svg',
+  refresh: '/static/action-icons/refresh.svg',
+  top: '/static/action-icons/top.svg',
+  takeDown: '/static/action-icons/take-down.svg',
+}
 const managementNotice = computed(() => {
   if (resource.value.status === 'pending') return `${resourceNoun.value}正在自动安全检测，检测通过后会公开展示。当前暂不能刷新、下架或分享。`
   if (resource.value.status === 'audit_retry') return '系统正在自动重试安全检测，请稍后查看结果。当前暂不能刷新、下架或分享。'
@@ -361,22 +387,22 @@ const managementNotice = computed(() => {
 const managementActions = computed(() => {
   if (isContentAuditStatus(resource.value.status)) return []
   if (resource.value.status === 'draft' || resource.value.status === 'rejected') {
-    return [{ key: 'edit', label: '编辑', primary: true }]
+    return [{ key: 'edit', label: '编辑', icon: actionIconPaths.edit }]
   }
   if (resource.value.status === 'taken_down') {
     return [
-      { key: 'repost', label: '再发类似', primary: true },
-      { key: 'delete', label: '删除', danger: true },
+      { key: 'repost', label: '再发类似', icon: actionIconPaths.repost },
+      { key: 'delete', label: '删除', icon: actionIconPaths.delete, danger: true },
     ]
   }
   if (isExpiredResource.value || isDealtResource.value) {
-    return [{ key: 'repost', label: '再发类似', primary: true }]
+    return [{ key: 'repost', label: '再发类似', icon: actionIconPaths.repost }]
   }
   if (resource.value.status === 'published') {
     return [
-      { key: 'refresh', label: '刷新', primary: true },
-      { key: 'top', label: '置顶', primary: true },
-      { key: 'take-down', label: '下架', danger: true },
+      { key: 'refresh', label: '刷新', icon: actionIconPaths.refresh },
+      { key: 'top', label: '置顶', icon: actionIconPaths.top },
+      { key: 'take-down', label: '下架', icon: actionIconPaths.takeDown, danger: true },
     ]
   }
   return []
