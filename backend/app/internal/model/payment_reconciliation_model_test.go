@@ -19,7 +19,7 @@ func TestPaymentReconciliationModelListsOnlyActivePaymentBusinessOrders(t *testi
 	defer db.Close()
 
 	// 认证支付已下线；补偿查询只能扫描仍在线的联系方式解锁和 VIP 订单。
-	mock.ExpectQuery(`(?s)SELECT business_type, business_order_id, out_trade_no, amount_total, created_at, expires_at\s+FROM \(\s+SELECT\s+'contact_unlock'::text`).
+	mock.ExpectQuery(`(?s)SELECT business_type, business_order_id, out_trade_no, amount_total, created_at, expires_at\s+FROM \(\s+SELECT\s+'contact_unlock'::text AS business_type,\s+id::text AS business_order_id,\s+out_trade_no,\s+price_cent::bigint AS amount_total,\s+created_at,\s+expires_at`).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"business_type", "business_order_id", "out_trade_no", "amount_total", "created_at", "expires_at",
 		}))

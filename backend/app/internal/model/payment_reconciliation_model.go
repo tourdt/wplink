@@ -38,10 +38,10 @@ func (m *PaymentReconciliationModel) ListPendingPaymentOrders(ctx context.Contex
 SELECT business_type, business_order_id, out_trade_no, amount_total, created_at, expires_at
 FROM (
   SELECT
-    'contact_unlock'::text,
-    id::text,
+    'contact_unlock'::text AS business_type,
+    id::text AS business_order_id,
     out_trade_no,
-    price_cent::bigint,
+    price_cent::bigint AS amount_total,
     created_at,
     expires_at
   FROM resource_contact_unlock_orders
