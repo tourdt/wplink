@@ -40,14 +40,18 @@
             'benefit-stat-empty': entitlementQuotaReady && publishQuotaRemaining === 0,
           }"
         >
-          <text class="benefit-label">可发布</text>
+          <view class="benefit-stat-head">
+            <text class="benefit-label">可发布</text>
+            <text
+              v-if="entitlementQuotaReady"
+              class="quota-purchase-action"
+              @click="openQuotaPurchase(QUOTA_TYPE_PUBLISH)"
+            >{{ publishQuotaRemaining === 0 ? '购买 ›' : '补充 ›' }}</text>
+          </view>
           <view class="benefit-value-row">
             <text class="benefit-value">{{ publishQuotaDisplay }}</text>
             <text v-if="entitlementQuotaReady" class="benefit-unit">次</text>
           </view>
-          <text v-if="entitlementQuotaReady && publishQuotaRemaining === 0" class="quota-purchase-action" @click="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">购买发布次数 ›</text>
-          <text v-else-if="entitlementQuotaReady && publishQuotaLow" class="quota-purchase-action quota-purchase-low" @click="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">即将用完 · 去补充 ›</text>
-          <text v-else-if="entitlementQuotaReady" class="benefit-status">可正常使用</text>
         </view>
         <view
           class="benefit-stat"
@@ -56,14 +60,18 @@
             'benefit-stat-empty': entitlementQuotaReady && refreshQuotaRemaining === 0,
           }"
         >
-          <text class="benefit-label">可刷新</text>
+          <view class="benefit-stat-head">
+            <text class="benefit-label">可刷新</text>
+            <text
+              v-if="entitlementQuotaReady"
+              class="quota-purchase-action"
+              @click="openQuotaPurchase(QUOTA_TYPE_REFRESH)"
+            >{{ refreshQuotaRemaining === 0 ? '购买 ›' : '补充 ›' }}</text>
+          </view>
           <view class="benefit-value-row">
             <text class="benefit-value">{{ refreshQuotaDisplay }}</text>
             <text v-if="entitlementQuotaReady" class="benefit-unit">次</text>
           </view>
-          <text v-if="entitlementQuotaReady && refreshQuotaRemaining === 0" class="quota-purchase-action" @click="openQuotaPurchase(QUOTA_TYPE_REFRESH)">购买刷新次数 ›</text>
-          <text v-else-if="entitlementQuotaReady && refreshQuotaLow" class="quota-purchase-action quota-purchase-low" @click="openQuotaPurchase(QUOTA_TYPE_REFRESH)">即将用完 · 去补充 ›</text>
-          <text v-else-if="entitlementQuotaReady" class="benefit-status">可正常使用</text>
         </view>
       </view>
       <view v-if="activeGrowthCampaign.code" class="benefit-growth-banner">
