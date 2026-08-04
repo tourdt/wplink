@@ -303,6 +303,28 @@ test('VIP failures, payment cancellation and quota-pack duplicates restore their
   assert.equal(quotaToasts.at(-1)?.title, '用户取消支付', 'cancelled quota payment should preserve the friendly error')
 })
 
+test('paid VIP orders refresh benefits, keep the success feedback and clear paying', async () => {
+  const toasts = []
+  let planRefreshes = 0
+  let quotaPackRefreshes = 0
+  const page = loadPage('pages/vip/index.vue', {
+    requireLogin: () => true, getSession: () => ({ merchantId: '' }),
+    createVIPOrder: async () => ({ orderId: 'paid-order-1' }), createQuotaPackOrder: async () => ({}),
+    createVIPPayment: async () => ({ status: 'paid' }),
+    listVIPPlans: async () => { planRefreshes += 1; return { items: [] } },
+    listQuotaPacks: async () => { quotaPackRefreshes += 1; return { items: [] } },
+    uni: { showToast: (options) => toasts.push(options), requestPayment: () => {}, redirectTo: () => {}, switchTab: () => {} },
+  }, ['merchantId', 'paying', 'openSelectedPlan'])
+  page.merchantId.value = 'merchant-1'
+
+  await page.openSelectedPlan()
+
+  assert.equal(planRefreshes, 1, 'paid VIP order should refresh VIP plans')
+  assert.equal(quotaPackRefreshes, 1, 'paid VIP order should refresh quota packs')
+  assert.equal(toasts.at(-1)?.title, '支付已完成，权益到账后会自动更新', 'paid VIP order should keep the success feedback')
+  assert.equal(page.paying.value, false, 'paid VIP order should clear paying')
+})
+
 test('map request entry points reject duplicate programmatic loading', async () => {
   const placesRequest = deferred()
   let placeCalls = 0
