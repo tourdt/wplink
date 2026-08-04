@@ -47,6 +47,23 @@ func TestContentAuditRetryTaskReturnsClaimFailure(t *testing.T) {
 	}
 }
 
+func TestContentAuditRetryTaskReturnsCanceledWhenClaimReturnsEmptyAfterCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	store := &fakeContentAuditRetryStore{
+		staleCount: 2,
+		onClaim:    cancel,
+	}
+	task := NewContentAuditRetryTask(store, &fakeContentAuditRetryAuditor{}, 20, 3, "api-a", 2*time.Minute)
+
+	result, err := task.Run(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("领取返回空集合时仍应感知 context 取消: %v", err)
+	}
+	if result.StaleCount != 2 || result.RetriedCount != 0 || result.ManualReviewCount != 0 {
+		t.Fatalf("取消时应保留已完成的过期任务统计: %+v", result)
+	}
+}
+
 func TestContentAuditRetryTaskContinuesAfterSingleLeaseLost(t *testing.T) {
 	oldGuard := model.ResourceAuditGuard{ResourceID: "resource-old", ProcessingBy: "api-a"}
 	validGuard := model.ResourceAuditGuard{ResourceID: "resource-valid", ProcessingBy: "api-a"}
@@ -160,6 +177,7 @@ type fakeContentAuditRetryStore struct {
 	claimMaxRetries       int64
 	claimProcessingBy     string
 	claimLeaseDuration    time.Duration
+	onClaim               func()
 	snapshots             map[model.ResourceAuditGuard]model.ResourceAuditSnapshot
 	snapshotErrors        map[model.ResourceAuditGuard]error
 	snapshotCalls         int
@@ -176,6 +194,9 @@ func (s *fakeContentAuditRetryStore) ClaimDueResourceAuditRetries(_ context.Cont
 	s.claimMaxRetries = maxRetries
 	s.claimProcessingBy = processingBy
 	s.claimLeaseDuration = leaseDuration
+	if s.onClaim != nil {
+		s.onClaim()
+	}
 	return append([]model.ResourceAuditRetryClaim(nil), s.claims...), s.claimErr
 }
 

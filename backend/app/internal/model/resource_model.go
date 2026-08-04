@@ -1066,6 +1066,62 @@ RETURNING audit_retry_count
 	return retryCount, err
 }
 
+// MarkResourceAuditRetryAfterMediaAudit 仅允许当前任务集中的 failed trace 把资源转入重试。
+// 它与媒体发布/驳回使用相同锁序，避免旧失败回调跨过新租约的任务重建。
+func (m *ResourceModel) MarkResourceAuditRetryAfterMediaAudit(ctx context.Context, resourceID string, traceID string, reason string) (int64, error) {
+	var retryCount int64
+	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		var locked int
+		if err := tx.QueryRowContext(ctx, `
+SELECT 1
+FROM resources
+WHERE id = $1
+  AND status = 'pending'
+  AND deleted_at IS NULL
+FOR UPDATE
+`, resourceID).Scan(&locked); err != nil {
+			return err
+		}
+
+		// 资源行锁获取后用新语句快照校验 trace，确保看到等待期间已提交的任务重建。
+		var valid int
+		if err := tx.QueryRowContext(ctx, `
+SELECT 1
+WHERE EXISTS (
+  SELECT 1
+  FROM resource_content_audit_tasks current_task
+  WHERE current_task.resource_id = $1
+    AND current_task.trace_id = $2
+    AND current_task.status = 'failed'
+)
+`, resourceID, traceID).Scan(&valid); err != nil {
+			return err
+		}
+
+		// 最终写入再携带 trace guard，防止不遵循资源锁序的其他任务写入在校验后替换任务集。
+		return tx.QueryRowContext(ctx, `
+UPDATE resources
+SET
+  status = 'audit_retry',
+  audit_retry_at = now() + make_interval(secs => LEAST((30 * power(2, audit_retry_count))::int, 1800)),
+  audit_last_error = NULLIF($3, ''),
+  updated_at = now()
+WHERE id = $1
+  AND status = 'pending'
+  AND deleted_at IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM resource_content_audit_tasks current_task
+    WHERE current_task.resource_id = resources.id
+      AND current_task.trace_id = $2
+      AND current_task.status = 'failed'
+  )
+RETURNING audit_retry_count
+`, resourceID, traceID, reason).Scan(&retryCount)
+	})
+	return retryCount, err
+}
+
 func (m *ResourceModel) MarkLeasedResourceAuditRetry(ctx context.Context, guard ResourceAuditGuard, reason string) (int64, error) {
 	var retryCount int64
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
@@ -1380,6 +1436,48 @@ FOR UPDATE
 	return m.publishResourceAfterAudit(ctx, resourceID, lock, write)
 }
 
+// PublishResourceAfterMediaAudit 仅允许当前这一代图片审核任务触发发布。
+//
+// 资源行锁与任务校验必须拆成两条 SQL：先等待可能正在重建任务的新租约事务提交，
+// 再以新语句快照确认 trace 仍属于当前任务集。否则旧回调可能误发布新一代审核任务。
+func (m *ResourceModel) PublishResourceAfterMediaAudit(ctx context.Context, resourceID string, traceID string) (ReviewResourceResult, error) {
+	lock := func(ctx context.Context, tx *sql.Tx) (resourceAuditPublishSource, error) {
+		var source resourceAuditPublishSource
+		if err := tx.QueryRowContext(ctx, `
+SELECT r.merchant_id::text, r.title, r.resource_type_snapshot -> 'commercialRules'
+FROM resources r
+WHERE r.id = $1
+  AND r.status = 'pending'
+  AND r.deleted_at IS NULL
+FOR UPDATE
+`, resourceID).Scan(&source.MerchantID, &source.Title, &source.CommercialRules); err != nil {
+			return resourceAuditPublishSource{}, err
+		}
+		var valid int
+		err := tx.QueryRowContext(ctx, `
+SELECT 1
+WHERE EXISTS (
+  SELECT 1
+  FROM resource_content_audit_tasks current_task
+  WHERE current_task.resource_id = $1
+    AND current_task.trace_id = $2
+    AND current_task.status = 'pass'
+)
+AND NOT EXISTS (
+  SELECT 1
+  FROM resource_content_audit_tasks unfinished_task
+  WHERE unfinished_task.resource_id = $1
+    AND unfinished_task.status IN ('pending', 'rejected', 'failed')
+)
+`, resourceID, traceID).Scan(&valid)
+		return source, err
+	}
+	write := func(ctx context.Context, tx *sql.Tx, now time.Time, result *ReviewResourceResult) error {
+		return tx.QueryRowContext(ctx, publishResourceAfterAuditSQL, resourceID, now).Scan(&result.ID, &result.Status)
+	}
+	return m.publishResourceAfterAudit(ctx, resourceID, lock, write)
+}
+
 func (m *ResourceModel) PublishLeasedResourceAfterAudit(ctx context.Context, guard ResourceAuditGuard) (ReviewResourceResult, error) {
 	lock := func(ctx context.Context, tx *sql.Tx) (resourceAuditPublishSource, error) {
 		var source resourceAuditPublishSource
@@ -1458,6 +1556,48 @@ WHERE r.id = $1
   AND r.deleted_at IS NULL
 FOR UPDATE
 `, resourceID).Scan(&source.MerchantID, &source.Title)
+		return source, err
+	}
+	write := func(ctx context.Context, tx *sql.Tx, result *ReviewResourceResult) error {
+		return tx.QueryRowContext(ctx, `
+UPDATE resources
+SET status = 'rejected', reject_reason = $2, updated_at = now()
+WHERE id = $1
+  AND status = 'pending'
+  AND deleted_at IS NULL
+RETURNING id::text, status
+`, resourceID, reason).Scan(&result.ID, &result.Status)
+	}
+	return m.rejectResourceAfterAudit(ctx, resourceID, reason, lock, write)
+}
+
+// RejectResourceAfterMediaAudit 在资源行锁内校验未通过回调的 trace 仍属于当前任务集。
+// 如果租约重试已重建任务，旧 trace 会消失，此时返回 sql.ErrNoRows 并保持新一代资源状态不变。
+func (m *ResourceModel) RejectResourceAfterMediaAudit(ctx context.Context, resourceID string, traceID string, reason string) (ReviewResourceResult, error) {
+	lock := func(ctx context.Context, tx *sql.Tx) (resourceAuditRejectSource, error) {
+		var source resourceAuditRejectSource
+		if err := tx.QueryRowContext(ctx, `
+SELECT r.merchant_id::text, r.title
+FROM resources r
+WHERE r.id = $1
+  AND r.status = 'pending'
+  AND r.deleted_at IS NULL
+FOR UPDATE
+`, resourceID).Scan(&source.MerchantID, &source.Title); err != nil {
+			return resourceAuditRejectSource{}, err
+		}
+		var valid int
+		err := tx.QueryRowContext(ctx, `
+SELECT 1
+WHERE EXISTS (
+  SELECT 1
+  FROM resource_content_audit_tasks current_task
+  WHERE current_task.resource_id = $1
+    AND current_task.trace_id = $2
+    -- risky 回调直接驳回；pass 回调在额度不足或分类禁发时也需要政策性驳回。
+    AND current_task.status IN ('pass', 'rejected')
+)
+`, resourceID, traceID).Scan(&valid)
 		return source, err
 	}
 	write := func(ctx context.Context, tx *sql.Tx, result *ReviewResourceResult) error {

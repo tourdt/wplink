@@ -347,6 +347,8 @@ func TestSubmitResourceForReviewLocksSnapshotCommercialRules(t *testing.T) {
 	}
 }
 
+const claimDueResourceAuditRetriesFullCasePattern = `(?s)WITH candidates AS \(.*WHERE status = 'audit_retry'\s+AND audit_retry_at <= NOW\(\)\s+AND \(audit_lease_until IS NULL OR audit_lease_until <= NOW\(\)\).*FOR UPDATE SKIP LOCKED.*UPDATE resources r\s+SET\s+status = CASE WHEN r\.audit_retry_count >= \$2 THEN 'manual_review' ELSE 'audit_retry' END,\s+audit_processing_by = CASE WHEN r\.audit_retry_count >= \$2 THEN NULL ELSE \$3 END,\s+audit_lease_until = CASE\s+WHEN r\.audit_retry_count >= \$2 THEN NULL\s+ELSE NOW\(\) \+ \(\$4 \* INTERVAL '1 millisecond'\)\s+END,\s+audit_retry_count = CASE WHEN r\.audit_retry_count >= \$2 THEN r\.audit_retry_count ELSE r\.audit_retry_count \+ 1 END,\s+audit_retry_at = CASE WHEN r\.audit_retry_count >= \$2 THEN NULL ELSE r\.audit_retry_at END,.*COALESCE\(audit_processing_by, ''\)`
+
 func TestClaimDueResourceAuditRetriesSetsLeaseWithoutChangingStatus(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	if err != nil {
@@ -354,7 +356,7 @@ func TestClaimDueResourceAuditRetriesSetsLeaseWithoutChangingStatus(t *testing.T
 	}
 	defer db.Close()
 
-	mock.ExpectQuery(`(?s)WITH candidates AS \(.*WHERE status = 'audit_retry'\s+AND audit_retry_at <= NOW\(\)\s+AND \(audit_lease_until IS NULL OR audit_lease_until <= NOW\(\)\).*FOR UPDATE SKIP LOCKED.*status = CASE WHEN .*audit_retry_count >= \$2 THEN 'manual_review' ELSE 'audit_retry' END.*audit_processing_by = CASE.*>= \$2 THEN NULL ELSE \$3 END.*audit_lease_until = CASE.*NOW\(\) \+ \(\$4 \* INTERVAL '1 millisecond'\).*COALESCE\(audit_processing_by, ''\)`).
+	mock.ExpectQuery(claimDueResourceAuditRetriesFullCasePattern).
 		WithArgs(int64(20), int64(3), "api-a", int64(120000)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "audit_retry_count", "manual_review", "audit_processing_by"}).
 			AddRow("resource-1", int64(1), false, "api-a"))
@@ -447,7 +449,7 @@ func TestClaimDueResourceAuditRetriesMovesMaxedClaimToManualReviewWithoutLease(t
 	}
 	defer db.Close()
 
-	mock.ExpectQuery(`(?s)WITH candidates AS .*UPDATE resources.*SELECT id, audit_retry_count, status = 'manual_review', COALESCE\(audit_processing_by, ''\)`).
+	mock.ExpectQuery(claimDueResourceAuditRetriesFullCasePattern).
 		WithArgs(int64(20), int64(5), "api-a", int64(120000)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "audit_retry_count", "manual_review", "audit_processing_by"}).
 			AddRow("resource-manual", int64(5), true, ""))
@@ -575,6 +577,201 @@ func TestCreateLeasedResourceContentAuditTasksReturnsLeaseLostWhenFinalGuardUpda
 	assertResourceModelSQLExpectations(t, mock)
 }
 
+func TestPublishResourceAfterMediaAuditLocksResourceBeforeValidatingCurrentTrace(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	resourceID := "resource-1"
+	traceID := "trace-current"
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT r.merchant_id::text, r.title, r.resource_type_snapshot -> 'commercialRules'.*WHERE r.id = \$1\s+AND r.status = 'pending'.*FOR UPDATE`).
+		WithArgs(resourceID).
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_id", "title", "commercial_rules"}).
+			AddRow("merchant-1", "测试资源", []byte(`{"publish":{"mode":"free"}}`)))
+	mock.ExpectQuery(`(?s)SELECT 1\s+WHERE EXISTS \(.*resource_id = \$1.*trace_id = \$2.*status = 'pass'.*\)\s+AND NOT EXISTS \(.*resource_id = \$1.*status IN \('pending', 'rejected', 'failed'\).*\)`).
+		WithArgs(resourceID, traceID).
+		WillReturnRows(sqlmock.NewRows([]string{"valid"}).AddRow(1))
+	mock.ExpectQuery(`(?s)UPDATE resources\s+SET\s+status = 'published'.*WHERE resources.id = \$1\s+AND resources.status = 'pending'`).
+		WithArgs(resourceID, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow(resourceID, ResourceStatusPublished))
+	mock.ExpectExec(`(?s)INSERT INTO messages .*resource_auto_approve`).
+		WithArgs("merchant:merchant-1", resourceID, "测试资源 已通过内容审核并公开展示", MerchantMyResourcesTargetURL("merchant-1")).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	result, err := NewResourceModel(db).PublishResourceAfterMediaAudit(context.Background(), resourceID, traceID)
+	if err != nil {
+		t.Fatalf("当前图片审核任务发布资源失败: %v", err)
+	}
+	if result.ID != resourceID || result.Status != ResourceStatusPublished {
+		t.Fatalf("发布结果错误: %+v", result)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
+func TestPublishResourceAfterMediaAuditRejectsTraceRemovedByNewGeneration(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	resourceID := "resource-1"
+	traceID := "trace-old"
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT r.merchant_id::text, r.title, r.resource_type_snapshot -> 'commercialRules'.*WHERE r.id = \$1\s+AND r.status = 'pending'.*FOR UPDATE`).
+		WithArgs(resourceID).
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_id", "title", "commercial_rules"}).
+			AddRow("merchant-1", "测试资源", []byte(`{"publish":{"mode":"free"}}`)))
+	mock.ExpectQuery(`(?s)SELECT 1\s+WHERE EXISTS \(.*resource_id = \$1.*trace_id = \$2.*status = 'pass'.*\)\s+AND NOT EXISTS \(.*resource_id = \$1.*status IN \('pending', 'rejected', 'failed'\).*\)`).
+		WithArgs(resourceID, traceID).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectRollback()
+
+	_, err = NewResourceModel(db).PublishResourceAfterMediaAudit(context.Background(), resourceID, traceID)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("新一代任务已删除旧 trace 时应保持资源状态不变: %v", err)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
+func TestRejectResourceAfterMediaAuditLocksResourceBeforeValidatingCurrentTrace(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	resourceID := "resource-1"
+	traceID := "trace-current"
+	reason := "命中风险"
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT r.merchant_id::text, r.title\s+FROM resources r.*WHERE r.id = \$1\s+AND r.status = 'pending'.*FOR UPDATE`).
+		WithArgs(resourceID).
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_id", "title"}).AddRow("merchant-1", "测试资源"))
+	mock.ExpectQuery(`(?s)SELECT 1\s+WHERE EXISTS \(.*resource_id = \$1.*trace_id = \$2.*status IN \('pass', 'rejected'\).*\)`).
+		WithArgs(resourceID, traceID).
+		WillReturnRows(sqlmock.NewRows([]string{"valid"}).AddRow(1))
+	mock.ExpectQuery(`(?s)UPDATE resources\s+SET status = 'rejected', reject_reason = \$2.*WHERE id = \$1\s+AND status = 'pending'.*RETURNING id::text, status`).
+		WithArgs(resourceID, reason).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow(resourceID, ResourceStatusRejected))
+	mock.ExpectExec(`(?s)INSERT INTO messages .*resource_auto_reject`).
+		WithArgs("merchant:merchant-1", resourceID, "测试资源 "+reason, MerchantMyResourcesTargetURL("merchant-1")).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	result, err := NewResourceModel(db).RejectResourceAfterMediaAudit(context.Background(), resourceID, traceID, reason)
+	if err != nil {
+		t.Fatalf("当前图片审核任务驳回资源失败: %v", err)
+	}
+	if result.ID != resourceID || result.Status != ResourceStatusRejected {
+		t.Fatalf("驳回结果错误: %+v", result)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
+func TestRejectResourceAfterMediaAuditRejectsTraceRemovedByNewGeneration(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	resourceID := "resource-1"
+	traceID := "trace-old"
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT r.merchant_id::text, r.title\s+FROM resources r.*WHERE r.id = \$1\s+AND r.status = 'pending'.*FOR UPDATE`).
+		WithArgs(resourceID).
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_id", "title"}).AddRow("merchant-1", "测试资源"))
+	mock.ExpectQuery(`(?s)SELECT 1\s+WHERE EXISTS \(.*resource_id = \$1.*trace_id = \$2.*status IN \('pass', 'rejected'\).*\)`).
+		WithArgs(resourceID, traceID).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectRollback()
+
+	_, err = NewResourceModel(db).RejectResourceAfterMediaAudit(context.Background(), resourceID, traceID, "命中风险")
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("新一代任务已删除旧 trace 时应保持资源状态不变: %v", err)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
+func TestMarkResourceAuditRetryAfterMediaAuditLocksResourceAndValidatesFailedTrace(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	resourceID := "resource-1"
+	traceID := "trace-current"
+	reason := "微信审核服务超时"
+	mock.ExpectBegin()
+	expectPendingMediaAuditResourceLock(mock, resourceID)
+	expectCurrentFailedMediaAuditTrace(mock, resourceID, traceID, true)
+	mock.ExpectQuery(`(?s)UPDATE resources\s+SET\s+status = 'audit_retry',.*WHERE id = \$1\s+AND status = 'pending'.*EXISTS \(.*resource_id = resources.id.*trace_id = \$2.*status = 'failed'.*\).*RETURNING audit_retry_count`).
+		WithArgs(resourceID, traceID, reason).
+		WillReturnRows(sqlmock.NewRows([]string{"audit_retry_count"}).AddRow(int64(2)))
+	mock.ExpectCommit()
+
+	retryCount, err := NewResourceModel(db).MarkResourceAuditRetryAfterMediaAudit(context.Background(), resourceID, traceID, reason)
+	if err != nil {
+		t.Fatalf("当前失败图片审核任务进入重试失败: %v", err)
+	}
+	if retryCount != 2 {
+		t.Fatalf("重试次数错误: got=%d want=2", retryCount)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
+func TestMarkResourceAuditRetryAfterMediaAuditRejectsTraceRemovedByNewGeneration(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	resourceID := "resource-1"
+	traceID := "trace-old"
+	mock.ExpectBegin()
+	expectPendingMediaAuditResourceLock(mock, resourceID)
+	expectCurrentFailedMediaAuditTrace(mock, resourceID, traceID, false)
+	mock.ExpectRollback()
+
+	_, err = NewResourceModel(db).MarkResourceAuditRetryAfterMediaAudit(context.Background(), resourceID, traceID, "微信审核服务超时")
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("新一代任务已删除旧 failed trace 时应保持资源状态不变: %v", err)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
+func TestMarkResourceAuditRetryAfterMediaAuditRollsBackWhenFinalTraceGuardMisses(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	resourceID := "resource-1"
+	traceID := "trace-old"
+	reason := "微信审核服务超时"
+	mock.ExpectBegin()
+	expectPendingMediaAuditResourceLock(mock, resourceID)
+	expectCurrentFailedMediaAuditTrace(mock, resourceID, traceID, true)
+	mock.ExpectQuery(`(?s)UPDATE resources\s+SET\s+status = 'audit_retry',.*WHERE id = \$1\s+AND status = 'pending'.*trace_id = \$2.*status = 'failed'.*RETURNING audit_retry_count`).
+		WithArgs(resourceID, traceID, reason).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectRollback()
+
+	_, err = NewResourceModel(db).MarkResourceAuditRetryAfterMediaAudit(context.Background(), resourceID, traceID, reason)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("最终 trace guard 未命中时应回滚并保持资源状态不变: %v", err)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
 func TestPublishLeasedResourceAfterAuditClearsLease(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -627,6 +824,85 @@ func TestPublishLeasedResourceAfterAuditRejectsWrongOwner(t *testing.T) {
 	assertResourceModelSQLExpectations(t, mock)
 }
 
+func TestPublishLeasedResourceAfterAuditConsumesQuotaAndRecordsUsageInTransaction(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	guard := ResourceAuditGuard{ResourceID: "resource-1", ProcessingBy: "api-a"}
+	mock.ExpectBegin()
+	expectLeasedPublishSource(mock, guard, `{"publish":{"mode":"consume_quota"}}`)
+	expectPublishQuotaUsage(mock, "merchant-1", guard.ResourceID)
+	mock.ExpectQuery(`(?s)UPDATE resources\s+SET\s+status = 'published',.*audit_lease_until = NULL,\s+audit_processing_by = NULL,.*WHERE resources.id = \$1\s+AND resources.status = 'audit_retry'.*resources.audit_processing_by = \$3.*resources.audit_lease_until > NOW\(\)`).
+		WithArgs(guard.ResourceID, sqlmock.AnyArg(), guard.ProcessingBy).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow(guard.ResourceID, ResourceStatusPublished))
+	mock.ExpectExec(`(?s)INSERT INTO messages .*resource_auto_approve`).
+		WithArgs("merchant:merchant-1", guard.ResourceID, "测试资源 已通过内容审核并公开展示", MerchantMyResourcesTargetURL("merchant-1")).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	result, err := NewResourceModel(db).PublishLeasedResourceAfterAudit(context.Background(), guard)
+	if err != nil {
+		t.Fatalf("持有租约发布资源时消耗额度失败: %v", err)
+	}
+	if result.ID != guard.ResourceID || result.Status != ResourceStatusPublished {
+		t.Fatalf("发布结果错误: %+v", result)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
+func TestPublishLeasedResourceAfterAuditRollsBackWhenMessageInsertFails(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	guard := ResourceAuditGuard{ResourceID: "resource-1", ProcessingBy: "api-a"}
+	wantErr := errors.New("写入发布消息失败")
+	mock.ExpectBegin()
+	expectLeasedPublishSource(mock, guard, `{"publish":{"mode":"free"}}`)
+	mock.ExpectQuery(`(?s)UPDATE resources\s+SET\s+status = 'published'.*audit_lease_until = NULL,\s+audit_processing_by = NULL,.*resources.audit_processing_by = \$3.*resources.audit_lease_until > NOW\(\)`).
+		WithArgs(guard.ResourceID, sqlmock.AnyArg(), guard.ProcessingBy).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow(guard.ResourceID, ResourceStatusPublished))
+	mock.ExpectExec(`(?s)INSERT INTO messages .*resource_auto_approve`).
+		WithArgs("merchant:merchant-1", guard.ResourceID, "测试资源 已通过内容审核并公开展示", MerchantMyResourcesTargetURL("merchant-1")).
+		WillReturnError(wantErr)
+	mock.ExpectRollback()
+
+	_, err = NewResourceModel(db).PublishLeasedResourceAfterAudit(context.Background(), guard)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("发布消息写入失败应回滚资源状态: got=%v want=%v", err, wantErr)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
+func TestPublishLeasedResourceAfterAuditRollsBackQuotaWhenFinalGuardMisses(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	guard := ResourceAuditGuard{ResourceID: "resource-1", ProcessingBy: "api-a"}
+	mock.ExpectBegin()
+	expectLeasedPublishSource(mock, guard, `{"publish":{"mode":"consume_quota"}}`)
+	// 先消耗额度并记录用量，再模拟最终 guard 未命中，以验证所有前置写入都随事务回滚。
+	expectPublishQuotaUsage(mock, "merchant-1", guard.ResourceID)
+	mock.ExpectQuery(`(?s)UPDATE resources\s+SET\s+status = 'published'.*resources.audit_processing_by = \$3.*resources.audit_lease_until > NOW\(\)`).
+		WithArgs(guard.ResourceID, sqlmock.AnyArg(), guard.ProcessingBy).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectRollback()
+
+	_, err = NewResourceModel(db).PublishLeasedResourceAfterAudit(context.Background(), guard)
+	if !errors.Is(err, ErrResourceAuditLeaseLost) {
+		t.Fatalf("最终租约 guard 未命中应返回 ErrResourceAuditLeaseLost: %v", err)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
 func TestRejectLeasedResourceAfterAuditClearsLease(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -674,6 +950,56 @@ func TestRejectLeasedResourceAfterAuditRejectsExpiredLease(t *testing.T) {
 	_, err = NewResourceModel(db).RejectLeasedResourceAfterAudit(context.Background(), guard, "命中风险")
 	if !errors.Is(err, ErrResourceAuditLeaseLost) {
 		t.Fatalf("过期租约拒绝应返回 ErrResourceAuditLeaseLost: %v", err)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
+func TestRejectLeasedResourceAfterAuditRollsBackWhenMessageInsertFails(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	guard := ResourceAuditGuard{ResourceID: "resource-1", ProcessingBy: "api-a"}
+	reason := "命中风险"
+	wantErr := errors.New("写入驳回消息失败")
+	mock.ExpectBegin()
+	expectLeasedRejectSource(mock, guard)
+	mock.ExpectQuery(`(?s)UPDATE resources\s+SET status = 'rejected', reject_reason = \$3,.*audit_lease_until = NULL,\s+audit_processing_by = NULL,.*audit_processing_by = \$2.*audit_lease_until > NOW\(\)`).
+		WithArgs(guard.ResourceID, guard.ProcessingBy, reason).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow(guard.ResourceID, ResourceStatusRejected))
+	mock.ExpectExec(`(?s)INSERT INTO messages .*resource_auto_reject`).
+		WithArgs("merchant:merchant-1", guard.ResourceID, "测试资源 "+reason, MerchantMyResourcesTargetURL("merchant-1")).
+		WillReturnError(wantErr)
+	mock.ExpectRollback()
+
+	_, err = NewResourceModel(db).RejectLeasedResourceAfterAudit(context.Background(), guard, reason)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("驳回消息写入失败应回滚资源状态: got=%v want=%v", err, wantErr)
+	}
+	assertResourceModelSQLExpectations(t, mock)
+}
+
+func TestRejectLeasedResourceAfterAuditReturnsLeaseLostWhenFinalGuardMisses(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 sqlmock 失败: %v", err)
+	}
+	defer db.Close()
+
+	guard := ResourceAuditGuard{ResourceID: "resource-1", ProcessingBy: "api-a"}
+	reason := "命中风险"
+	mock.ExpectBegin()
+	expectLeasedRejectSource(mock, guard)
+	mock.ExpectQuery(`(?s)UPDATE resources\s+SET status = 'rejected', reject_reason = \$3,.*audit_processing_by = \$2.*audit_lease_until > NOW\(\)`).
+		WithArgs(guard.ResourceID, guard.ProcessingBy, reason).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectRollback()
+
+	_, err = NewResourceModel(db).RejectLeasedResourceAfterAudit(context.Background(), guard, reason)
+	if !errors.Is(err, ErrResourceAuditLeaseLost) {
+		t.Fatalf("最终租约 guard 未命中应返回 ErrResourceAuditLeaseLost: %v", err)
 	}
 	assertResourceModelSQLExpectations(t, mock)
 }
@@ -789,6 +1115,58 @@ func expectResourceAuditLeaseLock(mock sqlmock.Sqlmock, guard ResourceAuditGuard
 		WithArgs(guard.ResourceID, guard.ProcessingBy)
 	if held {
 		expectation.WillReturnRows(sqlmock.NewRows([]string{"lease_held"}).AddRow(1))
+		return
+	}
+	expectation.WillReturnError(sql.ErrNoRows)
+}
+
+func expectLeasedPublishSource(mock sqlmock.Sqlmock, guard ResourceAuditGuard, commercialRules string) {
+	mock.ExpectQuery(`(?s)SELECT r.merchant_id::text, r.title, r.resource_type_snapshot -> 'commercialRules'.*WHERE r.id = \$1\s+AND r.status = 'audit_retry'\s+AND r.audit_processing_by = \$2\s+AND r.audit_lease_until > NOW\(\).*FOR UPDATE`).
+		WithArgs(guard.ResourceID, guard.ProcessingBy).
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_id", "title", "commercial_rules"}).
+			AddRow("merchant-1", "测试资源", []byte(commercialRules)))
+}
+
+func expectPublishQuotaUsage(mock sqlmock.Sqlmock, merchantID string, resourceID string) {
+	mock.ExpectQuery(`(?s)SELECT\s+COALESCE\(profile_status, 'incomplete'\) AS profile_status,.*AS has_active_vip\s+FROM merchants\s+WHERE id = \$1.*FOR UPDATE`).
+		WithArgs(merchantID).
+		WillReturnRows(sqlmock.NewRows([]string{"profile_status", "has_active_vip"}).AddRow(MerchantProfileStatusCompleted, true))
+	mock.ExpectQuery(`(?s)UPDATE merchant_entitlements\s+SET used_amount = used_amount \+ 1,.*entitlement_type = 'publish_quota'.*RETURNING id::text, remaining_amount \+ 1, remaining_amount`).
+		WithArgs(merchantID).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "before_remaining_amount", "after_remaining_amount"}).
+			AddRow("entitlement-1", int64(3), int64(2)))
+	mock.ExpectExec(`(?s)INSERT INTO merchant_entitlement_usage_records .*VALUES`).
+		WithArgs(
+			"entitlement-1",
+			merchantID,
+			EntitlementTypePublishQuota,
+			ActionTypePublishResource,
+			int64(1),
+			resourceID,
+			int64(3),
+			int64(2),
+			sqlmock.AnyArg(),
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+}
+
+func expectLeasedRejectSource(mock sqlmock.Sqlmock, guard ResourceAuditGuard) {
+	mock.ExpectQuery(`(?s)SELECT r.merchant_id::text, r.title\s+FROM resources r.*WHERE r.id = \$1\s+AND r.status = 'audit_retry'\s+AND r.audit_processing_by = \$2\s+AND r.audit_lease_until > NOW\(\).*FOR UPDATE`).
+		WithArgs(guard.ResourceID, guard.ProcessingBy).
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_id", "title"}).AddRow("merchant-1", "测试资源"))
+}
+
+func expectPendingMediaAuditResourceLock(mock sqlmock.Sqlmock, resourceID string) {
+	mock.ExpectQuery(`(?s)SELECT 1\s+FROM resources\s+WHERE id = \$1\s+AND status = 'pending'\s+AND deleted_at IS NULL\s+FOR UPDATE`).
+		WithArgs(resourceID).
+		WillReturnRows(sqlmock.NewRows([]string{"resource_locked"}).AddRow(1))
+}
+
+func expectCurrentFailedMediaAuditTrace(mock sqlmock.Sqlmock, resourceID string, traceID string, exists bool) {
+	expectation := mock.ExpectQuery(`(?s)SELECT 1\s+WHERE EXISTS \(.*resource_id = \$1.*trace_id = \$2.*status = 'failed'.*\)`).
+		WithArgs(resourceID, traceID)
+	if exists {
+		expectation.WillReturnRows(sqlmock.NewRows([]string{"valid"}).AddRow(1))
 		return
 	}
 	expectation.WillReturnError(sql.ErrNoRows)

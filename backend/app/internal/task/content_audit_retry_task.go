@@ -76,6 +76,11 @@ func (t *ContentAuditRetryTask) Run(ctx context.Context) (ContentAuditRetryResul
 		return ContentAuditRetryResult{}, err
 	}
 	result := ContentAuditRetryResult{StaleCount: staleCount}
+	// SQL 驱动可能在 context 取消与空结果同时发生时只返回空 claim，
+	// 因此进入循环前必须再检查一次，避免把被取消的调度误报为成功。
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
 	for _, claim := range claims {
 		if err := ctx.Err(); err != nil {
 			return result, err
