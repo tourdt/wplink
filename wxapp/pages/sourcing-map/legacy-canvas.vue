@@ -353,6 +353,7 @@ let pendingCanvasRenderOptions = null
 // 点位加载和搜索/筛选可能并发，只应用最后一次请求，避免旧响应覆盖新结果。
 let objectRequestSeq = 0
 let visibleObjectRequestSeq = 0
+const pendingObjectRequests = new Map()
 
 const selectedSceneName = computed(() => selectedScene.value ? selectedScene.value.name : DEFAULT_SCENE_NAME)
 const selectedSceneBackground = computed(() => selectedScene.value ? selectedScene.value.backgroundUrl : '')
@@ -571,7 +572,7 @@ async function selectScene(scene) {
   resetCanvasGestureState()
   selectedScene.value = scene
   applySceneDefaultViewport(selectedScene.value)
-  await loadSceneObjects({ force: true })
+  await loadSceneObjects()
 }
 
 async function loadSceneObjects(options = {}) {
@@ -582,22 +583,38 @@ async function loadSceneObjects(options = {}) {
     return
   }
   const showLoading = !options.silent
-  if (showLoading && objectLoading.value && !options.force) return
+  const term = keyword.value.trim()
+  const query = term
+    ? {
+        ...buildObjectQueryParams(),
+        sceneCode: selectedSceneCode.value,
+        keyword: term,
+        limit: MAP_OBJECT_SEARCH_LIMIT,
+      }
+    : { sceneCode: selectedSceneCode.value }
+  // 对象请求签名只描述服务端查询身份；不同入口命中同一查询时复用网络 Promise，交互选项仍由最新版本消费者处理。
+  const signature = JSON.stringify({
+    mode: term ? 'search' : 'list',
+    sceneCode: selectedSceneCode.value,
+    keyword: term,
+    query,
+  })
+  let request = pendingObjectRequests.get(signature)
+  if (!request) {
+    request = Promise.resolve()
+      .then(() => (term ? searchMapObjects(query) : listMapObjects(query.sceneCode)))
+      .finally(() => {
+        if (pendingObjectRequests.get(signature) === request) pendingObjectRequests.delete(signature)
+      })
+    pendingObjectRequests.set(signature, request)
+  }
   const requestId = ++objectRequestSeq
   if (showLoading) {
     visibleObjectRequestSeq = requestId
     objectLoading.value = true
   }
   try {
-    const term = keyword.value.trim()
-    const resp = term
-      ? await searchMapObjects({
-          ...buildObjectQueryParams(),
-          sceneCode: selectedSceneCode.value,
-          keyword: term,
-          limit: MAP_OBJECT_SEARCH_LIMIT,
-        })
-      : await listMapObjects(selectedSceneCode.value)
+    const resp = await request
     if (requestId !== objectRequestSeq) return
     const items = resp.items || []
     const total = normalizeResponseTotal(resp.total, items.length)
@@ -642,7 +659,7 @@ async function submitSearch() {
 async function clearSearch() {
   keyword.value = ''
   if (loadedObjectKeyword.value || objectLoading.value) {
-    await loadSceneObjects({ focusFirst: hasActiveFilters.value, force: true })
+    await loadSceneObjects({ focusFirst: hasActiveFilters.value })
     return
   }
   applyLocalConditionResults({ focusFirst: hasActiveFilters.value })
@@ -657,8 +674,7 @@ async function toggleFilter(key, value) {
     [key]: exists ? current.filter((item) => item !== normalizedValue) : [...current, normalizedValue],
   }
   if (shouldReloadObjectsForConditionChange()) {
-    // 搜索结果仍在请求中时，筛选变化必须开启新版本，避免旧条件结果落地。
-    await loadSceneObjects({ focusFirst: true, force: true })
+    await loadSceneObjects({ focusFirst: true })
     return
   }
   applyLocalConditionResults({ focusFirst: true })
@@ -667,7 +683,7 @@ async function toggleFilter(key, value) {
 async function clearFilters() {
   activeFilters.value = defaultActiveFilters()
   if (shouldReloadObjectsForConditionChange()) {
-    await loadSceneObjects({ focusFirst: Boolean(keyword.value.trim()), force: true })
+    await loadSceneObjects({ focusFirst: Boolean(keyword.value.trim()) })
     return
   }
   applyLocalConditionResults()
@@ -682,7 +698,7 @@ async function clearMapConditions() {
   keyword.value = ''
   activeFilters.value = defaultActiveFilters()
   if (wasSearchLoaded) {
-    await loadSceneObjects({ force: true })
+    await loadSceneObjects()
     return
   }
   applyLocalConditionResults()

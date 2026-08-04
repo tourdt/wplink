@@ -105,6 +105,7 @@ const errorText = ref('')
 const loadedOnce = ref(false)
 const navigationCorrectionBusy = ref(false)
 let requestVersion = 0
+const pendingPlaceRequests = new Map()
 let shouldAskNavigationFeedback = false
 
 const sourceFilters = [
@@ -156,46 +157,59 @@ async function loadCategories() {
   tagCategories.value = results.flatMap((result) => result.items || [])
 }
 
-async function loadPlaces({ reset, force = false }) {
-  if (loading.value && !force) return
-  const version = ++requestVersion
+function loadPlaces({ reset }) {
   const targetPage = reset ? 1 : page.value + 1
+  const query = buildMerchantPlaceQuery({
+    cityCode: DEFAULT_CITY_CODE,
+    keyword: keyword.value,
+    categories: categoryCodes.value,
+    claimed: claimedFilter.value,
+    page: targetPage,
+    pageSize: LIST_PAGE_SIZE,
+  })
+  // 签名覆盖分页语义和 API 的完整实参；相同查询复用网络 Promise，签名变化仍可并发并由版本号决定落地结果。
+  const signature = JSON.stringify({ reset: Boolean(reset), page: targetPage, query })
+  let request = pendingPlaceRequests.get(signature)
+  if (!request) {
+    request = Promise.resolve()
+      .then(() => listMerchantPlaces(query))
+      .finally(() => {
+        if (pendingPlaceRequests.get(signature) === request) pendingPlaceRequests.delete(signature)
+      })
+    pendingPlaceRequests.set(signature, request)
+  }
+  const version = ++requestVersion
   loading.value = true
   if (reset) errorText.value = ''
-  try {
-    const resp = await listMerchantPlaces(buildMerchantPlaceQuery({
-      cityCode: DEFAULT_CITY_CODE,
-      keyword: keyword.value,
-      categories: categoryCodes.value,
-      claimed: claimedFilter.value,
-      page: targetPage,
-      pageSize: LIST_PAGE_SIZE,
-    }))
-    if (version !== requestVersion) return
-    const nextItems = (resp.items || []).map((raw) => {
-      const place = normalizeMerchantPlace(raw)
-      return {
-        ...place,
-        displayTags: merchantTagLabels.value([
-          ...place.categoryCodes,
-          ...place.serviceTags,
-          ...place.platformTags,
-        ]).slice(0, 3),
+  return (async () => {
+    try {
+      const resp = await request
+      if (version !== requestVersion) return
+      const nextItems = (resp.items || []).map((raw) => {
+        const place = normalizeMerchantPlace(raw)
+        return {
+          ...place,
+          displayTags: merchantTagLabels.value([
+            ...place.categoryCodes,
+            ...place.serviceTags,
+            ...place.platformTags,
+          ]).slice(0, 3),
+        }
+      })
+      places.value = reset ? nextItems : [...places.value, ...nextItems]
+      total.value = Number(resp.total || 0)
+      page.value = targetPage
+    } catch (err) {
+      if (version !== requestVersion) return
+      errorText.value = err.message || '网络连接不稳定，请稍后重试'
+      if (reset) {
+        places.value = []
+        total.value = 0
       }
-    })
-    places.value = reset ? nextItems : [...places.value, ...nextItems]
-    total.value = Number(resp.total || 0)
-    page.value = targetPage
-  } catch (err) {
-    if (version !== requestVersion) return
-    errorText.value = err.message || '网络连接不稳定，请稍后重试'
-    if (reset) {
-      places.value = []
-      total.value = 0
+    } finally {
+      if (version === requestVersion) loading.value = false
     }
-  } finally {
-    if (version === requestVersion) loading.value = false
-  }
+  })()
 }
 
 function submitSearch() {
@@ -204,22 +218,21 @@ function submitSearch() {
 
 function selectSourceFilter(value) {
   claimedFilter.value = value
-  // 条件变化代表用户已明确放弃旧结果；启动新版本请求并让旧响应失效。
-  return loadPlaces({ reset: true, force: true })
+  return loadPlaces({ reset: true })
 }
 
 function toggleCategory(code) {
   categoryCodes.value = categoryCodes.value.includes(code)
     ? categoryCodes.value.filter((item) => item !== code)
     : [...categoryCodes.value, code]
-  return loadPlaces({ reset: true, force: true })
+  return loadPlaces({ reset: true })
 }
 
 function clearConditions() {
   keyword.value = ''
   claimedFilter.value = 'all'
   categoryCodes.value = []
-  return loadPlaces({ reset: true, force: true })
+  return loadPlaces({ reset: true })
 }
 
 function handlePlaceSelect(place) {

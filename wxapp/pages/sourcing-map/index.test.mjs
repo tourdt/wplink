@@ -63,6 +63,70 @@ function createTrackedRefFactory() {
   }
 }
 
+function ref(value) {
+  return { value }
+}
+
+function reactive(value) {
+  return value
+}
+
+function computed(getter) {
+  return { get value() { return getter() } }
+}
+
+function loadLegacyCanvasPage(additions = {}) {
+  const script = legacySource
+    .match(/<script setup>([\s\S]*?)<\/script>/)?.[1]
+    .replace(/import[\s\S]*?from\s+['"][^'"]+['"]\s*/g, '') || ''
+  const sandbox = {
+    console,
+    Promise,
+    Set,
+    Date,
+    String,
+    Number,
+    Boolean,
+    Math,
+    setTimeout,
+    clearTimeout,
+    ref,
+    reactive,
+    computed,
+    watch: () => {},
+    onLoad: () => {},
+    onReady: () => {},
+    onUnmounted: () => {},
+    getCurrentInstance: () => null,
+    DEFAULT_CITY_CODE: 'zhili',
+    requireLogin: () => true,
+    createInitialTransform: () => ({ scale: 1, offsetX: 0, offsetY: 0 }),
+    endGesture: (state) => state.transform,
+    moveGesture: () => ({}),
+    screenToMap: () => ({}),
+    startGesture: () => ({}),
+    mapObjectCenter: () => null,
+    hitTestMapObjects: () => null,
+    isObjectInBounds: () => true,
+    isRentableMapObject: () => false,
+    isVerifiedMapObject: () => false,
+    mapObjectIdentity: (item) => String(item?.id || ''),
+    createSourcingMapRenderer: () => ({ dispose: () => {} }),
+    listMapScenes: async () => ({ items: [] }),
+    listMapCategories: async () => ({ items: [] }),
+    listMapObjects: async () => ({ items: [], total: 0 }),
+    searchMapObjects: async () => ({ items: [], total: 0 }),
+    listNearbyPois: async () => ({ items: [] }),
+    getMapObject: async () => ({}),
+    submitMapLocationCorrection: async () => ({}),
+    submitMapRiskReport: async () => ({}),
+    uni: { showToast: () => {}, showActionSheet: () => {}, redirectTo: () => {}, switchTab: () => {} },
+    ...additions,
+  }
+  vm.runInNewContext(`${script}\nglobalThis.legacyPage = { selectedScene, selectedSceneCode, keyword, activeFilters, rawMapObjects, objectLoading, selectScene, submitSearch, toggleFilter }`, sandbox)
+  return sandbox.legacyPage
+}
+
 function importedMerchantPlaceStateBindings() {
   const match = source.match(/import\s*\{([^}]*)\}\s*from\s*['"]\.\/merchantPlaceState['"]/)
   assert.ok(match, 'directory page should import merchant place state helpers')
@@ -310,6 +374,75 @@ test('merchant directory condition changes are latest-wins while explicit duplic
   await latestLoad
   assert.deepEqual(plain(page.state.places.value).map((item) => item.objectId), ['latest'])
   assert.equal(page.state.loading.value, false, '最新请求完成后才释放 loading')
+})
+
+test('merchant directory reuses a pending request when the active source filter is clicked again', async () => {
+  const request = deferred()
+  let requestCalls = 0
+  const page = loadDirectoryPage({
+    trackMerchantMapEvent() {},
+    timeline: [],
+    listMerchantPlaces() {
+      requestCalls += 1
+      return request.promise
+    },
+  })
+
+  const first = page.selectSourceFilter('claimed')
+  const duplicate = page.selectSourceFilter('claimed')
+  await flushAsyncWork()
+  assert.equal(requestCalls, 1, '重复点击当前来源筛选应复用同签名 pending 请求')
+
+  request.resolve({ items: [{ objectId: 'claimed-result' }], total: 1 })
+  await Promise.all([first, duplicate])
+  assert.deepEqual(plain(page.state.places.value).map((item) => item.objectId), ['claimed-result'])
+})
+
+test('legacy canvas reuses a pending request for the active scene', async () => {
+  const request = deferred()
+  let requestCalls = 0
+  const page = loadLegacyCanvasPage({
+    listMapObjects() {
+      requestCalls += 1
+      return request.promise
+    },
+  })
+  const scene = { code: 'scene-1', width: 750, height: 1000 }
+
+  const first = page.selectScene(scene)
+  const duplicate = page.selectScene(scene)
+  await flushAsyncWork()
+  assert.equal(requestCalls, 1, '重复选择当前场景应复用同签名 pending 请求')
+
+  request.resolve({ items: [], total: 0 })
+  await Promise.all([first, duplicate])
+  assert.equal(page.objectLoading.value, false)
+})
+
+test('legacy canvas still applies the latest result when the object query signature changes', async () => {
+  const firstRequest = deferred()
+  const latestRequest = deferred()
+  const queries = []
+  const page = loadLegacyCanvasPage({
+    searchMapObjects(query) {
+      queries.push(plain(query))
+      return queries.length === 1 ? firstRequest.promise : latestRequest.promise
+    },
+  })
+  page.selectedSceneCode.value = 'scene-1'
+  page.keyword.value = '童装'
+
+  const first = page.submitSearch()
+  const latest = page.toggleFilter('categories', 'girl')
+  await flushAsyncWork()
+  assert.equal(queries.length, 2, '对象查询签名变化应启动新版本请求')
+  assert.equal(queries[1].categories, 'girl')
+
+  latestRequest.resolve({ items: [{ id: 'latest' }], total: 1 })
+  await latest
+  firstRequest.resolve({ items: [{ id: 'old' }], total: 1 })
+  await first
+  assert.deepEqual(plain(page.rawMapObjects.value).map((item) => item.id), ['latest'])
 })
 
 test('navigation correction shows local feedback, deduplicates requests, and clears state on success or failure', async () => {
