@@ -1,6 +1,6 @@
 # 多实例自动任务部署与运维
 
-衣货通不单独部署 Worker。资源生命周期、内容审核重试、微信支付补偿和商家地图行为清理都随每个 API 实例启动；多实例之间由 PostgreSQL Advisory Lock 自动协调，不需要指定“唯一任务实例”。架构原理见[多实例自动任务架构](architecture.md)，可用生产参数见[配置模板](../backend/etc/app.production.yaml.example)。
+衣货通不单独部署 Worker。资源生命周期、内容审核重试、微信支付补偿和商家地图行为清理都随每个 API 实例启动；当所有运行版本都支持相同固定锁号和审核租约协议后，多实例之间由 PostgreSQL Advisory Lock 自动协调，不需要指定“唯一任务实例”。首次从不支持该协议的旧版本升级属于例外，必须按本文“首次引入协调协议”停掉旧 Scheduler 后切换。架构原理见[多实例自动任务架构](architecture.md)，可用生产参数见[配置模板](../backend/etc/app.production.yaml.example)。
 
 ## 生产配置
 
@@ -23,7 +23,7 @@ Tasks:
 
 Coordinator 对每个正在执行的任务独占一条 `*sql.Conn`，并在同一会话上加锁、运行和解锁。四类任务锁不同，可同时运行，最坏占用四条专用数据库连接；锁竞争失败的实例只会短暂申请连接并立即归还。
 
-生产模板当前为 `Postgres.MaxOpenConns: 30`。调整连接池时应按单个 API 实例预留至少四条任务连接，并在此之外为 HTTP 业务请求、事务和健康检查保留足够余量；同时核对所有 API 实例连接池上限总和没有超过 PostgreSQL 的 `max_connections` 预算。不要把“任务超时”当成连接池容量控制手段，超时只用于限制异常任务的最长占用时间。
+生产模板当前为 `Postgres.MaxOpenConns: 30`。调整连接池时应按单个 API 实例预留至少四条任务连接，并在此之外为 HTTP 业务请求、事务和健康检查保留足够余量；同时核对所有 API 实例连接池上限总和没有超过 PostgreSQL 的 `max_connections` 预算。不要把任务超时当成硬性的连接池容量控制：Coordinator 只通过 Context 发出协作式取消，实际连接占用时间取决于 Runner、数据库驱动和第三方依赖是否及时响应 Context；忽略 Context 的调用会一直占用到自身返回或数据库会话断开。
 
 ## 结构化日志排障
 
@@ -54,6 +54,8 @@ rg -n '"event":"task_coordination_unlock_failed"' /opt/wplink/logs
 
 内容审核还应关注 `content_audit_retry_manual_review`、`content_audit_retry_lease_lost` 和 `content_audit_retry_failed`。`lease_lost` 表示旧实例结果被安全丢弃，偶发时不等于数据错误；持续大量出现时检查任务耗时是否接近两分钟租约、数据库延迟和审核供应商延迟。
 
+Coordinator 会直接记录返回的 `error`，当前没有通用日志脱敏器。排障和新增错误时都不得把数据库 DSN、Token、微信密钥、支付私钥或完整第三方载荷拼入错误文本；发现此类内容应按凭据泄露流程处理，不能依赖 Coordinator 自动清洗。
+
 ## 查询 Advisory Lock
 
 使用应用数据库的只读运维连接执行：
@@ -72,6 +74,7 @@ SELECT
 FROM pg_locks AS l
 LEFT JOIN pg_stat_activity AS a ON a.pid = l.pid
 WHERE l.locktype = 'advisory'
+  AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
   AND l.classid::bigint = 0
   AND l.objid::bigint IN (1001, 1002, 1003, 1004)
 ORDER BY l.objid, l.pid;
@@ -109,23 +112,34 @@ ORDER BY audit_lease_until, updated_at;
 
 不要直接把记录手工改成 `pending`。`pending` 表示已创建异步图片审核任务并等待回调；单改状态既会让该资源退出自动重试领取条件，又可能没有对应的 `resource_content_audit_tasks`，造成永久卡住，还会绕过 `audit_processing_by + audit_lease_until` 对旧结果的防覆盖保护。排障时先恢复 Scheduler 和数据库连接；确需人工修复数据，应先停用全部自动任务，并通过经过评审的业务修复脚本保持状态、租约和图片审核任务一致。
 
-## 滚动发布
+## 发布与滚动升级
 
-滚动发布前确认数据库迁移 `000035_resource_audit_retry_lease` 已执行，并让新旧实例都使用 `Tasks.Enabled: true`。无需挑选唯一任务实例，也无需在发布期间切换“主任务节点”。
+### 首次引入协调协议
 
-建议顺序：
+从不支持固定 Advisory Lock、`Tasks.Enabled` 或内容审核租约的旧版本首次升级时，旧 Scheduler 不参与新协议，不能与新 Scheduler 重叠运行。必须安排维护窗口并按旧版本能力选择以下路径：
 
-1. 先执行数据库迁移，再启动依赖租约字段的新版本。
-2. 逐个替换 API 实例，等待健康检查通过后再处理下一实例。
-3. 旧实例退出时取消 Scheduler 并等待本轮返回或超时；其数据库会话关闭后 Advisory Lock 自动释放。
-4. 新实例启动后立即尝试一轮任务；若旧实例仍持锁则记录 `task_skipped_lock_held`，下一周期自动接管。
-5. 发布后检查四个锁号、各任务终态日志、支付失败计数和过期审核租约数量。
+1. 若旧版本已经支持 `Tasks.Enabled`，先在所有旧实例设置 `Tasks.Enabled: false` 并逐一重启，确认旧 Scheduler 已停止；普通 API 和回调可继续服务。
+2. 若旧版本没有 `Tasks.Enabled`，先从负载均衡摘除并停止所有旧 API 进程，确认没有旧 Scheduler 或仍在执行的旧任务。此路径会产生维护窗口，不能为追求无停机而让旧任务与新租约逻辑混跑。
+3. 在临时 PostgreSQL 按 Task 8 步骤验证 migration `up/down/up`；通过后，在旧 Scheduler 全部停止的前提下，只对生产目标数据库执行 `000035_resource_audit_retry_lease` 的 up migration。
+4. 部署支持固定锁号与租约的新版本。先用 `Tasks.Enabled: false` 启动并完成健康检查，再把所有新实例统一切换为 `true` 并滚动重启。
+5. 检查 `1001`–`1004` 锁、任务终态日志、支付失败计数和过期审核租约数量，确认只有新协议实例在执行任务。
 
-短暂同时运行新旧实例是安全的：任务锁负责同类任务互斥，状态条件和审核租约负责连接断开或进程中断边界。若必须应急暂停，将所有实例统一改为 `Tasks.Enabled: false` 并滚动重启；故障解除后再统一恢复为 `true`。
+如果配置系统无法在一次发布中先禁用再启用新实例，可保持旧 API 全停，先完成迁移，再直接以 `Tasks.Enabled: true` 启动新版本；关键约束仍是新 Scheduler 启动前不存在任何旧 Scheduler。
+
+### 协议兼容版本的后续滚动发布
+
+只有新旧双方都支持相同固定锁号 `1001`–`1004`、相同内容审核租约 guard 和 `Tasks.Enabled` 时，才可在所有实例保持 `Tasks.Enabled: true` 的情况下滚动发布：
+
+1. 逐个替换 API 实例，等待健康检查通过后再处理下一实例。
+2. 旧实例退出时取消 Scheduler 并等待本轮 Runner 实际返回；如果依赖正确响应 Context，配置截止时间会触发取消。其数据库会话关闭后 Advisory Lock 自动释放。
+3. 新实例启动后立即尝试一轮任务；若兼容旧实例仍持锁则记录 `task_skipped_lock_held`，下一周期自动接管。
+4. 发布后检查四个锁号、各任务终态日志、支付失败计数和过期审核租约数量。
+
+这种协议兼容版本之间的短暂混跑是安全的：任务锁负责同类任务互斥，状态条件和审核租约负责连接断开或进程中断边界。若必须应急暂停，将所有实例统一改为 `Tasks.Enabled: false` 并滚动重启；故障解除后再统一恢复为 `true`。
 
 ## 快速核对清单
 
-- 每个 API 实例都启用自动任务，没有单独 Worker 或常驻“主任务实例”。
+- 首次引入协调协议时旧 Scheduler 已全部停止；后续协议兼容版本滚动时每个 API 实例都启用自动任务，没有单独 Worker 或常驻“主任务实例”。
 - 连接池在四条最坏任务连接之外仍有业务请求余量。
 - 同一周期一个实例出现成功/失败/超时终态，其他竞争实例可出现 `task_skipped_lock_held`。
 - `pg_locks` 只出现预期的 `1001`–`1004`，连接随实例退出而释放。
