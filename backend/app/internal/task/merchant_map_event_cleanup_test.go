@@ -40,7 +40,7 @@ func TestMerchantMapEventCleanupTaskReturnsSafeDiagnosticOnDatabaseFailure(t *te
 
 func TestMerchantMapEventCleanupSchedulerRunsConfiguredTask(t *testing.T) {
 	runner := &fakeMerchantMapEventCleanupRunner{result: MerchantMapEventCleanupResult{DeletedCount: 3}}
-	scheduler := NewMerchantMapEventCleanupScheduler(runner, 24*time.Hour, nil)
+	scheduler := NewMerchantMapEventCleanupScheduler(runner, 24*time.Hour, nil, nil, 0)
 
 	if err := scheduler.RunOnce(context.Background()); err != nil {
 		t.Fatalf("RunOnce() error = %v", err)
@@ -52,7 +52,7 @@ func TestMerchantMapEventCleanupSchedulerRunsConfiguredTask(t *testing.T) {
 
 func TestMerchantMapEventCleanupSchedulerIsDisabledWithoutInterval(t *testing.T) {
 	runner := &fakeMerchantMapEventCleanupRunner{}
-	scheduler := NewMerchantMapEventCleanupScheduler(runner, 0, nil)
+	scheduler := NewMerchantMapEventCleanupScheduler(runner, 0, nil, nil, 0)
 
 	if scheduler.Enabled() {
 		t.Fatal("Enabled() = true, want disabled")

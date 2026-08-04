@@ -14,10 +14,22 @@ type ContentAuditRetryScheduler struct {
 	runner   ContentAuditRetryRunner
 	interval time.Duration
 	logger   *log.Logger
+	runtime  *schedulerRuntime
 }
 
-func NewContentAuditRetryScheduler(runner ContentAuditRetryRunner, interval time.Duration, logger *log.Logger) *ContentAuditRetryScheduler {
-	return &ContentAuditRetryScheduler{runner: runner, interval: interval, logger: logger}
+func NewContentAuditRetryScheduler(
+	runner ContentAuditRetryRunner,
+	interval time.Duration,
+	logger *log.Logger,
+	coordinator Coordinator,
+	timeout time.Duration,
+) *ContentAuditRetryScheduler {
+	return &ContentAuditRetryScheduler{
+		runner:   runner,
+		interval: interval,
+		logger:   logger,
+		runtime:  newSchedulerRuntime(TaskContentAuditRetry, coordinator, timeout),
+	}
 }
 
 func (s *ContentAuditRetryScheduler) Enabled() bool {
@@ -50,17 +62,9 @@ func (s *ContentAuditRetryScheduler) Start(ctx context.Context) {
 	if !s.Enabled() {
 		return
 	}
-	go func() {
-		_ = s.RunOnce(ctx)
-		ticker := time.NewTicker(s.interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				_ = s.RunOnce(ctx)
-			}
-		}
-	}()
+	s.runtime.start(ctx, s.interval, s.RunOnce)
+}
+
+func (s *ContentAuditRetryScheduler) Wait() {
+	s.runtime.wait()
 }

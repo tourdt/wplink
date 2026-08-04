@@ -14,10 +14,22 @@ type MerchantMapEventCleanupScheduler struct {
 	runner   MerchantMapEventCleanupRunner
 	interval time.Duration
 	logger   *log.Logger
+	runtime  *schedulerRuntime
 }
 
-func NewMerchantMapEventCleanupScheduler(runner MerchantMapEventCleanupRunner, interval time.Duration, logger *log.Logger) *MerchantMapEventCleanupScheduler {
-	return &MerchantMapEventCleanupScheduler{runner: runner, interval: interval, logger: logger}
+func NewMerchantMapEventCleanupScheduler(
+	runner MerchantMapEventCleanupRunner,
+	interval time.Duration,
+	logger *log.Logger,
+	coordinator Coordinator,
+	timeout time.Duration,
+) *MerchantMapEventCleanupScheduler {
+	return &MerchantMapEventCleanupScheduler{
+		runner:   runner,
+		interval: interval,
+		logger:   logger,
+		runtime:  newSchedulerRuntime(TaskMerchantMapEventCleanup, coordinator, timeout),
+	}
 }
 
 func (s *MerchantMapEventCleanupScheduler) Enabled() bool {
@@ -45,17 +57,9 @@ func (s *MerchantMapEventCleanupScheduler) Start(ctx context.Context) {
 	if !s.Enabled() {
 		return
 	}
-	go func() {
-		_ = s.RunOnce(ctx)
-		ticker := time.NewTicker(s.interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				_ = s.RunOnce(ctx)
-			}
-		}
-	}()
+	s.runtime.start(ctx, s.interval, s.RunOnce)
+}
+
+func (s *MerchantMapEventCleanupScheduler) Wait() {
+	s.runtime.wait()
 }

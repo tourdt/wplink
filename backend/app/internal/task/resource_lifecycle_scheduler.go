@@ -14,10 +14,22 @@ type ResourceLifecycleScheduler struct {
 	runner   ResourceLifecycleRunner
 	interval time.Duration
 	logger   *log.Logger
+	runtime  *schedulerRuntime
 }
 
-func NewResourceLifecycleScheduler(runner ResourceLifecycleRunner, interval time.Duration, logger *log.Logger) *ResourceLifecycleScheduler {
-	return &ResourceLifecycleScheduler{runner: runner, interval: interval, logger: logger}
+func NewResourceLifecycleScheduler(
+	runner ResourceLifecycleRunner,
+	interval time.Duration,
+	logger *log.Logger,
+	coordinator Coordinator,
+	timeout time.Duration,
+) *ResourceLifecycleScheduler {
+	return &ResourceLifecycleScheduler{
+		runner:   runner,
+		interval: interval,
+		logger:   logger,
+		runtime:  newSchedulerRuntime(TaskResourceLifecycle, coordinator, timeout),
+	}
 }
 
 func (s *ResourceLifecycleScheduler) Enabled() bool {
@@ -49,17 +61,9 @@ func (s *ResourceLifecycleScheduler) Start(ctx context.Context) {
 	if !s.Enabled() {
 		return
 	}
-	go func() {
-		_ = s.RunOnce(ctx)
-		ticker := time.NewTicker(s.interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				_ = s.RunOnce(ctx)
-			}
-		}
-	}()
+	s.runtime.start(ctx, s.interval, s.RunOnce)
+}
+
+func (s *ResourceLifecycleScheduler) Wait() {
+	s.runtime.wait()
 }
