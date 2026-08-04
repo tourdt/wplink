@@ -244,6 +244,11 @@ function assertResourceAction(page, resourceId, action, label) {
   assert.equal(page.resourceAction.value.action, action, `${label}应记录对应动作`)
 }
 
+function assertResourceActionCleared(page, label) {
+  assertResourceAction(page, '', '', label)
+  assert.equal(page.resourceActionPhase.value, '', `${label}应清空阶段状态`)
+}
+
 test('my resource write buttons render only the active action as busy and preserve details', async () => {
   const noop = () => {}
   const activeItem = { id: 'resource-1', status: 'published' }
@@ -379,12 +384,12 @@ test('my resource writes share one lock and clear it after success or rejection'
   assertResourceAction(page, 'resource-1', 'refresh', '刷新期间')
   refreshRequest.resolve({})
   await Promise.all([firstRefresh, duplicateRefresh, concurrentTakeDown, concurrentRepost])
-  assertResourceAction(page, '', '', '刷新成功和列表刷新后')
+  assertResourceActionCleared(page, '刷新成功和列表刷新后')
 
   const failedPage = loadMyResourcesPage({ refreshResource: async () => { throw new Error('网络异常') } })
   failedPage.merchantId.value = 'merchant-1'
   await assert.rejects(failedPage.refresh(publishedItem), /网络异常/)
-  assertResourceAction(failedPage, '', '', '刷新失败后')
+  assertResourceActionCleared(failedPage, '刷新失败后')
 })
 
 test('top entitlement flow stays busy from voucher lookup through redemption and list refresh', async () => {
@@ -419,7 +424,7 @@ test('top entitlement flow stays busy from voucher lookup through redemption and
   assertResourceAction(page, 'resource-1', 'top', '兑换和刷新期间')
   redemptionRequest.resolve({})
   await Promise.all([firstTop, duplicateTop, concurrentRefresh])
-  assertResourceAction(page, '', '', '置顶完成并刷新列表后')
+  assertResourceActionCleared(page, '置顶完成并刷新列表后')
 })
 
 test('top purchase flow keeps the same lock through order creation, payment and list refresh', async () => {
@@ -451,7 +456,7 @@ test('top purchase flow keeps the same lock through order creation, payment and 
   assertResourceAction(page, 'resource-1', 'top', '创建置顶订单和支付期间')
   orderRequest.resolve({ orderId: 'top-order-1' })
   await Promise.all([firstTop, duplicateTop, concurrentRefresh])
-  assertResourceAction(page, '', '', '支付完成并刷新列表后')
+  assertResourceActionCleared(page, '支付完成并刷新列表后')
 })
 
 test('top purchase cancellation preserves its toast and clears the resource action', async () => {
@@ -471,7 +476,7 @@ test('top purchase cancellation preserves its toast and clears the resource acti
   await page.topResource({ id: 'resource-1', status: 'published' })
 
   assert.equal(toasts.at(-1)?.title, '用户取消支付', '支付取消应保留原有友好提示')
-  assertResourceAction(page, '', '', '支付取消后')
+  assertResourceActionCleared(page, '支付取消后')
 })
 
 test('top purchase payment failures use a friendly toast and clear the resource action', async () => {
@@ -491,7 +496,7 @@ test('top purchase payment failures use a friendly toast and clear the resource 
   await page.topResource({ id: 'resource-1', status: 'published' })
 
   assert.equal(toasts.at(-1)?.title, '置顶服务购买失败，请稍后重试', '支付系统错误不应直接暴露给用户')
-  assertResourceAction(page, '', '', '支付失败后')
+  assertResourceActionCleared(page, '支付失败后')
 })
 
 test('write refresh waits for an in-flight list request before replacing rows and unlocking', async () => {
@@ -523,7 +528,7 @@ test('write refresh waits for an in-flight list request before replacing rows an
   refreshedListRequest.resolve({ items: [{ id: 'fresh-resource' }], total: 1 })
   await refresh
   assert.equal(page.rows.value[0]?.id, 'fresh-resource', '写后刷新结果不能被旧列表响应覆盖')
-  assertResourceAction(page, '', '', '写后强制刷新完成后')
+  assertResourceActionCleared(page, '写后强制刷新完成后')
 })
 
 test('delete waits for confirmation before becoming busy and unlocks after deletion', async () => {
@@ -536,7 +541,7 @@ test('delete waits for confirmation before becoming busy and unlocks after delet
   const item = { id: 'resource-1', status: 'taken_down' }
   await cancelledPage.deleteTakenDown(item)
   assert.equal(deleteCalls, 0, '取消删除确认不应调用服务端')
-  assertResourceAction(cancelledPage, '', '', '取消删除确认后')
+  assertResourceActionCleared(cancelledPage, '取消删除确认后')
 
   const deletionRequest = deferred()
   const confirmedPage = loadMyResourcesPage({
@@ -553,15 +558,16 @@ test('delete waits for confirmation before becoming busy and unlocks after delet
   assertResourceAction(confirmedPage, 'resource-1', 'delete', '确认删除后')
   deletionRequest.resolve({})
   await deletion
-  assertResourceAction(confirmedPage, '', '', '删除完成和列表刷新后')
+  assertResourceActionCleared(confirmedPage, '删除完成和列表刷新后')
 })
 
 test('my resource top keeps its write lock while querying and prompting without showing a write spinner', async () => {
   const voucherRequest = deferred()
   let modalCallbacks
   let redeemCalls = 0
+  let voucherCalls = 0
   const page = loadMyResourcesPage({
-    listTopVouchers: () => voucherRequest.promise,
+    listTopVouchers: () => { voucherCalls += 1; return voucherRequest.promise },
     redeemTopVoucher: async () => { redeemCalls += 1 },
     uni: {
       showModal: (options) => { modalCallbacks = options },
@@ -572,7 +578,9 @@ test('my resource top keeps its write lock while querying and prompting without 
   const item = { id: 'resource-1', status: 'published' }
 
   const top = page.topResource(item)
+  const duplicateQuerying = page.topResource(item)
   assert.equal(page.resourceActionPhase?.value, 'querying', '权益查询期间应进入查询阶段')
+  assert.equal(voucherCalls, 1, '查询阶段连续点击不应重复查询权益')
   const queryingHtml = await renderResourceActionButton('topResource(item)', {
     item,
     resourceActionBusy: true,
@@ -587,6 +595,8 @@ test('my resource top keeps its write lock while querying and prompting without 
   await flushAsyncWork()
   assert.equal(page.resourceActionPhase?.value, 'prompting', '确认使用权益时应保持锁但切换为确认阶段')
   assert.equal(redeemCalls, 0, '用户确认前不应核销置顶券')
+  await page.topResource(item)
+  assert.equal(voucherCalls, 1, '确认阶段连续点击不应重复查询权益')
   const promptingHtml = await renderResourceActionButton('topResource(item)', {
     item,
     resourceActionBusy: true,
@@ -600,9 +610,9 @@ test('my resource top keeps its write lock while querying and prompting without 
   assert.match(promptingHtml, />置顶</, '确认期间应恢复空闲文案')
 
   modalCallbacks.success({ confirm: false })
-  await top
+  await Promise.all([top, duplicateQuerying])
   assert.equal(redeemCalls, 0, '取消确认后不得进入写入阶段')
-  assertResourceAction(page, '', '', '取消确认后')
+  assertResourceActionCleared(page, '取消确认后')
 })
 
 test('my resource top purchase keeps query feedback for vouchers and packs, then writes only after purchase confirmation', async () => {
@@ -644,7 +654,39 @@ test('my resource top purchase keeps query feedback for vouchers and packs, then
   await flushAsyncWork()
   assert.equal(page.resourceActionPhase?.value, 'writing', '确认购买后应进入写入阶段')
   assert.equal(orderCalls.length, 1, '确认购买后只应创建一笔订单')
+  await page.topResource(item)
+  assert.equal(orderCalls.length, 1, '写入阶段连续点击不应重复创建订单')
   orderRequest.resolve({ orderId: 'top-order-1' })
   await top
-  assertResourceAction(page, '', '', '购买流程结束后')
+  assertResourceActionCleared(page, '购买流程结束后')
+})
+
+test('my resource top query failure clears both the write lock and phase', async () => {
+  const page = loadMyResourcesPage({
+    listTopVouchers: async () => { throw new Error('权益查询失败') },
+  })
+  page.merchantId.value = 'merchant-1'
+
+  await assert.rejects(page.topResource({ id: 'resource-1', status: 'published' }), /权益查询失败/)
+
+  assertResourceActionCleared(page, '权益查询失败后')
+})
+
+test('my resource cancels top purchase before creating an order and clears both states', async () => {
+  let orderCalls = 0
+  const page = loadMyResourcesPage({
+    listTopVouchers: async () => ({ items: [] }),
+    listQuotaPacks: async () => ({ items: [{ code: 'top_1d', benefits: { topVoucherCount: 1, topDurationHours: 24 } }] }),
+    createQuotaPackOrder: async () => { orderCalls += 1 },
+    uni: {
+      showModal: ({ success }) => success({ confirm: false }),
+      showToast: () => {},
+    },
+  })
+  page.merchantId.value = 'merchant-1'
+
+  await page.topResource({ id: 'resource-1', status: 'published' })
+
+  assert.equal(orderCalls, 0, '取消购买确认后不得创建订单')
+  assertResourceActionCleared(page, '取消置顶购买确认后')
 })
