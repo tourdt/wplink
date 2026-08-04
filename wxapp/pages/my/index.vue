@@ -37,16 +37,16 @@
       </view>
       <view class="benefit-stats">
         <view class="benefit-stat">
-          <text class="benefit-value">{{ publishQuotaRemaining }}</text>
+          <text class="benefit-value">{{ publishQuotaDisplay }}</text>
           <text class="benefit-label">发布次数</text>
-          <text v-if="publishQuotaRemaining === 0" class="quota-purchase-action quota-purchase-primary" @click.stop="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">购买发布次数</text>
-          <text v-else-if="publishQuotaLow" class="quota-purchase-action" @click.stop="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">即将用完 · 去补充</text>
+          <text v-if="entitlementQuotaReady && publishQuotaRemaining === 0" class="quota-purchase-action quota-purchase-primary" @click.stop="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">购买发布次数</text>
+          <text v-else-if="entitlementQuotaReady && publishQuotaLow" class="quota-purchase-action" @click.stop="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">即将用完 · 去补充</text>
         </view>
         <view class="benefit-stat">
-          <text class="benefit-value">{{ refreshQuotaRemaining }}</text>
+          <text class="benefit-value">{{ refreshQuotaDisplay }}</text>
           <text class="benefit-label">刷新次数</text>
-          <text v-if="refreshQuotaRemaining === 0" class="quota-purchase-action quota-purchase-primary" @click.stop="openQuotaPurchase(QUOTA_TYPE_REFRESH)">购买刷新次数</text>
-          <text v-else-if="refreshQuotaLow" class="quota-purchase-action" @click.stop="openQuotaPurchase(QUOTA_TYPE_REFRESH)">即将用完 · 去补充</text>
+          <text v-if="entitlementQuotaReady && refreshQuotaRemaining === 0" class="quota-purchase-action quota-purchase-primary" @click.stop="openQuotaPurchase(QUOTA_TYPE_REFRESH)">购买刷新次数</text>
+          <text v-else-if="entitlementQuotaReady && refreshQuotaLow" class="quota-purchase-action" @click.stop="openQuotaPurchase(QUOTA_TYPE_REFRESH)">即将用完 · 去补充</text>
         </view>
       </view>
       <text v-if="benefitExpiryReminder" class="benefit-expiry">{{ benefitExpiryReminder }}</text>
@@ -121,6 +121,8 @@ const token = ref('')
 const merchantId = ref('')
 const merchantProfile = ref({})
 const merchantEntitlements = ref([])
+const entitlementLoadState = ref('idle')
+const entitlementRequestId = ref(0)
 const growthCampaigns = ref([])
 
 const isLoggedIn = computed(() => Boolean(token.value))
@@ -148,10 +150,15 @@ const accountStatusClass = computed(() => `status-${accountStatus.value}`)
 const benefitOverviewVisible = computed(() => Boolean(isLoggedIn.value))
 const publishQuotaRemaining = computed(() => entitlementRemaining('publish_quota'))
 const refreshQuotaRemaining = computed(() => entitlementRemaining('refresh_quota'))
+// 只有确认了商户身份且权益接口成功返回时，额度才可作为购买引导的依据；未知状态不能按零额度营销。
+const entitlementQuotaReady = computed(() => Boolean(isLoggedIn.value && merchantId.value && entitlementLoadState.value === 'loaded'))
+const publishQuotaDisplay = computed(() => entitlementQuotaReady.value ? publishQuotaRemaining.value : '--')
+const refreshQuotaDisplay = computed(() => entitlementQuotaReady.value ? refreshQuotaRemaining.value : '--')
 const publishQuotaLow = computed(() => publishQuotaRemaining.value > 0 && publishQuotaRemaining.value <= QUOTA_LOW_THRESHOLD)
 const refreshQuotaLow = computed(() => refreshQuotaRemaining.value > 0 && refreshQuotaRemaining.value <= QUOTA_LOW_THRESHOLD)
 const activeGrowthCampaign = computed(() => growthCampaigns.value[0] || {})
 const benefitExpiryReminder = computed(() => {
+  if (!entitlementQuotaReady.value) return ''
   const candidates = merchantEntitlements.value
     .filter((item) => ['publish_quota', 'refresh_quota'].includes(item.type) && Number(item.remainingAmount || 0) > 0 && item.expiresAt)
     .map((item) => ({ ...item, expiresAtTime: Date.parse(item.expiresAt) }))
@@ -205,15 +212,25 @@ async function loadMerchantProfile() {
 }
 
 async function loadMerchantEntitlements() {
+  // onLoad 与 onShow 可能并发；仅允许最后一次请求写回，避免切换商户后展示旧商户的权益。
+  const requestId = entitlementRequestId.value + 1
+  entitlementRequestId.value = requestId
   if (!token.value || !merchantId.value) {
     merchantEntitlements.value = []
+    entitlementLoadState.value = 'unavailable'
     return
   }
+  entitlementLoadState.value = 'loading'
   try {
     const resp = await getMerchantEntitlements(merchantId.value, { suppressErrorToast: true })
+    if (requestId !== entitlementRequestId.value) return
     merchantEntitlements.value = resp.items || []
+    entitlementLoadState.value = 'loaded'
   } catch (err) {
+    if (requestId !== entitlementRequestId.value) return
+    // 请求失败时保留中性额度展示，避免把接口故障误导为用户的真实零额度。
     merchantEntitlements.value = []
+    entitlementLoadState.value = 'error'
   }
 }
 

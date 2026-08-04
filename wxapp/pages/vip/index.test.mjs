@@ -89,3 +89,15 @@ test('vip page is registered and shows vip benefits with add-on quota tab', () =
   assert.doesNotMatch(source, /monthly: '限时特价'/)
   assert.match(source, /await requestWechatPayment\(payment\)[\s\S]*await loadVIPData\(\)[\s\S]*支付已完成，权益到账后会自动更新/)
 })
+
+test('vip page only shows promotions for server prices with a real labeled discount', () => {
+  const source = fs.readFileSync(path.join(root, 'pages/vip/index.vue'), 'utf8')
+
+  assert.match(source, /<text v-if="isPlanDiscounted\(plan\)" class="standard-price">\{\{ formatPrice\(plan\.standardPriceCent\) \}\}<\/text>/)
+  assert.match(source, /function isPlanDiscounted\(plan\) \{[\s\S]*return hasVerifiedDiscount\(plan\)/)
+  assert.match(source, /function isPackDiscounted\(item\) \{[\s\S]*return hasVerifiedDiscount\(item\)/)
+  assert.match(source, /function hasVerifiedDiscount\(item\) \{[\s\S]*Boolean\(item\.saleLabel\)[\s\S]*salePriceCent > 0[\s\S]*standardPriceCent > 0[\s\S]*salePriceCent < standardPriceCent/)
+  assert.match(source, /function fallbackPlan\(code, name, durationMonths, standardPriceCent\)/)
+  assert.doesNotMatch(source, /saleLabel: '限时特价'/)
+  assert.doesNotMatch(source, /fallbackPlan\('monthly', 'VIP 月卡', 1, 4900, 1990/)
+})

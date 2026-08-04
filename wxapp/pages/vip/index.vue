@@ -20,7 +20,7 @@
           <view class="plan-price">
             <text v-if="planSaleLabel(plan)" class="sale-label">{{ planSaleLabel(plan) }}</text>
             <text class="sale-price">{{ formatPrice(plan.salePriceCent || plan.standardPriceCent) }}</text>
-            <text v-if="plan.salePriceCent" class="standard-price">{{ formatPrice(plan.standardPriceCent) }}</text>
+            <text v-if="isPlanDiscounted(plan)" class="standard-price">{{ formatPrice(plan.standardPriceCent) }}</text>
           </view>
         </view>
       </view>
@@ -77,16 +77,16 @@ const activeTab = ref('vip')
 const paying = ref(false)
 const payingPackCode = ref('')
 const fallbackQuotaPacks = [
-  { code: 'publish_5', name: '发布次数包', standardPriceCent: 2500, salePriceCent: 2500, actionText: '¥25 购买', description: '临时多发供需', saleLabel: '限时特价', benefits: { publishQuota: 5 } },
-  { code: 'refresh_10', name: '刷新次数包', standardPriceCent: 1900, salePriceCent: 1900, actionText: '¥19 购买', description: '让信息回到前面', saleLabel: '限时特价', benefits: { refreshQuota: 10 } },
+  { code: 'publish_5', name: '发布次数包', standardPriceCent: 2500, actionText: '¥25 购买', description: '临时多发供需', benefits: { publishQuota: 5 } },
+  { code: 'refresh_10', name: '刷新次数包', standardPriceCent: 1900, actionText: '¥19 购买', description: '让信息回到前面', benefits: { refreshQuota: 10 } },
 ]
 
 const displayPlans = computed(() => {
   if (plans.value.length > 0) return plans.value
   return [
-    fallbackPlan('monthly', 'VIP 月卡', 1, 4900, 1990, '限时特价'),
-    fallbackPlan('half_year', 'VIP 半年卡', 6, 29900, 19900, '限时特价'),
-    fallbackPlan('yearly', 'VIP 年卡', 12, 49900, 29900, '限时特价'),
+    fallbackPlan('monthly', 'VIP 月卡', 1, 4900),
+    fallbackPlan('half_year', 'VIP 半年卡', 6, 29900),
+    fallbackPlan('yearly', 'VIP 年卡', 12, 49900),
   ]
 })
 
@@ -252,9 +252,17 @@ function packSaleLabel(item) {
 }
 
 function isPackDiscounted(item) {
+  return hasVerifiedDiscount(item)
+}
+
+function isPlanDiscounted(plan) {
+  return hasVerifiedDiscount(plan)
+}
+
+function hasVerifiedDiscount(item) {
   const salePriceCent = Number(item.salePriceCent || 0)
   const standardPriceCent = Number(item.standardPriceCent || 0)
-  return salePriceCent > 0 && standardPriceCent > 0 && salePriceCent < standardPriceCent
+  return Boolean(item.saleLabel) && salePriceCent > 0 && standardPriceCent > 0 && salePriceCent < standardPriceCent
 }
 
 function packActionText(item) {
@@ -286,7 +294,7 @@ function planSaleLabel(plan) {
 }
 
 function shouldShowPlanSaleLabel(plan) {
-  return Boolean(plan.saleLabel) && isPackDiscounted(plan)
+  return isPlanDiscounted(plan)
 }
 
 function formatPrice(value) {
@@ -294,14 +302,12 @@ function formatPrice(value) {
   return `¥${Number.isInteger(price) ? price.toFixed(0) : price.toFixed(1)}`
 }
 
-function fallbackPlan(code, name, durationMonths, standardPriceCent, salePriceCent, saleLabel) {
+function fallbackPlan(code, name, durationMonths, standardPriceCent) {
   return {
     code,
     name,
     durationMonths,
     standardPriceCent,
-    salePriceCent,
-    saleLabel,
     benefits: { publishQuota: 80, refreshQuota: 30, topVoucherCount: 3, topDurationHours: 24 },
   }
 }
