@@ -125,6 +125,19 @@ test('my page only highlights quota purchases after a trustworthy entitlement re
   assert.doesNotMatch(source, /暂无可领取权益/)
 })
 
+test('my page gives quota states and free tasks distinct visual treatments', () => {
+  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
+
+  assert.match(source, /\.benefit-detail-action \{[\s\S]*min-height: 72rpx/)
+  assert.match(source, /\.benefit-stat \{[\s\S]*border: 1rpx solid transparent/)
+  assert.match(source, /\.benefit-stat-low \{[\s\S]*rgba\(194, 58, 0, 0\.04\)/)
+  assert.match(source, /\.benefit-stat-empty \{[\s\S]*\$wplink-warning-soft/)
+  assert.match(source, /\.benefit-growth-banner \{[\s\S]*\$wplink-success-soft/)
+  assert.match(source, /\.benefit-growth-button \{[\s\S]*min-height: 72rpx/)
+  assert.doesNotMatch(source, /\.benefit-actions \{/)
+  assert.doesNotMatch(source, /\.benefit-growth-action \{/)
+})
+
 test('my page keeps messages reachable after messages leaves the tab bar', () => {
   const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
 

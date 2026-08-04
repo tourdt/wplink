@@ -474,7 +474,7 @@ async function openGrowthEntitlement() {
 
 .benefit-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 18rpx;
   min-width: 0;
@@ -482,6 +482,7 @@ async function openGrowthEntitlement() {
 
 .benefit-title-wrap {
   display: grid;
+  flex: 1 1 auto;
   gap: 6rpx;
   min-width: 0;
 }
@@ -493,22 +494,12 @@ async function openGrowthEntitlement() {
   line-height: 1.3;
 }
 
-.benefit-action {
-  flex: 0 0 auto;
-  color: $wplink-accent;
-  font-size: 24rpx;
-  font-weight: 700;
-}
-
-.benefit-actions {
-  display: flex;
+.benefit-detail-action {
+  display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 16rpx;
-}
-
-.benefit-growth-action {
-  color: $wplink-success;
+  min-height: 72rpx;
+  color: $wplink-muted;
   font-size: 24rpx;
   font-weight: 700;
 }
@@ -520,12 +511,31 @@ async function openGrowthEntitlement() {
 }
 
 .benefit-stat {
-  display: grid;
-  gap: 4rpx;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  min-height: 180rpx;
   padding: 18rpx;
+  border: 1rpx solid transparent;
   border-radius: 10rpx;
   background: $wplink-primary-soft;
+}
+
+.benefit-stat-low {
+  border-color: rgba(194, 58, 0, 0.16);
+  background: rgba(194, 58, 0, 0.04);
+}
+
+.benefit-stat-empty {
+  border-color: rgba(194, 58, 0, 0.24);
+  background: $wplink-warning-soft;
+}
+
+.benefit-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6rpx;
+  margin-top: 8rpx;
 }
 
 .benefit-value {
@@ -535,19 +545,76 @@ async function openGrowthEntitlement() {
   line-height: 1.1;
 }
 
-.benefit-label {
+.benefit-unit,
+.benefit-label,
+.benefit-status {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.3;
 }
 
+.benefit-status,
 .quota-purchase-action {
-  justify-self: start;
-  margin-top: 8rpx;
-  color: $wplink-accent;
+  margin-top: auto;
+  padding-top: 12rpx;
+}
+
+.quota-purchase-action {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 56rpx;
+  color: $wplink-warning;
   font-size: 22rpx;
   font-weight: 700;
   line-height: 1.4;
+}
+
+.quota-purchase-low {
+  color: rgba(194, 58, 0, 0.78);
+}
+
+.benefit-growth-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  padding: 18rpx;
+  border-radius: 10rpx;
+  background: $wplink-success-soft;
+}
+
+.benefit-growth-main {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 6rpx;
+  min-width: 0;
+}
+
+.benefit-growth-title {
+  color: $wplink-success;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.benefit-growth-desc {
+  color: $wplink-muted;
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
+.benefit-growth-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 72rpx;
+  padding: 0 20rpx;
+  border-radius: 999rpx;
+  background: $wplink-success;
+  color: $wplink-card;
+  font-size: 22rpx;
+  font-weight: 700;
 }
 
 .benefit-expiry {
