@@ -273,6 +273,56 @@ func compareSchemaSnapshots(want []string, got []string) string {
 	return strings.Join(append(missing, unexpected...), "\n")
 }
 
+func loadDemoHomeRecentMerchantOnboardedAt(ctx context.Context, db *sql.DB) (map[string]time.Time, error) {
+	rows, err := db.QueryContext(ctx, `
+SELECT m.id::text, m.onboarded_at
+FROM merchants m
+JOIN city_stations cs ON cs.id = m.city_station_id
+WHERE m.id IN (
+  8020000000000000001,
+  8020000000000000002,
+  8020000000000000003,
+  8020000000000000004,
+  8020000000000000005,
+  8020000000000000006
+)
+  AND cs.code = 'zhili'
+  AND m.status = 'active'
+  AND m.profile_status = 'completed'
+  AND m.deleted_at IS NULL
+  AND m.onboarded_at IS NOT NULL
+  AND EXISTS (
+    SELECT 1
+    FROM merchant_admin_bindings mab
+    WHERE mab.merchant_id = m.id
+      AND mab.status = 'active'
+      AND mab.role = 'owner'
+  )
+ORDER BY m.id
+`)
+	if err != nil {
+		return nil, fmt.Errorf("查询演示商家首页曝光资格失败: %w", err)
+	}
+	defer rows.Close()
+
+	items := make(map[string]time.Time, 6)
+	for rows.Next() {
+		var merchantID string
+		var onboardedAt time.Time
+		if err := rows.Scan(&merchantID, &onboardedAt); err != nil {
+			return nil, fmt.Errorf("读取演示商家入驻时间失败: %w", err)
+		}
+		items[merchantID] = onboardedAt
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("遍历演示商家入驻时间失败: %w", err)
+	}
+	if len(items) != 6 {
+		return nil, fmt.Errorf("满足首页曝光资格的演示商家数量=%d，期望=6", len(items))
+	}
+	return items, nil
+}
+
 func verifyDemoSeedImport(ctx context.Context, sourceDSN string, rootDir string, keepDatabase bool) error {
 	tempName := tempDatabaseName()
 	adminDSN, err := databaseDSN(sourceDSN, "postgres")
@@ -320,9 +370,36 @@ func verifyDemoSeedImport(ctx context.Context, sourceDSN string, rootDir string,
 	if err != nil {
 		return err
 	}
+	var firstSeedOnboardedAt map[string]time.Time
 	for _, file := range files {
 		if err := executeSQLFile(ctx, tempDB, file); err != nil {
 			return err
+		}
+		if filepath.Base(file) != "seed_demo_data.sql" {
+			continue
+		}
+
+		currentOnboardedAt, err := loadDemoHomeRecentMerchantOnboardedAt(ctx, tempDB)
+		if err != nil {
+			return err
+		}
+		if firstSeedOnboardedAt == nil {
+			firstSeedOnboardedAt = currentOnboardedAt
+			continue
+		}
+		for merchantID, firstValue := range firstSeedOnboardedAt {
+			currentValue, ok := currentOnboardedAt[merchantID]
+			if !ok {
+				return fmt.Errorf("第二次导入后演示商家不再满足首页曝光资格: merchantId=%s", merchantID)
+			}
+			if !currentValue.Equal(firstValue) {
+				return fmt.Errorf(
+					"重复导入覆盖了首次入驻时间: merchantId=%s first=%s current=%s",
+					merchantID,
+					firstValue.Format(time.RFC3339Nano),
+					currentValue.Format(time.RFC3339Nano),
+				)
+			}
 		}
 	}
 	return nil
