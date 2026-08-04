@@ -42,9 +42,6 @@ func (s *ContentAuditRetryScheduler) RunOnce(ctx context.Context) error {
 	}
 	result, err := s.runner.Run(ctx)
 	if err != nil {
-		if s.logger != nil {
-			s.logger.Printf("内容审核自动重试任务执行失败: err=%v", err)
-		}
 		return err
 	}
 	if s.logger != nil && (result.StaleCount > 0 || result.RetriedCount > 0 || result.ManualReviewCount > 0) {

@@ -42,9 +42,6 @@ func (s *PaymentReconciliationScheduler) RunOnce(ctx context.Context) error {
 	}
 	result, err := s.runner.Run(ctx)
 	if err != nil {
-		if s.logger != nil {
-			s.logger.Printf("支付补偿任务执行失败: err=%v", err)
-		}
 		return err
 	}
 	if s.logger != nil {

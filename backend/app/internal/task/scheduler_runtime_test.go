@@ -1,19 +1,23 @@
 package task
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
 	"sync"
 	"testing"
 	"time"
 )
 
 type fakeCoordinator struct {
-	mu       sync.Mutex
-	calls    int
-	acquired bool
-	called   chan struct{}
-	received chan coordinatorCall
+	mu                   sync.Mutex
+	calls                int
+	acquired             bool
+	called               chan struct{}
+	received             chan coordinatorCall
+	coordinationErr      error
+	coordinationFailures int
 }
 
 type coordinatorCall struct {
@@ -32,6 +36,11 @@ func (f *fakeCoordinator) RunExclusive(
 	acquired := f.acquired
 	called := f.called
 	received := f.received
+	coordinationErr := error(nil)
+	if f.coordinationFailures > 0 {
+		f.coordinationFailures--
+		coordinationErr = f.coordinationErr
+	}
 	f.mu.Unlock()
 	if called != nil {
 		select {
@@ -41,6 +50,9 @@ func (f *fakeCoordinator) RunExclusive(
 	}
 	if received != nil {
 		received <- coordinatorCall{taskName: taskName, timeout: timeout}
+	}
+	if coordinationErr != nil {
+		return CoordinationResult{}, coordinationErr
 	}
 	if !acquired {
 		return CoordinationResult{Acquired: false}, nil
@@ -114,16 +126,137 @@ type scheduler interface {
 	Wait()
 }
 
-type fakeContentAuditRetryRunner struct{}
-
-func (fakeContentAuditRetryRunner) Run(context.Context) (ContentAuditRetryResult, error) {
-	return ContentAuditRetryResult{}, nil
+type fakeContentAuditRetryRunner struct {
+	err error
 }
 
-type fakePaymentReconciliationRunner struct{}
+func (r fakeContentAuditRetryRunner) Run(context.Context) (ContentAuditRetryResult, error) {
+	return ContentAuditRetryResult{}, r.err
+}
 
-func (fakePaymentReconciliationRunner) Run(context.Context) (PaymentReconciliationResult, error) {
-	return PaymentReconciliationResult{}, nil
+type fakePaymentReconciliationRunner struct {
+	err error
+}
+
+func (r fakePaymentReconciliationRunner) Run(context.Context) (PaymentReconciliationResult, error) {
+	return PaymentReconciliationResult{}, r.err
+}
+
+func TestSchedulersLeaveRunnerErrorLoggingToCoordinator(t *testing.T) {
+	runnerErr := errors.New("runner failed")
+	tests := []struct {
+		name string
+		new  func(*log.Logger) runOnceScheduler
+	}{
+		{
+			name: "resource lifecycle",
+			new: func(logger *log.Logger) runOnceScheduler {
+				return NewResourceLifecycleScheduler(
+					&fakeLifecycleRunner{err: runnerErr}, time.Hour, logger, nil, 0,
+				)
+			},
+		},
+		{
+			name: "content audit retry",
+			new: func(logger *log.Logger) runOnceScheduler {
+				return NewContentAuditRetryScheduler(
+					fakeContentAuditRetryRunner{err: runnerErr}, time.Hour, logger, nil, 0,
+				)
+			},
+		},
+		{
+			name: "payment reconciliation",
+			new: func(logger *log.Logger) runOnceScheduler {
+				return NewPaymentReconciliationScheduler(
+					fakePaymentReconciliationRunner{err: runnerErr}, time.Hour, logger, nil, 0,
+				)
+			},
+		},
+		{
+			name: "merchant map event cleanup",
+			new: func(logger *log.Logger) runOnceScheduler {
+				return NewMerchantMapEventCleanupScheduler(
+					&fakeMerchantMapEventCleanupRunner{err: runnerErr}, time.Hour, logger, nil, 0,
+				)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var output bytes.Buffer
+			scheduler := tt.new(log.New(&output, "", 0))
+
+			err := scheduler.RunOnce(context.Background())
+			if !errors.Is(err, runnerErr) {
+				t.Fatalf("RunOnce() error = %v, want %v", err, runnerErr)
+			}
+			if got := output.String(); got != "" {
+				t.Fatalf("Scheduler 记录了应由 Coordinator 统一处理的 runner 错误日志: %q", got)
+			}
+		})
+	}
+}
+
+type runOnceScheduler interface {
+	RunOnce(context.Context) error
+}
+
+type notifyingResourceLifecycleRunner struct {
+	called chan struct{}
+}
+
+func (r notifyingResourceLifecycleRunner) Run(context.Context) (ResourceLifecycleResult, error) {
+	r.called <- struct{}{}
+	return ResourceLifecycleResult{}, nil
+}
+
+func TestResourceLifecycleSchedulerStartRunsWithoutCoordinator(t *testing.T) {
+	called := make(chan struct{}, 1)
+	scheduler := NewResourceLifecycleScheduler(
+		notifyingResourceLifecycleRunner{called: called}, time.Hour, nil, nil, 0,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		cancel()
+		scheduler.Wait()
+	})
+
+	scheduler.Start(ctx)
+	select {
+	case <-called:
+	case <-time.After(time.Second):
+		t.Fatal("nil Coordinator 下 Scheduler Start 未直接执行 runner")
+	}
+	cancel()
+	scheduler.Wait()
+}
+
+func TestSchedulerRuntimeContinuesAfterCoordinatorError(t *testing.T) {
+	coordinator := &fakeCoordinator{
+		acquired:             true,
+		coordinationErr:      errors.New("coordinator unavailable"),
+		coordinationFailures: 1,
+	}
+	runtime := newSchedulerRuntime(TaskResourceLifecycle, coordinator, time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	runnerCalled := make(chan struct{}, 1)
+	t.Cleanup(func() {
+		cancel()
+		runtime.wait()
+	})
+
+	runtime.start(ctx, 10*time.Millisecond, func(context.Context) error {
+		runnerCalled <- struct{}{}
+		return nil
+	})
+	select {
+	case <-runnerCalled:
+	case <-time.After(time.Second):
+		t.Fatal("Coordinator 首轮返回错误后，下一轮未继续执行 runner")
+	}
+	cancel()
+	runtime.wait()
 }
 
 func TestSchedulerRuntimeStartsImmediatelyAndWaitsForShutdown(t *testing.T) {

@@ -42,9 +42,6 @@ func (s *MerchantMapEventCleanupScheduler) RunOnce(ctx context.Context) error {
 	}
 	result, err := s.runner.Run(ctx)
 	if err != nil {
-		if s.logger != nil {
-			s.logger.Printf("商家地图行为清理任务执行失败: err=%v", err)
-		}
 		return err
 	}
 	if s.logger != nil && result.DeletedCount > 0 {
