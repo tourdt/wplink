@@ -24,30 +24,62 @@
       <button v-if="!isLoggedIn" class="login-button" @click.stop="openLogin">微信登录</button>
     </view>
 
-    <view v-if="benefitOverviewVisible" class="benefit-overview-card section-card" @click="openBenefitOverview">
+    <view v-if="benefitOverviewVisible" class="benefit-overview-card section-card">
       <view class="benefit-head">
         <view class="benefit-title-wrap">
           <text class="benefit-title">我的权益</text>
-          <text class="benefit-desc">{{ benefitOverviewDesc }}</text>
+          <text class="benefit-desc">剩余次数可用于发布和刷新供需信息</text>
         </view>
-        <view class="benefit-actions">
-          <text v-if="activeGrowthCampaign.code" class="benefit-growth-action" @click.stop="openGrowthEntitlement">免费获得</text>
-          <text class="benefit-action">查看</text>
-        </view>
+        <text class="benefit-detail-action" @click="openGrowthEntitlement">权益明细 ›</text>
       </view>
       <view class="benefit-stats">
-        <view class="benefit-stat">
-          <text class="benefit-value">{{ publishQuotaDisplay }}</text>
-          <text class="benefit-label">发布次数</text>
-          <text v-if="entitlementQuotaReady && publishQuotaRemaining === 0" class="quota-purchase-action quota-purchase-primary" @click.stop="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">购买发布次数</text>
-          <text v-else-if="entitlementQuotaReady && publishQuotaLow" class="quota-purchase-action" @click.stop="openQuotaPurchase(QUOTA_TYPE_PUBLISH)">即将用完 · 去补充</text>
+        <view
+          class="benefit-stat"
+          :class="{
+            'benefit-stat-low': entitlementQuotaReady && publishQuotaLow,
+            'benefit-stat-empty': entitlementQuotaReady && publishQuotaRemaining === 0,
+          }"
+        >
+          <view class="benefit-stat-head">
+            <text class="benefit-label">可发布</text>
+            <text
+              v-if="entitlementQuotaReady"
+              class="quota-purchase-action"
+              @click="openQuotaPurchase(QUOTA_TYPE_PUBLISH)"
+            >{{ publishQuotaRemaining === 0 ? '购买 ›' : '补充 ›' }}</text>
+          </view>
+          <view class="benefit-value-row">
+            <text class="benefit-value">{{ publishQuotaDisplay }}</text>
+            <text v-if="entitlementQuotaReady" class="benefit-unit">次</text>
+          </view>
         </view>
-        <view class="benefit-stat">
-          <text class="benefit-value">{{ refreshQuotaDisplay }}</text>
-          <text class="benefit-label">刷新次数</text>
-          <text v-if="entitlementQuotaReady && refreshQuotaRemaining === 0" class="quota-purchase-action quota-purchase-primary" @click.stop="openQuotaPurchase(QUOTA_TYPE_REFRESH)">购买刷新次数</text>
-          <text v-else-if="entitlementQuotaReady && refreshQuotaLow" class="quota-purchase-action" @click.stop="openQuotaPurchase(QUOTA_TYPE_REFRESH)">即将用完 · 去补充</text>
+        <view
+          class="benefit-stat"
+          :class="{
+            'benefit-stat-low': entitlementQuotaReady && refreshQuotaLow,
+            'benefit-stat-empty': entitlementQuotaReady && refreshQuotaRemaining === 0,
+          }"
+        >
+          <view class="benefit-stat-head">
+            <text class="benefit-label">可刷新</text>
+            <text
+              v-if="entitlementQuotaReady"
+              class="quota-purchase-action"
+              @click="openQuotaPurchase(QUOTA_TYPE_REFRESH)"
+            >{{ refreshQuotaRemaining === 0 ? '购买 ›' : '补充 ›' }}</text>
+          </view>
+          <view class="benefit-value-row">
+            <text class="benefit-value">{{ refreshQuotaDisplay }}</text>
+            <text v-if="entitlementQuotaReady" class="benefit-unit">次</text>
+          </view>
         </view>
+      </view>
+      <view v-if="activeGrowthCampaign.code" class="benefit-growth-banner">
+        <view class="benefit-growth-main">
+          <text class="benefit-growth-title">{{ benefitGrowthTitle }}</text>
+          <text class="benefit-growth-desc">完成任务，奖励自动到账</text>
+        </view>
+        <text class="benefit-growth-button" @click="openGrowthEntitlement">去完成</text>
       </view>
       <text v-if="benefitExpiryReminder" class="benefit-expiry">{{ benefitExpiryReminder }}</text>
     </view>
@@ -157,6 +189,13 @@ const refreshQuotaDisplay = computed(() => entitlementQuotaReady.value ? refresh
 const publishQuotaLow = computed(() => publishQuotaRemaining.value > 0 && publishQuotaRemaining.value <= QUOTA_LOW_THRESHOLD)
 const refreshQuotaLow = computed(() => refreshQuotaRemaining.value > 0 && refreshQuotaRemaining.value <= QUOTA_LOW_THRESHOLD)
 const activeGrowthCampaign = computed(() => growthCampaigns.value[0] || {})
+const benefitGrowthTitle = computed(() => {
+  // 权益未知时使用中性免费任务文案，不能把接口故障误表达为“次数已用完”。
+  if (!entitlementQuotaReady.value) return '做任务，免费得次数'
+  return publishQuotaRemaining.value === 0 || refreshQuotaRemaining.value === 0
+    ? '也可以免费获取'
+    : '做任务，免费得次数'
+})
 const benefitExpiryReminder = computed(() => {
   if (!entitlementQuotaReady.value) return ''
   const candidates = merchantEntitlements.value
@@ -169,16 +208,6 @@ const benefitExpiryReminder = computed(() => {
   const amount = Number(nearest.remainingAmount || 0)
   return `最近到期：${entitlementLabel(nearest.type)} ${amount} 次，${formatDateToDay(nearest.expiresAt, '')} 到期`
 })
-const benefitOverviewDesc = computed(() => {
-  if (merchantProfile.value.vipStatus === 'active') {
-    return '现有发布和刷新次数可继续使用'
-  }
-  if (activeGrowthCampaign.value.code) {
-    return activeGrowthCampaign.value.hint || '完成新手任务可获得更多发布和刷新次数'
-  }
-  return '查看当前可用的发布和刷新次数'
-})
-
 onLoad(() => {
   syncSession()
 })
@@ -303,13 +332,6 @@ async function openMerchantHome() {
   if (!requireLogin()) return
   if (!(await ensureMerchantProfileReady(merchantId.value))) return
   uni.navigateTo({ url: `/pages/merchant/detail?id=${merchantId.value}` })
-}
-
-async function openBenefitOverview() {
-  if (!requireLogin()) return
-  // 已登录但未绑定商户时先引导完善资料，避免进入购买页后因缺少商户身份无法下单。
-  if (!(await ensureMerchantProfileReady(merchantId.value))) return
-  uni.navigateTo({ url: '/pages/vip/index' })
 }
 
 function openQuotaPurchase(quotaType) {
@@ -460,7 +482,7 @@ async function openGrowthEntitlement() {
 
 .benefit-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 18rpx;
   min-width: 0;
@@ -468,6 +490,7 @@ async function openGrowthEntitlement() {
 
 .benefit-title-wrap {
   display: grid;
+  flex: 1 1 auto;
   gap: 6rpx;
   min-width: 0;
 }
@@ -479,22 +502,12 @@ async function openGrowthEntitlement() {
   line-height: 1.3;
 }
 
-.benefit-action {
-  flex: 0 0 auto;
-  color: $wplink-accent;
-  font-size: 24rpx;
-  font-weight: 700;
-}
-
-.benefit-actions {
-  display: flex;
+.benefit-detail-action {
+  display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 16rpx;
-}
-
-.benefit-growth-action {
-  color: $wplink-success;
+  min-height: 72rpx;
+  color: $wplink-muted;
   font-size: 24rpx;
   font-weight: 700;
 }
@@ -506,12 +519,40 @@ async function openGrowthEntitlement() {
 }
 
 .benefit-stat {
-  display: grid;
-  gap: 4rpx;
+  position: relative;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  padding: 18rpx;
+  min-height: 136rpx;
+  padding: 16rpx 18rpx;
+  border: 1rpx solid transparent;
   border-radius: 10rpx;
   background: $wplink-primary-soft;
+}
+
+.benefit-stat-head {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 32rpx;
+  padding-right: 74rpx;
+}
+
+.benefit-stat-low {
+  border-color: rgba(194, 58, 0, 0.16);
+  background: rgba(194, 58, 0, 0.04);
+}
+
+.benefit-stat-empty {
+  border-color: rgba(194, 58, 0, 0.24);
+  background: $wplink-warning-soft;
+}
+
+.benefit-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6rpx;
+  margin-top: 10rpx;
 }
 
 .benefit-value {
@@ -521,6 +562,7 @@ async function openGrowthEntitlement() {
   line-height: 1.1;
 }
 
+.benefit-unit,
 .benefit-label {
   color: $wplink-muted;
   font-size: 24rpx;
@@ -528,26 +570,75 @@ async function openGrowthEntitlement() {
 }
 
 .quota-purchase-action {
-  justify-self: start;
-  margin-top: 8rpx;
-  color: $wplink-accent;
+  position: absolute;
+  top: 2rpx;
+  right: 8rpx;
+  display: inline-flex;
+  align-items: center;
+  min-height: 64rpx;
+  padding: 0 10rpx;
+  color: $wplink-muted;
   font-size: 22rpx;
   font-weight: 700;
   line-height: 1.4;
 }
 
-.quota-purchase-primary {
-  padding: 6rpx 12rpx;
+.benefit-stat-low .quota-purchase-action {
+  color: rgba(194, 58, 0, 0.78);
+}
+
+.benefit-stat-empty .quota-purchase-action {
+  color: $wplink-warning;
+}
+
+.benefit-growth-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  padding: 18rpx;
+  border-radius: 10rpx;
+  background: $wplink-success-soft;
+}
+
+.benefit-growth-main {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 6rpx;
+  min-width: 0;
+}
+
+.benefit-growth-title {
+  color: $wplink-success;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.benefit-growth-desc {
+  color: $wplink-muted;
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
+.benefit-growth-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 72rpx;
+  padding: 0 20rpx;
   border-radius: 999rpx;
-  background: $wplink-accent;
+  background: $wplink-success;
   color: $wplink-card;
+  font-size: 22rpx;
+  font-weight: 700;
 }
 
 .benefit-expiry {
   padding: 14rpx 18rpx;
   border-radius: 10rpx;
-  background: $wplink-warning-soft;
-  color: $wplink-warning;
+  background: $wplink-primary-soft;
+  color: $wplink-muted;
   font-size: 24rpx;
   font-weight: 600;
   line-height: 1.4;
