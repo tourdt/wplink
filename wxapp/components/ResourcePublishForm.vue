@@ -125,7 +125,7 @@
           <UniGridItem v-for="(item, index) in resourceImageGridItems" :key="item.id" :index="index">
             <view v-if="item.type === 'image'" class="upload-img-item">
               <image class="resource-image" :src="item.url" mode="aspectFill" />
-              <button class="img-del" @click.stop="removeResourceImage(item)">
+              <button class="img-del" :disabled="publishBusy" @click.stop="removeResourceImage(item)">
                 <text class="img-del-line" />
               </button>
             </view>
@@ -176,8 +176,12 @@
     <view :class="['fixed-save-spacer', { 'no-safe-area': !reserveBottomSafeArea }]" />
     <view :class="['fixed-save-bar', { 'no-safe-area': !reserveBottomSafeArea }]">
       <view class="fixed-save-actions">
-        <button class="secondary-button" @click="saveDraft">保存草稿</button>
-        <button :class="['primary-button', canSubmit ? '' : 'is-disabled']" @click="submit">提交审核</button>
+        <button class="secondary-button" :disabled="publishBusy" :loading="isPublishAction('draft')" @click="saveDraft">
+          {{ isPublishAction('draft') ? '保存中' : '保存草稿' }}
+        </button>
+        <button :class="['primary-button', canSubmit ? '' : 'is-disabled']" :disabled="publishBusy || !canSubmit" :loading="isPublishAction('submit')" @click="submit">
+          {{ isPublishAction('submit') ? '提交中' : '提交审核' }}
+        </button>
       </view>
     </view>
   </view>
@@ -230,6 +234,10 @@ const autosaveReady = ref(false)
 const editingResourceId = ref('')
 const editingResourceStatus = ref('')
 const editSavedAsDraft = ref(true)
+// 发布、保存草稿和图片变更都影响同一份资源数据，必须共享动作锁，避免并发请求覆盖图片或重复创建资源。
+const publishAction = ref('')
+const publishBusy = computed(() => Boolean(publishAction.value))
+const isPublishAction = (action) => publishAction.value === action
 let localDraftSaveTimer = null
 const form = reactive({
   merchantId: '',
@@ -505,10 +513,12 @@ function applyMerchantContactDefaults(contact) {
 }
 
 async function submit() {
+  if (publishBusy.value) return
   if (!validatePublishForm()) {
     return
   }
   saveMerchantId(form.merchantId)
+  publishAction.value = 'submit'
   try {
     if (editingResourceId.value) {
       const images = await uploadPendingResourceImages()
@@ -532,6 +542,8 @@ async function submit() {
   } catch (err) {
     if (await handlePublishQuotaError(err)) return
     throw err
+  } finally {
+    publishAction.value = ''
   }
 }
 
@@ -562,17 +574,23 @@ function publishSubmitToast(result = {}) {
 }
 
 async function saveDraft() {
+  if (publishBusy.value) return
   if (!validatePublishForm()) {
     return
   }
   saveMerchantId(form.merchantId)
-  const merchantId = form.merchantId
-  const images = await uploadPendingResourceImages()
-  await saveResourceDraftPayload(images)
-  clearPublishLocalDraft()
-  resetPublishForm()
-  uni.showToast({ title: '草稿已保存', icon: 'none' })
-  uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${merchantId}` })
+  publishAction.value = 'draft'
+  try {
+    const merchantId = form.merchantId
+    const images = await uploadPendingResourceImages()
+    await saveResourceDraftPayload(images)
+    clearPublishLocalDraft()
+    resetPublishForm()
+    uni.showToast({ title: '草稿已保存', icon: 'none' })
+    uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${merchantId}` })
+  } finally {
+    publishAction.value = ''
+  }
 }
 
 async function saveResourceDraftPayload(images) {
@@ -1264,6 +1282,8 @@ function getStoredResourceImageUrls(entries) {
 }
 
 function onResourceImageGridItemClick(event) {
+  // 请求进行时锁定图片入口，防止上传链路读取列表期间被新增或删除，造成发布内容不一致。
+  if (publishBusy.value) return
   const item = resourceImageGridItems.value[Number(event.detail.index)]
   if (!item) return
   if (item.type === 'add') {
@@ -1283,6 +1303,8 @@ function previewResourceImage(item) {
 }
 
 function removeResourceImage(item) {
+  // 与发布、草稿保存共用互斥锁，避免用户在上传中的资源列表上继续删除图片。
+  if (publishBusy.value) return
   const index = Number(item.index)
   if (index >= 0) {
     resourceImageEntries.value.splice(index, 1)
