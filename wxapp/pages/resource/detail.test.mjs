@@ -231,9 +231,13 @@ test('resource detail only shows merchant home entry after merchant profile is c
 
 test('resource detail starts merchant-home and share reporting in the background without delaying user actions', async () => {
   const report = deferred()
+  const merchantHomeReports = []
   const events = []
   const page = loadResourceDetailPage({
-    recordResourceContact: () => report.promise,
+    recordResourceContact(resourceId, action) {
+      merchantHomeReports.push({ resourceId, action })
+      return report.promise
+    },
     uni: { navigateTo: (options) => events.push(['navigateTo', options.url]) },
   })
   page.resource.value = {
@@ -242,29 +246,51 @@ test('resource detail starts merchant-home and share reporting in the background
     merchant: { id: 'merchant-expected', profileStatus: 'completed' },
   }
   const openingMerchant = page.openMerchant()
+  assert.deepEqual(merchantHomeReports, [{ resourceId: 'resource-expected', action: 'merchant_home' }], '商家主页统计必须绑定当前资源和 merchant_home 动作')
   assert.deepEqual(events, [['navigateTo', '/pages/merchant/detail?id=merchant-expected']], '商家主页统计未完成时应立即跳转')
   report.resolve({})
   await openingMerchant
 
   const shareReport = deferred()
-  const sharePage = loadResourceDetailPage({ recordResourceContact: () => shareReport.promise })
+  const shareReports = []
+  const sharePage = loadResourceDetailPage({
+    recordResourceContact(resourceId, action) {
+      shareReports.push({ resourceId, action })
+      return shareReport.promise
+    },
+  })
   sharePage.resource.value = { id: 'resource-expected', presentation: { fields: [], tags: [] } }
   sharePage.showContactMoreSheet.value = true
   const sharing = sharePage.shareResourceFromMore()
+  assert.deepEqual(shareReports, [{ resourceId: 'resource-expected', action: 'share' }], '分享统计必须绑定当前资源和 share 动作')
   assert.equal(sharePage.showContactMoreSheet.value, false, '分享统计未完成时应立即关闭更多面板')
   shareReport.resolve({})
   await sharing
 
   const failedReport = deferred()
-  const failedPage = loadResourceDetailPage({ recordResourceContact: () => failedReport.promise })
-  failedPage.resource.value = { id: 'resource-expected', presentation: { fields: [], tags: [] } }
-  failedPage.showContactMoreSheet.value = true
-  const failedSharing = failedPage.shareResourceFromMore()
-  assert.equal(failedPage.showContactMoreSheet.value, false, '统计失败前也不应等待关闭更多面板')
-  failedReport.reject(new Error('分享统计服务暂不可用'))
-  await failedSharing
-  await flushAsyncWork()
-  assert.equal(failedPage.showContactMoreSheet.value, false, '统计失败不应回滚既有分享面板关闭流程')
+  const rejectedEvents = []
+  const unhandledRejections = []
+  const onUnhandledRejection = (reason) => unhandledRejections.push(reason)
+  process.on('unhandledRejection', onUnhandledRejection)
+  try {
+    const failedPage = loadResourceDetailPage({
+      recordResourceContact: () => failedReport.promise,
+      uni: { navigateTo: (options) => rejectedEvents.push(['navigateTo', options.url]) },
+    })
+    failedPage.resource.value = {
+      id: 'resource-expected',
+      presentation: { fields: [], tags: [] },
+      merchant: { id: 'merchant-expected', profileStatus: 'completed' },
+    }
+    await failedPage.openMerchant()
+    assert.deepEqual(rejectedEvents, [['navigateTo', '/pages/merchant/detail?id=merchant-expected']], '统计失败前商家主页也应已跳转')
+    failedReport.reject(new Error('商家主页统计服务暂不可用'))
+    await flushAsyncWork()
+    assert.deepEqual(rejectedEvents, [['navigateTo', '/pages/merchant/detail?id=merchant-expected']], '统计失败不应回滚已经发生的跳转')
+    assert.deepEqual(unhandledRejections, [], '后台统计拒绝必须被消费，不能产生未处理拒绝')
+  } finally {
+    process.off('unhandledRejection', onUnhandledRejection)
+  }
 })
 
 test('resource detail does not show merchant endorsement copy in the description card', () => {

@@ -26,6 +26,30 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
+function createTrackedRefFactory() {
+  const writes = new WeakMap()
+  return {
+    ref(initialValue) {
+      let currentValue = initialValue
+      const state = {}
+      writes.set(state, [])
+      Object.defineProperty(state, 'value', {
+        get() {
+          return currentValue
+        },
+        set(nextValue) {
+          writes.get(state).push(nextValue)
+          currentValue = nextValue
+        },
+      })
+      return state
+    },
+    writesFor(state) {
+      return writes.get(state) || []
+    },
+  }
+}
+
 async function renderMerchantDetailTemplate(context) {
   const source = fs.readFileSync(sourcePath, 'utf8')
   const { descriptor } = parse(source, { filename: 'pages/merchant/detail.vue' })
@@ -271,16 +295,20 @@ test('merchant follow action shows native loading, rejects duplicates, and resto
 })
 
 test('merchant follow local branches never enter busy state', async () => {
+  const tracker = createTrackedRefFactory()
   let requests = 0
   const page = loadMerchantDetailPage({
+    ref: tracker.ref,
     setMerchantFollow: async () => { requests += 1; return { followed: true } },
     getSession: () => ({ merchantId: 'merchant-own', token: 'token' }),
   })
   await page.toggleFollow()
   assert.equal(page.followBusy.value, false, '缺少商家时不应进入 busy')
+  assert.deepEqual(tracker.writesFor(page.followBusy), [], '缺少商家时不应短暂写入 busy')
   page.merchant.value = { id: 'merchant-own' }
   page.ownMerchantId.value = 'merchant-own'
   await page.toggleFollow()
   assert.equal(page.followBusy.value, false, '自己的商家不应进入 busy')
+  assert.deepEqual(tracker.writesFor(page.followBusy), [], '自己的商家时不应短暂写入 busy')
   assert.equal(requests, 0, '本地分支不应请求关注接口')
 })
