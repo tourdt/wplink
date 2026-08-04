@@ -643,7 +643,7 @@ async function openMerchant() {
   if (!showMerchantHomeEntry.value) return
   const merchantId = (resource.value.merchant || {}).id
   if (!merchantId) return
-  await recordContact('merchant_home')
+  reportContactInBackground('merchant_home')
   uni.navigateTo({ url: `/pages/merchant/detail?id=${merchantId}` })
 }
 
@@ -1092,13 +1092,18 @@ async function runContactAction(action, operation) {
   }
 }
 
-async function shareResource() {
-  if (isOwnResource.value) return
-  await recordContact('share')
+function reportContactInBackground(action) {
+  // 访问和分享统计属于 best-effort 后台记录，失败不得打断已开始的跳转或面板关闭流程。
+  void recordContact(action).catch(() => {})
 }
 
-async function shareResourceFromMore() {
-  await shareResource()
+function shareResource() {
+  if (isOwnResource.value) return
+  reportContactInBackground('share')
+}
+
+function shareResourceFromMore() {
+  shareResource()
   closeContactMoreSheet()
 }
 
@@ -1317,7 +1322,7 @@ function flushCanvas(ctx) {
 
 function trackShareFromMenu() {
   if (isOwnResource.value || !resource.value.id) return
-  recordContact('share').catch(() => {})
+  reportContactInBackground('share')
 }
 
 onShareAppMessage((shareEvent) => {

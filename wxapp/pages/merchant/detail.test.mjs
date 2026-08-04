@@ -3,6 +3,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import vm from 'node:vm'
+import { compileTemplate, parse } from '@vue/compiler-sfc'
+import { createSSRApp, h } from 'vue'
+import { renderToString } from '@vue/server-renderer'
 
 import * as merchantPlaceState from '../sourcing-map/merchantPlaceState.js'
 
@@ -13,7 +16,41 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
-function loadMerchantDetailPage({ trackMerchantMapEvent, timeline }) {
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((nextResolve, nextReject) => {
+    resolve = nextResolve
+    reject = nextReject
+  })
+  return { promise, resolve, reject }
+}
+
+async function renderMerchantDetailTemplate(context) {
+  const source = fs.readFileSync(sourcePath, 'utf8')
+  const { descriptor } = parse(source, { filename: 'pages/merchant/detail.vue' })
+  const compiled = compileTemplate({
+    source: descriptor.template.content,
+    filename: 'pages/merchant/detail.vue',
+    id: 'merchant-detail-follow-loading',
+    compilerOptions: {
+      mode: 'function',
+      isCustomElement: (tag) => ['view', 'text', 'image', 'scroll-view', 'button', 'ResourceList'].includes(tag),
+    },
+  })
+  assert.equal(compiled.errors.length, 0, compiled.errors.join('\n'))
+  const render = new Function('Vue', compiled.code)(await import('vue'))
+  const Page = {
+    props: Object.keys(context),
+    setup(props) {
+      return () => render(props, [])
+    },
+  }
+  return renderToString(createSSRApp({ render: () => h(Page, context) }))
+}
+
+function loadMerchantDetailPage(additions = {}) {
+  const { trackMerchantMapEvent = () => {}, timeline = [] } = additions
   const source = fs.readFileSync(sourcePath, 'utf8')
   const script = source
     .match(/<script setup>([\s\S]*?)<\/script>/)?.[1]
@@ -38,9 +75,11 @@ function loadMerchantDetailPage({ trackMerchantMapEvent, timeline }) {
       navigateTo(options) {
         timeline.push(['navigateTo', options.url])
       },
+      showToast() {},
     },
+    ...additions,
   }
-  vm.runInNewContext(`${script}\nglobalThis.merchantDetailPage = { merchant, openMerchantLocation }`, sandbox)
+  vm.runInNewContext(`${script}\nglobalThis.merchantDetailPage = { merchant, ownMerchantId, followed, followBusy: typeof followBusy === 'undefined' ? undefined : followBusy, isOwnMerchant, toggleFollow, openMerchantLocation }`, sandbox)
   return sandbox.merchantDetailPage
 }
 
@@ -183,4 +222,65 @@ test('merchant detail records its valid location entry immediately before naviga
   page.merchant.value.location.lat = ''
   page.openMerchantLocation()
   assert.deepEqual(timeline, [])
+})
+
+test('merchant follow action shows native loading, rejects duplicates, and restores feedback state', async () => {
+  const busyHtml = await renderMerchantDetailTemplate({
+    merchantLogo: '', merchantInitial: '商', merchant: { name: '示例商家' }, merchantSubtitle: '',
+    isOwnMerchant: false, followed: false, followBusy: true, toggleFollow: () => {}, statCards: [],
+    merchantCategoryTags: [], profileDescription: '', merchantImages: [], merchantAddressLocation: null,
+    merchantResourceCountText: '', merchantResources: [], merchantResourcesEmptyText: '',
+    merchantResourcesLoading: false, hasMoreMerchantResources: false, openMerchantEditor: () => {},
+    previewMerchantImage: () => {}, openMerchantLocation: () => {}, copyMerchantAddress: () => {},
+    openResource: () => {}, loadMerchantResources: () => {},
+  })
+  const followButton = busyHtml.match(/<button[^>]*>(?:关注|已关注|处理中)<\/button>/)?.[0] || ''
+  assert.match(followButton, /loading="true"/, '关注请求期间按钮应显示原生 loading')
+  assert.match(followButton, /disabled(?:=|\s|>)/, '关注请求期间按钮应禁用')
+
+  const request = deferred()
+  const calls = []
+  const toasts = []
+  const page = loadMerchantDetailPage({
+    setMerchantFollow(merchantId, nextFollowed) {
+      calls.push({ merchantId, nextFollowed })
+      return request.promise
+    },
+    uni: { showToast: (options) => toasts.push(options) },
+  })
+  page.merchant.value = { id: 'merchant-expected' }
+  const first = page.toggleFollow()
+  const duplicate = page.toggleFollow()
+  assert.deepEqual(calls, [{ merchantId: 'merchant-expected', nextFollowed: true }], '连续点击只能提交一次关注请求')
+  assert.equal(page.followBusy.value, true, '请求未结束时应保持 busy')
+  request.resolve({ followed: true })
+  await Promise.all([first, duplicate])
+  assert.equal(page.followBusy.value, false, '关注成功后应恢复 busy')
+  assert.equal(page.followed.value, true, '成功后应采用服务端关注状态')
+  assert.equal(toasts.at(-1)?.title, '已关注', '成功提示应保持')
+
+  const failureToasts = []
+  const failedPage = loadMerchantDetailPage({
+    setMerchantFollow: async () => { throw new Error('关注服务暂不可用') },
+    uni: { showToast: (options) => failureToasts.push(options) },
+  })
+  failedPage.merchant.value = { id: 'merchant-expected' }
+  await failedPage.toggleFollow()
+  assert.equal(failedPage.followBusy.value, false, '关注失败后应恢复 busy')
+  assert.equal(failureToasts.at(-1)?.title, '关注服务暂不可用', '失败提示应保持')
+})
+
+test('merchant follow local branches never enter busy state', async () => {
+  let requests = 0
+  const page = loadMerchantDetailPage({
+    setMerchantFollow: async () => { requests += 1; return { followed: true } },
+    getSession: () => ({ merchantId: 'merchant-own', token: 'token' }),
+  })
+  await page.toggleFollow()
+  assert.equal(page.followBusy.value, false, '缺少商家时不应进入 busy')
+  page.merchant.value = { id: 'merchant-own' }
+  page.ownMerchantId.value = 'merchant-own'
+  await page.toggleFollow()
+  assert.equal(page.followBusy.value, false, '自己的商家不应进入 busy')
+  assert.equal(requests, 0, '本地分支不应请求关注接口')
 })

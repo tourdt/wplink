@@ -2,11 +2,45 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
+import vm from 'node:vm'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'pages/messages/index.vue'), 'utf8')
 const apiSource = fs.readFileSync(path.join(root, 'api/message.js'), 'utf8')
 const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((nextResolve, nextReject) => {
+    resolve = nextResolve
+    reject = nextReject
+  })
+  return { promise, resolve, reject }
+}
+
+function flushAsyncWork() {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function loadMessagesPage(additions = {}) {
+  const script = source
+    .match(/<script setup>([\s\S]*?)<\/script>/)?.[1]
+    .replace(/import[\s\S]*?from\s+['"][^'"]+['"]\s*/g, '') || ''
+  const sandbox = {
+    computed(getter) { return { get value() { return getter() } } },
+    reactive(value) { return value },
+    ref(value) { return { value } },
+    onPullDownRefresh() {}, onReachBottom() {}, onShow() {},
+    listMessages: async () => ({ items: [], total: 0 }),
+    readMessage: async () => {},
+    requireLogin: () => true,
+    uni: { showToast() {}, navigateTo() {}, switchTab() {}, stopPullDownRefresh() {} },
+    ...additions,
+  }
+  vm.runInNewContext(`${script}\nglobalThis.messagesPage = { rows, markRead, openMessageTarget }`, sandbox)
+  return sandbox.messagesPage
+}
 
 test('messages page removes top copy and keeps only effective status filters', () => {
   assert.doesNotMatch(source, /message-hero/)
@@ -86,6 +120,47 @@ test('messages page relies on backend token identity instead of cached user or m
   assert.doesNotMatch(source, /const roleCode = ref/)
   assert.doesNotMatch(source, /userId:/)
   assert.doesNotMatch(source, /roleCode:/)
-  assert.match(source, /await readMessage\(item\.id\)/)
   assert.match(apiSource, /export function readMessage\(messageId\) \{[\s\S]*url: `\/api\/v1\/messages\/\$\{messageId\}\/read`[\s\S]*method: 'POST'[\s\S]*data: \{\}/)
+})
+
+test('opening messages navigates before the read receipt settles and handles receipt failure in background', async () => {
+  const receipt = deferred()
+  const events = []
+  const page = loadMessagesPage({
+    readMessage: () => receipt.promise,
+    uni: {
+      navigateTo: (options) => events.push(['navigateTo', options.url]),
+      switchTab: (options) => events.push(['switchTab', options.url]),
+      showToast: (options) => events.push(['showToast', options.title]),
+    },
+  })
+  const item = { id: 'message-expected', status: 'unread', targetUrl: '/pages/resource/detail?id=resource-expected' }
+  const opening = page.openMessageTarget(item)
+  assert.deepEqual(events, [['navigateTo', '/pages/resource/detail?id=resource-expected']], '已读回执未完成时应先跳转')
+  receipt.resolve()
+  await opening
+  await flushAsyncWork()
+  assert.equal(item.status, 'read', '后台已读成功后应更新本地状态')
+
+  const failedReceipt = deferred()
+  const failureEvents = []
+  const failedPage = loadMessagesPage({
+    readMessage: () => failedReceipt.promise,
+    uni: {
+      navigateTo: (options) => failureEvents.push(['navigateTo', options.url]),
+      switchTab: (options) => failureEvents.push(['switchTab', options.url]),
+      showToast: (options) => failureEvents.push(['showToast', options.title]),
+    },
+  })
+  const failedItem = { id: 'message-expected', status: 'unread', targetUrl: '/pages/resource/detail?id=resource-expected' }
+  const failedOpening = failedPage.openMessageTarget(failedItem)
+  assert.deepEqual(failureEvents, [['navigateTo', '/pages/resource/detail?id=resource-expected']], '回执失败前跳转不应回滚')
+  failedReceipt.reject(new Error('消息已读状态更新失败'))
+  await failedOpening
+  await flushAsyncWork()
+  assert.deepEqual(failureEvents, [
+    ['navigateTo', '/pages/resource/detail?id=resource-expected'],
+    ['showToast', '消息已读状态更新失败'],
+  ], '后台已读失败仅提示，不应产生未处理拒绝或回滚跳转')
+  assert.equal(failedItem.status, 'unread', '失败时应保留未读状态')
 })

@@ -135,11 +135,10 @@ async function markRead(item) {
 }
 
 async function openMessageTarget(item) {
-  try {
-    await markRead(item)
-  } catch (err) {
+  // 已读回执仅用于同步消息状态；后台失败不能阻断用户查看消息指向的业务详情。
+  void markRead(item).catch((err) => {
     uni.showToast({ title: err.message || '消息已读状态更新失败', icon: 'none' })
-  }
+  })
   const targetUrl = normalizeTargetUrl(buildMessageTargetUrl(item))
   if (!targetUrl) return
   if (isTabPage(targetUrl)) {

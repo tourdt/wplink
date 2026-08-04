@@ -166,6 +166,7 @@ function loadResourceDetailPage(additions = {}) {
     resource, ownerMerchantId, isOwnResource, showManagementSheet, showContactMoreSheet, favorited,
     managementAction, managementBusy, favoriteBusy, contactAction, contactBusyText, managementActions,
     managementActionLabel, handleManagementAction, closeManagementSheet, toggleFavorite, favoriteResourceFromMore, callPhone, copyWechat,
+    openMerchant, shareResource, shareResourceFromMore, recordContact,
   }`, sandbox, { filename: 'pages/resource/detail.vue' })
   return sandbox.resourceDetailPage
 }
@@ -226,6 +227,44 @@ test('resource detail only shows merchant home entry after merchant profile is c
   assert.match(source, /const showMerchantHomeEntry = computed\(\(\) => \{[\s\S]*merchantInfo\.value\.profileStatus === 'completed'[\s\S]*\}\)/)
   assert.match(source, /<view v-if="showMerchantHomeEntry" class="merchant-card" @click="openMerchant">/)
   assert.match(source, /function openMerchant\(\) \{[\s\S]*if \(!showMerchantHomeEntry\.value\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/merchant\/detail\?id=\$\{merchantId\}` \}\)/)
+})
+
+test('resource detail starts merchant-home and share reporting in the background without delaying user actions', async () => {
+  const report = deferred()
+  const events = []
+  const page = loadResourceDetailPage({
+    recordResourceContact: () => report.promise,
+    uni: { navigateTo: (options) => events.push(['navigateTo', options.url]) },
+  })
+  page.resource.value = {
+    id: 'resource-expected',
+    presentation: { fields: [], tags: [] },
+    merchant: { id: 'merchant-expected', profileStatus: 'completed' },
+  }
+  const openingMerchant = page.openMerchant()
+  assert.deepEqual(events, [['navigateTo', '/pages/merchant/detail?id=merchant-expected']], '商家主页统计未完成时应立即跳转')
+  report.resolve({})
+  await openingMerchant
+
+  const shareReport = deferred()
+  const sharePage = loadResourceDetailPage({ recordResourceContact: () => shareReport.promise })
+  sharePage.resource.value = { id: 'resource-expected', presentation: { fields: [], tags: [] } }
+  sharePage.showContactMoreSheet.value = true
+  const sharing = sharePage.shareResourceFromMore()
+  assert.equal(sharePage.showContactMoreSheet.value, false, '分享统计未完成时应立即关闭更多面板')
+  shareReport.resolve({})
+  await sharing
+
+  const failedReport = deferred()
+  const failedPage = loadResourceDetailPage({ recordResourceContact: () => failedReport.promise })
+  failedPage.resource.value = { id: 'resource-expected', presentation: { fields: [], tags: [] } }
+  failedPage.showContactMoreSheet.value = true
+  const failedSharing = failedPage.shareResourceFromMore()
+  assert.equal(failedPage.showContactMoreSheet.value, false, '统计失败前也不应等待关闭更多面板')
+  failedReport.reject(new Error('分享统计服务暂不可用'))
+  await failedSharing
+  await flushAsyncWork()
+  assert.equal(failedPage.showContactMoreSheet.value, false, '统计失败不应回滚既有分享面板关闭流程')
 })
 
 test('resource detail does not show merchant endorsement copy in the description card', () => {
@@ -357,7 +396,6 @@ test('resource detail groups low-frequency contact actions behind more sheet', (
   assert.match(source, /\{ key: 'top', label: '置顶', icon: actionIconPaths\.top \}/)
   assert.match(source, /\{ key: 'take-down', label: '下架', icon: actionIconPaths\.takeDown, danger: true \}/)
   assert.match(source, /async function favoriteResourceFromMore\(\) \{[\s\S]*const success = await toggleFavorite\(\)[\s\S]*if \(success\) closeContactMoreSheet\(\)[\s\S]*\}/)
-  assert.match(source, /async function shareResourceFromMore\(\) \{[\s\S]*await shareResource\(\)[\s\S]*closeContactMoreSheet\(\)[\s\S]*\}/)
   assert.match(source, /async function reportResourceFromMore\(\) \{[\s\S]*closeContactMoreSheet\(\)[\s\S]*openResourceReportPage\(\)[\s\S]*\}/)
   assert.match(contactBar, /@click="copyWechat"/)
   assert.match(contactBar, /@click="callPhone"/)
