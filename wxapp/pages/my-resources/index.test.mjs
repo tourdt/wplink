@@ -462,6 +462,26 @@ test('top purchase cancellation preserves its toast and clears the resource acti
   assertResourceAction(page, '', '', '支付取消后')
 })
 
+test('top purchase payment failures use a friendly toast and clear the resource action', async () => {
+  const toasts = []
+  const page = loadMyResourcesPage({
+    listTopVouchers: async () => ({ items: [] }),
+    createQuotaPackOrder: async () => ({ orderId: 'top-order-1' }),
+    createVIPPayment: async () => ({ payment: { timeStamp: '1', nonceStr: 'n', package: 'p', paySign: 's' } }),
+    uni: {
+      showToast: (options) => toasts.push(options),
+      showModal: ({ success }) => success({ confirm: true }),
+      requestPayment: ({ fail }) => fail({ errMsg: 'requestPayment:fail system error' }),
+    },
+  })
+  page.merchantId.value = 'merchant-1'
+
+  await page.topResource({ id: 'resource-1', status: 'published' })
+
+  assert.equal(toasts.at(-1)?.title, '置顶服务购买失败，请稍后重试', '支付系统错误不应直接暴露给用户')
+  assertResourceAction(page, '', '', '支付失败后')
+})
+
 test('write refresh waits for an in-flight list request before replacing rows and unlocking', async () => {
   const oldListRequest = deferred()
   const refreshedListRequest = deferred()
