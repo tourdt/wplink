@@ -2,10 +2,149 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
+import vm from 'node:vm'
+import { compileTemplate, parse } from '@vue/compiler-sfc'
+import { createSSRApp, h } from 'vue'
+import { renderToString } from '@vue/server-renderer'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
 const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+
+function ref(value) {
+  return { value }
+}
+
+function computed(getter) {
+  return { get value() { return getter() } }
+}
+
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((nextResolve, nextReject) => {
+    resolve = nextResolve
+    reject = nextReject
+  })
+  return { promise, resolve, reject }
+}
+
+function flushAsyncWork() {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function detailButton(clickExpression) {
+  const { descriptor } = parse(source, { filename: 'pages/resource/detail.vue' })
+  const buttons = descriptor.template.content.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) || []
+  const button = buttons.find((item) => item.includes(`@click="${clickExpression}"`))
+  assert.ok(button, `应找到 ${clickExpression} 操作按钮`)
+  return button
+}
+
+async function renderDetailButton(clickExpression, context) {
+  const compiled = compileTemplate({
+    source: detailButton(clickExpression),
+    filename: 'pages/resource/detail.vue',
+    id: 'resource-detail-action-loading',
+    compilerOptions: { mode: 'function' },
+  })
+  assert.equal(compiled.errors.length, 0, compiled.errors.join('\n'))
+  const render = new Function('Vue', compiled.code)(await import('vue'))
+  const Button = {
+    props: Object.keys(context),
+    setup(props) {
+      return () => render(props, [])
+    },
+  }
+  return renderToString(createSSRApp({ render: () => h(Button, context) }))
+}
+
+function openingButtonTag(html) {
+  return html.match(/<button\b[^>]*>/)?.[0] || ''
+}
+
+function assertBusyButton(html, busyText, label) {
+  const openingTag = openingButtonTag(html)
+  assert.match(openingTag, /\bloading="true"/, `${label}应展示原生 loading`)
+  assert.match(openingTag, /\bdisabled(?:=|\s|>)/, `${label}应禁用`)
+  assert.match(html, new RegExp(busyText), `${label}应展示“${busyText}”`)
+}
+
+function loadResourceDetailPage(additions = {}) {
+  const { descriptor } = parse(source, { filename: 'pages/resource/detail.vue' })
+  const script = descriptor.scriptSetup.content.replace(/^import\s+[\s\S]*?\s+from\s+['"][^'"]+['"]\s*$/gm, '')
+  const auxiliaryLoader = {
+    begin: (resourceId) => ({ resourceId: String(resourceId) }),
+    isCurrent: () => true,
+    run: async () => {},
+    loadMerchantProfile: async () => {},
+  }
+  const sandbox = {
+    console,
+    Promise,
+    Set,
+    Date,
+    String,
+    Number,
+    Boolean,
+    Math,
+    setTimeout,
+    clearTimeout,
+    ref,
+    computed,
+    onLoad: () => {},
+    onReady: () => {},
+    onShareAppMessage: () => {},
+    onShareTimeline: () => {},
+    createResourceDetailAuxiliaryLoader: () => auxiliaryLoader,
+    createResourceShareCoverRenderer: () => ({ request: () => {} }),
+    buildResourceDetailPresentation: (item) => ({ noun: item.direction === 'demand' ? '需求' : '供应', isDemand: item.direction === 'demand', typeName: item.typeName || '' }),
+    buildResourceShareRenderContext: () => ({}),
+    buildResourceSharePosterModel: () => ({}),
+    buildResourceSharePayload: () => ({}),
+    buildResourceTimelinePayload: () => ({}),
+    getResourceShareCoverSource: () => '',
+    RESOURCE_SHARE_COVER_CANVAS_ID: 'resourceShareCoverCanvas',
+    RESOURCE_SHARE_COVER_SIZE: { width: 600, height: 480 },
+    requireLogin: () => true,
+    getSession: () => ({ token: 'token', merchantId: 'merchant-1' }),
+    getResourceFavoriteState: async () => ({}),
+    getMerchant: async () => ({}),
+    listRelatedResources: async () => ({ items: [] }),
+    recordResourceDetailView: async () => ({}),
+    getOwnResource: async () => ({ id: 'resource-1', presentation: { fields: [], tags: [] } }),
+    getResource: async () => ({}),
+    setResourceFavorite: async () => ({ favorited: true }),
+    recordResourceContact: async () => ({}),
+    createContactUnlockOrder: async () => ({ alreadyUnlocked: true }),
+    createContactUnlockPayment: async () => ({ status: 'paid' }),
+    listTopVouchers: async () => ({ items: [] }),
+    redeemTopVoucher: async () => ({}),
+    refreshResource: async () => ({}),
+    takeDownResource: async () => ({}),
+    deleteTakenDownResource: async () => ({}),
+    createQuotaPackOrder: async () => ({ orderId: 'top-order-1' }),
+    createVIPPayment: async () => ({ status: 'paid' }),
+    listQuotaPacks: async () => ({ items: [{ code: 'top_1d', benefits: { topVoucherCount: 1, topDurationHours: 24 } }] }),
+    uni: {
+      showToast: () => {},
+      showModal: ({ success }) => success({ confirm: true }),
+      showActionSheet: ({ success }) => success({ tapIndex: 0 }),
+      requestPayment: ({ success }) => success({}),
+      navigateTo: () => {},
+      setStorageSync: () => {},
+      setClipboardData: () => {},
+      makePhoneCall: () => {},
+    },
+    ...additions,
+  }
+  vm.runInNewContext(`${script}\nglobalThis.resourceDetailPage = {
+    resource, ownerMerchantId, isOwnResource, showManagementSheet, showContactMoreSheet, favorited,
+    managementAction, managementBusy, favoriteBusy, contactAction, contactBusyText, managementActions,
+    managementActionLabel, handleManagementAction, closeManagementSheet, toggleFavorite, favoriteResourceFromMore, callPhone, copyWechat,
+  }`, sandbox, { filename: 'pages/resource/detail.vue' })
+  return sandbox.resourceDetailPage
+}
 
 test('resource detail gallery uses banner swiper and full screen preview', () => {
   assert.match(source, /const selectedGalleryIndex = ref\(0\)/)
@@ -183,7 +322,7 @@ test('resource detail groups low-frequency contact actions behind more sheet', (
   assert.doesNotMatch(contactMoreSheet, /收藏、分享给同行或反馈问题资源。/)
   assert.doesNotMatch(contactMoreSheet, /class="sheet-desc"/)
   assert.match(contactMoreSheet, /<button class="management-action danger" @click="reportResourceFromMore">[\s\S]*report\.svg[\s\S]*<text class="action-label">举报<\/text>[\s\S]*<\/button>/)
-  assert.match(contactMoreSheet, /<button class="management-action" @click="favoriteResourceFromMore">[\s\S]*bookmark\.svg[\s\S]*<text class="action-label">\{\{ favorited \? '取消收藏' : '收藏' \}\}<\/text>[\s\S]*<\/button>/)
+  assert.match(contactMoreSheet, /<button class="management-action" @click="favoriteResourceFromMore"[\s\S]*bookmark\.svg[\s\S]*<text class="action-label">[\s\S]*<\/text>[\s\S]*<\/button>/)
   assert.match(contactMoreSheet, /<button class="management-action" open-type="share" @click="shareResourceFromMore">[\s\S]*share\.svg[\s\S]*<text class="action-label">分享给朋友<\/text>[\s\S]*<\/button>/)
   assert.ok(contactMoreSheet.indexOf('reportResourceFromMore') < contactMoreSheet.indexOf('favoriteResourceFromMore'))
   assert.ok(contactMoreSheet.indexOf('favoriteResourceFromMore') < contactMoreSheet.indexOf('shareResourceFromMore'))
@@ -324,6 +463,371 @@ test('resource detail renders address attributes as a dedicated navigation secti
   assert.match(source, /\.resource-address-main \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) 96rpx;/)
   assert.match(source, /\.resource-address-map \{[\s\S]*height: 220rpx;/)
   assert.match(source, /\.resource-address-text \{[\s\S]*display: block;[\s\S]*font-size: 27rpx;[\s\S]*word-break: break-word;/)
+})
+
+test('resource detail renders action-specific loading for management, favorite, WeChat and phone buttons', async () => {
+  const page = loadResourceDetailPage()
+  const managementContracts = [
+    { key: 'refresh', label: '刷新', busyText: '刷新中' },
+    { key: 'top', label: '置顶', busyText: '置顶中' },
+    { key: 'take-down', label: '下架', busyText: '下架中' },
+    { key: 'repost', label: '再发类似', busyText: '准备中' },
+    { key: 'delete', label: '删除', busyText: '删除中' },
+  ]
+
+  for (const action of managementContracts) {
+    page.managementAction.value = action.key
+    const html = await renderDetailButton('handleManagementAction(action.key)', {
+      managementActions: [action],
+      managementAction: action.key,
+      managementBusy: true,
+      managementActionLabel: page.managementActionLabel,
+      handleManagementAction: () => {},
+    })
+    assertBusyButton(html, action.busyText, `${action.label}操作`)
+  }
+
+  page.managementAction.value = 'refresh'
+  const lockedTopHtml = await renderDetailButton('handleManagementAction(action.key)', {
+    managementActions: [{ key: 'top', label: '置顶' }],
+    managementAction: 'refresh',
+    managementBusy: true,
+    managementActionLabel: page.managementActionLabel,
+    handleManagementAction: () => {},
+  })
+  assert.match(openingButtonTag(lockedTopHtml), /\bdisabled(?:=|\s|>)/, '其他管理动作应被禁用')
+  assert.doesNotMatch(openingButtonTag(lockedTopHtml), /\bloading="true"/, '其他管理动作不应冒充当前动作显示 loading')
+  assert.match(lockedTopHtml, />置顶</, '其他管理动作应保留空闲文案')
+
+  const favoriteHtml = await renderDetailButton('favoriteResourceFromMore', {
+    favoriteBusy: true,
+    favorited: false,
+    favoriteResourceFromMore: () => {},
+  })
+  assertBusyButton(favoriteHtml, '收藏中', '收藏操作')
+
+  const unfavoriteHtml = await renderDetailButton('favoriteResourceFromMore', {
+    favoriteBusy: true,
+    favorited: true,
+    favoriteResourceFromMore: () => {},
+  })
+  assertBusyButton(unfavoriteHtml, '取消收藏中', '取消收藏操作')
+
+  const wechatHtml = await renderDetailButton('copyWechat', {
+    contactAction: 'wechat',
+    contactBusyText: '查询中',
+    copyWechat: () => {},
+  })
+  assertBusyButton(wechatHtml, '查询中', '微信查询')
+
+  const phoneHtml = await renderDetailButton('callPhone', {
+    contactAction: 'phone',
+    contactBusyText: '解锁中',
+    contactButtonText: '拨打电话',
+    callPhone: () => {},
+  })
+  assertBusyButton(phoneHtml, '解锁中', '电话解锁')
+
+  const lockedWechatHtml = await renderDetailButton('copyWechat', {
+    contactAction: 'phone',
+    contactBusyText: '解锁中',
+    copyWechat: () => {},
+  })
+  assert.match(openingButtonTag(lockedWechatHtml), /\bdisabled(?:=|\s|>)/, '电话处理中应禁用微信按钮')
+  assert.doesNotMatch(openingButtonTag(lockedWechatHtml), /\bloading="true"/, '微信按钮不应显示电话动作的 loading')
+  assert.match(lockedWechatHtml, />复制微信</, '非当前联系方式按钮应保留空闲文案')
+})
+
+test('resource detail favorite action rejects duplicates and restores state after success or failure', async () => {
+  const favoriteRequest = deferred()
+  const favoriteCalls = []
+  const page = loadResourceDetailPage({
+    setResourceFavorite: (resourceId, nextFavorited) => {
+      favoriteCalls.push({ resourceId, nextFavorited })
+      return favoriteRequest.promise
+    },
+  })
+  page.resource.value = { id: 'resource-expected', direction: 'supply', presentation: { fields: [], tags: [] } }
+  page.showContactMoreSheet.value = true
+
+  const firstFavorite = page.favoriteResourceFromMore()
+  const duplicateFavorite = page.favoriteResourceFromMore()
+  assert.deepEqual(favoriteCalls, [{ resourceId: 'resource-expected', nextFavorited: true }], '收藏必须使用当前资源且连续点击只请求一次')
+  assert.equal(page.favoriteBusy.value, true, '收藏请求期间应保持 busy')
+  favoriteRequest.resolve({ favorited: true })
+  await Promise.all([firstFavorite, duplicateFavorite])
+  assert.equal(page.favoriteBusy.value, false, '收藏成功后应恢复状态')
+  assert.equal(page.favorited.value, true, '收藏状态应以服务端结果为准')
+  assert.equal(page.showContactMoreSheet.value, false, '收藏成功后应保留关闭更多面板的行为')
+
+  const toasts = []
+  const failedPage = loadResourceDetailPage({
+    setResourceFavorite: async () => { throw new Error('收藏服务暂不可用') },
+    uni: { showToast: (options) => toasts.push(options) },
+  })
+  failedPage.resource.value = { id: 'resource-expected', direction: 'supply', presentation: { fields: [], tags: [] } }
+  failedPage.showContactMoreSheet.value = true
+  await failedPage.favoriteResourceFromMore()
+  assert.equal(failedPage.favoriteBusy.value, false, '收藏失败后应恢复状态')
+  assert.equal(failedPage.showContactMoreSheet.value, true, '收藏失败时应保留更多面板以便重试')
+  assert.equal(toasts.at(-1)?.title, '收藏服务暂不可用', '收藏失败应保留原有友好提示')
+
+  let unauthenticatedCalls = 0
+  const unauthenticatedPage = loadResourceDetailPage({
+    requireLogin: () => false,
+    setResourceFavorite: async () => { unauthenticatedCalls += 1; return { favorited: true } },
+  })
+  unauthenticatedPage.resource.value = { id: 'resource-expected', presentation: { fields: [], tags: [] } }
+  await unauthenticatedPage.toggleFavorite()
+  assert.equal(unauthenticatedCalls, 0, '登录校验失败不应请求收藏接口')
+  assert.equal(unauthenticatedPage.favoriteBusy.value, false, '登录校验失败不应进入 busy')
+})
+
+test('resource detail contact action stays locked through record, order, payment and re-unlock', async () => {
+  const orderRequest = deferred()
+  const paymentRequest = deferred()
+  const unlockedContactRequest = deferred()
+  const recordCalls = []
+  const orderCalls = []
+  const paymentCalls = []
+  const clipboardValues = []
+  let paymentCallbacks
+  const page = loadResourceDetailPage({
+    recordResourceContact: (resourceId, action) => {
+      recordCalls.push({ resourceId, action })
+      if (recordCalls.length === 1) {
+        const err = new Error('需要解锁')
+        err.code = 'PAYMENT_REQUIRED'
+        throw err
+      }
+      return unlockedContactRequest.promise
+    },
+    createContactUnlockOrder: (resourceId, payload) => {
+      orderCalls.push({ resourceId, payload })
+      return orderRequest.promise
+    },
+    createContactUnlockPayment: (resourceId, orderId, payload) => {
+      paymentCalls.push({ resourceId, orderId, payload })
+      return paymentRequest.promise
+    },
+    uni: {
+      showToast: () => {},
+      setClipboardData: ({ data }) => clipboardValues.push(data),
+      requestPayment: (callbacks) => { paymentCallbacks = callbacks },
+    },
+  })
+  page.resource.value = {
+    id: 'resource-expected',
+    contactAccess: { mode: 'paid_or_vip', priceCent: 500, unlocked: false },
+    presentation: { fields: [], tags: [] },
+  }
+
+  const firstCopy = page.copyWechat()
+  const duplicateCopy = page.copyWechat()
+  await flushAsyncWork()
+  assert.deepEqual(recordCalls, [{ resourceId: 'resource-expected', action: 'wechat' }], '首次解锁应使用当前资源和微信动作且拒绝连续点击')
+  assert.equal(orderCalls.length, 1, '解锁订单只应创建一次')
+  assert.equal(orderCalls[0].resourceId, 'resource-expected', '解锁订单应绑定当前资源')
+  assert.equal(orderCalls[0].payload.action, 'wechat', '解锁订单应携带微信动作')
+  assert.equal(page.contactAction.value, 'wechat', '订单创建期间应保持微信 busy')
+
+  orderRequest.resolve({ orderId: 'contact-order-expected' })
+  await flushAsyncWork()
+  assert.equal(paymentCalls.length, 1, '联系方式支付参数只应创建一次')
+  assert.equal(paymentCalls[0].resourceId, 'resource-expected', '联系方式支付应绑定当前资源')
+  assert.equal(paymentCalls[0].orderId, 'contact-order-expected', '支付必须使用刚创建的联系方式订单')
+  assert.equal(page.contactAction.value, 'wechat', '支付参数创建期间应保持微信 busy')
+
+  paymentRequest.resolve({ payment: { timeStamp: '1', nonceStr: 'nonce', package: 'package', signType: 'RSA', paySign: 'sign' } })
+  await flushAsyncWork()
+  assert.equal(typeof paymentCallbacks?.success, 'function', '应保留微信原生支付弹窗')
+  assert.equal(page.contactAction.value, 'wechat', '原生支付弹窗期间应保持微信 busy')
+
+  paymentCallbacks.success({})
+  await flushAsyncWork()
+  assert.deepEqual(recordCalls.at(-1), { resourceId: 'resource-expected', action: 'wechat' }, '支付后应再次解锁同一资源的微信')
+  assert.equal(recordCalls.length, 2, '支付后只应再请求一次解锁')
+  assert.equal(page.contactAction.value, 'wechat', '再次解锁期间应保持微信 busy')
+
+  unlockedContactRequest.resolve({ wechat: 'wx-expected' })
+  await Promise.all([firstCopy, duplicateCopy])
+  assert.deepEqual(clipboardValues, ['wx-expected'], '成功解锁后应保留复制微信行为')
+  assert.equal(page.contactAction.value, '', '联系方式完整链路结束后应恢复状态')
+})
+
+test('resource detail contact payment cancellation preserves feedback and restores the action', async () => {
+  const toasts = []
+  let phoneCalls = 0
+  const page = loadResourceDetailPage({
+    recordResourceContact: async () => {
+      const err = new Error('需要解锁')
+      err.code = 'PAYMENT_REQUIRED'
+      throw err
+    },
+    createContactUnlockOrder: async () => ({ orderId: 'contact-order-expected' }),
+    createContactUnlockPayment: async () => ({ payment: { timeStamp: '1', nonceStr: 'nonce', package: 'package', paySign: 'sign' } }),
+    uni: {
+      showToast: (options) => toasts.push(options),
+      makePhoneCall: () => { phoneCalls += 1 },
+      requestPayment: ({ fail }) => fail(new Error('用户取消支付')),
+    },
+  })
+  page.resource.value = { id: 'resource-expected', presentation: { fields: [], tags: [] } }
+
+  await page.callPhone()
+
+  assert.equal(page.contactAction.value, '', '支付取消后应恢复联系方式状态')
+  assert.equal(phoneCalls, 0, '支付取消后不应拨打电话')
+  assert.equal(toasts.at(-1)?.title, '用户取消支付', '支付取消应保留原有友好提示')
+})
+
+test('resource detail management action rejects concurrent writes and stays visible through top purchase refresh', async () => {
+  const orderRequest = deferred()
+  const paymentRequest = deferred()
+  const reloadRequest = deferred()
+  const voucherCalls = []
+  const orderCalls = []
+  const paymentCalls = []
+  const reloadCalls = []
+  let refreshCalls = 0
+  let paymentCallbacks
+  const page = loadResourceDetailPage({
+    listTopVouchers: async (merchantId) => { voucherCalls.push(merchantId); return { items: [] } },
+    createQuotaPackOrder: (merchantId, packCode, payload) => {
+      orderCalls.push({ merchantId, packCode, payload })
+      return orderRequest.promise
+    },
+    createVIPPayment: (merchantId, orderId) => {
+      paymentCalls.push({ merchantId, orderId })
+      return paymentRequest.promise
+    },
+    getOwnResource: (resourceId, merchantId) => {
+      reloadCalls.push({ resourceId, merchantId })
+      return reloadRequest.promise
+    },
+    refreshResource: async () => { refreshCalls += 1 },
+    uni: {
+      showToast: () => {},
+      showModal: ({ success }) => success({ confirm: true }),
+      showActionSheet: ({ success }) => success({ tapIndex: 0 }),
+      requestPayment: (callbacks) => { paymentCallbacks = callbacks },
+    },
+  })
+  page.resource.value = { id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } }
+  page.ownerMerchantId.value = 'merchant-expected'
+  page.showManagementSheet.value = true
+
+  const firstTop = page.handleManagementAction('top')
+  const duplicateTop = page.handleManagementAction('top')
+  const concurrentRefresh = page.handleManagementAction('refresh')
+  await flushAsyncWork()
+  assert.deepEqual(voucherCalls, ['merchant-expected'], '置顶券查询只应发起一次且使用当前商家')
+  assert.equal(orderCalls.length, 1, '置顶订单只应创建一次')
+  assert.equal(orderCalls[0].merchantId, 'merchant-expected', '置顶订单应绑定当前商家')
+  assert.equal(orderCalls[0].packCode, 'top_1d', '置顶订单应使用选中的服务包')
+  assert.equal(orderCalls[0].payload.resourceId, 'resource-expected', '置顶订单应绑定当前资源')
+  assert.equal(refreshCalls, 0, '置顶期间不应穿透锁执行刷新')
+  assert.equal(page.managementAction.value, 'top', '创建置顶订单期间应保持 top 状态')
+  assert.equal(page.showManagementSheet.value, true, '支付前管理面板应保持可见')
+  page.closeManagementSheet()
+  assert.equal(page.showManagementSheet.value, true, '置顶进行时用户点击遮罩或关闭按钮不应隐藏反馈')
+
+  orderRequest.resolve({ orderId: 'top-order-expected' })
+  await flushAsyncWork()
+  assert.deepEqual(paymentCalls, [{ merchantId: 'merchant-expected', orderId: 'top-order-expected' }], '置顶支付必须使用刚创建的订单')
+  assert.equal(page.managementAction.value, 'top', '创建支付参数期间应保持 top 状态')
+  assert.equal(page.showManagementSheet.value, true, '支付参数创建期间管理面板应保持可见')
+
+  paymentRequest.resolve({ payment: { timeStamp: '1', nonceStr: 'nonce', package: 'package', paySign: 'sign' } })
+  await flushAsyncWork()
+  assert.equal(typeof paymentCallbacks?.success, 'function', '置顶购买应保留微信原生支付弹窗')
+  assert.equal(page.managementAction.value, 'top', '原生支付弹窗期间应保持 top 状态')
+  assert.equal(page.showManagementSheet.value, true, '原生支付弹窗期间管理面板应保持可见')
+
+  paymentCallbacks.success({})
+  await flushAsyncWork()
+  assert.deepEqual(reloadCalls, [{ resourceId: 'resource-expected', merchantId: 'merchant-expected' }], '支付后应刷新当前资源详情')
+  assert.equal(page.managementAction.value, 'top', '支付后刷新详情期间应保持 top 状态')
+  assert.equal(page.showManagementSheet.value, true, '刷新详情期间管理面板应保持可见')
+
+  reloadRequest.resolve({ id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } })
+  await Promise.all([firstTop, duplicateTop, concurrentRefresh])
+  assert.equal(page.managementAction.value, '', '支付和刷新全部完成后应恢复管理状态')
+  assert.equal(page.showManagementSheet.value, false, '支付和刷新全部完成后才关闭管理面板')
+})
+
+test('resource detail voucher redemption remains busy and visible until the refreshed detail arrives', async () => {
+  const redeemRequest = deferred()
+  const reloadRequest = deferred()
+  const redeemCalls = []
+  const reloadCalls = []
+  const page = loadResourceDetailPage({
+    listTopVouchers: async () => ({ items: [{ id: 'voucher-expected', remainingAmount: 1, topDurationHours: 24 }] }),
+    redeemTopVoucher: (voucherId, resourceId, merchantId) => {
+      redeemCalls.push({ voucherId, resourceId, merchantId })
+      return redeemRequest.promise
+    },
+    getOwnResource: (resourceId, merchantId) => {
+      reloadCalls.push({ resourceId, merchantId })
+      return reloadRequest.promise
+    },
+  })
+  page.resource.value = { id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } }
+  page.ownerMerchantId.value = 'merchant-expected'
+  page.showManagementSheet.value = true
+
+  const top = page.handleManagementAction('top')
+  await flushAsyncWork()
+  assert.deepEqual(redeemCalls, [{ voucherId: 'voucher-expected', resourceId: 'resource-expected', merchantId: 'merchant-expected' }], '置顶券应核销到当前资源和商家')
+  assert.equal(page.managementAction.value, 'top', '置顶券核销期间应保持 top 状态')
+  assert.equal(page.showManagementSheet.value, true, '置顶券核销期间管理面板应保持可见')
+
+  redeemRequest.resolve({})
+  await flushAsyncWork()
+  assert.deepEqual(reloadCalls, [{ resourceId: 'resource-expected', merchantId: 'merchant-expected' }], '核销后应刷新当前资源')
+  assert.equal(page.managementAction.value, 'top', '核销后的详情刷新期间应保持 top 状态')
+  assert.equal(page.showManagementSheet.value, true, '核销后的详情刷新期间管理面板应保持可见')
+
+  reloadRequest.resolve({ id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } })
+  await top
+  assert.equal(page.managementAction.value, '', '置顶券核销和刷新结束后应恢复管理状态')
+  assert.equal(page.showManagementSheet.value, false, '置顶券核销和刷新结束后才关闭管理面板')
+})
+
+test('resource detail management payment cancellation and failures restore state while edit stays synchronous', async () => {
+  const toasts = []
+  const navigations = []
+  const page = loadResourceDetailPage({
+    listTopVouchers: async () => ({ items: [] }),
+    createQuotaPackOrder: async () => ({ orderId: 'top-order-expected' }),
+    createVIPPayment: async () => ({ payment: { timeStamp: '1', nonceStr: 'nonce', package: 'package', paySign: 'sign' } }),
+    uni: {
+      showToast: (options) => toasts.push(options),
+      showModal: ({ success }) => success({ confirm: true }),
+      showActionSheet: ({ success }) => success({ tapIndex: 0 }),
+      requestPayment: ({ fail }) => fail(new Error('用户取消支付')),
+      navigateTo: (options) => navigations.push(options),
+    },
+  })
+  page.resource.value = { id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } }
+  page.ownerMerchantId.value = 'merchant-expected'
+  page.showManagementSheet.value = true
+
+  await page.handleManagementAction('top')
+  assert.equal(page.managementAction.value, '', '支付取消后应恢复管理状态')
+  assert.equal(page.showManagementSheet.value, true, '支付取消后应保留管理面板供重试')
+  assert.equal(toasts.at(-1)?.title, '用户取消支付', '置顶支付取消应保留原有友好提示')
+
+  await page.handleManagementAction('edit')
+  assert.equal(page.managementAction.value, '', '编辑仅跳转，不应进入管理 busy')
+  assert.equal(navigations.length, 1, '编辑只应跳转一次')
+  assert.equal(navigations[0].url, '/pages/publish/edit?merchantId=merchant-expected&resourceId=resource-expected', '编辑应保留原有跳转')
+
+  const failedPage = loadResourceDetailPage({ refreshResource: async () => { throw new Error('刷新服务暂不可用') } })
+  failedPage.resource.value = { id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } }
+  failedPage.ownerMerchantId.value = 'merchant-expected'
+  await assert.rejects(failedPage.handleManagementAction('refresh'), /刷新服务暂不可用/)
+  assert.equal(failedPage.managementAction.value, '', '管理接口失败后应恢复状态')
 })
 
 test('resource detail restores top voucher management action', () => {
