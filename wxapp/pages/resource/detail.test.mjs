@@ -176,13 +176,17 @@ test('resource detail uses short phone action text in bottom bar', () => {
 
 test('resource detail groups low-frequency contact actions behind more sheet', () => {
   const contactBar = source.match(/<view v-else-if="!isDealtResource" class="contact-bar">[\s\S]*?<\/view>/)?.[0] || ''
+  const contactMoreSheet = source.match(/<view v-if="showContactMoreSheet"[\s\S]*?<view v-if="isOwnResource"/)?.[0] || ''
 
   assert.match(source, /const showContactMoreSheet = ref\(false\)/)
   assert.match(source, /<view v-if="showContactMoreSheet" class="sheet-mask" @click="closeContactMoreSheet">/)
-  assert.match(source, /<text class="sheet-desc">收藏、分享给同行或反馈问题资源。<\/text>/)
-  assert.match(source, /<button class="management-action" @click="favoriteResourceFromMore">[\s\S]*bookmark\.svg[\s\S]*\{\{ favorited \? '取消收藏' : '收藏' \}\}[\s\S]*<\/button>/)
-  assert.match(source, /<button class="management-action" open-type="share" @click="shareResourceFromMore">[\s\S]*share\.svg[\s\S]*分享给朋友[\s\S]*<\/button>/)
-  assert.match(source, /<button class="management-action danger" @click="reportResourceFromMore">[\s\S]*report\.svg[\s\S]*举报[\s\S]*<\/button>/)
+  assert.doesNotMatch(contactMoreSheet, /收藏、分享给同行或反馈问题资源。/)
+  assert.doesNotMatch(contactMoreSheet, /class="sheet-desc"/)
+  assert.match(contactMoreSheet, /<button class="management-action danger" @click="reportResourceFromMore">[\s\S]*report\.svg[\s\S]*<text class="action-label">举报<\/text>[\s\S]*<\/button>/)
+  assert.match(contactMoreSheet, /<button class="management-action" @click="favoriteResourceFromMore">[\s\S]*bookmark\.svg[\s\S]*<text class="action-label">\{\{ favorited \? '取消收藏' : '收藏' \}\}<\/text>[\s\S]*<\/button>/)
+  assert.match(contactMoreSheet, /<button class="management-action" open-type="share" @click="shareResourceFromMore">[\s\S]*share\.svg[\s\S]*<text class="action-label">分享给朋友<\/text>[\s\S]*<\/button>/)
+  assert.ok(contactMoreSheet.indexOf('reportResourceFromMore') < contactMoreSheet.indexOf('favoriteResourceFromMore'))
+  assert.ok(contactMoreSheet.indexOf('favoriteResourceFromMore') < contactMoreSheet.indexOf('shareResourceFromMore'))
   assert.match(source, /\{ key: 'edit', label: '编辑', icon: actionIconPaths\.edit \}/)
   assert.match(source, /\{ key: 'repost', label: '再发类似', icon: actionIconPaths\.repost \}/)
   assert.match(source, /\{ key: 'delete', label: '删除', icon: actionIconPaths\.delete, danger: true \}/)
@@ -201,6 +205,15 @@ test('resource detail groups low-frequency contact actions behind more sheet', (
   assert.equal(contactBar.includes('reportCurrentResource'), false)
   assert.match(source, /grid-template-columns: 104rpx minmax\(0, 1fr\) minmax\(0, 1\.35fr\);/)
   assert.equal(source.includes('grid-template-columns: repeat(4, 1fr);'), false)
+})
+
+test('resource detail action sheet close buttons align with their title areas', () => {
+  const sheetHead = source.match(/\.sheet-head \{[^}]*\}/)?.[0] || ''
+
+  assert.match(sheetHead, /grid-template-columns: minmax\(0, 1fr\) 120rpx;/)
+  assert.match(sheetHead, /align-items: center;/)
+  assert.match(source, /<text v-if="!managementActions\.length" class="sheet-desc">\{\{ managementNotice \}\}<\/text>/)
+  assert.doesNotMatch(sheetHead, /align-items: start;/)
 })
 
 test('resource detail action icons are bundled local svg assets', () => {

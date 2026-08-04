@@ -143,11 +143,16 @@
           <view class="sheet-head">
             <view class="sheet-copy">
               <text class="sheet-title">更多操作</text>
-              <text class="sheet-desc">收藏、分享给同行或反馈问题资源。</text>
             </view>
             <button class="sheet-close" @click="closeContactMoreSheet">关闭</button>
           </view>
           <view class="management-actions">
+            <button class="management-action danger" @click="reportResourceFromMore">
+              <view class="action-icon-wrap">
+                <image class="action-icon" src="/static/action-icons/report.svg" mode="aspectFit" />
+              </view>
+              <text class="action-label">举报</text>
+            </button>
             <button class="management-action" @click="favoriteResourceFromMore">
               <view class="action-icon-wrap">
                 <image class="action-icon" src="/static/action-icons/bookmark.svg" mode="aspectFit" />
@@ -159,12 +164,6 @@
                 <image class="action-icon" src="/static/action-icons/share.svg" mode="aspectFit" />
               </view>
               <text class="action-label">分享给朋友</text>
-            </button>
-            <button class="management-action danger" @click="reportResourceFromMore">
-              <view class="action-icon-wrap">
-                <image class="action-icon" src="/static/action-icons/report.svg" mode="aspectFit" />
-              </view>
-              <text class="action-label">举报</text>
             </button>
           </view>
         </view>
@@ -1747,7 +1746,7 @@ onShareTimeline(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 120rpx;
   gap: 16rpx;
-  align-items: start;
+  align-items: center;
 }
 
 .sheet-copy {
