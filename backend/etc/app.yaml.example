@@ -73,11 +73,19 @@ SMS:
   DevCode: "123456"
 
 Tasks:
+  # 统一关闭所有自动任务，适用于手工维护或迁移窗口；未配置时默认启用。
+  Enabled: true
   ResourceLifecycleInterval: 1h
+  ResourceLifecycleTimeout: 5m
+  ContentAuditRetryInterval: 1m
+  ContentAuditRetryTimeout: 10m
+  ContentAuditRetryBatchSize: 20
   # 地图行为属于低优先级分析数据，每日清理并只保留最近 90 天。
   MerchantMapEventCleanupInterval: 24h
+  MerchantMapEventCleanupTimeout: 10m
   MerchantMapEventRetentionDays: 90
   PaymentReconcileInterval: 1m
+  PaymentReconcileTimeout: 5m
   PaymentQueryDelay: 2m
   PaymentBatchSize: 100
 

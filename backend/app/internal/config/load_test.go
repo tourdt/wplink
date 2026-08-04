@@ -88,10 +88,17 @@ WechatPay:
   OrderExpire: 30m
 
 Tasks:
+  Enabled: true
   ResourceLifecycleInterval: 1h
+  ResourceLifecycleTimeout: 5m
+  ContentAuditRetryInterval: 1m
+  ContentAuditRetryTimeout: 10m
+  ContentAuditRetryBatchSize: 20
   MerchantMapEventCleanupInterval: 24h
+  MerchantMapEventCleanupTimeout: 10m
   MerchantMapEventRetentionDays: 90
   PaymentReconcileInterval: 1m
+  PaymentReconcileTimeout: 5m
   PaymentQueryDelay: 2m
   PaymentBatchSize: 100
 
@@ -160,15 +167,20 @@ Storage:
 		cfg.WechatPay.OrderExpire != 30*time.Minute {
 		t.Fatalf("wechat pay = %#v, want enabled merchant config", cfg.WechatPay)
 	}
-	if cfg.Tasks.PaymentReconcileInterval != time.Minute ||
+	if !cfg.Tasks.Enabled ||
+		cfg.Tasks.PaymentReconcileInterval != time.Minute ||
+		cfg.Tasks.PaymentReconcileTimeout != 5*time.Minute ||
 		cfg.Tasks.PaymentQueryDelay != 2*time.Minute ||
 		cfg.Tasks.PaymentBatchSize != 100 {
 		t.Fatalf("tasks = %#v, want payment reconciliation config", cfg.Tasks)
 	}
-	if cfg.Tasks.ResourceLifecycleInterval != time.Hour {
+	if cfg.Tasks.ResourceLifecycleInterval != time.Hour || cfg.Tasks.ResourceLifecycleTimeout != 5*time.Minute {
 		t.Fatalf("tasks = %#v, want resource lifecycle interval", cfg.Tasks)
 	}
-	if cfg.Tasks.MerchantMapEventCleanupInterval != 24*time.Hour || cfg.Tasks.MerchantMapEventRetentionDays != 90 {
+	if cfg.Tasks.ContentAuditRetryInterval != time.Minute || cfg.Tasks.ContentAuditRetryTimeout != 10*time.Minute || cfg.Tasks.ContentAuditRetryBatchSize != 20 {
+		t.Fatalf("tasks = %#v, want content audit retry configuration", cfg.Tasks)
+	}
+	if cfg.Tasks.MerchantMapEventCleanupInterval != 24*time.Hour || cfg.Tasks.MerchantMapEventCleanupTimeout != 10*time.Minute || cfg.Tasks.MerchantMapEventRetentionDays != 90 {
 		t.Fatalf("tasks = %#v, want daily map event cleanup with 90-day retention", cfg.Tasks)
 	}
 	if cfg.Storage.Provider != "qiniu-kodo" || cfg.Storage.UploadExpire != 15*time.Minute || cfg.Storage.MaxFileSizeBytes != 10485760 {
@@ -176,6 +188,29 @@ Storage:
 	}
 	if len(cfg.Storage.AllowedContentTypes) != 2 || cfg.Storage.AllowedContentTypes[0] != "image/jpeg" {
 		t.Fatalf("allowed content types = %#v", cfg.Storage.AllowedContentTypes)
+	}
+}
+
+func TestFileConfigToConfigUsesTaskCoordinationDefaults(t *testing.T) {
+	got := (fileConfig{}).toConfig().Tasks
+
+	if !got.Enabled {
+		t.Fatal("未配置 Tasks.Enabled 时应默认启用")
+	}
+	if got.ResourceLifecycleTimeout != 5*time.Minute ||
+		got.ContentAuditRetryTimeout != 10*time.Minute ||
+		got.MerchantMapEventCleanupTimeout != 10*time.Minute ||
+		got.PaymentReconcileTimeout != 5*time.Minute {
+		t.Fatalf("任务超时默认值不正确: %+v", got)
+	}
+}
+
+func TestFileConfigToConfigAllowsTasksToBeDisabled(t *testing.T) {
+	enabled := false
+	got := (fileConfig{Tasks: fileTasksConfig{Enabled: &enabled}}).toConfig().Tasks
+
+	if got.Enabled {
+		t.Fatal("显式配置 Tasks.Enabled=false 应关闭自动任务")
 	}
 }
 
