@@ -176,11 +176,11 @@
     <view :class="['fixed-save-spacer', { 'no-safe-area': !reserveBottomSafeArea }]" />
     <view :class="['fixed-save-bar', { 'no-safe-area': !reserveBottomSafeArea }]">
       <view class="fixed-save-actions">
-        <button class="secondary-button" :disabled="publishBusy" :loading="isPublishAction('draft')" @click="saveDraft">
-          {{ isPublishAction('draft') ? '保存中' : '保存草稿' }}
+        <button class="secondary-button" :disabled="publishBusy" :loading="isPublishActionLoading('draft')" @click="saveDraft">
+          {{ isPublishActionLoading('draft') ? '保存中' : '保存草稿' }}
         </button>
-        <button :class="['primary-button', canSubmit ? '' : 'is-disabled']" :disabled="publishBusy || !canSubmit" :loading="isPublishAction('submit')" @click="submit">
-          {{ isPublishAction('submit') ? '提交中' : '提交审核' }}
+        <button :class="['primary-button', canSubmit ? '' : 'is-disabled']" :disabled="publishBusy || !canSubmit" :loading="isPublishActionLoading('submit')" @click="submit">
+          {{ isPublishActionLoading('submit') ? '提交中' : '提交审核' }}
         </button>
       </view>
     </view>
@@ -236,8 +236,10 @@ const editingResourceStatus = ref('')
 const editSavedAsDraft = ref(true)
 // 发布、保存草稿和图片变更都影响同一份资源数据，必须共享动作锁，避免并发请求覆盖图片或重复创建资源。
 const publishAction = ref('')
+const publishPhase = ref('')
 const publishBusy = computed(() => Boolean(publishAction.value))
 const isPublishAction = (action) => publishAction.value === action
+const isPublishActionLoading = (action) => isPublishAction(action) && publishPhase.value === 'writing'
 let localDraftSaveTimer = null
 const form = reactive({
   merchantId: '',
@@ -519,6 +521,7 @@ async function submit() {
   }
   saveMerchantId(form.merchantId)
   publishAction.value = 'submit'
+  publishPhase.value = 'writing'
   try {
     if (editingResourceId.value) {
       const images = await uploadPendingResourceImages()
@@ -544,12 +547,15 @@ async function submit() {
     throw err
   } finally {
     publishAction.value = ''
+    publishPhase.value = ''
   }
 }
 
 async function handlePublishQuotaError(err) {
   // 仅拦截额度不足；过期、已完成和网络错误仍由请求层提示，不能误导用户去购买。
   if (err?.code !== 'QUOTA_NOT_ENOUGH') return false
+  // 购买确认期间继续锁定表单，但确认本身不是写请求，不展示旋转动画或进行时文案。
+  publishPhase.value = 'prompting'
   const confirmed = await confirmQuotaPurchase(QUOTA_TYPE_PUBLISH)
   if (confirmed) {
     uni.navigateTo({ url: buildQuotaPurchaseUrl(QUOTA_TYPE_PUBLISH) })
@@ -580,6 +586,7 @@ async function saveDraft() {
   }
   saveMerchantId(form.merchantId)
   publishAction.value = 'draft'
+  publishPhase.value = 'writing'
   try {
     const merchantId = form.merchantId
     const images = await uploadPendingResourceImages()
@@ -590,6 +597,7 @@ async function saveDraft() {
     uni.navigateTo({ url: `/pages/my-resources/index?merchantId=${merchantId}` })
   } finally {
     publishAction.value = ''
+    publishPhase.value = ''
   }
 }
 

@@ -229,7 +229,7 @@ function openingButtonTag(html) {
 function assertBusyResourceButton(html, label) {
   const openingTag = openingButtonTag(html)
   assert.match(openingTag, /\bdisabled(?:=|\s|>)/, `${label}进行中应禁用`)
-  assert.match(openingTag, /\bloading(?:=|\s|>)/, `${label}进行中应展示原生 loading`)
+  assert.match(openingTag, /\bloading="true"/, `${label}进行中应展示原生 loading=true`)
   assert.match(html, new RegExp(label), `进行中按钮应展示${label}`)
 }
 
@@ -390,6 +390,63 @@ test('my resource writes share one lock and clear it after success or rejection'
   failedPage.merchantId.value = 'merchant-1'
   await assert.rejects(failedPage.refresh(publishedItem), /网络异常/)
   assertResourceActionCleared(failedPage, '刷新失败后')
+})
+
+test('refresh quota confirmation keeps one resource lock without a spinner and clears on cancel', async () => {
+  const confirmation = deferred()
+  let refreshCalls = 0
+  const page = loadMyResourcesPage({
+    refreshResource: async () => {
+      refreshCalls += 1
+      throw { code: 'QUOTA_NOT_ENOUGH' }
+    },
+    confirmQuotaPurchase: () => confirmation.promise,
+  })
+  page.merchantId.value = 'merchant-1'
+  const item = { id: 'resource-1', status: 'published' }
+
+  const refreshing = page.refresh(item)
+  await flushAsyncWork()
+  assertResourceAction(page, 'resource-1', 'refresh', '刷新额度购买确认期间')
+  assert.equal(page.resourceActionPhase.value, 'prompting', '刷新额度购买确认应进入 prompting')
+  const promptingHtml = await renderResourceActionButton('refresh(item)', {
+    item,
+    resourceActionBusy: true,
+    isResourceAction: page.isResourceAction,
+    isResourceActionLoading: page.isResourceActionLoading,
+    resourceActionLabel: page.resourceActionLabel,
+    refresh: () => {},
+  })
+  assert.match(openingButtonTag(promptingHtml), /disabled(?:=|\s|>)/, '刷新额度购买确认期间应保持禁用')
+  assert.match(openingButtonTag(promptingHtml), /loading="false"/, '刷新额度购买确认期间不应显示 spinner')
+  assert.match(promptingHtml, />刷新</, '刷新额度购买确认期间应恢复空闲文案')
+  await page.refresh(item)
+  assert.equal(refreshCalls, 1, '刷新额度购买确认期间重复点击不得再次请求')
+
+  confirmation.resolve(false)
+  await refreshing
+  assertResourceActionCleared(page, '取消刷新额度购买确认后')
+})
+
+test('refresh quota confirmation navigates once after confirmation and clears both states', async () => {
+  const confirmation = deferred()
+  const navigations = []
+  const page = loadMyResourcesPage({
+    refreshResource: async () => { throw { code: 'QUOTA_NOT_ENOUGH' } },
+    confirmQuotaPurchase: () => confirmation.promise,
+    uni: { navigateTo: (options) => navigations.push(options), showToast: () => {} },
+  })
+  page.merchantId.value = 'merchant-1'
+  const item = { id: 'resource-1', status: 'published' }
+
+  const refreshing = page.refresh(item)
+  await flushAsyncWork()
+  confirmation.resolve(true)
+  await refreshing
+
+  assert.equal(navigations.length, 1, '确认后应只跳转一次刷新额度购买页')
+  assert.equal(navigations[0].url, '/pages/vip/index')
+  assertResourceActionCleared(page, '确认刷新额度购买后')
 })
 
 test('top entitlement flow stays busy from voucher lookup through redemption and list refresh', async () => {

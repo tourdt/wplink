@@ -90,6 +90,7 @@ function loadMerchantDetailPage(additions = {}) {
     listResources: async () => ({ items: [], total: 0 }),
     onLoad() {},
     onReachBottom() {},
+    requireLogin: () => true,
     ref(value) {
       return { value }
     },
@@ -249,7 +250,7 @@ test('merchant detail records its valid location entry immediately before naviga
 })
 
 test('merchant follow action shows native loading, rejects duplicates, and restores feedback state', async () => {
-  const busyHtml = await renderMerchantDetailTemplate({
+  const busyContext = {
     merchantLogo: '', merchantInitial: '商', merchant: { name: '示例商家' }, merchantSubtitle: '',
     isOwnMerchant: false, followed: false, followBusy: true, toggleFollow: () => {}, statCards: [],
     merchantCategoryTags: [], profileDescription: '', merchantImages: [], merchantAddressLocation: null,
@@ -257,10 +258,13 @@ test('merchant follow action shows native loading, rejects duplicates, and resto
     merchantResourcesLoading: false, hasMoreMerchantResources: false, openMerchantEditor: () => {},
     previewMerchantImage: () => {}, openMerchantLocation: () => {}, copyMerchantAddress: () => {},
     openResource: () => {}, loadMerchantResources: () => {},
-  })
-  const followButton = busyHtml.match(/<button[^>]*>(?:关注|已关注|处理中)<\/button>/)?.[0] || ''
+  }
+  const busyHtml = await renderMerchantDetailTemplate(busyContext)
+  const unfollowBusyHtml = await renderMerchantDetailTemplate({ ...busyContext, followed: true })
+  const followButton = busyHtml.match(/<button[^>]*>关注中<\/button>/)?.[0] || ''
   assert.match(followButton, /loading="true"/, '关注请求期间按钮应显示原生 loading')
   assert.match(followButton, /disabled(?:=|\s|>)/, '关注请求期间按钮应禁用')
+  assert.match(unfollowBusyHtml, />取消关注中<\/button>/, '取消关注请求期间应显示对应动作文案')
 
   const request = deferred()
   const calls = []
@@ -311,4 +315,22 @@ test('merchant follow local branches never enter busy state', async () => {
   assert.equal(page.followBusy.value, false, '自己的商家不应进入 busy')
   assert.deepEqual(tracker.writesFor(page.followBusy), [], '自己的商家时不应短暂写入 busy')
   assert.equal(requests, 0, '本地分支不应请求关注接口')
+})
+
+test('unauthenticated merchant follow performs zero busy writes and zero follow requests', async () => {
+  const tracker = createTrackedRefFactory()
+  let loginChecks = 0
+  let requests = 0
+  const page = loadMerchantDetailPage({
+    ref: tracker.ref,
+    requireLogin: () => { loginChecks += 1; return false },
+    setMerchantFollow: async () => { requests += 1; return { followed: true } },
+  })
+  page.merchant.value = { id: 'merchant-other' }
+
+  await page.toggleFollow()
+
+  assert.equal(loginChecks, 1, '有效的非自有商家应先执行登录校验')
+  assert.deepEqual(tracker.writesFor(page.followBusy), [], '未登录不得短暂写入关注 busy')
+  assert.equal(requests, 0, '未登录不得调用关注 API')
 })

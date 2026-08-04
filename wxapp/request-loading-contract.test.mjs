@@ -43,7 +43,7 @@ async function renderBusyButton(contract) {
 function assertNativeBusyFeedback(html, contract) {
   const openingTag = html.match(/<button\b[^>]*>/)?.[0] || ''
   assert.match(openingTag, /\bdisabled(?:=|\s|>)/, `${contract.file}: busy button should be disabled`)
-  assert.match(openingTag, /\bloading(?:=|\s|>)/, `${contract.file}: busy button should use native loading`)
+  assert.match(openingTag, /\bloading="true"/, `${contract.file}: busy button should use native loading=true`)
   assert.match(html, new RegExp(contract.busyText), `${contract.file}: busy button should show action text`)
 }
 
@@ -75,6 +75,10 @@ test('busy labels replace idle labels for reload, search, refresh, correction an
       busyContext: { loading: true, loadScenes: noop }, idleContext: { loading: false, loadScenes: noop },
     },
     {
+      file: 'pages/sourcing-map/legacy-canvas.vue', click: 'submitSearch', busyText: '搜索中', idleText: '搜索',
+      busyContext: { objectLoading: true, submitSearch: noop }, idleContext: { objectLoading: false, submitSearch: noop },
+    },
+    {
       file: 'pages/sourcing-map/legacy-canvas.vue', click: 'submitSelectedObjectLocationCorrection', busyText: '纠错中', idleText: '位置纠错',
       busyContext: { reportSubmitting: true, reportAction: 'location', submitSelectedObjectLocationCorrection: noop }, idleContext: { reportSubmitting: false, reportAction: '', submitSelectedObjectLocationCorrection: noop },
     },
@@ -99,8 +103,8 @@ test('existing foreground request states render native busy button feedback', as
     { file: 'pages/login/index.vue', click: 'loginWithWechatAccount', context: { loggingIn: true, loginWithWechatAccount: noop }, busyText: '登录中' },
     { file: 'pages/account/settings.vue', click: 'confirmDeleteAccount', context: { deleting: true, confirmDeleteAccount: noop }, busyText: '正在注销' },
     { file: 'pages/resource/report.vue', click: 'submitReport', context: { submitting: true, submitReport: noop }, busyText: '提交中' },
-    { file: 'pages/vip/index.vue', click: 'openSelectedPlan', context: { paying: true, selectedPlanCode: 'yearly', openSelectedPlan: noop }, busyText: '正在开通' },
-    { file: 'pages/vip/index.vue', click: 'openQuotaPack(item)', context: { item: { code: 'publish_5', actionText: '购买' }, payingPackCode: 'publish_5', openQuotaPack: noop, packActionText: (item) => item.actionText }, busyText: '购买中' },
+    { file: 'pages/vip/index.vue', click: 'openSelectedPlan', context: { purchaseBusy: true, paying: true, selectedPlanCode: 'yearly', openSelectedPlan: noop }, busyText: '正在开通' },
+    { file: 'pages/vip/index.vue', click: 'openQuotaPack(item)', context: { purchaseBusy: true, item: { code: 'publish_5', actionText: '购买' }, payingPackCode: 'publish_5', openQuotaPack: noop, packActionText: (item) => item.actionText }, busyText: '购买中' },
     { file: 'pages/merchant/profile.vue', click: 'submitMerchantProfile', context: { submitting: true, submitMerchantProfile: noop, saveButtonText: '保存资料' }, busyText: '保存中' },
     { file: 'pages/merchant/map-binding.vue', click: 'searchCandidates', context: { candidateLoading: true, searchCandidates: noop }, busyText: '搜索中' },
     { file: 'pages/merchant/map-binding.vue', click: 'submitBindingRequest', context: { submitting: true, selectedObjectId: 'object-1', submitBindingRequest: noop }, busyText: '绑定中' },
@@ -110,7 +114,7 @@ test('existing foreground request states render native busy button feedback', as
     { file: 'pages/search/index.vue', click: 'search', context: { loading: true, search: noop }, busyText: '搜索中' },
     { file: 'pages/sourcing-map/index.vue', click: 'submitSearch', context: { loading: true, submitSearch: noop }, busyText: '搜索中' },
     { file: 'pages/sourcing-map/index.vue', click: 'loadPlaces({ reset: true })', context: { loading: true, loadPlaces: noop }, busyText: '加载中' },
-    { file: 'pages/sourcing-map/legacy-canvas.vue', click: 'submitSearch', context: { objectLoading: true, submitSearch: noop }, busyText: '搜索' },
+    { file: 'pages/sourcing-map/legacy-canvas.vue', click: 'submitSearch', context: { objectLoading: true, submitSearch: noop }, busyText: '搜索中' },
     { file: 'pages/sourcing-map/legacy-canvas.vue', click: 'refreshCurrentMapData', context: { loading: true, objectLoading: false, refreshCurrentMapData: noop }, busyText: '刷新中' },
     { file: 'pages/sourcing-map/legacy-canvas.vue', click: 'loadScenes', context: { loading: true, loadScenes: noop }, busyText: '加载中' },
     { file: 'pages/sourcing-map/legacy-canvas.vue', click: 'submitSelectedObjectLocationCorrection', context: { reportSubmitting: true, reportAction: 'location', submitSelectedObjectLocationCorrection: noop }, busyText: '纠错中' },
@@ -325,6 +329,84 @@ test('paid VIP orders refresh benefits, keep the success feedback and clear payi
   assert.equal(page.paying.value, false, 'paid VIP order should clear paying')
 })
 
+test('VIP and quota-pack purchases share one lock while only the active action spins', async () => {
+  const vipOrder = deferred()
+  let vipOrderCalls = 0
+  let packOrderCalls = 0
+  const vipPage = loadPage('pages/vip/index.vue', {
+    requireLogin: () => true, getSession: () => ({ merchantId: '' }),
+    createVIPOrder: () => { vipOrderCalls += 1; return vipOrder.promise },
+    createQuotaPackOrder: async () => { packOrderCalls += 1; return { orderId: 'pack-order' } },
+    createVIPPayment: async () => ({ status: 'paid' }),
+    listVIPPlans: async () => ({ items: [] }), listQuotaPacks: async () => ({ items: [] }),
+  }, ['merchantId', 'selectedPlanCode', 'activeTab', 'paying', 'payingPackCode', 'purchaseBusy', 'selectPlan', 'switchTab', 'openSelectedPlan', 'openQuotaPack'])
+  vipPage.merchantId.value = 'merchant-1'
+
+  const buyingVip = vipPage.openSelectedPlan()
+  vipPage.openQuotaPack({ code: 'publish_5' })
+  vipPage.openSelectedPlan()
+  vipPage.selectPlan('monthly')
+  vipPage.switchTab('addons')
+  await flushAsyncWork()
+  assert.equal(vipOrderCalls, 1, 'VIP 购买中同类连续点击只应创建一个订单')
+  assert.equal(packOrderCalls, 0, 'VIP 购买中不得并发创建次数包订单')
+  assert.equal(vipPage.purchaseBusy.value, true, 'VIP 购买中应持有共享购买锁')
+  assert.equal(vipPage.selectedPlanCode.value, 'yearly', '购买中不得切换 VIP 套餐')
+  assert.equal(vipPage.activeTab.value, 'vip', '购买中不得切换 tab')
+
+  const vipButtonHtml = await renderBusyButton({
+    file: 'pages/vip/index.vue', click: 'openSelectedPlan',
+    context: { purchaseBusy: true, paying: true, selectedPlanCode: 'yearly', openSelectedPlan: () => {} },
+  })
+  const lockedPackHtml = await renderBusyButton({
+    file: 'pages/vip/index.vue', click: 'openQuotaPack(item)',
+    context: { purchaseBusy: true, item: { code: 'publish_5', actionText: '购买' }, payingPackCode: '', openQuotaPack: () => {}, packActionText: (item) => item.actionText },
+  })
+  assert.match(vipButtonHtml, /loading="true"/, '当前 VIP 动作应显示 spinner')
+  assert.match(lockedPackHtml, /disabled(?:=|\s|>)/, '非当前次数包按钮也应锁定')
+  assert.match(lockedPackHtml, /loading="false"/, '非当前次数包按钮不应显示 VIP spinner')
+
+  vipOrder.resolve({ orderId: 'vip-order' })
+  await buyingVip
+  assert.equal(vipPage.purchaseBusy.value, false, 'VIP 链路完成后应释放共享锁')
+
+  const packOrder = deferred()
+  vipOrderCalls = 0
+  packOrderCalls = 0
+  const packPage = loadPage('pages/vip/index.vue', {
+    requireLogin: () => true, getSession: () => ({ merchantId: '' }),
+    createVIPOrder: async () => { vipOrderCalls += 1; return { orderId: 'vip-order' } },
+    createQuotaPackOrder: () => { packOrderCalls += 1; return packOrder.promise },
+    createVIPPayment: async () => ({ status: 'paid' }),
+    listVIPPlans: async () => ({ items: [] }), listQuotaPacks: async () => ({ items: [] }),
+  }, ['merchantId', 'paying', 'payingPackCode', 'purchaseBusy', 'openSelectedPlan', 'openQuotaPack'])
+  packPage.merchantId.value = 'merchant-1'
+
+  const buyingPack = packPage.openQuotaPack({ code: 'publish_5' })
+  packPage.openQuotaPack({ code: 'refresh_10' })
+  packPage.openSelectedPlan()
+  await flushAsyncWork()
+  assert.equal(packOrderCalls, 1, '次数包购买中同类不同套餐只应创建一个订单')
+  assert.equal(vipOrderCalls, 0, '次数包购买中不得并发创建 VIP 订单')
+  assert.equal(packPage.purchaseBusy.value, true, '次数包购买中应持有共享购买锁')
+
+  const lockedVipHtml = await renderBusyButton({
+    file: 'pages/vip/index.vue', click: 'openSelectedPlan',
+    context: { purchaseBusy: true, paying: false, selectedPlanCode: 'yearly', openSelectedPlan: () => {} },
+  })
+  const currentPackHtml = await renderBusyButton({
+    file: 'pages/vip/index.vue', click: 'openQuotaPack(item)',
+    context: { purchaseBusy: true, item: { code: 'publish_5', actionText: '购买' }, payingPackCode: 'publish_5', openQuotaPack: () => {}, packActionText: (item) => item.actionText },
+  })
+  assert.match(lockedVipHtml, /disabled(?:=|\s|>)/, '次数包购买中 VIP 按钮也应锁定')
+  assert.match(lockedVipHtml, /loading="false"/, '非当前 VIP 按钮不应显示次数包 spinner')
+  assert.match(currentPackHtml, /loading="true"/, '当前次数包动作应显示 spinner')
+
+  packOrder.resolve({ orderId: 'pack-order' })
+  await buyingPack
+  assert.equal(packPage.purchaseBusy.value, false, '次数包链路完成后应释放共享锁')
+})
+
 test('map request entry points reject duplicate programmatic loading', async () => {
   const placesRequest = deferred()
   let placeCalls = 0
@@ -377,4 +459,42 @@ test('map request entry points reject duplicate programmatic loading', async () 
   objectsRequest.resolve({ items: [], total: 0 })
   await Promise.all([firstObjects, duplicateObjects])
   assert.equal(legacyObjectPage.objectLoading.value, false, 'object loading should clear after the request finishes')
+})
+
+test('legacy canvas condition changes start a latest-wins object request', async () => {
+  const firstRequest = deferred()
+  const latestRequest = deferred()
+  const queries = []
+  const page = loadPage('pages/sourcing-map/legacy-canvas.vue', {
+    DEFAULT_CITY_CODE: 'zhili', requireLogin: () => true,
+    listMapScenes: async () => ({ items: [] }), listMapCategories: async () => ({ items: [] }),
+    listMapObjects: async () => ({ items: [], total: 0 }),
+    searchMapObjects: (query) => {
+      queries.push(structuredClone(query))
+      return queries.length === 1 ? firstRequest.promise : latestRequest.promise
+    },
+    listNearbyPois: async () => ({ items: [] }), getMapObject: async () => ({}),
+    submitMapLocationCorrection: async () => ({}), submitMapRiskReport: async () => ({}),
+    uni: { showToast: () => {}, showActionSheet: () => {}, redirectTo: () => {}, switchTab: () => {} },
+  }, ['selectedSceneCode', 'keyword', 'activeFilters', 'rawMapObjects', 'objectLoading', 'submitSearch', 'toggleFilter'])
+  page.selectedSceneCode.value = 'scene-1'
+  page.keyword.value = '童装'
+
+  const firstLoad = page.submitSearch()
+  page.submitSearch()
+  await flushAsyncWork()
+  assert.equal(queries.length, 1, '相同显式搜索在请求中仍应防重复')
+
+  const latestLoad = page.toggleFilter('categories', 'girl')
+  await flushAsyncWork()
+  assert.equal(queries.length, 2, '搜索中的筛选变化必须启动新的对象请求')
+  assert.equal(queries[1].categories, 'girl')
+  assert.equal(page.objectLoading.value, true, '最新对象请求完成前应持续显示 loading')
+
+  latestRequest.resolve({ items: [{ id: 'latest' }], total: 1 })
+  await latestLoad
+  firstRequest.resolve({ items: [{ id: 'old' }], total: 1 })
+  await firstLoad
+  assert.deepEqual(page.rawMapObjects.value.map((item) => item.id), ['latest'], '迟到的旧响应不得覆盖最新筛选结果')
+  assert.equal(page.objectLoading.value, false, '最新请求完成后应释放 loading')
 })

@@ -5,7 +5,7 @@
       <view class="search-shell">
         <input v-model="keyword" class="search-input" placeholder="搜索档口、配套、路段" confirm-type="search" @confirm="submitSearch" />
         <button class="filter-toggle-button" @click="toggleFiltersExpanded">{{ filterToggleText }}</button>
-        <button class="search-button" :disabled="objectLoading" :loading="objectLoading" @click="submitSearch">搜索</button>
+        <button class="search-button" :disabled="objectLoading" :loading="objectLoading" @click="submitSearch">{{ objectLoading ? '搜索中' : '搜索' }}</button>
       </view>
 
       <scroll-view class="compact-filter-row" scroll-x>
@@ -571,7 +571,7 @@ async function selectScene(scene) {
   resetCanvasGestureState()
   selectedScene.value = scene
   applySceneDefaultViewport(selectedScene.value)
-  await loadSceneObjects()
+  await loadSceneObjects({ force: true })
 }
 
 async function loadSceneObjects(options = {}) {
@@ -582,7 +582,7 @@ async function loadSceneObjects(options = {}) {
     return
   }
   const showLoading = !options.silent
-  if (showLoading && objectLoading.value) return
+  if (showLoading && objectLoading.value && !options.force) return
   const requestId = ++objectRequestSeq
   if (showLoading) {
     visibleObjectRequestSeq = requestId
@@ -641,8 +641,8 @@ async function submitSearch() {
 
 async function clearSearch() {
   keyword.value = ''
-  if (loadedObjectKeyword.value) {
-    await loadSceneObjects({ focusFirst: hasActiveFilters.value })
+  if (loadedObjectKeyword.value || objectLoading.value) {
+    await loadSceneObjects({ focusFirst: hasActiveFilters.value, force: true })
     return
   }
   applyLocalConditionResults({ focusFirst: hasActiveFilters.value })
@@ -657,7 +657,8 @@ async function toggleFilter(key, value) {
     [key]: exists ? current.filter((item) => item !== normalizedValue) : [...current, normalizedValue],
   }
   if (shouldReloadObjectsForConditionChange()) {
-    await loadSceneObjects({ focusFirst: true })
+    // 搜索结果仍在请求中时，筛选变化必须开启新版本，避免旧条件结果落地。
+    await loadSceneObjects({ focusFirst: true, force: true })
     return
   }
   applyLocalConditionResults({ focusFirst: true })
@@ -666,7 +667,7 @@ async function toggleFilter(key, value) {
 async function clearFilters() {
   activeFilters.value = defaultActiveFilters()
   if (shouldReloadObjectsForConditionChange()) {
-    await loadSceneObjects({ focusFirst: Boolean(keyword.value.trim()) })
+    await loadSceneObjects({ focusFirst: Boolean(keyword.value.trim()), force: true })
     return
   }
   applyLocalConditionResults()
@@ -677,11 +678,11 @@ function toggleFiltersExpanded() {
 }
 
 async function clearMapConditions() {
-  const wasSearchLoaded = Boolean(loadedObjectKeyword.value)
+  const wasSearchLoaded = Boolean(loadedObjectKeyword.value || objectLoading.value)
   keyword.value = ''
   activeFilters.value = defaultActiveFilters()
   if (wasSearchLoaded) {
-    await loadSceneObjects()
+    await loadSceneObjects({ force: true })
     return
   }
   applyLocalConditionResults()

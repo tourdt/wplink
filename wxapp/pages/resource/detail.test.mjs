@@ -1008,6 +1008,64 @@ test('resource detail voucher redemption remains busy and visible until the refr
   assert.equal(page.showManagementSheet.value, false, '置顶券核销和刷新结束后才关闭管理面板')
 })
 
+test('resource detail refresh keeps its panel and spinner visible until detail reload finishes', async () => {
+  const reloadRequest = deferred()
+  const page = loadResourceDetailPage({
+    refreshResource: async () => ({}),
+    getOwnResource: () => reloadRequest.promise,
+  })
+  page.resource.value = { id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } }
+  page.ownerMerchantId.value = 'merchant-expected'
+  page.showManagementSheet.value = true
+
+  const refreshing = page.handleManagementAction('refresh')
+  await flushAsyncWork()
+  const busyHtml = await renderDetailButton('handleManagementAction(action.key)', {
+    managementActions: [{ key: 'refresh', label: '刷新' }],
+    managementAction: page.managementAction.value,
+    managementBusy: page.managementBusy.value,
+    isManagementActionLoading: page.isManagementActionLoading,
+    managementActionLabel: page.managementActionLabel,
+    handleManagementAction: () => {},
+  })
+  assert.equal(page.showManagementSheet.value, true, '详情 reload pending 时刷新面板应保持打开')
+  assertBusyButton(busyHtml, '刷新中', '详情刷新')
+
+  reloadRequest.resolve({ id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } })
+  await refreshing
+  assert.equal(page.showManagementSheet.value, false, '详情 reload 完成后才关闭刷新面板')
+  assertManagementActionCleared(page, '详情刷新完成后')
+})
+
+test('resource detail take-down keeps its panel and spinner visible until detail reload finishes', async () => {
+  const reloadRequest = deferred()
+  const page = loadResourceDetailPage({
+    takeDownResource: async () => ({}),
+    getOwnResource: () => reloadRequest.promise,
+  })
+  page.resource.value = { id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } }
+  page.ownerMerchantId.value = 'merchant-expected'
+  page.showManagementSheet.value = true
+
+  const takingDown = page.handleManagementAction('take-down')
+  await flushAsyncWork()
+  const busyHtml = await renderDetailButton('handleManagementAction(action.key)', {
+    managementActions: [{ key: 'take-down', label: '下架' }],
+    managementAction: page.managementAction.value,
+    managementBusy: page.managementBusy.value,
+    isManagementActionLoading: page.isManagementActionLoading,
+    managementActionLabel: page.managementActionLabel,
+    handleManagementAction: () => {},
+  })
+  assert.equal(page.showManagementSheet.value, true, '详情 reload pending 时下架面板应保持打开')
+  assertBusyButton(busyHtml, '下架中', '详情下架')
+
+  reloadRequest.resolve({ id: 'resource-expected', status: 'taken_down', presentation: { fields: [], tags: [] } })
+  await takingDown
+  assert.equal(page.showManagementSheet.value, false, '详情 reload 完成后才关闭下架面板')
+  assertManagementActionCleared(page, '详情下架完成后')
+})
+
 test('resource detail management payment cancellation and failures restore state while edit stays synchronous', async () => {
   const toasts = []
   const navigations = []

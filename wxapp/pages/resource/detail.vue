@@ -836,8 +836,8 @@ function openPublishEditor() {
 async function refreshOwnResource() {
   await refreshResource(resource.value.id, ownerMerchantId.value)
   uni.showToast({ title: '已刷新', icon: 'none' })
-  hideManagementSheet()
   await reloadOwnResource()
+  hideManagementSheet()
 }
 
 async function topOwnResource() {
@@ -859,8 +859,8 @@ async function topOwnResource() {
 async function takeDownOwnResource() {
   await takeDownResource(resource.value.id, ownerMerchantId.value, '商家主动下架')
   uni.showToast({ title: '已下架', icon: 'none' })
-  hideManagementSheet()
   await reloadOwnResource()
+  hideManagementSheet()
 }
 
 async function getAvailableTopVoucher() {

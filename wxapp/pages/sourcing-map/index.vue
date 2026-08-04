@@ -103,6 +103,7 @@ const page = ref(1)
 const loading = ref(false)
 const errorText = ref('')
 const loadedOnce = ref(false)
+const navigationCorrectionBusy = ref(false)
 let requestVersion = 0
 let shouldAskNavigationFeedback = false
 
@@ -155,8 +156,8 @@ async function loadCategories() {
   tagCategories.value = results.flatMap((result) => result.items || [])
 }
 
-async function loadPlaces({ reset }) {
-  if (loading.value) return
+async function loadPlaces({ reset, force = false }) {
+  if (loading.value && !force) return
   const version = ++requestVersion
   const targetPage = reset ? 1 : page.value + 1
   loading.value = true
@@ -198,26 +199,27 @@ async function loadPlaces({ reset }) {
 }
 
 function submitSearch() {
-  loadPlaces({ reset: true })
+  return loadPlaces({ reset: true })
 }
 
 function selectSourceFilter(value) {
   claimedFilter.value = value
-  loadPlaces({ reset: true })
+  // 条件变化代表用户已明确放弃旧结果；启动新版本请求并让旧响应失效。
+  return loadPlaces({ reset: true, force: true })
 }
 
 function toggleCategory(code) {
   categoryCodes.value = categoryCodes.value.includes(code)
     ? categoryCodes.value.filter((item) => item !== code)
     : [...categoryCodes.value, code]
-  loadPlaces({ reset: true })
+  return loadPlaces({ reset: true, force: true })
 }
 
 function clearConditions() {
   keyword.value = ''
   claimedFilter.value = 'all'
   categoryCodes.value = []
-  loadPlaces({ reset: true })
+  return loadPlaces({ reset: true, force: true })
 }
 
 function handlePlaceSelect(place) {
@@ -300,6 +302,10 @@ function promptNavigationFeedback() {
 
 async function submitLocationCorrection(objectId) {
   if (!requireLogin()) return
+  if (navigationCorrectionBusy.value) return
+  // 导航返回后的纠错没有页面按钮承载状态，使用局部遮罩明确反馈并阻止重复提交。
+  navigationCorrectionBusy.value = true
+  uni.showLoading({ title: '提交中', mask: true })
   try {
     await submitMapLocationCorrection(objectId, {
       reasonCode: 'navigation_inaccurate',
@@ -308,6 +314,9 @@ async function submitLocationCorrection(objectId) {
     uni.showToast({ title: '反馈已提交', icon: 'none' })
   } catch (err) {
     uni.showToast({ title: err.message || '反馈提交失败，请重试', icon: 'none' })
+  } finally {
+    uni.hideLoading()
+    navigationCorrectionBusy.value = false
   }
 }
 

@@ -44,7 +44,7 @@ test('merchant map binding shows the current submission state without manual rev
   const busyHtml = await renderSubmitButton(true)
 
   assert.match(idleHtml, />确认绑定<\/button>/)
-  assert.match(busyHtml, /<button\b(?=[^>]*\bdisabled(?:=|\s|>))(?=[^>]*\bloading(?:=|\s|>))[^>]*>绑定中<\/button>/)
+  assert.match(busyHtml, /<button\b(?=[^>]*\bdisabled(?:=|\s|>))(?=[^>]*\bloading="true")[^>]*>绑定中<\/button>/)
   assert.match(source, /档口已绑定/)
   assert.match(source, /每个商家暂时只能绑定一个主档口/)
   assert.doesNotMatch(source, /提交绑定申请/)

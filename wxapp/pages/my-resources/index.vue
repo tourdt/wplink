@@ -243,6 +243,7 @@ async function refresh(item) {
 async function handleRefreshQuotaError(err) {
   // 仅拦截额度不足；过期、已完成和网络错误仍由请求层提示，不能误导用户去购买。
   if (err?.code !== 'QUOTA_NOT_ENOUGH') return false
+  resourceActionPhase.value = 'prompting'
   const confirmed = await confirmQuotaPurchase(QUOTA_TYPE_REFRESH)
   if (confirmed) {
     uni.navigateTo({ url: buildQuotaPurchaseUrl(QUOTA_TYPE_REFRESH) })

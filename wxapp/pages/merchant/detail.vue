@@ -11,7 +11,7 @@
           </view>
         </view>
         <button v-if="isOwnMerchant" class="follow-button" @click="openMerchantEditor">编辑</button>
-        <button v-else class="follow-button" :disabled="followBusy" :loading="followBusy" @click="toggleFollow">{{ followBusy ? '处理中' : followed ? '已关注' : '关注' }}</button>
+        <button v-else class="follow-button" :disabled="followBusy" :loading="followBusy" @click="toggleFollow">{{ followBusy ? (followed ? '取消关注中' : '关注中') : followed ? '已关注' : '关注' }}</button>
       </view>
 
       <view class="hero-stats">
@@ -90,6 +90,7 @@ import ResourceList from '../../components/ResourceList.vue'
 import { getMerchantFollowState, setMerchantFollow } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
 import { listResources } from '../../api/resource'
+import { requireLogin } from '../../common/auth'
 import { trackMerchantMapEvent } from '../../common/merchantMapAnalytics'
 import { getSession } from '../../store/session'
 import { buildMerchantAddressLocation } from '../sourcing-map/merchantPlaceState'
@@ -211,7 +212,9 @@ function resetMerchantResources() {
 }
 
 async function toggleFollow() {
-  if (!merchant.value.id || isOwnMerchant.value || followBusy.value) return
+  if (!merchant.value.id || isOwnMerchant.value) return
+  if (!requireLogin()) return
+  if (followBusy.value) return
   // 关注写入尚未完成时锁定按钮，避免连续点击产生重复的关注状态变更。
   followBusy.value = true
   try {

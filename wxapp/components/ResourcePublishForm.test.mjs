@@ -254,7 +254,7 @@ function loadResourcePublishForm(additions = {}) {
     },
     ...additions,
   }
-  vm.runInNewContext(`${script}\nglobalThis.resourcePublishForm = { form, resourceImageEntries, publishAction: typeof publishAction === 'undefined' ? undefined : publishAction, publishBusy: typeof publishBusy === 'undefined' ? undefined : publishBusy, submit, saveDraft, onResourceImageGridItemClick, removeResourceImage }`, sandbox, { filename: 'ResourcePublishForm.vue' })
+  vm.runInNewContext(`${script}\nglobalThis.resourcePublishForm = { form, resourceImageEntries, publishAction: typeof publishAction === 'undefined' ? undefined : publishAction, publishPhase: typeof publishPhase === 'undefined' ? undefined : publishPhase, publishBusy: typeof publishBusy === 'undefined' ? undefined : publishBusy, isPublishAction: typeof isPublishAction === 'undefined' ? undefined : isPublishAction, isPublishActionLoading: typeof isPublishActionLoading === 'undefined' ? undefined : isPublishActionLoading, submit, saveDraft, onResourceImageGridItemClick, removeResourceImage }`, sandbox, { filename: 'ResourcePublishForm.vue' })
   return sandbox.resourcePublishForm
 }
 
@@ -270,7 +270,7 @@ function fillValidPublishForm(page) {
 function assertNativeBusyButton(html, busyText) {
   const openingTag = html.match(/<button\b[^>]*>/)?.[0] || ''
   assert.match(openingTag, /\bdisabled(?:=|\s|>)/, '忙碌按钮应禁用')
-  assert.match(openingTag, /\bloading(?:=|\s|>)/, '忙碌按钮应使用原生 loading')
+  assert.match(openingTag, /\bloading="true"/, '忙碌按钮应使用原生 loading=true')
   assert.match(html, new RegExp(busyText), `忙碌按钮应显示${busyText}`)
 }
 
@@ -286,6 +286,7 @@ test('resource publish actions render native busy feedback for the active action
     publishBusy: true,
     canSubmit: true,
     isPublishAction: (action) => action === 'draft',
+    isPublishActionLoading: (action) => action === 'draft',
     saveDraft: noop,
     submit: noop,
   }
@@ -293,6 +294,7 @@ test('resource publish actions render native busy feedback for the active action
     publishBusy: true,
     canSubmit: true,
     isPublishAction: (action) => action === 'submit',
+    isPublishActionLoading: (action) => action === 'submit',
     saveDraft: noop,
     submit: noop,
   }
@@ -448,4 +450,69 @@ test('resource publish clears the action and preserves quota-cancel behavior', a
   assert.equal(confirmCalls, 1, '额度不足应继续请求购买确认')
   assert.deepEqual(navigations, [], '取消购买时不应跳转购买页或发布成功页')
   assert.equal(page.publishAction.value, '', '取消额度购买后应清除提交动作状态')
+})
+
+test('resource publish quota confirmation keeps one lock without a spinner and clears on cancel', async () => {
+  const confirmation = deferred()
+  let createCalls = 0
+  let draftCalls = 0
+  const page = loadResourcePublishForm({
+    createResource: async () => { createCalls += 1; throw { code: 'QUOTA_NOT_ENOUGH' } },
+    createResourceDraft: async () => { draftCalls += 1 },
+    confirmQuotaPurchase: () => confirmation.promise,
+  })
+  fillValidPublishForm(page)
+
+  const submitting = page.submit()
+  await flushAsyncWork()
+  assert.equal(page.publishAction.value, 'submit', '购买确认 pending 时应保留发布互斥锁')
+  assert.equal(page.publishPhase?.value, 'prompting', '购买确认 pending 时应进入 prompting')
+  const submitHtml = await renderPublishActionButton('submit', {
+    publishBusy: true,
+    canSubmit: true,
+    isPublishAction: (action) => action === 'submit',
+    isPublishActionLoading: page.isPublishActionLoading,
+    saveDraft: () => {},
+    submit: () => {},
+  })
+  const draftHtml = await renderPublishActionButton('saveDraft', {
+    publishBusy: true,
+    canSubmit: true,
+    isPublishAction: (action) => action === 'submit',
+    isPublishActionLoading: page.isPublishActionLoading,
+    saveDraft: () => {},
+    submit: () => {},
+  })
+  assert.match(submitHtml, />提交审核</, '购买确认期间提交按钮应恢复空闲文案')
+  assert.match(submitHtml, /loading="false"/, '购买确认期间提交按钮不应显示 spinner')
+  assert.match(draftHtml, /loading="false"/, '购买确认期间草稿按钮不应显示 spinner')
+  await Promise.all([page.submit(), page.saveDraft()])
+  assert.equal(createCalls, 1, '购买确认期间重复提交不得再次创建资源')
+  assert.equal(draftCalls, 0, '购买确认期间不得穿透互斥锁保存草稿')
+
+  confirmation.resolve(false)
+  await submitting
+  assert.equal(page.publishAction.value, '', '取消购买确认后应释放发布动作')
+  assert.equal(page.publishPhase?.value, '', '取消购买确认后应清空发布阶段')
+})
+
+test('resource publish quota confirmation navigates once after confirmation and clears both states', async () => {
+  const confirmation = deferred()
+  const navigations = []
+  const page = loadResourcePublishForm({
+    createResource: async () => { throw { code: 'QUOTA_NOT_ENOUGH' } },
+    confirmQuotaPurchase: () => confirmation.promise,
+    uni: { navigateTo: (options) => navigations.push(options), showToast: () => {} },
+  })
+  fillValidPublishForm(page)
+
+  const submitting = page.submit()
+  await flushAsyncWork()
+  confirmation.resolve(true)
+  await submitting
+
+  assert.equal(navigations.length, 1, '确认购买后应只跳转一次额度购买页')
+  assert.equal(navigations[0].url, '/pages/vip/index')
+  assert.equal(page.publishAction.value, '', '确认购买跳转后应释放发布动作')
+  assert.equal(page.publishPhase?.value, '', '确认购买跳转后应清空发布阶段')
 })
