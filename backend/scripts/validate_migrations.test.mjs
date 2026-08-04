@@ -107,6 +107,22 @@ test('merchant onboarding migration records first completed profile time for hom
   assert.match(downSource, /DROP COLUMN IF EXISTS onboarded_at/)
 })
 
+test('merchant onboarding repair backfills completed profiles without destructive rollback', () => {
+  const upFileName = '000034_repair_missing_merchant_onboarded_at.up.sql'
+  const downFileName = '000034_repair_missing_merchant_onboarded_at.down.sql'
+  assert.equal(fs.existsSync(path.resolve(migrationsDir, upFileName)), true, `${upFileName} should exist`)
+  assert.equal(fs.existsSync(path.resolve(migrationsDir, downFileName)), true, `${downFileName} should exist`)
+
+  const upSource = fs.readFileSync(path.resolve(migrationsDir, upFileName), 'utf8')
+  const downSource = fs.readFileSync(path.resolve(migrationsDir, downFileName), 'utf8')
+  assert.match(upSource, /UPDATE merchants[\s\S]*SET onboarded_at = created_at/)
+  assert.match(upSource, /profile_status = 'completed'/)
+  assert.match(upSource, /onboarded_at IS NULL/)
+  assert.doesNotMatch(upSource, /onboarded_at = now\(\)/)
+  assert.match(downSource, /不可逆/)
+  assert.doesNotMatch(downSource, /SET onboarded_at = NULL/)
+})
+
 test('merchant map event migration constrains attribution data and supports map metrics queries', () => {
   const upFileName = '000033_merchant_map_events.up.sql'
   const downFileName = '000033_merchant_map_events.down.sql'
