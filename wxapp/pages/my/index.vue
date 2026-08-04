@@ -620,8 +620,8 @@ async function openGrowthEntitlement() {
 .benefit-expiry {
   padding: 14rpx 18rpx;
   border-radius: 10rpx;
-  background: $wplink-warning-soft;
-  color: $wplink-warning;
+  background: $wplink-primary-soft;
+  color: $wplink-muted;
   font-size: 24rpx;
   font-weight: 600;
   line-height: 1.4;
