@@ -123,6 +123,19 @@ test('merchant onboarding repair backfills completed profiles without destructiv
   assert.doesNotMatch(downSource, /SET onboarded_at = NULL/)
 })
 
+test('demo merchants seed completed onboarding without overwriting first onboarding time', () => {
+  const source = fs.readFileSync(path.resolve(scriptDir, 'seed_demo_data.sql'), 'utf8')
+  const merchantSeed = source.match(/INSERT INTO merchants \([\s\S]*?ON CONFLICT \(id\) DO UPDATE SET[\s\S]*?updated_at = now\(\);/)?.[0] || ''
+
+  assert.match(merchantSeed, /profile_status/)
+  assert.match(merchantSeed, /onboarded_at/)
+  assert.match(merchantSeed, /'completed'/)
+  assert.match(
+    merchantSeed,
+    /onboarded_at = COALESCE\(merchants\.onboarded_at, EXCLUDED\.onboarded_at\)/,
+  )
+})
+
 test('merchant map event migration constrains attribution data and supports map metrics queries', () => {
   const upFileName = '000033_merchant_map_events.up.sql'
   const downFileName = '000033_merchant_map_events.down.sql'

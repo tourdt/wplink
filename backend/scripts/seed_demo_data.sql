@@ -56,6 +56,8 @@ INSERT INTO merchants (
   address_text,
   images,
   status,
+  profile_status,
+  onboarded_at,
   last_active_at
 )
 SELECT
@@ -71,6 +73,8 @@ SELECT
   m.address_text,
   m.images::jsonb,
   'active',
+  'completed',
+  now(),
   now()
 FROM city_stations cs
 CROSS JOIN (
@@ -161,6 +165,8 @@ ON CONFLICT (id) DO UPDATE SET
   address_text = EXCLUDED.address_text,
   images = EXCLUDED.images,
   status = EXCLUDED.status,
+  profile_status = EXCLUDED.profile_status,
+  onboarded_at = COALESCE(merchants.onboarded_at, EXCLUDED.onboarded_at),
   last_active_at = EXCLUDED.last_active_at,
   updated_at = now();
 
