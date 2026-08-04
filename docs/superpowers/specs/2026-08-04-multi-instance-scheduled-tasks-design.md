@@ -2,18 +2,20 @@
 
 日期：2026-08-04
 
-状态：待实施
+状态：已实施
+
+实现验证日期：2026-08-04
 
 ## 1. 背景
 
-当前 API 服务启动时会在每个进程内同时启动以下四类定时任务：
+方案提出时，API 服务启动会在每个进程内同时启动以下四类定时任务：
 
 - 资源生命周期处理
 - 内容审核自动重试
 - 微信支付补偿
 - 商家地图行为清理
 
-Scheduler 使用本地 `time.Ticker`，每个 API 实例启动后立即执行一次，再按配置周期执行。单实例部署时逻辑可正常运行；扩展到多个 API 实例后，每个实例都会在相近时间扫描和处理同一批数据。
+Scheduler 使用本地 `time.Ticker`，每个 API 实例启动后立即执行一次，再按配置周期执行。实施前单实例部署逻辑可正常运行；直接扩展到多个 API 实例后，每个实例会在相近时间扫描和处理同一批数据。
 
 现有实现已经具备部分幂等保护：
 
@@ -48,7 +50,7 @@ Scheduler 使用本地 `time.Ticker`，每个 API 实例启动后立即执行一
 - 不增加面向运营人员的任务管理页面。
 - 不以任务锁替代支付、消息、审核状态流转中的数据库幂等约束。
 
-## 4. 现状风险
+## 4. 实施前风险
 
 ### 4.1 资源生命周期
 
@@ -240,13 +242,7 @@ type Scheduler interface {
 }
 ```
 
-应用退出顺序：
-
-1. 取消任务根 Context。
-2. 停止产生新的 Tick。
-3. 等待正在执行的任务结束或超时。
-4. 停止 HTTP 服务。
-5. 关闭数据库连接。
+最终应用退出顺序与 go-zero 的阻塞式 `Start()` 生命周期对齐：HTTP 服务停止并使 `Start()` 返回后，应用取消任务根 Context、停止产生新的 Tick、依次 `Wait()` 正在执行的任务，最后才由 `defer` 关闭数据库连接。
 
 不能在任务仍使用数据库时提前关闭连接池。
 
@@ -432,24 +428,26 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 
 ## 13. 日志与监控
 
-统一日志事件：
+最终实现由 Coordinator 统一记录协调日志，真实事件名为：
 
-- `task_started`
-- `task_skipped_lock_held`
-- `task_succeeded`
-- `task_failed`
-- `task_timed_out`
-- `task_unlock_failed`
+- `task_skipped_lock_held`：未获得锁，正常跳过。
+- `task_coordination_completed`：Runner 成功完成。
+- `task_coordination_runner_failed`：Runner 返回错误。
+- `task_coordination_runner_context_done`：任务 Context 超时或取消。
+- `task_coordination_unlock_failed`：释放锁失败。
+- `task_coordination_connection_error`、`task_coordination_lock_error`：专用连接或加锁失败。
+- `task_coordination_runner_panicked`：Runner panic，记录安全类型后继续抛出。
 
-日志字段：
+最终日志字段按 go-zero 项目约定使用 snake_case：
 
-- `taskName`
-- `instanceId`
-- `lockKey`
-- `durationMs`
-- `interval`
-- 领域结果计数
-- 安全错误信息
+- `task`
+- `instance_id`
+- `lock_key`
+- `duration_ms`
+- `event`
+- 安全错误信息和场景附加字段
+
+早期设计语义 `task_started`、`task_succeeded`、`task_failed`、`task_timed_out` / `task_timeout`、`task_unlock_failed` 与最终事件名的映射及查询方式见[部署与运维文档](../../deployment.md)。当前代码不单独输出每轮 `task_started`，不能从 Scheduler 启用日志推断某轮已经获得锁。
 
 不得记录数据库 DSN、微信密钥、支付私钥、用户 OpenID 或完整第三方敏感载荷。
 
@@ -466,19 +464,21 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 
 ## 14. 文件影响范围
 
-预计新增：
+最终新增：
 
 - `backend/app/internal/task/coordinator.go`
 - `backend/app/internal/task/coordinator_test.go`
 - `backend/migrations/000035_resource_audit_retry_lease.up.sql`
 - `backend/migrations/000035_resource_audit_retry_lease.down.sql`
 
-预计修改：
+主要最终修改：
 
 - `backend/app/app.go`
 - `backend/app/internal/config/config.go`
 - `backend/app/internal/config/load.go`
+- `backend/app/internal/config/load_test.go`
 - `backend/app/internal/config/production_validation.go`
+- `backend/app/internal/config/production_validation_test.go`
 - `backend/etc/app.yaml.example`
 - `backend/etc/app.production.yaml.example`
 - `backend/app/internal/task/*_scheduler.go`
@@ -486,11 +486,12 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 - `backend/app/internal/model/resource_model.go`
 - `backend/app/internal/model/resource_model_test.go`
 - `backend/app/internal/logic/resource/content_audit.go`
-- 内容审核 Logic 和 Task 测试
-- `docs/product/technical-architecture.md`
-- `docs/product/deployment-config.md`
-
-支付补偿 Model 当前已有其他未提交修改，实施时必须保留并基于最新工作区调整，不能覆盖无关改动。
+- `backend/app/internal/logic/contentaudit/media_callback_logic.go`
+- 内容审核 Logic、回调和 Task 测试
+- `backend/scripts/validate_migrations.test.mjs`
+- `docs/architecture.md`
+- `docs/deployment.md`
+- `docs/superpowers/specs/2026-08-04-multi-instance-scheduled-tasks-design.md`
 
 ## 15. 测试设计
 
@@ -546,7 +547,7 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 1. 在临时 PostgreSQL 完整验证 000035 up/down。
 2. 部署包含新字段和兼容读取的应用版本。
 3. 所有实例保持 `Tasks.Enabled: true`，观察锁竞争日志。
-4. 验证同一周期只有一个实例输出 `task_started`。
+4. 验证同一周期只有一个实例输出 `task_coordination_completed`、`task_coordination_runner_failed` 或 `task_coordination_runner_context_done` 终态。
 5. 验证其他实例输出 `task_skipped_lock_held`。
 6. 人工构造一条审核租约过期记录，确认能够重新领取。
 7. 观察支付查单量和任务耗时。
@@ -596,3 +597,29 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 - API 服务扩展到多个地域或多个数据库集群。
 
 在这些条件出现前，API 进程内 Scheduler、PostgreSQL Advisory Lock 和业务租约能够以较低复杂度满足当前多实例需求。
+
+## 19. 最终代码入口
+
+截至 2026-08-04，方案已落到以下入口：
+
+- API 装配、全局开关、四个 Scheduler 启停：[`backend/app/app.go`](../../../backend/app/app.go)
+- 固定任务名、锁号、专用连接、超时和协调日志：[`backend/app/internal/task/coordinator.go`](../../../backend/app/internal/task/coordinator.go)
+- 串行触发和等待：[`backend/app/internal/task/scheduler_runtime.go`](../../../backend/app/internal/task/scheduler_runtime.go)
+- 四类 Scheduler / Runner：[`backend/app/internal/task/`](../../../backend/app/internal/task/)
+- 配置加载与生产校验：[`backend/app/internal/config/`](../../../backend/app/internal/config/)
+- 生产配置模板：[`backend/etc/app.production.yaml.example`](../../../backend/etc/app.production.yaml.example)
+- 内容审核租约迁移：[`backend/migrations/000035_resource_audit_retry_lease.up.sql`](../../../backend/migrations/000035_resource_audit_retry_lease.up.sql)
+- 审核租约领取与 guard 条件更新：[`backend/app/internal/model/resource_model.go`](../../../backend/app/internal/model/resource_model.go)
+- 审核重试任务与领域日志：[`backend/app/internal/task/content_audit_retry_task.go`](../../../backend/app/internal/task/content_audit_retry_task.go)
+- 最终架构与运维说明：[`docs/architecture.md`](../../architecture.md)、[`docs/deployment.md`](../../deployment.md)
+
+## 20. 实现差异
+
+实施中对早期设计作了以下经过测试约束的微调：
+
+1. `CoordinationResult` 最终只保留 `Acquired` 和 `Duration`，执行成功、失败、超时继续通过 Go `error` 与 Context 语义表达，没有新增 `executed_success` 等枚举。Scheduler 测试约束了固定任务名和超时透传，Coordinator 测试覆盖成功、跳过、错误和超时。
+2. 为避免 Scheduler 与 Coordinator 对同一错误重复记录，最终结构化事件采用 `task_coordination_*` 命名，并由 Coordinator 输出一次终态日志；仅锁竞争沿用 `task_skipped_lock_held`。早期 `task_started` 没有单独落地，`task_succeeded`、`task_failed`、`task_timeout`、`task_unlock_failed` 的实际映射见第 13 节和运维文档。
+3. 日志字段从早期 camelCase 调整为项目统一的 snake_case：`task`、`instance_id`、`lock_key`、`duration_ms`。领域计数仍由各 Scheduler 的中文完成日志输出，不复制进 Coordinator 的通用结果结构。
+4. 解锁查询报错时，最终实现不仅记录 `task_coordination_unlock_failed`，还通过 `driver.ErrBadConn` 丢弃锁状态未知的物理连接，避免带锁连接回池后因 Advisory Lock 可重入而长期阻塞；测试同时约束解锁失败不能覆盖原 Runner 错误。
+5. Runner panic 最终只记录 `panic_type` 并继续抛出，不记录可能包含密钥或业务数据的 panic 原值；栈展开仍执行解锁。相关测试约束敏感 panic 原值不得进入日志。
+6. 原设计预计更新 `docs/product/technical-architecture.md` 与 `docs/product/deployment-config.md`，最终实施计划将交付入口收敛为根目录下的 `docs/architecture.md` 和 `docs/deployment.md`，用于集中说明本次多实例任务架构与运维手册。
