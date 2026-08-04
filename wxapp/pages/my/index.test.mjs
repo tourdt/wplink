@@ -72,7 +72,7 @@ test('my page shows compact entitlement overview with entitlement center access'
   assert.doesNotMatch(source, /<text class="action-title">VIP 权益<\/text>/)
   assert.doesNotMatch(source, /<text class="action-meta">查看额度和限时特价<\/text>/)
   assert.doesNotMatch(source, /function openVIP\(\)/)
-  assert.match(source, /async function openBenefitOverview\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/vip\/index' \}\)/)
+  assert.match(source, /async function openBenefitOverview\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(!\(await ensureMerchantProfileReady\(merchantId\.value\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/vip\/index' \}\)/)
   assert.doesNotMatch(source, /quota-summary/)
   assert.doesNotMatch(source, /entitlement-section/)
   assert.doesNotMatch(source, /免费额度/)

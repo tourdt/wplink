@@ -307,7 +307,8 @@ async function openMerchantHome() {
 
 async function openBenefitOverview() {
   if (!requireLogin()) return
-  // 权益中心入口不再依赖成长活动，用户始终可查看套餐与当前权益。
+  // 已登录但未绑定商户时先引导完善资料，避免进入购买页后因缺少商户身份无法下单。
+  if (!(await ensureMerchantProfileReady(merchantId.value))) return
   uni.navigateTo({ url: '/pages/vip/index' })
 }
 
