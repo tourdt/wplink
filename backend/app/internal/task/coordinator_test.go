@@ -110,6 +110,30 @@ func TestCoordinatorKeepsRunnerErrorWhenUnlockFails(t *testing.T) {
 	assertCoordinatorSQLExpectations(t, mock)
 }
 
+func TestCoordinatorDiscardsPhysicalConnectionWhenUnlockQueryFails(t *testing.T) {
+	db, mock := newCoordinatorMockDB(t)
+	mock.ExpectQuery(`SELECT pg_try_advisory_lock\(\$1\)`).
+		WithArgs(int64(1003)).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_try_advisory_lock"}).AddRow(true))
+	mock.ExpectQuery(`SELECT pg_advisory_unlock\(\$1\)`).
+		WithArgs(int64(1003)).
+		WillReturnError(errors.New("unlock connection state unknown"))
+
+	result, err := NewPostgresCoordinator(db, "api-a").RunExclusive(
+		context.Background(), TaskPaymentReconciliation, time.Second,
+		func(context.Context) error { return nil },
+	)
+
+	if err != nil || !result.Acquired {
+		t.Fatalf("解锁失败不应改变业务执行结果: result=%+v err=%v", result, err)
+	}
+	stats := db.Stats()
+	if stats.OpenConnections != 0 || stats.Idle != 0 {
+		t.Fatalf("锁状态未知的物理连接不得回池复用: open=%d idle=%d", stats.OpenConnections, stats.Idle)
+	}
+	assertCoordinatorSQLExpectations(t, mock)
+}
+
 func TestCoordinatorReturnsDeadlineExceededAndUnlocks(t *testing.T) {
 	db, mock := newCoordinatorMockDB(t)
 	mock.ExpectQuery(`SELECT pg_try_advisory_lock\(\$1\)`).

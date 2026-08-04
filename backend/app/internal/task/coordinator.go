@@ -3,6 +3,8 @@ package task
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -123,12 +125,28 @@ func (c *PostgresCoordinator) RunExclusive(
 		defer cancel()
 		var unlocked bool
 		unlockErr := conn.QueryRowContext(unlockCtx, "SELECT pg_advisory_unlock($1)", lockKey).Scan(&unlocked)
+		connectionDiscarded := false
+		var discardErr error
+		if unlockErr != nil {
+			// 解锁查询报错时无法判断 session 是否仍持锁。将底层连接标记为坏连接，避免它
+			// 回池后因 advisory lock 可重入而误判获取成功，并长期阻塞其他实例接管。
+			discardErr = conn.Raw(func(any) error { return driver.ErrBadConn })
+			if discardErr == nil || errors.Is(discardErr, driver.ErrBadConn) || errors.Is(discardErr, sql.ErrConnDone) {
+				connectionDiscarded = true
+				discardErr = nil
+			}
+		}
 		if unlockErr != nil || !unlocked {
-			logx.Errorw("自动任务协调锁释放失败", coordinationLogFields(
+			fields := coordinationLogFields(
 				"task_coordination_unlock_failed", taskName, lockKey, c.instanceID, duration,
 				logx.Field("unlocked", unlocked),
+				logx.Field("connection_discarded", connectionDiscarded),
 				logx.Field("error", unlockErr),
-			)...)
+			)
+			if discardErr != nil {
+				fields = append(fields, logx.Field("connection_discard_error", discardErr))
+			}
+			logx.Errorw("自动任务协调锁释放失败", fields...)
 		}
 	}()
 
