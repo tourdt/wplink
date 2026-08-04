@@ -274,35 +274,55 @@ function assertNativeBusyButton(html, busyText) {
   assert.match(html, new RegExp(busyText), `忙碌按钮应显示${busyText}`)
 }
 
+function assertDisabledWithoutLoading(html, label) {
+  const openingTag = html.match(/<button\b[^>]*>/)?.[0] || ''
+  assert.match(openingTag, /\bdisabled(?:=|\s|>)/, `${label}在另一动作进行时应禁用`)
+  assert.match(openingTag, /\bloading="false"/, `${label}不应显示另一动作的 loading`)
+}
+
 test('resource publish actions render native busy feedback for the active action', async () => {
   const noop = () => {}
-  const savingHtml = await renderPublishActionButton('saveDraft', {
+  const draftContext = {
     publishBusy: true,
     canSubmit: true,
     isPublishAction: (action) => action === 'draft',
     saveDraft: noop,
-  })
-  const submittingHtml = await renderPublishActionButton('submit', {
+    submit: noop,
+  }
+  const submitContext = {
     publishBusy: true,
     canSubmit: true,
     isPublishAction: (action) => action === 'submit',
+    saveDraft: noop,
     submit: noop,
-  })
+  }
+  const savingHtml = await renderPublishActionButton('saveDraft', draftContext)
+  const draftLocksSubmitHtml = await renderPublishActionButton('submit', draftContext)
+  const submittingHtml = await renderPublishActionButton('submit', submitContext)
+  const submitLocksDraftHtml = await renderPublishActionButton('saveDraft', submitContext)
 
   assertNativeBusyButton(savingHtml, '保存中')
+  assertDisabledWithoutLoading(draftLocksSubmitHtml, '提交审核按钮')
   assertNativeBusyButton(submittingHtml, '提交中')
+  assertDisabledWithoutLoading(submitLocksDraftHtml, '保存草稿按钮')
 })
 
 test('resource publish blocks duplicate and cross-action requests then clears the action after success', async () => {
   const request = deferred()
   let createCalls = 0
   let draftCalls = 0
+  const navigations = []
+  const toasts = []
   const page = loadResourcePublishForm({
     createResource: () => {
       createCalls += 1
       return request.promise
     },
     createResourceDraft: async () => { draftCalls += 1 },
+    uni: {
+      showToast: (options) => toasts.push(options),
+      navigateTo: (options) => navigations.push(options),
+    },
   })
   fillValidPublishForm(page)
 
@@ -320,6 +340,8 @@ test('resource publish blocks duplicate and cross-action requests then clears th
   }
 
   assert.equal(page.publishAction.value, '', '提交成功后应清除提交动作状态')
+  assert.equal(navigations.at(-1)?.url, '/pages/publish-success/index?direction=supply&status=pending&message=', '提交成功应保留发布成功页跳转')
+  assert.equal(toasts.at(-1)?.title, '已提交审核', '提交成功应保留原有成功提示')
 })
 
 test('resource draft blocks duplicate and cross-action requests then clears the action after rejection', async () => {
@@ -356,8 +378,13 @@ test('resource draft blocks duplicate and cross-action requests then clears the 
 
 test('resource publish locks image additions and removals while a request is in flight', async () => {
   const request = deferred()
+  let chooseImageCalls = 0
   const page = loadResourcePublishForm({
     createResource: () => request.promise,
+    chooseImageFile: async () => {
+      chooseImageCalls += 1
+      return { id: 'chosen-image', path: '/chosen-image.jpg' }
+    },
   })
   fillValidPublishForm(page)
   page.resourceImageEntries.value = [{ id: 'stored:image-1', kind: 'stored', url: 'https://example.test/image-1.jpg' }]
@@ -365,12 +392,60 @@ test('resource publish locks image additions and removals while a request is in 
   const submitting = page.submit()
   try {
     await flushAsyncWork()
+    page.onResourceImageGridItemClick({ detail: { index: 1 } })
     page.removeResourceImage({ index: 0 })
-    page.onResourceImageGridItemClick({ detail: { index: 0 } })
     await flushAsyncWork()
+    assert.equal(chooseImageCalls, 0, '发布期间不应打开图片新增入口')
     assert.deepEqual(page.resourceImageEntries.value, [{ id: 'stored:image-1', kind: 'stored', url: 'https://example.test/image-1.jpg' }], '发布期间不应新增或删除图片')
   } finally {
     request.resolve({ status: 'pending' })
     await submitting
   }
+})
+
+test('resource publish keeps the action idle and avoids all request work when validation fails', async () => {
+  let createCalls = 0
+  let draftCalls = 0
+  let uploadCalls = 0
+  const page = loadResourcePublishForm({
+    createResource: async () => { createCalls += 1 },
+    createResourceDraft: async () => { draftCalls += 1 },
+    uploadSelectedImage: async () => { uploadCalls += 1 },
+  })
+  page.resourceImageEntries.value = [{
+    id: 'pending:image-1',
+    kind: 'pending',
+    url: '/pending-image.jpg',
+    file: { id: 'pending-image-1', path: '/pending-image.jpg' },
+  }]
+
+  await Promise.all([page.submit(), page.saveDraft()])
+
+  assert.equal(page.publishAction.value, '', '校验失败不应进入任何发布动作状态')
+  assert.equal(createCalls, 0, '校验失败不应创建资源')
+  assert.equal(draftCalls, 0, '校验失败不应保存草稿')
+  assert.equal(uploadCalls, 0, '校验失败不应上传图片')
+})
+
+test('resource publish clears the action and preserves quota-cancel behavior', async () => {
+  const navigations = []
+  let confirmCalls = 0
+  const page = loadResourcePublishForm({
+    createResource: async () => { throw { code: 'QUOTA_NOT_ENOUGH' } },
+    confirmQuotaPurchase: async () => {
+      confirmCalls += 1
+      return false
+    },
+    uni: {
+      navigateTo: (options) => navigations.push(options),
+      showToast: () => {},
+    },
+  })
+  fillValidPublishForm(page)
+
+  await page.submit()
+
+  assert.equal(confirmCalls, 1, '额度不足应继续请求购买确认')
+  assert.deepEqual(navigations, [], '取消购买时不应跳转购买页或发布成功页')
+  assert.equal(page.publishAction.value, '', '取消额度购买后应清除提交动作状态')
 })
