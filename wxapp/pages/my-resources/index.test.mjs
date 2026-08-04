@@ -2,6 +2,10 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
+import vm from 'node:vm'
+import { compileTemplate, parse } from '@vue/compiler-sfc'
+import { createSSRApp, h } from 'vue'
+import { renderToString } from '@vue/server-renderer'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'pages/my-resources/index.vue'), 'utf8')
@@ -81,7 +85,6 @@ test('my resources removes supply and demand direction tabs from list filtering'
 })
 
 test('my resources card actions avoid a visible toolbar frame', () => {
-  assert.match(source, /<button v-if="isActivePublished\(item\)" class="primary-action" @click="refresh\(item\)">刷新<\/button>/)
   assert.match(source, /\.action-row \{[\s\S]*gap: 10rpx;[\s\S]*padding-top: 14rpx;[\s\S]*border-top: 1rpx solid #eef2f7;/)
   assert.doesNotMatch(source, /\.action-row \{[^}]*border-radius:/)
   assert.doesNotMatch(source, /\.action-row \{[^}]*background:/)
@@ -151,4 +154,320 @@ test('my resources directs refresh quota shortages to purchase', () => {
   assert.match(source, /import \{ QUOTA_TYPE_REFRESH, buildQuotaPurchaseUrl, confirmQuotaPurchase \} from '\.\.\/\.\.\/common\/entitlementPurchase'/)
   assert.match(source, /async function handleRefreshQuotaError\(err\) \{[\s\S]*err\?\.code !== 'QUOTA_NOT_ENOUGH'[\s\S]*return false[\s\S]*await confirmQuotaPurchase\(QUOTA_TYPE_REFRESH\)[\s\S]*uni\.navigateTo\(\{ url: buildQuotaPurchaseUrl\(QUOTA_TYPE_REFRESH\) \}\)[\s\S]*return true[\s\S]*\}/)
   assert.match(source, /async function refresh\(item\) \{[\s\S]*try \{[\s\S]*catch \(err\) \{[\s\S]*if \(await handleRefreshQuotaError\(err\)\) return[\s\S]*throw err[\s\S]*\}/)
+})
+
+function ref(value) {
+  return { value }
+}
+
+function reactive(value) {
+  return value
+}
+
+function computed(getter) {
+  return { get value() { return getter() } }
+}
+
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((nextResolve, nextReject) => {
+    resolve = nextResolve
+    reject = nextReject
+  })
+  return { promise, resolve, reject }
+}
+
+function flushAsyncWork() {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function resourceActionButton(clickExpression) {
+  const { descriptor } = parse(source, { filename: 'pages/my-resources/index.vue' })
+  const buttons = descriptor.template.content.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) || []
+  const button = buttons.find((item) => item.includes(`@click="${clickExpression}"`))
+  assert.ok(button, `应找到 ${clickExpression} 操作按钮`)
+  return button
+}
+
+async function renderResourceActionButton(clickExpression, context) {
+  const renderContext = {
+    isActivePublished: () => true,
+    canRepost: () => true,
+    canDeleteTakenDown: () => true,
+    ...context,
+  }
+  const compiled = compileTemplate({
+    source: resourceActionButton(clickExpression),
+    filename: 'pages/my-resources/index.vue',
+    id: 'my-resource-action-loading',
+    compilerOptions: { mode: 'function' },
+  })
+  assert.equal(compiled.errors.length, 0, compiled.errors.join('\n'))
+  const render = new Function('Vue', compiled.code)(await import('vue'))
+  const Button = {
+    props: Object.keys(renderContext),
+    setup(props) {
+      return () => render(props, [])
+    },
+  }
+  return renderToString(createSSRApp({ render: () => h(Button, renderContext) }))
+}
+
+function openingButtonTag(html) {
+  return html.match(/<button\b[^>]*>/)?.[0] || ''
+}
+
+function assertBusyResourceButton(html, label) {
+  const openingTag = openingButtonTag(html)
+  assert.match(openingTag, /\bdisabled(?:=|\s|>)/, `${label}进行中应禁用`)
+  assert.match(openingTag, /\bloading(?:=|\s|>)/, `${label}进行中应展示原生 loading`)
+  assert.match(html, new RegExp(label), `进行中按钮应展示${label}`)
+}
+
+function assertLockedResourceButton(html, label) {
+  const openingTag = openingButtonTag(html)
+  assert.match(openingTag, /\bdisabled(?:=|\s|>)/, `${label}在另一写操作进行时应禁用`)
+  assert.doesNotMatch(openingTag, /\bloading="true"/, `${label}不应显示另一操作的 loading`)
+}
+
+function assertResourceAction(page, resourceId, action, label) {
+  assert.equal(page.resourceAction.value.resourceId, resourceId, `${label}应记录对应资源`)
+  assert.equal(page.resourceAction.value.action, action, `${label}应记录对应动作`)
+}
+
+test('my resource write buttons render only the active action as busy and preserve details', async () => {
+  const noop = () => {}
+  const activeItem = { id: 'resource-1', status: 'published' }
+  const repostItem = { id: 'resource-1', status: 'expired' }
+  const deletedItem = { id: 'resource-1', status: 'taken_down' }
+  const actionContracts = [
+    { action: 'refresh', click: 'refresh(item)', item: activeItem, busyText: '刷新中' },
+    { action: 'top', click: 'topResource(item)', item: activeItem, busyText: '置顶中' },
+    { action: 'takeDown', click: 'takeDown(item)', item: activeItem, busyText: '下架中' },
+    { action: 'repost', click: 'repost(item)', item: repostItem, busyText: '准备中' },
+    { action: 'delete', click: 'deleteTakenDown(item)', item: deletedItem, busyText: '删除中' },
+  ]
+
+  for (const contract of actionContracts) {
+    const html = await renderResourceActionButton(contract.click, {
+      item: contract.item,
+      resourceActionBusy: true,
+      isResourceAction: (_item, action) => action === contract.action,
+      refresh: noop,
+      topResource: noop,
+      takeDown: noop,
+      repost: noop,
+      deleteTakenDown: noop,
+    })
+    assertBusyResourceButton(html, contract.busyText)
+  }
+
+  for (const contract of actionContracts) {
+    const html = await renderResourceActionButton(contract.click, {
+      item: contract.item,
+      resourceActionBusy: true,
+      isResourceAction: () => false,
+      refresh: noop,
+      topResource: noop,
+      takeDown: noop,
+      repost: noop,
+      deleteTakenDown: noop,
+    })
+    assertLockedResourceButton(html, contract.busyText)
+  }
+
+  const detailsHtml = await renderResourceActionButton('openResource(item)', {
+    item: activeItem,
+    resourceActionBusy: true,
+    openResource: noop,
+  })
+  assert.doesNotMatch(openingButtonTag(detailsHtml), /\bdisabled(?:=|\s|>)/, '写操作进行时仍可查看详情')
+})
+
+function loadMyResourcesPage(additions = {}) {
+  const { descriptor } = parse(source, { filename: 'pages/my-resources/index.vue' })
+  const script = descriptor.scriptSetup.content.replace(/^import\s+[\s\S]*?\s+from\s+['"][^'"]+['"]\s*$/gm, '')
+  const sandbox = {
+    console,
+    Promise,
+    Set,
+    Date,
+    String,
+    Number,
+    Boolean,
+    Math,
+    ref,
+    reactive,
+    computed,
+    onLoad: () => {},
+    onPullDownRefresh: () => {},
+    onReachBottom: () => {},
+    requireLogin: () => true,
+    ensureMerchantProfileReady: async () => true,
+    getMerchantId: () => '',
+    saveMerchantId: () => {},
+    getMe: async () => ({ managedMerchants: [{ id: 'merchant-1' }] }),
+    listTopVouchers: async () => ({ items: [] }),
+    redeemTopVoucher: async () => ({}),
+    deleteTakenDownResource: async () => ({}),
+    getOwnResource: async () => ({}),
+    listMyResources: async () => ({ items: [], total: 0 }),
+    refreshResource: async () => ({}),
+    takeDownResource: async () => ({}),
+    createQuotaPackOrder: async () => ({ orderId: 'top-order-1' }),
+    createVIPPayment: async () => ({ status: 'paid' }),
+    listQuotaPacks: async () => ({ items: [{ code: 'top_1d', benefits: { topVoucherCount: 1, topDurationHours: 24 } }] }),
+    formatDateToDay: (value) => value,
+    resourceTypeLabel: () => '',
+    QUOTA_TYPE_REFRESH: 'refresh',
+    buildQuotaPurchaseUrl: () => '/pages/vip/index',
+    confirmQuotaPurchase: async () => false,
+    uni: {
+      showToast: () => {},
+      showModal: ({ success }) => success({ confirm: true }),
+      showActionSheet: ({ success }) => success({ tapIndex: 0 }),
+      requestPayment: ({ success }) => success({}),
+      navigateTo: () => {},
+      setStorageSync: () => {},
+      removeStorageSync: () => {},
+      switchTab: () => {},
+      stopPullDownRefresh: () => {},
+    },
+    ...additions,
+  }
+  vm.runInNewContext(`${script}\nglobalThis.myResourcesPage = { merchantId, resourceAction, resourceActionBusy, refresh, topResource, takeDown, repost, deleteTakenDown }`, sandbox, { filename: 'pages/my-resources/index.vue' })
+  return sandbox.myResourcesPage
+}
+
+test('my resource writes share one lock and clear it after success or rejection', async () => {
+  const refreshRequest = deferred()
+  let refreshCalls = 0
+  let takeDownCalls = 0
+  let repostCalls = 0
+  const page = loadMyResourcesPage({
+    refreshResource: () => {
+      refreshCalls += 1
+      return refreshRequest.promise
+    },
+    takeDownResource: async () => { takeDownCalls += 1 },
+    getOwnResource: async () => { repostCalls += 1; return {} },
+  })
+  page.merchantId.value = 'merchant-1'
+  const publishedItem = { id: 'resource-1', status: 'published' }
+  const expiredItem = { id: 'resource-2', status: 'expired' }
+  const firstRefresh = page.refresh(publishedItem)
+  const duplicateRefresh = page.refresh(publishedItem)
+  const concurrentTakeDown = page.takeDown(publishedItem)
+  const concurrentRepost = page.repost(expiredItem)
+
+  assert.equal(refreshCalls, 1, '连续刷新只应发起一次服务端请求')
+  assert.equal(takeDownCalls, 0, '刷新期间不应下架其他资源')
+  assert.equal(repostCalls, 0, '刷新期间不应读取其他资源以再发')
+  assertResourceAction(page, 'resource-1', 'refresh', '刷新期间')
+  refreshRequest.resolve({})
+  await Promise.all([firstRefresh, duplicateRefresh, concurrentTakeDown, concurrentRepost])
+  assertResourceAction(page, '', '', '刷新成功和列表刷新后')
+
+  const failedPage = loadMyResourcesPage({ refreshResource: async () => { throw new Error('网络异常') } })
+  failedPage.merchantId.value = 'merchant-1'
+  await assert.rejects(failedPage.refresh(publishedItem), /网络异常/)
+  assertResourceAction(failedPage, '', '', '刷新失败后')
+})
+
+test('top entitlement flow stays busy from voucher lookup through redemption and list refresh', async () => {
+  const voucherRequest = deferred()
+  const redemptionRequest = deferred()
+  let voucherCalls = 0
+  let redemptionCalls = 0
+  let refreshCalls = 0
+  const page = loadMyResourcesPage({
+    listTopVouchers: () => {
+      voucherCalls += 1
+      return voucherRequest.promise
+    },
+    redeemTopVoucher: () => {
+      redemptionCalls += 1
+      return redemptionRequest.promise
+    },
+    refreshResource: async () => { refreshCalls += 1 },
+  })
+  page.merchantId.value = 'merchant-1'
+  const item = { id: 'resource-1', status: 'published' }
+  const firstTop = page.topResource(item)
+  const duplicateTop = page.topResource(item)
+  const concurrentRefresh = page.refresh(item)
+
+  assert.equal(voucherCalls, 1, '置顶权益查询不应重复发起')
+  assert.equal(refreshCalls, 0, '权益查询期间不应开始其他写操作')
+  assertResourceAction(page, 'resource-1', 'top', '权益查询阶段')
+  voucherRequest.resolve({ items: [{ id: 'voucher-1', remainingAmount: 1, topDurationHours: 24 }] })
+  await flushAsyncWork()
+  assert.equal(redemptionCalls, 1, '确认使用权益后应兑换一次')
+  assertResourceAction(page, 'resource-1', 'top', '兑换和刷新期间')
+  redemptionRequest.resolve({})
+  await Promise.all([firstTop, duplicateTop, concurrentRefresh])
+  assertResourceAction(page, '', '', '置顶完成并刷新列表后')
+})
+
+test('top purchase flow keeps the same lock through order creation, payment and list refresh', async () => {
+  const orderRequest = deferred()
+  let voucherCalls = 0
+  let orderCalls = 0
+  let refreshCalls = 0
+  const page = loadMyResourcesPage({
+    listTopVouchers: async () => {
+      voucherCalls += 1
+      return { items: [] }
+    },
+    createQuotaPackOrder: () => {
+      orderCalls += 1
+      return orderRequest.promise
+    },
+    refreshResource: async () => { refreshCalls += 1 },
+  })
+  page.merchantId.value = 'merchant-1'
+  const item = { id: 'resource-1', status: 'published' }
+  const firstTop = page.topResource(item)
+  const duplicateTop = page.topResource(item)
+  const concurrentRefresh = page.refresh(item)
+
+  await flushAsyncWork()
+  assert.equal(voucherCalls, 1, '购买置顶前的权益查询不应重复发起')
+  assert.equal(orderCalls, 1, '确认购买后只应创建一次置顶订单')
+  assert.equal(refreshCalls, 0, '购买置顶期间不应开始其他写操作')
+  assertResourceAction(page, 'resource-1', 'top', '创建置顶订单和支付期间')
+  orderRequest.resolve({ orderId: 'top-order-1' })
+  await Promise.all([firstTop, duplicateTop, concurrentRefresh])
+  assertResourceAction(page, '', '', '支付完成并刷新列表后')
+})
+
+test('delete waits for confirmation before becoming busy and unlocks after deletion', async () => {
+  let deleteCalls = 0
+  const cancelledPage = loadMyResourcesPage({
+    uni: { showModal: ({ success }) => success({ confirm: false }) },
+    deleteTakenDownResource: async () => { deleteCalls += 1 },
+  })
+  cancelledPage.merchantId.value = 'merchant-1'
+  const item = { id: 'resource-1', status: 'taken_down' }
+  await cancelledPage.deleteTakenDown(item)
+  assert.equal(deleteCalls, 0, '取消删除确认不应调用服务端')
+  assertResourceAction(cancelledPage, '', '', '取消删除确认后')
+
+  const deletionRequest = deferred()
+  const confirmedPage = loadMyResourcesPage({
+    deleteTakenDownResource: () => {
+      deleteCalls += 1
+      return deletionRequest.promise
+    },
+  })
+  confirmedPage.merchantId.value = 'merchant-1'
+  const deletion = confirmedPage.deleteTakenDown(item)
+  assertResourceAction(confirmedPage, '', '', '确认弹窗尚未结束时')
+  await flushAsyncWork()
+  assert.equal(deleteCalls, 1, '确认删除后应调用一次服务端')
+  assertResourceAction(confirmedPage, 'resource-1', 'delete', '确认删除后')
+  deletionRequest.resolve({})
+  await deletion
+  assertResourceAction(confirmedPage, '', '', '删除完成和列表刷新后')
 })
