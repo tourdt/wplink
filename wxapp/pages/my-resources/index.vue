@@ -114,6 +114,8 @@ const loading = ref(false)
 const topServicePacks = ref([])
 const resourceAction = ref({ resourceId: '', action: '' })
 const resourceActionBusy = computed(() => Boolean(resourceAction.value.resourceId))
+let inFlightListRequest = null
+let queuedResetRequest = null
 const fallbackTopServicePacks = [
   { code: 'top_1d', name: '1天置顶服务', standardPriceCent: 10000, salePriceCent: 10000, description: '购买后可置顶 1 天', saleLabel: '置顶 1 天', benefits: { topVoucherCount: 1, topDurationHours: 24 } },
   { code: 'top_3d', name: '3天置顶服务', standardPriceCent: 20000, salePriceCent: 20000, description: '购买后可置顶 3 天', saleLabel: '置顶 3 天', benefits: { topVoucherCount: 1, topDurationHours: 72 } },
@@ -141,8 +143,27 @@ onReachBottom(() => {
   loadRows({ reset: false })
 })
 
-async function loadRows({ reset = true } = {}) {
-  if (loading.value) return
+function loadRows({ reset = true } = {}) {
+  if (inFlightListRequest) {
+    if (!reset) return inFlightListRequest
+    if (!queuedResetRequest) {
+      // 写操作完成后必须等待旧列表响应结束再重新拉取，否则旧响应可能覆盖最新的写入结果。
+      queuedResetRequest = inFlightListRequest.catch(() => undefined).then(() => {
+        queuedResetRequest = null
+        return loadRows({ reset: true })
+      })
+    }
+    return queuedResetRequest
+  }
+  let request
+  request = loadRowsOnce({ reset }).finally(() => {
+    if (inFlightListRequest === request) inFlightListRequest = null
+  })
+  inFlightListRequest = request
+  return request
+}
+
+async function loadRowsOnce({ reset = true } = {}) {
   if (!(await ensurePageMerchantProfile())) return
   if (!reset && !hasMore.value) return
   loading.value = true

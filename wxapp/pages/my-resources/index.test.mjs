@@ -112,7 +112,7 @@ test('my resources publish action opens the publish type selection tab', () => {
 test('my resources prompts for merchant profile before list and publish actions', () => {
   assert.match(source, /import \{ ensureMerchantProfileReady \} from '\.\.\/\.\.\/common\/merchantProfileGuard'/)
   assert.match(source, /async function ensurePageMerchantProfile\(\) \{[\s\S]*if \(await ensureMerchantProfileReady\(merchantId\.value\)\) return true[\s\S]*rows\.value = \[\][\s\S]*return false[\s\S]*\}/)
-  assert.match(source, /async function loadRows\(\{ reset = true \} = \{\}\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*const resp = await listMyResources/)
+  assert.match(source, /async function loadRowsOnce\(\{ reset = true \} = \{\}\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*const resp = await listMyResources/)
   assert.match(source, /async function openPublish\(\) \{[\s\S]*if \(!\(await ensurePageMerchantProfile\(\)\)\) return[\s\S]*uni\.switchTab\(\{ url: '\/pages\/publish\/index' \}\)/)
   assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善发布者资料'/)
 })
@@ -248,12 +248,14 @@ test('my resource write buttons render only the active action as busy and preser
     { action: 'repost', click: 'repost(item)', item: repostItem, busyText: '准备中' },
     { action: 'delete', click: 'deleteTakenDown(item)', item: deletedItem, busyText: '删除中' },
   ]
+  const page = loadMyResourcesPage()
 
   for (const contract of actionContracts) {
+    page.resourceAction.value = { resourceId: 'resource-1', action: contract.action }
     const html = await renderResourceActionButton(contract.click, {
       item: contract.item,
       resourceActionBusy: true,
-      isResourceAction: (_item, action) => action === contract.action,
+      isResourceAction: page.isResourceAction,
       refresh: noop,
       topResource: noop,
       takeDown: noop,
@@ -261,20 +263,18 @@ test('my resource write buttons render only the active action as busy and preser
       deleteTakenDown: noop,
     })
     assertBusyResourceButton(html, contract.busyText)
-  }
 
-  for (const contract of actionContracts) {
-    const html = await renderResourceActionButton(contract.click, {
-      item: contract.item,
+    const otherResourceHtml = await renderResourceActionButton(contract.click, {
+      item: { ...contract.item, id: 'resource-2' },
       resourceActionBusy: true,
-      isResourceAction: () => false,
+      isResourceAction: page.isResourceAction,
       refresh: noop,
       topResource: noop,
       takeDown: noop,
       repost: noop,
       deleteTakenDown: noop,
     })
-    assertLockedResourceButton(html, contract.busyText)
+    assertLockedResourceButton(otherResourceHtml, contract.busyText)
   }
 
   const detailsHtml = await renderResourceActionButton('openResource(item)', {
@@ -336,7 +336,7 @@ function loadMyResourcesPage(additions = {}) {
     },
     ...additions,
   }
-  vm.runInNewContext(`${script}\nglobalThis.myResourcesPage = { merchantId, resourceAction, resourceActionBusy, refresh, topResource, takeDown, repost, deleteTakenDown }`, sandbox, { filename: 'pages/my-resources/index.vue' })
+  vm.runInNewContext(`${script}\nglobalThis.myResourcesPage = { merchantId, rows, resourceAction, resourceActionBusy, isResourceAction, loadRows, refresh, topResource, takeDown, repost, deleteTakenDown }`, sandbox, { filename: 'pages/my-resources/index.vue' })
   return sandbox.myResourcesPage
 }
 
@@ -440,6 +440,58 @@ test('top purchase flow keeps the same lock through order creation, payment and 
   orderRequest.resolve({ orderId: 'top-order-1' })
   await Promise.all([firstTop, duplicateTop, concurrentRefresh])
   assertResourceAction(page, '', '', '支付完成并刷新列表后')
+})
+
+test('top purchase cancellation preserves its toast and clears the resource action', async () => {
+  const toasts = []
+  const page = loadMyResourcesPage({
+    listTopVouchers: async () => ({ items: [] }),
+    createQuotaPackOrder: async () => ({ orderId: 'top-order-1' }),
+    createVIPPayment: async () => ({ payment: { timeStamp: '1', nonceStr: 'n', package: 'p', paySign: 's' } }),
+    uni: {
+      showToast: (options) => toasts.push(options),
+      showModal: ({ success }) => success({ confirm: true }),
+      requestPayment: ({ fail }) => fail(new Error('用户取消支付')),
+    },
+  })
+  page.merchantId.value = 'merchant-1'
+
+  await page.topResource({ id: 'resource-1', status: 'published' })
+
+  assert.equal(toasts.at(-1)?.title, '用户取消支付', '支付取消应保留原有友好提示')
+  assertResourceAction(page, '', '', '支付取消后')
+})
+
+test('write refresh waits for an in-flight list request before replacing rows and unlocking', async () => {
+  const oldListRequest = deferred()
+  const refreshedListRequest = deferred()
+  let listCalls = 0
+  const page = loadMyResourcesPage({
+    listMyResources: () => {
+      listCalls += 1
+      return listCalls === 1 ? oldListRequest.promise : refreshedListRequest.promise
+    },
+  })
+  page.merchantId.value = 'merchant-1'
+  const initialLoad = page.loadRows({ reset: true })
+  await flushAsyncWork()
+  assert.equal(listCalls, 1, '页面已有列表请求应先保持进行')
+
+  const refresh = page.refresh({ id: 'resource-1', status: 'published' })
+  await flushAsyncWork()
+  assertResourceAction(page, 'resource-1', 'refresh', '写操作等待旧列表请求时')
+  assert.equal(listCalls, 1, '写操作完成前不应与旧列表请求并发刷新')
+
+  oldListRequest.resolve({ items: [{ id: 'stale-resource' }], total: 1 })
+  await initialLoad
+  await flushAsyncWork()
+  assert.equal(listCalls, 2, '旧请求结束后必须补发一次强制刷新')
+  assertResourceAction(page, 'resource-1', 'refresh', '写后强制刷新进行时')
+
+  refreshedListRequest.resolve({ items: [{ id: 'fresh-resource' }], total: 1 })
+  await refresh
+  assert.equal(page.rows.value[0]?.id, 'fresh-resource', '写后刷新结果不能被旧列表响应覆盖')
+  assertResourceAction(page, '', '', '写后强制刷新完成后')
 })
 
 test('delete waits for confirmation before becoming busy and unlocks after deletion', async () => {
