@@ -519,14 +519,23 @@ async function openGrowthEntitlement() {
 }
 
 .benefit-stat {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 180rpx;
-  padding: 18rpx;
+  min-height: 136rpx;
+  padding: 16rpx 18rpx;
   border: 1rpx solid transparent;
   border-radius: 10rpx;
   background: $wplink-primary-soft;
+}
+
+.benefit-stat-head {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 32rpx;
+  padding-right: 74rpx;
 }
 
 .benefit-stat-low {
@@ -543,7 +552,7 @@ async function openGrowthEntitlement() {
   display: flex;
   align-items: baseline;
   gap: 6rpx;
-  margin-top: 8rpx;
+  margin-top: 10rpx;
 }
 
 .benefit-value {
@@ -554,32 +563,32 @@ async function openGrowthEntitlement() {
 }
 
 .benefit-unit,
-.benefit-label,
-.benefit-status {
+.benefit-label {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.3;
 }
 
-.benefit-status,
 .quota-purchase-action {
-  margin-top: auto;
-  padding-top: 12rpx;
-}
-
-.quota-purchase-action {
+  position: absolute;
+  top: 2rpx;
+  right: 8rpx;
   display: inline-flex;
   align-items: center;
-  align-self: flex-start;
-  min-height: 56rpx;
-  color: $wplink-warning;
+  min-height: 64rpx;
+  padding: 0 10rpx;
+  color: $wplink-muted;
   font-size: 22rpx;
   font-weight: 700;
   line-height: 1.4;
 }
 
-.quota-purchase-low {
+.benefit-stat-low .quota-purchase-action {
   color: rgba(194, 58, 0, 0.78);
+}
+
+.benefit-stat-empty .quota-purchase-action {
+  color: $wplink-warning;
 }
 
 .benefit-growth-banner {
