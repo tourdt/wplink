@@ -11,7 +11,7 @@
       <text class="status-title">{{ errorText || '该商家暂时无法查看' }}</text>
       <text class="status-copy">你可以重新加载，或先返回上一页查看商家资料。</text>
       <view class="status-actions">
-        <button class="primary-action" :disabled="loading" :loading="loading" @click="loadLocationContext()">重新加载</button>
+        <button class="primary-action" :disabled="loading" :loading="loading" @click="loadLocationContext()">{{ loading ? '加载中' : '重新加载' }}</button>
         <button class="secondary-action" @click="goBack">返回</button>
       </view>
     </view>

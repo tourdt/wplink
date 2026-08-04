@@ -67,7 +67,7 @@
     <view v-else-if="sceneUnavailable" class="state-card">
       <text class="state-title">地图暂未开放</text>
       <text class="state-desc">{{ sceneErrorText }}</text>
-      <button class="primary-button" :disabled="loading" :loading="loading" @click="loadScenes">重新加载</button>
+      <button class="primary-button" :disabled="loading" :loading="loading" @click="loadScenes">{{ loading ? '加载中' : '重新加载' }}</button>
     </view>
 
     <view v-else class="map-content">
@@ -77,7 +77,7 @@
           <text>{{ mapObjectCountText }}</text>
         </view>
         <view class="map-service-controls">
-          <button class="map-service-button" :disabled="loading || objectLoading" :loading="loading || objectLoading" @click="refreshCurrentMapData">刷新</button>
+          <button class="map-service-button" :disabled="loading || objectLoading" :loading="loading || objectLoading" @click="refreshCurrentMapData">{{ loading || objectLoading ? '刷新中' : '刷新' }}</button>
           <button class="map-service-button" @click="resetMapViewport">归位</button>
         </view>
         <view
@@ -175,8 +175,8 @@
         </view>
         <text class="contact-policy-tip">联系方式仅随有效供需信息展示</text>
         <view class="report-actions">
-          <button class="secondary-button" :disabled="reportSubmitting" :loading="reportAction === 'location'" @click="submitSelectedObjectLocationCorrection">位置纠错</button>
-          <button class="secondary-button risk" :disabled="reportSubmitting" :loading="reportAction === 'risk'" @click="submitSelectedObjectRiskReport">举报问题</button>
+          <button class="secondary-button" :disabled="reportSubmitting" :loading="reportAction === 'location'" @click="submitSelectedObjectLocationCorrection">{{ reportAction === 'location' ? '纠错中' : '位置纠错' }}</button>
+          <button class="secondary-button risk" :disabled="reportSubmitting" :loading="reportAction === 'risk'" @click="submitSelectedObjectRiskReport">{{ reportAction === 'risk' ? '举报中' : '举报问题' }}</button>
         </view>
         <view v-if="nearbyPois.length" class="nearby-section">
           <text class="nearby-title">附近配套</text>
@@ -480,6 +480,7 @@ async function refreshCurrentMapData() {
 }
 
 async function loadScenes(options = {}) {
+  if (loading.value) return
   loading.value = true
   sceneErrorText.value = '地图数据发布后可在这里查看档口和配套点位。'
   try {
@@ -580,8 +581,9 @@ async function loadSceneObjects(options = {}) {
     loadedObjectKeyword.value = ''
     return
   }
-  const requestId = ++objectRequestSeq
   const showLoading = !options.silent
+  if (showLoading && objectLoading.value) return
+  const requestId = ++objectRequestSeq
   if (showLoading) {
     visibleObjectRequestSeq = requestId
     objectLoading.value = true

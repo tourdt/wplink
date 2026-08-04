@@ -11,7 +11,7 @@
             @confirm="submitSearch"
           />
         </view>
-        <button class="search-button" :disabled="loading" :loading="loading" @click="submitSearch">搜索</button>
+        <button class="search-button" :disabled="loading" :loading="loading" @click="submitSearch">{{ loading ? '搜索中' : '搜索' }}</button>
       </view>
 
       <scroll-view class="filter-scroll" scroll-x>
@@ -42,7 +42,7 @@
       <view v-else-if="errorText && !places.length" class="state-card error">
         <text class="state-title">商家列表加载失败，请重试</text>
         <text class="state-desc">{{ errorText }}</text>
-        <button class="state-button" :disabled="loading" :loading="loading" @click="loadPlaces({ reset: true })">重新加载</button>
+        <button class="state-button" :disabled="loading" :loading="loading" @click="loadPlaces({ reset: true })">{{ loading ? '加载中' : '重新加载' }}</button>
       </view>
       <view v-else-if="!places.length" class="state-card">
         <text class="state-title">暂无匹配商家</text>
@@ -156,7 +156,7 @@ async function loadCategories() {
 }
 
 async function loadPlaces({ reset }) {
-  if (loading.value && !reset) return
+  if (loading.value) return
   const version = ++requestVersion
   const targetPage = reset ? 1 : page.value + 1
   loading.value = true
