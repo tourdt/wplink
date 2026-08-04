@@ -126,7 +126,7 @@
               v-for="action in managementActions"
               :key="action.key"
               :class="['management-action', action.danger ? 'danger' : '']"
-              :loading="managementAction === action.key"
+              :loading="isManagementActionLoading(action.key)"
               :disabled="managementBusy"
               @click="handleManagementAction(action.key)"
             >
@@ -292,6 +292,8 @@ const resourceUnavailable = ref(false)
 const selectedGalleryIndex = ref(0)
 const showManagementSheet = ref(false)
 const managementAction = ref('')
+// 管理操作在确认阶段仍保持互斥，避免重复弹窗或并发写入；只有查询和真正写入才显示旋转反馈。
+const managementActionPhase = ref('')
 const managementBusy = computed(() => Boolean(managementAction.value))
 const favoriteBusy = ref(false)
 const contactAction = ref('')
@@ -763,6 +765,7 @@ async function handleManagementAction(action) {
     return
   }
   managementAction.value = action
+  managementActionPhase.value = action === 'top' ? 'querying' : 'writing'
   try {
     if (action === 'refresh') {
       await refreshOwnResource()
@@ -773,6 +776,15 @@ async function handleManagementAction(action) {
       return
     }
     if (action === 'take-down') {
+      managementActionPhase.value = 'prompting'
+      const confirmed = await confirmManagementAction({
+        title: `下架${resourceNoun.value}`,
+        content: `下架后${resourceNoun.value}将不再公开展示，确认下架吗？`,
+        confirmText: '下架',
+        confirmColor: '#c2410c',
+      })
+      if (!confirmed) return
+      managementActionPhase.value = 'writing'
       await takeDownOwnResource()
       return
     }
@@ -781,15 +793,31 @@ async function handleManagementAction(action) {
       return
     }
     if (action === 'delete') {
+      managementActionPhase.value = 'prompting'
+      const confirmed = await confirmManagementAction({
+        title: `删除${resourceNoun.value}`,
+        content: `删除后将不再显示在我的发布中，确认删除吗？`,
+        confirmText: '删除',
+        confirmColor: '#c2410c',
+      })
+      if (!confirmed) return
+      managementActionPhase.value = 'writing'
       await deleteOwnResource()
     }
   } finally {
     managementAction.value = ''
+    managementActionPhase.value = ''
   }
+}
+
+function isManagementActionLoading(action) {
+  return managementAction.value === action && managementActionPhase.value !== 'prompting'
 }
 
 function managementActionLabel(action) {
   if (managementAction.value !== action.key) return action.label
+  if (managementActionPhase.value === 'querying') return '查询中'
+  if (managementActionPhase.value === 'prompting') return action.label
   return {
     refresh: '刷新中',
     top: '置顶中',
@@ -818,8 +846,10 @@ async function topOwnResource() {
     await purchaseTopService()
     return
   }
+  managementActionPhase.value = 'prompting'
   const confirmed = await confirmTopVoucherUse(voucher)
   if (!confirmed) return
+  managementActionPhase.value = 'writing'
   await redeemTopVoucher(voucher.id, resource.value.id, ownerMerchantId.value)
   uni.showToast({ title: '已置顶', icon: 'none' })
   await reloadOwnResource()
@@ -827,13 +857,6 @@ async function topOwnResource() {
 }
 
 async function takeDownOwnResource() {
-  const confirmed = await confirmManagementAction({
-    title: `下架${resourceNoun.value}`,
-    content: `下架后${resourceNoun.value}将不再公开展示，确认下架吗？`,
-    confirmText: '下架',
-    confirmColor: '#c2410c',
-  })
-  if (!confirmed) return
   await takeDownResource(resource.value.id, ownerMerchantId.value, '商家主动下架')
   uni.showToast({ title: '已下架', icon: 'none' })
   hideManagementSheet()
@@ -873,10 +896,13 @@ function topDurationText(voucher) {
 }
 
 async function purchaseTopService() {
+  managementActionPhase.value = 'querying'
   const pack = await chooseTopServicePack()
   if (!pack) return
+  managementActionPhase.value = 'prompting'
   const confirmed = await confirmTopServicePurchase(pack)
   if (!confirmed) return
+  managementActionPhase.value = 'writing'
   try {
     // 置顶购买的互斥状态必须覆盖订单、原生支付与支付后的详情刷新，避免重复下单或过早隐藏反馈。
     const order = await createQuotaPackOrder(ownerMerchantId.value, pack.code, { resourceId: resource.value.id })
@@ -897,6 +923,7 @@ async function chooseTopServicePack() {
   }
   if (packs.length === 1) return packs[0]
   return new Promise((resolve) => {
+    managementActionPhase.value = 'prompting'
     uni.showActionSheet({
       itemList: packs.map(topServiceOptionText),
       success: (res) => resolve(packs[res.tapIndex] || null),
@@ -1028,13 +1055,6 @@ function buildRepostInitialForm(detail) {
 }
 
 async function deleteOwnResource() {
-  const confirmed = await confirmManagementAction({
-    title: `删除${resourceNoun.value}`,
-    content: `删除后将不再显示在我的发布中，确认删除吗？`,
-    confirmText: '删除',
-    confirmColor: '#c2410c',
-  })
-  if (!confirmed) return
   await deleteTakenDownResource(resource.value.id, ownerMerchantId.value)
   uni.showToast({ title: '已删除', icon: 'none' })
   hideManagementSheet()

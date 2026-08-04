@@ -197,6 +197,14 @@ async function renderResourceActionButton(clickExpression, context) {
     canDeleteTakenDown: () => true,
     ...context,
   }
+  if (!renderContext.isResourceActionLoading) {
+    renderContext.isResourceActionLoading = (item, action) => renderContext.isResourceAction(item, action)
+  }
+  if (!renderContext.resourceActionLabel) {
+    renderContext.resourceActionLabel = (item, action, idleLabel, writingLabel) => (
+      renderContext.isResourceAction(item, action) ? writingLabel : idleLabel
+    )
+  }
   const compiled = compileTemplate({
     source: resourceActionButton(clickExpression),
     filename: 'pages/my-resources/index.vue',
@@ -256,6 +264,8 @@ test('my resource write buttons render only the active action as busy and preser
       item: contract.item,
       resourceActionBusy: true,
       isResourceAction: page.isResourceAction,
+      isResourceActionLoading: page.isResourceActionLoading,
+      resourceActionLabel: (item, action, idleLabel, writingLabel) => page.isResourceAction(item, action) ? writingLabel : idleLabel,
       refresh: noop,
       topResource: noop,
       takeDown: noop,
@@ -268,6 +278,8 @@ test('my resource write buttons render only the active action as busy and preser
       item: { ...contract.item, id: 'resource-2' },
       resourceActionBusy: true,
       isResourceAction: page.isResourceAction,
+      isResourceActionLoading: page.isResourceActionLoading,
+      resourceActionLabel: (item, action, idleLabel, writingLabel) => page.isResourceAction(item, action) ? writingLabel : idleLabel,
       refresh: noop,
       topResource: noop,
       takeDown: noop,
@@ -336,7 +348,7 @@ function loadMyResourcesPage(additions = {}) {
     },
     ...additions,
   }
-  vm.runInNewContext(`${script}\nglobalThis.myResourcesPage = { merchantId, rows, resourceAction, resourceActionBusy, isResourceAction, loadRows, refresh, topResource, takeDown, repost, deleteTakenDown }`, sandbox, { filename: 'pages/my-resources/index.vue' })
+  vm.runInNewContext(`${script}\nglobalThis.myResourcesPage = { merchantId, rows, resourceAction, resourceActionPhase: typeof resourceActionPhase === 'undefined' ? undefined : resourceActionPhase, resourceActionBusy, isResourceAction, isResourceActionLoading: typeof isResourceActionLoading === 'undefined' ? undefined : isResourceActionLoading, resourceActionLabel: typeof resourceActionLabel === 'undefined' ? undefined : resourceActionLabel, loadRows, refresh, topResource, takeDown, repost, deleteTakenDown }`, sandbox, { filename: 'pages/my-resources/index.vue' })
   return sandbox.myResourcesPage
 }
 
@@ -542,4 +554,97 @@ test('delete waits for confirmation before becoming busy and unlocks after delet
   deletionRequest.resolve({})
   await deletion
   assertResourceAction(confirmedPage, '', '', '删除完成和列表刷新后')
+})
+
+test('my resource top keeps its write lock while querying and prompting without showing a write spinner', async () => {
+  const voucherRequest = deferred()
+  let modalCallbacks
+  let redeemCalls = 0
+  const page = loadMyResourcesPage({
+    listTopVouchers: () => voucherRequest.promise,
+    redeemTopVoucher: async () => { redeemCalls += 1 },
+    uni: {
+      showModal: (options) => { modalCallbacks = options },
+      showToast: () => {},
+    },
+  })
+  page.merchantId.value = 'merchant-1'
+  const item = { id: 'resource-1', status: 'published' }
+
+  const top = page.topResource(item)
+  assert.equal(page.resourceActionPhase?.value, 'querying', '权益查询期间应进入查询阶段')
+  const queryingHtml = await renderResourceActionButton('topResource(item)', {
+    item,
+    resourceActionBusy: true,
+    isResourceAction: page.isResourceAction,
+    isResourceActionLoading: page.isResourceActionLoading,
+    resourceActionLabel: page.resourceActionLabel,
+    topResource: () => {},
+  })
+  assertBusyResourceButton(queryingHtml, '查询中')
+
+  voucherRequest.resolve({ items: [{ id: 'voucher-1', remainingAmount: 1, topDurationHours: 24 }] })
+  await flushAsyncWork()
+  assert.equal(page.resourceActionPhase?.value, 'prompting', '确认使用权益时应保持锁但切换为确认阶段')
+  assert.equal(redeemCalls, 0, '用户确认前不应核销置顶券')
+  const promptingHtml = await renderResourceActionButton('topResource(item)', {
+    item,
+    resourceActionBusy: true,
+    isResourceAction: page.isResourceAction,
+    isResourceActionLoading: page.isResourceActionLoading,
+    resourceActionLabel: page.resourceActionLabel,
+    topResource: () => {},
+  })
+  assert.match(openingButtonTag(promptingHtml), /\bdisabled(?:=|\s|>)/, '确认期间按钮应保持禁用')
+  assert.doesNotMatch(openingButtonTag(promptingHtml), /\bloading="true"/, '确认期间不应显示置顶写入动画')
+  assert.match(promptingHtml, />置顶</, '确认期间应恢复空闲文案')
+
+  modalCallbacks.success({ confirm: false })
+  await top
+  assert.equal(redeemCalls, 0, '取消确认后不得进入写入阶段')
+  assertResourceAction(page, '', '', '取消确认后')
+})
+
+test('my resource top purchase keeps query feedback for vouchers and packs, then writes only after purchase confirmation', async () => {
+  const voucherRequest = deferred()
+  const packsRequest = deferred()
+  const orderRequest = deferred()
+  let actionSheetCallbacks
+  let modalCallbacks
+  const orderCalls = []
+  const page = loadMyResourcesPage({
+    listTopVouchers: () => voucherRequest.promise,
+    listQuotaPacks: () => packsRequest.promise,
+    createQuotaPackOrder: (...args) => { orderCalls.push(args); return orderRequest.promise },
+    uni: {
+      showActionSheet: (options) => { actionSheetCallbacks = options },
+      showModal: (options) => { modalCallbacks = options },
+      showToast: () => {},
+    },
+  })
+  page.merchantId.value = 'merchant-1'
+  const item = { id: 'resource-1', status: 'published' }
+
+  const top = page.topResource(item)
+  assert.equal(page.resourceActionPhase?.value, 'querying', '查询置顶券期间应展示查询反馈')
+  voucherRequest.resolve({ items: [] })
+  await flushAsyncWork()
+  assert.equal(page.resourceActionPhase?.value, 'querying', '查询可购套餐期间仍应展示查询反馈')
+  packsRequest.resolve({ items: [
+    { code: 'top_1d', benefits: { topVoucherCount: 1, topDurationHours: 24 }, name: '1天置顶服务', salePriceCent: 100 },
+    { code: 'top_3d', benefits: { topVoucherCount: 1, topDurationHours: 72 }, name: '3天置顶服务', salePriceCent: 200 },
+  ] })
+  await flushAsyncWork()
+  assert.equal(page.resourceActionPhase?.value, 'prompting', '选择套餐时应保持锁但停止旋转')
+  actionSheetCallbacks.success({ tapIndex: 0 })
+  await flushAsyncWork()
+  assert.equal(page.resourceActionPhase?.value, 'prompting', '购买确认弹窗期间不应提前进入写入')
+  assert.equal(orderCalls.length, 0, '购买确认前不得创建订单')
+  modalCallbacks.success({ confirm: true })
+  await flushAsyncWork()
+  assert.equal(page.resourceActionPhase?.value, 'writing', '确认购买后应进入写入阶段')
+  assert.equal(orderCalls.length, 1, '确认购买后只应创建一笔订单')
+  orderRequest.resolve({ orderId: 'top-order-1' })
+  await top
+  assertResourceAction(page, '', '', '购买流程结束后')
 })

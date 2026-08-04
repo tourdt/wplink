@@ -41,22 +41,22 @@
         <text v-if="item.status === 'rejected' && item.rejectReason" class="reject-reason">驳回原因：{{ item.rejectReason }}</text>
         <MetricStrip :items="metricItems(item)" />
         <view class="action-row">
-          <button v-if="isActivePublished(item)" class="primary-action" :loading="isResourceAction(item, 'refresh')" :disabled="resourceActionBusy" @click="refresh(item)">
-            {{ isResourceAction(item, 'refresh') ? '刷新中' : '刷新' }}
+          <button v-if="isActivePublished(item)" class="primary-action" :loading="isResourceActionLoading(item, 'refresh')" :disabled="resourceActionBusy" @click="refresh(item)">
+            {{ resourceActionLabel(item, 'refresh', '刷新', '刷新中') }}
           </button>
-          <button v-if="isActivePublished(item)" class="primary-action" :loading="isResourceAction(item, 'top')" :disabled="resourceActionBusy" @click="topResource(item)">
-            {{ isResourceAction(item, 'top') ? '置顶中' : '置顶' }}
+          <button v-if="isActivePublished(item)" class="primary-action" :loading="isResourceActionLoading(item, 'top')" :disabled="resourceActionBusy" @click="topResource(item)">
+            {{ resourceActionLabel(item, 'top', '置顶', '置顶中') }}
           </button>
-          <button v-if="isActivePublished(item)" :loading="isResourceAction(item, 'takeDown')" :disabled="resourceActionBusy" @click="takeDown(item)">
-            {{ isResourceAction(item, 'takeDown') ? '下架中' : '下架' }}
+          <button v-if="isActivePublished(item)" :loading="isResourceActionLoading(item, 'takeDown')" :disabled="resourceActionBusy" @click="takeDown(item)">
+            {{ resourceActionLabel(item, 'takeDown', '下架', '下架中') }}
           </button>
           <button v-if="item.status === 'draft'" class="primary-action" @click="openDraftEditor(item)">编辑</button>
           <button v-if="item.status === 'rejected'" class="primary-action" @click="openRejectedEditor(item)">编辑</button>
-          <button v-if="canRepost(item)" class="primary-action" :loading="isResourceAction(item, 'repost')" :disabled="resourceActionBusy" @click="repost(item)">
-            {{ isResourceAction(item, 'repost') ? '准备中' : '再发类似' }}
+          <button v-if="canRepost(item)" class="primary-action" :loading="isResourceActionLoading(item, 'repost')" :disabled="resourceActionBusy" @click="repost(item)">
+            {{ resourceActionLabel(item, 'repost', '再发类似', '准备中') }}
           </button>
-          <button v-if="canDeleteTakenDown(item)" class="danger-button" :loading="isResourceAction(item, 'delete')" :disabled="resourceActionBusy" @click="deleteTakenDown(item)">
-            {{ isResourceAction(item, 'delete') ? '删除中' : '删除' }}
+          <button v-if="canDeleteTakenDown(item)" class="danger-button" :loading="isResourceActionLoading(item, 'delete')" :disabled="resourceActionBusy" @click="deleteTakenDown(item)">
+            {{ resourceActionLabel(item, 'delete', '删除', '删除中') }}
           </button>
           <button @click="openResource(item)">详情</button>
         </view>
@@ -113,6 +113,8 @@ const hasMore = ref(true)
 const loading = ref(false)
 const topServicePacks = ref([])
 const resourceAction = ref({ resourceId: '', action: '' })
+// 互斥锁和可见 loading 分离：确认弹窗期间仍锁定写操作，但不把确认误显示成写入中。
+const resourceActionPhase = ref('')
 const resourceActionBusy = computed(() => Boolean(resourceAction.value.resourceId))
 let inFlightListRequest = null
 let queuedResetRequest = null
@@ -256,12 +258,14 @@ async function topResource(item) {
       await purchaseTopService(item)
       return
     }
+    resourceActionPhase.value = 'prompting'
     const confirmed = await confirmTopVoucherUse(voucher)
     if (!confirmed) return
+    resourceActionPhase.value = 'writing'
     await redeemTopVoucher(voucher.id, item.id, merchantId.value)
     uni.showToast({ title: '已置顶', icon: 'none' })
     await loadRows({ reset: true })
-  })
+  }, 'querying')
 }
 
 async function takeDown(item) {
@@ -306,10 +310,13 @@ function topDurationText(voucher) {
 }
 
 async function purchaseTopService(item) {
+  resourceActionPhase.value = 'querying'
   const pack = await chooseTopServicePack()
   if (!pack) return
+  resourceActionPhase.value = 'prompting'
   const confirmed = await confirmTopServicePurchase(pack)
   if (!confirmed) return
+  resourceActionPhase.value = 'writing'
   try {
     const order = await createQuotaPackOrder(merchantId.value, pack.code, { resourceId: item.id })
     await payTopServiceOrder(order)
@@ -328,6 +335,7 @@ async function chooseTopServicePack() {
   }
   if (packs.length === 1) return packs[0]
   return new Promise((resolve) => {
+    resourceActionPhase.value = 'prompting'
     uni.showActionSheet({
       itemList: packs.map(topServiceOptionText),
       success: (res) => resolve(packs[res.tapIndex] || null),
@@ -498,14 +506,27 @@ function isResourceAction(item, action) {
   return resourceAction.value.resourceId === item.id && resourceAction.value.action === action
 }
 
-async function runResourceAction(item, action, operation) {
+function isResourceActionLoading(item, action) {
+  return isResourceAction(item, action) && resourceActionPhase.value !== 'prompting'
+}
+
+function resourceActionLabel(item, action, idleLabel, writingLabel) {
+  if (!isResourceAction(item, action)) return idleLabel
+  if (resourceActionPhase.value === 'querying') return '查询中'
+  if (resourceActionPhase.value === 'prompting') return idleLabel
+  return writingLabel
+}
+
+async function runResourceAction(item, action, operation, phase = 'writing') {
   if (resourceActionBusy.value) return
   // 写操作结束后会重新拉取并替换同一份列表数据，串行执行才能避免并发刷新结果相互覆盖。
   resourceAction.value = { resourceId: item.id, action }
+  resourceActionPhase.value = phase
   try {
     return await operation()
   } finally {
     resourceAction.value = { resourceId: '', action: '' }
+    resourceActionPhase.value = ''
   }
 }
 

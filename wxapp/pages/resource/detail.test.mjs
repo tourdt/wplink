@@ -66,6 +66,9 @@ function detailButton(clickExpression) {
 }
 
 async function renderDetailButton(clickExpression, context) {
+  if (!context.isManagementActionLoading) {
+    context.isManagementActionLoading = (action) => context.managementAction === action
+  }
   const compiled = compileTemplate({
     source: detailButton(clickExpression),
     filename: 'pages/resource/detail.vue',
@@ -164,7 +167,7 @@ function loadResourceDetailPage(additions = {}) {
   }
   vm.runInNewContext(`${script}\nglobalThis.resourceDetailPage = {
     resource, ownerMerchantId, isOwnResource, showManagementSheet, showContactMoreSheet, favorited,
-    managementAction, managementBusy, favoriteBusy, contactAction, contactBusyText, managementActions,
+    managementAction, managementActionPhase: typeof managementActionPhase === 'undefined' ? undefined : managementActionPhase, managementBusy, isManagementActionLoading: typeof isManagementActionLoading === 'undefined' ? undefined : isManagementActionLoading, favoriteBusy, contactAction, contactBusyText, managementActions,
     managementActionLabel, handleManagementAction, closeManagementSheet, toggleFavorite, favoriteResourceFromMore, callPhone, copyWechat,
     openMerchant, shareResource, shareResourceFromMore, recordContact,
   }`, sandbox, { filename: 'pages/resource/detail.vue' })
@@ -1058,6 +1061,85 @@ test('resource detail top payment system errors use friendly feedback and restor
   assert.equal(page.managementAction.value, '', '置顶支付系统错误后应恢复管理状态')
   assert.equal(page.showManagementSheet.value, true, '置顶支付系统错误后应保留管理面板供重试')
   assert.equal(toasts.at(-1)?.title, '置顶服务购买失败，请稍后重试', '置顶支付系统 errMsg 不应直接暴露')
+})
+
+test('resource detail keeps confirmation actions locked without a spinner and starts writing only after confirmation', async () => {
+  const voucherRequest = deferred()
+  let topModalCallbacks
+  let takeDownModalCallbacks
+  let deleteModalCallbacks
+  let redeemCalls = 0
+  let takeDownCalls = 0
+  let deleteCalls = 0
+  const deleteRequest = deferred()
+  const page = loadResourceDetailPage({
+    listTopVouchers: () => voucherRequest.promise,
+    redeemTopVoucher: async () => { redeemCalls += 1 },
+    takeDownResource: async () => { takeDownCalls += 1 },
+    deleteTakenDownResource: () => { deleteCalls += 1; return deleteRequest.promise },
+    uni: {
+      showModal: (options) => {
+        if (options.title.startsWith('置顶')) topModalCallbacks = options
+        if (options.title.startsWith('下架')) takeDownModalCallbacks = options
+        if (options.title.startsWith('删除')) deleteModalCallbacks = options
+      },
+      showToast: () => {},
+    },
+  })
+  page.resource.value = { id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } }
+  page.ownerMerchantId.value = 'merchant-expected'
+
+  const top = page.handleManagementAction('top')
+  assert.equal(page.managementActionPhase?.value, 'querying', '置顶券查询期间应进入查询阶段')
+  const queryingHtml = await renderDetailButton('handleManagementAction(action.key)', {
+    managementActions: [{ key: 'top', label: '置顶' }],
+    managementAction: 'top',
+    managementBusy: true,
+    isManagementActionLoading: page.isManagementActionLoading,
+    managementActionLabel: page.managementActionLabel,
+    handleManagementAction: () => {},
+  })
+  assertBusyButton(queryingHtml, '查询中', '置顶券查询')
+
+  voucherRequest.resolve({ items: [{ id: 'voucher-expected', remainingAmount: 1, topDurationHours: 24 }] })
+  await flushAsyncWork()
+  assert.equal(page.managementActionPhase?.value, 'prompting', '置顶确认期间应保持锁但停止旋转')
+  assert.equal(redeemCalls, 0, '置顶确认前不得核销权益')
+  const promptingHtml = await renderDetailButton('handleManagementAction(action.key)', {
+    managementActions: [{ key: 'top', label: '置顶' }],
+    managementAction: 'top',
+    managementBusy: true,
+    isManagementActionLoading: page.isManagementActionLoading,
+    managementActionLabel: page.managementActionLabel,
+    handleManagementAction: () => {},
+  })
+  assert.doesNotMatch(openingButtonTag(promptingHtml), /\bloading="true"/, '置顶确认期间不应旋转')
+  assert.match(promptingHtml, />置顶</, '置顶确认期间应恢复空闲文案')
+  topModalCallbacks.success({ confirm: false })
+  await top
+  assert.equal(redeemCalls, 0, '取消置顶确认后不得进入写入')
+  assert.equal(page.managementAction.value, '', '取消置顶确认后应释放互斥锁')
+
+  const takingDown = page.handleManagementAction('take-down')
+  assert.equal(page.managementAction.value, 'take-down', '下架确认期间应保留动作锁')
+  assert.equal(page.managementActionPhase?.value, 'prompting', '下架确认期间应处于确认阶段')
+  assert.equal(takeDownCalls, 0, '下架确认前不得请求服务端')
+  takeDownModalCallbacks.success({ confirm: false })
+  await takingDown
+  assert.equal(takeDownCalls, 0, '取消下架确认后不得请求服务端')
+  assert.equal(page.managementAction.value, '', '取消下架确认后应释放互斥锁')
+
+  page.resource.value = { id: 'resource-expected', status: 'taken_down', presentation: { fields: [], tags: [] } }
+  const deleting = page.handleManagementAction('delete')
+  assert.equal(page.managementActionPhase?.value, 'prompting', '删除确认期间应处于确认阶段')
+  assert.equal(deleteCalls, 0, '删除确认前不得请求服务端')
+  deleteModalCallbacks.success({ confirm: true })
+  await flushAsyncWork()
+  assert.equal(page.managementActionPhase?.value, 'writing', '确认删除后才应进入写入阶段')
+  assert.equal(deleteCalls, 1, '确认删除后只应请求一次服务端')
+  deleteRequest.resolve({})
+  await deleting
+  assert.equal(page.managementAction.value, '', '删除完成后应释放互斥锁')
 })
 
 test('resource detail top purchase preserves a friendly API error message', async () => {
