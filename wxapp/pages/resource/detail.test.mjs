@@ -19,6 +19,30 @@ function computed(getter) {
   return { get value() { return getter() } }
 }
 
+function createTrackedRefFactory() {
+  const writes = new WeakMap()
+  return {
+    ref(initialValue) {
+      let currentValue = initialValue
+      const state = {}
+      writes.set(state, [])
+      Object.defineProperty(state, 'value', {
+        get() {
+          return currentValue
+        },
+        set(nextValue) {
+          writes.get(state).push(nextValue)
+          currentValue = nextValue
+        },
+      })
+      return state
+    },
+    writesFor(state) {
+      return writes.get(state) || []
+    },
+  }
+}
+
 function deferred() {
   let resolve
   let reject
@@ -583,6 +607,82 @@ test('resource detail favorite action rejects duplicates and restores state afte
   assert.equal(unauthenticatedPage.favoriteBusy.value, false, '登录校验失败不应进入 busy')
 })
 
+test('resource detail validates contact and favorite actions before touching busy state', async () => {
+  const contactCases = [
+    { label: '缺少资源', resource: { presentation: { fields: [], tags: [] } }, own: false, loggedIn: true },
+    { label: '自己的资源', resource: { id: 'resource-expected', presentation: { fields: [], tags: [] } }, own: true, loggedIn: true },
+    { label: '未登录', resource: { id: 'resource-expected', presentation: { fields: [], tags: [] } }, own: false, loggedIn: false },
+  ]
+
+  for (const item of contactCases) {
+    const tracker = createTrackedRefFactory()
+    let contactApiCalls = 0
+    const page = loadResourceDetailPage({
+      ref: tracker.ref,
+      requireLogin: () => item.loggedIn,
+      recordResourceContact: async () => { contactApiCalls += 1; return {} },
+    })
+    page.resource.value = item.resource
+    page.isOwnResource.value = item.own
+
+    await page.callPhone()
+    await page.copyWechat()
+
+    assert.deepEqual(tracker.writesFor(page.contactAction), [], `${item.label}时电话和微信不应写入 busy 状态`)
+    assert.equal(contactApiCalls, 0, `${item.label}时不应请求联系方式接口`)
+  }
+
+  for (const item of contactCases) {
+    const tracker = createTrackedRefFactory()
+    let favoriteApiCalls = 0
+    const page = loadResourceDetailPage({
+      ref: tracker.ref,
+      requireLogin: () => item.loggedIn,
+      setResourceFavorite: async () => { favoriteApiCalls += 1; return { favorited: true } },
+      uni: { showToast: () => {} },
+    })
+    page.resource.value = item.resource
+    page.isOwnResource.value = item.own
+
+    await page.toggleFavorite()
+
+    assert.deepEqual(tracker.writesFor(page.favoriteBusy), [], `${item.label}时收藏不应写入 busy 状态`)
+    assert.equal(favoriteApiCalls, 0, `${item.label}时不应请求收藏接口`)
+  }
+
+  let missingResourceChecks = 0
+  const missingResourcePage = loadResourceDetailPage()
+  missingResourcePage.resource.value = {
+    get id() {
+      missingResourceChecks += 1
+      return ''
+    },
+    presentation: { fields: [], tags: [] },
+  }
+  missingResourcePage.favoriteBusy.value = true
+  await missingResourcePage.toggleFavorite()
+  assert.equal(missingResourceChecks, 1, '收藏应先检查资源，再判断现有 busy 锁')
+
+  const ownResourceToasts = []
+  const ownBusyPage = loadResourceDetailPage({ uni: { showToast: (options) => ownResourceToasts.push(options) } })
+  ownBusyPage.resource.value = { id: 'resource-expected', presentation: { fields: [], tags: [] } }
+  ownBusyPage.isOwnResource.value = true
+  ownBusyPage.favoriteBusy.value = true
+  await ownBusyPage.toggleFavorite()
+  assert.equal(ownResourceToasts.at(-1)?.title, '不能收藏自己发布的供应', '收藏应先执行自有资源校验，再判断现有 busy 锁')
+
+  let loginChecks = 0
+  const busyPage = loadResourceDetailPage({
+    requireLogin: () => { loginChecks += 1; return true },
+    setResourceFavorite: async () => { throw new Error('busy 时不应请求收藏接口') },
+  })
+  busyPage.resource.value = { id: 'resource-expected', presentation: { fields: [], tags: [] } }
+  busyPage.favoriteBusy.value = true
+  await busyPage.toggleFavorite()
+  assert.equal(loginChecks, 1, '收藏应先完成登录校验，再判断现有 busy 锁')
+  assert.equal(busyPage.favoriteBusy.value, true, '重复收藏不应改写正在进行的 busy 状态')
+})
+
 test('resource detail contact action stays locked through record, order, payment and re-unlock', async () => {
   const orderRequest = deferred()
   const paymentRequest = deferred()
@@ -655,7 +755,7 @@ test('resource detail contact action stays locked through record, order, payment
   assert.equal(page.contactAction.value, '', '联系方式完整链路结束后应恢复状态')
 })
 
-test('resource detail contact payment cancellation preserves feedback and restores the action', async () => {
+test('resource detail contact payment cancellation preserves neutral feedback and restores the action', async () => {
   const toasts = []
   let phoneCalls = 0
   const page = loadResourceDetailPage({
@@ -669,7 +769,7 @@ test('resource detail contact payment cancellation preserves feedback and restor
     uni: {
       showToast: (options) => toasts.push(options),
       makePhoneCall: () => { phoneCalls += 1 },
-      requestPayment: ({ fail }) => fail(new Error('用户取消支付')),
+      requestPayment: ({ fail }) => fail({ errMsg: 'requestPayment:fail cancel' }),
     },
   })
   page.resource.value = { id: 'resource-expected', presentation: { fields: [], tags: [] } }
@@ -678,7 +778,49 @@ test('resource detail contact payment cancellation preserves feedback and restor
 
   assert.equal(page.contactAction.value, '', '支付取消后应恢复联系方式状态')
   assert.equal(phoneCalls, 0, '支付取消后不应拨打电话')
-  assert.equal(toasts.at(-1)?.title, '用户取消支付', '支付取消应保留原有友好提示')
+  assert.equal(toasts.at(-1)?.title, '已取消支付', '平台取消错误应转换为中性中文提示')
+})
+
+test('resource detail contact payment system errors use friendly feedback and restore the action', async () => {
+  const toasts = []
+  const page = loadResourceDetailPage({
+    recordResourceContact: async () => {
+      const err = new Error('需要解锁')
+      err.code = 'PAYMENT_REQUIRED'
+      throw err
+    },
+    createContactUnlockOrder: async () => ({ orderId: 'contact-order-expected' }),
+    createContactUnlockPayment: async () => ({ payment: { timeStamp: '1', nonceStr: 'nonce', package: 'package', paySign: 'sign' } }),
+    uni: {
+      showToast: (options) => toasts.push(options),
+      requestPayment: ({ fail }) => fail({ errMsg: 'requestPayment:fail system error' }),
+    },
+  })
+  page.resource.value = { id: 'resource-expected', presentation: { fields: [], tags: [] } }
+
+  await page.copyWechat()
+
+  assert.equal(page.contactAction.value, '', '支付系统错误后应恢复联系方式状态')
+  assert.equal(toasts.at(-1)?.title, '支付失败，请稍后重试', '支付系统 errMsg 不应静默或直接暴露')
+})
+
+test('resource detail contact unlock preserves a friendly API error message', async () => {
+  const toasts = []
+  const page = loadResourceDetailPage({
+    recordResourceContact: async () => {
+      const err = new Error('需要解锁')
+      err.code = 'PAYMENT_REQUIRED'
+      throw err
+    },
+    createContactUnlockOrder: async () => { throw new Error('订单已取消支付，请重新发起') },
+    uni: { showToast: (options) => toasts.push(options) },
+  })
+  page.resource.value = { id: 'resource-expected', presentation: { fields: [], tags: [] } }
+
+  await page.callPhone()
+
+  assert.equal(page.contactAction.value, '', '联系方式 API 失败后应恢复状态')
+  assert.equal(toasts.at(-1)?.title, '订单已取消支付，请重新发起', '非平台 error.message 应保持原有友好文案')
 })
 
 test('resource detail management action rejects concurrent writes and stays visible through top purchase refresh', async () => {
@@ -805,7 +947,7 @@ test('resource detail management payment cancellation and failures restore state
       showToast: (options) => toasts.push(options),
       showModal: ({ success }) => success({ confirm: true }),
       showActionSheet: ({ success }) => success({ tapIndex: 0 }),
-      requestPayment: ({ fail }) => fail(new Error('用户取消支付')),
+      requestPayment: ({ fail }) => fail({ errMsg: 'requestPayment:fail cancel' }),
       navigateTo: (options) => navigations.push(options),
     },
   })
@@ -816,7 +958,7 @@ test('resource detail management payment cancellation and failures restore state
   await page.handleManagementAction('top')
   assert.equal(page.managementAction.value, '', '支付取消后应恢复管理状态')
   assert.equal(page.showManagementSheet.value, true, '支付取消后应保留管理面板供重试')
-  assert.equal(toasts.at(-1)?.title, '用户取消支付', '置顶支付取消应保留原有友好提示')
+  assert.equal(toasts.at(-1)?.title, '已取消支付', '置顶支付取消应显示中性中文提示')
 
   await page.handleManagementAction('edit')
   assert.equal(page.managementAction.value, '', '编辑仅跳转，不应进入管理 busy')
@@ -828,6 +970,50 @@ test('resource detail management payment cancellation and failures restore state
   failedPage.ownerMerchantId.value = 'merchant-expected'
   await assert.rejects(failedPage.handleManagementAction('refresh'), /刷新服务暂不可用/)
   assert.equal(failedPage.managementAction.value, '', '管理接口失败后应恢复状态')
+})
+
+test('resource detail top payment system errors use friendly feedback and restore management state', async () => {
+  const toasts = []
+  const page = loadResourceDetailPage({
+    listTopVouchers: async () => ({ items: [] }),
+    createQuotaPackOrder: async () => ({ orderId: 'top-order-expected' }),
+    createVIPPayment: async () => ({ payment: { timeStamp: '1', nonceStr: 'nonce', package: 'package', paySign: 'sign' } }),
+    uni: {
+      showToast: (options) => toasts.push(options),
+      showModal: ({ success }) => success({ confirm: true }),
+      showActionSheet: ({ success }) => success({ tapIndex: 0 }),
+      requestPayment: ({ fail }) => fail({ errMsg: 'requestPayment:fail system error' }),
+    },
+  })
+  page.resource.value = { id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } }
+  page.ownerMerchantId.value = 'merchant-expected'
+  page.showManagementSheet.value = true
+
+  await page.handleManagementAction('top')
+
+  assert.equal(page.managementAction.value, '', '置顶支付系统错误后应恢复管理状态')
+  assert.equal(page.showManagementSheet.value, true, '置顶支付系统错误后应保留管理面板供重试')
+  assert.equal(toasts.at(-1)?.title, '置顶服务购买失败，请稍后重试', '置顶支付系统 errMsg 不应直接暴露')
+})
+
+test('resource detail top purchase preserves a friendly API error message', async () => {
+  const toasts = []
+  const page = loadResourceDetailPage({
+    listTopVouchers: async () => ({ items: [] }),
+    createQuotaPackOrder: async () => { throw new Error('置顶订单创建失败，请稍后重试') },
+    uni: {
+      showToast: (options) => toasts.push(options),
+      showModal: ({ success }) => success({ confirm: true }),
+      showActionSheet: ({ success }) => success({ tapIndex: 0 }),
+    },
+  })
+  page.resource.value = { id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } }
+  page.ownerMerchantId.value = 'merchant-expected'
+
+  await page.handleManagementAction('top')
+
+  assert.equal(page.managementAction.value, '', '置顶 API 失败后应恢复管理状态')
+  assert.equal(toasts.at(-1)?.title, '置顶订单创建失败，请稍后重试', '置顶 API error.message 应保持原有友好文案')
 })
 
 test('resource detail restores top voucher management action', () => {

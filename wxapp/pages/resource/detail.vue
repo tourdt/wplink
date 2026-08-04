@@ -537,13 +537,13 @@ function previewGalleryImage(index = selectedGalleryIndex.value) {
 }
 
 async function toggleFavorite() {
-  if (favoriteBusy.value) return false
   if (!resource.value.id) return false
   if (isOwnResource.value) {
     uni.showToast({ title: `不能收藏自己发布的${resourceNoun.value}`, icon: 'none' })
     return false
   }
   if (!requireLogin()) return false
+  if (favoriteBusy.value) return false
   favoriteBusy.value = true
   try {
     // 收藏状态以服务端返回为准，避免弱网下本地乐观更新和真实状态不一致。
@@ -560,11 +560,18 @@ async function toggleFavorite() {
 }
 
 async function recordContact(action) {
+  if (!canRecordContact(action)) return false
+  return requestResourceContact(action)
+}
+
+function canRecordContact(action) {
   if (!resource.value.id) return false
-  if (isOwnResource.value) {
-    return false
-  }
+  if (isOwnResource.value) return false
   if (isContactUnlockAction(action) && !requireLogin()) return false
+  return true
+}
+
+async function requestResourceContact(action) {
   try {
     const resp = await recordResourceContact(resource.value.id, action)
     return resp || {}
@@ -600,9 +607,7 @@ async function unlockPaidContact(action) {
     const resp = await recordResourceContact(resource.value.id, action)
     return resp || {}
   } catch (err) {
-    if (err?.message) {
-      uni.showToast({ title: err.message, icon: 'none' })
-    }
+    uni.showToast({ title: friendlyPaymentFailureMessage(err, '支付失败，请稍后重试'), icon: 'none' })
     return false
   }
 }
@@ -623,6 +628,15 @@ function requestContactUnlockPayment(payment) {
       fail: reject,
     })
   })
+}
+
+function friendlyPaymentFailureMessage(err, fallback) {
+  // uni.requestPayment 的 errMsg 是平台内部错误文本，不能直接展示；仅识别取消，其余统一使用业务友好提示。
+  const platformMessage = String(err?.errMsg || '').toLowerCase()
+  const message = String(err?.message || '').trim()
+  if (platformMessage.includes('cancel')) return '已取消支付'
+  if (platformMessage) return fallback
+  return message || fallback
 }
 
 async function openMerchant() {
@@ -871,7 +885,7 @@ async function purchaseTopService() {
     await reloadOwnResource()
     hideManagementSheet()
   } catch (err) {
-    uni.showToast({ title: err?.message || '置顶服务购买失败，请稍后重试', icon: 'none' })
+    uni.showToast({ title: friendlyPaymentFailureMessage(err, '置顶服务购买失败，请稍后重试'), icon: 'none' })
   }
 }
 
@@ -1041,8 +1055,9 @@ function confirmManagementAction(options) {
 }
 
 async function callPhone() {
+  if (!canRecordContact('phone')) return
   return runContactAction('phone', async () => {
-    const resp = await recordContact('phone')
+    const resp = await requestResourceContact('phone')
     if (!resp) return
     if (resp.phone) {
       uni.makePhoneCall({ phoneNumber: resp.phone })
@@ -1053,8 +1068,9 @@ async function callPhone() {
 }
 
 async function copyWechat() {
+  if (!canRecordContact('wechat')) return
   return runContactAction('wechat', async () => {
-    const resp = await recordContact('wechat')
+    const resp = await requestResourceContact('wechat')
     if (!resp) return
     if (resp.wechat) {
       uni.setClipboardData({ data: resp.wechat })
