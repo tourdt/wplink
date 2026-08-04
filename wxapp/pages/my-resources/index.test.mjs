@@ -690,3 +690,48 @@ test('my resource cancels top purchase before creating an order and clears both 
   assert.equal(orderCalls, 0, '取消购买确认后不得创建订单')
   assertResourceActionCleared(page, '取消置顶购买确认后')
 })
+
+test('my resource single-pack purchase keeps prompting feedback until the user cancels', async () => {
+  let voucherCalls = 0
+  let packCalls = 0
+  let orderCalls = 0
+  let modalCallbacks
+  const page = loadMyResourcesPage({
+    listTopVouchers: async () => { voucherCalls += 1; return { items: [] } },
+    listQuotaPacks: async () => {
+      packCalls += 1
+      return { items: [{ code: 'top_1d', benefits: { topVoucherCount: 1, topDurationHours: 24 } }] }
+    },
+    createQuotaPackOrder: async () => { orderCalls += 1 },
+    uni: {
+      showModal: (options) => { modalCallbacks = options },
+      showToast: () => {},
+    },
+  })
+  page.merchantId.value = 'merchant-1'
+  const item = { id: 'resource-1', status: 'published' }
+
+  const top = page.topResource(item)
+  await flushAsyncWork()
+  assert.equal(page.resourceActionPhase.value, 'prompting', '单套餐购买确认期间应进入确认阶段')
+  const promptingHtml = await renderResourceActionButton('topResource(item)', {
+    item,
+    resourceActionBusy: true,
+    isResourceAction: page.isResourceAction,
+    isResourceActionLoading: page.isResourceActionLoading,
+    resourceActionLabel: page.resourceActionLabel,
+    topResource: () => {},
+  })
+  assert.match(openingButtonTag(promptingHtml), /\bdisabled(?:=|\s|>)/, '单套餐购买确认期间应保持禁用')
+  assert.doesNotMatch(openingButtonTag(promptingHtml), /\bloading="true"/, '单套餐购买确认期间不应显示写入动画')
+  assert.match(promptingHtml, />置顶</, '单套餐购买确认期间应恢复空闲文案')
+  await page.topResource(item)
+  assert.equal(voucherCalls, 1, '单套餐确认期间连续点击不应重复查询置顶券')
+  assert.equal(packCalls, 1, '单套餐确认期间连续点击不应重复查询套餐')
+  assert.equal(orderCalls, 0, '单套餐确认期间不应提前创建订单')
+
+  modalCallbacks.success({ confirm: false })
+  await top
+  assert.equal(orderCalls, 0, '取消单套餐购买确认后不得创建订单')
+  assertResourceActionCleared(page, '取消单套餐购买确认后')
+})

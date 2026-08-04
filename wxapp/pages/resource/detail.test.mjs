@@ -1285,6 +1285,55 @@ test('resource detail cancels top purchase before creating an order and clears b
   assertManagementActionCleared(page, '取消置顶购买确认后')
 })
 
+test('resource detail single-pack purchase keeps prompting feedback until the user confirms', async () => {
+  const orderRequest = deferred()
+  let voucherCalls = 0
+  let packCalls = 0
+  let orderCalls = 0
+  let modalCallbacks
+  const page = loadResourceDetailPage({
+    listTopVouchers: async () => { voucherCalls += 1; return { items: [] } },
+    listQuotaPacks: async () => {
+      packCalls += 1
+      return { items: [{ code: 'top_1d', benefits: { topVoucherCount: 1, topDurationHours: 24 } }] }
+    },
+    createQuotaPackOrder: () => { orderCalls += 1; return orderRequest.promise },
+    uni: {
+      showModal: (options) => { modalCallbacks = options },
+      showToast: () => {},
+    },
+  })
+  page.resource.value = { id: 'resource-expected', status: 'published', presentation: { fields: [], tags: [] } }
+  page.ownerMerchantId.value = 'merchant-expected'
+
+  const top = page.handleManagementAction('top')
+  await flushAsyncWork()
+  assert.equal(page.managementActionPhase.value, 'prompting', '单套餐购买确认期间应进入确认阶段')
+  const promptingHtml = await renderDetailButton('handleManagementAction(action.key)', {
+    managementActions: [{ key: 'top', label: '置顶' }],
+    managementAction: 'top',
+    managementBusy: true,
+    isManagementActionLoading: page.isManagementActionLoading,
+    managementActionLabel: page.managementActionLabel,
+    handleManagementAction: () => {},
+  })
+  assert.match(openingButtonTag(promptingHtml), /\bdisabled(?:=|\s|>)/, '单套餐购买确认期间应保持禁用')
+  assert.doesNotMatch(openingButtonTag(promptingHtml), /\bloading="true"/, '单套餐购买确认期间不应显示写入动画')
+  assert.match(promptingHtml, />置顶</, '单套餐购买确认期间应恢复空闲文案')
+  await page.handleManagementAction('top')
+  assert.equal(voucherCalls, 1, '单套餐确认期间连续点击不应重复查询置顶券')
+  assert.equal(packCalls, 1, '单套餐确认期间连续点击不应重复查询套餐')
+  assert.equal(orderCalls, 0, '单套餐确认期间不应提前创建订单')
+
+  modalCallbacks.success({ confirm: true })
+  await flushAsyncWork()
+  assert.equal(page.managementActionPhase.value, 'writing', '确认单套餐购买后才应进入写入阶段')
+  assert.equal(orderCalls, 1, '确认单套餐购买后只应创建一笔订单')
+  orderRequest.resolve({ orderId: 'top-order-expected' })
+  await top
+  assertManagementActionCleared(page, '单套餐购买成功后')
+})
+
 test('resource detail top query failures clear both the management lock and phase', async () => {
   const page = loadResourceDetailPage({
     listTopVouchers: async () => { throw new Error('权益查询失败') },
