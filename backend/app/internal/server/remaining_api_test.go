@@ -8,11 +8,15 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	paymentlogic "wplink/backend/app/internal/logic/payment"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/permission"
 	"wplink/backend/app/internal/session"
+	"wplink/backend/app/internal/svc"
+
+	"github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestAPIRouterRequiresAdminTokenWhenConfigured(t *testing.T) {
@@ -677,6 +681,142 @@ func TestAPIRouterUsesAdminTokenOperatorForAdminActions(t *testing.T) {
 
 }
 
+func TestDiscoveryPublicEndpointsThroughGeneratedRoutes(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("创建 discovery sqlmock 失败: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	apiStore := &svc.APIStore{
+		BannerTopicModel:      model.NewBannerTopicModel(db),
+		ResourceModel:         model.NewResourceModel(db),
+		MerchantModel:         model.NewMerchantModel(db),
+		HotSearchKeywordModel: model.NewHotSearchKeywordModel(db),
+	}
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{APIStore: apiStore})
+	now := time.Date(2026, time.August, 5, 10, 0, 0, 0, time.UTC)
+
+	t.Run("首页运营配置", func(t *testing.T) {
+		mock.ExpectQuery(`(?s)FROM banner_topics bt.*bt.kind IN`).
+			WithArgs("zhili").
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "city_code", "kind", "title", "subtitle", "cover_url", "type_scope", "jump_type",
+				"jump_target", "tags", "start_at", "end_at", "sort_order", "status", "created_at", "updated_at",
+			}).AddRow(
+				"banner-1", "zhili", "banner", "现货活动", "今日上新", "https://img.example/banner.jpg", `[]`, "topic",
+				"topic-1", `["现货"]`, time.Unix(0, 0), time.Unix(0, 0), int64(10), "active", now, now,
+			))
+
+		data := serveGeneratedRequest(t, server, http.MethodGet, "/api/v1/home/operation-config?cityCode=zhili", "")
+		banners := data["banners"].([]interface{})
+		if len(banners) != 1 || banners[0].(map[string]interface{})["id"] != "banner-1" {
+			t.Fatalf("banners = %#v, want generated banner response", banners)
+		}
+		if cards, ok := data["recommendCards"].([]interface{}); !ok || len(cards) != 0 {
+			t.Fatalf("recommendCards = %#v, want []", data["recommendCards"])
+		}
+	})
+
+	t.Run("首页资源", func(t *testing.T) {
+		mock.ExpectQuery(`(?s)FROM resources r`).
+			WithArgs("published", "zhili", "", "", "", "", "", "", int64(30), int64(0), sqlmock.AnyArg()).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "direction", "type_code", "type_name", "title", "category", "cover_url", "district",
+				"price_text", "quantity_text", "tags", "merchant_id", "merchant_name", "vip_status", "refreshed_at", "dealt_at", "total",
+			}).AddRow(
+				"resource-1", "supply", "inventory", "库存现货", "秋款现货", "童装", "", "织里", "面议", "1000 件", `[]`,
+				"merchant-1", "小鹿童装", model.VIPStatusNone, now, nil, int64(1),
+			))
+
+		data := serveGeneratedRequest(t, server, http.MethodGet, "/api/v1/home/resources?cityCode=zhili", "")
+		items := data["items"].([]interface{})
+		if len(items) != 1 || items[0].(map[string]interface{})["id"] != "resource-1" {
+			t.Fatalf("items = %#v, want generated home resource", items)
+		}
+		if tags, ok := items[0].(map[string]interface{})["creditTags"].([]interface{}); !ok || len(tags) != 0 {
+			t.Fatalf("creditTags = %#v, want []", items[0].(map[string]interface{})["creditTags"])
+		}
+	})
+
+	t.Run("最近商家", func(t *testing.T) {
+		mock.ExpectQuery(`(?s)FROM merchants m`).
+			WithArgs("zhili", int64(6)).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "name", "merchant_type", "main_categories", "logo_url", "address_text", "onboarded_at",
+			}).AddRow("merchant-1", "小鹿童装", "stall", `["女童"]`, "", "织里童装城", now))
+
+		data := serveGeneratedRequest(t, server, http.MethodGet, "/api/v1/home/recent-merchants?cityCode=zhili", "")
+		items := data["items"].([]interface{})
+		if len(items) != 1 || items[0].(map[string]interface{})["name"] != "小鹿童装" {
+			t.Fatalf("items = %#v, want generated recent merchant", items)
+		}
+	})
+
+	t.Run("热词", func(t *testing.T) {
+		mock.ExpectQuery(`(?s)FROM hot_search_keywords hsk`).
+			WithArgs("zhili").
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "city_code", "keyword", "sort_order", "status", "start_at", "end_at", "created_at", "updated_at",
+			}).AddRow("keyword-1", "zhili", "夏款现货", int64(10), "active", time.Unix(0, 0), time.Unix(0, 0), now, now))
+
+		data := serveGeneratedRequest(t, server, http.MethodGet, "/api/v1/search/hot-keywords?cityCode=zhili", "")
+		items := data["items"].([]interface{})
+		if len(items) != 1 || items[0].(map[string]interface{})["keyword"] != "夏款现货" {
+			t.Fatalf("items = %#v, want generated hot keyword", items)
+		}
+	})
+
+	t.Run("专题资源", func(t *testing.T) {
+		mock.ExpectQuery(`(?s)FROM banner_topics bt.*bt.id =`).
+			WithArgs("topic-1", "zhili").
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "city_code", "kind", "title", "subtitle", "cover_url", "type_scope", "jump_type",
+				"jump_target", "tags", "start_at", "end_at", "sort_order", "status", "created_at", "updated_at",
+			}).AddRow(
+				"topic-1", "zhili", "topic", "专题", "本周精选", "", `["inventory"]`, "internal",
+				"/pages/search/index", `["现货"]`, time.Unix(0, 0), time.Unix(0, 0), int64(10), "active", now, now,
+			))
+		mock.ExpectQuery(`(?s)FROM resources r`).
+			WithArgs("published", "zhili", "", "", "inventory", "", "", "", int64(5), int64(5), sqlmock.AnyArg()).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "direction", "type_code", "type_name", "title", "category", "cover_url", "district",
+				"price_text", "quantity_text", "tags", "merchant_id", "merchant_name", "vip_status", "refreshed_at", "dealt_at", "total",
+			}))
+
+		data := serveGeneratedRequest(t, server, http.MethodGet, "/api/v1/topics/topic-1/resources?cityCode=zhili&page=2&pageSize=5", "")
+		topic := data["topic"].(map[string]interface{})
+		if topic["id"] != "topic-1" || data["page"] != float64(2) || data["pageSize"] != float64(5) {
+			t.Fatalf("data = %#v, want topic path and generated pagination", data)
+		}
+		if items, ok := data["items"].([]interface{}); !ok || len(items) != 0 {
+			t.Fatalf("items = %#v, want []", data["items"])
+		}
+	})
+
+	t.Run("webview 校验", func(t *testing.T) {
+		data := serveGeneratedRequest(t, server, http.MethodPost, "/api/v1/webview/validate", `{"url":"https://www.wplink.cn/activity"}`)
+		if data["allowed"] != true || data["url"] != "https://www.wplink.cn/activity" {
+			t.Fatalf("data = %#v, want allowed generated webview response", data)
+		}
+	})
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("discovery SQL expectations not met: %v", err)
+	}
+}
+
+func serveGeneratedRequest(t *testing.T, server http.Handler, method string, path string, body string) map[string]interface{} {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	server.ServeHTTP(rec, req)
+	return decodeEnvelopeData(t, rec, http.StatusOK)
+}
+
 func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
 	router := NewAPIRouter(store)
@@ -689,12 +829,6 @@ func TestAPIRouterRunsRemainingDomainRoutes(t *testing.T) {
 	}{
 		{name: "get merchant", method: http.MethodGet, path: "/api/v1/merchants/merchant-1"},
 		{name: "update merchant", method: http.MethodPost, path: "/api/v1/merchants/merchant-1", body: `{"name":"  织里晨星童装  ","mainCategories":["童装"],"merchantType":"service_provider","description":"更新简介","logoUrl":"https://example.com/logo.png","images":["https://example.com/a.jpg"],"addressText":"织里镇利济路88号","location":{"latitude":30.1,"longitude":120.2,"name":"织里童装城","address":"织里镇利济路88号"}}`},
-		{name: "home operation config", method: http.MethodGet, path: "/api/v1/home/operation-config?cityCode=zhili"},
-		{name: "home resources", method: http.MethodGet, path: "/api/v1/home/resources?cityCode=zhili"},
-		{name: "home recent merchants", method: http.MethodGet, path: "/api/v1/home/recent-merchants?cityCode=zhili"},
-		{name: "hot search keywords", method: http.MethodGet, path: "/api/v1/search/hot-keywords?cityCode=zhili"},
-		{name: "topic resources", method: http.MethodGet, path: "/api/v1/topics/topic-1/resources?cityCode=zhili"},
-		{name: "validate webview", method: http.MethodPost, path: "/api/v1/webview/validate", body: `{"url":"https://www.wplink.cn/activity"}`},
 		{name: "list entitlements", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/entitlements"},
 		{name: "list entitlement usage records", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/entitlements/entitlement-1/usage-records"},
 		{name: "list top vouchers", method: http.MethodGet, path: "/api/v1/merchants/merchant-1/top-vouchers"},

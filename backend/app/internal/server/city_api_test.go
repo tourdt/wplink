@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	"wplink/backend/app/internal/model"
+	"wplink/backend/app/internal/svc"
 )
 
-func TestAPIRouterListsCityStations(t *testing.T) {
-	router := NewAPIRouter(&fakeCityAPIStore{
+func TestCityListsStationsThroughGeneratedRoutes(t *testing.T) {
+	store := &fakeCityAPIStore{
 		stations: []model.CityStation{{
 			ID:              "city-1",
 			Code:            "zhili",
@@ -19,11 +20,12 @@ func TestAPIRouterListsCityStations(t *testing.T) {
 			PrimaryCategory: "童装",
 			Status:          "active",
 		}},
-	})
+	}
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{CityStore: store})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/city-stations", nil)
-	router.ServeHTTP(rec, req)
+	server.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -40,10 +42,11 @@ func TestAPIRouterListsCityStations(t *testing.T) {
 	}
 }
 
-func TestAPIRouterListsResourceTypesByCity(t *testing.T) {
-	router := NewAPIRouter(&fakeCityAPIStore{
+func TestCityListsResourceTypesThroughGeneratedRoutes(t *testing.T) {
+	store := &fakeCityAPIStore{
 		resourceTypes: []model.ResourceTypeConfig{{
 			ID:               "type-1",
+			Version:          2,
 			TypeCode:         "stock_clearance",
 			TypeName:         "库存出售",
 			Direction:        model.ResourceDirectionSupply,
@@ -52,11 +55,12 @@ func TestAPIRouterListsResourceTypesByCity(t *testing.T) {
 			FilterFields:     []string{"category"},
 			DisplayTemplate:  model.JSONMap{"title": "title"},
 		}},
-	})
+	}
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{CityStore: store})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/city-stations/zhili/resource-types", nil)
-	router.ServeHTTP(rec, req)
+	server.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -74,15 +78,18 @@ func TestAPIRouterListsResourceTypesByCity(t *testing.T) {
 	if first["direction"] != model.ResourceDirectionSupply {
 		t.Fatalf("direction = %#v, want supply", first["direction"])
 	}
+	if first["version"] != float64(2) {
+		t.Fatalf("version = %#v, want 2", first["version"])
+	}
 }
 
-func TestAPIRouterPassesResourceTypeDirectionQuery(t *testing.T) {
+func TestCityPassesResourceTypeDirectionThroughGeneratedRoutes(t *testing.T) {
 	store := &fakeCityAPIStore{}
-	router := NewAPIRouter(store)
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{CityStore: store})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/city-stations/zhili/resource-types?direction=demand", nil)
-	router.ServeHTTP(rec, req)
+	server.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -92,12 +99,12 @@ func TestAPIRouterPassesResourceTypeDirectionQuery(t *testing.T) {
 	}
 }
 
-func TestAPIRouterReturnsNotFoundForUnsupportedCitySubPath(t *testing.T) {
-	router := NewAPIRouter(&fakeCityAPIStore{})
+func TestCityReturnsNotFoundForUnsupportedGeneratedSubPath(t *testing.T) {
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{CityStore: &fakeCityAPIStore{}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/city-stations/zhili/unknown", nil)
-	router.ServeHTTP(rec, req)
+	server.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 for malformed path", rec.Code)
