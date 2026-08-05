@@ -191,13 +191,17 @@ func TestWechatAuditorObservesAccessTokenTerminalOutcomes(t *testing.T) {
 		response    *http.Response
 		transport   error
 		wantOutcome externalcall.Outcome
+		wantCause   string
 		wantStatus  int
+		forbidden   []string
+		wantIs      error
 	}{
-		{name: "provider rejected", response: wechatAuditHTTPResponse(http.StatusOK, `{"errcode":40013,"errmsg":"invalid appid"}`), wantOutcome: externalcall.OutcomeProviderRejected, wantStatus: http.StatusOK},
-		{name: "http error", response: wechatAuditHTTPResponse(http.StatusServiceUnavailable, `{"errcode":40013}`), wantOutcome: externalcall.OutcomeHTTPError, wantStatus: http.StatusServiceUnavailable},
-		{name: "invalid json", response: wechatAuditHTTPResponse(http.StatusOK, `{`), wantOutcome: externalcall.OutcomeDecodeError, wantStatus: http.StatusOK},
-		{name: "missing access token", response: wechatAuditHTTPResponse(http.StatusOK, `{"expires_in":7200}`), wantOutcome: externalcall.OutcomeDecodeError, wantStatus: http.StatusOK},
-		{name: "timeout", transport: context.DeadlineExceeded, wantOutcome: externalcall.OutcomeTimeout},
+		{name: "provider rejected", response: wechatAuditHTTPResponse(http.StatusOK, `{"errcode":40013,"errmsg":"invalid appid sentinel"}`), wantOutcome: externalcall.OutcomeProviderRejected, wantCause: "provider_rejected", wantStatus: http.StatusOK, forbidden: []string{"invalid appid sentinel"}},
+		{name: "http error", response: wechatAuditHTTPResponse(http.StatusServiceUnavailable, `{"errcode":40013}`), wantOutcome: externalcall.OutcomeHTTPError, wantCause: "http_status", wantStatus: http.StatusServiceUnavailable},
+		{name: "invalid json", response: wechatAuditHTTPResponse(http.StatusOK, `{`), wantOutcome: externalcall.OutcomeDecodeError, wantCause: "json_invalid", wantStatus: http.StatusOK, forbidden: []string{"unexpected end of JSON input"}},
+		{name: "missing access token", response: wechatAuditHTTPResponse(http.StatusOK, `{"expires_in":7200}`), wantOutcome: externalcall.OutcomeDecodeError, wantCause: "missing_access_token", wantStatus: http.StatusOK},
+		{name: "timeout", transport: context.DeadlineExceeded, wantOutcome: externalcall.OutcomeTimeout, wantCause: "timeout", forbidden: []string{"context deadline exceeded"}, wantIs: context.DeadlineExceeded},
+		{name: "canceled", transport: context.Canceled, wantOutcome: externalcall.OutcomeCanceled, wantCause: "canceled", forbidden: []string{"context canceled"}, wantIs: context.Canceled},
 		{
 			name: "body read failure preserves status",
 			response: &http.Response{
@@ -206,7 +210,9 @@ func TestWechatAuditorObservesAccessTokenTerminalOutcomes(t *testing.T) {
 				Body:       wechatAuditErrorReadCloser{err: fmt.Errorf("stream failed: %w", io.ErrUnexpectedEOF)},
 			},
 			wantOutcome: externalcall.OutcomeTransportError,
+			wantCause:   "unexpected_eof",
 			wantStatus:  http.StatusPartialContent,
+			forbidden:   []string{"stream failed", "unexpected EOF"},
 		},
 	}
 
@@ -227,6 +233,10 @@ func TestWechatAuditorObservesAccessTokenTerminalOutcomes(t *testing.T) {
 			if err == nil {
 				t.Fatal("AuditResource() error = nil, want access token failure")
 			}
+			assertWechatAuditReturnedError(t, err, externalcall.OperationAccessToken, tt.wantOutcome, tt.wantCause, tt.wantStatus, tt.forbidden...)
+			if tt.wantIs != nil && !errors.Is(err, tt.wantIs) {
+				t.Fatalf("errors.Is(%v) = false, want preserved safe sentinel", tt.wantIs)
+			}
 			assertWechatAuditEvents(t, observer.Events(), []expectedWechatAuditEvent{
 				{operation: externalcall.OperationAccessToken, outcome: tt.wantOutcome, statusCode: tt.wantStatus},
 			})
@@ -240,13 +250,15 @@ func TestWechatAuditorObservesTextCheckTerminalOutcomes(t *testing.T) {
 		response    *http.Response
 		transport   error
 		wantOutcome externalcall.Outcome
+		wantCause   string
 		wantStatus  int
+		forbidden   []string
 	}{
-		{name: "provider rejected", response: wechatAuditHTTPResponse(http.StatusOK, `{"errcode":87014,"errmsg":"content risky"}`), wantOutcome: externalcall.OutcomeProviderRejected, wantStatus: http.StatusOK},
-		{name: "http error", response: wechatAuditHTTPResponse(http.StatusBadGateway, `{"errcode":87014}`), wantOutcome: externalcall.OutcomeHTTPError, wantStatus: http.StatusBadGateway},
-		{name: "invalid json", response: wechatAuditHTTPResponse(http.StatusOK, `{`), wantOutcome: externalcall.OutcomeDecodeError, wantStatus: http.StatusOK},
-		{name: "missing trace id", response: wechatAuditHTTPResponse(http.StatusOK, `{"errcode":0,"result":{"suggest":"pass","label":100}}`), wantOutcome: externalcall.OutcomeDecodeError, wantStatus: http.StatusOK},
-		{name: "timeout", transport: context.DeadlineExceeded, wantOutcome: externalcall.OutcomeTimeout},
+		{name: "provider rejected", response: wechatAuditHTTPResponse(http.StatusOK, `{"errcode":87014,"errmsg":"content risky sentinel"}`), wantOutcome: externalcall.OutcomeProviderRejected, wantCause: "provider_rejected", wantStatus: http.StatusOK, forbidden: []string{"content risky sentinel"}},
+		{name: "http error", response: wechatAuditHTTPResponse(http.StatusBadGateway, `{"errcode":87014}`), wantOutcome: externalcall.OutcomeHTTPError, wantCause: "http_status", wantStatus: http.StatusBadGateway},
+		{name: "invalid json", response: wechatAuditHTTPResponse(http.StatusOK, `{`), wantOutcome: externalcall.OutcomeDecodeError, wantCause: "json_invalid", wantStatus: http.StatusOK, forbidden: []string{"unexpected end of JSON input"}},
+		{name: "missing trace id", response: wechatAuditHTTPResponse(http.StatusOK, `{"errcode":0,"result":{"suggest":"pass","label":100}}`), wantOutcome: externalcall.OutcomeDecodeError, wantCause: "missing_trace_id", wantStatus: http.StatusOK},
+		{name: "timeout", transport: context.DeadlineExceeded, wantOutcome: externalcall.OutcomeTimeout, wantCause: "timeout", forbidden: []string{"context deadline exceeded"}},
 		{
 			name: "body read failure preserves status",
 			response: &http.Response{
@@ -255,7 +267,9 @@ func TestWechatAuditorObservesTextCheckTerminalOutcomes(t *testing.T) {
 				Body:       wechatAuditErrorReadCloser{err: fmt.Errorf("stream failed: %w", io.ErrUnexpectedEOF)},
 			},
 			wantOutcome: externalcall.OutcomeTransportError,
+			wantCause:   "unexpected_eof",
 			wantStatus:  http.StatusPartialContent,
+			forbidden:   []string{"stream failed", "unexpected EOF"},
 		},
 	}
 
@@ -273,6 +287,7 @@ func TestWechatAuditorObservesTextCheckTerminalOutcomes(t *testing.T) {
 			if err == nil {
 				t.Fatal("AuditResource() error = nil, want text check failure")
 			}
+			assertWechatAuditReturnedError(t, err, externalcall.OperationContentTextCheck, tt.wantOutcome, tt.wantCause, tt.wantStatus, tt.forbidden...)
 			assertWechatAuditEvents(t, observer.Events(), []expectedWechatAuditEvent{
 				{operation: externalcall.OperationAccessToken, outcome: externalcall.OutcomeSuccess, statusCode: http.StatusOK},
 				{operation: externalcall.OperationContentTextCheck, outcome: tt.wantOutcome, statusCode: tt.wantStatus},
@@ -287,13 +302,15 @@ func TestWechatAuditorObservesMediaSubmitTerminalOutcomes(t *testing.T) {
 		response    *http.Response
 		transport   error
 		wantOutcome externalcall.Outcome
+		wantCause   string
 		wantStatus  int
+		forbidden   []string
 	}{
-		{name: "provider rejected", response: wechatAuditHTTPResponse(http.StatusOK, `{"errcode":87014,"errmsg":"content risky"}`), wantOutcome: externalcall.OutcomeProviderRejected, wantStatus: http.StatusOK},
-		{name: "http error", response: wechatAuditHTTPResponse(http.StatusBadGateway, `{"errcode":87014}`), wantOutcome: externalcall.OutcomeHTTPError, wantStatus: http.StatusBadGateway},
-		{name: "invalid json", response: wechatAuditHTTPResponse(http.StatusOK, `{`), wantOutcome: externalcall.OutcomeDecodeError, wantStatus: http.StatusOK},
-		{name: "missing trace id", response: wechatAuditHTTPResponse(http.StatusOK, `{"errcode":0}`), wantOutcome: externalcall.OutcomeDecodeError, wantStatus: http.StatusOK},
-		{name: "timeout", transport: context.DeadlineExceeded, wantOutcome: externalcall.OutcomeTimeout},
+		{name: "provider rejected", response: wechatAuditHTTPResponse(http.StatusOK, `{"errcode":87014,"errmsg":"content risky sentinel"}`), wantOutcome: externalcall.OutcomeProviderRejected, wantCause: "provider_rejected", wantStatus: http.StatusOK, forbidden: []string{"content risky sentinel"}},
+		{name: "http error", response: wechatAuditHTTPResponse(http.StatusBadGateway, `{"errcode":87014}`), wantOutcome: externalcall.OutcomeHTTPError, wantCause: "http_status", wantStatus: http.StatusBadGateway},
+		{name: "invalid json", response: wechatAuditHTTPResponse(http.StatusOK, `{`), wantOutcome: externalcall.OutcomeDecodeError, wantCause: "json_invalid", wantStatus: http.StatusOK, forbidden: []string{"unexpected end of JSON input"}},
+		{name: "missing trace id", response: wechatAuditHTTPResponse(http.StatusOK, `{"errcode":0}`), wantOutcome: externalcall.OutcomeDecodeError, wantCause: "missing_trace_id", wantStatus: http.StatusOK},
+		{name: "timeout", transport: context.DeadlineExceeded, wantOutcome: externalcall.OutcomeTimeout, wantCause: "timeout", forbidden: []string{"context deadline exceeded"}},
 		{
 			name: "body read failure preserves status",
 			response: &http.Response{
@@ -302,7 +319,9 @@ func TestWechatAuditorObservesMediaSubmitTerminalOutcomes(t *testing.T) {
 				Body:       wechatAuditErrorReadCloser{err: fmt.Errorf("stream failed: %w", io.ErrUnexpectedEOF)},
 			},
 			wantOutcome: externalcall.OutcomeTransportError,
+			wantCause:   "unexpected_eof",
 			wantStatus:  http.StatusPartialContent,
+			forbidden:   []string{"stream failed", "unexpected EOF"},
 		},
 	}
 
@@ -326,6 +345,7 @@ func TestWechatAuditorObservesMediaSubmitTerminalOutcomes(t *testing.T) {
 			if err == nil {
 				t.Fatal("AuditResource() error = nil, want media submit failure")
 			}
+			assertWechatAuditReturnedError(t, err, externalcall.OperationContentMediaSubmit, tt.wantOutcome, tt.wantCause, tt.wantStatus, tt.forbidden...)
 			assertWechatAuditEvents(t, observer.Events(), []expectedWechatAuditEvent{
 				{operation: externalcall.OperationAccessToken, outcome: externalcall.OutcomeSuccess, statusCode: http.StatusOK},
 				{operation: externalcall.OperationContentTextCheck, outcome: externalcall.OutcomeSuccess, statusCode: http.StatusOK},
@@ -410,7 +430,13 @@ func TestWechatAuditorFailureLogsDoNotLeakSecrets(t *testing.T) {
 		wantCause string
 	}{
 		{
-			name:      "transport url error",
+			name:      "token transport url error",
+			failureAt: "/token",
+			transport: &url.Error{Op: http.MethodGet, URL: "https://wechat.example.test/token?appid=" + appID + "&secret=" + appSecret, Err: fmt.Errorf("%s: %w", transportRaw, context.DeadlineExceeded)},
+			wantCause: "cause=timeout",
+		},
+		{
+			name:      "media transport url error",
 			failureAt: "/media",
 			transport: &url.Error{Op: http.MethodPost, URL: "https://wechat.example.test/media?access_token=" + accessToken, Err: fmt.Errorf("%s: %w", transportRaw, context.DeadlineExceeded)},
 			wantCause: "cause=timeout",
@@ -457,7 +483,7 @@ func TestWechatAuditorFailureLogsDoNotLeakSecrets(t *testing.T) {
 				observer,
 			).WithURLs("https://wechat.example.test/token", "https://wechat.example.test/msg", "https://wechat.example.test/media")
 
-			_, _ = auditor.AuditResource(context.Background(), resourcelogic.ContentAuditInput{
+			_, returnedErr := auditor.AuditResource(context.Background(), resourcelogic.ContentAuditInput{
 				OpenID:      openID,
 				MerchantID:  "merchant-safe-id",
 				ResourceID:  "resource-safe-id",
@@ -466,6 +492,9 @@ func TestWechatAuditorFailureLogsDoNotLeakSecrets(t *testing.T) {
 				Description: requestContent,
 				Images:      []string{mediaURL},
 			})
+			if returnedErr == nil {
+				t.Fatal("AuditResource() error = nil, want dependency failure")
+			}
 
 			logText := collector.String()
 			if !strings.Contains(logText, tt.wantCause) {
@@ -482,8 +511,252 @@ func TestWechatAuditorFailureLogsDoNotLeakSecrets(t *testing.T) {
 				if strings.Contains(logText, forbidden) {
 					t.Fatalf("log contains forbidden value %q: %s", forbidden, logText)
 				}
+				if strings.Contains(returnedErr.Error(), forbidden) {
+					t.Fatalf("returned error contains forbidden value %q: %s", forbidden, returnedErr)
+				}
 			}
 		})
+	}
+}
+
+func TestWechatAuditorReturnsSafeLocalConfigurationAndRequestErrors(t *testing.T) {
+	const (
+		invalidTokenURL = "https://wechat.example.test/%sentinel-token-url"
+		invalidTextURL  = "https://wechat.example.test/%sentinel-text-url"
+		invalidMediaURL = "https://wechat.example.test/%sentinel-media-url"
+		accessToken     = "sentinel-local-access-token"
+	)
+	tests := []struct {
+		name      string
+		operation string
+		wantCause string
+		forbidden []string
+		run       func() error
+	}{
+		{
+			name:      "token url parse",
+			operation: externalcall.OperationAccessToken,
+			wantCause: "url_invalid",
+			forbidden: []string{invalidTokenURL, "sentinel-token-url", "invalid URL escape"},
+			run: func() error {
+				auditor := newWechatAuditorForTest(&recordingWechatAuditObserver{}, false, func(*http.Request) (*http.Response, error) {
+					t.Fatal("transport called for invalid token URL")
+					return nil, nil
+				}).WithURLs(invalidTokenURL, "", "")
+				_, err := auditor.AuditResource(context.Background(), wechatAuditInput())
+				return err
+			},
+		},
+		{
+			name:      "text url parse",
+			operation: externalcall.OperationContentTextCheck,
+			wantCause: "url_invalid",
+			forbidden: []string{invalidTextURL, "sentinel-text-url", accessToken, "invalid URL escape"},
+			run: func() error {
+				auditor := newWechatAuditorForTest(&recordingWechatAuditObserver{}, false, func(*http.Request) (*http.Response, error) {
+					t.Fatal("transport called for invalid text URL")
+					return nil, nil
+				})
+				auditor.accessToken = accessToken
+				auditor.tokenExpiry = time.Now().Add(time.Hour)
+				auditor.msgSecCheckURL = invalidTextURL
+				_, err := auditor.AuditResource(context.Background(), wechatAuditInput())
+				return err
+			},
+		},
+		{
+			name:      "media url parse",
+			operation: externalcall.OperationContentMediaSubmit,
+			wantCause: "url_invalid",
+			forbidden: []string{invalidMediaURL, "sentinel-media-url", accessToken, "invalid URL escape"},
+			run: func() error {
+				auditor := newWechatAuditorForTest(&recordingWechatAuditObserver{}, true, func(request *http.Request) (*http.Response, error) {
+					if request.URL.Path == "/msg" {
+						return wechatAuditHTTPResponse(http.StatusOK, `{"errcode":0,"trace_id":"trace-text","result":{"suggest":"pass"}}`), nil
+					}
+					t.Fatal("unexpected transport request for invalid media URL")
+					return nil, nil
+				})
+				auditor.accessToken = accessToken
+				auditor.tokenExpiry = time.Now().Add(time.Hour)
+				auditor.mediaCheckURL = invalidMediaURL
+				input := wechatAuditInput()
+				input.Images = []string{"/image.png"}
+				_, err := auditor.AuditResource(context.Background(), input)
+				return err
+			},
+		},
+		{
+			name:      "token request creation",
+			operation: externalcall.OperationAccessToken,
+			wantCause: "request_create",
+			forbidden: []string{"nil Context"},
+			run: func() error {
+				auditor := newWechatAuditorForTest(&recordingWechatAuditObserver{}, false, func(*http.Request) (*http.Response, error) {
+					t.Fatal("transport called when token request creation fails")
+					return nil, nil
+				})
+				_, err := auditor.AuditResource(nil, wechatAuditInput())
+				return err
+			},
+		},
+		{
+			name:      "text request creation",
+			operation: externalcall.OperationContentTextCheck,
+			wantCause: "request_create",
+			forbidden: []string{"nil Context", accessToken},
+			run: func() error {
+				auditor := newWechatAuditorForTest(&recordingWechatAuditObserver{}, false, nil)
+				_, err := auditor.checkText(nil, accessToken, wechatAuditInput(), "content")
+				return err
+			},
+		},
+		{
+			name:      "media request creation",
+			operation: externalcall.OperationContentMediaSubmit,
+			wantCause: "request_create",
+			forbidden: []string{"nil Context", accessToken},
+			run: func() error {
+				auditor := newWechatAuditorForTest(&recordingWechatAuditObserver{}, true, nil)
+				_, err := auditor.submitMedia(nil, accessToken, wechatAuditInput(), "https://media.example.test/image.png")
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.run()
+			if err == nil {
+				t.Fatal("error = nil, want local failure")
+			}
+			assertWechatAuditReturnedError(t, err, tt.operation, "", tt.wantCause, 0, tt.forbidden...)
+		})
+	}
+}
+
+func TestWechatAuditorReturnedErrorUnwrapsOnlySafeContextSentinel(t *testing.T) {
+	rawTransportErr := errors.New("sentinel-raw-transport-error")
+	observer := &recordingWechatAuditObserver{}
+	auditor := newWechatAuditorForTest(observer, false, func(request *http.Request) (*http.Response, error) {
+		return nil, &url.Error{
+			Op:  request.Method,
+			URL: request.URL.String(),
+			Err: fmt.Errorf("%w: %w", rawTransportErr, context.DeadlineExceeded),
+		}
+	})
+
+	_, err := auditor.AuditResource(context.Background(), wechatAuditInput())
+	if err == nil {
+		t.Fatal("AuditResource() error = nil, want transport failure")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("errors.Is(context.DeadlineExceeded) = false, error = %v", err)
+	}
+	if errors.Is(err, rawTransportErr) {
+		t.Fatalf("returned error unwraps raw transport error: %v", err)
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		t.Fatalf("returned error exposes *url.Error with URL %q", urlErr.URL)
+	}
+}
+
+func TestWechatAuditorStopsSubmittingImagesAfterMiddleFailure(t *testing.T) {
+	observer := &recordingWechatAuditObserver{}
+	mediaRequests := 0
+	auditor := newWechatAuditorForTest(observer, true, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/token":
+			return wechatAuditHTTPResponse(http.StatusOK, `{"access_token":"access-token","expires_in":7200}`), nil
+		case "/msg":
+			return wechatAuditHTTPResponse(http.StatusOK, `{"errcode":0,"trace_id":"trace-text","result":{"suggest":"pass"}}`), nil
+		case "/media":
+			mediaRequests++
+			if mediaRequests == 1 {
+				return wechatAuditHTTPResponse(http.StatusOK, `{"errcode":0,"trace_id":"trace-media-1"}`), nil
+			}
+			if mediaRequests == 2 {
+				return wechatAuditHTTPResponse(http.StatusOK, `{"errcode":87014,"errmsg":"stop here"}`), nil
+			}
+			t.Fatal("third image was submitted after the second image failed")
+			return nil, nil
+		default:
+			t.Fatalf("unexpected request path: %s", request.URL.Path)
+			return nil, nil
+		}
+	})
+	input := wechatAuditInput()
+	input.Images = []string{"/one.png", "/two.png", "/three.png"}
+
+	_, err := auditor.AuditResource(context.Background(), input)
+	if err == nil {
+		t.Fatal("AuditResource() error = nil, want second media rejection")
+	}
+	if mediaRequests != 2 {
+		t.Fatalf("media requests = %d, want exactly first and second image", mediaRequests)
+	}
+	assertWechatAuditEvents(t, observer.Events(), []expectedWechatAuditEvent{
+		{operation: externalcall.OperationAccessToken, outcome: externalcall.OutcomeSuccess, statusCode: http.StatusOK},
+		{operation: externalcall.OperationContentTextCheck, outcome: externalcall.OutcomeSuccess, statusCode: http.StatusOK},
+		{operation: externalcall.OperationContentMediaSubmit, outcome: externalcall.OutcomeSuccess, statusCode: http.StatusOK},
+		{operation: externalcall.OperationContentMediaSubmit, outcome: externalcall.OutcomeProviderRejected, statusCode: http.StatusOK},
+	})
+}
+
+func TestWechatAuditorDoesNotObserveUnusableMediaURL(t *testing.T) {
+	observer := &recordingWechatAuditObserver{}
+	auditor := NewWechatAuditor(
+		config.WechatConfig{AppID: "wx-app", AppSecret: "wx-secret"},
+		config.ContentAuditConfig{Enabled: true, TextScene: 3, MediaEnabled: true, MediaScene: 3, RequestTimeout: time.Second},
+		"",
+		&http.Client{Transport: wechatAuditRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch request.URL.Path {
+			case "/token":
+				return wechatAuditHTTPResponse(http.StatusOK, `{"access_token":"access-token","expires_in":7200}`), nil
+			case "/msg":
+				return wechatAuditHTTPResponse(http.StatusOK, `{"errcode":0,"trace_id":"trace-text","result":{"suggest":"pass"}}`), nil
+			default:
+				t.Fatalf("unexpected media request for unusable URL: %s", request.URL.Path)
+				return nil, nil
+			}
+		})},
+		observer,
+	).WithURLs("https://wechat.example.test/token", "https://wechat.example.test/msg", "https://wechat.example.test/media")
+	input := wechatAuditInput()
+	input.Images = []string{"/relative-without-base.png"}
+
+	_, err := auditor.AuditResource(context.Background(), input)
+	if err == nil {
+		t.Fatal("AuditResource() error = nil, want unusable media URL failure")
+	}
+	assertWechatAuditEvents(t, observer.Events(), []expectedWechatAuditEvent{
+		{operation: externalcall.OperationAccessToken, outcome: externalcall.OutcomeSuccess, statusCode: http.StatusOK},
+		{operation: externalcall.OperationContentTextCheck, outcome: externalcall.OutcomeSuccess, statusCode: http.StatusOK},
+	})
+}
+
+func assertWechatAuditReturnedError(t *testing.T, err error, operation string, outcome externalcall.Outcome, cause string, statusCode int, forbidden ...string) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("error = nil, want safe WeChat audit error")
+	}
+	errorText := err.Error()
+	for _, required := range []string{"operation=" + operation, "cause=" + cause} {
+		if !strings.Contains(errorText, required) {
+			t.Fatalf("error = %q, want stable field %q", errorText, required)
+		}
+	}
+	if outcome != "" && !strings.Contains(errorText, "outcome="+string(outcome)) {
+		t.Fatalf("error = %q, want outcome=%s", errorText, outcome)
+	}
+	if statusCode > 0 && !strings.Contains(errorText, fmt.Sprintf("status=%d", statusCode)) {
+		t.Fatalf("error = %q, want status=%d", errorText, statusCode)
+	}
+	for _, value := range forbidden {
+		if value != "" && strings.Contains(errorText, value) {
+			t.Fatalf("returned error contains forbidden value %q: %s", value, errorText)
+		}
 	}
 }
 
