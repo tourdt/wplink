@@ -35,7 +35,6 @@
 
 - `.github/workflows/ci.yml`：创建并迁移 `wplink_integration`，设置测试 DSN，强制运行 PostgreSQL 集成门禁。
 - `Makefile`：增加显式失败的 `check-postgres` 目标。
-- `backend/scripts/api_contract.test.mjs`：防止 CI 再次丢失测试 DSN 或强制目标的静态契约测试。
 - `backend/app/internal/logic/auth/sms_verifier.go` / `sms_verifier_test.go`：短信发送、校验外呼观测。
 - `backend/app/internal/logic/location/tencent_map_geocoder.go` / `tencent_map_geocoder_test.go`：腾讯地图逆地理编码外呼观测。
 - `backend/app/internal/logic/auth/wechat_session.go` / `wechat_session_test.go`：微信登录、手机号和 access token 外呼观测。
@@ -377,7 +376,6 @@ git commit -m "feat: 增加第三方调用统一观测组件"
 
 **Files:**
 - Create: `backend/app/internal/logic/auth/sms_send_limiter_integration_test.go`
-- Modify: `backend/scripts/api_contract.test.mjs`
 - Modify: `Makefile`
 - Modify: `.github/workflows/ci.yml`
 
@@ -386,33 +384,7 @@ git commit -m "feat: 增加第三方调用统一观测组件"
 - Produces: `make check-postgres`，要求 `WPLINK_TEST_POSTGRES_DSN` 指向已完成 migrations 的可丢弃 PostgreSQL。
 - Produces: CI 数据库 `wplink_integration`，仅存在于单次 GitHub Actions backend job。
 
-- [ ] **Step 1：先写 CI 门禁失败契约测试**
-
-在 `backend/scripts/api_contract.test.mjs` 增加：
-
-```js
-test('ci forces real postgres coordinator and sms limiter integration tests', () => {
-  const workflow = fs.readFileSync(path.resolve(scriptDir, '../../.github/workflows/ci.yml'), 'utf8')
-  const makefile = fs.readFileSync(path.resolve(scriptDir, '../../Makefile'), 'utf8')
-
-  assert.match(workflow, /WPLINK_TEST_POSTGRES_DSN:/)
-  assert.match(workflow, /CREATE DATABASE wplink_integration/)
-  assert.match(workflow, /migrations\/\*\.up\.sql/)
-  assert.match(workflow, /make check-postgres/)
-  assert.match(makefile, /^check-postgres:/m)
-  assert.match(makefile, /WPLINK_TEST_POSTGRES_DSN/)
-  assert.match(makefile, /TestCoordinatorIntegration/)
-  assert.match(makefile, /TestSQLSMSSendLimiterIntegration/)
-})
-```
-
-- [ ] **Step 2：运行契约测试确认失败**
-
-Run: `cd backend && node --test scripts/api_contract.test.mjs`
-
-Expected: FAIL，指出 CI 缺少 `WPLINK_TEST_POSTGRES_DSN`、`wplink_integration` 或 `make check-postgres`。
-
-- [ ] **Step 3：先写 SQL 短信限流真实 PostgreSQL 测试**
+- [ ] **Step 1：先写 SQL 短信限流真实 PostgreSQL 测试**
 
 创建 `sms_send_limiter_integration_test.go`。使用以下 helper 读取 `WPLINK_TEST_POSTGRES_DSN`、连接数据库并仅清理本测试手机号：
 
@@ -537,7 +509,13 @@ func TestSQLSMSSendLimiterIntegrationProviderFailureRollsBack(t *testing.T) {
 
 再增加 `TestSQLSMSSendLimiterIntegrationConcurrentRollbackNeverNegative`：先取得一个 token，同时调用两次 `Rollback`，最后查询并断言 `send_count=0`。
 
-- [ ] **Step 4：实现 Makefile 与 CI 强制入口**
+- [ ] **Step 2：先验证缺少测试 DSN 时门禁明确失败**
+
+Run: `env -u WPLINK_TEST_POSTGRES_DSN make check-postgres`
+
+Expected: FAIL，明确提示 `WPLINK_TEST_POSTGRES_DSN` 必须指向可丢弃测试库；该行为验证直接执行真实入口，不读取或匹配 Makefile/CI 源码文字。
+
+- [ ] **Step 3：实现 Makefile 与 CI 强制入口**
 
 在 `Makefile` 增加：
 
@@ -570,20 +548,20 @@ WPLINK_TEST_POSTGRES_DSN: postgres://postgres:postgres@127.0.0.1:5432/wplink_int
   run: make check-postgres
 ```
 
-- [ ] **Step 5：验证门禁和真实数据库测试**
+- [ ] **Step 4：验证门禁和真实数据库测试**
 
-Run: `cd backend && node --test scripts/api_contract.test.mjs`
+Run: `env -u WPLINK_TEST_POSTGRES_DSN make check-postgres`
 
-Expected: PASS。
+Expected: FAIL，并输出缺少可丢弃测试库 DSN 的明确提示。
 
 Run（仅可丢弃测试库）: `WPLINK_TEST_POSTGRES_DSN='postgres://postgres:postgres@127.0.0.1:5432/wplink_integration?sslmode=disable' make check-postgres`
 
 Expected: Coordinator 三个集成测试和 SQL 短信限流四个集成测试均 PASS，无 SKIP。
 
-- [ ] **Step 6：提交 PostgreSQL 验证闭环**
+- [ ] **Step 5：提交 PostgreSQL 验证闭环**
 
 ```bash
-git add .github/workflows/ci.yml Makefile backend/scripts/api_contract.test.mjs backend/app/internal/logic/auth/sms_send_limiter_integration_test.go
+git add .github/workflows/ci.yml Makefile backend/app/internal/logic/auth/sms_send_limiter_integration_test.go
 git commit -m "test: 强制执行 PostgreSQL 并发验证"
 ```
 
@@ -965,35 +943,7 @@ git commit -m "feat: 观测微信支付并统一外呼依赖"
 - Consumes: `make check-postgres`、`event=external_call` 和所有稳定枚举。
 - Produces: 后续维护者可直接执行的本地验证、生产日志查询、发布抽检和剩余技术债清单。
 
-- [ ] **Step 1：先写文档契约失败测试**
-
-在 `backend/scripts/api_contract.test.mjs` 增加：
-
-```js
-test('maintenance docs describe postgres gate and external call observations', () => {
-  const architecture = fs.readFileSync(path.resolve(scriptDir, '../../docs/product/technical-architecture.md'), 'utf8')
-  const runbook = fs.readFileSync(path.resolve(scriptDir, '../../docs/product/local-dev-runbook.md'), 'utf8')
-  const deployment = fs.readFileSync(path.resolve(scriptDir, '../../docs/deployment.md'), 'utf8')
-  const release = fs.readFileSync(path.resolve(scriptDir, '../../docs/product/production-release-checklist.md'), 'utf8')
-
-  assert.doesNotMatch(architecture, /短信发送限频等保护仍保存在单个 API 进程内/)
-  assert.match(architecture, /SQLSMSSendLimiter/)
-  assert.match(architecture, /external_call/)
-  assert.match(runbook, /make check-postgres/)
-  assert.match(runbook, /禁止.*生产.*DSN/)
-  assert.match(deployment, /event=external_call/)
-  assert.match(deployment, /duration_ms/)
-  assert.match(release, /24 小时/)
-})
-```
-
-- [ ] **Step 2：运行文档契约测试确认失败**
-
-Run: `cd backend && node --test scripts/api_contract.test.mjs`
-
-Expected: FAIL，架构仍含过期短信限流描述，其他文档尚未包含统一事件与验证目标。
-
-- [ ] **Step 3：更新当前架构和真实技术债**
+- [ ] **Step 1：更新当前架构和真实技术债**
 
 在 `technical-architecture.md`：
 
@@ -1002,7 +952,7 @@ Expected: FAIL，架构仍含过期短信限流描述，其他文档尚未包含
 - 将 16.4 改为“已有统一调用日志但尚无熔断与指标平台”，明确是否引入熔断由真实基线决定。
 - 保留路由双轨、单体大文件、历史兼容代码等后续债务，不宣称已经解决。
 
-- [ ] **Step 4：更新本地、部署与发布手册**
+- [ ] **Step 2：更新本地、部署与发布手册**
 
 `local-dev-runbook.md` 增加命令：
 
@@ -1024,18 +974,20 @@ rg -n '"event":"external_call".*"provider":"wechat".*"operation":"pay_' /opt/wpl
 
 `production-release-checklist.md` 增加发布后抽检：字段完整、没有敏感值、观察 24 小时后再设置阈值。
 
-- [ ] **Step 5：同步设计文档事实修正并运行文档测试**
+- [ ] **Step 3：同步设计文档事实修正并验证真实命令**
 
 确认设计文档的 Operation 清单不存在 `content_media_download`，并明确支付非 2xx 覆盖 `http_error`，不是强制 `provider_rejected`。
 
-Run: `cd backend && node --test scripts/api_contract.test.mjs scripts/validate_migrations.test.mjs`
+Run: `cd backend && node --test scripts/validate_migrations.test.mjs`
 
-Expected: PASS。
+Run: `env -u WPLINK_TEST_POSTGRES_DSN make check-postgres`
 
-- [ ] **Step 6：提交文档闭环**
+Expected: migration 验证 PASS；PostgreSQL 门禁因缺少测试 DSN 按设计明确失败。文档内容由任务审查直接核对，不增加读取文档源码并匹配固定文字的脆弱测试。
+
+- [ ] **Step 4：提交文档闭环**
 
 ```bash
-git add backend/scripts/api_contract.test.mjs docs/product/technical-architecture.md docs/product/local-dev-runbook.md docs/product/production-release-checklist.md docs/deployment.md docs/superpowers/specs/2026-08-05-production-reliability-debt-governance-design.md
+git add docs/product/technical-architecture.md docs/product/local-dev-runbook.md docs/product/production-release-checklist.md docs/deployment.md docs/superpowers/specs/2026-08-05-production-reliability-debt-governance-design.md
 git commit -m "docs: 完善生产可靠性维护闭环"
 ```
 
