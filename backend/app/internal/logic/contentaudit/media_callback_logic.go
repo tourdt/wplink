@@ -144,7 +144,13 @@ func (l *MediaCheckCallbackLogic) handlePublishFailure(ctx context.Context, reso
 		reason = "该分类暂不开放发布"
 	}
 	if reason != "" {
-		if _, rejectErr := l.store.RejectResourceAfterMediaAudit(ctx, resourceID, traceID, reason); rejectErr != nil && !errors.Is(rejectErr, sql.ErrNoRows) {
+		_, rejectErr := l.store.RejectResourceAfterMediaAudit(ctx, resourceID, traceID, reason)
+		if errors.Is(rejectErr, sql.ErrNoRows) {
+			// 当前 trace 已被新一轮审核替换时，政策性发布失败不能驳回新代际资源。
+			logx.Infof("图片审核政策性驳回未命中当前审核代际，回调已记录且资源状态未变: resourceId=%s traceId=%s", resourceID, traceID)
+			return MediaCheckCallbackResp{ResourceID: resourceID, Status: "unchanged", Message: "图片审核回调已记录"}, nil
+		}
+		if rejectErr != nil {
 			logx.Errorf("图片审核通过但自动发布失败，随后驳回资源也失败: resourceId=%s traceId=%s err=%+v rejectErr=%+v", resourceID, traceID, err, rejectErr)
 			return MediaCheckCallbackResp{}, errx.New(errx.CodeInternalError, "发布失败，请稍后重试")
 		}

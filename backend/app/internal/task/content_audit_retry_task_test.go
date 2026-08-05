@@ -1,13 +1,17 @@
 package task
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	resourcelogic "wplink/backend/app/internal/logic/resource"
 	"wplink/backend/app/internal/model"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 func TestContentAuditRetryTaskClaimsAndProcessesWithInstanceLease(t *testing.T) {
@@ -164,6 +168,42 @@ func TestContentAuditRetryTaskManualClaimDoesNotCallAuditor(t *testing.T) {
 	}
 	if store.snapshotCalls != 0 {
 		t.Fatalf("人工复核 claim 不应进入审核逻辑: snapshotCalls=%d", store.snapshotCalls)
+	}
+}
+
+func TestContentAuditRetryTaskManualClaimLogsSafeLastErrorCategory(t *testing.T) {
+	const sensitiveLastError = "provider response token=secret payload={full-body}"
+	store := &fakeContentAuditRetryStore{
+		claims: []model.ResourceAuditRetryClaim{{
+			ResourceID:        "resource-manual",
+			RetryCount:        5,
+			ManualReview:      true,
+			LastErrorCategory: sensitiveLastError,
+		}},
+	}
+	task := NewContentAuditRetryTask(store, &fakeContentAuditRetryAuditor{}, 20, 5, "api-a", 2*time.Minute)
+
+	var logBuffer bytes.Buffer
+	previousWriter := logx.Reset()
+	logx.SetWriter(logx.NewWriter(&logBuffer))
+	t.Cleanup(func() {
+		if currentWriter := logx.Reset(); currentWriter != nil {
+			_ = currentWriter.Close()
+		}
+		if previousWriter != nil {
+			logx.SetWriter(previousWriter)
+		}
+	})
+
+	if _, err := task.Run(context.Background()); err != nil {
+		t.Fatalf("处理达到上限的审核重试失败: %v", err)
+	}
+	logText := logBuffer.String()
+	if !strings.Contains(logText, `"last_error_category":"audit_processing_failed"`) {
+		t.Fatalf("达到上限日志缺少安全最后错误分类: %q", logText)
+	}
+	if strings.Contains(logText, sensitiveLastError) || strings.Contains(logText, "token=secret") {
+		t.Fatalf("达到上限日志不得输出供应商敏感载荷: %q", logText)
 	}
 }
 

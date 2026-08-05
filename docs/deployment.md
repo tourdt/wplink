@@ -23,6 +23,8 @@ Tasks:
 
 Coordinator 对每个正在执行的任务独占一条 `*sql.Conn`，并在同一会话上加锁、运行和解锁。四类任务锁不同，可同时运行，最坏占用四条专用数据库连接；锁竞争失败的实例只会短暂申请连接并立即归还。
 
+Coordinator 使用的 DSN 必须直连 PostgreSQL。若架构要求经过 PgBouncer 等连接池代理，只能使用保证客户端连接始终绑定同一后端会话的 session-pooling；transaction-pooling 可能在事务边界切换后端连接，不适用于 session-level Advisory Lock，会破坏“同一会话加锁与解锁”的前提。
+
 生产模板当前为 `Postgres.MaxOpenConns: 30`。调整连接池时应按单个 API 实例预留至少四条任务连接，并在此之外为 HTTP 业务请求、事务和健康检查保留足够余量；同时核对所有 API 实例连接池上限总和没有超过 PostgreSQL 的 `max_connections` 预算。不要把任务超时当成硬性的连接池容量控制：Coordinator 只通过 Context 发出协作式取消，实际连接占用时间取决于 Runner、数据库驱动和第三方依赖是否及时响应 Context；忽略 Context 的调用会一直占用到自身返回或数据库会话断开。
 
 ## 结构化日志排障
@@ -120,9 +122,16 @@ ORDER BY audit_lease_until, updated_at;
 
 1. 若旧版本已经支持 `Tasks.Enabled`，先在所有旧实例设置 `Tasks.Enabled: false` 并逐一重启，确认旧 Scheduler 已停止；普通 API 和回调可继续服务。
 2. 若旧版本没有 `Tasks.Enabled`，先从负载均衡摘除并停止所有旧 API 进程，确认没有旧 Scheduler 或仍在执行的旧任务。此路径会产生维护窗口，不能为追求无停机而让旧任务与新租约逻辑混跑。
-3. 在临时 PostgreSQL 按 Task 8 步骤验证 migration `up/down/up`；通过后，在旧 Scheduler 全部停止的前提下，只对生产目标数据库执行 `000035_resource_audit_retry_lease` 的 up migration。
-4. 部署支持固定锁号与租约的新版本。先用 `Tasks.Enabled: false` 启动并完成健康检查，再把所有新实例统一切换为 `true` 并滚动重启。
-5. 检查 `1001`–`1004` 锁、任务终态日志、支付失败计数和过期审核租约数量，确认只有新协议实例在执行任务。
+3. 在临时 PostgreSQL 验证 migration `up/down/up`；通过后，在旧 Scheduler 全部停止的前提下执行首次升级发布。自动脚本会直接通过 `to_regclass('public.resources')` 和 `information_schema.columns` 判断协议代际，不依赖 `schema_migrations` 已存在。
+4. 在确认所有主机都已消除旧 Scheduler 后，对每个需要发布的目标机显式执行：
+
+   ```bash
+   WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --confirm-no-legacy-schedulers
+   ```
+
+   该参数只表达运维已经完成全主机确认。脚本无法检查其他服务器，只会在生成和执行 migration batch 前停止当前目标主机上仍 active 的 `wplink-api`；没有参数时对 legacy 数据库默认拒绝继续。干净新库（不存在 `resources`）和已存在 `audit_lease_until` 的兼容库不会触发该闸门。若使用 `--mark-migrations-applied` 但字段实际缺失，脚本同样拒绝继续。
+5. 部署支持固定锁号与租约的新版本。先用 `Tasks.Enabled: false` 启动并完成健康检查，再把所有新实例统一切换为 `true` 并滚动重启。
+6. 检查 `1001`–`1004` 锁、任务终态日志、支付失败计数和过期审核租约数量，确认只有新协议实例在执行任务。
 
 如果配置系统无法在一次发布中先禁用再启用新实例，可保持旧 API 全停，先完成迁移，再直接以 `Tasks.Enabled: true` 启动新版本；关键约束仍是新 Scheduler 启动前不存在任何旧 Scheduler。
 

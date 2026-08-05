@@ -95,6 +95,7 @@ func (t *ContentAuditRetryTask) Run(ctx context.Context) (ContentAuditRetryResul
 				logx.Field("retry_count", claim.RetryCount),
 				logx.Field("retry_status", "manual_review"),
 				logx.Field("root_cause", "retry_limit_reached"),
+				logx.Field("last_error_category", safeContentAuditLastErrorCategory(claim.LastErrorCategory)),
 			)
 			continue
 		}
@@ -134,6 +135,16 @@ func (t *ContentAuditRetryTask) Run(ctx context.Context) (ContentAuditRetryResul
 		result.RetriedCount++
 	}
 	return result, nil
+}
+
+func safeContentAuditLastErrorCategory(category string) string {
+	switch category {
+	case "media_callback_timeout", "audit_identity_unavailable", "audit_snapshot_unavailable", "audit_dependency_timeout":
+		return category
+	default:
+		// 分类只能来自有限枚举；空值或未知值统一收敛，禁止把数据库中的供应商原始错误写入批次日志。
+		return "audit_processing_failed"
+	}
 }
 
 func contentAuditRetryRootCause(err error) string {

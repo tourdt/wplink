@@ -10,6 +10,8 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh
 
 脚本会先构建发布产物，再通过 SSH/SCP 上传到服务器，完成二进制安装、systemd 服务安装、数据库 migration、服务重启和健康检查。
 
+上面的普通一键命令只适用于干净新库，或数据库已经存在 `audit_lease_until`、运行版本都兼容固定锁与审核租约协议的后续发布。若脚本检测到已有 `resources` 表但尚无 `audit_lease_until`，会在 migration 前默认拒绝继续。此时属于首次协议升级例外：必须先按[多实例自动任务部署与运维](../deployment.md#首次引入协调协议)停止所有主机上的旧 API/Scheduler，确认没有旧任务仍在执行，再显式使用 `--confirm-no-legacy-schedulers`。该参数只表达运维确认；脚本只能停止当前目标主机的 `wplink-api`，不能替你检查其他服务器。
+
 首次部署时，如果服务器还没有 `/etc/wplink/app.yaml` 或 `/etc/wplink/wplink.env`，脚本会先创建模板文件并停止。填写生产数据库、JWT、微信、短信和七牛配置后，再次执行同一命令。
 
 如只需要本地构建发布包，不自动上传服务器，可执行：
@@ -49,6 +51,14 @@ bash deploy/scripts/build-release.sh
 ## 3. 数据库
 
 推荐使用 `deploy/scripts/deploy-server.sh` 自动发布。脚本会从 `backend/migrations/*.up.sql` 生成迁移清单，随发布包上传，并在服务器数据库中维护 `schema_migrations` 表，重复发布时只执行未记录的 migration。
+
+首次从旧 Scheduler 升级时，不得按普通滚动发布直接执行 migration。先完成[首次引入协调协议](../deployment.md#首次引入协调协议)的全主机停旧任务检查，再执行：
+
+```bash
+WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --confirm-no-legacy-schedulers
+```
+
+脚本会在 migration batch 生成和执行前，直接通过 `to_regclass` 与 `information_schema.columns` 判断数据库代际；干净新库和已经具备租约字段的兼容库不需要此确认参数。
 
 如需人工初始化干净生产库，可按文件名顺序执行全部 `.up.sql`：
 

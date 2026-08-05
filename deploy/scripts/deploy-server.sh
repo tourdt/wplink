@@ -17,6 +17,7 @@ HEALTH_BASE_URL="${HEALTH_BASE_URL:-http://127.0.0.1:4000}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-1}"
 MARK_MIGRATIONS_APPLIED="${MARK_MIGRATIONS_APPLIED:-0}"
 INSTALL_NGINX="${INSTALL_NGINX:-0}"
+CONFIRM_NO_LEGACY_SCHEDULERS=0
 
 MIGRATION_FILES=()
 while IFS= read -r migration_file; do
@@ -37,8 +38,12 @@ Options:
   --target USER@HOST              SSH target. Same as WPLINK_DEPLOY_TARGET.
   --ssh-key PATH                  SSH private key path. Same as WPLINK_SSH_KEY.
   --port PORT                     SSH port. Default: 22.
-  --skip-migrations               Do not run database migrations.
-  --mark-migrations-applied       Record migrations as applied without executing SQL.
+  --skip-migrations               Do not run migrations. Only allowed when the audit lease
+                                  schema is already compatible.
+  --mark-migrations-applied       Record migrations without SQL. Only allowed when the
+                                  audit lease schema is already compatible.
+  --confirm-no-legacy-schedulers  Confirm every old API/Scheduler on every host is stopped
+                                  before the first audit lease protocol migration.
   --install-nginx                 Install deploy/nginx/wplink.conf to Nginx and reload it.
   -h, --help                      Show this help.
 
@@ -61,6 +66,9 @@ Notes:
   - The SSH user must be root or have passwordless sudo for systemd, /opt, and /etc.
   - On the first deploy, missing /etc/wplink/app.yaml or wplink.env are created from
     templates, then the script stops so you can fill production secrets and rerun.
+  - Existing databases without audit_lease_until require a maintenance window. Stop
+    every legacy API/Scheduler first, then rerun with --confirm-no-legacy-schedulers.
+    The flag cannot inspect or stop services on other hosts; see docs/deployment.md.
 EOF
 }
 
@@ -84,6 +92,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --mark-migrations-applied)
       MARK_MIGRATIONS_APPLIED=1
+      shift
+      ;;
+    --confirm-no-legacy-schedulers)
+      CONFIRM_NO_LEGACY_SCHEDULERS=1
       shift
       ;;
     --install-nginx)
@@ -206,6 +218,7 @@ remote_env=(
   "HEALTH_BASE_URL=$(shell_quote "$HEALTH_BASE_URL")"
   "RUN_MIGRATIONS=$(shell_quote "$RUN_MIGRATIONS")"
   "MARK_MIGRATIONS_APPLIED=$(shell_quote "$MARK_MIGRATIONS_APPLIED")"
+  "CONFIRM_NO_LEGACY_SCHEDULERS=$(shell_quote "$CONFIRM_NO_LEGACY_SCHEDULERS")"
   "INSTALL_NGINX=$(shell_quote "$INSTALL_NGINX")"
 )
 
@@ -231,9 +244,8 @@ need_command tar
 if [[ "${#SUDO[@]}" -gt 0 ]]; then
   need_command sudo
 fi
-if [[ "$RUN_MIGRATIONS" == "1" || "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
-  need_command psql
-fi
+# 即使显式跳过 migration，也必须查询 schema 协议状态，避免在 clean/legacy 数据库安装新二进制。
+need_command psql
 
 extract_dir="$REMOTE_TMP/extract"
 mkdir -p "$extract_dir"
@@ -256,9 +268,6 @@ fi
 if [[ -f "$REMOTE_APP_DIR/wplink-api" ]]; then
   "${SUDO[@]}" cp "$REMOTE_APP_DIR/wplink-api" "$REMOTE_RELEASES_DIR/$RELEASE_NAME/wplink-api.previous"
 fi
-
-"${SUDO[@]}" install -m 0755 "$extract_dir/dist/release/wplink-api" "$REMOTE_APP_DIR/wplink-api"
-"${SUDO[@]}" chown -R "$SERVICE_USER:$SERVICE_GROUP" "$REMOTE_APP_DIR"
 
 created_config=0
 if [[ ! -f "$REMOTE_CONFIG_DIR/app.yaml" ]]; then
@@ -320,13 +329,77 @@ psql_run() {
   "${SUDO[@]}" bash -c 'DATABASE_URL="$1"; shift; psql "$DATABASE_URL" "$@"' _ "$db_url" "$@"
 }
 
-if [[ "$RUN_MIGRATIONS" == "1" || "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
-  database_url="$(read_database_url)"
-  if [[ -z "$database_url" ]]; then
-    printf 'DATABASE_URL is empty in %s\n' "$REMOTE_CONFIG_DIR/wplink.env" >&2
-    exit 1
-  fi
+database_url="$(read_database_url)"
+if [[ -z "$database_url" ]]; then
+  printf 'DATABASE_URL is empty in %s\n' "$REMOTE_CONFIG_DIR/wplink.env" >&2
+  exit 1
+fi
 
+# 不依赖 schema_migrations 判断协议代际：历史库可能从未使用该登记表。
+# 所有发布模式都必须先完成检测，skip/mark 不能绕过新二进制所依赖的 schema 前置条件。
+protocol_state="$(psql_run "$database_url" -X -A -t -q -v ON_ERROR_STOP=1 -c "
+SELECT CASE
+  WHEN to_regclass('public.resources') IS NULL THEN 'clean'
+  WHEN EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'resources'
+      AND column_name = 'audit_lease_until'
+  ) THEN 'compatible'
+  ELSE 'legacy'
+END;
+")"
+protocol_state="${protocol_state//[[:space:]]/}"
+
+case "$protocol_state" in
+  clean)
+    if [[ "$RUN_MIGRATIONS" != "1" ]]; then
+      printf '干净新库不能跳过 migration；必须先创建完整 schema，已拒绝安装新二进制。\n' >&2
+      exit 1
+    fi
+    if [[ "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
+      printf '干净新库不能只标记 migration；必须实际执行完整 SQL，已拒绝安装新二进制。\n' >&2
+      exit 1
+    fi
+    printf '干净新库将执行完整 migration，首次协议升级无需 legacy 确认。\n'
+    ;;
+  compatible)
+    printf '数据库已具备审核租约字段，允许按当前 migration 参数继续发布。\n'
+    ;;
+  legacy)
+    if [[ "$RUN_MIGRATIONS" != "1" ]]; then
+      printf '旧协议数据库不能跳过 migration；必须先完成 000035 租约升级，已拒绝安装新二进制。\n' >&2
+      exit 1
+    fi
+    if [[ "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
+      printf '旧协议数据库不能只标记 migration；必须实际执行 000035 租约升级，已拒绝安装新二进制。\n' >&2
+      exit 1
+    fi
+    if [[ "$CONFIRM_NO_LEGACY_SCHEDULERS" != "1" ]]; then
+      cat >&2 <<'PROTOCOL_GATE_MESSAGE'
+检测到已有 resources 表但尚无 audit_lease_until，默认拒绝在旧调度协议运行期间执行 migration。
+必须先停止所有旧 API/Scheduler，并确认所有主机上都没有旧任务仍在执行，然后使用 --confirm-no-legacy-schedulers 重试。
+脚本只能检查并停止当前目标主机，无法自动确认其他服务器；完整维护窗口步骤见 docs/deployment.md。
+PROTOCOL_GATE_MESSAGE
+      exit 1
+    fi
+
+    printf '确认参数只表示运维已在所有主机消除旧 Scheduler；脚本不会也不能自动确认其他服务器。\n'
+    if "${SUDO[@]}" systemctl is-active --quiet "$REMOTE_SERVICE"; then
+      printf '首次协议升级：migration 前停止当前目标主机服务 %s。\n' "$REMOTE_SERVICE"
+      "${SUDO[@]}" systemctl stop "$REMOTE_SERVICE"
+    else
+      printf '首次协议升级：当前目标主机服务 %s 未运行。\n' "$REMOTE_SERVICE"
+    fi
+    ;;
+  *)
+    printf '无法识别数据库调度协议状态，已拒绝执行 migration 和安装新二进制。\n' >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$RUN_MIGRATIONS" == "1" || "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
   migration_files=()
   while IFS= read -r migration_file; do
     [[ -n "$migration_file" ]] && migration_files+=("$migration_file")
@@ -373,6 +446,11 @@ if [[ "$RUN_MIGRATIONS" == "1" || "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then
   # SQL 变更与 schema_migrations 记录在同一事务提交，任一版本失败都会整体回滚。
   psql_run "$database_url" -q -f "$migration_batch"
 fi
+
+# 首次协议升级必须先完成 legacy 闸门、停旧服务和 migration，再切换依赖新字段的二进制。
+# 否则 fail-closed 后旧服务若被 systemd 拉起，会在旧 schema 上误启新版本。
+"${SUDO[@]}" install -m 0755 "$extract_dir/dist/release/wplink-api" "$REMOTE_APP_DIR/wplink-api"
+"${SUDO[@]}" chown -R "$SERVICE_USER:$SERVICE_GROUP" "$REMOTE_APP_DIR"
 
 if [[ "$INSTALL_NGINX" == "1" ]]; then
   "${SUDO[@]}" install -m 0644 "$extract_dir/dist/release/wplink.nginx.conf" "$REMOTE_NGINX_CONF"

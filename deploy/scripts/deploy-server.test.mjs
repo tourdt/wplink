@@ -56,6 +56,120 @@ test('deploy script serializes and atomically records migrations', () => {
   assert.match(script, /COMMIT;/)
 })
 
+test('deploy script fails closed before the first scheduler protocol migration', () => {
+  const script = fs.readFileSync(deployScriptPath, 'utf8')
+
+  assert.match(script, /--confirm-no-legacy-schedulers/)
+  assert.match(script, /to_regclass\('public\.resources'\)/)
+  assert.match(script, /information_schema\.columns/)
+  assert.match(script, /audit_lease_until/)
+  assert.match(script, /必须先停止所有旧 API\/Scheduler/)
+  assert.match(script, /确认参数只表示运维已在所有主机消除旧 Scheduler/)
+
+  const protocolDetectionIndex = script.indexOf("to_regclass('public.resources')")
+  const migrationBatchIndex = script.indexOf('migration_batch="$REMOTE_TMP/run-migrations.sql"')
+  const migrationExecutionIndex = script.indexOf('psql_run "$database_url" -q -f "$migration_batch"')
+  assert(protocolDetectionIndex >= 0)
+  assert(protocolDetectionIndex < migrationBatchIndex)
+  assert(migrationBatchIndex < migrationExecutionIndex)
+})
+
+test('protocol detection is unconditional before the migration guard and binary install', () => {
+  const script = fs.readFileSync(deployScriptPath, 'utf8')
+  const psqlFunctionIndex = script.indexOf('psql_run()')
+  const databaseReadIndex = script.indexOf(
+    'database_url="$(read_database_url)"',
+    psqlFunctionIndex,
+  )
+  const protocolDetectionIndex = script.indexOf(
+    "to_regclass('public.resources')",
+    psqlFunctionIndex,
+  )
+  const migrationGuard = 'if [[ "$RUN_MIGRATIONS" == "1" || "$MARK_MIGRATIONS_APPLIED" == "1" ]]; then'
+  const migrationGuardIndex = script.indexOf(migrationGuard, psqlFunctionIndex)
+  const binaryInstallIndex = script.indexOf(
+    'install -m 0755 "$extract_dir/dist/release/wplink-api"',
+  )
+
+  assert.equal(script.split(migrationGuard).length - 1, 1)
+  assert(psqlFunctionIndex >= 0)
+  assert(databaseReadIndex > psqlFunctionIndex)
+  assert(databaseReadIndex < migrationGuardIndex)
+  assert(protocolDetectionIndex < migrationGuardIndex)
+  assert(protocolDetectionIndex < binaryInstallIndex)
+})
+
+test('confirmed first scheduler protocol upgrade stops the target service before migrations and binary switch', () => {
+  const script = fs.readFileSync(deployScriptPath, 'utf8')
+
+  const legacyBranchIndex = script.indexOf('legacy)')
+  const confirmationCheckIndex = script.indexOf('CONFIRM_NO_LEGACY_SCHEDULERS', legacyBranchIndex)
+  const serviceStopIndex = script.indexOf('systemctl stop "$REMOTE_SERVICE"', confirmationCheckIndex)
+  const migrationBatchIndex = script.indexOf('migration_batch="$REMOTE_TMP/run-migrations.sql"')
+  const binaryInstallIndex = script.indexOf(
+    'install -m 0755 "$extract_dir/dist/release/wplink-api"',
+  )
+
+  assert(legacyBranchIndex >= 0)
+  assert(confirmationCheckIndex > legacyBranchIndex)
+  assert(serviceStopIndex > confirmationCheckIndex)
+  assert(serviceStopIndex < migrationBatchIndex)
+  assert(migrationBatchIndex < binaryInstallIndex)
+})
+
+test('clean databases reject skip and mark-only while normal migrations remain allowed', () => {
+  const script = fs.readFileSync(deployScriptPath, 'utf8')
+  const cleanBranchIndex = script.indexOf('clean)')
+  const compatibleBranchIndex = script.indexOf('compatible)', cleanBranchIndex)
+  const binaryInstallIndex = script.indexOf(
+    'install -m 0755 "$extract_dir/dist/release/wplink-api"',
+  )
+  const cleanBranch = script.slice(cleanBranchIndex, compatibleBranchIndex)
+
+  assert(cleanBranchIndex < binaryInstallIndex)
+  assert.match(script, /THEN 'clean'/)
+  assert.match(cleanBranch, /RUN_MIGRATIONS.*!= "1"/)
+  assert.match(cleanBranch, /MARK_MIGRATIONS_APPLIED.*== "1"/)
+  assert.match(cleanBranch, /干净新库不能跳过 migration/)
+  assert.match(cleanBranch, /干净新库不能只标记 migration/)
+  assert.match(cleanBranch, /干净新库将执行完整 migration/)
+})
+
+test('legacy databases reject skip and mark-only before confirmation', () => {
+  const script = fs.readFileSync(deployScriptPath, 'utf8')
+  const legacyBranchIndex = script.indexOf('legacy)')
+  const unknownBranchIndex = script.indexOf('*)', legacyBranchIndex)
+  const binaryInstallIndex = script.indexOf(
+    'install -m 0755 "$extract_dir/dist/release/wplink-api"',
+  )
+  const legacyBranch = script.slice(legacyBranchIndex, unknownBranchIndex)
+
+  assert(legacyBranchIndex < binaryInstallIndex)
+  assert.match(legacyBranch, /RUN_MIGRATIONS.*!= "1"/)
+  assert.match(legacyBranch, /MARK_MIGRATIONS_APPLIED.*== "1"/)
+  assert.match(legacyBranch, /旧协议数据库不能跳过 migration/)
+  assert.match(legacyBranch, /旧协议数据库不能只标记 migration/)
+  assert(
+    legacyBranch.indexOf('RUN_MIGRATIONS') <
+      legacyBranch.indexOf('CONFIRM_NO_LEGACY_SCHEDULERS'),
+  )
+})
+
+test('compatible databases are the only state that permits skipping migrations', () => {
+  const script = fs.readFileSync(deployScriptPath, 'utf8')
+  const compatibleBranchIndex = script.indexOf('compatible)')
+  const legacyBranchIndex = script.indexOf('legacy)', compatibleBranchIndex)
+  const binaryInstallIndex = script.indexOf(
+    'install -m 0755 "$extract_dir/dist/release/wplink-api"',
+  )
+  const compatibleBranch = script.slice(compatibleBranchIndex, legacyBranchIndex)
+
+  assert(compatibleBranchIndex < binaryInstallIndex)
+  assert.match(script, /THEN 'compatible'/)
+  assert.match(compatibleBranch, /已具备审核租约字段/)
+  assert.doesNotMatch(compatibleBranch, /exit 1/)
+})
+
 test('repository ignores private tls certificate and key material', () => {
   const gitignoreLines = fs
     .readFileSync(gitignorePath, 'utf8')

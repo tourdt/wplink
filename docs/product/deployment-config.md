@@ -54,6 +54,8 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh
 
 脚本会先调用 `deploy/scripts/build-release.sh` 生成发布包，再通过 SSH/SCP 上传到服务器，安装 `/opt/wplink/wplink-api`，写入 systemd 服务，执行未记录的 migration，重启 `wplink-api`，并检查 `/healthz` 和 `/readyz`。如果服务器上还没有 `/etc/wplink/app.yaml` 或 `/etc/wplink/wplink.env`，脚本会先按模板创建这两个文件并停止；填写生产数据库、JWT、微信、短信和七牛配置后再次执行即可。
 
+上述普通一键命令只适用于干净新库，或已存在 `audit_lease_until` 且新旧版本都兼容协调协议的后续发布。若已有 `resources` 表但没有该字段，脚本会在 migration 前默认拒绝继续；这是首次引入固定锁和审核租约协议的维护窗口，不能按普通滚动发布处理。必须先停止并核对所有主机上的旧 API/Scheduler，再按[首次引入协调协议](../deployment.md#首次引入协调协议)使用 `--confirm-no-legacy-schedulers`。该参数只表达运维已完成全主机确认，脚本只能停止当前目标机的 `wplink-api`，不会伪装成已检查其他服务器。
+
 如果服务器使用 SSH 私钥登录，可通过项目专属变量指定私钥：
 
 ```bash
@@ -124,23 +126,33 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 
 ## PostgreSQL 连接池
 
-`Postgres` 配置支持连接池参数，模板默认值适合单实例 MVP 起步：
+`Postgres` 配置支持连接池参数，生产模板当前值为：
 
 - `MaxOpenConns: 30`：应用进程最多同时打开 30 个数据库连接。
 - `MaxIdleConns: 10`：保留最多 10 个空闲连接，减少频繁建连。
 - `ConnMaxLifetime: 30m`：连接最长使用 30 分钟后回收，降低长期连接被网络设备或数据库端断开的风险。
 - `ConnMaxIdleTime: 5m`：空闲 5 分钟后回收，控制低峰期连接占用。
 
-若数据库实例规格较小或后端多实例部署，需要按 `后端实例数 * MaxOpenConns` 评估 PostgreSQL `max_connections`，避免上线后连接数耗尽。
+四类自动任务可能同时持有四条专用 `*sql.Conn`，每条连接要在同一 PostgreSQL 后端会话内完成 Advisory Lock 加锁、业务执行和解锁。因此每个 API 实例除 HTTP、事务和健康检查之外，还必须预留四条任务连接；再按 `后端实例数 * MaxOpenConns` 评估 PostgreSQL `max_connections`，避免上线后连接数耗尽。
+
+任务 Coordinator 的 DSN 应直连 PostgreSQL。若必须经过连接池代理，只能使用保证整个客户端连接固定到同一后端会话的 session-pooling；transaction-pooling 会在事务之间切换后端连接，不适用于 session-level Advisory Lock，禁止用于该 Coordinator 连接。完整预算与失锁排障见[多实例自动任务部署与运维](../deployment.md#数据库连接预算)。
 
 ## 自动任务
 
-`Tasks.ResourceLifecycleInterval` 控制供需信息生命周期任务执行间隔，模板默认 `1h`。服务启动后会先执行一次，再按间隔持续扫描：
+衣货通没有独立 Worker；每个兼容版本的 API 实例都应保持 `Tasks.Enabled: true`，随进程启动同一套 Scheduler。未配置 `Enabled` 时默认启用。`false` 仅用于维护窗口或事故应急停用全部自动任务，不能长期只开一台“主任务实例”，否则会失去自动接管能力。
 
-- 已到期供需信息会自动标记为 `expired`，并向商家发送过期提醒。
-- 即将过期供需信息会向商家发送提醒消息。
+多实例通过两层机制保护：第一层是 PostgreSQL session-level Advisory Lock，固定锁号为 `1001=resource_lifecycle`、`1002=content_audit_retry`、`1003=payment_reconciliation`、`1004=merchant_map_event_cleanup`；同类任务只有抢锁成功的实例执行，持锁实例退出或会话断开后，其他实例下一周期自动接管。第二层是业务幂等、条件更新以及内容审核的 `audit_processing_by + audit_lease_until` 租约，防止连接异常或旧实例迟到结果破坏业务状态。Advisory Lock 不能替代第二层保护。
 
-生产模式要求该配置大于 0。多实例部署时每个实例都会执行该任务，正式运营建议只让一个后端实例启用自动任务，或后续迁移到独立 worker/分布式锁，避免重复提醒。
+生产模板的四个任务超时分别为：
+
+| 任务 | 周期 | 超时 | 固定锁号 |
+|---|---:|---:|---:|
+| 资源生命周期 | `1h` | `5m` | `1001` |
+| 内容审核重试 | `1m` | `10m` | `1002` |
+| 微信支付补偿 | `1m` | `5m` | `1003` |
+| 商家地图行为清理 | `24h` | `10m` | `1004` |
+
+生产模式要求周期与四个 timeout 均大于零。首次从没有固定锁/审核租约的旧版本升级，必须先停止所有旧 Scheduler 再执行 `000035_resource_audit_retry_lease`；只有协议兼容版本之间才能让所有实例保持 `Tasks.Enabled: true` 滚动发布。架构细节见[多实例自动任务架构](../architecture.md)，发布步骤见[多实例自动任务部署与运维](../deployment.md)。
 
 ## 七牛 Kodo 状态
 

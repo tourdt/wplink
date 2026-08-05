@@ -199,10 +199,11 @@ type ResourceContentAuditTaskCompletion struct {
 }
 
 type ResourceAuditRetryClaim struct {
-	ResourceID   string
-	RetryCount   int64
-	ManualReview bool
-	ProcessingBy string
+	ResourceID        string
+	RetryCount        int64
+	ManualReview      bool
+	ProcessingBy      string
+	LastErrorCategory string
 }
 
 // ResourceAuditGuard 标识一次审核重试所持有的业务租约，所有结果写入都必须同时匹配资源和实例。
@@ -1321,9 +1322,20 @@ claimed AS (
     audit_retry_at = CASE WHEN r.audit_retry_count >= $2 THEN NULL ELSE r.audit_retry_at END,
     updated_at = NOW()
   WHERE r.id IN (SELECT id FROM candidates)
-  RETURNING r.id::text, r.audit_retry_count, r.status, r.audit_processing_by
+  RETURNING r.id::text, r.audit_retry_count, r.status, r.audit_processing_by, r.audit_last_error
 )
-SELECT id, audit_retry_count, status = 'manual_review', COALESCE(audit_processing_by, '')
+SELECT
+  id,
+  audit_retry_count,
+  status = 'manual_review',
+  COALESCE(audit_processing_by, ''),
+  CASE
+    WHEN audit_last_error = '图片审核回调超时' THEN 'media_callback_timeout'
+    WHEN audit_last_error IN ('资源缺少自动安全检测身份', '读取微信审核身份失败') THEN 'audit_identity_unavailable'
+    WHEN audit_last_error = '读取审核快照失败' THEN 'audit_snapshot_unavailable'
+    WHEN audit_last_error LIKE '%超时%' THEN 'audit_dependency_timeout'
+    ELSE 'audit_processing_failed'
+  END
 FROM claimed
 ORDER BY id
 `, batchSize, maxRetries, processingBy, leaseDuration.Milliseconds())
@@ -1334,7 +1346,7 @@ ORDER BY id
 	var claims []ResourceAuditRetryClaim
 	for rows.Next() {
 		var claim ResourceAuditRetryClaim
-		if err := rows.Scan(&claim.ResourceID, &claim.RetryCount, &claim.ManualReview, &claim.ProcessingBy); err != nil {
+		if err := rows.Scan(&claim.ResourceID, &claim.RetryCount, &claim.ManualReview, &claim.ProcessingBy, &claim.LastErrorCategory); err != nil {
 			return nil, err
 		}
 		claims = append(claims, claim)

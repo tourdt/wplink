@@ -86,6 +86,38 @@ func TestMediaCheckCallbackUsesCurrentTraceWhenQuotaFailureFallsBackToReject(t *
 	}
 }
 
+func TestMediaCheckCallbackReturnsUnchangedWhenPolicyRejectMissesCurrentGeneration(t *testing.T) {
+	tests := []struct {
+		name       string
+		publishErr error
+	}{
+		{name: "发布额度不足", publishErr: model.ErrPublishQuotaInsufficient},
+		{name: "分类禁止发布", publishErr: model.ErrPublishDisabled},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &fakeMediaCheckCallbackStore{
+				completion: model.ResourceContentAuditTaskCompletion{ResourceID: "resource-1"},
+				publishErr: tt.publishErr,
+				rejectErr:  sql.ErrNoRows,
+			}
+			logic := NewMediaCheckCallbackLogic(store)
+
+			resp, err := logic.Handle(context.Background(), model.JSONMap{
+				"trace_id": "trace-old",
+				"errcode":  float64(0),
+				"result":   map[string]interface{}{"suggest": "pass"},
+			})
+			if err != nil {
+				t.Fatalf("政策性驳回代际 miss 不应返回错误: %v", err)
+			}
+			if resp.Status != "unchanged" || resp.Message != "图片审核回调已记录" {
+				t.Fatalf("政策性驳回代际 miss 应保持当前资源状态: %+v", resp)
+			}
+		})
+	}
+}
+
 func TestMediaCheckCallbackKeepsPendingWhenOtherImagesRemain(t *testing.T) {
 	store := &fakeMediaCheckCallbackStore{
 		completion: model.ResourceContentAuditTaskCompletion{ResourceID: "resource-1", PendingCount: 1},

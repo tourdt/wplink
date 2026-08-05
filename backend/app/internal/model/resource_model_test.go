@@ -347,7 +347,7 @@ func TestSubmitResourceForReviewLocksSnapshotCommercialRules(t *testing.T) {
 	}
 }
 
-const claimDueResourceAuditRetriesFullCasePattern = `(?s)WITH candidates AS \(.*WHERE status = 'audit_retry'\s+AND audit_retry_at <= NOW\(\)\s+AND \(audit_lease_until IS NULL OR audit_lease_until <= NOW\(\)\).*FOR UPDATE SKIP LOCKED.*UPDATE resources r\s+SET\s+status = CASE WHEN r\.audit_retry_count >= \$2 THEN 'manual_review' ELSE 'audit_retry' END,\s+audit_processing_by = CASE WHEN r\.audit_retry_count >= \$2 THEN NULL ELSE \$3 END,\s+audit_lease_until = CASE\s+WHEN r\.audit_retry_count >= \$2 THEN NULL\s+ELSE NOW\(\) \+ \(\$4 \* INTERVAL '1 millisecond'\)\s+END,\s+audit_retry_count = CASE WHEN r\.audit_retry_count >= \$2 THEN r\.audit_retry_count ELSE r\.audit_retry_count \+ 1 END,\s+audit_retry_at = CASE WHEN r\.audit_retry_count >= \$2 THEN NULL ELSE r\.audit_retry_at END,.*COALESCE\(audit_processing_by, ''\)`
+const claimDueResourceAuditRetriesFullCasePattern = `(?s)WITH candidates AS \(.*WHERE status = 'audit_retry'\s+AND audit_retry_at <= NOW\(\)\s+AND \(audit_lease_until IS NULL OR audit_lease_until <= NOW\(\)\).*FOR UPDATE SKIP LOCKED.*UPDATE resources r\s+SET\s+status = CASE WHEN r\.audit_retry_count >= \$2 THEN 'manual_review' ELSE 'audit_retry' END,\s+audit_processing_by = CASE WHEN r\.audit_retry_count >= \$2 THEN NULL ELSE \$3 END,\s+audit_lease_until = CASE\s+WHEN r\.audit_retry_count >= \$2 THEN NULL\s+ELSE NOW\(\) \+ \(\$4 \* INTERVAL '1 millisecond'\)\s+END,\s+audit_retry_count = CASE WHEN r\.audit_retry_count >= \$2 THEN r\.audit_retry_count ELSE r\.audit_retry_count \+ 1 END,\s+audit_retry_at = CASE WHEN r\.audit_retry_count >= \$2 THEN NULL ELSE r\.audit_retry_at END,.*COALESCE\(audit_processing_by, ''\),\s+CASE\s+WHEN audit_last_error = '图片审核回调超时' THEN 'media_callback_timeout'.*WHEN audit_last_error LIKE '%超时%' THEN 'audit_dependency_timeout'.*ELSE 'audit_processing_failed'\s+END`
 
 func TestClaimDueResourceAuditRetriesSetsLeaseWithoutChangingStatus(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
@@ -358,8 +358,8 @@ func TestClaimDueResourceAuditRetriesSetsLeaseWithoutChangingStatus(t *testing.T
 
 	mock.ExpectQuery(claimDueResourceAuditRetriesFullCasePattern).
 		WithArgs(int64(20), int64(3), "api-a", int64(120000)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "audit_retry_count", "manual_review", "audit_processing_by"}).
-			AddRow("resource-1", int64(1), false, "api-a"))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "audit_retry_count", "manual_review", "audit_processing_by", "last_error_category"}).
+			AddRow("resource-1", int64(1), false, "api-a", "audit_processing_failed"))
 
 	claims, err := NewResourceModel(db).ClaimDueResourceAuditRetries(
 		context.Background(),
@@ -374,7 +374,7 @@ func TestClaimDueResourceAuditRetriesSetsLeaseWithoutChangingStatus(t *testing.T
 	if len(claims) != 1 {
 		t.Fatalf("领取结果数量错误: got=%d want=1", len(claims))
 	}
-	want := ResourceAuditRetryClaim{ResourceID: "resource-1", RetryCount: 1, ProcessingBy: "api-a"}
+	want := ResourceAuditRetryClaim{ResourceID: "resource-1", RetryCount: 1, ProcessingBy: "api-a", LastErrorCategory: "audit_processing_failed"}
 	if claims[0] != want {
 		t.Fatalf("领取结果错误: got=%+v want=%+v", claims[0], want)
 	}
@@ -429,8 +429,8 @@ func TestClaimDueResourceAuditRetriesCanReclaimExpiredLease(t *testing.T) {
 
 	mock.ExpectQuery(`(?s)WHERE status = 'audit_retry'\s+AND audit_retry_at <= NOW\(\)\s+AND \(audit_lease_until IS NULL OR audit_lease_until <= NOW\(\)\).*FOR UPDATE SKIP LOCKED`).
 		WithArgs(int64(10), int64(5), "api-b", int64(60000)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "audit_retry_count", "manual_review", "audit_processing_by"}).
-			AddRow("resource-expired", int64(2), false, "api-b"))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "audit_retry_count", "manual_review", "audit_processing_by", "last_error_category"}).
+			AddRow("resource-expired", int64(2), false, "api-b", "audit_dependency_timeout"))
 
 	claims, err := NewResourceModel(db).ClaimDueResourceAuditRetries(context.Background(), 10, 5, "api-b", time.Minute)
 	if err != nil {
@@ -451,14 +451,14 @@ func TestClaimDueResourceAuditRetriesMovesMaxedClaimToManualReviewWithoutLease(t
 
 	mock.ExpectQuery(claimDueResourceAuditRetriesFullCasePattern).
 		WithArgs(int64(20), int64(5), "api-a", int64(120000)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "audit_retry_count", "manual_review", "audit_processing_by"}).
-			AddRow("resource-manual", int64(5), true, ""))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "audit_retry_count", "manual_review", "audit_processing_by", "last_error_category"}).
+			AddRow("resource-manual", int64(5), true, "", "audit_dependency_timeout"))
 
 	claims, err := NewResourceModel(db).ClaimDueResourceAuditRetries(context.Background(), 20, 5, "api-a", 2*time.Minute)
 	if err != nil {
 		t.Fatalf("领取达到上限的审核重试失败: %v", err)
 	}
-	want := ResourceAuditRetryClaim{ResourceID: "resource-manual", RetryCount: 5, ManualReview: true, ProcessingBy: ""}
+	want := ResourceAuditRetryClaim{ResourceID: "resource-manual", RetryCount: 5, ManualReview: true, ProcessingBy: "", LastErrorCategory: "audit_dependency_timeout"}
 	if len(claims) != 1 || claims[0] != want {
 		t.Fatalf("转人工领取结果错误: got=%+v want=%+v", claims, want)
 	}
