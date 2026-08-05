@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 
 	"wplink/backend/app/internal/config"
 	"wplink/backend/common/errx"
+	"wplink/backend/common/externalcall"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -35,6 +37,7 @@ type HTTPWechatPayGateway struct {
 	apiBaseURL string
 	privateKey *rsa.PrivateKey
 	publicKey  *rsa.PublicKey
+	observer   externalcall.Observer
 }
 
 type WechatPayOrderGateway interface {
@@ -62,7 +65,7 @@ func (e *WechatPayAPIError) Error() string {
 	return fmt.Sprintf("微信支付 API 请求失败: status=%d code=%s message=%s", e.HTTPStatus, e.Code, e.Message)
 }
 
-func NewHTTPWechatPayGateway(cfg config.WechatPayConfig) (*HTTPWechatPayGateway, error) {
+func NewHTTPWechatPayGateway(cfg config.WechatPayConfig, observers ...externalcall.Observer) (*HTTPWechatPayGateway, error) {
 	if !cfg.Enabled {
 		return nil, nil
 	}
@@ -78,12 +81,18 @@ func NewHTTPWechatPayGateway(cfg config.WechatPayConfig) (*HTTPWechatPayGateway,
 	if err != nil {
 		return nil, fmt.Errorf("加载微信支付平台公钥失败: %w", err)
 	}
+	// variadic 仅用于保持旧调用兼容：这是可选单 Observer，传入多个时只使用第一个。
+	var observer externalcall.Observer
+	if len(observers) > 0 {
+		observer = observers[0]
+	}
 	return &HTTPWechatPayGateway{
 		cfg:        cfg,
 		httpClient: &http.Client{Timeout: timeout},
 		apiBaseURL: wechatPayAPIBaseURL,
 		privateKey: privateKey,
 		publicKey:  publicKey,
+		observer:   observer,
 	}, nil
 }
 
@@ -123,7 +132,8 @@ func (g *HTTPWechatPayGateway) CreatePrepay(ctx context.Context, input WechatPre
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, g.baseURL()+"/v3/pay/transactions/jsapi", bytes.NewReader(bodyBytes))
 	if err != nil {
-		return WechatPayParams{}, err
+		// 请求创建错误可能包含配置 URL；向上只返回稳定、可展示的中文错误。
+		return WechatPayParams{}, errx.New(errx.CodeInternalError, "微信支付下单失败，请稍后重试")
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
@@ -133,30 +143,47 @@ func (g *HTTPWechatPayGateway) CreatePrepay(ctx context.Context, input WechatPre
 	}
 	req.Header.Set("Authorization", authHeader)
 
+	// 本地参数编码、请求构造与签名完成后才算真正开始外呼。
+	call := externalcall.Start(g.observer, externalcall.ProviderWechat, externalcall.OperationPayCreate)
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
-		logx.Errorf("调用微信支付下单接口失败: outTradeNo=%s err=%+v", input.OutTradeNo, err)
+		outcome := externalcall.ClassifyTransport(ctx, err)
+		call.Finish(ctx, outcome, 0)
+		// http.Client 的错误可能携带完整 URL、请求参数和底层原文，只记录安全枚举。
+		logx.Errorf("调用微信支付下单接口失败: outTradeNo=%s outcome=%s", input.OutTradeNo, outcome)
 		return WechatPayParams{}, errx.New(errx.CodeInternalError, "微信支付下单失败，请稍后重试")
 	}
 	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		call.Finish(ctx, externalcall.OutcomeTransportError, resp.StatusCode)
+		logx.Errorf("读取微信支付下单响应失败: outTradeNo=%s outcome=%s status=%d", input.OutTradeNo, externalcall.OutcomeTransportError, resp.StatusCode)
+		return WechatPayParams{}, errx.New(errx.CodeInternalError, "微信支付下单失败，请稍后重试")
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		logx.Errorf("微信支付下单接口返回失败: outTradeNo=%s status=%d err=%+v", input.OutTradeNo, resp.StatusCode, decodeWechatPayAPIError(resp.StatusCode, respBody))
+		call.Finish(ctx, externalcall.OutcomeHTTPError, resp.StatusCode)
+		// 不记录响应体或供应商 message，避免上游错误内容把支付数据带入日志。
+		logx.Errorf("微信支付下单接口返回失败: outTradeNo=%s outcome=%s status=%d", input.OutTradeNo, externalcall.OutcomeHTTPError, resp.StatusCode)
 		return WechatPayParams{}, errx.New(errx.CodeInternalError, "微信支付下单失败，请稍后重试")
 	}
 	if err := g.verifyResponseSignature(resp.Header, respBody); err != nil {
-		logx.Errorf("微信支付下单响应验签失败: outTradeNo=%s err=%+v", input.OutTradeNo, err)
+		call.Finish(ctx, externalcall.OutcomeDecodeError, resp.StatusCode)
+		logx.Errorf("微信支付下单响应验签失败: outTradeNo=%s outcome=%s status=%d", input.OutTradeNo, externalcall.OutcomeDecodeError, resp.StatusCode)
 		return WechatPayParams{}, err
 	}
 	var decoded struct {
 		PrepayID string `json:"prepay_id"`
 	}
 	if err := json.Unmarshal(respBody, &decoded); err != nil {
+		call.Finish(ctx, externalcall.OutcomeDecodeError, resp.StatusCode)
 		return WechatPayParams{}, errx.New(errx.CodeInternalError, "微信支付响应解析失败，请稍后重试")
 	}
 	if strings.TrimSpace(decoded.PrepayID) == "" {
+		call.Finish(ctx, externalcall.OutcomeDecodeError, resp.StatusCode)
 		return WechatPayParams{}, errx.New(errx.CodeInternalError, "微信支付预支付单无效，请稍后重试")
 	}
+	// 微信响应已经完整通过验签与字段校验；后续小程序支付签名属于本地计算。
+	call.Finish(ctx, externalcall.OutcomeSuccess, resp.StatusCode)
 	pkg := "prepay_id=" + decoded.PrepayID
 	timestamp := fmt.Sprintf("%d", time.Now().Unix())
 	nonce := randomNonce()
@@ -184,7 +211,7 @@ func (g *HTTPWechatPayGateway) QueryOrder(ctx context.Context, outTradeNo string
 	canonicalURL := "/v3/pay/transactions/out-trade-no/" + url.PathEscape(outTradeNo) + "?mchid=" + url.QueryEscape(g.cfg.MchID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.baseURL()+canonicalURL, nil)
 	if err != nil {
-		return WechatPayOrder{}, err
+		return WechatPayOrder{}, errx.New(errx.CodeInternalError, "查询微信支付订单失败，请稍后重试")
 	}
 	req.Header.Set("Accept", "application/json")
 	authHeader, err := g.authorizationHeader(http.MethodGet, canonicalURL, "")
@@ -193,16 +220,29 @@ func (g *HTTPWechatPayGateway) QueryOrder(ctx context.Context, outTradeNo string
 	}
 	req.Header.Set("Authorization", authHeader)
 
+	call := externalcall.Start(g.observer, externalcall.ProviderWechat, externalcall.OperationPayQuery)
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
-		return WechatPayOrder{}, fmt.Errorf("查询微信支付订单失败: outTradeNo=%s: %w", outTradeNo, err)
+		outcome := externalcall.ClassifyTransport(ctx, err)
+		call.Finish(ctx, outcome, 0)
+		logx.Errorf("查询微信支付订单失败: outTradeNo=%s outcome=%s", outTradeNo, outcome)
+		return WechatPayOrder{}, newWechatPaySafeCallError("查询微信支付订单失败", outcome, ctx, err)
 	}
 	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		call.Finish(ctx, externalcall.OutcomeTransportError, resp.StatusCode)
+		logx.Errorf("读取微信支付查单响应失败: outTradeNo=%s outcome=%s status=%d", outTradeNo, externalcall.OutcomeTransportError, resp.StatusCode)
+		return WechatPayOrder{}, newWechatPaySafeCallError("读取微信支付查单响应失败", externalcall.OutcomeTransportError, ctx, err)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return WechatPayOrder{}, decodeWechatPayAPIError(resp.StatusCode, respBody)
+		call.Finish(ctx, externalcall.OutcomeHTTPError, resp.StatusCode)
+		apiErr := decodeWechatPayAPIError(resp.StatusCode, respBody)
+		logx.Errorf("微信支付查单 HTTP 状态异常: outTradeNo=%s outcome=%s status=%d", outTradeNo, externalcall.OutcomeHTTPError, resp.StatusCode)
+		return WechatPayOrder{}, apiErr
 	}
 	if err := g.verifyResponseSignature(resp.Header, respBody); err != nil {
+		call.Finish(ctx, externalcall.OutcomeDecodeError, resp.StatusCode)
 		return WechatPayOrder{}, err
 	}
 
@@ -217,13 +257,16 @@ func (g *HTTPWechatPayGateway) QueryOrder(ctx context.Context, outTradeNo string
 		} `json:"amount"`
 	}
 	if err := json.Unmarshal(respBody, &order); err != nil {
-		return WechatPayOrder{}, fmt.Errorf("解析微信支付查单响应失败: outTradeNo=%s: %w", outTradeNo, err)
+		call.Finish(ctx, externalcall.OutcomeDecodeError, resp.StatusCode)
+		return WechatPayOrder{}, errx.New(errx.CodeInternalError, "微信支付查单响应解析失败，请稍后重试")
 	}
 	if strings.TrimSpace(order.OutTradeNo) != outTradeNo || strings.TrimSpace(order.TradeState) == "" {
-		return WechatPayOrder{}, fmt.Errorf("微信支付查单响应数据不完整: outTradeNo=%s", outTradeNo)
+		call.Finish(ctx, externalcall.OutcomeDecodeError, resp.StatusCode)
+		return WechatPayOrder{}, errx.New(errx.CodeInternalError, "微信支付查单响应数据不完整，请稍后重试")
 	}
 	var raw map[string]interface{}
 	_ = json.Unmarshal(respBody, &raw)
+	call.Finish(ctx, externalcall.OutcomeSuccess, resp.StatusCode)
 	return WechatPayOrder{
 		OutTradeNo:    order.OutTradeNo,
 		TransactionID: order.TransactionID,
@@ -250,7 +293,7 @@ func (g *HTTPWechatPayGateway) CloseOrder(ctx context.Context, outTradeNo string
 	canonicalURL := "/v3/pay/transactions/out-trade-no/" + url.PathEscape(outTradeNo) + "/close"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, g.baseURL()+canonicalURL, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return err
+		return errx.New(errx.CodeInternalError, "关闭微信支付订单失败，请稍后重试")
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
@@ -260,19 +303,69 @@ func (g *HTTPWechatPayGateway) CloseOrder(ctx context.Context, outTradeNo string
 	}
 	req.Header.Set("Authorization", authHeader)
 
+	call := externalcall.Start(g.observer, externalcall.ProviderWechat, externalcall.OperationPayClose)
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("关闭微信支付订单失败: outTradeNo=%s: %w", outTradeNo, err)
+		outcome := externalcall.ClassifyTransport(ctx, err)
+		call.Finish(ctx, outcome, 0)
+		logx.Errorf("关闭微信支付订单失败: outTradeNo=%s outcome=%s", outTradeNo, outcome)
+		return newWechatPaySafeCallError("关闭微信支付订单失败", outcome, ctx, err)
 	}
 	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		call.Finish(ctx, externalcall.OutcomeTransportError, resp.StatusCode)
+		logx.Errorf("读取微信支付关单响应失败: outTradeNo=%s outcome=%s status=%d", outTradeNo, externalcall.OutcomeTransportError, resp.StatusCode)
+		return newWechatPaySafeCallError("读取微信支付关单响应失败", externalcall.OutcomeTransportError, ctx, err)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return decodeWechatPayAPIError(resp.StatusCode, respBody)
+		call.Finish(ctx, externalcall.OutcomeHTTPError, resp.StatusCode)
+		apiErr := decodeWechatPayAPIError(resp.StatusCode, respBody)
+		logx.Errorf("微信支付关单 HTTP 状态异常: outTradeNo=%s outcome=%s status=%d", outTradeNo, externalcall.OutcomeHTTPError, resp.StatusCode)
+		return apiErr
 	}
 	if err := g.verifyResponseSignature(resp.Header, respBody); err != nil {
+		call.Finish(ctx, externalcall.OutcomeDecodeError, resp.StatusCode)
 		return err
 	}
+	call.Finish(ctx, externalcall.OutcomeSuccess, resp.StatusCode)
 	return nil
+}
+
+// wechatPaySafeCallError 是支付传输错误的向上传播边界。它只暴露稳定终态，
+// 并最多保留 context 的安全 sentinel，避免上层日志通过 err.Error() 泄漏 URL/query 或底层错误原文。
+type wechatPaySafeCallError struct {
+	message  string
+	outcome  externalcall.Outcome
+	sentinel error
+}
+
+func newWechatPaySafeCallError(message string, outcome externalcall.Outcome, ctx context.Context, err error) error {
+	var sentinel error
+	switch {
+	case errors.Is(err, context.Canceled) || (ctx != nil && errors.Is(ctx.Err(), context.Canceled)):
+		sentinel = context.Canceled
+	case errors.Is(err, context.DeadlineExceeded) || (ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)):
+		sentinel = context.DeadlineExceeded
+	}
+	return &wechatPaySafeCallError{message: message, outcome: outcome, sentinel: sentinel}
+}
+
+func (e *wechatPaySafeCallError) Error() string {
+	if e == nil {
+		return "微信支付调用失败"
+	}
+	if e.outcome == "" {
+		return e.message
+	}
+	return fmt.Sprintf("%s: outcome=%s", e.message, e.outcome)
+}
+
+func (e *wechatPaySafeCallError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.sentinel
 }
 
 func (g *HTTPWechatPayGateway) DecodeNotify(ctx context.Context, req WechatPayNotifyReq) (WechatPayNotification, error) {

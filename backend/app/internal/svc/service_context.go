@@ -17,6 +17,7 @@ import (
 	uploadlogic "wplink/backend/app/internal/logic/upload"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
+	"wplink/backend/common/externalcall"
 
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
@@ -71,9 +72,11 @@ type ServiceContext struct {
 	ContentAuditor               resourcelogic.ContentAuditor
 	ContentAuditCallbackVerifier contentaudit.WechatCallbackVerifier
 	LocationGeocoder             locationlogic.ReverseGeocoder
+	ExternalCallObserver         externalcall.Observer
 }
 
 func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
+	externalCallObserver := externalcall.NewLogObserver()
 	adminTokenService := session.NewHMACAdminTokenIssuer(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL)
 	adminTokenIssuer := adminauth.NewSessionTokenIssuer(adminTokenService)
 	adminStore := adminauth.NewSQLAdminStore(db)
@@ -83,15 +86,15 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 	}
 	apiStore := newAPIStore(db)
 	baseUserTokenService := session.NewHMACUserTokenService(c.UserAuth.TokenSecret, c.UserAuth.TokenTTL)
-	wechatPayGateway, err := paymentlogic.NewHTTPWechatPayGateway(c.WechatPay)
+	wechatPayGateway, err := paymentlogic.NewHTTPWechatPayGateway(c.WechatPay, externalCallObserver)
 	if err != nil {
 		return nil, fmt.Errorf("初始化微信支付网关失败: %w", err)
 	}
 	var contentAuditor resourcelogic.ContentAuditor
-	if auditor := contentaudit.NewWechatAuditor(c.Wechat, c.ContentAudit, c.Storage.PublicBaseURL, nil); auditor != nil {
+	if auditor := contentaudit.NewWechatAuditor(c.Wechat, c.ContentAudit, c.Storage.PublicBaseURL, nil, externalCallObserver); auditor != nil {
 		contentAuditor = auditor
 	}
-	locationGeocoder := locationlogic.NewTencentMapGeocoder(c.TencentMap, nil)
+	locationGeocoder := locationlogic.NewTencentMapGeocoder(c.TencentMap, nil, externalCallObserver)
 	return &ServiceContext{
 		Config:                       c,
 		DB:                           db,
@@ -101,13 +104,14 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		AdminTokenService:            adminauth.NewValidatingAdminTokenService(adminTokenService, adminStore),
 		UploadTokenService:           uploadlogic.NewUploadTokenLogic(c.Storage),
 		UserTokenService:             authlogic.NewValidatingUserTokenService(baseUserTokenService, apiStore.UserModel),
-		WechatSessionClient:          authlogic.NewWechatSessionClient(c.Wechat, "", nil),
-		SMSVerifier:                  authlogic.NewConfiguredSMSVerifierWithLimiter(c.SMS, nil, authlogic.NewSQLSMSSendLimiter(db)),
+		WechatSessionClient:          authlogic.NewWechatSessionClient(c.Wechat, "", nil, externalCallObserver),
+		SMSVerifier:                  authlogic.NewConfiguredSMSVerifierWithLimiter(c.SMS, nil, authlogic.NewSQLSMSSendLimiter(db), externalCallObserver),
 		WechatPayGateway:             wechatPayGateway,
 		WechatPayOrderGateway:        wechatPayGateway,
 		ContentAuditor:               contentAuditor,
 		ContentAuditCallbackVerifier: contentaudit.NewSHA1WechatCallbackVerifier(c.ContentAudit.CallbackToken, c.ContentAudit.CallbackMaxSkew),
 		LocationGeocoder:             locationGeocoder,
+		ExternalCallObserver:         externalCallObserver,
 	}, nil
 }
 

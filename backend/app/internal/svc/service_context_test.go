@@ -42,6 +42,9 @@ func TestNewServiceContextBuildsServerDependencies(t *testing.T) {
 	if ctx.UserTokenService == nil {
 		t.Fatal("UserTokenService = nil, want initialized user token service")
 	}
+	if ctx.ExternalCallObserver == nil {
+		t.Fatal("ExternalCallObserver = nil, want shared production observer")
+	}
 }
 
 func TestNewServiceContextReturnsWechatPayInitError(t *testing.T) {
