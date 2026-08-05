@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 
 	authlogic "wplink/backend/app/internal/logic/auth"
@@ -22,7 +23,7 @@ type adminSubjectContextKey struct{}
 // RequiredUser 校验 Bearer Token 并返回服务端确认的用户身份。
 func RequiredUser(r *http.Request, service authlogic.TokenService) (session.UserTokenSubject, error) {
 	ctx := requestContext(r)
-	if service == nil {
+	if dependencyMissing(service) {
 		logx.WithContext(ctx).Error("用户身份校验依赖未配置")
 		return session.UserTokenSubject{}, errx.New(errx.CodeInternalError, "登录服务暂不可用，请稍后重试")
 	}
@@ -41,7 +42,7 @@ func RequiredUser(r *http.Request, service authlogic.TokenService) (session.User
 
 // OptionalUser 允许真正的匿名请求；一旦客户端携带 Authorization，就必须通过校验。
 func OptionalUser(r *http.Request, service authlogic.TokenService) (session.UserTokenSubject, bool, error) {
-	if service == nil {
+	if dependencyMissing(service) {
 		logx.WithContext(requestContext(r)).Error("可选用户身份校验依赖未配置")
 		return session.UserTokenSubject{}, false, errx.New(errx.CodeInternalError, "登录服务暂不可用，请稍后重试")
 	}
@@ -57,7 +58,7 @@ func OptionalUser(r *http.Request, service authlogic.TokenService) (session.User
 
 // OptionalAdmin 尝试解析后台身份，供同时支持用户和管理员身份的业务边界使用。
 func OptionalAdmin(r *http.Request, service AdminTokenService) (session.AdminTokenSubject, bool) {
-	if service == nil {
+	if dependencyMissing(service) {
 		logx.WithContext(requestContext(r)).Error("可选管理员身份校验依赖未配置")
 		return session.AdminTokenSubject{}, false
 	}
@@ -113,4 +114,19 @@ func requestContext(r *http.Request) context.Context {
 		return context.Background()
 	}
 	return r.Context()
+}
+
+// dependencyMissing 同时识别 nil interface 和装入 interface 的 typed nil，
+// 避免依赖配置错误继续进入方法分派并造成越权、panic 或错误的 401 响应。
+func dependencyMissing(dependency any) bool {
+	if dependency == nil {
+		return true
+	}
+	value := reflect.ValueOf(dependency)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }

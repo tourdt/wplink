@@ -3,6 +3,7 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"wplink/backend/app/internal/handler/handlerx"
@@ -23,7 +24,7 @@ func NewAdminAuthMiddleware(tokenService handlerx.AdminTokenService) *AdminAuthM
 
 func (m *AdminAuthMiddleware) Handle(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if m == nil || m.tokenService == nil {
+		if m == nil || dependencyMissing(m.tokenService) {
 			logx.WithContext(r.Context()).Error("后台认证依赖未配置")
 			response.JSON(w, nil, errx.New(errx.CodeInternalError, "后台认证服务暂不可用，请稍后重试"))
 			return
@@ -71,5 +72,18 @@ func (m *AdminAuthMiddleware) Handle(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		next(w, r.WithContext(handlerx.ContextWithAdmin(r.Context(), subject)))
+	}
+}
+
+func dependencyMissing(dependency any) bool {
+	if dependency == nil {
+		return true
+	}
+	value := reflect.ValueOf(dependency)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
 	}
 }

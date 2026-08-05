@@ -37,6 +37,22 @@ type fakeAdminTokenService struct {
 	token   string
 }
 
+type typedNilUserTokenService struct{}
+
+func (*typedNilUserTokenService) IssueUserToken(context.Context, session.UserTokenSubject) (string, error) {
+	return "typed-nil-token", nil
+}
+
+func (*typedNilUserTokenService) ParseUserToken(context.Context, string) (session.UserTokenSubject, error) {
+	return session.UserTokenSubject{}, errors.New("typed nil user token service was called")
+}
+
+type typedNilAdminTokenService struct{}
+
+func (*typedNilAdminTokenService) ParseAdminToken(context.Context, string) (session.AdminTokenSubject, error) {
+	return session.AdminTokenSubject{OperatorID: "typed-nil-operator", Roles: []string{"super_admin"}}, nil
+}
+
 func (f fakeAdminTokenService) ParseAdminToken(_ context.Context, token string) (session.AdminTokenSubject, error) {
 	if f.token != "" && token != f.token {
 		return session.AdminTokenSubject{}, errors.New("unexpected token")
@@ -99,6 +115,17 @@ func TestRequiredUserFailsSafelyWhenTokenServiceIsMissing(t *testing.T) {
 	}
 }
 
+func TestRequiredUserFailsSafelyWhenTokenServiceIsTypedNil(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	r.Header.Set("Authorization", "Bearer user-token")
+	var service *typedNilUserTokenService
+
+	_, err := RequiredUser(r, service)
+	if err == nil || errx.CodeOf(err) != errx.CodeInternalError {
+		t.Fatalf("error = %v code = %q, want internal error", err, errx.CodeOf(err))
+	}
+}
+
 func TestOptionalUserAllowsAnonymousRequestWithoutHeader(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/resources", nil)
 
@@ -127,6 +154,16 @@ func TestOptionalUserFailsSafelyWhenTokenServiceIsMissing(t *testing.T) {
 	}
 }
 
+func TestOptionalUserFailsSafelyWhenTokenServiceIsTypedNil(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/resources", nil)
+	var service *typedNilUserTokenService
+
+	_, ok, err := OptionalUser(r, service)
+	if err == nil || ok || errx.CodeOf(err) != errx.CodeInternalError {
+		t.Fatalf("OptionalUser() = (ok %t, error %v, code %q), want internal error", ok, err, errx.CodeOf(err))
+	}
+}
+
 func TestOptionalAdminReturnsValidatedAdminSubject(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/admin/dashboard/overview", nil)
 	r.Header.Set("Authorization", "Bearer admin-token")
@@ -147,6 +184,16 @@ func TestOptionalAdminRejectsMissingDependencyAndBadToken(t *testing.T) {
 	}
 	if _, ok := OptionalAdmin(r, fakeAdminTokenService{err: errors.New("invalid")}); ok {
 		t.Fatal("OptionalAdmin() ok = true for invalid token")
+	}
+}
+
+func TestOptionalAdminRejectsTypedNilTokenService(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/admin/dashboard/overview", nil)
+	r.Header.Set("Authorization", "Bearer admin-token")
+	var service *typedNilAdminTokenService
+
+	if subject, ok := OptionalAdmin(r, service); ok || subject.OperatorID != "" {
+		t.Fatalf("OptionalAdmin() = (%#v, %t), want rejected typed-nil dependency", subject, ok)
 	}
 }
 

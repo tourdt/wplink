@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"wplink/backend/app/internal/handler/handlerx"
+	adminauthlogic "wplink/backend/app/internal/logic/adminauth"
 	"wplink/backend/app/internal/permission"
 	"wplink/backend/app/internal/session"
 	"wplink/backend/common/errx"
@@ -118,6 +119,19 @@ func TestAdminAuthMiddlewareFailsSafelyWhenDependencyIsMissing(t *testing.T) {
 
 	NewAdminAuthMiddleware(nil).Handle(func(http.ResponseWriter, *http.Request) {
 		t.Fatal("next handler called without token service")
+	})(rec, r)
+
+	assertMiddlewareError(t, rec, http.StatusInternalServerError, errx.CodeInternalError)
+}
+
+func TestAdminAuthMiddlewareFailsSafelyWhenDependencyIsTypedNil(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/admin/dashboard/overview", nil)
+	r.Header.Set("Authorization", "Bearer admin-token")
+	rec := httptest.NewRecorder()
+	var service *adminauthlogic.ValidatingAdminTokenService
+
+	NewAdminAuthMiddleware(service).Handle(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("next handler called with typed-nil token service")
 	})(rec, r)
 
 	assertMiddlewareError(t, rec, http.StatusInternalServerError, errx.CodeInternalError)

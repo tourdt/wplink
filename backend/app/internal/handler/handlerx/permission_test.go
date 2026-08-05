@@ -1,15 +1,21 @@
 package handlerx
 
 import (
+	"bytes"
 	"context"
+	"database/sql/driver"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"wplink/backend/app/internal/permission"
 	"wplink/backend/app/internal/session"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type fakeMerchantPermissionStore struct {
@@ -23,6 +29,12 @@ func (f *fakeMerchantPermissionStore) UserCanManageMerchant(_ context.Context, u
 	f.userID = userID
 	f.shopID = merchantID
 	return f.allowed, f.err
+}
+
+type typedNilMerchantPermissionStore struct{}
+
+func (*typedNilMerchantPermissionStore) UserCanManageMerchant(context.Context, string, string) (bool, error) {
+	return true, nil
 }
 
 func completeMerchantPermissionDeps(store MerchantPermissionStore) MerchantPermissionDeps {
@@ -103,6 +115,17 @@ func TestRequireMerchantFailsSafelyForMissingDependencies(t *testing.T) {
 	}
 }
 
+func TestRequireMerchantFailsSafelyWhenStoreIsTypedNil(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1", nil)
+	r.Header.Set("Authorization", "Bearer user-token")
+	var store *typedNilMerchantPermissionStore
+
+	err := RequireMerchant(r, completeMerchantPermissionDeps(store), "merchant-1")
+	if err == nil || errx.CodeOf(err) != errx.CodeInternalError {
+		t.Fatalf("error = %v code = %q, want internal error", err, errx.CodeOf(err))
+	}
+}
+
 func TestRequireMerchantHidesPermissionStoreFailure(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1", nil)
 	r.Header.Set("Authorization", "Bearer user-token")
@@ -111,5 +134,50 @@ func TestRequireMerchantHidesPermissionStoreFailure(t *testing.T) {
 	err := RequireMerchant(r, completeMerchantPermissionDeps(store), "merchant-1")
 	if errx.CodeOf(err) != errx.CodeInternalError || errx.PublicMessage(err) != "商家权限校验失败，请稍后重试" {
 		t.Fatalf("error = (%q, %q), want safe internal error", errx.CodeOf(err), errx.PublicMessage(err))
+	}
+}
+
+func TestRequireMerchantLogsSafePermissionStoreFailureCategories(t *testing.T) {
+	const sensitiveDetail = "password=db-secret token=admin-secret Authorization=Bearer-secret"
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "timeout", err: fmt.Errorf("%s: %w", sensitiveDetail, context.DeadlineExceeded), want: "timeout"},
+		{name: "canceled", err: fmt.Errorf("%s: %w", sensitiveDetail, context.Canceled), want: "canceled"},
+		{name: "unavailable", err: fmt.Errorf("%s: %w", sensitiveDetail, driver.ErrBadConn), want: "unavailable"},
+		{name: "unknown", err: errors.New(sensitiveDetail), want: "unknown"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var logBuffer bytes.Buffer
+			previousWriter := logx.Reset()
+			logx.SetWriter(logx.NewWriter(&logBuffer))
+			t.Cleanup(func() {
+				if currentWriter := logx.Reset(); currentWriter != nil {
+					_ = currentWriter.Close()
+				}
+				if previousWriter != nil {
+					logx.SetWriter(previousWriter)
+				}
+			})
+
+			r := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1", nil)
+			r.Header.Set("Authorization", "Bearer user-token")
+			err := RequireMerchant(r, completeMerchantPermissionDeps(&fakeMerchantPermissionStore{err: tc.err}), "merchant-1")
+			if err == nil || errx.CodeOf(err) != errx.CodeInternalError || strings.Contains(errx.PublicMessage(err), sensitiveDetail) {
+				t.Fatalf("error = %v code = %q, want safe internal error", err, errx.CodeOf(err))
+			}
+			logText := logBuffer.String()
+			if !strings.Contains(logText, `"errorCategory":"`+tc.want+`"`) {
+				t.Fatalf("log = %q, want safe category %q", logText, tc.want)
+			}
+			for _, forbidden := range []string{sensitiveDetail, "db-secret", "admin-secret", "Bearer-secret"} {
+				if strings.Contains(logText, forbidden) {
+					t.Fatalf("log contains sensitive detail %q: %q", forbidden, logText)
+				}
+			}
+		})
 	}
 }
