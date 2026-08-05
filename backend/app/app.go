@@ -59,6 +59,8 @@ func main() {
 	if err != nil {
 		fatalf("初始化服务上下文失败: err=%v", err)
 	}
+	instanceID := task.CurrentInstanceID()
+	coordinator := task.NewPostgresCoordinator(svcCtx.DB, instanceID)
 
 	appCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -66,8 +68,13 @@ func main() {
 		task.NewResourceLifecycleTask(svcCtx.APIStore),
 		cfg.Tasks.ResourceLifecycleInterval,
 		log.Default(),
+		coordinator,
+		cfg.Tasks.ResourceLifecycleTimeout,
 	)
-	if lifecycleScheduler.Enabled() {
+	if !cfg.Tasks.Enabled {
+		logx.Infow("自动任务已通过配置关闭", logx.Field("event", "tasks_disabled"), logx.Field("instance_id", instanceID))
+	}
+	if cfg.Tasks.Enabled && lifecycleScheduler.Enabled() {
 		logx.Infof("资源生命周期自动任务已启用: interval=%s", cfg.Tasks.ResourceLifecycleInterval)
 		lifecycleScheduler.Start(appCtx)
 	}
@@ -79,8 +86,10 @@ func main() {
 		),
 		cfg.Tasks.MerchantMapEventCleanupInterval,
 		log.Default(),
+		coordinator,
+		cfg.Tasks.MerchantMapEventCleanupTimeout,
 	)
-	if mapEventCleanupScheduler.Enabled() {
+	if cfg.Tasks.Enabled && mapEventCleanupScheduler.Enabled() {
 		logx.Infof(
 			"商家地图行为清理任务已启用: interval=%s retentionDays=%d",
 			cfg.Tasks.MerchantMapEventCleanupInterval,
@@ -93,11 +102,16 @@ func main() {
 			svcCtx.APIStore,
 			svcCtx.ContentAuditor,
 			cfg.Tasks.ContentAuditRetryBatchSize,
+			5,
+			instanceID,
+			task.DefaultContentAuditRetryLeaseDuration,
 		),
 		cfg.Tasks.ContentAuditRetryInterval,
 		log.Default(),
+		coordinator,
+		cfg.Tasks.ContentAuditRetryTimeout,
 	)
-	if svcCtx.ContentAuditor != nil && contentAuditRetryScheduler.Enabled() {
+	if cfg.Tasks.Enabled && svcCtx.ContentAuditor != nil && contentAuditRetryScheduler.Enabled() {
 		logx.Infof(
 			"内容审核自动重试任务已启用: interval=%s batchSize=%d",
 			cfg.Tasks.ContentAuditRetryInterval,
@@ -115,8 +129,10 @@ func main() {
 		),
 		cfg.Tasks.PaymentReconcileInterval,
 		log.Default(),
+		coordinator,
+		cfg.Tasks.PaymentReconcileTimeout,
 	)
-	if svcCtx.WechatPayOrderGateway != nil && paymentScheduler.Enabled() {
+	if cfg.Tasks.Enabled && svcCtx.WechatPayOrderGateway != nil && paymentScheduler.Enabled() {
 		logx.Infof(
 			"微信支付补偿任务已启用: interval=%s queryDelay=%s pendingTimeout=%s batchSize=%d",
 			cfg.Tasks.PaymentReconcileInterval,
@@ -152,6 +168,13 @@ func main() {
 
 	logx.Infof("启动 %s: addr=%s:%d pid=%d", cfg.Name, host, port, os.Getpid())
 	goZeroServer.Start()
+
+	// go-zero 服务停止后先取消调度上下文并等待任务退出，避免连接池关闭时仍在使用数据库。
+	cancel()
+	lifecycleScheduler.Wait()
+	contentAuditRetryScheduler.Wait()
+	paymentScheduler.Wait()
+	mapEventCleanupScheduler.Wait()
 }
 
 func setupLogging(cfg config.Config) error {

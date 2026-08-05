@@ -55,11 +55,16 @@ func TestValidateForProductionAcceptsRequiredConfig(t *testing.T) {
 			AllowedContentTypes: []string{"image/png"},
 		},
 		Tasks: TasksConfig{
+			Enabled:                         true,
 			ResourceLifecycleInterval:       time.Hour,
+			ResourceLifecycleTimeout:        5 * time.Minute,
 			ContentAuditRetryInterval:       time.Minute,
+			ContentAuditRetryTimeout:        10 * time.Minute,
 			ContentAuditRetryBatchSize:      20,
 			MerchantMapEventCleanupInterval: 24 * time.Hour,
+			MerchantMapEventCleanupTimeout:  10 * time.Minute,
 			MerchantMapEventRetentionDays:   90,
+			PaymentReconcileTimeout:         5 * time.Minute,
 		},
 	}
 
@@ -188,6 +193,29 @@ func TestValidateForProductionRequiresPositiveMerchantMapEventRetentionTask(t *t
 	}
 }
 
+func TestValidateForProductionRequiresPositiveTaskTimeouts(t *testing.T) {
+	cfg := requiredProductionConfig()
+	cfg.Tasks.ResourceLifecycleTimeout = 0
+	cfg.Tasks.ContentAuditRetryTimeout = 0
+	cfg.Tasks.MerchantMapEventCleanupTimeout = 0
+	cfg.Tasks.PaymentReconcileTimeout = 0
+
+	err := ValidateForProduction(cfg)
+	if err == nil {
+		t.Fatal("ValidateForProduction() error = nil, want task timeout config error")
+	}
+	for _, want := range []string{
+		"Tasks.ResourceLifecycleTimeout",
+		"Tasks.ContentAuditRetryTimeout",
+		"Tasks.MerchantMapEventCleanupTimeout",
+		"Tasks.PaymentReconcileTimeout",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q, want mention %s", err, want)
+		}
+	}
+}
+
 func TestValidateForProductionRejectsAdminMasterPassword(t *testing.T) {
 	cfg := requiredProductionConfig()
 	cfg.AdminAuth.MasterPassword = "a123456"
@@ -269,11 +297,16 @@ func requiredProductionConfig() Config {
 			AllowedContentTypes: []string{"image/png"},
 		},
 		Tasks: TasksConfig{
+			Enabled:                         true,
 			ResourceLifecycleInterval:       time.Hour,
+			ResourceLifecycleTimeout:        5 * time.Minute,
 			ContentAuditRetryInterval:       time.Minute,
+			ContentAuditRetryTimeout:        10 * time.Minute,
 			ContentAuditRetryBatchSize:      20,
 			MerchantMapEventCleanupInterval: 24 * time.Hour,
+			MerchantMapEventCleanupTimeout:  10 * time.Minute,
 			MerchantMapEventRetentionDays:   90,
+			PaymentReconcileTimeout:         5 * time.Minute,
 		},
 	}
 }

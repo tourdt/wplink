@@ -2,18 +2,22 @@
 
 日期：2026-08-04
 
-状态：待实施
+状态：已实施
+
+代码/静态验证日期：2026-08-04
+
+截至该日期已完成代码落地和本 Task 文档静态核对；真实 PostgreSQL 双实例 Advisory Lock / 租约快照验证，以及 migration `up/down/up` 尚未在 Task 7 执行，留待 Task 8 实库验收。状态“已实施”只表示代码已落地，不表示实库验收已经完成。
 
 ## 1. 背景
 
-当前 API 服务启动时会在每个进程内同时启动以下四类定时任务：
+方案提出时，API 服务启动会在每个进程内同时启动以下四类定时任务：
 
 - 资源生命周期处理
 - 内容审核自动重试
 - 微信支付补偿
 - 商家地图行为清理
 
-Scheduler 使用本地 `time.Ticker`，每个 API 实例启动后立即执行一次，再按配置周期执行。单实例部署时逻辑可正常运行；扩展到多个 API 实例后，每个实例都会在相近时间扫描和处理同一批数据。
+Scheduler 使用本地 `time.Ticker`，每个 API 实例启动后立即执行一次，再按配置周期执行。实施前单实例部署逻辑可正常运行；直接扩展到多个 API 实例后，每个实例会在相近时间扫描和处理同一批数据。
 
 现有实现已经具备部分幂等保护：
 
@@ -31,7 +35,7 @@ Scheduler 使用本地 `time.Ticker`，每个 API 实例启动后立即执行一
 1. 多个 API 实例可以同时开启 Scheduler。
 2. 同一时刻每类批处理任务只有一个实例执行。
 3. 执行实例退出或数据库连接断开后，其他实例可以自动接管。
-4. 任务执行具有明确超时，不无限占用数据库连接或第三方调用资源。
+4. 任务执行具有明确超时 Context；Runner 与依赖正确响应 Context 时可及时取消，避免异常调用长期占用数据库连接或第三方资源。
 5. 内容审核任务领取后发生进程中断时，可以在租约到期后重新处理。
 6. 支付补偿不会因多实例重复扫描而重复查询或关闭同一批微信订单。
 7. 保留业务层幂等，不能把分布式锁作为唯一正确性保障。
@@ -48,7 +52,7 @@ Scheduler 使用本地 `time.Ticker`，每个 API 实例启动后立即执行一
 - 不增加面向运营人员的任务管理页面。
 - 不以任务锁替代支付、消息、审核状态流转中的数据库幂等约束。
 
-## 4. 现状风险
+## 4. 实施前风险
 
 ### 4.1 资源生命周期
 
@@ -128,7 +132,7 @@ flowchart TD
   timeout --> run["执行一次业务 Task"]
   run --> result{"执行结果"}
   result -->|成功| success["记录计数和耗时"]
-  result -->|失败或超时| failed["记录安全错误和上下文"]
+  result -->|失败或超时| failed["记录错误和上下文"]
   success --> unlock["释放 Advisory Lock"]
   failed --> unlock
 ```
@@ -190,7 +194,7 @@ Scheduler 保留周期控制，Coordinator 只包裹单次 `RunOnce`，不感知
 | `payment_reconciliation` | 1003 |
 | `merchant_map_event_cleanup` | 1004 |
 
-这些编号属于当前数据库内的应用级命名空间，新增任务只能追加编号，不能修改已发布映射。
+这些编号属于当前应用数据库内的命名空间，新增任务只能追加编号，不能修改已发布映射。PostgreSQL Advisory Lock 不跨数据库协调；连接不同数据库的实例不会竞争这里的同一锁号。
 
 ### 7.3 锁生命周期
 
@@ -211,7 +215,7 @@ SELECT pg_advisory_unlock($1);
 
 四类任务使用不同锁，可以并发运行，极端情况下占用四条专用连接。当前生产模板 `MaxOpenConns: 30` 可以容纳。
 
-每个任务必须配置超时，避免专用连接无限占用。未来降低连接池上限时，需要保证业务请求连接和任务连接都有余量。
+每个任务必须配置超时 Context。该超时是协作式取消，不会强制终止忽略 Context 的 Runner 或依赖；专用连接的实际占用时长取决于调用链是否及时返回。未来降低连接池上限时，需要保证业务请求连接和任务连接都有余量，并监控超时后仍未返回的依赖。
 
 ## 8. Scheduler 调整
 
@@ -240,13 +244,7 @@ type Scheduler interface {
 }
 ```
 
-应用退出顺序：
-
-1. 取消任务根 Context。
-2. 停止产生新的 Tick。
-3. 等待正在执行的任务结束或超时。
-4. 停止 HTTP 服务。
-5. 关闭数据库连接。
+最终应用退出顺序与 go-zero 的阻塞式 `Start()` 生命周期对齐：HTTP 服务停止并使 `Start()` 返回后，应用取消任务根 Context、停止产生新的 Tick、依次 `Wait()` 正在执行的任务，最后才由 `defer` 关闭数据库连接。
 
 不能在任务仍使用数据库时提前关闭连接池。
 
@@ -267,7 +265,7 @@ Tasks:
 
 - `Enabled: false` 用于运维紧急关闭全部自动任务，不用于常态指定主实例。
 - 生产模式要求四个超时均大于零。
-- 超时应大于正常单次执行时间，小于异常任务可接受的最长占用时间。
+- 超时应大于正常单次执行时间，并作为异常任务的取消截止时间；实际最长占用仍取决于调用链正确响应 Context。
 - 单次任务执行时间超过调度周期时，当前 Scheduler 不并发启动第二次运行。
 
 ## 9. 各任务执行策略
@@ -302,7 +300,7 @@ Tasks:
 
 使用任务级锁 `1004` 包裹整个清理任务。
 
-继续按 `created_at < cutoff` 删除。锁避免多个实例重复执行大范围 DELETE。任务超时后由 Context 取消 SQL，下一周期可重新执行相同条件。
+继续按 `created_at < cutoff` 删除。锁避免多个实例重复执行大范围 DELETE。任务超时后 Context 会请求取消 SQL；数据库驱动返回后释放本轮资源，下一周期可重新执行相同条件。
 
 ### 9.4 内容审核重试
 
@@ -415,11 +413,13 @@ audit_processing_by
 
 Coordinator 在获得锁后创建任务超时 Context。所有 Model 和第三方 Gateway 必须继续使用传入 Context，禁止在 Task 内改用 `context.Background()`。
 
+该超时属于协作式取消：截止时间到达只会关闭 Context 的 Done channel。Runner、数据库驱动或第三方客户端若忽略 Context，`RunExclusive` 仍会等待调用实际返回，专用连接和 Advisory Lock 也会继续占用。
+
 任务超时后：
 
-- 数据库调用应取消。
-- 微信请求应通过 HTTP Client Context 取消。
-- Scheduler 记录超时并等待下一周期。
+- 数据库调用应响应 Context 并取消。
+- 微信请求应通过 HTTP Client Context 响应取消。
+- 调用链响应 Context 并返回后，Scheduler 记录超时并等待下一周期。
 - 业务中间状态依靠条件更新和租约恢复。
 
 ### 12.3 Panic
@@ -432,26 +432,28 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 
 ## 13. 日志与监控
 
-统一日志事件：
+最终实现由 Coordinator 统一记录协调日志，真实事件名为：
 
-- `task_started`
-- `task_skipped_lock_held`
-- `task_succeeded`
-- `task_failed`
-- `task_timed_out`
-- `task_unlock_failed`
+- `task_skipped_lock_held`：未获得锁，正常跳过。
+- `task_coordination_completed`：Runner 成功完成。
+- `task_coordination_runner_failed`：Runner 返回错误。
+- `task_coordination_runner_context_done`：任务 Context 超时或取消。
+- `task_coordination_unlock_failed`：释放锁失败。
+- `task_coordination_connection_error`、`task_coordination_lock_error`：专用连接或加锁失败。
+- `task_coordination_runner_panicked`：Runner panic，记录安全类型后继续抛出。
 
-日志字段：
+最终日志字段按 go-zero 项目约定使用 snake_case：
 
-- `taskName`
-- `instanceId`
-- `lockKey`
-- `durationMs`
-- `interval`
-- 领域结果计数
-- 安全错误信息
+- `task`
+- `instance_id`
+- `lock_key`
+- `duration_ms`
+- `event`
+- `error` 和场景附加字段（由错误构造方保证不含敏感信息）
 
-不得记录数据库 DSN、微信密钥、支付私钥、用户 OpenID 或完整第三方敏感载荷。
+早期设计语义 `task_started`、`task_succeeded`、`task_failed`、`task_timed_out` / `task_timeout`、`task_unlock_failed` 与最终事件名的映射及查询方式见[部署与运维文档](../../deployment.md)。当前代码不单独输出每轮 `task_started`，不能从 Scheduler 启用日志推断某轮已经获得锁。
+
+Coordinator 会直接记录 Runner 或协调过程返回的 `error`，没有统一脱敏层。调用方、第三方适配器和错误构造不得把数据库 DSN、Token、微信密钥、支付私钥、用户 OpenID 或完整第三方敏感载荷写入错误文本；不能假设 Coordinator 会自动清洗。
 
 建议初始告警：
 
@@ -466,19 +468,21 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 
 ## 14. 文件影响范围
 
-预计新增：
+最终新增：
 
 - `backend/app/internal/task/coordinator.go`
 - `backend/app/internal/task/coordinator_test.go`
 - `backend/migrations/000035_resource_audit_retry_lease.up.sql`
 - `backend/migrations/000035_resource_audit_retry_lease.down.sql`
 
-预计修改：
+主要最终修改：
 
 - `backend/app/app.go`
 - `backend/app/internal/config/config.go`
 - `backend/app/internal/config/load.go`
+- `backend/app/internal/config/load_test.go`
 - `backend/app/internal/config/production_validation.go`
+- `backend/app/internal/config/production_validation_test.go`
 - `backend/etc/app.yaml.example`
 - `backend/etc/app.production.yaml.example`
 - `backend/app/internal/task/*_scheduler.go`
@@ -486,11 +490,12 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 - `backend/app/internal/model/resource_model.go`
 - `backend/app/internal/model/resource_model_test.go`
 - `backend/app/internal/logic/resource/content_audit.go`
-- 内容审核 Logic 和 Task 测试
-- `docs/product/technical-architecture.md`
-- `docs/product/deployment-config.md`
-
-支付补偿 Model 当前已有其他未提交修改，实施时必须保留并基于最新工作区调整，不能覆盖无关改动。
+- `backend/app/internal/logic/contentaudit/media_callback_logic.go`
+- 内容审核 Logic、回调和 Task 测试
+- `backend/scripts/validate_migrations.test.mjs`
+- `docs/architecture.md`
+- `docs/deployment.md`
+- `docs/superpowers/specs/2026-08-04-multi-instance-scheduled-tasks-design.md`
 
 ## 15. 测试设计
 
@@ -499,7 +504,7 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 - 获得锁时执行一次回调并释放锁。
 - 未获得锁时不执行回调，返回 skipped。
 - 回调失败仍释放锁。
-- Context 超时后释放连接。
+- Runner 响应超时 Context 并返回后释放连接。
 - 获取锁失败返回协调错误。
 - 释放锁失败保留原始任务错误并记录附加错误。
 - 未知任务名拒绝执行，避免锁编号默认为零。
@@ -513,6 +518,8 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 - 持锁连接关闭后另一个实例可以获得同一锁。
 
 纯 SQL Mock 不能证明 Advisory Lock 的连接级语义，该部分需要真实临时 PostgreSQL。
+
+Task 7 仅完成文档与静态核对；本节真实双实例锁、持锁会话快照和连接关闭接管留待 Task 8 执行并记录证据。
 
 ### 15.3 Scheduler 测试
 
@@ -541,19 +548,23 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 
 ## 16. 发布与回滚
 
-### 16.1 发布顺序
+### 16.1 首次引入协议
 
-1. 在临时 PostgreSQL 完整验证 000035 up/down。
-2. 部署包含新字段和兼容读取的应用版本。
-3. 所有实例保持 `Tasks.Enabled: true`，观察锁竞争日志。
-4. 验证同一周期只有一个实例输出 `task_started`。
-5. 验证其他实例输出 `task_skipped_lock_held`。
-6. 人工构造一条审核租约过期记录，确认能够重新领取。
-7. 观察支付查单量和任务耗时。
+首次从没有固定 Advisory Lock / 审核租约的旧版本升级时，旧 Scheduler 与新 Scheduler 不兼容，禁止重叠运行：
 
-数据库迁移必须先于依赖新字段的应用逻辑生效。部署脚本当前先迁移后重启，符合该顺序。
+1. 旧版本若支持 `Tasks.Enabled`，先在全部旧实例关闭任务并重启；若不支持该开关，则必须安排维护窗口，从负载均衡摘除并停止全部旧 API 进程。
+2. 在临时 PostgreSQL 完成 migration `up/down/up` 验证；确认没有旧 Scheduler 或仍在执行的旧任务后，只对生产目标数据库执行 000035 up migration。
+3. 部署新版本；可先以 `Tasks.Enabled: false` 完成健康检查，再统一切换为 `true`。若无法分阶段切换，则保持旧进程全停，迁移后直接启动启用任务的新版本。
+4. 验证同一周期只有一个实例输出 `task_coordination_completed`、`task_coordination_runner_failed` 或 `task_coordination_runner_context_done` 终态，其他新实例输出 `task_skipped_lock_held`。
+5. 构造审核租约过期场景确认能够重新领取，并观察支付查单量和任务耗时。
 
-### 16.2 紧急降级
+数据库迁移必须先于依赖新字段的新 Scheduler 生效。不能把“所有实例保持 `Tasks.Enabled: true`”用于首次协议切换，因为旧实例不会参与新锁和租约。
+
+### 16.2 协议兼容版本的后续滚动发布
+
+只有滚动中的新旧版本都支持相同固定锁号、租约 guard 和任务开关时，才允许双方保持 `Tasks.Enabled: true` 短暂混跑。旧实例退出并关闭数据库会话后，新实例自动接管，无需指定唯一任务实例。
+
+### 16.3 紧急降级
 
 如果协调器或任务逻辑出现异常：
 
@@ -563,7 +574,7 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 
 不要通过删除数据库锁记录恢复，因为 Advisory Lock 没有业务表记录。需要解除异常持锁时，应先定位持锁数据库会话并安全终止对应应用实例或连接。
 
-### 16.3 回滚
+### 16.4 回滚
 
 应用回滚到旧版本前必须先关闭所有自动任务，避免旧版本把带租约的 `audit_retry` 记录提前改成 `pending`。确认没有有效审核租约后再回滚应用。
 
@@ -571,7 +582,7 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 
 ## 17. 验收标准
 
-实现完成后必须满足：
+代码已实施，但以下完整验收标准仍须由 Task 8 在真实 PostgreSQL 环境执行；Task 7 的静态验证不能替代这些证据：
 
 1. 两个 API 实例同时触发同一任务时，只有一个实例执行 Runner。
 2. 持锁实例退出后，另一实例能在下一周期接管。
@@ -580,9 +591,9 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 5. 内容审核领取后模拟进程中断，租约到期后可以重新处理。
 6. 旧实例不能用过期租约覆盖新实例处理结果。
 7. 资源生命周期消息不重复。
-8. 任务超时会取消执行并释放专用数据库连接。
+8. 任务超时会发出 Context 取消；在 Runner 与依赖正确响应 Context 的前提下，执行返回并释放专用数据库连接。
 9. 任务跳过不作为错误告警。
-10. `make check` 全部通过，并完成真实 PostgreSQL 锁与迁移验证。
+10. `make check` 全部通过，并完成真实 PostgreSQL 双实例锁、持锁快照、故障接管与 migration `up/down/up` 验证。
 
 ## 18. 后续扩展条件
 
@@ -596,3 +607,29 @@ Coordinator 应使用 `defer` 确保连接释放，并将 panic 记录后重新�
 - API 服务扩展到多个地域或多个数据库集群。
 
 在这些条件出现前，API 进程内 Scheduler、PostgreSQL Advisory Lock 和业务租约能够以较低复杂度满足当前多实例需求。
+
+## 19. 最终代码入口
+
+截至 2026-08-04，方案已落到以下入口：
+
+- API 装配、全局开关、四个 Scheduler 启停：[`backend/app/app.go`](../../../backend/app/app.go)
+- 固定任务名、锁号、专用连接、超时和协调日志：[`backend/app/internal/task/coordinator.go`](../../../backend/app/internal/task/coordinator.go)
+- 串行触发和等待：[`backend/app/internal/task/scheduler_runtime.go`](../../../backend/app/internal/task/scheduler_runtime.go)
+- 四类 Scheduler / Runner：[`backend/app/internal/task/`](../../../backend/app/internal/task/)
+- 配置加载与生产校验：[`backend/app/internal/config/`](../../../backend/app/internal/config/)
+- 生产配置模板：[`backend/etc/app.production.yaml.example`](../../../backend/etc/app.production.yaml.example)
+- 内容审核租约迁移：[`backend/migrations/000035_resource_audit_retry_lease.up.sql`](../../../backend/migrations/000035_resource_audit_retry_lease.up.sql)
+- 审核租约领取与 guard 条件更新：[`backend/app/internal/model/resource_model.go`](../../../backend/app/internal/model/resource_model.go)
+- 审核重试任务与领域日志：[`backend/app/internal/task/content_audit_retry_task.go`](../../../backend/app/internal/task/content_audit_retry_task.go)
+- 最终架构与运维说明：[`docs/architecture.md`](../../architecture.md)、[`docs/deployment.md`](../../deployment.md)
+
+## 20. 实现差异
+
+实施中对早期设计作了以下经过测试约束的微调：
+
+1. `CoordinationResult` 最终只保留 `Acquired` 和 `Duration`，执行成功、失败、超时继续通过 Go `error` 与 Context 语义表达，没有新增 `executed_success` 等枚举。Scheduler 测试约束了固定任务名和超时透传，Coordinator 测试覆盖成功、跳过、错误和超时。
+2. 为避免 Scheduler 与 Coordinator 对同一错误重复记录，最终结构化事件采用 `task_coordination_*` 命名，并由 Coordinator 输出一次终态日志；仅锁竞争沿用 `task_skipped_lock_held`。早期 `task_started` 没有单独落地，`task_succeeded`、`task_failed`、`task_timeout`、`task_unlock_failed` 的实际映射见第 13 节和运维文档。
+3. 日志字段从早期 camelCase 调整为项目统一的 snake_case：`task`、`instance_id`、`lock_key`、`duration_ms`。领域计数仍由各 Scheduler 的中文完成日志输出，不复制进 Coordinator 的通用结果结构。
+4. 解锁查询报错时，最终实现不仅记录 `task_coordination_unlock_failed`，还通过 `driver.ErrBadConn` 丢弃锁状态未知的物理连接，避免带锁连接回池后因 Advisory Lock 可重入而长期阻塞；测试同时约束解锁失败不能覆盖原 Runner 错误。
+5. Runner panic 最终只记录 `panic_type` 并继续抛出，不记录可能包含密钥或业务数据的 panic 原值；栈展开仍执行解锁。相关测试约束敏感 panic 原值不得进入日志。
+6. 原设计预计更新 `docs/product/technical-architecture.md` 与 `docs/product/deployment-config.md`，最终实施计划将交付入口收敛为根目录下的 `docs/architecture.md` 和 `docs/deployment.md`，用于集中说明本次多实例任务架构与运维手册。

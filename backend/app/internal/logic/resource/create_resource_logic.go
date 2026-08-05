@@ -189,6 +189,9 @@ func applyResourceAutoAuditResult(ctx context.Context, auditStore ResourceAutoAu
 		reason := "微信登录身份已失效，请重新登录后重新编辑并提交"
 		if _, rejectErr := auditStore.RejectResourceAfterAudit(ctx, resourceID, reason); rejectErr != nil {
 			logx.Errorf("历史微信审核身份自动驳回失败: action=%s resourceId=%s err=%+v", action, resourceID, rejectErr)
+			if errors.Is(rejectErr, model.ErrResourceAuditLeaseLost) {
+				return autoAuditOutcome{}, model.ErrResourceAuditLeaseLost
+			}
 			return autoAuditOutcome{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
 		}
 		recordResourceAuditDecision(ctx, auditStore, model.ResourceAuditDecisionInput{
@@ -210,6 +213,9 @@ func applyResourceAutoAuditResult(ctx context.Context, auditStore ResourceAutoAu
 		retryCount, retryErr := stateStore.MarkResourceAuditRetry(ctx, resourceID, err.Error())
 		if retryErr != nil {
 			logx.Errorf("内容审核失败后进入自动重试队列失败: action=%s resourceId=%s err=%+v retryErr=%+v", action, resourceID, err, retryErr)
+			if errors.Is(retryErr, model.ErrResourceAuditLeaseLost) {
+				return autoAuditOutcome{}, model.ErrResourceAuditLeaseLost
+			}
 			return autoAuditOutcome{}, errx.New(errx.CodeInternalError, "内容审核服务暂不可用，请稍后重试")
 		}
 		recordResourceAuditDecision(ctx, auditStore, model.ResourceAuditDecisionInput{
@@ -238,6 +244,9 @@ func applyResourceAutoAuditResult(ctx context.Context, auditStore ResourceAutoAu
 		reason := ResourceAuditRejectReason(result, "内容可能含有违规信息，请调整文字或图片后重新提交")
 		if _, err := auditStore.RejectResourceAfterAudit(ctx, resourceID, reason); err != nil {
 			logx.Errorf("资源内容审核命中风险后自动驳回失败: action=%s resourceId=%s labels=%s err=%+v", action, resourceID, strings.Join(result.Labels, ","), err)
+			if errors.Is(err, model.ErrResourceAuditLeaseLost) {
+				return autoAuditOutcome{}, model.ErrResourceAuditLeaseLost
+			}
 			return autoAuditOutcome{}, errx.New(errx.CodeInternalError, "内容审核失败，请稍后重试")
 		}
 		logx.Infof("资源内容审核拒绝发布: action=%s merchantId=%s resourceId=%s typeCode=%s labels=%s reason=%s", action, input.MerchantID, resourceID, input.TypeCode, strings.Join(result.Labels, ","), reason)
@@ -259,6 +268,9 @@ func applyResourceAutoAuditResult(ctx context.Context, auditStore ResourceAutoAu
 		}
 		if err := auditStore.CreateResourceContentAuditTasks(ctx, resourceID, tasks); err != nil {
 			logx.Errorf("保存资源图片审核任务失败: action=%s resourceId=%s taskCount=%d err=%+v", action, resourceID, len(tasks), err)
+			if errors.Is(err, model.ErrResourceAuditLeaseLost) {
+				return autoAuditOutcome{}, model.ErrResourceAuditLeaseLost
+			}
 			return autoAuditOutcome{}, errx.New(errx.CodeInternalError, "内容审核任务创建失败，请稍后重试")
 		}
 		logx.Infof("资源图片审核任务已创建: action=%s merchantId=%s resourceId=%s typeCode=%s taskCount=%d", action, input.MerchantID, resourceID, input.TypeCode, len(tasks))
@@ -275,13 +287,19 @@ func applyResourceAutoAuditResult(ctx context.Context, auditStore ResourceAutoAu
 
 func mapAutoPublishError(ctx context.Context, auditStore ResourceAutoAuditStore, resourceID string, err error) error {
 	switch {
+	case errors.Is(err, model.ErrResourceAuditLeaseLost):
+		return model.ErrResourceAuditLeaseLost
 	case errors.Is(err, model.ErrPublishQuotaInsufficient):
 		reason := "本月免费发布次数已用完，可购买发布次数后重新提交"
-		_, _ = auditStore.RejectResourceAfterAudit(ctx, resourceID, reason)
+		if _, rejectErr := auditStore.RejectResourceAfterAudit(ctx, resourceID, reason); errors.Is(rejectErr, model.ErrResourceAuditLeaseLost) {
+			return model.ErrResourceAuditLeaseLost
+		}
 		return errx.New(errx.CodeQuotaNotEnough, reason)
 	case errors.Is(err, model.ErrPublishDisabled):
 		reason := "该分类暂不开放发布"
-		_, _ = auditStore.RejectResourceAfterAudit(ctx, resourceID, reason)
+		if _, rejectErr := auditStore.RejectResourceAfterAudit(ctx, resourceID, reason); errors.Is(rejectErr, model.ErrResourceAuditLeaseLost) {
+			return model.ErrResourceAuditLeaseLost
+		}
 		return errx.New(errx.CodeValidationFailed, reason)
 	default:
 		return errx.New(errx.CodeInternalError, "发布失败，请稍后重试")

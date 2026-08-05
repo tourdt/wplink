@@ -407,8 +407,8 @@ func TestResourceAPIRouterHandlesWechatContentAuditMediaCallback(t *testing.T) {
 	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != "success" {
 		t.Fatalf("status=%d body=%q, want wechat success acknowledgement", rec.Code, rec.Body.String())
 	}
-	if store.completedAuditInput.TraceID != "trace-media" || store.publishedAuditResourceID != "resource-1" {
-		t.Fatalf("completedAuditInput = %#v publishedAuditResourceID = %q, want completed and published", store.completedAuditInput, store.publishedAuditResourceID)
+	if store.completedAuditInput.TraceID != "trace-media" || store.publishedAuditResourceID != "resource-1" || store.publishedAuditTraceID != "trace-media" {
+		t.Fatalf("completedAuditInput = %#v publishedAuditResourceID/traceID = %q/%q, want completed and published", store.completedAuditInput, store.publishedAuditResourceID, store.publishedAuditTraceID)
 	}
 	if verifier.remember != true {
 		t.Fatal("callback verifier remember = false, want replay protection enabled")
@@ -1139,7 +1139,10 @@ type fakeResourceAPIStore struct {
 	completedAuditInput              model.ResourceContentAuditTaskResultInput
 	auditCompletion                  model.ResourceContentAuditTaskCompletion
 	publishedAuditResourceID         string
+	publishedAuditTraceID            string
 	rejectedAuditResourceID          string
+	rejectedAuditTraceID             string
+	retriedAuditTraceID              string
 	auditRejectReason                string
 	mapEventCalled                   bool
 	mapEventCalls                    int
@@ -1206,6 +1209,21 @@ func (s *fakeResourceAPIStore) RejectResourceAfterAudit(ctx context.Context, res
 	s.rejectedAuditResourceID = resourceID
 	s.auditRejectReason = reason
 	return model.ReviewResourceResult{ID: resourceID, Status: model.ResourceStatusRejected}, nil
+}
+
+func (s *fakeResourceAPIStore) PublishResourceAfterMediaAudit(ctx context.Context, resourceID string, traceID string) (model.ReviewResourceResult, error) {
+	s.publishedAuditTraceID = traceID
+	return s.PublishResourceAfterAudit(ctx, resourceID)
+}
+
+func (s *fakeResourceAPIStore) RejectResourceAfterMediaAudit(ctx context.Context, resourceID string, traceID string, reason string) (model.ReviewResourceResult, error) {
+	s.rejectedAuditTraceID = traceID
+	return s.RejectResourceAfterAudit(ctx, resourceID, reason)
+}
+
+func (s *fakeResourceAPIStore) MarkResourceAuditRetryAfterMediaAudit(_ context.Context, _ string, traceID string, _ string) (int64, error) {
+	s.retriedAuditTraceID = traceID
+	return 1, nil
 }
 
 func (s *fakeResourceAPIStore) ListPendingResources(ctx context.Context, filter model.ListPendingResourcesFilter) (model.ListPendingResourcesResult, error) {

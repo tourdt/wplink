@@ -15,6 +15,13 @@ var envPlaceholderPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 const defaultDevelopmentTokenSecret = "wplink-local-development-token-secret"
 const defaultDevelopmentUserTokenSecret = "wplink-local-development-user-token-secret"
 
+const (
+	defaultResourceLifecycleTimeout       = 5 * time.Minute
+	defaultContentAuditRetryTimeout       = 10 * time.Minute
+	defaultMerchantMapEventCleanupTimeout = 10 * time.Minute
+	defaultPaymentReconcileTimeout        = 5 * time.Minute
+)
+
 func Load(path string) (Config, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -128,12 +135,17 @@ type fileSMSConfig struct {
 }
 
 type fileTasksConfig struct {
+	Enabled                         *bool          `yaml:"Enabled"`
 	ResourceLifecycleInterval       configDuration `yaml:"ResourceLifecycleInterval"`
+	ResourceLifecycleTimeout        configDuration `yaml:"ResourceLifecycleTimeout"`
 	ContentAuditRetryInterval       configDuration `yaml:"ContentAuditRetryInterval"`
+	ContentAuditRetryTimeout        configDuration `yaml:"ContentAuditRetryTimeout"`
 	ContentAuditRetryBatchSize      int64          `yaml:"ContentAuditRetryBatchSize"`
 	MerchantMapEventCleanupInterval configDuration `yaml:"MerchantMapEventCleanupInterval"`
+	MerchantMapEventCleanupTimeout  configDuration `yaml:"MerchantMapEventCleanupTimeout"`
 	MerchantMapEventRetentionDays   int            `yaml:"MerchantMapEventRetentionDays"`
 	PaymentReconcileInterval        configDuration `yaml:"PaymentReconcileInterval"`
+	PaymentReconcileTimeout         configDuration `yaml:"PaymentReconcileTimeout"`
 	PaymentQueryDelay               configDuration `yaml:"PaymentQueryDelay"`
 	PaymentBatchSize                int64          `yaml:"PaymentBatchSize"`
 }
@@ -244,16 +256,7 @@ func (c fileConfig) toConfig() Config {
 			TemplateCode:    c.SMS.TemplateCode,
 			DevCode:         c.SMS.DevCode,
 		},
-		Tasks: TasksConfig{
-			ResourceLifecycleInterval:       c.Tasks.ResourceLifecycleInterval.Duration(),
-			ContentAuditRetryInterval:       c.Tasks.ContentAuditRetryInterval.Duration(),
-			ContentAuditRetryBatchSize:      c.Tasks.ContentAuditRetryBatchSize,
-			MerchantMapEventCleanupInterval: c.Tasks.MerchantMapEventCleanupInterval.Duration(),
-			MerchantMapEventRetentionDays:   c.Tasks.MerchantMapEventRetentionDays,
-			PaymentReconcileInterval:        c.Tasks.PaymentReconcileInterval.Duration(),
-			PaymentQueryDelay:               c.Tasks.PaymentQueryDelay.Duration(),
-			PaymentBatchSize:                c.Tasks.PaymentBatchSize,
-		},
+		Tasks: c.Tasks.toConfig(),
 		Storage: StorageConfig{
 			Provider:            c.Storage.Provider,
 			Endpoint:            c.Storage.Endpoint,
@@ -266,6 +269,35 @@ func (c fileConfig) toConfig() Config {
 			MaxFileSizeBytes:    c.Storage.MaxFileSizeBytes,
 			AllowedContentTypes: c.Storage.AllowedContentTypes,
 		},
+	}
+}
+
+func (c fileTasksConfig) toConfig() TasksConfig {
+	enabled := true
+	if c.Enabled != nil {
+		enabled = *c.Enabled
+	}
+	withDefault := func(value configDuration, fallback time.Duration) time.Duration {
+		if value.Duration() != 0 {
+			return value.Duration()
+		}
+		return fallback
+	}
+
+	return TasksConfig{
+		Enabled:                         enabled,
+		ResourceLifecycleInterval:       c.ResourceLifecycleInterval.Duration(),
+		ResourceLifecycleTimeout:        withDefault(c.ResourceLifecycleTimeout, defaultResourceLifecycleTimeout),
+		ContentAuditRetryInterval:       c.ContentAuditRetryInterval.Duration(),
+		ContentAuditRetryTimeout:        withDefault(c.ContentAuditRetryTimeout, defaultContentAuditRetryTimeout),
+		ContentAuditRetryBatchSize:      c.ContentAuditRetryBatchSize,
+		MerchantMapEventCleanupInterval: c.MerchantMapEventCleanupInterval.Duration(),
+		MerchantMapEventCleanupTimeout:  withDefault(c.MerchantMapEventCleanupTimeout, defaultMerchantMapEventCleanupTimeout),
+		MerchantMapEventRetentionDays:   c.MerchantMapEventRetentionDays,
+		PaymentReconcileInterval:        c.PaymentReconcileInterval.Duration(),
+		PaymentReconcileTimeout:         withDefault(c.PaymentReconcileTimeout, defaultPaymentReconcileTimeout),
+		PaymentQueryDelay:               c.PaymentQueryDelay.Duration(),
+		PaymentBatchSize:                c.PaymentBatchSize,
 	}
 }
 

@@ -123,6 +123,41 @@ test('merchant onboarding repair backfills completed profiles without destructiv
   assert.doesNotMatch(downSource, /SET onboarded_at = NULL/)
 })
 
+test('000035 adds recoverable content-audit leases', () => {
+  const upFileName = '000035_resource_audit_retry_lease.up.sql'
+  const downFileName = '000035_resource_audit_retry_lease.down.sql'
+  assert.equal(fs.existsSync(path.resolve(migrationsDir, upFileName)), true, `${upFileName} should exist`)
+  assert.equal(fs.existsSync(path.resolve(migrationsDir, downFileName)), true, `${downFileName} should exist`)
+  const up = fs.readFileSync(path.resolve(migrationsDir, upFileName), 'utf8')
+  const down = fs.readFileSync(path.resolve(migrationsDir, downFileName), 'utf8')
+
+  assert.match(up, /audit_lease_until\s+TIMESTAMPTZ/i)
+  assert.match(up, /audit_processing_by\s+VARCHAR\(128\)/i)
+  assert.match(up, /COMMENT\s+ON\s+COLUMN\s+resources\.audit_lease_until\s+IS\s+'[^']*[\u4e00-\u9fff][^']*'/i)
+  assert.match(up, /COMMENT\s+ON\s+COLUMN\s+resources\.audit_processing_by\s+IS\s+'[^']*[\u4e00-\u9fff][^']*'/i)
+  assert.match(up, /DROP\s+INDEX\s+IF\s+EXISTS\s+idx_resources_audit_retry_due/i)
+  assert.match(up, /ON\s+resources\s*\(audit_retry_at,\s*audit_lease_until,\s*updated_at\)/i)
+  assert.match(up, /WHERE\s+status\s*=\s*'audit_retry'\s+AND\s+deleted_at\s+IS\s+NULL/i)
+  assert.doesNotMatch(up, /NOW\s*\(\s*\)/i)
+  assert.doesNotMatch(up, /SET\s+status\s*=\s*'pending'/i)
+  const dropIndexPosition = down.indexOf('DROP INDEX IF EXISTS idx_resources_audit_retry_due')
+  const dropProcessingByPosition = down.indexOf('DROP COLUMN IF EXISTS audit_processing_by')
+  const dropLeaseUntilPosition = down.indexOf('DROP COLUMN IF EXISTS audit_lease_until')
+  const recreateOldIndexPosition = down.indexOf('CREATE INDEX idx_resources_audit_retry_due')
+
+  assert(dropIndexPosition >= 0, 'down migration should drop the due index before removing its dependent columns')
+  assert.match(down, /DROP\s+COLUMN\s+IF\s+EXISTS\s+audit_lease_until/i)
+  assert.match(down, /DROP\s+COLUMN\s+IF\s+EXISTS\s+audit_processing_by/i)
+  assert(
+    dropIndexPosition < dropProcessingByPosition
+      && dropProcessingByPosition < dropLeaseUntilPosition
+      && dropLeaseUntilPosition < recreateOldIndexPosition,
+    'down migration should drop the due index, remove lease columns, then recreate the old index',
+  )
+  assert.match(down, /ON\s+resources\s*\(audit_retry_at,\s*updated_at\)/i)
+  assert.match(down, /WHERE\s+status\s*=\s*'audit_retry'\s+AND\s+deleted_at\s+IS\s+NULL/i)
+})
+
 test('demo merchants seed completed onboarding without overwriting first onboarding time', () => {
   const source = fs.readFileSync(path.resolve(scriptDir, 'seed_demo_data.sql'), 'utf8')
   const merchantSeed = source.match(/INSERT INTO merchants \([\s\S]*?ON CONFLICT \(id\) DO UPDATE SET[\s\S]*?updated_at = now\(\);/)?.[0] || ''
