@@ -11,7 +11,198 @@ import (
 
 	"wplink/backend/app/internal/config"
 	"wplink/backend/common/errx"
+	"wplink/backend/common/externalcall"
 )
+
+type recordingExternalCallObserver struct {
+	events []externalcall.Event
+}
+
+func (o *recordingExternalCallObserver) Observe(_ context.Context, event externalcall.Event) {
+	o.events = append(o.events, event)
+}
+
+func testSMSResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
+
+func TestConfiguredSMSVerifierObservesHTTPOutcomes(t *testing.T) {
+	tests := []struct {
+		name          string
+		operation     func(*ConfiguredSMSVerifier) error
+		wantOperation string
+		response      *http.Response
+		transportErr  error
+		want          externalcall.Outcome
+		wantStatus    int
+		wantError     bool
+	}{
+		{
+			name: "send success",
+			operation: func(v *ConfiguredSMSVerifier) error {
+				return v.SendSMSCode(context.Background(), "18800000001")
+			},
+			wantOperation: externalcall.OperationSMSCodeSend,
+			response:      testSMSResponse(http.StatusOK, `{"ok":true}`),
+			want:          externalcall.OutcomeSuccess,
+			wantStatus:    http.StatusOK,
+		},
+		{
+			name: "verify provider rejected",
+			operation: func(v *ConfiguredSMSVerifier) error {
+				return v.VerifySMSCode(context.Background(), "18800000001", "000000")
+			},
+			wantOperation: externalcall.OperationSMSCodeVerify,
+			response:      testSMSResponse(http.StatusOK, `{"valid":false}`),
+			want:          externalcall.OutcomeProviderRejected,
+			wantStatus:    http.StatusOK,
+			wantError:     true,
+		},
+		{
+			name: "http error",
+			operation: func(v *ConfiguredSMSVerifier) error {
+				return v.SendSMSCode(context.Background(), "18800000001")
+			},
+			wantOperation: externalcall.OperationSMSCodeSend,
+			response:      testSMSResponse(http.StatusBadGateway, `{}`),
+			want:          externalcall.OutcomeHTTPError,
+			wantStatus:    http.StatusBadGateway,
+			wantError:     true,
+		},
+		{
+			name: "decode error",
+			operation: func(v *ConfiguredSMSVerifier) error {
+				return v.VerifySMSCode(context.Background(), "18800000001", "123456")
+			},
+			wantOperation: externalcall.OperationSMSCodeVerify,
+			response:      testSMSResponse(http.StatusOK, `{`),
+			want:          externalcall.OutcomeDecodeError,
+			wantStatus:    http.StatusOK,
+			wantError:     true,
+		},
+		{
+			name: "timeout",
+			operation: func(v *ConfiguredSMSVerifier) error {
+				return v.SendSMSCode(context.Background(), "18800000001")
+			},
+			wantOperation: externalcall.OperationSMSCodeSend,
+			transportErr:  context.DeadlineExceeded,
+			want:          externalcall.OutcomeTimeout,
+			wantError:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			observer := &recordingExternalCallObserver{}
+			client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return tt.response, tt.transportErr
+			})}
+			verifier := NewConfiguredSMSVerifierWithLimiter(config.SMSConfig{
+				Provider:  "http",
+				SendURL:   "https://sms.example.test/send",
+				VerifyURL: "https://sms.example.test/verify",
+			}, client, NewMemorySMSSendLimiter(), observer)
+
+			err := tt.operation(verifier)
+			if tt.wantError && err == nil {
+				t.Fatal("operation error = nil, want error")
+			}
+			if !tt.wantError && err != nil {
+				t.Fatalf("operation error = %v, want nil", err)
+			}
+			if len(observer.events) != 1 {
+				t.Fatalf("events = %d, want exactly 1", len(observer.events))
+			}
+			event := observer.events[0]
+			if event.Provider != externalcall.ProviderSMS {
+				t.Fatalf("provider = %q, want %q", event.Provider, externalcall.ProviderSMS)
+			}
+			if event.Operation != tt.wantOperation {
+				t.Fatalf("operation = %q, want %q", event.Operation, tt.wantOperation)
+			}
+			if event.Outcome != tt.want {
+				t.Fatalf("outcome = %q, want %q", event.Outcome, tt.want)
+			}
+			if event.StatusCode != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", event.StatusCode, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestConfiguredSMSVerifierDoesNotObserveWithoutHTTPRequest(t *testing.T) {
+	tests := []struct {
+		name      string
+		cfg       config.SMSConfig
+		limiter   SMSSendLimiter
+		operation func(*ConfiguredSMSVerifier) error
+	}{
+		{
+			name: "local config error",
+			operation: func(v *ConfiguredSMSVerifier) error {
+				return v.SendSMSCode(context.Background(), "18800000001")
+			},
+		},
+		{
+			name: "local validation",
+			cfg:  config.SMSConfig{Provider: "http", SendURL: "https://sms.example.test/send"},
+			operation: func(v *ConfiguredSMSVerifier) error {
+				return v.SendSMSCode(context.Background(), "")
+			},
+		},
+		{
+			name: "dev provider",
+			cfg:  config.SMSConfig{Provider: "dev"},
+			operation: func(v *ConfiguredSMSVerifier) error {
+				return v.SendSMSCode(context.Background(), "18800000001")
+			},
+		},
+		{
+			name:    "limiter rejected",
+			cfg:     config.SMSConfig{Provider: "http", SendURL: "https://sms.example.test/send"},
+			limiter: rejectingSMSSendLimiter{},
+			operation: func(v *ConfiguredSMSVerifier) error {
+				return v.SendSMSCode(context.Background(), "18800000001")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			observer := &recordingExternalCallObserver{}
+			requests := 0
+			client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				requests++
+				return testSMSResponse(http.StatusOK, `{"ok":true}`), nil
+			})}
+			verifier := NewConfiguredSMSVerifierWithLimiter(tt.cfg, client, tt.limiter, observer)
+
+			_ = tt.operation(verifier)
+
+			if requests != 0 {
+				t.Fatalf("requests = %d, want 0", requests)
+			}
+			if len(observer.events) != 0 {
+				t.Fatalf("events = %d, want 0", len(observer.events))
+			}
+		})
+	}
+}
+
+type rejectingSMSSendLimiter struct{}
+
+func (rejectingSMSSendLimiter) Reserve(context.Context, string, time.Time, time.Duration, int) (string, error) {
+	return "", ErrSMSSendTooFrequent
+}
+
+func (rejectingSMSSendLimiter) Rollback(context.Context, string, time.Time, string) error {
+	return nil
+}
 
 func TestConfiguredSMSVerifierAcceptsDevCode(t *testing.T) {
 	verifier := NewConfiguredSMSVerifier(config.SMSConfig{Provider: "dev", DevCode: "123456"})

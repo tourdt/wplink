@@ -13,6 +13,7 @@ import (
 
 	"wplink/backend/app/internal/config"
 	"wplink/backend/common/errx"
+	"wplink/backend/common/externalcall"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -86,12 +87,13 @@ func parseCoordinate(raw string, min float64, max float64, label string) (float6
 }
 
 type TencentMapGeocoder struct {
-	cfg     config.TencentMapConfig
-	baseURL string
-	client  *http.Client
+	cfg      config.TencentMapConfig
+	baseURL  string
+	client   *http.Client
+	observer externalcall.Observer
 }
 
-func NewTencentMapGeocoder(cfg config.TencentMapConfig, client *http.Client) *TencentMapGeocoder {
+func NewTencentMapGeocoder(cfg config.TencentMapConfig, client *http.Client, observers ...externalcall.Observer) *TencentMapGeocoder {
 	if strings.TrimSpace(cfg.Key) == "" {
 		return nil
 	}
@@ -102,10 +104,15 @@ func NewTencentMapGeocoder(cfg config.TencentMapConfig, client *http.Client) *Te
 	if client == nil {
 		client = &http.Client{Timeout: timeout}
 	}
+	var observer externalcall.Observer
+	if len(observers) > 0 {
+		observer = observers[0]
+	}
 	return &TencentMapGeocoder{
-		cfg:     cfg,
-		baseURL: defaultTencentMapGeocoderURL,
-		client:  client,
+		cfg:      cfg,
+		baseURL:  defaultTencentMapGeocoderURL,
+		client:   client,
+		observer: observer,
 	}
 }
 
@@ -136,18 +143,23 @@ func (g *TencentMapGeocoder) ReverseGeocode(ctx context.Context, latitude float6
 		logx.Errorf("创建腾讯地图逆地理编码请求失败: latitude=%.6f longitude=%.6f err=%+v", latitude, longitude, err)
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析失败，请手动填写详细地址")
 	}
+	// 请求创建成功才进入外呼观测，避免把本地 URL 配置错误误计为腾讯地图故障。
+	call := externalcall.Start(g.observer, externalcall.ProviderTencentMap, externalcall.OperationReverseGeocode)
 	httpResp, err := g.client.Do(httpReq)
 	if err != nil {
+		call.Finish(ctx, externalcall.ClassifyTransport(ctx, err), 0)
 		logx.Errorf("腾讯地图逆地理编码请求失败: latitude=%.6f longitude=%.6f err=%+v", latitude, longitude, err)
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析服务暂不可用，请手动填写详细地址")
 	}
 	defer httpResp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(httpResp.Body, 1<<20))
 	if err != nil {
+		call.Finish(ctx, externalcall.OutcomeTransportError, httpResp.StatusCode)
 		logx.Errorf("读取腾讯地图逆地理编码响应失败: latitude=%.6f longitude=%.6f err=%+v", latitude, longitude, err)
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析失败，请手动填写详细地址")
 	}
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+		call.Finish(ctx, externalcall.OutcomeHTTPError, httpResp.StatusCode)
 		logx.Errorf("腾讯地图逆地理编码 HTTP 状态异常: latitude=%.6f longitude=%.6f status=%d", latitude, longitude, httpResp.StatusCode)
 		if httpResp.StatusCode == http.StatusTooManyRequests {
 			return ReverseGeocodeResp{}, errx.New(errx.CodeRateLimited, "地址解析服务调用过于频繁，请手动填写详细地址")
@@ -157,10 +169,12 @@ func (g *TencentMapGeocoder) ReverseGeocode(ctx context.Context, latitude float6
 
 	var decoded tencentMapGeocoderResp
 	if err := json.Unmarshal(body, &decoded); err != nil {
+		call.Finish(ctx, externalcall.OutcomeDecodeError, httpResp.StatusCode)
 		logx.Errorf("解析腾讯地图逆地理编码响应失败: latitude=%.6f longitude=%.6f err=%+v", latitude, longitude, err)
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析响应异常，请手动填写详细地址")
 	}
 	if decoded.Status != 0 {
+		call.Finish(ctx, externalcall.OutcomeProviderRejected, httpResp.StatusCode)
 		logx.Errorf("腾讯地图逆地理编码返回错误: latitude=%.6f longitude=%.6f status=%d message=%s", latitude, longitude, decoded.Status, decoded.Message)
 		if isTencentMapQuotaExhausted(decoded.Status, decoded.Message) {
 			return ReverseGeocodeResp{}, errx.New(errx.CodeRateLimited, "地址解析今日额度已用完，请手动填写详细地址")
@@ -169,8 +183,10 @@ func (g *TencentMapGeocoder) ReverseGeocode(ctx context.Context, latitude float6
 	}
 	address := chooseTencentAddress(decoded.Result)
 	if address == "" {
+		call.Finish(ctx, externalcall.OutcomeDecodeError, httpResp.StatusCode)
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "未解析到详细地址，请搜索并选择具体地点")
 	}
+	call.Finish(ctx, externalcall.OutcomeSuccess, httpResp.StatusCode)
 	return ReverseGeocodeResp{
 		Address:  address,
 		Name:     chooseTencentPOIName(decoded.Result.POIs),

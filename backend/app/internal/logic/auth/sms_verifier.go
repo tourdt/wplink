@@ -12,6 +12,7 @@ import (
 
 	"wplink/backend/app/internal/config"
 	"wplink/backend/common/errx"
+	"wplink/backend/common/externalcall"
 
 	"github.com/google/uuid"
 )
@@ -35,10 +36,11 @@ type SMSSendLimiter interface {
 }
 
 type ConfiguredSMSVerifier struct {
-	cfg     config.SMSConfig
-	client  *http.Client
-	now     func() time.Time
-	limiter SMSSendLimiter
+	cfg      config.SMSConfig
+	client   *http.Client
+	now      func() time.Time
+	limiter  SMSSendLimiter
+	observer externalcall.Observer
 }
 
 func NewConfiguredSMSVerifier(cfg config.SMSConfig) *ConfiguredSMSVerifier {
@@ -49,14 +51,18 @@ func NewConfiguredSMSVerifierWithHTTP(cfg config.SMSConfig, client *http.Client)
 	return NewConfiguredSMSVerifierWithLimiter(cfg, client, NewMemorySMSSendLimiter())
 }
 
-func NewConfiguredSMSVerifierWithLimiter(cfg config.SMSConfig, client *http.Client, limiter SMSSendLimiter) *ConfiguredSMSVerifier {
+func NewConfiguredSMSVerifierWithLimiter(cfg config.SMSConfig, client *http.Client, limiter SMSSendLimiter, observers ...externalcall.Observer) *ConfiguredSMSVerifier {
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Second}
 	}
 	if limiter == nil {
 		limiter = NewMemorySMSSendLimiter()
 	}
-	return &ConfiguredSMSVerifier{cfg: cfg, client: client, now: time.Now, limiter: limiter}
+	var observer externalcall.Observer
+	if len(observers) > 0 {
+		observer = observers[0]
+	}
+	return &ConfiguredSMSVerifier{cfg: cfg, client: client, now: time.Now, limiter: limiter, observer: observer}
 }
 
 func (v *ConfiguredSMSVerifier) SendSMSCode(ctx context.Context, phone string) error {
@@ -79,7 +85,7 @@ func (v *ConfiguredSMSVerifier) SendSMSCode(ctx context.Context, phone string) e
 		if err != nil {
 			return err
 		}
-		if err := v.postSMS(ctx, strings.TrimSpace(v.cfg.SendURL), map[string]string{"phone": phone}, "短信验证码发送失败，请稍后重试", false); err != nil {
+		if err := v.postSMS(ctx, strings.TrimSpace(v.cfg.SendURL), map[string]string{"phone": phone}, "短信验证码发送失败，请稍后重试", externalcall.OperationSMSCodeSend); err != nil {
 			_ = v.limiter.Rollback(ctx, phone, v.now(), reservationToken)
 			return err
 		}
@@ -135,12 +141,12 @@ func (v *ConfiguredSMSVerifier) VerifySMSCode(ctx context.Context, phone string,
 		return nil
 	}
 	if provider == "http" {
-		return v.postSMS(ctx, strings.TrimSpace(v.cfg.VerifyURL), map[string]string{"phone": strings.TrimSpace(phone), "code": strings.TrimSpace(code)}, "短信验证码校验失败，请稍后重试", true)
+		return v.postSMS(ctx, strings.TrimSpace(v.cfg.VerifyURL), map[string]string{"phone": strings.TrimSpace(phone), "code": strings.TrimSpace(code)}, "短信验证码校验失败，请稍后重试", externalcall.OperationSMSCodeVerify)
 	}
 	return errx.New(errx.CodeInternalError, "短信服务供应商尚未接入，请稍后重试")
 }
 
-func (v *ConfiguredSMSVerifier) postSMS(ctx context.Context, endpoint string, payload map[string]string, publicError string, verifyCode bool) error {
+func (v *ConfiguredSMSVerifier) postSMS(ctx context.Context, endpoint string, payload map[string]string, publicError string, operation string) error {
 	if endpoint == "" {
 		return errx.New(errx.CodeInternalError, "短信服务未配置，请稍后重试")
 	}
@@ -152,17 +158,26 @@ func (v *ConfiguredSMSVerifier) postSMS(ctx context.Context, endpoint string, pa
 	if err != nil {
 		return errx.New(errx.CodeInternalError, publicError)
 	}
+	// 请求创建成功才进入外呼观测，避免把本地配置或参数错误误计为供应商故障。
+	call := externalcall.Start(v.observer, externalcall.ProviderSMS, operation)
 	req.Header.Set("Content-Type", "application/json")
 	if secret := strings.TrimSpace(v.cfg.AccessKeySecret); secret != "" {
 		req.Header.Set("Authorization", "Bearer "+secret)
 	}
 	resp, err := v.client.Do(req)
 	if err != nil {
+		call.Finish(ctx, externalcall.ClassifyTransport(ctx, err), 0)
 		return errx.New(errx.CodeInternalError, publicError)
 	}
 	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	statusCode := resp.StatusCode
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if err != nil {
+		call.Finish(ctx, externalcall.OutcomeTransportError, statusCode)
+		return errx.New(errx.CodeInternalError, publicError)
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		call.Finish(ctx, externalcall.OutcomeHTTPError, statusCode)
 		return errx.New(errx.CodeInternalError, publicError)
 	}
 	var data struct {
@@ -172,26 +187,33 @@ func (v *ConfiguredSMSVerifier) postSMS(ctx context.Context, endpoint string, pa
 	}
 	if len(respBody) > 0 {
 		if err := json.Unmarshal(respBody, &data); err != nil {
+			call.Finish(ctx, externalcall.OutcomeDecodeError, statusCode)
 			return errx.New(errx.CodeInternalError, publicError)
 		}
 		if data.Error != "" {
-			if verifyCode {
+			call.Finish(ctx, externalcall.OutcomeProviderRejected, statusCode)
+			if operation == externalcall.OperationSMSCodeVerify {
 				return errx.New(errx.CodeValidationFailed, "短信验证码不正确")
 			}
 			return errx.New(errx.CodeInternalError, publicError)
 		}
 		if data.Valid != nil {
 			if *data.Valid {
+				call.Finish(ctx, externalcall.OutcomeSuccess, statusCode)
 				return nil
 			}
+			call.Finish(ctx, externalcall.OutcomeProviderRejected, statusCode)
 			return errx.New(errx.CodeValidationFailed, "短信验证码不正确")
 		}
 		if data.OK != nil {
 			if *data.OK {
+				call.Finish(ctx, externalcall.OutcomeSuccess, statusCode)
 				return nil
 			}
+			call.Finish(ctx, externalcall.OutcomeProviderRejected, statusCode)
 			return errx.New(errx.CodeInternalError, publicError)
 		}
 	}
+	call.Finish(ctx, externalcall.OutcomeSuccess, statusCode)
 	return nil
 }
