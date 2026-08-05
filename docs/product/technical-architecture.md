@@ -73,7 +73,7 @@ flowchart LR
 ### 3.2 当前不包含的基础设施
 
 - 没有独立微服务或 go-zero RPC 服务。
-- 没有实际接入 Redis；登录态使用自包含 HMAC Token，短信等进程内限流仍不具备跨实例一致性，自动任务则由 PostgreSQL Advisory Lock 协调。
+- 没有实际接入 Redis；登录态使用自包含 HMAC Token，短信发送限流由 PostgreSQL 共享状态保证跨实例一致性，地图行为等局部保护仍需按各自实现评估；自动任务由 PostgreSQL Advisory Lock 协调。
 - 没有独立消息队列或任务 Worker；自动任务随 API 进程启动。
 - 没有独立搜索引擎；搜索依赖 PostgreSQL 文本匹配、`pg_trgm` 和 GIN 索引。
 - 没有独立静态站点服务；管理后台资源通过 Go `embed` 提供。
@@ -676,6 +676,18 @@ erDiagram
 
 所有第三方密钥只允许通过服务器环境变量或密钥系统注入，不应提交到仓库。
 
+### 10.1 第三方调用统一日志与安全边界
+
+所有当前实际发起 HTTP 请求的核心第三方客户端都会输出一条 JSON 结构化日志，固定 `event` 为 `external_call`。白名单字段为 `event`、`provider`、`operation`、`outcome`、`duration_ms`，收到 HTTP 响应时额外记录 `status_code`；不依赖字段输出顺序解析。稳定枚举如下：
+
+| 字段 | 已实现稳定值 |
+|---|---|
+| `provider` | `wechat`、`sms`、`tencent_map` |
+| `operation` | `code_to_session`、`phone_number`、`access_token`、`content_text_check`、`content_media_submit`、`pay_create`、`pay_query`、`pay_close`、`code_send`、`code_verify`、`reverse_geocode` |
+| `outcome` | `success`、`canceled`、`timeout`、`transport_error`、`http_error`、`provider_rejected`、`decode_error` |
+
+该统一事件只记录上述枚举、耗时、状态码等安全字段，禁止写入手机号、OpenID、Token、签名、密钥、Authorization header、请求体、响应体或原始错误全文。公共 Observer 不返回错误，也不改变调用结果；各客户端继续在自己的业务边界记录必要的定位信息，并只向 API 返回既有的安全中文错误，不能把上游原始错误或响应内容直接透出给用户。
+
 ## 11. 自动任务与多实例协调
 
 系统不部署独立 Worker。所有协议兼容的 API 实例都以 `Tasks.Enabled: true` 启动四个 Scheduler；未配置时默认启用。每轮先竞争固定的 PostgreSQL session-level Advisory Lock，持锁实例退出或数据库会话断开后，其他实例在下一次触发时自动接管：
@@ -773,6 +785,7 @@ make check
 - 权益：`merchantId`、entitlement ID、使用动作、关联资源。
 - 地图：scene/object/merchant ID、举报或绑定申请 ID。
 - 自动任务：扫描数、成功数、失败数、转人工数和删除数。
+- 第三方 HTTP 调用：一条 `event=external_call` 事件，字段为 `provider`、`operation`、`outcome`、`duration_ms`，有响应时附带 `status_code`。按第 10.1 节白名单记录；不能将手机号、Token、签名、密钥、请求/响应体或原始错误全文放入该事件。
 
 ### 15.2 常见故障定位入口
 
@@ -800,13 +813,15 @@ make check
 
 `backend/app/internal/server/api.go`、`domain_routes.go`，后台 `SourcingMapView.vue`、`ResourceTypeConfigView.vue`，以及多个小程序页面体积较大。修改时应优先提取纯逻辑或领域路由文件，但不要为拆文件改变业务行为。
 
-### 16.3 进程内限流
+### 16.3 跨实例短信限流的长期验证门禁
 
-自动任务已通过固定 Advisory Lock 和业务幂等/租约支持多实例协调，不再属于“仅单实例可运行”的技术债。短信发送限频等保护仍保存在单个 API 进程内，扩容后无法提供跨实例全局一致性；正式多实例运营仍需在短信服务、API 网关或共享限流层补统一限制。任务协调风险与限流风险必须分别评估，不能混为一谈。
+短信发送限频已由 `SQLSMSSendLimiter` 与 `sms_send_limits` 落在 PostgreSQL 共享状态中，借助原子预约/回滚保护跨 API 实例一致性，不再是进程内限流技术债。自动任务的 Advisory Lock 协调与短信限流是两类独立能力，仍必须分别评估。
 
-### 16.4 第三方集成缺少统一熔断层
+后续不得移除 `make check-postgres`：它在已执行全部 up migrations 的可丢弃测试库上强制执行 Coordinator 与 SQL 短信限流集成测试，是持续验证迁移可用性、并发预约和回滚语义的长期门禁；普通 `make check` 不连接该数据库，不能替代此门禁。
 
-微信、腾讯地图、短信和支付各自实现超时与错误映射，但没有统一熔断和指标体系。当前单实例规模可接受；调用量增长后应增加第三方成功率、耗时和配额告警。
+### 16.4 第三方韧性仍缺少指标平台与熔断
+
+微信、腾讯地图、短信和支付已有统一 `external_call` 调用日志，以及各客户端既有的超时和安全错误映射；当前尚未部署指标/告警平台，也没有统一熔断器或公共自动重试层。先基于生产日志观察真实调用基线，再决定是否按 `provider + operation` 引入指标平台、熔断或受控重试，不能把文档中的建议当作已上线能力。
 
 ### 16.5 历史兼容代码
 

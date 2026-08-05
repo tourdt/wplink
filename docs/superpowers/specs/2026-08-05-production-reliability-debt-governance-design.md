@@ -194,13 +194,15 @@ type Observer interface {
 
 七牛上传 Token 在当前实现中由服务端本地签名生成，没有发起第三方 HTTP 请求，因此不产生 `external_call` 事件。
 
+该清单以 `backend/common/externalcall` 的稳定常量为准，未定义也未实现 `content_media_download`；不得为不存在的调用编造 operation。
+
 ### 7.4 Outcome 判定
 
 - `success`：HTTP 和供应商协议均成功。内容审核返回“风险内容”属于有效业务判定，外部调用本身仍记为成功。
 - `canceled`：`context.Canceled`，通常来自服务退出、上层取消或客户端断开，不计入供应商故障率。
 - `timeout`：`context.DeadlineExceeded` 或明确的 HTTP client timeout。
 - `transport_error`：DNS、连接建立、TLS、连接重置等未取得有效 HTTP 响应的错误。
-- `http_error`：收到非预期的 HTTP 状态码。
+- `http_error`：收到非预期的 HTTP 状态码；微信支付的非 2xx 响应明确归入此类，不强制归为 `provider_rejected`。
 - `provider_rejected`：HTTP 请求完成且响应可解析，但供应商协议返回错误码或拒绝结果。用户输入失效和供应商配置错误应由 operation 维度进一步判断，不直接等同于供应商宕机。
 - `decode_error`：HTTP 响应已取得，但 JSON、签名或必需字段无法解析或验证。
 
@@ -245,7 +247,7 @@ type Observer interface {
 
 ## 10. 运维与告警建议
 
-统一日志上线后先观察 24 小时基线，再在实际日志平台配置阈值。文档提供以下初始建议，阈值不写入业务代码：
+统一日志上线后先观察 24 小时基线；当前不新增或部署日志指标/告警平台，只有在后续接入相应平台后才配置阈值。文档提供以下初始建议，阈值不写入业务代码：
 
 - 同一 `provider + operation` 在 5 分钟内至少 20 次调用且 `timeout + transport_error + http_error + decode_error` 占比超过 5%：告警。
 - 同一 operation 在 5 分钟内出现至少 3 次 `timeout`：告警。
@@ -262,7 +264,7 @@ type Observer interface {
 1. 合并前执行 PostgreSQL 强制集成测试与 `make check`。
 2. 按实例滚动发布，等待 `/readyz` 成功后再替换下一实例。
 3. 发布后确认 `external_call` 事件字段完整且不包含敏感值。
-4. 观察 24 小时调用基线，再配置日志平台告警。
+4. 观察 24 小时调用基线；若后续接入日志平台，再按基线配置告警。
 5. 若新增观测影响服务，可直接恢复上一版二进制；没有数据结构需要回滚。
 
 CI 数据库只用于自动测试。任何本地 PostgreSQL 集成命令都必须指向可丢弃测试库，不得把生产 DSN 传给测试目标。

@@ -58,6 +58,34 @@ rg -n '"event":"task_coordination_unlock_failed"' /opt/wplink/logs
 
 Coordinator 会直接记录返回的 `error`，当前没有通用日志脱敏器。排障和新增错误时都不得把数据库 DSN、Token、微信密钥、支付私钥或完整第三方载荷拼入错误文本；发现此类内容应按凭据泄露流程处理，不能依赖 Coordinator 自动清洗。
 
+## 第三方调用日志与基线
+
+核心第三方 HTTP 调用会单独输出 JSON 事件 `event=external_call`，与任务协调日志无关。稳定字段是 `event`、`provider`、`operation`、`outcome`、`duration_ms`，收到 HTTP 响应时附加 `status_code`；事件不记录手机号、Token、签名、密钥、Authorization header、请求体、响应体或原始错误全文。
+
+先用 `rg` 快速定位事件：
+
+```bash
+rg -n '"event":"external_call"' /opt/wplink/logs
+```
+
+字段在 JSON 中的序列不作为查询条件。需要按多个字段筛选或聚合时，使用 JSON 解析器而不是假设字段顺序；以下命令兼容当前一行一个 JSON 对象的日志格式：
+
+```bash
+find /opt/wplink/logs -type f -exec jq -c 'select(.event == "external_call" and (.outcome == "timeout" or .outcome == "transport_error" or .outcome == "http_error" or .outcome == "decode_error"))' {} +
+find /opt/wplink/logs -type f -exec jq -c 'select(.event == "external_call" and .provider == "wechat" and (.operation == "pay_create" or .operation == "pay_query" or .operation == "pay_close"))' {} +
+```
+
+为快速临时筛查，也可使用下列文本过滤；它们只用于发现候选日志，统计和告警前仍应以 JSON 字段解析结果为准：
+
+```bash
+rg -n '"event":"external_call".*"outcome":"(timeout|transport_error|http_error|decode_error)"' /opt/wplink/logs
+rg -n '"event":"external_call".*"provider":"wechat".*"operation":"pay_' /opt/wplink/logs
+```
+
+上线后先记录连续 24 小时的 `provider + operation + outcome` 基线；当前仓库没有部署指标平台、自动告警、熔断或公共自动重试。基线确认后可在已有或后续接入的日志平台采用以下建议：同一 `provider + operation` 5 分钟至少 20 次调用且 `timeout`、`transport_error`、`http_error`、`decode_error` 合计占比超过 5%；同一 operation 5 分钟至少 3 次 `timeout`；支付 `decode_error` 或连续 `http_error` 按高优先级排查证书、验签、时间同步和支付配置。
+
+`provider_rejected` 表示 HTTP 已完成且供应商协议给出拒绝或错误码，不自动等于供应商宕机；应结合 operation 与业务语义判断。`canceled` 通常来自服务退出、上层取消或客户端断开，不计入供应商故障率。微信支付的非 2xx 响应记录为 `http_error`，不是强制记为 `provider_rejected`。
+
 ## 查询 Advisory Lock
 
 使用应用数据库的只读运维连接执行：

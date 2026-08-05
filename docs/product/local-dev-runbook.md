@@ -80,6 +80,16 @@ GOCACHE="$PWD/.cache/go-build" go test ./...
 rm -rf .cache
 ```
 
+### PostgreSQL 强制集成验证
+
+迁移、任务协调或短信限流改动还必须执行独立门禁。测试库必须可丢弃，并且已经按顺序执行全部 up migrations；以下示例中的 `wplink_integration` 仅用于本地测试，**禁止**传入生产 DSN：
+
+```bash
+WPLINK_TEST_POSTGRES_DSN='postgres://postgres:postgres@127.0.0.1:5432/wplink_integration?sslmode=disable' make check-postgres
+```
+
+该命令会运行 Coordinator 与 `SQLSMSSendLimiter` 的 PostgreSQL 集成测试。普通 `make check` 不会连接这个测试库，因此不能替代 `make check-postgres`；未设置 `WPLINK_TEST_POSTGRES_DSN` 时该门禁应明确失败，而不是跳过。
+
 启动本地服务：
 
 ```bash
@@ -92,7 +102,7 @@ go run ./app -f etc/app.yaml
 - `/healthz`：只验证 HTTP 进程存活，返回 `ok`。
 - `/readyz`：验证服务已连接 PostgreSQL；数据库不可用时返回 `503 not ready`。
 
-服务启动后会按 `Tasks.ResourceLifecycleInterval` 自动执行供需信息生命周期任务，用于过期供需信息状态流转和即将过期/已过期消息提醒。本地演示可使用模板默认 `1h`；多实例生产部署时建议只保留一个实例启用该任务。
+服务启动后会按 `Tasks.ResourceLifecycleInterval` 自动执行供需信息生命周期任务，用于过期供需信息状态流转和即将过期/已过期消息提醒。本地演示可使用模板默认 `1h`；多实例生产部署时应让兼容协议的所有实例启用任务，并由 PostgreSQL Advisory Lock 协调同类任务互斥。
 
 如果只验证入口和后台静态路由，也可以使用模板配置：
 
@@ -189,6 +199,7 @@ VITE_API_BASE_URL=http://127.0.0.1:4000 npm run build:mp-weixin
 ## 已知限制
 
 - migration 静态校验不能替代真实 PostgreSQL up/down；数据库可连接时应运行 `go run ./scripts/verify_migrations.go -config etc/app.yaml`，由临时数据库完成 up/down 验证。
+- `make check` 不能替代 `make check-postgres`；后者仅可连接已执行全部 up migrations 的可丢弃测试库，禁止使用生产 DSN。
 - 当前后端 HTTP 服务入口已可启动，业务 API 已接入账号、城市站、商家、供需信息、需求、发现、认证、权益、消息、指标和后台管理路由。
 - 短信验证码本地可用 `SMS.Provider: dev` 和固定 `DevCode` 验证；相关后端接口已预留。首发小程序不开放手机号绑定入口，正式运营验收不要求短信验证码服务可用。
 - 小程序构建会出现 Sass `@import` 和 legacy JS API 的上游弃用警告，不影响当前构建产物。

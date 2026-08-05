@@ -121,3 +121,11 @@ VITE_API_BASE_URL=https://YOUR_DOMAIN npm run build:mp-weixin
 - `/etc/wplink/wplink.env`
 
 若发布后 `/healthz` 或 `/readyz` 失败，先恢复上一版二进制并重启 systemd；数据库迁移回滚必须先评估数据兼容性，不直接在生产库执行 down。
+
+## 8. 发布后第三方调用抽检
+
+发布后抽检 `external_call` JSON 日志：每条事件必须有 `event`、`provider`、`operation`、`outcome`、`duration_ms`，收到 HTTP 响应时应有 `status_code`。`provider` 仅允许 `wechat`、`sms`、`tencent_map`；`operation` 与 `outcome` 必须使用架构文档第 10.1 节的稳定枚举，不能用供应商原始文案代替。
+
+抽样确认统一事件不含手机号、OpenID、Token、签名、密钥、Authorization header、请求体、响应体或原始错误全文；同时确认业务 API 仍只返回安全中文错误，不会透出上游错误内容。
+
+先连续观察至少 24 小时，记录每个 `provider + operation` 的调用量与 `outcome` 分布，形成真实基线后再在现有或后续接入的日志平台设置阈值。建议起点为：5 分钟内至少 20 次调用且 `timeout`、`transport_error`、`http_error`、`decode_error` 合计超过 5%；同一 operation 5 分钟至少 3 次 `timeout`；支付 `decode_error` 或连续 `http_error` 作为高优先级排查项。以上为待基线确认的建议，当前仓库并未部署指标平台、告警或熔断。
