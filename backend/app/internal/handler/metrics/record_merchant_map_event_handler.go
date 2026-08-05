@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -36,6 +38,12 @@ func RecordMerchantMapEventHandler(svcCtx *svc.ServiceContext) http.HandlerFunc 
 		decoder := json.NewDecoder(bytes.NewReader(rawBody))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&req); err != nil {
+			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "请求参数格式不正确"))
+			return
+		}
+		var trailing interface{}
+		if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+			// 地图埋点只接受一个完整 JSON 文档，避免合法首值后的第二对象或垃圾内容被静默忽略。
 			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "请求参数格式不正确"))
 			return
 		}

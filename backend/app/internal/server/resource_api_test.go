@@ -86,9 +86,128 @@ func TestMetricsPublicGeneratedRoutesRejectInvalidTokens(t *testing.T) {
 	}
 }
 
+func TestMetricsMerchantMapStrictJSONThroughGeneratedRoutes(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{name: "unknown field", body: `{"merchantId":"101","visitorKey":"visitor-1","sessionId":"session-1","eventType":"location_view","source":"merchant_location","unexpected":true}`},
+		{name: "second JSON value", body: validMerchantMapEventJSON("location_view") + ` {"merchantId":"102"}`},
+		{name: "trailing garbage", body: validMerchantMapEventJSON("location_view") + ` trailing`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svcCtx, mock := newTask6GeneratedServiceContext(t)
+			server := newGeneratedAPIServer(t, svcCtx)
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(tc.body))
+			body := assertTask6GeneratedStatus(t, server, req, http.StatusBadRequest)
+			if body["errorCode"] != errx.CodeValidationFailed || body["msg"] != "请求参数格式不正确" {
+				t.Fatalf("body=%#v, want strict JSON validation error", body)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("invalid JSON reached map event SQL: %v", err)
+			}
+		})
+	}
+}
+
 func TestMetricsGeneratedRoutesRejectMissingDependencies(t *testing.T) {
 	server := newGeneratedAPIServer(t, &svc.ServiceContext{UserTokenService: &fakeUserTokenService{}})
 	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/resources/resource-1/metrics", ""), http.StatusInternalServerError)
+}
+
+func TestMetricsPermissionFailuresThroughGeneratedRoutes(t *testing.T) {
+	t.Run("resource owner mismatch", func(t *testing.T) {
+		svcCtx, mock := newTask6GeneratedServiceContext(t)
+		server := newGeneratedAPIServer(t, svcCtx)
+		mock.ExpectQuery(`(?s)SELECT merchant_id::text.*FROM resources`).
+			WithArgs("resource-2").
+			WillReturnRows(sqlmock.NewRows([]string{"merchant_id"}).AddRow("merchant-2"))
+		mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+			WithArgs("user-1", "merchant-2").
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+
+		body := assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/resources/resource-2/metrics", ""), http.StatusForbidden)
+		if body["errorCode"] != errx.CodeForbidden {
+			t.Fatalf("body=%#v, want owner mismatch forbidden", body)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("resource owner mismatch SQL expectations: %v", err)
+		}
+	})
+
+	t.Run("resource not found", func(t *testing.T) {
+		svcCtx, mock := newTask6GeneratedServiceContext(t)
+		server := newGeneratedAPIServer(t, svcCtx)
+		mock.ExpectQuery(`(?s)SELECT merchant_id::text.*FROM resources`).
+			WithArgs("missing-resource").
+			WillReturnError(sql.ErrNoRows)
+
+		body := assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/resources/missing-resource/metrics", ""), http.StatusNotFound)
+		if body["errorCode"] != errx.CodeResourceNotFound || body["msg"] != "资源不存在或已下架" {
+			t.Fatalf("body=%#v, want safe resource not found", body)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("resource not found SQL expectations: %v", err)
+		}
+	})
+
+	t.Run("merchant metrics missing dependency", func(t *testing.T) {
+		svcCtx, _ := newTask6GeneratedServiceContext(t)
+		svcCtx.APIStore.ResourceMetricDailyModel = nil
+		server := newGeneratedAPIServer(t, svcCtx)
+		body := assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/merchants/merchant-1/metrics/summary", ""), http.StatusInternalServerError)
+		if body["errorCode"] != errx.CodeInternalError || body["msg"] != "指标服务暂不可用，请稍后重试" {
+			t.Fatalf("body=%#v, want safe metrics dependency error", body)
+		}
+	})
+}
+
+func TestMetricsMerchantMapBodyLimitThroughGeneratedRoute(t *testing.T) {
+	svcCtx, mock := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+	validBody := validMerchantMapEventJSON("location_view")
+	body4096 := validBody + strings.Repeat(" ", 4096-len(validBody))
+
+	mock.ExpectExec(`(?s)INSERT INTO .*merchant_map_events`).
+		WithArgs("", "101", "", "visitor-1", "session-1", "location_view", "merchant_location").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(body4096)), http.StatusOK)
+
+	body4097 := body4096 + " "
+	body := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(body4097)), http.StatusBadRequest)
+	if body["errorCode"] != errx.CodeValidationFailed || body["msg"] != "地图行为请求内容过大" {
+		t.Fatalf("body=%#v, want 4097-byte request rejected", body)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("map body limit SQL expectations: %v", err)
+	}
+}
+
+func TestMetricsMerchantMapRateLimitThroughGeneratedRoute(t *testing.T) {
+	svcCtx, mock := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+	body := validMerchantMapEventJSON("location_view")
+
+	for attempt := 1; attempt <= 60; attempt++ {
+		mock.ExpectExec(`(?s)INSERT INTO .*merchant_map_events`).
+			WithArgs("", "101", "", "visitor-1", "session-1", "location_view", "merchant_location").
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(body))
+		req.RemoteAddr = "198.51.100.7:4321"
+		assertTask6GeneratedStatus(t, server, req, http.StatusOK)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(body))
+	req.RemoteAddr = "198.51.100.7:4321"
+	envelope := assertTask6GeneratedStatus(t, server, req, http.StatusTooManyRequests)
+	if envelope["errorCode"] != errx.CodeRateLimited || envelope["msg"] != "操作频繁，请稍后再试" {
+		t.Fatalf("body=%#v, want 61st request rate limited", envelope)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("map rate limit SQL expectations: %v", err)
+	}
 }
 
 func TestAPIRouterLogsInAdmin(t *testing.T) {

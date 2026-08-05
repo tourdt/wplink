@@ -15,6 +15,7 @@ import (
 	"wplink/backend/app/internal/permission"
 	"wplink/backend/app/internal/session"
 	"wplink/backend/app/internal/svc"
+	"wplink/backend/common/errx"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/lib/pq"
@@ -24,20 +25,7 @@ func TestMerchantHandlersThroughGeneratedRoutes(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
 	server := newGeneratedAPIServer(t, svcCtx)
 
-	mock.ExpectQuery(`(?s)FROM merchants m.*GROUP BY m.id, cs.code`).
-		WithArgs("merchant-1").
-		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "merchant_no", "name", "merchant_type", "city_code", "main_categories", "profile_status", "vip_status",
-			"contact_name", "contact_phone", "contact_wechat", "address_text", "location", "description", "logo_url", "images",
-			"last_active_at", "published_count", "dealt_count", "follower_count",
-		}).AddRow(
-			"merchant-1", "M001", "晨星童装", "factory", "zhili", []byte(`["童装"]`), "completed", "none",
-			"周经理", "18800000002", "stock-demo", "织里镇", []byte(`{"latitude":30.1}`), "童装工厂", "https://img.example.com/logo.jpg", []byte(`["https://img.example.com/a.jpg"]`),
-			nil, int64(2), int64(1), int64(3),
-		))
-	mock.ExpectQuery(`(?s)FROM credit_records`).
-		WithArgs("merchant-1").
-		WillReturnRows(sqlmock.NewRows([]string{"tag_code", "tag_label"}))
+	expectTask6GeneratedMerchantDetail(mock, "merchant-1")
 	publicEnvelope := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1", nil), http.StatusOK)
 	publicData, ok := publicEnvelope["data"].(map[string]interface{})
 	if !ok {
@@ -64,6 +52,104 @@ func TestMerchantHandlersThroughGeneratedRoutes(t *testing.T) {
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("merchant generated SQL expectations: %v", err)
 	}
+}
+
+func TestMerchantGeneratedRoutesExposeEditableContactOnlyToManager(t *testing.T) {
+	cases := []struct {
+		name          string
+		canManage     bool
+		contactWanted bool
+	}{
+		{name: "manager", canManage: true, contactWanted: true},
+		{name: "non manager", canManage: false, contactWanted: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svcCtx, mock := newTask6GeneratedServiceContext(t)
+			server := newGeneratedAPIServer(t, svcCtx)
+			expectTask6GeneratedMerchantDetail(mock, "merchant-1")
+			mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+				WithArgs("user-1", "merchant-1").
+				WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(tc.canManage))
+
+			envelope := assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/merchants/merchant-1", ""), http.StatusOK)
+			data := envelope["data"].(map[string]interface{})
+			contact, present := data["contact"]
+			if present != tc.contactWanted {
+				t.Fatalf("contact present=%v value=%#v, want present=%v", present, contact, tc.contactWanted)
+			}
+			if tc.contactWanted {
+				contactData := contact.(map[string]interface{})
+				if contactData["phone"] != "18800000002" || contactData["wechat"] != "stock-demo" {
+					t.Fatalf("contact=%#v, want editable phone/wechat", contactData)
+				}
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("merchant contact SQL expectations: %v", err)
+			}
+		})
+	}
+}
+
+func TestMerchantUpdateSucceedsThroughGeneratedRoute(t *testing.T) {
+	svcCtx, mock := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT.*merchant_type.*FOR UPDATE`).
+		WithArgs("merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_type"}).AddRow("factory"))
+	mock.ExpectExec(`(?s)UPDATE merchants`).
+		WithArgs(
+			"merchant-1", "晨星新名", []byte(`["童装","配饰"]`), "factory", "新简介", "https://img.example.com/new-logo.jpg",
+			[]byte(`["https://img.example.com/new-a.jpg"]`), sqlmock.AnyArg(), "李经理", "18800000003", "wechat-new", "织里新地址", true,
+			[]byte(`{"latitude":30.2,"longitude":120.3}`),
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	req := authenticatedRequest(http.MethodPost, "/api/v1/merchants/merchant-1?merchantId=merchant-2", `{
+		"name":" 晨星新名 ",
+		"mainCategories":["童装","配饰"],
+		"merchantType":"factory",
+		"description":" 新简介 ",
+		"logoUrl":"https://img.example.com/new-logo.jpg",
+		"images":["https://img.example.com/new-a.jpg"],
+		"contactName":"李经理",
+		"contactPhone":"18800000003",
+		"contactWechat":"wechat-new",
+		"addressText":"织里新地址",
+		"location":{"latitude":30.2,"longitude":120.3}
+	}`)
+	envelope := assertTask6GeneratedStatus(t, server, req, http.StatusOK)
+	data := envelope["data"].(map[string]interface{})
+	if data["id"] != "merchant-1" || strings.TrimSpace(data["updatedAt"].(string)) == "" {
+		t.Fatalf("data=%#v, want path merchant id and updatedAt", data)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("merchant update SQL expectations: %v", err)
+	}
+}
+
+func expectTask6GeneratedMerchantDetail(mock sqlmock.Sqlmock, merchantID string) {
+	mock.ExpectQuery(`(?s)FROM merchants m.*GROUP BY m.id, cs.code`).
+		WithArgs(merchantID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "merchant_no", "name", "merchant_type", "city_code", "main_categories", "profile_status", "vip_status",
+			"contact_name", "contact_phone", "contact_wechat", "address_text", "location", "description", "logo_url", "images",
+			"last_active_at", "published_count", "dealt_count", "follower_count",
+		}).AddRow(
+			merchantID, "M001", "晨星童装", "factory", "zhili", []byte(`["童装"]`), "completed", "none",
+			"周经理", "18800000002", "stock-demo", "织里镇", []byte(`{"latitude":30.1}`), "童装工厂", "https://img.example.com/logo.jpg", []byte(`["https://img.example.com/a.jpg"]`),
+			nil, int64(2), int64(1), int64(3),
+		))
+	mock.ExpectQuery(`(?s)FROM credit_records`).
+		WithArgs(merchantID).
+		WillReturnRows(sqlmock.NewRows([]string{"tag_code", "tag_label"}))
 }
 
 func TestMessageHandlersEnforceRoleScopeThroughGeneratedRoutes(t *testing.T) {
@@ -98,9 +184,74 @@ func TestMessageHandlersEnforceRoleScopeThroughGeneratedRoutes(t *testing.T) {
 	}
 }
 
+func TestMessageGeneratedRoutesRejectClientControlledInvalidRoleCodes(t *testing.T) {
+	cases := []struct {
+		name     string
+		method   string
+		target   string
+		body     string
+		roleCode string
+	}{
+		{name: "list non merchant role", method: http.MethodGet, target: "/api/v1/messages?roleCode=platform_operator", roleCode: "platform_operator"},
+		{name: "list empty merchant role", method: http.MethodGet, target: "/api/v1/messages?roleCode=merchant:", roleCode: "merchant:"},
+		{name: "list malformed merchant role", method: http.MethodGet, target: "/api/v1/messages?roleCode=merchant:merchant-1:extra", roleCode: "merchant:merchant-1:extra"},
+		{name: "list merchant role with inner whitespace", method: http.MethodGet, target: "/api/v1/messages?roleCode=merchant:%20merchant-1", roleCode: "merchant: merchant-1"},
+		{name: "read non merchant role", method: http.MethodPost, target: "/api/v1/messages/message-1/read", body: `{"roleCode":"platform_operator"}`, roleCode: "platform_operator"},
+		{name: "read empty merchant role", method: http.MethodPost, target: "/api/v1/messages/message-1/read", body: `{"roleCode":"merchant:"}`, roleCode: "merchant:"},
+		{name: "read malformed merchant role", method: http.MethodPost, target: "/api/v1/messages/message-1/read", body: `{"roleCode":"merchant:merchant-1:extra"}`, roleCode: "merchant:merchant-1:extra"},
+		{name: "read merchant role with inner whitespace", method: http.MethodPost, target: "/api/v1/messages/message-1/read", body: `{"roleCode":"merchant: merchant-1"}`, roleCode: "merchant: merchant-1"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svcCtx, mock := newTask6GeneratedServiceContext(t)
+			server := newGeneratedAPIServer(t, svcCtx)
+			req := authenticatedRequest(tc.method, tc.target, tc.body)
+			body := assertTask6GeneratedStatus(t, server, req, http.StatusForbidden)
+			if body["errorCode"] != errx.CodeForbidden {
+				t.Fatalf("roleCode=%q body=%#v, want forbidden", tc.roleCode, body)
+			}
+			// 非法客户端角色必须在 Handler 边界拒绝，不能进入消息 ANY 查询或更新。
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("invalid roleCode reached SQL: %v", err)
+			}
+		})
+	}
+}
+
 func TestMessageGeneratedRoutesRejectMissingDependencies(t *testing.T) {
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{UserTokenService: &fakeUserTokenService{}})
-	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/messages", ""), http.StatusInternalServerError)
+	var typedNilUserTokenService *fakeUserTokenService
+	cases := []struct {
+		name   string
+		mutate func(*svc.ServiceContext)
+	}{
+		{name: "nil store", mutate: func(svcCtx *svc.ServiceContext) { svcCtx.APIStore = nil }},
+		{name: "nil user token service", mutate: func(svcCtx *svc.ServiceContext) { svcCtx.UserTokenService = nil }},
+		{name: "typed nil user token service", mutate: func(svcCtx *svc.ServiceContext) { svcCtx.UserTokenService = typedNilUserTokenService }},
+	}
+	requests := []struct {
+		name   string
+		method string
+		target string
+		body   string
+	}{
+		{name: "list", method: http.MethodGet, target: "/api/v1/messages"},
+		{name: "read", method: http.MethodPost, target: "/api/v1/messages/message-1/read", body: `{}`},
+	}
+
+	for _, dependencyCase := range cases {
+		for _, requestCase := range requests {
+			t.Run(dependencyCase.name+"/"+requestCase.name, func(t *testing.T) {
+				svcCtx, _ := newTask6GeneratedServiceContext(t)
+				dependencyCase.mutate(svcCtx)
+				server := newGeneratedAPIServer(t, svcCtx)
+				body := assertTask6GeneratedStatus(t, server, authenticatedRequest(requestCase.method, requestCase.target, requestCase.body), http.StatusInternalServerError)
+				if body["errorCode"] != errx.CodeInternalError {
+					t.Fatalf("body=%#v, want internal dependency error", body)
+				}
+			})
+		}
+	}
 }
 
 func TestAPIRouterRequiresAdminTokenWhenConfigured(t *testing.T) {

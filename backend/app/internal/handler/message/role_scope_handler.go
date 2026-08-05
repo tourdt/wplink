@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode"
 
 	"wplink/backend/app/internal/handler/handlerx"
 	"wplink/backend/app/internal/svc"
@@ -15,19 +16,20 @@ import (
 // messageRoleCodesForTokenUser 保留旧路由的收件范围语义：显式商家角色必须先验证管理权限，
 // 未指定角色时只推导当前 Token 用户实际管理的商家，禁止客户端借 userId 或 roleCode 横向访问消息。
 func messageRoleCodesForTokenUser(r *http.Request, svcCtx *svc.ServiceContext, userID string, explicitRoleCode string) ([]string, error) {
-	if svcCtx == nil || svcCtx.APIStore == nil || svcCtx.APIStore.MessageModel == nil || svcCtx.APIStore.UserModel == nil || svcCtx.AdminTokenService == nil {
-		logx.WithContext(r.Context()).Error("消息角色范围依赖未配置")
-		return nil, errx.New(errx.CodeInternalError, "消息服务暂不可用，请稍后重试")
+	if err := requireMessageHandlerDependencies(r, svcCtx); err != nil {
+		return nil, err
 	}
 
 	explicitRoleCode = strings.TrimSpace(explicitRoleCode)
 	if explicitRoleCode != "" {
-		if merchantID, ok := merchantIDFromRoleCode(explicitRoleCode); ok {
-			if err := handlerx.RequireMerchant(r, handlerx.MerchantPermissionDeps{
-				UserTokenService: svcCtx.UserTokenService, AdminTokenService: svcCtx.AdminTokenService, Store: svcCtx.APIStore,
-			}, merchantID); err != nil {
-				return nil, err
-			}
+		merchantID, ok := merchantIDFromRoleCode(explicitRoleCode)
+		if !ok {
+			return nil, errx.New(errx.CodeForbidden, "您没有权限查看该消息")
+		}
+		if err := handlerx.RequireMerchant(r, handlerx.MerchantPermissionDeps{
+			UserTokenService: svcCtx.UserTokenService, AdminTokenService: svcCtx.AdminTokenService, Store: svcCtx.APIStore,
+		}, merchantID); err != nil {
+			return nil, err
 		}
 		return []string{explicitRoleCode}, nil
 	}
@@ -48,12 +50,21 @@ func messageRoleCodesForTokenUser(r *http.Request, svcCtx *svc.ServiceContext, u
 	return roleCodes, nil
 }
 
+func requireMessageHandlerDependencies(r *http.Request, svcCtx *svc.ServiceContext) error {
+	if svcCtx == nil || svcCtx.APIStore == nil || svcCtx.APIStore.MessageModel == nil || svcCtx.APIStore.UserModel == nil || svcCtx.AdminTokenService == nil {
+		logx.WithContext(r.Context()).Error("消息 Handler 依赖未配置")
+		return errx.New(errx.CodeInternalError, "消息服务暂不可用，请稍后重试")
+	}
+	return nil
+}
+
 func merchantIDFromRoleCode(roleCode string) (string, bool) {
 	const prefix = "merchant:"
 	roleCode = strings.TrimSpace(roleCode)
 	if !strings.HasPrefix(roleCode, prefix) {
 		return "", false
 	}
-	merchantID := strings.TrimSpace(strings.TrimPrefix(roleCode, prefix))
-	return merchantID, merchantID != ""
+	merchantID := strings.TrimPrefix(roleCode, prefix)
+	// 商家消息角色只允许一个固定前缀和一个非空商家 ID，额外冒号或内部空白均表示格式异常，不能进入 Model 的 ANY 条件。
+	return merchantID, merchantID != "" && !strings.Contains(merchantID, ":") && strings.IndexFunc(merchantID, unicode.IsSpace) < 0
 }

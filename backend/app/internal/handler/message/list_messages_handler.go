@@ -15,6 +15,10 @@ import (
 
 func ListMessagesHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if err := requireMessageHandlerDependencies(r, svcCtx); err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
 		subject, err := handlerx.RequiredUser(r, svcCtx.UserTokenService)
 		if err != nil {
 			response.JSON(w, nil, err)
