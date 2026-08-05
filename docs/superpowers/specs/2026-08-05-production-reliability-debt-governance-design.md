@@ -185,7 +185,6 @@ type Observer interface {
 | `wechat` | `access_token` | 微信 access token |
 | `wechat` | `content_text_check` | 文本内容安全检测 |
 | `wechat` | `content_media_submit` | 图片内容安全任务提交 |
-| `wechat` | `content_media_download` | 审核媒体下载 |
 | `wechat` | `pay_create` | 微信支付预下单 |
 | `wechat` | `pay_query` | 微信支付订单查询 |
 | `wechat` | `pay_close` | 微信支付关单 |
@@ -231,9 +230,8 @@ type Observer interface {
 
 - 成功响应产生 `success`。
 - Context/HTTP 超时产生 `timeout`。
-- 可解析的供应商错误产生 `provider_rejected`。
 
-包含响应解析或验签的客户端还应覆盖 `decode_error`；包含非 2xx 分支的客户端应覆盖 `http_error`；Transport 返回网络错误时应覆盖 `transport_error`。测试通过注入 Observer 检查 provider、operation、outcome、status code 和事件次数。
+在 HTTP 2xx 响应体内使用供应商错误码的客户端应覆盖 `provider_rejected`；微信支付等通过非 2xx 表达供应商错误的客户端应覆盖 `http_error`。包含响应解析或验签的客户端还应覆盖 `decode_error`；Transport 返回网络错误时应覆盖 `transport_error`。测试通过注入 Observer 检查 provider、operation、outcome、status code 和事件次数。
 
 ### 9.3 安全回归测试
 
