@@ -48,6 +48,16 @@ func TestUploadGeneratedRequiresValidUserOrAdmin(t *testing.T) {
 	badTokenRec := httptest.NewRecorder()
 	server.ServeHTTP(badTokenRec, uploadRequest("bad-token"))
 	assertErrorEnvelope(t, badTokenRec, http.StatusUnauthorized, errx.CodeUnauthorized, "请先登录")
+	if strings.Contains(badTokenRec.Body.String(), "invalid user token") {
+		t.Fatalf("bad token response leaked raw verifier error: %s", badTokenRec.Body.String())
+	}
+
+	expiredTokenRec := httptest.NewRecorder()
+	server.ServeHTTP(expiredTokenRec, uploadRequest("expired-token"))
+	assertErrorEnvelope(t, expiredTokenRec, http.StatusUnauthorized, errx.CodeUnauthorized, "请先登录")
+	if strings.Contains(expiredTokenRec.Body.String(), "jwt expired") || strings.Contains(expiredTokenRec.Body.String(), "Authorization") {
+		t.Fatalf("expired token response leaked raw verifier error: %s", expiredTokenRec.Body.String())
+	}
 
 	userRec := httptest.NewRecorder()
 	server.ServeHTTP(userRec, uploadRequest("user-token"))
@@ -58,6 +68,37 @@ func TestUploadGeneratedRequiresValidUserOrAdmin(t *testing.T) {
 	server.ServeHTTP(adminRec, uploadRequest("admin-token"))
 	adminData := decodeEnvelopeData(t, adminRec, http.StatusOK)
 	assertUploadData(t, adminData)
+}
+
+func TestUploadGeneratedPreservesUserAuthenticationDependencyFailures(t *testing.T) {
+	var typedNilService *typedNilUploadUserTokenService
+	tests := []struct {
+		name    string
+		service authlogic.TokenService
+	}{
+		{name: "nil token service", service: nil},
+		{name: "typed nil token service", service: typedNilService},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := newGeneratedAPIServer(t, &svc.ServiceContext{
+				UploadTokenService: uploadlogic.NewUploadTokenLogic(testUploadStorageConfig()),
+				UserTokenService:   tc.service,
+				AdminTokenService: adminauthlogic.NewValidatingAdminTokenService(
+					&strictUploadAdminTokenService{},
+					strictUploadAdminSessionStore{},
+				),
+			})
+
+			rec := httptest.NewRecorder()
+			server.ServeHTTP(rec, uploadRequest("user-token"))
+
+			assertErrorEnvelope(t, rec, http.StatusInternalServerError, errx.CodeInternalError, "登录服务暂不可用，请稍后重试")
+			if strings.Contains(rec.Body.String(), "typed nil user token service was called") || strings.Contains(rec.Body.String(), "Authorization") {
+				t.Fatalf("dependency failure response leaked internal authentication detail: %s", rec.Body.String())
+			}
+		})
+	}
 }
 
 func uploadRequest(token string) *http.Request {
@@ -116,10 +157,23 @@ func (s *strictUploadUserTokenService) IssueUserToken(context.Context, session.U
 }
 
 func (s *strictUploadUserTokenService) ParseUserToken(_ context.Context, token string) (session.UserTokenSubject, error) {
+	if token == "expired-token" {
+		return session.UserTokenSubject{}, errors.New("jwt expired with Authorization detail")
+	}
 	if token != "user-token" {
 		return session.UserTokenSubject{}, errors.New("invalid user token")
 	}
 	return session.UserTokenSubject{UserID: "user-1", Roles: []string{authlogic.RoleNormalUser}}, nil
+}
+
+type typedNilUploadUserTokenService struct{}
+
+func (*typedNilUploadUserTokenService) IssueUserToken(context.Context, session.UserTokenSubject) (string, error) {
+	return "", errors.New("typed nil user token service was called")
+}
+
+func (*typedNilUploadUserTokenService) ParseUserToken(context.Context, string) (session.UserTokenSubject, error) {
+	return session.UserTokenSubject{}, errors.New("typed nil user token service was called with Authorization")
 }
 
 type strictUploadAdminTokenService struct {

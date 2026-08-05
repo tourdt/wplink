@@ -37,8 +37,8 @@ func AdminLoginHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		response.JSON(w, types.AdminLoginResp{
 			Token:      resp.Token,
 			OperatorId: resp.OperatorID,
-			Roles:      append([]string(nil), resp.Roles...),
-			Modules:    append([]string(nil), resp.Modules...),
+			Roles:      append([]string{}, resp.Roles...),
+			Modules:    append([]string{}, resp.Modules...),
 		}, nil)
 	}
 }

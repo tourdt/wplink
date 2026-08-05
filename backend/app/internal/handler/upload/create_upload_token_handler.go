@@ -24,7 +24,12 @@ func CreateUploadTokenHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 				return
 			}
 		} else if _, err := handlerx.RequiredUser(r, svcCtx.UserTokenService); err != nil {
-			// 上传凭证可以直接写入对象存储；所有认证失败统一拒绝，不能降级为匿名上传。
+			// 认证依赖故障必须保留 500 语义，便于监控和运维发现配置问题；
+			// 只有无效登录态统一收敛为“请先登录”，且不能降级为匿名上传。
+			if errx.CodeOf(err) != errx.CodeUnauthorized {
+				response.JSON(w, nil, err)
+				return
+			}
 			response.JSON(w, nil, errx.New(errx.CodeUnauthorized, "请先登录"))
 			return
 		}

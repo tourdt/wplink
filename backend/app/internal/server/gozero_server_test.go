@@ -162,6 +162,49 @@ func TestGoZeroAdminLoginRouteUsesGoctlHandlerWhenDependencyReady(t *testing.T) 
 	}
 }
 
+func TestGoZeroAdminLoginGeneratedSerializesEmptyRoleAndModuleArrays(t *testing.T) {
+	tests := []struct {
+		name    string
+		roles   []string
+		modules []string
+	}{
+		{name: "nil slices"},
+		{name: "empty slices", roles: []string{}, modules: []string{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			loginService := &goZeroAdminLoginService{resp: adminauthlogic.LoginResponse{
+				Token:      "token-1",
+				OperatorID: "operator-1",
+				Roles:      tc.roles,
+				Modules:    tc.modules,
+			}}
+			srv := newGeneratedAPIServer(t, &svc.ServiceContext{AdminLoginService: loginService})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/login", strings.NewReader(`{"loginName":"operator","password":"secret123"}`))
+			req.Header.Set("Content-Type", "application/json")
+			srv.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("admin login response = %d %q, want 200", rec.Code, rec.Body.String())
+			}
+			var body struct {
+				Data map[string]json.RawMessage `json:"data"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode admin login response: %v", err)
+			}
+			if got := string(body.Data["roles"]); got != "[]" {
+				t.Fatalf("raw roles JSON = %s, want []", got)
+			}
+			if got := string(body.Data["modules"]); got != "[]" {
+				t.Fatalf("raw modules JSON = %s, want []", got)
+			}
+		})
+	}
+}
+
 func TestGoZeroAdminLoginGeneratedPreservesClientContextAndRateLimitError(t *testing.T) {
 	loginService := &goZeroAdminLoginService{err: adminauthlogic.ErrLoginRateLimited}
 	srv := newGeneratedAPIServer(t, &svc.ServiceContext{AdminLoginService: loginService})
