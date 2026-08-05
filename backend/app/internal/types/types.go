@@ -67,9 +67,8 @@ type AdminCreateResourceTypeConfigResp struct {
 }
 
 type AdminDashboardMetrics struct {
-	PendingResourceCount     int64 `json:"pendingResourceCount"`
-	PendingVerificationCount int64 `json:"pendingVerificationCount"`
-	TodayContactCount        int64 `json:"todayContactCount"`
+	PendingResourceCount int64 `json:"pendingResourceCount"`
+	TodayContactCount    int64 `json:"todayContactCount"`
 }
 
 type AdminDashboardOverviewReq struct {
@@ -233,12 +232,11 @@ type AdminLoginResp struct {
 }
 
 type AdminMerchantListItem struct {
-	Id                 string `json:"id"`
-	Name               string `json:"name"`
-	MerchantType       string `json:"merchantType"`
-	VerificationStatus string `json:"verificationStatus"`
-	Status             string `json:"status"`
-	LastActiveAt       string `json:"lastActiveAt,optional"`
+	Id           string `json:"id"`
+	Name         string `json:"name"`
+	MerchantType string `json:"merchantType"`
+	Status       string `json:"status"`
+	LastActiveAt string `json:"lastActiveAt,optional"`
 }
 
 type AdminModuleItem struct {
@@ -308,31 +306,6 @@ type AdminPendingResourcesResp struct {
 	Page     int64                      `json:"page"`
 	PageSize int64                      `json:"pageSize"`
 	Total    int64                      `json:"total"`
-}
-
-type AdminPendingVerificationItem struct {
-	Id               string                 `json:"id"`
-	MerchantId       string                 `json:"merchantId"`
-	MerchantName     string                 `json:"merchantName"`
-	VerificationType string                 `json:"verificationType"`
-	Status           string                 `json:"status"`
-	SubmittedAt      string                 `json:"submittedAt"`
-	BusinessName     string                 `json:"businessName"`
-	LicenseUrl       string                 `json:"licenseUrl"`
-	StorefrontUrl    string                 `json:"storefrontUrl"`
-	Materials        map[string]interface{} `json:"materials"`
-}
-
-type AdminPendingVerificationsReq struct {
-	Page     int64 `form:"page,optional"`
-	PageSize int64 `form:"pageSize,optional"`
-}
-
-type AdminPendingVerificationsResp struct {
-	Items    []AdminPendingVerificationItem `json:"items"`
-	Page     int64                          `json:"page"`
-	PageSize int64                          `json:"pageSize"`
-	Total    int64                          `json:"total"`
 }
 
 type AdminPublishMapSceneResp struct {
@@ -431,17 +404,6 @@ type AdminReviewResourceReq struct {
 }
 
 type AdminReviewResourceResp struct {
-	Id      string `json:"id"`
-	Status  string `json:"status"`
-	Message string `json:"message"`
-}
-
-type AdminReviewVerificationReq struct {
-	Action     string `json:"action"`
-	ReviewNote string `json:"reviewNote,optional"`
-}
-
-type AdminReviewVerificationResp struct {
 	Id      string `json:"id"`
 	Status  string `json:"status"`
 	Message string `json:"message"`
@@ -711,29 +673,6 @@ type AdminVIPPromotionConfigItem struct {
 	UpdatedAt     string `json:"updatedAt,optional"`
 }
 
-type AdminVerificationBillingConfigReq struct {
-	CityCode      string `json:"cityCode,optional"`
-	ChargeEnabled bool   `json:"chargeEnabled"`
-	FeeAmount     int64  `json:"feeAmount"`
-	Currency      string `json:"currency,optional"`
-	FreeEnabled   bool   `json:"freeEnabled,optional"`
-	FreeStartAt   string `json:"freeStartAt,optional"`
-	FreeEndAt     string `json:"freeEndAt,optional"`
-	Notice        string `json:"notice,optional"`
-}
-
-type AdminVerificationBillingConfigResp struct {
-	CityCode      string `json:"cityCode"`
-	ChargeEnabled bool   `json:"chargeEnabled"`
-	FeeAmount     int64  `json:"feeAmount"`
-	Currency      string `json:"currency"`
-	FreeEnabled   bool   `json:"freeEnabled"`
-	FreeStartAt   string `json:"freeStartAt,optional"`
-	FreeEndAt     string `json:"freeEndAt,optional"`
-	Notice        string `json:"notice,optional"`
-	UpdatedAt     string `json:"updatedAt,optional"`
-}
-
 type AuthUserInfo struct {
 	Id              string   `json:"id"`
 	Nickname        string   `json:"nickname,optional"`
@@ -823,12 +762,11 @@ type CreateResourceResp struct {
 }
 
 type CreateSavedSearchReq struct {
-	Name         string `json:"name,optional"`
-	CityCode     string `json:"cityCode,optional"`
-	TypeCode     string `json:"typeCode,optional"`
-	Keyword      string `json:"keyword,optional"`
-	Category     string `json:"category,optional"`
-	VerifiedOnly bool   `json:"verifiedOnly,optional"`
+	Name     string `json:"name,optional"`
+	CityCode string `json:"cityCode,optional"`
+	TypeCode string `json:"typeCode,optional"`
+	Keyword  string `json:"keyword,optional"`
+	Category string `json:"category,optional"`
 }
 
 type CreateUploadTokenReq struct {
@@ -871,15 +809,6 @@ type CreateVIPPaymentReq struct {
 }
 
 type CreateVIPPaymentResp struct {
-	OrderId string          `json:"orderId"`
-	Status  string          `json:"status"`
-	Payment WechatPayParams `json:"payment"`
-}
-
-type CreateVerificationPaymentReq struct {
-}
-
-type CreateVerificationPaymentResp struct {
 	OrderId string          `json:"orderId"`
 	Status  string          `json:"status"`
 	Payment WechatPayParams `json:"payment"`
@@ -970,13 +899,12 @@ type EntitlementUsageRecordInfo struct {
 }
 
 type FollowedMerchantItem struct {
-	Id                 string   `json:"id"`
-	Name               string   `json:"name"`
-	MerchantType       string   `json:"merchantType"`
-	VerificationStatus string   `json:"verificationStatus"`
-	MainCategories     []string `json:"mainCategories"`
-	LogoUrl            string   `json:"logoUrl,optional"`
-	FollowedAt         string   `json:"followedAt"`
+	Id             string   `json:"id"`
+	Name           string   `json:"name"`
+	MerchantType   string   `json:"merchantType"`
+	MainCategories []string `json:"mainCategories"`
+	LogoUrl        string   `json:"logoUrl,optional"`
+	FollowedAt     string   `json:"followedAt"`
 }
 
 type HomeBannerItem struct {
@@ -1043,10 +971,9 @@ type HomeResourceItem struct {
 }
 
 type HomeResourceMerchantBrief struct {
-	Id                 string `json:"id"`
-	Name               string `json:"name"`
-	VerificationStatus string `json:"verificationStatus"`
-	VipStatus          string `json:"vipStatus"`
+	Id        string `json:"id"`
+	Name      string `json:"name"`
+	VipStatus string `json:"vipStatus"`
 }
 
 type HomeResourcesReq struct {
@@ -1070,19 +997,6 @@ type HotSearchKeywordsReq struct {
 
 type HotSearchKeywordsResp struct {
 	Items []HotSearchKeywordItem `json:"items"`
-}
-
-type LatestVerificationResp struct {
-	Id               string                 `json:"id"`
-	VerificationType string                 `json:"verificationType"`
-	Status           string                 `json:"status"`
-	ReviewedAt       string                 `json:"reviewedAt,optional"`
-	ExpiresAt        string                 `json:"expiresAt,optional"`
-	ReviewNote       string                 `json:"reviewNote,optional"`
-	BusinessName     string                 `json:"businessName,optional"`
-	LicenseUrl       string                 `json:"licenseUrl,optional"`
-	StorefrontUrl    string                 `json:"storefrontUrl,optional"`
-	Materials        map[string]interface{} `json:"materials,optional"`
 }
 
 type ListCityStationsResp struct {
@@ -1232,17 +1146,16 @@ type ListResourceTypesResp struct {
 }
 
 type ListResourcesReq struct {
-	CityCode     string `form:"cityCode,optional"`
-	MerchantId   string `form:"merchantId,optional"`
-	GroupCode    string `form:"groupCode,optional"`
-	TypeCode     string `form:"typeCode,optional"`
-	Direction    string `form:"direction,optional"`
-	Keyword      string `form:"keyword,optional"`
-	Category     string `form:"category,optional"`
-	Tags         string `form:"tags,optional"`
-	VerifiedOnly bool   `form:"verifiedOnly,optional"`
-	Page         int64  `form:"page,optional"`
-	PageSize     int64  `form:"pageSize,optional"`
+	CityCode   string `form:"cityCode,optional"`
+	MerchantId string `form:"merchantId,optional"`
+	GroupCode  string `form:"groupCode,optional"`
+	TypeCode   string `form:"typeCode,optional"`
+	Direction  string `form:"direction,optional"`
+	Keyword    string `form:"keyword,optional"`
+	Category   string `form:"category,optional"`
+	Tags       string `form:"tags,optional"`
+	Page       int64  `form:"page,optional"`
+	PageSize   int64  `form:"pageSize,optional"`
 }
 
 type ListResourcesResp struct {
@@ -1330,43 +1243,41 @@ type MapObjectDetailResp struct {
 }
 
 type MapObjectItem struct {
-	Id                 string                 `json:"id"`
-	SceneCode          string                 `json:"sceneCode"`
-	MerchantId         string                 `json:"merchantId,optional"`
-	Code               string                 `json:"code"`
-	Name               string                 `json:"name"`
-	Type               string                 `json:"type"`
-	Layer              string                 `json:"layer"`
-	DisplaySource      string                 `json:"displaySource"`
-	DisplayLevel       string                 `json:"displayLevel"`
-	IsVerifiedMerchant bool                   `json:"isVerifiedMerchant"`
-	Merchant           *MapObjectMerchantItem `json:"merchant,optional"`
-	GeometryType       string                 `json:"geometryType"`
-	Geometry           map[string]interface{} `json:"geometry"`
-	CenterX            string                 `json:"centerX,optional"`
-	CenterY            string                 `json:"centerY,optional"`
-	MinZoom            int64                  `json:"minZoom,optional"`
-	MaxZoom            int64                  `json:"maxZoom,optional"`
-	CategoryCodes      []string               `json:"categoryCodes"`
-	ServiceTags        []string               `json:"serviceTags"`
-	PlatformTags       []string               `json:"platformTags"`
-	PoiServiceTags     []string               `json:"poiServiceTags"`
-	Address            string                 `json:"address,optional"`
-	Phone              string                 `json:"phone,optional"`
-	Wechat             string                 `json:"wechat,optional"`
-	Lat                string                 `json:"lat,optional"`
-	Lng                string                 `json:"lng,optional"`
-	Extra              map[string]interface{} `json:"extra"`
-	Status             string                 `json:"status"`
+	Id             string                 `json:"id"`
+	SceneCode      string                 `json:"sceneCode"`
+	MerchantId     string                 `json:"merchantId,optional"`
+	Code           string                 `json:"code"`
+	Name           string                 `json:"name"`
+	Type           string                 `json:"type"`
+	Layer          string                 `json:"layer"`
+	DisplaySource  string                 `json:"displaySource"`
+	DisplayLevel   string                 `json:"displayLevel"`
+	Merchant       *MapObjectMerchantItem `json:"merchant,optional"`
+	GeometryType   string                 `json:"geometryType"`
+	Geometry       map[string]interface{} `json:"geometry"`
+	CenterX        string                 `json:"centerX,optional"`
+	CenterY        string                 `json:"centerY,optional"`
+	MinZoom        int64                  `json:"minZoom,optional"`
+	MaxZoom        int64                  `json:"maxZoom,optional"`
+	CategoryCodes  []string               `json:"categoryCodes"`
+	ServiceTags    []string               `json:"serviceTags"`
+	PlatformTags   []string               `json:"platformTags"`
+	PoiServiceTags []string               `json:"poiServiceTags"`
+	Address        string                 `json:"address,optional"`
+	Phone          string                 `json:"phone,optional"`
+	Wechat         string                 `json:"wechat,optional"`
+	Lat            string                 `json:"lat,optional"`
+	Lng            string                 `json:"lng,optional"`
+	Extra          map[string]interface{} `json:"extra"`
+	Status         string                 `json:"status"`
 }
 
 type MapObjectMerchantItem struct {
-	Id                 string   `json:"id"`
-	Name               string   `json:"name"`
-	MerchantType       string   `json:"merchantType"`
-	VerificationStatus string   `json:"verificationStatus"`
-	LogoUrl            string   `json:"logoUrl,optional"`
-	MainCategories     []string `json:"mainCategories"`
+	Id             string   `json:"id"`
+	Name           string   `json:"name"`
+	MerchantType   string   `json:"merchantType"`
+	LogoUrl        string   `json:"logoUrl,optional"`
+	MainCategories []string `json:"mainCategories"`
 }
 
 type MapObjectReportItem struct {
@@ -1414,26 +1325,24 @@ type MerchantContactInfo struct {
 }
 
 type MerchantDetailResp struct {
-	Id                 string                   `json:"id"`
-	MerchantNo         string                   `json:"merchantNo"`
-	Name               string                   `json:"name"`
-	MerchantType       string                   `json:"merchantType"`
-	CityCode           string                   `json:"cityCode"`
-	MainCategories     []string                 `json:"mainCategories"`
-	ProfileStatus      string                   `json:"profileStatus"`
-	VerificationStatus string                   `json:"verificationStatus"`
-	VipStatus          string                   `json:"vipStatus"`
-	VerificationInfo   MerchantVerificationInfo `json:"verificationInfo,optional"`
-	CreditTags         []CreditTagInfo          `json:"creditTags"`
-	Contact            *MerchantContactInfo     `json:"contact,optional"`
-	ResourcesSummary   MerchantResourcesSummary `json:"resourcesSummary"`
-	HeatScore          int64                    `json:"heatScore"`
-	AddressText        string                   `json:"addressText,optional"`
-	Location           map[string]interface{}   `json:"location,optional"`
-	Description        string                   `json:"description,optional"`
-	LogoUrl            string                   `json:"logoUrl,optional"`
-	Images             []string                 `json:"images,optional"`
-	LastActiveAt       string                   `json:"lastActiveAt,optional"`
+	Id               string                   `json:"id"`
+	MerchantNo       string                   `json:"merchantNo"`
+	Name             string                   `json:"name"`
+	MerchantType     string                   `json:"merchantType"`
+	CityCode         string                   `json:"cityCode"`
+	MainCategories   []string                 `json:"mainCategories"`
+	ProfileStatus    string                   `json:"profileStatus"`
+	VipStatus        string                   `json:"vipStatus"`
+	CreditTags       []CreditTagInfo          `json:"creditTags"`
+	Contact          *MerchantContactInfo     `json:"contact,optional"`
+	ResourcesSummary MerchantResourcesSummary `json:"resourcesSummary"`
+	HeatScore        int64                    `json:"heatScore"`
+	AddressText      string                   `json:"addressText,optional"`
+	Location         map[string]interface{}   `json:"location,optional"`
+	Description      string                   `json:"description,optional"`
+	LogoUrl          string                   `json:"logoUrl,optional"`
+	Images           []string                 `json:"images,optional"`
+	LastActiveAt     string                   `json:"lastActiveAt,optional"`
 }
 
 type MerchantEntitlementInfo struct {
@@ -1527,14 +1436,6 @@ type MerchantVIPResp struct {
 	PublishQuotaRemaining int64  `json:"publishQuotaRemaining"`
 	RefreshQuotaRemaining int64  `json:"refreshQuotaRemaining"`
 	TopVoucherCount       int64  `json:"topVoucherCount"`
-}
-
-type MerchantVerificationInfo struct {
-	Status       string   `json:"status"`
-	Type         string   `json:"type"`
-	ReviewedAt   string   `json:"reviewedAt,optional"`
-	ExpiresAt    string   `json:"expiresAt,optional"`
-	CheckedItems []string `json:"checkedItems"`
 }
 
 type MessageListItem struct {
@@ -1795,14 +1696,13 @@ type ReverseGeocodeResp struct {
 }
 
 type SavedSearchItem struct {
-	Id           string `json:"id"`
-	Name         string `json:"name"`
-	CityCode     string `json:"cityCode"`
-	TypeCode     string `json:"typeCode"`
-	Keyword      string `json:"keyword"`
-	Category     string `json:"category"`
-	VerifiedOnly bool   `json:"verifiedOnly"`
-	CreatedAt    string `json:"createdAt"`
+	Id        string `json:"id"`
+	Name      string `json:"name"`
+	CityCode  string `json:"cityCode"`
+	TypeCode  string `json:"typeCode"`
+	Keyword   string `json:"keyword"`
+	Category  string `json:"category"`
+	CreatedAt string `json:"createdAt"`
 }
 
 type SavedSearchResp struct {
@@ -1883,20 +1783,6 @@ type SubmitResourceReq struct {
 }
 
 type SubmitResourceResp struct {
-	Id      string `json:"id"`
-	Status  string `json:"status"`
-	Message string `json:"message"`
-}
-
-type SubmitVerificationReq struct {
-	VerificationType string                 `json:"verificationType"`
-	BusinessName     string                 `json:"businessName,optional"`
-	LicenseUrl       string                 `json:"licenseUrl,optional"`
-	StorefrontUrl    string                 `json:"storefrontUrl,optional"`
-	Materials        map[string]interface{} `json:"materials,optional"`
-}
-
-type SubmitVerificationResp struct {
 	Id      string `json:"id"`
 	Status  string `json:"status"`
 	Message string `json:"message"`
@@ -2002,18 +1888,6 @@ type ValidateWebviewReq struct {
 type ValidateWebviewResp struct {
 	Allowed bool   `json:"allowed"`
 	Url     string `json:"url"`
-}
-
-type VerificationBillingConfigResp struct {
-	CityCode      string `json:"cityCode"`
-	ChargeEnabled bool   `json:"chargeEnabled"`
-	FeeAmount     int64  `json:"feeAmount"`
-	Currency      string `json:"currency"`
-	FreeEnabled   bool   `json:"freeEnabled"`
-	FreeStartAt   string `json:"freeStartAt,optional"`
-	FreeEndAt     string `json:"freeEndAt,optional"`
-	Notice        string `json:"notice,optional"`
-	UpdatedAt     string `json:"updatedAt,optional"`
 }
 
 type WechatLoginReq struct {
