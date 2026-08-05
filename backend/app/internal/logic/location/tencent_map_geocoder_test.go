@@ -2,11 +2,15 @@ package location
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -186,6 +190,132 @@ func TestTencentMapGeocoderTransportLogsDoNotLeakAPIKeyOrURL(t *testing.T) {
 		if !strings.Contains(logText, required) {
 			t.Fatalf("log = %q, want safe field %q", logText, required)
 		}
+	}
+}
+
+func TestTencentMapGeocoderTransportFailureLogsSafeCause(t *testing.T) {
+	const (
+		sentinelKey = "sentinel-map-key-cause"
+		secretError = "secret-transport-detail"
+	)
+	tests := []struct {
+		name      string
+		err       error
+		wantCause string
+	}{
+		{
+			name:      "canceled",
+			err:       context.Canceled,
+			wantCause: "canceled",
+		},
+		{
+			name:      "timeout",
+			err:       context.DeadlineExceeded,
+			wantCause: "timeout",
+		},
+		{
+			name:      "dns",
+			err:       &net.DNSError{Err: "lookup failed", Name: "dns-secret.example"},
+			wantCause: "dns",
+		},
+		{
+			name:      "tls certificate",
+			err:       x509.UnknownAuthorityError{Cert: &x509.Certificate{}},
+			wantCause: "tls",
+		},
+		{
+			name:      "connection refused",
+			err:       &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED},
+			wantCause: "connection_refused",
+		},
+		{
+			name:      "connection reset",
+			err:       &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET},
+			wantCause: "connection_reset",
+		},
+		{
+			name:      "unexpected eof",
+			err:       io.ErrUnexpectedEOF,
+			wantCause: "unexpected_eof",
+		},
+		{
+			name:      "network",
+			err:       &net.OpError{Op: "read", Net: "tcp", Err: errors.New("opaque network failure")},
+			wantCause: "network",
+		},
+		{
+			name:      "unknown",
+			err:       errors.New("opaque failure"),
+			wantCause: "other",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := logtest.NewCollector(t)
+			observer := &recordingExternalCallObserver{}
+			transportErr := fmt.Errorf("%s: %w", secretError, tt.err)
+			client := &http.Client{Transport: locationRoundTripFunc(func(*http.Request) (*http.Response, error) {
+				return nil, transportErr
+			})}
+			geocoder := NewTencentMapGeocoder(config.TencentMapConfig{Key: sentinelKey}, client, observer)
+
+			_, _ = geocoder.ReverseGeocode(context.Background(), 30.8732, 120.2255)
+
+			logText := collector.String()
+			if !strings.Contains(logText, "cause="+tt.wantCause) {
+				t.Fatalf("log = %q, want cause=%s", logText, tt.wantCause)
+			}
+			for _, forbidden := range []string{sentinelKey, "key=", "https://apis.map.qq.com/", secretError, "dns-secret.example", "opaque network failure", "opaque failure"} {
+				if strings.Contains(logText, forbidden) {
+					t.Fatalf("log contains forbidden value %q: %s", forbidden, logText)
+				}
+			}
+		})
+	}
+}
+
+func TestTencentMapGeocoderBodyReadFailureLogsSafeCause(t *testing.T) {
+	const secretError = "secret-body-read-detail"
+	tests := []struct {
+		name      string
+		err       error
+		wantCause string
+	}{
+		{name: "connection reset", err: syscall.ECONNRESET, wantCause: "connection_reset"},
+		{name: "unexpected eof", err: io.ErrUnexpectedEOF, wantCause: "unexpected_eof"},
+		{name: "unknown", err: errors.New("opaque body failure"), wantCause: "other"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := logtest.NewCollector(t)
+			observer := &recordingExternalCallObserver{}
+			readErr := fmt.Errorf("%s: %w", secretError, tt.err)
+			client := &http.Client{Transport: locationRoundTripFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusPartialContent,
+					Header:     make(http.Header),
+					Body:       errorReadCloser{err: readErr},
+				}, nil
+			})}
+			geocoder := NewTencentMapGeocoder(config.TencentMapConfig{Key: "sentinel-body-key"}, client, observer)
+
+			_, _ = geocoder.ReverseGeocode(context.Background(), 30.8732, 120.2255)
+
+			logText := collector.String()
+			if !strings.Contains(logText, "cause="+tt.wantCause) {
+				t.Fatalf("log = %q, want cause=%s", logText, tt.wantCause)
+			}
+			for _, forbidden := range []string{"sentinel-body-key", "key=", "https://apis.map.qq.com/", secretError, "opaque body failure"} {
+				if strings.Contains(logText, forbidden) {
+					t.Fatalf("log contains forbidden value %q: %s", forbidden, logText)
+				}
+			}
+			if len(observer.events) != 1 || observer.events[0].Outcome != externalcall.OutcomeTransportError || observer.events[0].StatusCode != http.StatusPartialContent {
+				t.Fatalf("events = %+v, want exactly one transport_error/%d", observer.events, http.StatusPartialContent)
+			}
+		})
 	}
 }
 

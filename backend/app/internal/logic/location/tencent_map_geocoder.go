@@ -2,13 +2,18 @@ package location
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"wplink/backend/app/internal/config"
@@ -21,6 +26,20 @@ import (
 const (
 	defaultTencentMapGeocoderURL        = "https://apis.map.qq.com/ws/geocoder/v1/"
 	tencentMapStatusDailyQuotaExhausted = 121
+)
+
+type tencentMapFailureCause string
+
+const (
+	tencentMapFailureCauseCanceled          tencentMapFailureCause = "canceled"
+	tencentMapFailureCauseTimeout           tencentMapFailureCause = "timeout"
+	tencentMapFailureCauseDNS               tencentMapFailureCause = "dns"
+	tencentMapFailureCauseTLS               tencentMapFailureCause = "tls"
+	tencentMapFailureCauseConnectionRefused tencentMapFailureCause = "connection_refused"
+	tencentMapFailureCauseConnectionReset   tencentMapFailureCause = "connection_reset"
+	tencentMapFailureCauseUnexpectedEOF     tencentMapFailureCause = "unexpected_eof"
+	tencentMapFailureCauseNetwork           tencentMapFailureCause = "network"
+	tencentMapFailureCauseOther             tencentMapFailureCause = "other"
 )
 
 type ReverseGeocodeReq struct {
@@ -152,15 +171,17 @@ func (g *TencentMapGeocoder) ReverseGeocode(ctx context.Context, latitude float6
 	if err != nil {
 		outcome := externalcall.ClassifyTransport(ctx, err)
 		call.Finish(ctx, outcome, 0)
-		// http.Client 会用 *url.Error 包装错误并附带含 key 的完整 URL，日志只能记录安全分类。
-		logx.Errorf("腾讯地图逆地理编码请求失败: latitude=%.6f longitude=%.6f outcome=%s", latitude, longitude, outcome)
+		cause := classifyTencentMapFailureCause(ctx, err)
+		// http.Client 会用 *url.Error 包装错误并附带含 key 的完整 URL，日志只能记录安全枚举。
+		logx.Errorf("腾讯地图逆地理编码请求失败: latitude=%.6f longitude=%.6f outcome=%s cause=%s", latitude, longitude, outcome, cause)
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析服务暂不可用，请手动填写详细地址")
 	}
 	defer httpResp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(httpResp.Body, 1<<20))
 	if err != nil {
 		call.Finish(ctx, externalcall.OutcomeTransportError, httpResp.StatusCode)
-		logx.Errorf("读取腾讯地图逆地理编码响应失败: latitude=%.6f longitude=%.6f outcome=%s status=%d", latitude, longitude, externalcall.OutcomeTransportError, httpResp.StatusCode)
+		cause := classifyTencentMapFailureCause(ctx, err)
+		logx.Errorf("读取腾讯地图逆地理编码响应失败: latitude=%.6f longitude=%.6f outcome=%s cause=%s status=%d", latitude, longitude, externalcall.OutcomeTransportError, cause, httpResp.StatusCode)
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析失败，请手动填写详细地址")
 	}
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
@@ -197,6 +218,63 @@ func (g *TencentMapGeocoder) ReverseGeocode(ctx context.Context, latitude float6
 		Name:     chooseTencentPOIName(decoded.Result.POIs),
 		Province: decoded.Result.AddressComponent.Province,
 	}, nil
+}
+
+func classifyTencentMapFailureCause(ctx context.Context, err error) tencentMapFailureCause {
+	// 仅输出固定枚举；先丢弃 *url.Error 携带的 URL，再分类底层对象，绝不读取 URL、query 或错误文本。
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) && urlErr.Err != nil {
+		err = urlErr.Err
+	}
+	switch {
+	case errors.Is(err, context.Canceled) || (ctx != nil && errors.Is(ctx.Err(), context.Canceled)):
+		return tencentMapFailureCauseCanceled
+	case errors.Is(err, context.DeadlineExceeded) || (ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)):
+		return tencentMapFailureCauseTimeout
+	}
+
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return tencentMapFailureCauseDNS
+	}
+	if isTencentMapTLSFailure(err) {
+		return tencentMapFailureCauseTLS
+	}
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return tencentMapFailureCauseConnectionRefused
+	}
+	if errors.Is(err, syscall.ECONNRESET) {
+		return tencentMapFailureCauseConnectionReset
+	}
+	if errors.Is(err, io.ErrUnexpectedEOF) {
+		return tencentMapFailureCauseUnexpectedEOF
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		if netErr.Timeout() {
+			return tencentMapFailureCauseTimeout
+		}
+		return tencentMapFailureCauseNetwork
+	}
+	return tencentMapFailureCauseOther
+}
+
+func isTencentMapTLSFailure(err error) bool {
+	var unknownAuthorityErr x509.UnknownAuthorityError
+	if errors.As(err, &unknownAuthorityErr) {
+		return true
+	}
+	var certificateInvalidErr x509.CertificateInvalidError
+	if errors.As(err, &certificateInvalidErr) {
+		return true
+	}
+	var hostnameErr x509.HostnameError
+	if errors.As(err, &hostnameErr) {
+		return true
+	}
+	var recordHeaderErr tls.RecordHeaderError
+	return errors.As(err, &recordHeaderErr)
 }
 
 type tencentMapGeocoderResp struct {
