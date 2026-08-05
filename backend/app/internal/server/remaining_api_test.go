@@ -17,7 +17,91 @@ import (
 	"wplink/backend/app/internal/svc"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lib/pq"
 )
+
+func TestMerchantHandlersThroughGeneratedRoutes(t *testing.T) {
+	svcCtx, mock := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+
+	mock.ExpectQuery(`(?s)FROM merchants m.*GROUP BY m.id, cs.code`).
+		WithArgs("merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "merchant_no", "name", "merchant_type", "city_code", "main_categories", "profile_status", "vip_status",
+			"contact_name", "contact_phone", "contact_wechat", "address_text", "location", "description", "logo_url", "images",
+			"last_active_at", "published_count", "dealt_count", "follower_count",
+		}).AddRow(
+			"merchant-1", "M001", "晨星童装", "factory", "zhili", []byte(`["童装"]`), "completed", "none",
+			"周经理", "18800000002", "stock-demo", "织里镇", []byte(`{"latitude":30.1}`), "童装工厂", "https://img.example.com/logo.jpg", []byte(`["https://img.example.com/a.jpg"]`),
+			nil, int64(2), int64(1), int64(3),
+		))
+	mock.ExpectQuery(`(?s)FROM credit_records`).
+		WithArgs("merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"tag_code", "tag_label"}))
+	publicEnvelope := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1", nil), http.StatusOK)
+	publicData, ok := publicEnvelope["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("merchant response = %#v, want data object", publicEnvelope)
+	}
+	if _, exposed := publicData["contact"]; exposed {
+		t.Fatalf("anonymous merchant detail exposed contact: %#v", publicData["contact"])
+	}
+
+	badTokenReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1", nil)
+	badTokenReq.Header.Set("Authorization", "Bearer expired-token")
+	assertTask6GeneratedStatus(t, server, badTokenReq, http.StatusUnauthorized)
+
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-2").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodPost, "/api/v1/merchants/merchant-2", `{"name":"普通商家"}`), http.StatusForbidden)
+
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodPost, "/api/v1/merchants/merchant-1", `{"name":"官方童装店"}`), http.StatusBadRequest)
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("merchant generated SQL expectations: %v", err)
+	}
+}
+
+func TestMessageHandlersEnforceRoleScopeThroughGeneratedRoutes(t *testing.T) {
+	svcCtx, mock := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectQuery(`(?s)FROM messages`).
+		WithArgs("user-1", pq.Array([]string{"merchant:merchant-1"}), "review", "unread", int64(20), int64(0)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "message_type", "trigger_id", "title", "content", "target_url", "status", "created_at", "total",
+		}))
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/messages?userId=attacker&roleCode=merchant:merchant-1&type=review&status=unread&page=1&pageSize=20", ""), http.StatusOK)
+
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-2").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodPost, "/api/v1/messages/message-2/read", `{"userId":"attacker","roleCode":"merchant:merchant-2"}`), http.StatusForbidden)
+
+	mock.ExpectQuery(`(?s)SELECT m.id::text.*FROM merchant_admin_bindings mab`).
+		WithArgs("user-1").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("merchant-1").AddRow("merchant-3"))
+	mock.ExpectQuery(`(?s)UPDATE messages`).
+		WithArgs("message-1", "user-1", pq.Array([]string{"merchant:merchant-1", "merchant:merchant-3"})).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow("message-1", "read"))
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodPost, "/api/v1/messages/message-1/read", `{"userId":"attacker"}`), http.StatusOK)
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("message generated SQL expectations: %v", err)
+	}
+}
+
+func TestMessageGeneratedRoutesRejectMissingDependencies(t *testing.T) {
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{UserTokenService: &fakeUserTokenService{}})
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/messages", ""), http.StatusInternalServerError)
+}
 
 func TestAPIRouterRequiresAdminTokenWhenConfigured(t *testing.T) {
 	tokenService := &fakeAdminTokenService{subject: session.AdminTokenSubject{

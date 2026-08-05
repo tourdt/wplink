@@ -13,8 +13,83 @@ import (
 	"wplink/backend/app/internal/logic/adminauth"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
+	"wplink/backend/app/internal/svc"
 	"wplink/backend/common/errx"
+
+	"github.com/DATA-DOG/go-sqlmock"
 )
+
+func TestMetricsHandlersThroughGeneratedRoutes(t *testing.T) {
+	svcCtx, mock := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`(?s)INSERT INTO resource_exposure_events`).
+		WithArgs("resource-1", "", "visitor-1", "session-1", "search", int64(1200)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	exposureReq := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/exposures/batch", strings.NewReader(`{"userId":"attacker","visitorKey":"visitor-1","sessionId":"session-1","source":"search","items":[{"resourceId":"resource-1","visibleDurationMs":1200}]}`))
+	exposureReq.Header.Set("Content-Type", "application/json")
+	assertTask6GeneratedStatus(t, server, exposureReq, http.StatusOK)
+
+	mock.ExpectExec(`(?s)INSERT INTO .*merchant_map_events`).
+		WithArgs("", "101", "", "visitor-map", "session-map", "location_view", "merchant_location").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(`{"merchantId":"101","visitorKey":"visitor-map","sessionId":"session-map","eventType":"location_view","source":"merchant_location"}`)), http.StatusOK)
+
+	mock.ExpectQuery(`(?s)SELECT merchant_id::text.*FROM resources`).
+		WithArgs("resource-1").
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_id"}).AddRow("merchant-1"))
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectQuery(`(?s)FROM resource_metrics_daily.*ORDER BY stat_date ASC`).
+		WithArgs("resource-1", "2026-08-01", "2026-08-05").
+		WillReturnRows(sqlmock.NewRows([]string{"stat_date", "exposure_count", "detail_view_count", "phone_click_count", "wechat_copy_count"}).
+			AddRow("2026-08-05", int64(5), int64(2), int64(1), int64(1)))
+	mock.ExpectQuery(`(?s)SUM\(deal_feedback_count\)`).
+		WithArgs("resource-1", "2026-08-01", "2026-08-05").
+		WillReturnRows(sqlmock.NewRows([]string{"deal_feedback_count"}).AddRow(int64(3)))
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/resources/resource-1/metrics?from=2026-08-01&to=2026-08-05", ""), http.StatusOK)
+
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectQuery(`(?s)COUNT\(\*\) FILTER.*FROM resources`).
+		WithArgs("merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"published", "expiring", "dealt"}).AddRow(int64(4), int64(1), int64(2)))
+	mock.ExpectQuery(`(?s)SUM\(exposure_count\).*FROM resource_metrics_daily`).
+		WithArgs("merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"exposure", "detail", "contact"}).AddRow(int64(9), int64(5), int64(2)))
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/merchants/merchant-1/metrics/summary", ""), http.StatusOK)
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("metrics generated SQL expectations: %v", err)
+	}
+}
+
+func TestMetricsPublicGeneratedRoutesRejectInvalidTokens(t *testing.T) {
+	svcCtx, _ := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+
+	requests := []struct {
+		target string
+		body   string
+	}{
+		{target: "/api/v1/metrics/exposures/batch", body: `{"visitorKey":"visitor-1","sessionId":"session-1","source":"search","items":[{"resourceId":"resource-1","visibleDurationMs":1200}]}`},
+		{target: "/api/v1/metrics/merchant-map-events", body: `{"merchantId":"101","visitorKey":"visitor-map","sessionId":"session-map","eventType":"location_view","source":"merchant_location"}`},
+	}
+	for _, tc := range requests {
+		req := httptest.NewRequest(http.MethodPost, tc.target, strings.NewReader(tc.body))
+		req.Header.Set("Authorization", "Bearer expired-token")
+		assertTask6GeneratedStatus(t, server, req, http.StatusUnauthorized)
+	}
+}
+
+func TestMetricsGeneratedRoutesRejectMissingDependencies(t *testing.T) {
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{UserTokenService: &fakeUserTokenService{}})
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/resources/resource-1/metrics", ""), http.StatusInternalServerError)
+}
 
 func TestAPIRouterLogsInAdmin(t *testing.T) {
 	router := NewAPIRouter(&fakeCityAPIStore{}, WithAdminLoginService(fakeAdminLoginService{}))
