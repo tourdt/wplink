@@ -196,12 +196,14 @@ func (g *TencentMapGeocoder) ReverseGeocode(ctx context.Context, latitude float6
 	var decoded tencentMapGeocoderResp
 	if err := json.Unmarshal(body, &decoded); err != nil {
 		call.Finish(ctx, externalcall.OutcomeDecodeError, httpResp.StatusCode)
-		logx.Errorf("解析腾讯地图逆地理编码响应失败: latitude=%.6f longitude=%.6f err=%+v", latitude, longitude, err)
+		// JSON 错误文本可能引用供应商响应细节；只记录固定分类与 HTTP 状态。
+		logx.Errorf("解析腾讯地图逆地理编码响应失败: latitude=%.6f longitude=%.6f cause=json_invalid status=%d", latitude, longitude, httpResp.StatusCode)
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析响应异常，请手动填写详细地址")
 	}
 	if decoded.Status != 0 {
 		call.Finish(ctx, externalcall.OutcomeProviderRejected, httpResp.StatusCode)
-		logx.Errorf("腾讯地图逆地理编码返回错误: latitude=%.6f longitude=%.6f status=%d message=%s", latitude, longitude, decoded.Status, decoded.Message)
+		// message 仍仅在内存中用于兼容腾讯地图额度识别，禁止进入日志或向上错误。
+		logx.Errorf("腾讯地图逆地理编码返回错误: latitude=%.6f longitude=%.6f providerStatus=%d cause=provider_rejected status=%d", latitude, longitude, decoded.Status, httpResp.StatusCode)
 		if isTencentMapQuotaExhausted(decoded.Status, decoded.Message) {
 			return ReverseGeocodeResp{}, errx.New(errx.CodeRateLimited, "地址解析今日额度已用完，请手动填写详细地址")
 		}

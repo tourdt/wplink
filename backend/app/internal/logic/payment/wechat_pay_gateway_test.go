@@ -155,6 +155,69 @@ func TestHTTPWechatPayGatewayObservesCloseHTTPError(t *testing.T) {
 	})
 }
 
+func TestHTTPWechatPayGatewayNon2xxErrorsExposeOnlySafeFields(t *testing.T) {
+	const (
+		providerMessage = "sentinel-provider-message api_key=sentinel-pay-key query=sentinel-pay-query\nsentinel-pay-raw-body"
+		maliciousCode   = "ORDER_NOT_EXIST\nsentinel-code-injection"
+	)
+	tests := []struct {
+		name     string
+		code     string
+		wantCode string
+	}{
+		{name: "stable order not exist code", code: "ORDER_NOT_EXIST", wantCode: "ORDER_NOT_EXIST"},
+		{name: "stable compact order not exist code", code: "ORDERNOTEXIST", wantCode: "ORDERNOTEXIST"},
+		{name: "malicious code", code: maliciousCode, wantCode: "UNKNOWN"},
+		{name: "overlong code", code: strings.Repeat("A", 65), wantCode: "UNKNOWN"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, err := json.Marshal(map[string]string{"code": tt.code, "message": providerMessage})
+			if err != nil {
+				t.Fatalf("Marshal() error = %v", err)
+			}
+			gateway, observer := newObservedWechatPayGateway(t, func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(string(body))),
+				}, nil
+			})
+
+			_, returnedErr := gateway.QueryOrder(context.Background(), "VIP202607250001")
+			if returnedErr == nil {
+				t.Fatal("QueryOrder() error = nil, want HTTP error")
+			}
+			var apiErr *WechatPayAPIError
+			if !errors.As(returnedErr, &apiErr) {
+				t.Fatalf("errors.As(*WechatPayAPIError) = false, error = %T %v", returnedErr, returnedErr)
+			}
+			if apiErr.HTTPStatus != http.StatusNotFound {
+				t.Fatalf("HTTPStatus = %d, want %d", apiErr.HTTPStatus, http.StatusNotFound)
+			}
+			if apiErr.Code != tt.wantCode {
+				t.Fatalf("Code = %q, want %q", apiErr.Code, tt.wantCode)
+			}
+			if apiErr.Message != "" {
+				t.Fatalf("Message = %q, want empty safe value", apiErr.Message)
+			}
+			wantError := fmt.Sprintf("微信支付 API 请求失败: status=%d code=%s", http.StatusNotFound, tt.wantCode)
+			if returnedErr.Error() != wantError {
+				t.Fatalf("error = %q, want %q", returnedErr, wantError)
+			}
+			for _, forbidden := range []string{providerMessage, "sentinel-provider-message", "sentinel-pay-key", "sentinel-pay-query", "sentinel-pay-raw-body", "sentinel-code-injection"} {
+				if strings.Contains(apiErr.Message, forbidden) || strings.Contains(returnedErr.Error(), forbidden) || strings.Contains(fmt.Sprint(observer.events), forbidden) {
+					t.Fatalf("gateway boundary contains forbidden value %q: apiErr=%+v events=%+v", forbidden, apiErr, observer.events)
+				}
+			}
+			assertWechatPayEvents(t, observer.events, []externalcall.Event{
+				{Provider: externalcall.ProviderWechat, Operation: externalcall.OperationPayQuery, Outcome: externalcall.OutcomeHTTPError, StatusCode: http.StatusNotFound},
+			})
+		})
+	}
+}
+
 func TestHTTPWechatPayGatewayRejectsUnsignedQueryResponse(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {

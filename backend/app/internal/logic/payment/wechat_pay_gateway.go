@@ -29,7 +29,11 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
-const wechatPayAPIBaseURL = "https://api.mch.weixin.qq.com"
+const (
+	wechatPayAPIBaseURL            = "https://api.mch.weixin.qq.com"
+	wechatPayUnknownAPIErrorCode   = "UNKNOWN"
+	wechatPayMaxAPIErrorCodeLength = 64
+)
 
 type HTTPWechatPayGateway struct {
 	cfg        config.WechatPayConfig
@@ -62,7 +66,7 @@ type WechatPayAPIError struct {
 }
 
 func (e *WechatPayAPIError) Error() string {
-	return fmt.Sprintf("微信支付 API 请求失败: status=%d code=%s message=%s", e.HTTPStatus, e.Code, e.Message)
+	return fmt.Sprintf("微信支付 API 请求失败: status=%d code=%s", e.HTTPStatus, sanitizeWechatPayAPIErrorCode(e.Code))
 }
 
 func NewHTTPWechatPayGateway(cfg config.WechatPayConfig, observers ...externalcall.Observer) (*HTTPWechatPayGateway, error) {
@@ -491,15 +495,28 @@ func (g *HTTPWechatPayGateway) baseURL() string {
 
 func decodeWechatPayAPIError(status int, body []byte) error {
 	var decoded struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
+		Code string `json:"code"`
 	}
 	_ = json.Unmarshal(body, &decoded)
 	return &WechatPayAPIError{
 		HTTPStatus: status,
-		Code:       strings.TrimSpace(decoded.Code),
-		Message:    strings.TrimSpace(decoded.Message),
+		Code:       sanitizeWechatPayAPIErrorCode(decoded.Code),
+		// Message 字段为保持源码兼容而保留；供应商原文不得跨越网关错误边界。
+		Message: "",
 	}
+}
+
+func sanitizeWechatPayAPIErrorCode(raw string) string {
+	code := strings.TrimSpace(raw)
+	if code == "" || len(code) > wechatPayMaxAPIErrorCodeLength {
+		return wechatPayUnknownAPIErrorCode
+	}
+	for _, char := range code {
+		if (char < 'A' || char > 'Z') && (char < '0' || char > '9') && char != '_' {
+			return wechatPayUnknownAPIErrorCode
+		}
+	}
+	return code
 }
 
 func decryptWechatPayResource(apiV3Key string, associatedData string, nonce string, ciphertext string) ([]byte, error) {

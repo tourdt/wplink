@@ -3,11 +3,15 @@ package task
 import (
 	"context"
 	"database/sql"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	paymentlogic "wplink/backend/app/internal/logic/payment"
 	"wplink/backend/app/internal/model"
+
+	"github.com/zeromicro/go-zero/core/logx/logtest"
 )
 
 type fakePaymentReconciliationStore struct {
@@ -131,5 +135,109 @@ func TestPaymentReconciliationTaskClosesExpiredUnpaidOrder(t *testing.T) {
 	}
 	if store.closedBusinessOrder != "order-2" {
 		t.Fatalf("closed business order = %q, want order-2", store.closedBusinessOrder)
+	}
+}
+
+func TestPaymentReconciliationTaskAPIErrorLogsDoNotLeakProviderMessage(t *testing.T) {
+	const providerMessage = "sentinel-reconciliation-provider-message api_key=sentinel-reconciliation-key query=sentinel-reconciliation-query\nsentinel-reconciliation-raw-body"
+	now := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
+
+	t.Run("query failure", func(t *testing.T) {
+		collector := logtest.NewCollector(t)
+		store := &fakePaymentReconciliationStore{orders: []model.PendingPaymentOrder{{
+			BusinessType:    model.PaymentBusinessVIP,
+			BusinessOrderID: "order-query-error",
+			OutTradeNo:      "VIP202607250002",
+			CreatedAt:       now.Add(-5 * time.Minute),
+		}}}
+		gateway := &fakePaymentOrderGateway{queryErr: &paymentlogic.WechatPayAPIError{
+			HTTPStatus: http.StatusBadGateway,
+			Code:       "SYSTEM_ERROR",
+			Message:    providerMessage,
+		}}
+		reconciler := NewPaymentReconciliationTask(store, gateway, 2*time.Minute, 30*time.Minute, 100)
+		reconciler.now = func() time.Time { return now }
+
+		result, err := reconciler.Run(context.Background())
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if result.FailedCount != 1 {
+			t.Fatalf("result = %#v, want one query failure", result)
+		}
+		logText := collector.String()
+		if !strings.Contains(logText, "微信支付补偿查单失败") {
+			t.Fatalf("log = %q, want query compensation failure", logText)
+		}
+		if strings.Contains(logText, providerMessage) || strings.Contains(logText, "sentinel-reconciliation-") {
+			t.Fatalf("query compensation log leaks provider message: %s", logText)
+		}
+	})
+
+	t.Run("close failure", func(t *testing.T) {
+		collector := logtest.NewCollector(t)
+		store := &fakePaymentReconciliationStore{orders: []model.PendingPaymentOrder{{
+			BusinessType:    model.PaymentBusinessVIP,
+			BusinessOrderID: "order-close-error",
+			OutTradeNo:      "VIP202607250003",
+			CreatedAt:       now.Add(-31 * time.Minute),
+			ExpiresAt:       sql.NullTime{Time: now.Add(-time.Minute), Valid: true},
+		}}}
+		gateway := &fakePaymentOrderGateway{
+			orders: map[string]paymentlogic.WechatPayOrder{
+				"VIP202607250003": {OutTradeNo: "VIP202607250003", TradeState: "NOTPAY"},
+			},
+			closeErr: &paymentlogic.WechatPayAPIError{
+				HTTPStatus: http.StatusBadGateway,
+				Code:       "SYSTEM_ERROR",
+				Message:    providerMessage,
+			},
+		}
+		reconciler := NewPaymentReconciliationTask(store, gateway, 2*time.Minute, 30*time.Minute, 100)
+		reconciler.now = func() time.Time { return now }
+
+		result, err := reconciler.Run(context.Background())
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if result.FailedCount != 1 {
+			t.Fatalf("result = %#v, want one close failure", result)
+		}
+		logText := collector.String()
+		if !strings.Contains(logText, "关闭超时微信支付单失败") {
+			t.Fatalf("log = %q, want close compensation failure", logText)
+		}
+		if strings.Contains(logText, providerMessage) || strings.Contains(logText, "sentinel-reconciliation-") {
+			t.Fatalf("close compensation log leaks provider message: %s", logText)
+		}
+	})
+}
+
+func TestPaymentReconciliationTaskPreservesOrderNotExistClosure(t *testing.T) {
+	now := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
+	store := &fakePaymentReconciliationStore{orders: []model.PendingPaymentOrder{{
+		BusinessType:    model.PaymentBusinessContactUnlock,
+		BusinessOrderID: "order-not-exist",
+		OutTradeNo:      "CU202607250004",
+		CreatedAt:       now.Add(-31 * time.Minute),
+		ExpiresAt:       sql.NullTime{Time: now.Add(-time.Minute), Valid: true},
+	}}}
+	gateway := &fakePaymentOrderGateway{queryErr: &paymentlogic.WechatPayAPIError{
+		HTTPStatus: http.StatusNotFound,
+		Code:       "ORDER_NOT_EXIST",
+		Message:    "sentinel-provider-message-must-not-affect-order-not-exist",
+	}}
+	reconciler := NewPaymentReconciliationTask(store, gateway, 2*time.Minute, 30*time.Minute, 100)
+	reconciler.now = func() time.Time { return now }
+
+	result, err := reconciler.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.ClosedCount != 1 || result.FailedCount != 0 {
+		t.Fatalf("result = %#v, want expired missing remote order closed locally", result)
+	}
+	if store.closedBusinessOrder != "order-not-exist" || store.closedOutTradeNo != "CU202607250004" {
+		t.Fatalf("closed order = %q/%q, want order-not-exist/CU202607250004", store.closedBusinessOrder, store.closedOutTradeNo)
 	}
 }

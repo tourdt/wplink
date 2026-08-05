@@ -170,6 +170,74 @@ func TestTencentMapGeocoderObservesHTTPOutcomes(t *testing.T) {
 	}
 }
 
+func TestTencentMapGeocoderProviderFailuresDoNotLeakResponseDetails(t *testing.T) {
+	const (
+		sentinelKey       = "sentinel-map-api-key-security-review"
+		sentinelQuery     = "key=sentinel-query-security-review"
+		sentinelRawBody   = "sentinel-map-raw-body-security-review"
+		sentinelJSONError = "unexpected end of JSON input"
+	)
+	tests := []struct {
+		name          string
+		body          string
+		wantOutcome   externalcall.Outcome
+		wantCause     string
+		wantErrorCode string
+	}{
+		{
+			name:          "provider message",
+			body:          fmt.Sprintf(`{"status":999,"message":%q}`, "此 key 调用量已达到上限 "+sentinelKey+" "+sentinelQuery+"\n"+sentinelRawBody),
+			wantOutcome:   externalcall.OutcomeProviderRejected,
+			wantCause:     "cause=provider_rejected",
+			wantErrorCode: errx.CodeRateLimited,
+		},
+		{
+			name:        "invalid json",
+			body:        `{"status":0,"api_key":"` + sentinelKey + `","query":"` + sentinelQuery + `","raw":"` + sentinelRawBody + "\"\n" + `,"result":`,
+			wantOutcome: externalcall.OutcomeDecodeError,
+			wantCause:   "cause=json_invalid",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := logtest.NewCollector(t)
+			observer := &recordingExternalCallObserver{}
+			client := &http.Client{Transport: locationRoundTripFunc(func(*http.Request) (*http.Response, error) {
+				return testTencentMapResponse(http.StatusOK, tt.body), nil
+			})}
+			geocoder := NewTencentMapGeocoder(config.TencentMapConfig{Key: sentinelKey}, client, observer)
+
+			_, returnedErr := geocoder.ReverseGeocode(context.Background(), 30.8732, 120.2255)
+			if returnedErr == nil {
+				t.Fatal("ReverseGeocode() error = nil, want provider failure")
+			}
+			if tt.wantErrorCode != "" && errx.CodeOf(returnedErr) != tt.wantErrorCode {
+				t.Fatalf("ReverseGeocode() code = %q, want %q", errx.CodeOf(returnedErr), tt.wantErrorCode)
+			}
+			if len(observer.events) != 1 || observer.events[0].Outcome != tt.wantOutcome || observer.events[0].StatusCode != http.StatusOK {
+				t.Fatalf("events = %+v, want exactly one %s/%d", observer.events, tt.wantOutcome, http.StatusOK)
+			}
+
+			logText := collector.String()
+			if !strings.Contains(logText, tt.wantCause) {
+				t.Fatalf("log = %q, want %s", logText, tt.wantCause)
+			}
+			for _, forbidden := range []string{sentinelKey, sentinelQuery, sentinelRawBody, sentinelJSONError} {
+				if strings.Contains(logText, forbidden) {
+					t.Fatalf("log contains forbidden value %q: %s", forbidden, logText)
+				}
+				if strings.Contains(returnedErr.Error(), forbidden) {
+					t.Fatalf("returned error contains forbidden value %q: %s", forbidden, returnedErr)
+				}
+				if strings.Contains(fmt.Sprint(observer.events), forbidden) {
+					t.Fatalf("external call event contains forbidden value %q: %+v", forbidden, observer.events)
+				}
+			}
+		})
+	}
+}
+
 func TestTencentMapGeocoderTransportLogsDoNotLeakAPIKeyOrURL(t *testing.T) {
 	const sentinelKey = "sentinel-map-key-review"
 	collector := logtest.NewCollector(t)
