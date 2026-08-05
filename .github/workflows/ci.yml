@@ -28,6 +28,7 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
+      WPLINK_TEST_POSTGRES_DSN: postgres://postgres:postgres@127.0.0.1:5432/wplink_integration?sslmode=disable
       GOCACHE: ${{ github.workspace }}/.cache/go-build
     steps:
       - name: 检出代码
@@ -47,6 +48,15 @@ jobs:
       - name: 动态验证迁移回滚
         working-directory: backend
         run: go run ./scripts/verify_migrations.go
+      - name: 准备 PostgreSQL 集成测试库
+        working-directory: backend
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE wplink_integration'
+          for file in migrations/*.up.sql; do
+            psql "$WPLINK_TEST_POSTGRES_DSN" -v ON_ERROR_STOP=1 -f "$file"
+          done
+      - name: 运行 PostgreSQL 并发集成测试
+        run: make check-postgres
       - name: 运行后端测试
         working-directory: backend
         run: go test ./...
