@@ -12,7 +12,7 @@ func NewLogObserver() Observer {
 	return LogObserver{}
 }
 
-func (LogObserver) Observe(ctx context.Context, event Event) {
+func (LogObserver) Observe(_ context.Context, event Event) {
 	fields := []logx.LogField{
 		logx.Field("event", EventName),
 		logx.Field("provider", event.Provider),
@@ -24,11 +24,10 @@ func (LogObserver) Observe(ctx context.Context, event Event) {
 		fields = append(fields, logx.Field("status_code", event.StatusCode))
 	}
 
-	logger := logx.WithContext(ctx)
 	switch event.Outcome {
 	case OutcomeSuccess, OutcomeCanceled, OutcomeProviderRejected:
-		logger.Infow("第三方调用完成", fields...)
+		logx.Infow("第三方调用完成", fields...)
 	default:
-		logger.Errorw("第三方调用失败", fields...)
+		logx.Errorw("第三方调用失败", fields...)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync"
 	"testing"
 	"time"
 )
@@ -37,6 +38,40 @@ func TestCallFinishReportsOnceAndClampsNegativeDuration(t *testing.T) {
 	event := recorder.events[0]
 	if event.Duration != 0 || event.Outcome != OutcomeSuccess || event.StatusCode != 200 {
 		t.Fatalf("event = %+v, want clamped success event", event)
+	}
+}
+
+type channelObserver struct {
+	events chan Event
+}
+
+func (o channelObserver) Observe(_ context.Context, event Event) {
+	o.events <- event
+}
+
+func TestCallFinishReportsOnceWhenCalledConcurrently(t *testing.T) {
+	observer := channelObserver{events: make(chan Event, 32)}
+	call := startWithClock(observer, ProviderWechat, OperationCodeToSession, time.Now)
+
+	var waitGroup sync.WaitGroup
+	for i := 0; i < 32; i++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			call.Finish(context.Background(), OutcomeSuccess, 200)
+		}()
+	}
+	waitGroup.Wait()
+
+	select {
+	case <-observer.events:
+	default:
+		t.Fatal("Finish() did not report an event")
+	}
+	select {
+	case event := <-observer.events:
+		t.Fatalf("Finish() reported more than once: %+v", event)
+	default:
 	}
 }
 
