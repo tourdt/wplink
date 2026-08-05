@@ -1,0 +1,335 @@
+# API 契约与运行时路由归一设计
+
+## 1. 背景
+
+当前后端已经以 `backend/app/api/app.api` 聚合各领域 `.api` 文件，但运行时并未完整使用该契约生成的 go-zero 路由：
+
+- `.api` 当前声明 126 个接口。
+- go-zero 直接注册的业务接口只有后台登录和两个城市站接口。
+- 其余业务接口仍由 `backend/app/internal/server/api.go`、`auth_routes.go`、`domain_routes.go`、`map_routes.go` 中的 `http.ServeMux` 手工注册。
+- go-zero 通过 `rest.WithNotFoundHandler` 把未命中的 `/api/` 请求转发给兼容 Router。
+- 部分仍有效的运行时接口没有进入 `app.api`，主要涉及商家认证、增长活动、支付通知、内容审核回调及少量后台接口。
+
+这使系统同时存在“`.api` 契约路由”和“手写运行时路由”两套事实来源。新增或修改接口时，即使契约校验、Go 编译和现有测试均通过，也可能发生请求方法、路径、参数、权限或响应结构漂移。
+
+项目目前尚未上线，本次不保留内部兼容 Router，也不为已经确认废弃的接口增加兼容层；但小程序和管理后台正在使用的外部 URL、HTTP 方法、请求字段和响应字段仍按有效业务契约保留，避免把路由治理变成无关的产品改版。
+
+## 2. 目标与成功标准
+
+### 2.1 目标
+
+- 让 `backend/app/api/app.api` 成为全部业务 API 的唯一契约入口。
+- 让全部业务路由通过 goctl 生成的 go-zero 注册代码进入运行时。
+- 保留现有 Logic、Model、事务、权限规则、友好中文错误和结构化日志，不重写业务实现。
+- 建立可复现的 goctl 生成环境和持续集成门禁，防止契约与运行时再次分叉。
+- 完成迁移后删除 `/api/` NotFound fallback 和旧兼容 Router。
+
+### 2.2 成功标准
+
+- 所有保留的业务接口都能从 `app.api` 及其 import 链找到声明。
+- 所有运行时业务接口都来自 goctl 生成的 `internal/handler/routes.go`，不存在第二套手写业务路由表。
+- `goctl api validate --api backend/app/api/app.api` 通过。
+- 契约路由指纹与生成路由指纹完全一致，包括 HTTP 方法、完整路径和 Handler 名称。
+- go-zero `srv.Routes()` 包含全部业务路由；除 `/healthz`、`/readyz` 外不存在未进入契约的 HTTP API 路由。
+- 未知 `/api/` 路径直接返回 404，不再转发给 `NewAPIRouter`。
+- `/admin` 管理后台静态资源继续正常访问，但不进入业务 `.api`。
+- 用户认证、管理员认证、后台模块权限、商家管理权限和公开接口匿名语义与迁移前一致。
+- 微信支付通知和内容审核回调的验签、幂等及错误响应保持有效。
+- 现有 API 行为测试迁移到 go-zero Server 后通过，`make check` 通过。
+- 旧 Router 构造、注册文件、测试入口和 fallback 全部删除，引用搜索结果为零。
+
+## 3. 非目标
+
+本次不处理以下事项：
+
+- 重新设计小程序或管理后台的产品流程。
+- 为现有接口统一改名、改 URL、改 HTTP 方法或改响应 envelope。
+- 重写现有 Logic、Model、SQL 或事务边界。
+- 引入独立 Worker、API Gateway、Redis、MQ 或新的常驻服务。
+- 把 `/healthz`、`/readyz`、`/admin` 静态资源纳入业务 API 契约。
+- 顺带升级前端依赖、拆分前端大组件或清理与路由无关的历史代码。
+- 为确认废弃的运行时接口保留兼容别名。
+
+## 4. 方案选择
+
+### 4.1 采用方案：契约归一与薄 Handler 适配
+
+先核对契约与运行时全集，把仍有效的运行时接口补入对应领域 `.api`，再由 goctl 生成 types、routes 和 Handler 骨架。每个 Handler 只负责协议适配、身份解析、权限前置和调用既有 Logic，业务规则仍留在现有 Logic/Model。
+
+该方案能够真正删除第二套路由表，同时限制业务回归面。迁移过程中可以按完整领域分批验证，但最终必须一次性切断 `/api/` fallback。
+
+### 4.2 未采用方案：生成路由后继续转发兼容 Router
+
+可以让 go-zero 表面上注册全部路径，再由 Handler 把请求转给旧 `http.ServeMux`。该方案改动较小，但路径仍会同时存在于生成路由和手写 Router 中，参数与权限逻辑也继续散落，不能消除双轨技术债。
+
+### 4.3 未采用方案：按 goctl 默认结构重写全部 Logic
+
+让 goctl 同时生成并重写每个 Logic 能形成统一目录形态，但会触及大量已验证的业务规则、Store 小接口、事务和测试替身。路由归一不需要这类业务重写，成本和回归风险均明显高于收益。
+
+## 5. 目标架构
+
+迁移后的请求链路如下：
+
+```text
+客户端请求
+  -> go-zero REST Server
+      -> 平台路由
+          -> /healthz
+          -> /readyz
+          -> /admin 静态资源 NotFound Handler
+      -> goctl 生成业务路由
+          -> 领域 Handler
+              -> 统一解析与认证辅助组件
+              -> 现有领域 Logic
+              -> 现有 Model / 外部依赖
+              -> common/response.JSON
+      -> 未知路径 404
+```
+
+事实来源边界：
+
+| 内容 | 唯一来源 |
+|---|---|
+| 业务 HTTP 方法、路径、请求与响应 DTO、Handler 名称 | `backend/app/api/app.api` 及其 import 文件 |
+| go-zero 路由注册 | goctl 生成的 `backend/app/internal/handler/routes.go` |
+| 协议解析与 Logic 调用 | 对应领域 Handler |
+| 业务规则、状态机和事务 | 现有 `internal/logic` 与 `internal/model` |
+| 健康检查与就绪检查 | `internal/server/gozero_server.go` |
+| 管理后台静态资源 | 嵌入式 admin Handler |
+
+`server` 包不再保存业务路由清单，也不再根据 Store 接口是否满足来决定某条业务路由是否注册。所有契约路由始终注册；生产启动阶段统一校验必需依赖，测试中的不完整 `ServiceContext` 只能在实际请求相关 Handler 时返回可诊断错误，不得让路由集合随依赖变化。
+
+## 6. 契约归一设计
+
+### 6.1 路由盘点规则
+
+迁移前生成三份路由指纹：
+
+1. `.api` 契约中的 `HTTP 方法 + 完整 prefix/path + Handler`。
+2. 旧 Router 中实际注册的 `HTTP 方法 + 完整路径`。
+3. 小程序、管理后台、回调配置、业务测试和产品文档中实际引用的接口。
+
+每个差异必须进入明确分类，不能靠 fallback 隐式处理：
+
+- **契约与运行时都存在**：保持外部行为，迁移为 goctl Handler。
+- **仅运行时存在且仍有效**：先补入对应领域 `.api`，再迁移。
+- **仅运行时存在且已废弃**：删除旧注册及关联死代码，不补兼容接口。
+- **仅契约存在且为有效能力**：实现并注册 Handler；若只是失效草案，则从契约删除并更新调用方或文档。
+- **方法或路径不一致**：根据当前产品调用、测试与业务语义确定一个正式契约，项目未上线，因此不保留双方法或双路径兼容。
+
+已发现但尚未进入 `app.api` 的有效候选包括：
+
+- 商家认证提交、查询、支付和后台审核。
+- 增长活动公开查询、商家任务、后台活动/规则/发放记录。
+- 微信支付通知。
+- 微信内容审核媒体回调。
+- 后台资源列表与认证计费配置。
+
+这些接口必须逐项通过调用引用、Logic、Model 和行为测试确认，不能因为当前 126 条契约没有声明就直接删除。
+
+### 6.2 领域文件组织
+
+继续使用 `app.api` 作为单一入口，领域能力放在独立文件：
+
+- 现有 `auth.api`、`city.api`、`resource.api`、`map.api` 等继续保留。
+- 商家认证恢复或新增独立 `verification.api`，由 `app.api` 显式 import。
+- 增长能力使用独立 `growth.api`，避免继续塞入 `admin.api` 或 `merchant.api`。
+- 支付和第三方回调按业务归属放入明确的 `payment.api` 或 `callback.api`；回调虽然不是前端调用，也属于业务 HTTP 接口，必须进入契约。
+- 后台接口可继续按当前 group 拆分，但所有 `/api/v1/admin` 组除登录外必须声明统一管理员中间件。
+
+类型不在多个 `.api` 文件重复定义。确需跨领域共享的 DTO 通过明确 import 复用，避免为通过生成而复制结构。
+
+### 6.3 外部行为约束
+
+- 保留 `{code, msg, data}` 响应结构和当前中文用户提示。
+- 路径参数使用 go-zero `pathvar`/`httpx.Parse` 解析，查询和 JSON Body 由生成类型承载。
+- 对当前 Logic 中存在但 `.api` 未表达的服务端派生字段，例如 `userID`、管理员身份、角色或商家权限，不允许继续由客户端 DTO 提供；Handler 从验证后的 Token/路径推导并传给 Logic。
+- 微信支付通知和内容审核回调保留供应商要求的原始响应格式，不能强制套用普通 API envelope；Handler 模板允许这类端点使用专用响应函数。
+- 未声明接口、错误 HTTP 方法和无效路径统一由 go-zero 返回 404/405，不进入兼容分支。
+
+## 7. goctl 可复现生成设计
+
+### 7.1 当前风险
+
+当前本机 `GOCTL_HOME=/Users/ldh/.goctl` 中存在其他项目定制模板，直接执行 `goctl api go` 会生成 `zmall/common/response` 等错误 import。依赖开发机全局模板会导致不同维护者生成不同代码。
+
+### 7.2 仓库内模板
+
+在后端目录保存本项目所需的最小 goctl API 模板，只纳入 `api/` 生成模板，不复制无关的 RPC、Model、Kubernetes 等模板。模板来源固定为项目当前 goctl `1.7.5` 的官方模板，并做最小项目化调整：
+
+- Handler 使用 `wplink/backend/common/response` 的统一响应方式。
+- routes、types 等真正生成文件保留 `Code generated by goctl. DO NOT EDIT.` 标记。
+- Handler 骨架由 goctl 创建，但具体适配实现允许维护；后续生成不得覆盖已存在的 Handler 业务适配代码。
+
+所有生成命令显式传入仓库内 `--home`，禁止隐式读取用户级 `GOCTL_HOME`。`Makefile` 提供统一的生成与校验入口，并在文档中固定 goctl 版本。
+
+### 7.3 生成边界
+
+- `internal/types/types.go`：完整由 `app.api` 生成，不再手工局部同步。
+- `internal/handler/routes.go`：完整由 `app.api` 生成，不手工增删路由。
+- `internal/handler/<group>/*handler.go`：首次由 goctl 生成，随后只维护协议适配；新增接口仍先改 `.api` 再生成骨架。
+- 现有 `internal/logic`：本次不使用 goctl 空 Logic 覆盖，避免改写业务层。
+- `ServiceContext`、配置和服务入口：继续由项目维护，不让 goctl 覆盖现有依赖装配。
+
+生成流程先输出到临时目录，校验并只同步上述目标文件；不得直接用全量 goctl 输出覆盖 `config`、`svc`、`logic` 或启动文件。
+
+## 8. Handler 与公共适配组件
+
+### 8.1 Handler 职责
+
+每个 Handler 只处理以下内容：
+
+1. 通过 go-zero 解析路径、查询和 JSON Body。
+2. 从请求上下文或 Authorization Header 获取验证后的用户/管理员身份。
+3. 执行仅属于 HTTP 边界的权限前置，如商家管理权、后台模块访问权。
+4. 把生成 DTO 映射为现有 Logic 请求类型。
+5. 调用现有 Logic。
+6. 把 Logic 响应映射为生成 DTO，并通过安全响应组件输出。
+
+复杂业务判断、数据库查询、状态转换、幂等和外部调用不得迁入 Handler。
+
+### 8.2 公共辅助组件
+
+在 `internal/handler/handlerx` 提供小而稳定的共享能力：
+
+- JSON/查询/路径参数错误到 `errx` 友好中文错误的映射。
+- 必需用户 Token、可选用户 Token 和管理员 Token 解析。
+- 商家管理权限校验。
+- 后台模块权限校验所需的身份上下文读取。
+- 缺失依赖的安全错误与诊断日志。
+- Logic 与生成 DTO 之间确实跨领域复用的基础转换。
+
+辅助组件不保存路由表，不根据 URL 自行分派到业务 Handler，也不形成新的通用业务 Dispatcher。
+
+### 8.3 认证与权限
+
+- `/api/v1/admin/auth/login` 保持公开，不经过管理员认证中间件。
+- 其他 `/api/v1/admin/**` 路由统一经过 `AdminAuth` 中间件，解析 Token、实时校验账号状态，并校验路径对应模块权限。
+- 必须登录的用户接口使用统一用户认证能力；公开但允许携带 Token 的接口保留可选身份语义，非法 Token 仍按当前规则拒绝。
+- 商家所有者/管理员权限继续使用数据库确认，不信任客户端提交的 `userID`、角色或商家归属。
+- 上传 Token 保留“有效用户或具有权限的管理员均可使用”的双身份规则。
+- 支付与内容审核回调不使用用户 Token，而使用各自签名、时间窗和幂等校验。
+
+后台模块映射应从当前 `adminModuleFromPath` 的大 switch 迁移为权限包中的显式规则，并采用默认拒绝：新增后台路径尚未配置模块时不能自动放行。
+
+## 9. ServiceContext 与启动装配
+
+- `ServiceContext` 继续作为 Handler 唯一依赖入口，复用当前 `APIStore`、Token、微信、短信、支付、审核、上传和地图依赖。
+- 将旧 `apiRouterOptions` 中生产所需依赖的校验迁移为 `ServiceContext`/Server 启动校验，生产缺失依赖时启动失败。
+- goctl 路由无条件注册，不再因为某个 Store 或 Service 为 nil 而少注册接口。
+- `backend/app/app.go` 不再构造 `NewProductionAPIRouter`，只创建 `ServiceContext`、管理后台静态 Handler 和 go-zero Server。
+- `NewGoZeroServer` 删除 `apiHandler` 参数；NotFound Handler 只处理 `/admin` 静态资源，其余路径返回 404。
+- 健康检查和就绪检查保持现有实现，不依赖业务路由契约。
+
+## 10. 迁移顺序
+
+迁移按完整领域推进，每批都要求契约、生成代码、Handler、行为测试同时完成，不允许只迁移单个散落端点：
+
+1. **基线与门禁**：生成差异清单、固定仓库内 goctl 模板、建立契约/生成路由指纹检查。
+2. **平台与公共基础**：城市站、逆地理编码、公开发现、公开 VIP 配置等低耦合接口。
+3. **身份与上传**：用户登录、我的账号、短信、上传 Token、管理员登录及统一认证辅助组件。
+4. **商家与互动**：商家资料、收藏、关注、搜索收藏、消息、指标。
+5. **资源与商业能力**：资源发布/查询/管理、权益、VIP 订单、联系解锁、支付通知。
+6. **商家认证与增长**：先补全 `.api`，再迁移认证、认证计费、增长活动和任务接口。
+7. **地图**：公开地图、商家绑定和后台地图管理整体迁移。
+8. **后台管理**：权限、审核、运营配置、日志和资源类型配置整体迁移。
+9. **最终切换**：迁移回调端点、完成全集比较、删除旧 Router 与 `/api/` fallback、更新架构文档。
+
+顺序可以因依赖关系微调，但最终切换前不得留下任何仍通过 fallback 承接的业务接口。
+
+## 11. 测试与门禁
+
+### 11.1 契约生成测试
+
+- goctl validate 必须通过。
+- 从 `.api` 与生成 `routes.go` 提取标准化路由指纹并精确比较。
+- 检查完整方法、完整 prefix/path、Handler 名称和重复注册。
+- 在干净临时目录使用仓库模板重新生成，结果不得依赖用户 `GOCTL_HOME`。
+- `types.go` 与临时生成结果一致，防止只改 `.api` 未同步生成类型。
+
+### 11.2 运行时路由测试
+
+- 通过 `rest.Server.Routes()` 断言所有生成业务路由均已注册。
+- 运行时只允许额外存在 `/healthz` 和 `/readyz`；`/admin` 由静态 NotFound Handler 承接，不作为业务路由。
+- 断言未知 `/api/v1/**` 不再调用任何兼容 Handler，而是返回 404。
+- 断言同一方法和路径不存在重复注册。
+
+### 11.3 行为回归测试
+
+现有直接调用 `NewAPIRouter` 的测试逐领域迁移到统一的 go-zero Server 测试工厂。每个领域至少覆盖：
+
+- 成功请求和生成 DTO 映射。
+- JSON、query、path 参数错误。
+- 未登录、Token 失效和权限不足。
+- 商家越权与后台模块越权。
+- Logic/Model 错误到安全中文响应的映射。
+- 回调验签失败、重复通知和幂等成功。
+
+测试不能继续通过旧 Router 间接证明新 Handler 正确；最终引用搜索不得存在 `NewAPIRouter`。
+
+### 11.4 全量验证
+
+- `goctl api validate --api backend/app/api/app.api`
+- API 生成一致性检查。
+- `go test ./backend/app/...` 或在后端 module 下执行等价全量 Go 测试。
+- `go vet ./...`
+- 管理后台与小程序 API/流程测试。
+- `make check`
+- `git diff --check`
+
+## 12. 错误处理、日志与安全
+
+- 继续使用 `errx` 和 `common/response`，不得把数据库、Token、签名或供应商原始错误暴露给前端。
+- Handler 只记录请求边界、身份/权限失败和依赖缺失等诊断信息；已有 Logic 的业务日志不重复打印。
+- 日志不得记录 Authorization、手机号、OpenID、SessionKey、支付签名、密钥、完整请求体或完整响应体。
+- 解析错误返回稳定中文提示；详细原因只进入服务端日志。
+- 管理员权限和商家权限默认拒绝，不能因迁移时依赖缺失或模块映射遗漏而放行。
+- 回调端点必须在读取和解析 Body 时保留当前大小限制、签名验证、时间窗和幂等约束。
+
+## 13. 删除清单
+
+只有在全部门禁通过后才删除：
+
+- `backend/app/internal/server/goctl_routes.go`
+- `backend/app/internal/server/auth_routes.go`
+- `backend/app/internal/server/domain_routes.go`
+- `backend/app/internal/server/map_routes.go`
+- `backend/app/internal/server/api.go` 中的兼容 Router、Router options、路由注册和 HTTP 辅助代码
+- `NewAPIRouter`、`NewProductionAPIRouter` 及其生产依赖校验入口
+- `fallbackHandler` 中 `/api/` 转发分支和 `NewGoZeroServer` 的 `apiHandler` 参数
+- 仅服务于旧 Router 的测试和死代码
+
+如果 `api.go` 中仍有被新 Handler 复用的接口或安全辅助函数，应先迁移到语义明确的 `handlerx`、`permission` 或领域包，再删除文件，不能通过复制保留两份实现。
+
+## 14. 文档更新
+
+最终切换时同步：
+
+- `docs/product/technical-architecture.md`：把“双轨迁移期”更新为单一 goctl 路由架构，并更新启动流程和新增 API 指引。
+- `docs/product/api-implementation-checklist.md`：以归一后的有效契约和实际 Handler 为准，移除过期接口或错误方法描述。
+- `docs/product/local-dev-runbook.md`：增加固定 goctl 版本、仓库模板、生成与校验命令，删除 fallback 描述。
+- 相关部署/回调文档：确认支付和内容审核回调路径与正式契约一致。
+
+## 15. 风险与控制
+
+| 风险 | 控制措施 |
+|---|---|
+| 运行时独有的有效接口被误删 | 三方路由盘点，结合前端引用、Logic、测试和文档逐项分类 |
+| goctl 覆盖现有业务代码 | 临时目录生成，只同步明确目标；仓库模板和生成差异门禁 |
+| 认证/权限迁移后放宽 | 统一认证组件、默认拒绝、未登录/越权回归测试 |
+| 路径参数或查询解析行为改变 | 使用生成 DTO，逐领域迁移现有边界用例到 go-zero Server |
+| 回调响应格式被普通 envelope 改坏 | 回调使用专用 Handler/响应，覆盖验签与幂等测试 |
+| 一次性切换回归面过大 | 按领域完成适配和测试，最后只执行删除 fallback 的小切换 |
+| 维护者再次手写路由 | CI 精确比较 `.api` 与生成 routes，并禁止 server 包新增业务路由 |
+
+## 16. 完成定义
+
+只有同时满足以下条件，本技术债才算关闭：
+
+1. 所有有效业务路由已进入 `app.api`。
+2. 所有业务 Handler 由 goctl 路由直接调用并通过行为测试。
+3. 契约、生成路由与运行时路由门禁全部通过。
+4. 旧 Router、`/api/` fallback 和相关测试入口已删除。
+5. 管理后台静态资源、健康检查和就绪检查正常。
+6. 全量 `make check` 与生成一致性检查通过。
+7. 架构文档和本地开发手册已更新为单轨架构。
