@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,6 +16,7 @@ import (
 
 	"wplink/backend/app/internal/config"
 	resourcelogic "wplink/backend/app/internal/logic/resource"
+	"wplink/backend/common/externalcall"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -32,13 +35,14 @@ type WechatAuditor struct {
 	accessTokenURL string
 	msgSecCheckURL string
 	mediaCheckURL  string
+	observer       externalcall.Observer
 
 	mu          sync.Mutex
 	accessToken string
 	tokenExpiry time.Time
 }
 
-func NewWechatAuditor(wechat config.WechatConfig, cfg config.ContentAuditConfig, mediaBaseURL string, client *http.Client) *WechatAuditor {
+func NewWechatAuditor(wechat config.WechatConfig, cfg config.ContentAuditConfig, mediaBaseURL string, client *http.Client, observers ...externalcall.Observer) *WechatAuditor {
 	if !cfg.Enabled {
 		return nil
 	}
@@ -58,6 +62,11 @@ func NewWechatAuditor(wechat config.WechatConfig, cfg config.ContentAuditConfig,
 	if client == nil {
 		client = &http.Client{Timeout: timeout}
 	}
+	// variadic 仅用于保持旧调用兼容：这是可选单 Observer，传入多个时只使用第一个。
+	var observer externalcall.Observer
+	if len(observers) > 0 {
+		observer = observers[0]
+	}
 	return &WechatAuditor{
 		wechat:         wechat,
 		cfg:            cfg,
@@ -66,6 +75,7 @@ func NewWechatAuditor(wechat config.WechatConfig, cfg config.ContentAuditConfig,
 		accessTokenURL: defaultWechatAccessTokenURL,
 		msgSecCheckURL: defaultWechatMsgSecCheckURL,
 		mediaCheckURL:  defaultWechatMediaCheckURL,
+		observer:       observer,
 	}
 }
 
@@ -101,7 +111,8 @@ func (a *WechatAuditor) AuditResource(ctx context.Context, input resourcelogic.C
 
 	token, err := a.getAccessToken(ctx)
 	if err != nil {
-		logx.Errorf("获取微信内容安全 access_token 失败: merchantId=%s resourceId=%s typeCode=%s err=%+v", input.MerchantID, input.ResourceID, input.TypeCode, err)
+		// 外呼层已记录受控分类；此处只补充业务定位字段，避免原始错误携带 token URL/query。
+		logx.Errorf("获取微信内容安全 access_token 失败: merchantId=%s resourceId=%s typeCode=%s cause=external_call_failed", input.MerchantID, input.ResourceID, input.TypeCode)
 		return resourcelogic.ContentAuditResult{}, err
 	}
 
@@ -110,7 +121,7 @@ func (a *WechatAuditor) AuditResource(ctx context.Context, input resourcelogic.C
 	if strings.TrimSpace(text) != "" {
 		textResult, err := a.checkText(ctx, token, input, text)
 		if err != nil {
-			logx.Errorf("微信文本内容安全检测失败: merchantId=%s resourceId=%s typeCode=%s err=%+v", input.MerchantID, input.ResourceID, input.TypeCode, err)
+			logx.Errorf("微信文本内容安全检测失败: merchantId=%s resourceId=%s typeCode=%s cause=external_call_failed", input.MerchantID, input.ResourceID, input.TypeCode)
 			return resourcelogic.ContentAuditResult{}, err
 		}
 		result.Decision = stricterDecision(result.Decision, textResult.Decision)
@@ -156,13 +167,26 @@ func (a *WechatAuditor) checkText(ctx context.Context, token string, input resou
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	call := externalcall.Start(a.observer, externalcall.ProviderWechat, externalcall.OperationContentTextCheck)
 	var data msgSecCheckResp
-	if err := a.doJSON(req, &data); err != nil {
+	statusCode, outcome, err := a.doJSON(req, &data)
+	if err != nil {
+		call.Finish(ctx, outcome, statusCode)
+		logWechatAuditCallFailure("微信文本内容安全检测", outcome, ctx, err, statusCode)
 		return resourcelogic.ContentAuditResult{}, err
 	}
 	if data.ErrCode != 0 {
-		return resourcelogic.ContentAuditResult{}, fmt.Errorf("微信文本审核接口返回错误: errcode=%d errmsg=%s", data.ErrCode, data.ErrMsg)
+		call.Finish(ctx, externalcall.OutcomeProviderRejected, statusCode)
+		logx.Errorf("微信文本审核接口返回错误: errCode=%d cause=provider_rejected status=%d", data.ErrCode, statusCode)
+		return resourcelogic.ContentAuditResult{}, fmt.Errorf("微信文本审核接口返回错误: errcode=%d", data.ErrCode)
 	}
+	if strings.TrimSpace(data.TraceID) == "" {
+		call.Finish(ctx, externalcall.OutcomeDecodeError, statusCode)
+		logx.Errorf("微信文本审核接口未返回 trace_id: cause=missing_trace_id status=%d", statusCode)
+		return resourcelogic.ContentAuditResult{}, fmt.Errorf("微信文本审核接口未返回 trace_id")
+	}
+	// suggest 只描述审核决策，不表示外呼失败；pass/review/risky 均属于供应商成功响应。
+	call.Finish(ctx, externalcall.OutcomeSuccess, statusCode)
 	decision := data.Result.Suggest
 	if decision == "" {
 		decision = resourcelogic.ContentAuditDecisionReview
@@ -185,7 +209,7 @@ func (a *WechatAuditor) submitImages(ctx context.Context, token string, input re
 		}
 		traceID, err := a.submitMedia(ctx, token, input, normalizedURL)
 		if err != nil {
-			logx.Errorf("微信图片内容安全任务提交失败: merchantId=%s resourceId=%s typeCode=%s mediaURLPresent=%t err=%+v", input.MerchantID, input.ResourceID, input.TypeCode, normalizedURL != "", err)
+			logx.Errorf("微信图片内容安全任务提交失败: merchantId=%s resourceId=%s typeCode=%s mediaURLPresent=%t cause=external_call_failed", input.MerchantID, input.ResourceID, input.TypeCode, normalizedURL != "")
 			return nil, err
 		}
 		if strings.TrimSpace(traceID) == "" {
@@ -217,13 +241,25 @@ func (a *WechatAuditor) submitMedia(ctx context.Context, token string, input res
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	call := externalcall.Start(a.observer, externalcall.ProviderWechat, externalcall.OperationContentMediaSubmit)
 	var data mediaCheckResp
-	if err := a.doJSON(req, &data); err != nil {
+	statusCode, outcome, err := a.doJSON(req, &data)
+	if err != nil {
+		call.Finish(ctx, outcome, statusCode)
+		logWechatAuditCallFailure("微信图片内容安全任务提交", outcome, ctx, err, statusCode)
 		return "", err
 	}
 	if data.ErrCode != 0 {
-		return "", fmt.Errorf("微信图片审核接口返回错误: errcode=%d errmsg=%s", data.ErrCode, data.ErrMsg)
+		call.Finish(ctx, externalcall.OutcomeProviderRejected, statusCode)
+		logx.Errorf("微信图片审核接口返回错误: errCode=%d cause=provider_rejected status=%d", data.ErrCode, statusCode)
+		return "", fmt.Errorf("微信图片审核接口返回错误: errcode=%d", data.ErrCode)
 	}
+	if strings.TrimSpace(data.TraceID) == "" {
+		call.Finish(ctx, externalcall.OutcomeDecodeError, statusCode)
+		logx.Errorf("微信图片审核接口未返回 trace_id: cause=missing_trace_id status=%d", statusCode)
+		return "", fmt.Errorf("微信图片审核接口未返回 trace_id")
+	}
+	call.Finish(ctx, externalcall.OutcomeSuccess, statusCode)
 	logx.Infof("微信图片内容安全任务已提交: merchantId=%s resourceId=%s typeCode=%s traceId=%s", input.MerchantID, input.ResourceID, input.TypeCode, data.TraceID)
 	return strings.TrimSpace(data.TraceID), nil
 }
@@ -252,16 +288,25 @@ func (a *WechatAuditor) getAccessToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("创建微信 access_token 请求失败: %w", err)
 	}
+	call := externalcall.Start(a.observer, externalcall.ProviderWechat, externalcall.OperationAccessToken)
 	var data accessTokenResp
-	if err := a.doJSON(req, &data); err != nil {
+	statusCode, outcome, err := a.doJSON(req, &data)
+	if err != nil {
+		call.Finish(ctx, outcome, statusCode)
+		logWechatAuditCallFailure("微信内容安全 access_token", outcome, ctx, err, statusCode)
 		return "", err
 	}
 	if data.ErrCode != 0 {
-		return "", fmt.Errorf("微信 access_token 接口返回错误: errcode=%d errmsg=%s", data.ErrCode, data.ErrMsg)
+		call.Finish(ctx, externalcall.OutcomeProviderRejected, statusCode)
+		logx.Errorf("微信 access_token 接口返回错误: errCode=%d cause=provider_rejected status=%d", data.ErrCode, statusCode)
+		return "", fmt.Errorf("微信 access_token 接口返回错误: errcode=%d", data.ErrCode)
 	}
 	if strings.TrimSpace(data.AccessToken) == "" {
+		call.Finish(ctx, externalcall.OutcomeDecodeError, statusCode)
+		logx.Errorf("微信 access_token 接口未返回 token: expiresIn=%d cause=missing_access_token status=%d", data.ExpiresIn, statusCode)
 		return "", fmt.Errorf("微信 access_token 接口未返回 token")
 	}
+	call.Finish(ctx, externalcall.OutcomeSuccess, statusCode)
 	expiresIn := data.ExpiresIn
 	if expiresIn <= 0 {
 		expiresIn = 7200
@@ -278,23 +323,76 @@ func (a *WechatAuditor) getAccessToken(ctx context.Context) (string, error) {
 	return strings.TrimSpace(data.AccessToken), nil
 }
 
-func (a *WechatAuditor) doJSON(req *http.Request, out any) error {
+func (a *WechatAuditor) doJSON(req *http.Request, out any) (int, externalcall.Outcome, error) {
 	resp, err := a.client.Do(req)
 	if err != nil {
-		return err
+		return 0, externalcall.ClassifyTransport(req.Context(), err), err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 65536))
 	if err != nil {
-		return fmt.Errorf("读取微信内容安全响应失败: %w", err)
+		return resp.StatusCode, externalcall.OutcomeTransportError, fmt.Errorf("读取微信内容安全响应失败: %w", err)
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("微信内容安全 HTTP 状态异常: status=%d", resp.StatusCode)
+		return resp.StatusCode, externalcall.OutcomeHTTPError, fmt.Errorf("微信内容安全 HTTP 状态异常: status=%d", resp.StatusCode)
 	}
 	if err := json.Unmarshal(body, out); err != nil {
-		return fmt.Errorf("解析微信内容安全响应失败: %w", err)
+		return resp.StatusCode, externalcall.OutcomeDecodeError, fmt.Errorf("解析微信内容安全响应失败: %w", err)
 	}
-	return nil
+	return resp.StatusCode, externalcall.OutcomeSuccess, nil
+}
+
+type wechatAuditFailureCause string
+
+const (
+	wechatAuditFailureCauseCanceled      wechatAuditFailureCause = "canceled"
+	wechatAuditFailureCauseTimeout       wechatAuditFailureCause = "timeout"
+	wechatAuditFailureCauseUnexpectedEOF wechatAuditFailureCause = "unexpected_eof"
+	wechatAuditFailureCauseNetwork       wechatAuditFailureCause = "network"
+	wechatAuditFailureCauseHTTPStatus    wechatAuditFailureCause = "http_status"
+	wechatAuditFailureCauseJSONInvalid   wechatAuditFailureCause = "json_invalid"
+	wechatAuditFailureCauseOther         wechatAuditFailureCause = "other"
+)
+
+func logWechatAuditCallFailure(operation string, outcome externalcall.Outcome, ctx context.Context, err error, statusCode int) {
+	cause := classifyWechatAuditFailureCause(ctx, outcome, err)
+	if statusCode > 0 {
+		logx.Errorf("%s失败: outcome=%s cause=%s status=%d", operation, outcome, cause, statusCode)
+		return
+	}
+	logx.Errorf("%s失败: outcome=%s cause=%s", operation, outcome, cause)
+}
+
+func classifyWechatAuditFailureCause(ctx context.Context, outcome externalcall.Outcome, err error) wechatAuditFailureCause {
+	switch outcome {
+	case externalcall.OutcomeHTTPError:
+		return wechatAuditFailureCauseHTTPStatus
+	case externalcall.OutcomeDecodeError:
+		return wechatAuditFailureCauseJSONInvalid
+	}
+
+	// http.Client 的 *url.Error 会包含完整 URL/query；仅解包底层错误后做白名单分类。
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) && urlErr.Err != nil {
+		err = urlErr.Err
+	}
+	switch {
+	case errors.Is(err, context.Canceled) || (ctx != nil && errors.Is(ctx.Err(), context.Canceled)):
+		return wechatAuditFailureCauseCanceled
+	case errors.Is(err, context.DeadlineExceeded) || (ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)):
+		return wechatAuditFailureCauseTimeout
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		return wechatAuditFailureCauseUnexpectedEOF
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		if netErr.Timeout() {
+			return wechatAuditFailureCauseTimeout
+		}
+		return wechatAuditFailureCauseNetwork
+	}
+	return wechatAuditFailureCauseOther
 }
 
 func (a *WechatAuditor) normalizeMediaURL(value string) string {
