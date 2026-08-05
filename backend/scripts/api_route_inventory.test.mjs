@@ -100,3 +100,19 @@ func register(mux *http.ServeMux) {
     ])
   })
 })
+
+test('keeps an unindented legacy route immediately after a line comment', () => {
+  withFixture({
+    'legacy_routes.go': `package server
+// mux.HandleFunc("GET /api/v1/retired", retired)
+mux.HandleFunc("GET /api/v1/active", active)
+`,
+  }, (fixtureDir) => {
+    const routes = parseLegacyRoutes([path.join(fixtureDir, 'legacy_routes.go')])
+
+    assert.deepEqual(routes.map(routeFingerprint), [
+      'GET /api/v1/active',
+    ])
+    assert.equal(routes[0].line, 3)
+  })
+})
