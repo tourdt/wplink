@@ -104,6 +104,7 @@ func NewTencentMapGeocoder(cfg config.TencentMapConfig, client *http.Client, obs
 	if client == nil {
 		client = &http.Client{Timeout: timeout}
 	}
+	// variadic 仅用于保持旧调用兼容：这是可选单 Observer，传入多个时只使用第一个。
 	var observer externalcall.Observer
 	if len(observers) > 0 {
 		observer = observers[0]
@@ -129,7 +130,8 @@ func (g *TencentMapGeocoder) ReverseGeocode(ctx context.Context, latitude float6
 	}
 	endpoint, err := url.Parse(g.baseURL)
 	if err != nil {
-		logx.Errorf("腾讯地图逆地理编码地址配置错误: baseURL=%s err=%+v", g.baseURL, err)
+		// URL 配置可能带 query，日志只保留安全分类，避免凭据随原始地址或解析错误泄露。
+		logx.Errorf("腾讯地图逆地理编码地址配置错误: category=url_parse")
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析服务配置错误，请手动填写详细地址")
 	}
 	query := endpoint.Query()
@@ -140,22 +142,25 @@ func (g *TencentMapGeocoder) ReverseGeocode(ctx context.Context, latitude float6
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
-		logx.Errorf("创建腾讯地图逆地理编码请求失败: latitude=%.6f longitude=%.6f err=%+v", latitude, longitude, err)
+		// 请求错误可能引用带 key 的完整 URL，因此不记录原始错误，只保留安全诊断上下文。
+		logx.Errorf("创建腾讯地图逆地理编码请求失败: latitude=%.6f longitude=%.6f category=request_create", latitude, longitude)
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析失败，请手动填写详细地址")
 	}
 	// 请求创建成功才进入外呼观测，避免把本地 URL 配置错误误计为腾讯地图故障。
 	call := externalcall.Start(g.observer, externalcall.ProviderTencentMap, externalcall.OperationReverseGeocode)
 	httpResp, err := g.client.Do(httpReq)
 	if err != nil {
-		call.Finish(ctx, externalcall.ClassifyTransport(ctx, err), 0)
-		logx.Errorf("腾讯地图逆地理编码请求失败: latitude=%.6f longitude=%.6f err=%+v", latitude, longitude, err)
+		outcome := externalcall.ClassifyTransport(ctx, err)
+		call.Finish(ctx, outcome, 0)
+		// http.Client 会用 *url.Error 包装错误并附带含 key 的完整 URL，日志只能记录安全分类。
+		logx.Errorf("腾讯地图逆地理编码请求失败: latitude=%.6f longitude=%.6f outcome=%s", latitude, longitude, outcome)
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析服务暂不可用，请手动填写详细地址")
 	}
 	defer httpResp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(httpResp.Body, 1<<20))
 	if err != nil {
 		call.Finish(ctx, externalcall.OutcomeTransportError, httpResp.StatusCode)
-		logx.Errorf("读取腾讯地图逆地理编码响应失败: latitude=%.6f longitude=%.6f err=%+v", latitude, longitude, err)
+		logx.Errorf("读取腾讯地图逆地理编码响应失败: latitude=%.6f longitude=%.6f outcome=%s status=%d", latitude, longitude, externalcall.OutcomeTransportError, httpResp.StatusCode)
 		return ReverseGeocodeResp{}, errx.New(errx.CodeInternalError, "地址解析失败，请手动填写详细地址")
 	}
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {

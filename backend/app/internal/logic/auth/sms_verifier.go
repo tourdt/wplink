@@ -58,6 +58,7 @@ func NewConfiguredSMSVerifierWithLimiter(cfg config.SMSConfig, client *http.Clie
 	if limiter == nil {
 		limiter = NewMemorySMSSendLimiter()
 	}
+	// variadic 仅用于保持旧调用兼容：这是可选单 Observer，传入多个时只使用第一个。
 	var observer externalcall.Observer
 	if len(observers) > 0 {
 		observer = observers[0]

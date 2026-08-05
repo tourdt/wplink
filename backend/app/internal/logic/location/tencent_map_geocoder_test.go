@@ -2,6 +2,7 @@ package location
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,8 @@ import (
 	"wplink/backend/app/internal/config"
 	"wplink/backend/common/errx"
 	"wplink/backend/common/externalcall"
+
+	"github.com/zeromicro/go-zero/core/logx/logtest"
 )
 
 type recordingExternalCallObserver struct {
@@ -34,6 +37,18 @@ func testTencentMapResponse(status int, body string) *http.Response {
 		Header:     make(http.Header),
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}
+}
+
+type errorReadCloser struct {
+	err error
+}
+
+func (r errorReadCloser) Read([]byte) (int, error) {
+	return 0, r.err
+}
+
+func (errorReadCloser) Close() error {
+	return nil
 }
 
 func TestTencentMapGeocoderObservesHTTPOutcomes(t *testing.T) {
@@ -82,6 +97,29 @@ func TestTencentMapGeocoderObservesHTTPOutcomes(t *testing.T) {
 			wantError:    true,
 		},
 		{
+			name:         "connection error",
+			transportErr: errors.New("connection reset"),
+			wantOutcome:  externalcall.OutcomeTransportError,
+			wantError:    true,
+		},
+		{
+			name:         "canceled",
+			transportErr: context.Canceled,
+			wantOutcome:  externalcall.OutcomeCanceled,
+			wantError:    true,
+		},
+		{
+			name: "body read failure",
+			response: &http.Response{
+				StatusCode: http.StatusPartialContent,
+				Header:     make(http.Header),
+				Body:       errorReadCloser{err: errors.New("response stream interrupted")},
+			},
+			wantOutcome: externalcall.OutcomeTransportError,
+			wantStatus:  http.StatusPartialContent,
+			wantError:   true,
+		},
+		{
 			name:        "missing required address",
 			response:    testTencentMapResponse(http.StatusOK, `{"status":0,"result":{}}`),
 			wantOutcome: externalcall.OutcomeDecodeError,
@@ -126,6 +164,96 @@ func TestTencentMapGeocoderObservesHTTPOutcomes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTencentMapGeocoderTransportLogsDoNotLeakAPIKeyOrURL(t *testing.T) {
+	const sentinelKey = "sentinel-map-key-review"
+	collector := logtest.NewCollector(t)
+	client := &http.Client{Transport: locationRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, context.DeadlineExceeded
+	})}
+	geocoder := NewTencentMapGeocoder(config.TencentMapConfig{Key: sentinelKey}, client)
+
+	_, _ = geocoder.ReverseGeocode(context.Background(), 30.8732, 120.2255)
+
+	logText := collector.String()
+	for _, forbidden := range []string{sentinelKey, "key=", "https://apis.map.qq.com/ws/geocoder/v1/?"} {
+		if strings.Contains(logText, forbidden) {
+			t.Fatalf("log contains forbidden value %q: %s", forbidden, logText)
+		}
+	}
+	for _, required := range []string{`"event":"external_call"`, `"provider":"tencent_map"`, `"operation":"reverse_geocode"`, `"outcome":"timeout"`} {
+		if !strings.Contains(logText, required) {
+			t.Fatalf("log = %q, want safe field %q", logText, required)
+		}
+	}
+}
+
+func TestTencentMapGeocoderRequestCreationFailureDoesNotObserve(t *testing.T) {
+	observer := &recordingExternalCallObserver{}
+	requests := 0
+	client := &http.Client{Transport: locationRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		requests++
+		return testTencentMapResponse(http.StatusOK, `{"status":0,"result":{"address":"织里镇"}}`), nil
+	})}
+	geocoder := NewTencentMapGeocoder(config.TencentMapConfig{Key: "map-key"}, client, observer)
+
+	_, err := geocoder.ReverseGeocode(nil, 30.8732, 120.2255)
+
+	if err == nil || errx.CodeOf(err) != errx.CodeInternalError {
+		t.Fatalf("ReverseGeocode() error = %v, code = %q, want internal error", err, errx.CodeOf(err))
+	}
+	if errx.PublicMessage(err) != "地址解析失败，请手动填写详细地址" {
+		t.Fatalf("public message = %q, want request creation failure guidance", errx.PublicMessage(err))
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+	if len(observer.events) != 0 {
+		t.Fatalf("events = %d, want 0", len(observer.events))
+	}
+}
+
+func TestTencentMapGeocoderUsesOptionalSingleObserver(t *testing.T) {
+	newGeocoder := func(observers ...externalcall.Observer) *TencentMapGeocoder {
+		client := &http.Client{Transport: locationRoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return testTencentMapResponse(http.StatusOK, `{"status":0,"result":{"address":"织里镇"}}`), nil
+		})}
+		return NewTencentMapGeocoder(config.TencentMapConfig{Key: "map-key"}, client, observers...)
+	}
+
+	for _, tt := range []struct {
+		name      string
+		observers []externalcall.Observer
+	}{
+		{name: "omitted"},
+		{name: "explicit nil", observers: []externalcall.Observer{nil}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := logtest.NewCollector(t)
+			if _, err := newGeocoder(tt.observers...).ReverseGeocode(context.Background(), 30.8732, 120.2255); err != nil {
+				t.Fatalf("ReverseGeocode() error = %v", err)
+			}
+			logText := collector.String()
+			if !strings.Contains(logText, `"event":"external_call"`) || !strings.Contains(logText, `"provider":"tencent_map"`) {
+				t.Fatalf("log = %q, want default tencent_map external_call observer", logText)
+			}
+		})
+	}
+
+	t.Run("multiple use first", func(t *testing.T) {
+		first := &recordingExternalCallObserver{}
+		second := &recordingExternalCallObserver{}
+		if _, err := newGeocoder(first, second).ReverseGeocode(context.Background(), 30.8732, 120.2255); err != nil {
+			t.Fatalf("ReverseGeocode() error = %v", err)
+		}
+		if len(first.events) != 1 {
+			t.Fatalf("first events = %d, want 1", len(first.events))
+		}
+		if len(second.events) != 0 {
+			t.Fatalf("second events = %d, want 0", len(second.events))
+		}
+	})
 }
 
 func TestTencentMapGeocoderDoesNotObserveLocalConfigurationError(t *testing.T) {
