@@ -15,11 +15,13 @@ import (
 	paymentlogic "wplink/backend/app/internal/logic/payment"
 	resourcelogic "wplink/backend/app/internal/logic/resource"
 	uploadlogic "wplink/backend/app/internal/logic/upload"
+	"wplink/backend/app/internal/middleware"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
 	"wplink/backend/common/externalcall"
 
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
+	"github.com/zeromicro/go-zero/rest"
 )
 
 type CityStore interface {
@@ -63,6 +65,7 @@ type ServiceContext struct {
 	CityStore                    CityStore
 	AdminLoginService            AdminLoginService
 	AdminTokenService            *adminauth.ValidatingAdminTokenService
+	AdminAuth                    rest.Middleware
 	UploadTokenService           *uploadlogic.UploadTokenLogic
 	UserTokenService             authlogic.TokenService
 	WechatSessionClient          authlogic.WechatSessionClient
@@ -85,6 +88,7 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		adminLoginOptions = append(adminLoginOptions, adminauth.WithMasterPassword(masterPassword))
 	}
 	apiStore := newAPIStore(db)
+	validatingAdminTokenService := adminauth.NewValidatingAdminTokenService(adminTokenService, adminStore)
 	baseUserTokenService := session.NewHMACUserTokenService(c.UserAuth.TokenSecret, c.UserAuth.TokenTTL)
 	wechatPayGateway, err := paymentlogic.NewHTTPWechatPayGateway(c.WechatPay, externalCallObserver)
 	if err != nil {
@@ -101,7 +105,8 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		APIStore:                     apiStore,
 		CityStore:                    apiStore,
 		AdminLoginService:            adminauth.NewLoginService(adminStore, adminauth.BcryptPasswordHasher{}, adminTokenIssuer, adminLoginOptions...),
-		AdminTokenService:            adminauth.NewValidatingAdminTokenService(adminTokenService, adminStore),
+		AdminTokenService:            validatingAdminTokenService,
+		AdminAuth:                    middleware.NewAdminAuthMiddleware(validatingAdminTokenService).Handle,
 		UploadTokenService:           uploadlogic.NewUploadTokenLogic(c.Storage),
 		UserTokenService:             authlogic.NewValidatingUserTokenService(baseUserTokenService, apiStore.UserModel),
 		WechatSessionClient:          authlogic.NewWechatSessionClient(c.Wechat, "", nil, externalCallObserver),
