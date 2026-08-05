@@ -42,6 +42,32 @@ function runGenerator(fixtureBackendDir, userGoctlHome, mode) {
   })
 }
 
+function writeFixtureFile(fixtureBackendDir, relativePath, source) {
+  const filePath = path.join(fixtureBackendDir, relativePath)
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  fs.writeFileSync(filePath, source)
+  return filePath
+}
+
+function withGeneratedFixture(callback) {
+  const { fixtureDir, fixtureBackendDir } = createBackendFixture()
+  try {
+    const userGoctlHome = path.join(fixtureDir, 'unused-user-home')
+    const writeResult = runGenerator(fixtureBackendDir, userGoctlHome, '--write')
+    assert.equal(writeResult.status, 0, `${writeResult.stdout}\n${writeResult.stderr}`)
+    return callback({ fixtureBackendDir, userGoctlHome })
+  } finally {
+    fs.rmSync(fixtureDir, { recursive: true, force: true })
+  }
+}
+
+function assertMissingMerchantHandler(checkResult) {
+  const output = `${checkResult.stdout}\n${checkResult.stderr}`
+  assert.notEqual(checkResult.status, 0, output)
+  assert.match(output, /merchant\/get_merchant_handler\.go/)
+  assert.match(output, /缺少 GetMerchantHandler/)
+}
+
 function readGoFiles(directory) {
   const sources = []
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -107,4 +133,67 @@ test('check reports a tampered generated route file as stale', () => {
   } finally {
     fs.rmSync(fixtureDir, { recursive: true, force: true })
   }
+})
+
+for (const fixture of [
+  {
+    name: 'same-named handler in another package',
+    relativePath: 'app/internal/handler/decoy/get_merchant_handler.go',
+    source: `package decoy
+
+func GetMerchantHandler() {}
+`,
+  },
+  {
+    name: 'same-named handler only in a test file',
+    relativePath: 'app/internal/handler/merchant/get_merchant_handler_test.go',
+    source: `package merchant
+
+func GetMerchantHandler() {}
+`,
+  },
+  {
+    name: 'same-named handler text in a comment',
+    relativePath: 'app/internal/handler/merchant/decoy_comment.go',
+    source: `package merchant
+
+// func GetMerchantHandler() {}
+`,
+  },
+  {
+    name: 'same-named handler text in a string',
+    relativePath: 'app/internal/handler/merchant/decoy_string.go',
+    source: `package merchant
+
+const decoy = "func GetMerchantHandler()"
+`,
+  },
+]) {
+  test(`check reports a missing target-package handler despite ${fixture.name}`, () => {
+    withGeneratedFixture(({ fixtureBackendDir, userGoctlHome }) => {
+      fs.rmSync(path.join(fixtureBackendDir, 'app/internal/handler/merchant/get_merchant_handler.go'))
+      writeFixtureFile(fixtureBackendDir, fixture.relativePath, fixture.source)
+
+      assertMissingMerchantHandler(runGenerator(fixtureBackendDir, userGoctlHome, '--check'))
+    })
+  })
+}
+
+test('check rejects duplicate top-level handlers in the target package', () => {
+  withGeneratedFixture(({ fixtureBackendDir, userGoctlHome }) => {
+    writeFixtureFile(
+      fixtureBackendDir,
+      'app/internal/handler/merchant/get_merchant_handler_duplicate.go',
+      `package merchant
+
+func GetMerchantHandler() {}
+`,
+    )
+
+    const checkResult = runGenerator(fixtureBackendDir, userGoctlHome, '--check')
+    const output = `${checkResult.stdout}\n${checkResult.stderr}`
+    assert.notEqual(checkResult.status, 0, output)
+    assert.match(output, /重复/)
+    assert.match(output, /GetMerchantHandler/)
+  })
 })

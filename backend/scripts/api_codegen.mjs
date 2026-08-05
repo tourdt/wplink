@@ -60,19 +60,145 @@ function listGoFiles(directory) {
   return files.sort()
 }
 
+function maskGoCommentsAndLiterals(source) {
+  // split('') 与后续基于 UTF-16 下标的 source[index] 保持一致，避免非 BMP 字符导致掩码错位。
+  const result = source.split('')
+  let state = 'code'
+  let escaped = false
+
+  for (let index = 0; index < source.length; index += 1) {
+    const current = source[index]
+    const next = source[index + 1]
+    if (state === 'code') {
+      if (current === '/' && next === '/') {
+        result[index] = ' '
+        result[index + 1] = ' '
+        index += 1
+        state = 'line-comment'
+      } else if (current === '/' && next === '*') {
+        result[index] = ' '
+        result[index + 1] = ' '
+        index += 1
+        state = 'block-comment'
+      } else if (current === '"') {
+        result[index] = ' '
+        state = 'string'
+        escaped = false
+      } else if (current === '\'') {
+        result[index] = ' '
+        state = 'rune'
+        escaped = false
+      } else if (current === '`') {
+        result[index] = ' '
+        state = 'raw-string'
+      }
+      continue
+    }
+
+    if (current !== '\n' && current !== '\r') {
+      result[index] = ' '
+    }
+    if (state === 'line-comment' && (current === '\n' || current === '\r')) {
+      state = 'code'
+    } else if (state === 'block-comment' && current === '*' && next === '/') {
+      result[index + 1] = ' '
+      index += 1
+      state = 'code'
+    } else if ((state === 'string' || state === 'rune') && current === '\\' && !escaped) {
+      escaped = true
+    } else if (state === 'string' && current === '"' && !escaped) {
+      state = 'code'
+    } else if (state === 'rune' && current === '\'' && !escaped) {
+      state = 'code'
+    } else if (state === 'raw-string' && current === '`') {
+      state = 'code'
+    } else {
+      escaped = false
+    }
+  }
+  return result.join('')
+}
+
+function topLevelFunctionNames(source) {
+  const masked = maskGoCommentsAndLiterals(source)
+  const names = []
+  let braceDepth = 0
+
+  for (let index = 0; index < masked.length;) {
+    const current = masked[index]
+    if (current === '{') {
+      braceDepth += 1
+      index += 1
+      continue
+    }
+    if (current === '}') {
+      braceDepth = Math.max(0, braceDepth - 1)
+      index += 1
+      continue
+    }
+    if (braceDepth !== 0 || !masked.startsWith('func', index)) {
+      index += 1
+      continue
+    }
+    const before = masked[index - 1] || ''
+    const after = masked[index + 4] || ''
+    if (/[A-Za-z0-9_]/.test(before) || /[A-Za-z0-9_]/.test(after)) {
+      index += 4
+      continue
+    }
+
+    let cursor = index + 4
+    while (/\s/.test(masked[cursor] || '')) {
+      cursor += 1
+    }
+    // receiver 紧跟在 func 后，出现左括号即为方法而非顶层函数声明。
+    if (masked[cursor] === '(') {
+      index = cursor + 1
+      continue
+    }
+    const nameMatch = masked.slice(cursor).match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\(/)
+    if (nameMatch) {
+      names.push(nameMatch[1])
+      index = cursor + nameMatch[0].length
+      continue
+    }
+    index += 4
+  }
+  return names
+}
+
 function handlerFunctionName(source) {
-  return source.match(/\bfunc\s+([A-Za-z0-9_]+Handler)\s*\(/)?.[1] || ''
+  return topLevelFunctionNames(source).find((name) => name.endsWith('Handler')) || ''
+}
+
+function handlerKey(packagePath, functionName) {
+  return `${packagePath.split(path.sep).join('/')}\u0000${functionName}`
 }
 
 function existingHandlerFunctions() {
-  const functions = new Set()
+  const definitions = new Map()
   for (const filePath of listGoFiles(handlerDir)) {
+    if (filePath.endsWith('_test.go')) {
+      continue
+    }
+    const packagePath = path.relative(handlerDir, path.dirname(filePath))
     const source = fs.readFileSync(filePath, 'utf8')
-    for (const match of source.matchAll(/\bfunc\s+([A-Za-z0-9_]+Handler)\s*\(/g)) {
-      functions.add(match[1])
+    for (const functionName of topLevelFunctionNames(source).filter((name) => name.endsWith('Handler'))) {
+      const key = handlerKey(packagePath, functionName)
+      const files = definitions.get(key) || []
+      files.push(filePath)
+      definitions.set(key, files)
     }
   }
-  return functions
+
+  for (const [key, files] of definitions) {
+    if (files.length < 2) {
+      continue
+    }
+    const [packagePath, functionName] = key.split('\u0000')
+    throw new Error(`Handler 重复定义: ${packagePath}.${functionName}\n- ${files.map((filePath) => path.relative(backendDir, filePath)).join('\n- ')}`)
+  }
+  return new Set(definitions.keys())
 }
 
 function goString(value) {
@@ -213,11 +339,13 @@ function synchronizeMissingHandlers(generatedHandlerDir, mode, staleFiles) {
     }
     const source = fs.readFileSync(generatedPath, 'utf8')
     const functionName = handlerFunctionName(source)
-    if (!functionName || existingFunctions.has(functionName)) {
+    const relativePath = path.relative(generatedHandlerDir, generatedPath)
+    const packagePath = path.dirname(relativePath)
+    const key = handlerKey(packagePath, functionName)
+    if (!functionName || existingFunctions.has(key)) {
       continue
     }
 
-    const relativePath = path.relative(generatedHandlerDir, generatedPath)
     const destinationPath = path.join(handlerDir, relativePath)
     if (mode === '--check') {
       staleFiles.push(`${path.relative(backendDir, destinationPath)}（缺少 ${functionName}）`)
@@ -228,7 +356,7 @@ function synchronizeMissingHandlers(generatedHandlerDir, mode, staleFiles) {
     }
     fs.mkdirSync(path.dirname(destinationPath), { recursive: true })
     fs.writeFileSync(destinationPath, source)
-    existingFunctions.add(functionName)
+    existingFunctions.add(key)
   }
 }
 
