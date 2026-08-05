@@ -134,18 +134,7 @@ func TestGoZeroAdminLoginRouteUsesGoctlHandlerWhenDependencyReady(t *testing.T) 
 			Roles:      []string{adminauthlogic.RoleSuperAdmin},
 		},
 	}
-	srv, err := NewGoZeroServer(
-		config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000},
-		&svc.ServiceContext{AdminLoginService: loginService},
-		nil,
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			t.Fatalf("admin login should use goctl handler, got fallback path %s", r.URL.Path)
-		}),
-	)
-	if err != nil {
-		t.Fatalf("NewGoZeroServer() error = %v", err)
-	}
-	defer srv.Stop()
+	srv := newGeneratedAPIServer(t, &svc.ServiceContext{AdminLoginService: loginService})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/login", strings.NewReader(`{"loginName":"operator","password":"secret123"}`))
@@ -170,6 +159,50 @@ func TestGoZeroAdminLoginRouteUsesGoctlHandlerWhenDependencyReady(t *testing.T) 
 	}
 	if body.Data.Token != "token-1" || body.Data.OperatorID != "operator-1" || len(body.Data.Roles) != 1 || body.Data.Roles[0] != adminauthlogic.RoleSuperAdmin {
 		t.Fatalf("admin login data = %#v, want fake service response", body.Data)
+	}
+}
+
+func TestGoZeroAdminLoginGeneratedPreservesClientContextAndRateLimitError(t *testing.T) {
+	loginService := &goZeroAdminLoginService{err: adminauthlogic.ErrLoginRateLimited}
+	srv := newGeneratedAPIServer(t, &svc.ServiceContext{AdminLoginService: loginService})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/login", strings.NewReader(`{"loginName":"operator","password":"secret123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-For", "203.0.113.7, 10.0.0.1")
+	req.Header.Set("User-Agent", "wplink-admin-test")
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("admin login response = %d %q, want 429", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		ErrorCode string `json:"errorCode"`
+		Message   string `json:"msg"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode rate limited response: %v", err)
+	}
+	if body.ErrorCode != "RATE_LIMITED" || body.Message != "当前网络登录尝试过多，请稍后重试" {
+		t.Fatalf("rate limited error = (%q, %q)", body.ErrorCode, body.Message)
+	}
+	if loginService.req.ClientIP != "203.0.113.7" || loginService.req.UserAgent != "wplink-admin-test" {
+		t.Fatalf("client context = ip %q ua %q", loginService.req.ClientIP, loginService.req.UserAgent)
+	}
+}
+
+func TestGoZeroAdminLoginGeneratedHidesRawInternalError(t *testing.T) {
+	loginService := &goZeroAdminLoginService{err: errors.New("sql: connection refused password=secret123")}
+	srv := newGeneratedAPIServer(t, &svc.ServiceContext{AdminLoginService: loginService})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/login", strings.NewReader(`{"loginName":"operator","password":"secret123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	srv.ServeHTTP(rec, req)
+
+	assertErrorEnvelope(t, rec, http.StatusUnauthorized, "UNAUTHORIZED", "登录失败，请稍后重试")
+	if strings.Contains(rec.Body.String(), "connection refused") || strings.Contains(rec.Body.String(), "secret123") {
+		t.Fatalf("admin login response leaked internal error or password: %s", rec.Body.String())
 	}
 }
 
