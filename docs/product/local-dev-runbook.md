@@ -82,9 +82,10 @@ rm -rf .cache
 
 ### PostgreSQL 强制集成验证
 
-迁移、任务协调或短信限流改动还必须执行独立门禁。测试库必须可丢弃，并且已经按顺序执行全部 up migrations；以下示例中的 `wplink_integration` 仅用于本地测试，**禁止**传入生产 DSN：
+迁移、任务协调或短信限流改动还必须执行独立门禁。以下命令先回到仓库根目录，避免上一节的 `cd backend` 影响根 `Makefile` 的查找。测试库必须可丢弃，并且已经按顺序执行全部 up migrations；示例中的 `wplink_integration` 仅用于本地测试，**禁止**传入生产 DSN：
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 WPLINK_TEST_POSTGRES_DSN='postgres://postgres:postgres@127.0.0.1:5432/wplink_integration?sslmode=disable' make check-postgres
 ```
 

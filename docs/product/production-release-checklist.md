@@ -124,8 +124,8 @@ VITE_API_BASE_URL=https://YOUR_DOMAIN npm run build:mp-weixin
 
 ## 8. 发布后第三方调用抽检
 
-发布后抽检 `external_call` JSON 日志：每条事件必须有 `event`、`provider`、`operation`、`outcome`、`duration_ms`，收到 HTTP 响应时应有 `status_code`。`provider` 仅允许 `wechat`、`sms`、`tencent_map`；`operation` 与 `outcome` 必须使用架构文档第 10.1 节的稳定枚举，不能用供应商原始文案代替。
+发布后按[第三方调用日志与基线](../deployment.md#第三方调用日志与基线)先完成依赖/路径预检，再执行 JSON 查询抽检 `external_call`。每条事件必须有 `event`、`provider`、`operation`、`outcome`、`duration_ms`，收到 HTTP 响应时应有 `status_code`。`provider` 仅允许 `wechat`、`sms`、`tencent_map`；`operation` 与 `outcome` 必须使用架构文档第 10.1 节的稳定枚举，不能用供应商原始文案代替。
 
 抽样确认统一事件不含手机号、OpenID、Token、签名、密钥、Authorization header、请求体、响应体或原始错误全文；同时确认业务 API 仍只返回安全中文错误，不会透出上游错误内容。
 
-先连续观察至少 24 小时，记录每个 `provider + operation` 的调用量与 `outcome` 分布，形成真实基线后再在现有或后续接入的日志平台设置阈值。建议起点为：5 分钟内至少 20 次调用且 `timeout`、`transport_error`、`http_error`、`decode_error` 合计超过 5%；同一 operation 5 分钟至少 3 次 `timeout`；支付 `decode_error` 或连续 `http_error` 作为高优先级排查项。以上为待基线确认的建议，当前仓库并未部署指标平台、告警或熔断。
+部署文档中的 shell 查询只做候选抽检，不会自动限定 24 小时或 5 分钟窗口，也不会计算占比。先在实际日志平台按日志时间字段过滤和聚合，连续观察至少 24 小时，记录每个 `provider + operation` 的调用量与 `outcome` 分布，形成真实基线后再设置阈值。建议起点为：5 分钟内至少 20 次调用且 `timeout`、`transport_error`、`http_error`、`decode_error` 合计超过 5%；同一 operation 5 分钟至少 3 次 `timeout`；支付 `decode_error` 或连续 `http_error` 作为高优先级排查项。以上为待基线确认的建议，当前仓库并未部署指标平台、告警或熔断。
