@@ -78,6 +78,14 @@ test('current product docs do not restore the retired merchant verification doma
     }
   }
 
+  const mvpAcceptance = fs.readFileSync(path.join(productDocsDir, 'mvp-acceptance-checklist.md'), 'utf8')
+  for (const unsupportedAcceptance of ['信用标签', '商家数量']) {
+    assert(
+      !mvpAcceptance.includes(unsupportedAcceptance),
+      `mvp-acceptance-checklist.md should not require unsupported acceptance result ${unsupportedAcceptance}`,
+    )
+  }
+
   const historicalDesign = fs.readFileSync(path.join(productDocsDir, 'api-contract-design.md'), 'utf8')
   assert(historicalDesign.includes('文档状态：历史设计，已废弃'), 'api-contract-design.md should be marked as retired historical design')
   assert(historicalDesign.includes('不作为当前实现、验收或生成依据'), 'api-contract-design.md should reject current implementation usage')
