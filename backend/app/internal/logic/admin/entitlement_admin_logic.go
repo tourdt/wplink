@@ -6,6 +6,8 @@ import (
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type EntitlementAdminStore interface {
@@ -59,6 +61,9 @@ func (l *EntitlementAdminLogic) GrantMerchantEntitlement(ctx context.Context, re
 	}
 	result, err := l.store.GrantMerchantEntitlement(ctx, input)
 	if err != nil {
+		LogAdminFailure(ctx, "发放商家权益失败", "grant_merchant_entitlement", err,
+			logx.Field("operatorId", input.OperatorID), logx.Field("merchantId", input.MerchantID),
+			logx.Field("entitlementType", input.EntitlementType), logx.Field("sourceType", input.SourceType))
 		return GrantEntitlementResp{}, err
 	}
 	return GrantEntitlementResp{ID: result.ID, Message: "权益已发放"}, nil

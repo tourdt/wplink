@@ -3,15 +3,51 @@ package admin
 import (
 	"bytes"
 	"context"
+	"database/sql/driver"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/permission"
+	"wplink/backend/common/errx"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
+
+func TestSafeAdminErrorCategoryUsesStableCausesWithoutReadingErrorText(t *testing.T) {
+	const sensitiveDetail = "password=db-secret Authorization=Bearer-secret requestBody={full-config}"
+	tests := []struct {
+		name string
+		ctx  context.Context
+		err  error
+		want string
+	}{
+		{name: "timeout", ctx: context.Background(), err: fmt.Errorf("%s: %w", sensitiveDetail, context.DeadlineExceeded), want: "timeout"},
+		{name: "canceled", ctx: context.Background(), err: fmt.Errorf("%s: %w", sensitiveDetail, context.Canceled), want: "canceled"},
+		{name: "unavailable", ctx: context.Background(), err: fmt.Errorf("%s: %w", sensitiveDetail, driver.ErrBadConn), want: "unavailable"},
+		{name: "conflict", ctx: context.Background(), err: fmt.Errorf("%s: %w", sensitiveDetail, model.ErrAdminOperatorLoginNameExists), want: "conflict"},
+		{name: "curated conflict", ctx: context.Background(), err: errx.New(errx.CodeStateConflict, sensitiveDetail), want: "conflict"},
+		{name: "unknown", ctx: context.Background(), err: errors.New(sensitiveDetail), want: "unknown"},
+	}
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	tests = append(tests, struct {
+		name string
+		ctx  context.Context
+		err  error
+		want string
+	}{name: "context cancellation", ctx: canceledCtx, err: errors.New(sensitiveDetail), want: "canceled"})
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := SafeAdminErrorCategory(tc.ctx, tc.err); got != tc.want {
+				t.Fatalf("SafeAdminErrorCategory()=%q, want %q", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestAdminLogicDependencyFailuresDoNotLogRawSensitiveErrors(t *testing.T) {
 	var logBuffer bytes.Buffer
@@ -46,8 +82,19 @@ func TestAdminLogicDependencyFailuresDoNotLogRawSensitiveErrors(t *testing.T) {
 			t.Fatalf("log=%q, must not contain sensitive dependency text %q", logText, secret)
 		}
 	}
-	if strings.Count(logText, "errorType=") < 5 {
-		t.Fatalf("log=%q, want a safe errorType for each dependency failure", logText)
+	for _, operation := range []string{
+		"list_admin_operators", "review_resource", "list_resource_reports", "list_vip_plans", "create_resource_type_config",
+	} {
+		if !strings.Contains(logText, `"operation":"`+operation+`"`) {
+			t.Fatalf("log=%q, want operation %q", logText, operation)
+		}
+	}
+	for _, field := range []string{
+		`"operatorId":"admin-safe-log"`, `"resourceId":"resource-1"`, `"errorCategory":"unknown"`, `"errorType":"*errors.errorString"`,
+	} {
+		if !strings.Contains(logText, field) {
+			t.Fatalf("log=%q, want safe diagnostic field %q", logText, field)
+		}
 	}
 }
 

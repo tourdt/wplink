@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 
 	"wplink/backend/app/internal/model"
 )
@@ -21,6 +22,33 @@ type ResourceLifecycleTask struct {
 	store ResourceLifecycleStore
 }
 
+type resourceLifecycleStageError struct {
+	stage string
+	cause error
+}
+
+// Error 只返回稳定阶段，不拼接底层错误文本，避免上层误记录数据库或消息依赖中的敏感信息。
+func (e *resourceLifecycleStageError) Error() string {
+	return "resource lifecycle failed at " + e.stage
+}
+
+func (e *resourceLifecycleStageError) Unwrap() error {
+	return e.cause
+}
+
+// ResourceLifecycleErrorStage 提供稳定、低基数的失败阶段供后台入口记录诊断日志。
+func ResourceLifecycleErrorStage(err error) string {
+	var stageErr *resourceLifecycleStageError
+	if errors.As(err, &stageErr) {
+		return stageErr.stage
+	}
+	return "unknown"
+}
+
+func resourceLifecycleFailure(stage string, err error) error {
+	return &resourceLifecycleStageError{stage: stage, cause: err}
+}
+
 func NewResourceLifecycleTask(store ResourceLifecycleStore) *ResourceLifecycleTask {
 	return &ResourceLifecycleTask{store: store}
 }
@@ -29,7 +57,7 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 	var result ResourceLifecycleResult
 	expired, err := t.store.MarkExpiredResources(ctx)
 	if err != nil {
-		return ResourceLifecycleResult{}, err
+		return ResourceLifecycleResult{}, resourceLifecycleFailure("mark_expired_resources", err)
 	}
 	for _, item := range expired {
 		message, err := t.store.CreateMessage(ctx, model.CreateMessageInput{
@@ -42,7 +70,7 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 			TargetURL:         model.MerchantMyResourcesTargetURL(item.MerchantID),
 		})
 		if err != nil {
-			return ResourceLifecycleResult{}, err
+			return ResourceLifecycleResult{}, resourceLifecycleFailure("create_expired_message", err)
 		}
 		if message.Created {
 			result.ExpiredCount++
@@ -51,7 +79,7 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 
 	expiring, err := t.store.ListResourcesExpiringSoon(ctx)
 	if err != nil {
-		return ResourceLifecycleResult{}, err
+		return ResourceLifecycleResult{}, resourceLifecycleFailure("list_expiring_resources", err)
 	}
 	for _, item := range expiring {
 		message, err := t.store.CreateMessage(ctx, model.CreateMessageInput{
@@ -64,7 +92,7 @@ func (t *ResourceLifecycleTask) Run(ctx context.Context) (ResourceLifecycleResul
 			TargetURL:         model.MerchantMyResourcesTargetURL(item.MerchantID),
 		})
 		if err != nil {
-			return ResourceLifecycleResult{}, err
+			return ResourceLifecycleResult{}, resourceLifecycleFailure("create_expiring_message", err)
 		}
 		if message.Created {
 			result.ExpiringReminderCount++

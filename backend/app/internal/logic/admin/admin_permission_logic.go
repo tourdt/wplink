@@ -129,7 +129,11 @@ func (l *AdminPermissionLogic) ListOperators(ctx context.Context, req ListAdminO
 		PageSize: req.PageSize,
 	})
 	if err != nil {
-		logx.Errorf("查询后台管理员账号失败: operatorId=%s role=%s status=%s errorType=%T", actor.OperatorID, role, status, err)
+		LogAdminFailure(ctx, "查询后台管理员账号失败", "list_admin_operators", err,
+			logx.Field("operatorId", actor.OperatorID),
+			logx.Field("roleFiltered", role != ""),
+			logx.Field("statusFiltered", status != ""),
+		)
 		return ListAdminOperatorsResp{}, errx.New(errx.CodeInternalError, "管理员账号加载失败，请稍后重试")
 	}
 	return mapAdminOperatorsResult(result), nil
@@ -139,13 +143,13 @@ func (l *AdminPermissionLogic) CreateOperator(ctx context.Context, req SaveAdmin
 	if err := requireSuperAdminActor(actor); err != nil {
 		return SaveAdminOperatorResp{}, err
 	}
-	input, err := l.buildOperatorInput("", req, actor, true)
+	input, err := l.buildOperatorInput(ctx, "", req, actor, true)
 	if err != nil {
 		return SaveAdminOperatorResp{}, err
 	}
 	item, err := l.store.CreateAdminOperator(ctx, input)
 	if err != nil {
-		return SaveAdminOperatorResp{}, l.mapSaveError("创建后台管理员账号", actor.OperatorID, input.LoginName, err)
+		return SaveAdminOperatorResp{}, l.mapSaveError(ctx, "create_admin_operator", "创建后台管理员账号", actor.OperatorID, input.LoginName, err)
 	}
 	logx.Infof("创建后台管理员账号成功: operatorId=%s targetOperatorId=%s loginName=%s roles=%v", actor.OperatorID, item.OperatorID, item.LoginName, item.Roles)
 	return SaveAdminOperatorResp{OperatorID: item.OperatorID, Message: "管理员账号已创建"}, nil
@@ -155,7 +159,7 @@ func (l *AdminPermissionLogic) UpdateOperator(ctx context.Context, operatorID st
 	if err := requireSuperAdminActor(actor); err != nil {
 		return SaveAdminOperatorResp{}, err
 	}
-	input, err := l.buildOperatorInput(operatorID, req, actor, false)
+	input, err := l.buildOperatorInput(ctx, operatorID, req, actor, false)
 	if err != nil {
 		return SaveAdminOperatorResp{}, err
 	}
@@ -165,7 +169,7 @@ func (l *AdminPermissionLogic) UpdateOperator(ctx context.Context, operatorID st
 	}
 	item, err := l.store.UpdateAdminOperator(ctx, input)
 	if err != nil {
-		return SaveAdminOperatorResp{}, l.mapSaveError("更新后台管理员账号", actor.OperatorID, input.LoginName, err)
+		return SaveAdminOperatorResp{}, l.mapSaveError(ctx, "update_admin_operator", "更新后台管理员账号", actor.OperatorID, input.OperatorID, err)
 	}
 	logx.Infof("更新后台管理员账号成功: operatorId=%s targetOperatorId=%s loginName=%s roles=%v status=%s", actor.OperatorID, item.OperatorID, item.LoginName, item.Roles, item.Status)
 	return SaveAdminOperatorResp{OperatorID: item.OperatorID, Message: "管理员账号已更新"}, nil
@@ -193,7 +197,7 @@ func (l *AdminPermissionLogic) UpdateOperatorStatus(ctx context.Context, operato
 		ActorID:    strings.TrimSpace(actor.OperatorID),
 	})
 	if err != nil {
-		return SaveAdminOperatorResp{}, l.mapSaveError("更新后台管理员账号状态", actor.OperatorID, operatorID, err)
+		return SaveAdminOperatorResp{}, l.mapSaveError(ctx, "update_admin_operator_status", "更新后台管理员账号状态", actor.OperatorID, operatorID, err)
 	}
 	logx.Infof("更新后台管理员账号状态成功: operatorId=%s targetOperatorId=%s status=%s", actor.OperatorID, item.OperatorID, item.Status)
 	return SaveAdminOperatorResp{OperatorID: item.OperatorID, Message: "管理员账号状态已更新"}, nil
@@ -205,7 +209,8 @@ func (l *AdminPermissionLogic) ListModulePermissions(ctx context.Context, actor 
 	}
 	rolePermission, err := l.store.GetAdminRoleModulePermissions(ctx, permission.RolePlatformOperator)
 	if err != nil {
-		logx.Errorf("查询后台角色模块权限失败: operatorId=%s roleCode=%s errorType=%T", actor.OperatorID, permission.RolePlatformOperator, err)
+		LogAdminFailure(ctx, "查询后台角色模块权限失败", "list_admin_module_permissions", err,
+			logx.Field("operatorId", actor.OperatorID), logx.Field("roleCode", permission.RolePlatformOperator))
 		return AdminModulePermissionsResp{}, errx.New(errx.CodeInternalError, "模块权限配置加载失败，请稍后重试")
 	}
 	modules := permission.NormalizeConfigurableAdminModules(rolePermission.Modules)
@@ -243,7 +248,8 @@ func (l *AdminPermissionLogic) UpdateRoleModulePermissions(ctx context.Context, 
 		if errors.Is(err, model.ErrAdminRoleNotFound) {
 			return SaveAdminRoleModulePermissionsResp{}, errx.New(errx.CodeResourceNotFound, "管理员角色不存在")
 		}
-		logx.Errorf("保存后台角色模块权限失败: operatorId=%s roleCode=%s modules=%v errorType=%T", actor.OperatorID, roleCode, modules, err)
+		LogAdminFailure(ctx, "保存后台角色模块权限失败", "update_admin_role_modules", err,
+			logx.Field("operatorId", actor.OperatorID), logx.Field("roleCode", roleCode), logx.Field("moduleCount", len(modules)))
 		return SaveAdminRoleModulePermissionsResp{}, errx.New(errx.CodeInternalError, "模块权限配置保存失败，请稍后重试")
 	}
 	logx.Infof("保存后台角色模块权限成功: operatorId=%s roleCode=%s modules=%v", actor.OperatorID, roleCode, rolePermission.Modules)
@@ -254,7 +260,7 @@ func (l *AdminPermissionLogic) UpdateRoleModulePermissions(ctx context.Context, 
 	}, nil
 }
 
-func (l *AdminPermissionLogic) buildOperatorInput(operatorID string, req SaveAdminOperatorReq, actor AdminPermissionActor, passwordRequired bool) (model.AdminOperatorInput, error) {
+func (l *AdminPermissionLogic) buildOperatorInput(ctx context.Context, operatorID string, req SaveAdminOperatorReq, actor AdminPermissionActor, passwordRequired bool) (model.AdminOperatorInput, error) {
 	loginName := strings.TrimSpace(req.LoginName)
 	realName := strings.TrimSpace(req.RealName)
 	if loginName == "" {
@@ -283,7 +289,8 @@ func (l *AdminPermissionLogic) buildOperatorInput(operatorID string, req SaveAdm
 		}
 		hash, err := l.hasher.Hash(password)
 		if err != nil {
-			logx.Errorf("生成后台管理员密码哈希失败: operatorId=%s loginName=%s errorType=%T", actor.OperatorID, loginName, err)
+			LogAdminFailure(ctx, "生成后台管理员密码哈希失败", "hash_admin_operator_password", err,
+				logx.Field("operatorId", actor.OperatorID))
 			return model.AdminOperatorInput{}, errx.New(errx.CodeInternalError, "管理员账号保存失败，请稍后重试")
 		}
 		passwordHash = hash
@@ -300,14 +307,17 @@ func (l *AdminPermissionLogic) buildOperatorInput(operatorID string, req SaveAdm
 	}, nil
 }
 
-func (l *AdminPermissionLogic) mapSaveError(action string, operatorID string, target string, err error) error {
+func (l *AdminPermissionLogic) mapSaveError(ctx context.Context, operation string, action string, operatorID string, targetOperatorID string, err error) error {
 	switch {
 	case errors.Is(err, model.ErrAdminOperatorLoginNameExists):
 		return errx.New(errx.CodeStateConflict, "登录账号已存在，请更换后重试")
 	case errors.Is(err, model.ErrAdminOperatorNotFound):
 		return errx.New(errx.CodeResourceNotFound, "管理员账号不存在或已被删除")
 	default:
-		logx.Errorf("%s失败: operatorId=%s target=%s errorType=%T", action, strings.TrimSpace(operatorID), strings.TrimSpace(target), err)
+		LogAdminFailure(ctx, action+"失败", operation, err,
+			logx.Field("operatorId", strings.TrimSpace(operatorID)),
+			logx.Field("targetOperatorId", strings.TrimSpace(targetOperatorID)),
+		)
 		return errx.New(errx.CodeInternalError, "管理员账号保存失败，请稍后重试")
 	}
 }
@@ -377,7 +387,7 @@ func mapAdminOperatorsResult(result model.ListAdminOperatorsResult) ListAdminOpe
 			LoginName:   item.LoginName,
 			RealName:    item.RealName,
 			Status:      item.Status,
-			Roles:       append([]string(nil), item.Roles...),
+			Roles:       nonNilAdminStringSlice(item.Roles),
 			CreatedAt:   item.CreatedAt,
 			LastLoginAt: item.LastLoginAt,
 		})

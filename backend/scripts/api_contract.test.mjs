@@ -528,4 +528,11 @@ test('admin api protects every non-login group and keeps resource list request i
     1,
     'admin resources list handler must be declared exactly once',
   )
+
+  const resourceItem = adminApiSource.match(/type AdminPendingResourceItem \{([\s\S]*?)\n\}/)?.[1] || ''
+  assert.match(
+    resourceItem,
+    /Status\s+string\s+`json:"status"`/,
+    'the shared admin resource item must declare the runtime status field',
+  )
 })

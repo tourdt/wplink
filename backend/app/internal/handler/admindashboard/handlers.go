@@ -33,6 +33,10 @@ func adminDashboardOverviewHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerF
 			return
 		}
 		resp, err := adminlogic.NewDashboardLogic(svcCtx.APIStore).GetOverview(r.Context(), adminlogic.DashboardOverviewReq{CityCode: req.CityCode})
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "加载后台看板失败", "get_admin_dashboard", err,
+				logx.Field("operatorId", admin.OperatorID), logx.Field("cityFiltered", req.CityCode != ""))
+		}
 		response.JSON(w, resp, err)
 	}
 }

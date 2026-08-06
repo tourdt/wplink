@@ -19,7 +19,7 @@ import (
 
 func adminListHotSearchKeywordsHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, store, err := requireAdminHotSearchContext(r, svcCtx)
+		admin, store, err := requireAdminHotSearchContext(r, svcCtx)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -32,13 +32,18 @@ func adminListHotSearchKeywordsHTTPHandler(svcCtx *svc.ServiceContext) http.Hand
 		resp, err := adminlogic.NewHotSearchKeywordAdminLogic(store).ListHotSearchKeywords(r.Context(), adminlogic.ListHotSearchKeywordsReq{
 			CityCode: req.CityCode, Status: req.Status,
 		})
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "加载后台热门搜索词失败", "list_hot_search_keywords", err,
+				logx.Field("operatorId", admin.OperatorID), logx.Field("cityFiltered", req.CityCode != ""),
+				logx.Field("statusFiltered", req.Status != ""))
+		}
 		response.JSON(w, resp, err)
 	}
 }
 
 func adminSaveHotSearchKeywordHTTPHandler(svcCtx *svc.ServiceContext, update bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, store, err := requireAdminHotSearchContext(r, svcCtx)
+		admin, store, err := requireAdminHotSearchContext(r, svcCtx)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -58,6 +63,15 @@ func adminSaveHotSearchKeywordHTTPHandler(svcCtx *svc.ServiceContext, update boo
 			resp, err = logic.UpdateHotSearchKeyword(r.Context(), pathvar.Vars(r)["configId"], input)
 		} else {
 			resp, err = logic.CreateHotSearchKeyword(r.Context(), input)
+		}
+		if err != nil {
+			operation := "create_hot_search_keyword"
+			if update {
+				operation = "update_hot_search_keyword"
+			}
+			adminlogic.LogAdminFailure(r.Context(), "保存后台热门搜索词失败", operation, err,
+				logx.Field("operatorId", admin.OperatorID), logx.Field("configId", pathvar.Vars(r)["configId"]),
+				logx.Field("cityFiltered", input.CityCode != ""))
 		}
 		response.JSON(w, resp, err)
 	}

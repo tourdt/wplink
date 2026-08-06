@@ -19,7 +19,7 @@ import (
 
 func adminListResourcesHTTPHandler(svcCtx *svc.ServiceContext, pendingOnly bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, store, err := requireAdminResourceContext(r, svcCtx)
+		admin, store, err := requireAdminResourceContext(r, svcCtx)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -34,6 +34,11 @@ func adminListResourcesHTTPHandler(svcCtx *svc.ServiceContext, pendingOnly bool)
 			resp, err := logic.ListPendingResources(r.Context(), adminlogic.ListPendingResourcesReq{
 				CityCode: req.CityCode, TypeCode: req.TypeCode, Page: req.Page, PageSize: req.PageSize,
 			})
+			if err != nil {
+				adminlogic.LogAdminFailure(r.Context(), "加载待审核资源失败", "list_pending_resources", err,
+					logx.Field("operatorId", admin.OperatorID), logx.Field("cityFiltered", req.CityCode != ""),
+					logx.Field("typeFiltered", req.TypeCode != ""))
+			}
 			response.JSON(w, resp, err)
 			return
 		}
@@ -45,6 +50,11 @@ func adminListResourcesHTTPHandler(svcCtx *svc.ServiceContext, pendingOnly bool)
 		resp, err := logic.ListAdminResources(r.Context(), adminlogic.ListPendingResourcesReq{
 			CityCode: req.CityCode, TypeCode: req.TypeCode, Status: req.Status, Page: req.Page, PageSize: req.PageSize,
 		})
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "加载后台资源列表失败", "list_admin_resources", err,
+				logx.Field("operatorId", admin.OperatorID), logx.Field("cityFiltered", req.CityCode != ""),
+				logx.Field("typeFiltered", req.TypeCode != ""), logx.Field("statusFiltered", req.Status != ""))
+		}
 		response.JSON(w, resp, err)
 	}
 }
@@ -71,7 +81,7 @@ func adminReviewResourceHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc
 
 func adminListResourceReportsHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, store, err := requireAdminResourceContext(r, svcCtx)
+		admin, store, err := requireAdminResourceContext(r, svcCtx)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -84,6 +94,11 @@ func adminListResourceReportsHTTPHandler(svcCtx *svc.ServiceContext) http.Handle
 		resp, err := adminlogic.NewResourceReportLogic(store).ListResourceReports(r.Context(), adminlogic.ListResourceReportsReq{
 			Status: req.Status, Page: req.Page, PageSize: req.PageSize,
 		})
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "加载资源举报列表失败", "list_resource_reports", err,
+				logx.Field("operatorId", admin.OperatorID), logx.Field("statusFiltered", req.Status != ""),
+				logx.Field("page", req.Page), logx.Field("pageSize", req.PageSize))
+		}
 		response.JSON(w, resp, err)
 	}
 }

@@ -58,7 +58,8 @@ func (l *ReviewResourceLogic) ReviewResource(ctx context.Context, resourceID str
 		ReviewerID: strings.TrimSpace(req.ReviewerID),
 	})
 	if err != nil {
-		logx.Errorf("管理员审核资源失败: resourceId=%s reviewerId=%s action=%s errorType=%T", resourceID, strings.TrimSpace(req.ReviewerID), action, err)
+		LogAdminFailure(ctx, "管理员审核资源失败", "review_resource", err,
+			logx.Field("resourceId", resourceID), logx.Field("operatorId", strings.TrimSpace(req.ReviewerID)), logx.Field("action", action))
 		return ReviewResourceResp{}, err
 	}
 	// 资源审核会改变前台可见性，记录状态流转方便上线后追溯误审、下架和驳回问题。
@@ -81,7 +82,8 @@ func (l *ReviewResourceLogic) triggerResourceApprovedGrowthReward(ctx context.Co
 			EventType:  eventType,
 			ResourceID: result.ID,
 		}); err != nil {
-			logx.Errorf("资源审核通过后触发成长权益失败: resourceId=%s reviewerId=%s eventType=%s errorType=%T", result.ID, reviewerID, eventType, err)
+			LogAdminFailure(ctx, "资源审核通过后触发成长权益失败", "grant_growth_reward_after_resource_review", err,
+				logx.Field("resourceId", result.ID), logx.Field("operatorId", reviewerID), logx.Field("eventType", eventType))
 		}
 	}
 }

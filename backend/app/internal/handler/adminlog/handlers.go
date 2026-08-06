@@ -18,7 +18,7 @@ import (
 
 func adminListOperationLogsHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, err := requireAdminLogIdentity(r)
+		operatorID, err := requireAdminLogIdentity(r)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -36,13 +36,19 @@ func adminListOperationLogsHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerF
 		resp, err := adminlogic.NewOperationLogLogic(svcCtx.APIStore).ListOperationLogs(r.Context(), adminlogic.OperationLogsReq{
 			ObjectType: req.ObjectType, ObjectID: req.ObjectId, OperatorID: req.OperatorId, Page: req.Page, PageSize: req.PageSize,
 		})
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "加载后台操作日志失败", "list_operation_logs", err,
+				logx.Field("operatorId", operatorID), logx.Field("objectTypeFiltered", req.ObjectType != ""),
+				logx.Field("objectIdFiltered", req.ObjectId != ""), logx.Field("operatorFiltered", req.OperatorId != ""),
+				logx.Field("page", req.Page), logx.Field("pageSize", req.PageSize))
+		}
 		response.JSON(w, resp, err)
 	}
 }
 
 func adminListSearchLogsHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, err := requireAdminLogIdentity(r)
+		operatorID, err := requireAdminLogIdentity(r)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -60,13 +66,18 @@ func adminListSearchLogsHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc
 		resp, err := adminlogic.NewSearchLogLogic(svcCtx.APIStore).ListSearchLogs(r.Context(), adminlogic.SearchLogsReq{
 			CityCode: req.CityCode, Keyword: req.Keyword, Page: req.Page, PageSize: req.PageSize,
 		})
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "加载后台搜索日志失败", "list_search_logs", err,
+				logx.Field("operatorId", operatorID), logx.Field("cityFiltered", req.CityCode != ""),
+				logx.Field("keywordFiltered", req.Keyword != ""), logx.Field("page", req.Page), logx.Field("pageSize", req.PageSize))
+		}
 		response.JSON(w, resp, err)
 	}
 }
 
 func adminRunResourceLifecycleHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, err := requireAdminLogIdentity(r)
+		operatorID, err := requireAdminLogIdentity(r)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -78,6 +89,10 @@ func adminRunResourceLifecycleHTTPHandler(svcCtx *svc.ServiceContext) http.Handl
 			return
 		}
 		result, err := task.NewResourceLifecycleTask(svcCtx.APIStore).Run(r.Context())
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "执行资源生命周期任务失败", "run_resource_lifecycle", err,
+				logx.Field("operatorId", operatorID), logx.Field("stage", task.ResourceLifecycleErrorStage(err)))
+		}
 		response.JSON(w, map[string]int64{
 			"expiredCount": result.ExpiredCount, "expiringReminderCount": result.ExpiringReminderCount,
 		}, err)

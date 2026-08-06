@@ -168,6 +168,9 @@ func NewResourceTypeConfigLogic(store ResourceTypeConfigStore) *ResourceTypeConf
 func (l *ResourceTypeConfigLogic) ListResourceTypeConfigs(ctx context.Context, req ListResourceTypeConfigsReq) (ListResourceTypeConfigsResp, error) {
 	configs, err := l.store.ListResourceTypeConfigs(ctx, strings.TrimSpace(req.CityCode), strings.TrimSpace(req.Status))
 	if err != nil {
+		LogAdminFailure(ctx, "加载资源类型配置失败", "list_resource_type_configs", err,
+			logx.Field("cityFiltered", strings.TrimSpace(req.CityCode) != ""),
+			logx.Field("statusFiltered", strings.TrimSpace(req.Status) != ""))
 		return ListResourceTypeConfigsResp{}, err
 	}
 
@@ -181,8 +184,8 @@ func (l *ResourceTypeConfigLogic) ListResourceTypeConfigs(ctx context.Context, r
 			TypeName:         config.TypeName,
 			Direction:        config.Direction,
 			FieldSchema:      map[string]interface{}(config.FieldSchema),
-			RequiredFields:   append([]string(nil), config.RequiredFields...),
-			FilterFields:     append([]string(nil), config.FilterFields...),
+			RequiredFields:   nonNilAdminStringSlice(config.RequiredFields),
+			FilterFields:     nonNilAdminStringSlice(config.FilterFields),
 			DisplayTemplate:  map[string]interface{}(config.DisplayTemplate),
 			ReviewRules:      map[string]interface{}(config.ReviewRules),
 			SortWeights:      map[string]interface{}(config.SortWeights),
@@ -210,7 +213,9 @@ func (l *ResourceTypeConfigLogic) CreateResourceTypeConfig(ctx context.Context, 
 			logx.Infof("创建供需二级类型被拦截: cityCode=%s typeCode=%s reason=duplicate_type_code", input.CityCode, input.TypeCode)
 			return CreateResourceTypeConfigResp{}, errx.New(errx.CodeValidationFailed, "二级分类编码已存在，请更换编码")
 		}
-		logx.Errorf("创建供需二级类型失败: cityCode=%s typeCode=%s groupCode=%s errorType=%T", input.CityCode, input.TypeCode, groupCodeFromDisplayTemplate(input.DisplayTemplate), err)
+		LogAdminFailure(ctx, "创建供需二级类型失败", "create_resource_type_config", err,
+			logx.Field("cityCode", input.CityCode), logx.Field("typeCode", input.TypeCode),
+			logx.Field("groupCode", groupCodeFromDisplayTemplate(input.DisplayTemplate)))
 		return CreateResourceTypeConfigResp{}, errx.New(errx.CodeInternalError, "新增供需类型失败，请稍后重试")
 	}
 	logx.Infof("创建供需二级类型成功: cityCode=%s typeCode=%s groupCode=%s configId=%s", input.CityCode, input.TypeCode, groupCodeFromDisplayTemplate(input.DisplayTemplate), result.ID)
@@ -254,8 +259,13 @@ func (l *ResourceTypeConfigLogic) UpdateResourceTypeConfig(ctx context.Context, 
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return UpdateResourceTypeConfigResp{}, errx.New(errx.CodeStateConflict, "资源类型配置已被其他人修改，请刷新后重试")
+			conflictErr := errx.New(errx.CodeStateConflict, "资源类型配置已被其他人修改，请刷新后重试")
+			LogAdminFailure(ctx, "更新资源类型配置冲突", "update_resource_type_config", conflictErr,
+				logx.Field("configId", configID), logx.Field("expectedVersion", req.Version))
+			return UpdateResourceTypeConfigResp{}, conflictErr
 		}
+		LogAdminFailure(ctx, "更新资源类型配置失败", "update_resource_type_config", err,
+			logx.Field("configId", configID), logx.Field("expectedVersion", req.Version))
 		return UpdateResourceTypeConfigResp{}, err
 	}
 	return UpdateResourceTypeConfigResp{ID: configID, Version: result.Version, UpdatedAt: result.UpdatedAt}, nil

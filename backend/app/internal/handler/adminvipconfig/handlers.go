@@ -25,7 +25,7 @@ const (
 
 func adminListVIPConfigHTTPHandler(svcCtx *svc.ServiceContext, kind int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, store, err := requireAdminVIPContext(r, svcCtx)
+		admin, store, err := requireAdminVIPContext(r, svcCtx)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -34,12 +34,24 @@ func adminListVIPConfigHTTPHandler(svcCtx *svc.ServiceContext, kind int) http.Ha
 		switch kind {
 		case vipConfigPlans:
 			resp, err := logic.ListVIPPlans(r.Context())
+			if err != nil {
+				adminlogic.LogAdminFailure(r.Context(), "加载后台 VIP 套餐配置失败", "list_vip_plans", err,
+					logx.Field("operatorId", admin.OperatorID))
+			}
 			response.JSON(w, resp, err)
 		case vipConfigQuotaPacks:
 			resp, err := logic.ListQuotaPacks(r.Context())
+			if err != nil {
+				adminlogic.LogAdminFailure(r.Context(), "加载后台次数包配置失败", "list_quota_packs", err,
+					logx.Field("operatorId", admin.OperatorID))
+			}
 			response.JSON(w, resp, err)
 		default:
 			resp, err := logic.ListVIPPromotions(r.Context())
+			if err != nil {
+				adminlogic.LogAdminFailure(r.Context(), "加载后台 VIP 优惠配置失败", "list_vip_promotions", err,
+					logx.Field("operatorId", admin.OperatorID))
+			}
 			response.JSON(w, resp, err)
 		}
 	}

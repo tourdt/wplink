@@ -19,7 +19,7 @@ import (
 
 func adminListResourceTypeConfigsHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, store, err := requireAdminConfigContext(r, svcCtx)
+		admin, store, err := requireAdminConfigContext(r, svcCtx)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -32,13 +32,18 @@ func adminListResourceTypeConfigsHTTPHandler(svcCtx *svc.ServiceContext) http.Ha
 		resp, err := adminlogic.NewResourceTypeConfigLogic(store).ListResourceTypeConfigs(r.Context(), adminlogic.ListResourceTypeConfigsReq{
 			CityCode: req.CityCode, Status: req.Status,
 		})
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "加载后台资源类型配置失败", "list_resource_type_configs", err,
+				logx.Field("operatorId", admin.OperatorID), logx.Field("cityFiltered", req.CityCode != ""),
+				logx.Field("statusFiltered", req.Status != ""))
+		}
 		response.JSON(w, resp, err)
 	}
 }
 
 func adminCreateResourceTypeConfigHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, store, err := requireAdminConfigContext(r, svcCtx)
+		admin, store, err := requireAdminConfigContext(r, svcCtx)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -56,13 +61,18 @@ func adminCreateResourceTypeConfigHTTPHandler(svcCtx *svc.ServiceContext) http.H
 			MessageRules: req.MessageRules, CommercialRules: req.CommercialRules,
 			DefaultValidDays: req.DefaultValidDays, Status: req.Status,
 		})
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "创建后台资源类型配置失败", "create_resource_type_config", err,
+				logx.Field("operatorId", admin.OperatorID), logx.Field("cityProvided", req.CityCode != ""),
+				logx.Field("typeCodeProvided", req.TypeCode != ""), logx.Field("groupCodeProvided", req.GroupCode != ""))
+		}
 		response.JSON(w, resp, err)
 	}
 }
 
 func adminUpdateResourceTypeConfigHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, store, err := requireAdminConfigContext(r, svcCtx)
+		admin, store, err := requireAdminConfigContext(r, svcCtx)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -79,6 +89,11 @@ func adminUpdateResourceTypeConfigHTTPHandler(svcCtx *svc.ServiceContext) http.H
 			SortWeights: req.SortWeights, MessageRules: req.MessageRules, CommercialRules: req.CommercialRules,
 			DefaultValidDays: req.DefaultValidDays, Status: req.Status,
 		})
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "更新后台资源类型配置失败", "update_resource_type_config", err,
+				logx.Field("operatorId", admin.OperatorID), logx.Field("configId", pathvar.Vars(r)["configId"]),
+				logx.Field("expectedVersion", req.Version))
+		}
 		response.JSON(w, resp, err)
 	}
 }

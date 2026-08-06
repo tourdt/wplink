@@ -19,7 +19,7 @@ import (
 
 func adminListBannerTopicsHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, store, err := requireAdminBannerContext(r, svcCtx)
+		admin, store, err := requireAdminBannerContext(r, svcCtx)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -32,13 +32,18 @@ func adminListBannerTopicsHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFu
 		resp, err := adminlogic.NewBannerTopicAdminLogic(store).ListBannerTopics(r.Context(), adminlogic.ListBannerTopicsReq{
 			CityCode: req.CityCode, Kind: req.Kind, Status: req.Status,
 		})
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "加载后台 Banner 配置失败", "list_banner_topics", err,
+				logx.Field("operatorId", admin.OperatorID), logx.Field("cityFiltered", req.CityCode != ""),
+				logx.Field("kindFiltered", req.Kind != ""), logx.Field("statusFiltered", req.Status != ""))
+		}
 		response.JSON(w, resp, err)
 	}
 }
 
 func adminSaveBannerTopicHTTPHandler(svcCtx *svc.ServiceContext, update bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, store, err := requireAdminBannerContext(r, svcCtx)
+		admin, store, err := requireAdminBannerContext(r, svcCtx)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
@@ -59,6 +64,15 @@ func adminSaveBannerTopicHTTPHandler(svcCtx *svc.ServiceContext, update bool) ht
 			resp, err = logic.UpdateBannerTopic(r.Context(), pathvar.Vars(r)["configId"], input)
 		} else {
 			resp, err = logic.CreateBannerTopic(r.Context(), input)
+		}
+		if err != nil {
+			operation := "create_banner_topic"
+			if update {
+				operation = "update_banner_topic"
+			}
+			adminlogic.LogAdminFailure(r.Context(), "保存后台 Banner 配置失败", operation, err,
+				logx.Field("operatorId", admin.OperatorID), logx.Field("configId", pathvar.Vars(r)["configId"]),
+				logx.Field("kind", input.Kind))
 		}
 		response.JSON(w, resp, err)
 	}

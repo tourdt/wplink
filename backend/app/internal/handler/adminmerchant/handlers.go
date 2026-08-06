@@ -36,6 +36,12 @@ func adminListMerchantsHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc 
 			CityCode: req.CityCode, MerchantType: req.MerchantType, Status: req.Status,
 			Keyword: req.Keyword, Page: req.Page, PageSize: req.PageSize,
 		})
+		if err != nil {
+			adminlogic.LogAdminFailure(r.Context(), "加载后台商家列表失败", "list_admin_merchants", err,
+				logx.Field("operatorId", admin.OperatorID), logx.Field("cityFiltered", req.CityCode != ""),
+				logx.Field("merchantTypeFiltered", req.MerchantType != ""), logx.Field("statusFiltered", req.Status != ""),
+				logx.Field("keywordFiltered", req.Keyword != ""), logx.Field("page", req.Page), logx.Field("pageSize", req.PageSize))
+		}
 		response.JSON(w, resp, err)
 	}
 }

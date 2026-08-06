@@ -288,6 +288,7 @@ type AdminOperatorItem struct {
 
 type AdminPendingResourceItem struct {
 	Id           string `json:"id"`
+	Status       string `json:"status"`
 	Title        string `json:"title"`
 	TypeCode     string `json:"typeCode"`
 	MerchantName string `json:"merchantName"`

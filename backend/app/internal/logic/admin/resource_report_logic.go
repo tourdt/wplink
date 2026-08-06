@@ -88,7 +88,8 @@ func (l *ResourceReportLogic) ListResourceReports(ctx context.Context, req ListR
 		PageSize: req.PageSize,
 	})
 	if err != nil {
-		logx.Errorf("加载资源举报列表失败: status=%s page=%d pageSize=%d errorType=%T", status, req.Page, req.PageSize, err)
+		LogAdminFailure(ctx, "加载资源举报列表失败", "list_resource_reports", err,
+			logx.Field("statusFiltered", status != ""), logx.Field("page", req.Page), logx.Field("pageSize", req.PageSize))
 		return ListResourceReportsResp{}, errx.New(errx.CodeInternalError, "举报列表加载失败，请稍后重试")
 	}
 	items := make([]AdminResourceReportItem, 0, len(result.Items))
@@ -120,7 +121,10 @@ func (l *ResourceReportLogic) ReviewResourceReport(ctx context.Context, reportID
 		return ReviewResourceReportResp{}, errx.New(errx.CodeStateConflict, "举报已被处理，请刷新后查看")
 	}
 	if err != nil {
-		logx.Errorf("审核资源举报失败: reportId=%s reviewerId=%s action=%s resourceAction=%s refundPublishQuota=%t errorType=%T", input.ReportID, input.ReviewerID, input.Action, input.ResourceAction, input.RefundPublishQuota, err)
+		LogAdminFailure(ctx, "审核资源举报失败", "review_resource_report", err,
+			logx.Field("reportId", input.ReportID), logx.Field("operatorId", input.ReviewerID),
+			logx.Field("action", input.Action), logx.Field("resourceAction", input.ResourceAction),
+			logx.Field("refundPublishQuota", input.RefundPublishQuota))
 		return ReviewResourceReportResp{}, errx.New(errx.CodeInternalError, "举报处理失败，请稍后重试")
 	}
 	logx.Infof("审核资源举报成功: reportId=%s resourceId=%s reviewerId=%s action=%s resourceAction=%s resolvedReportCount=%d refundPublishQuota=%t", result.ID, result.ResourceID, input.ReviewerID, input.Action, input.ResourceAction, result.ResolvedReportCount, result.RefundPublishQuota)
