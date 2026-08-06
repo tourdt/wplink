@@ -1,7 +1,7 @@
 # API 实施清单
 
-版本：v0.1  
-日期：2026-06-28
+版本：v0.2
+日期：2026-08-06
 来源：
 
 - `docs/product/api-contract-design.md`
@@ -12,10 +12,20 @@
 
 - API 契约源文件统一放在 `backend/app/api/*.api`。
 - `backend/app/api/app.api` 是 go-zero API 单一入口，其他 `.api` 文件只按领域拆分。
+- 生产请求固定经过 `.api -> goctl 1.7.5 generated routes/types -> Handler -> Logic -> Model/外部依赖`，运行时不按依赖是否存在裁剪路由。
 - 小程序和后台共用 `/api/v1` 前缀。
 - 管理后台接口统一使用 `/api/v1/admin` 前缀。
 - 运行时实现必须保持 `resources` 统一供需信息模型，不能为库存、工厂、招聘、出租等类型拆独立业务系统。
 - 前端可见错误必须中文、明确、可操作；后端日志记录内部原因，接口不返回 SQL、堆栈、表名、token 或敏感原始字段。
+
+## 生成与维护门禁
+
+- API 生成只使用根目录 `make generate-api`。生成脚本校验 goctl 必须为 1.7.5，并显式读取仓库内 `backend/app/goctl/` 模板；不得直接用开发机任意版本的全局 goctl、用户模板或 `GOCTL_HOME` 生成项目文件。
+- 生成结果使用 `make check-api-generated` 检查；该门禁校验契约与 generated routes/types 一致、运行时路由指纹一致、路由无重复，并拒绝残留 `WPLINK_API_HANDLER_STUB`。
+- 新增或修改 API 时，先修改对应领域 `.api`；若新增领域文件，再加入 `backend/app/api/app.api` import。随后运行 `make generate-api`，实现 Handler/Logic 和所需 Model/外部依赖，补齐身份与权限测试、成功和错误行为测试。
+- 生成的 `WPLINK_API_HANDLER_STUB` 仅用于提示缺失实现，可以在开发过程中短暂存在，提交前必须实现对应 Handler 并清除。
+- 提交前至少执行 `make check-api-generated`、`cd backend && node --test scripts/api_contract.test.mjs scripts/api_route_inventory.test.mjs scripts/api_codegen.test.mjs`、相关 Go 行为测试；最终执行根目录 `make check`。
+- `server.NewGoZeroServer` 通过 `handler.RegisterHandlers` 注册全部契约路由。额外路由只有 `/healthz`、`/readyz`；`/admin` 由嵌入式静态 NotFound 回退承接。未声明 API 返回 404，错误 HTTP method 返回 405。
 
 ## 账号与权限
 
@@ -83,13 +93,6 @@
 | `POST /api/v1/admin/banner-topics` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | 不适用 | 已接 handler，测试通过 |
 | `PATCH /api/v1/admin/banner-topics/:configId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | 不适用 | 已接 handler，测试通过 |
 
-## 认证
-
-| 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
-|---|---|---|---|---|---|
-| `POST /api/v1/merchants/:merchantId/verifications` | `backend/app/api/verification.api` | `backend/app/internal/logic/verification/submit_verification_logic.go` | 认证审核列表 | `wxapp/pages/verification/index.vue` | 已接 handler，测试通过 |
-| `GET /api/v1/merchants/:merchantId/verifications/latest` | `backend/app/api/verification.api` | `backend/app/internal/logic/verification/submit_verification_logic.go` | 商家详情 | `wxapp/pages/verification/index.vue` 认证状态 | 已接 handler，测试通过 |
-
 ## 权益与置顶
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
@@ -133,8 +136,6 @@
 | `GET /api/v1/admin/dashboard/overview` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/dashboard_logic.go` | `admin-web/src/views/DashboardView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/resources/pending` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/list_pending_resources_logic.go` | `admin-web/src/views/ResourceReviewView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/resources/:resourceId/review` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/review_resource_logic.go` | `admin-web/src/views/ResourceReviewView.vue` | 不适用 | 已接 handler，测试通过 |
-| `GET /api/v1/admin/verifications/pending` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/verification_admin_logic.go` | `admin-web/src/views/VerificationView.vue` | 不适用 | 已接 handler，测试通过 |
-| `POST /api/v1/admin/verifications/:verificationId/review` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/verification_admin_logic.go` | `admin-web/src/views/VerificationView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/merchants/:merchantId/entitlements` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/entitlement_admin_logic.go` | `admin-web/src/views/EntitlementView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/operation-logs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/operation_log_logic.go` | `admin-web/src/views/OperationLogView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/search-logs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/search_log_logic.go` | `admin-web/src/views/SearchLogView.vue` | 不适用 | 已接 handler，测试通过 |

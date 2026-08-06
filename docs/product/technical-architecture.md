@@ -1,8 +1,8 @@
 # 衣货通项目现状架构与系统维护手册
 
-版本：v1.0
+版本：v1.1
 
-基线日期：2026-08-04
+基线日期：2026-08-06
 
 适用仓库：`wplink`
 
@@ -15,7 +15,7 @@
 本文以当前主工作区代码为准，主要事实来源如下：
 
 - 后端接口契约：`backend/app/api/*.api`
-- 后端运行时路由：`backend/app/internal/server/`
+- 后端运行时路由：`backend/app/internal/handler/routes.go`、`backend/app/internal/server/gozero_server.go`
 - 后端业务逻辑：`backend/app/internal/logic/`
 - 后端数据访问：`backend/app/internal/model/`
 - 数据库结构：`backend/migrations/*.sql`
@@ -87,11 +87,11 @@ wplink/
 │   │   ├── api/                 # go-zero .api 契约
 │   │   ├── internal/
 │   │   │   ├── config/          # YAML 加载、环境变量展开、生产校验
-│   │   │   ├── handler/         # 已迁移的 goctl Handler
+│   │   │   ├── handler/         # goctl 生成路由与领域 Handler
 │   │   │   ├── logic/           # 业务规则和流程编排
 │   │   │   ├── model/           # PostgreSQL 数据访问和事务
 │   │   │   ├── permission/      # 后台模块权限
-│   │   │   ├── server/          # go-zero 与兼容路由装配
+│   │   │   ├── server/          # go-zero Server、健康检查与后台静态回退
 │   │   │   ├── session/         # 用户/后台 Token
 │   │   │   ├── svc/             # 依赖注入
 │   │   │   ├── task/            # 进程内自动任务
@@ -121,7 +121,8 @@ wplink/
 
 核心边界要求：
 
-- `.api` 文件描述外部契约；修改请求或响应字段时，应同步生成/更新 `internal/types` 并执行契约测试。
+- `.api` 文件描述外部契约；修改请求、响应或路由后统一执行根目录 `make generate-api`，不得手工维护生成的 `internal/types/types.go` 和 `internal/handler/routes.go`。
+- API 生成固定使用 goctl 1.7.5 和仓库内 `backend/app/goctl/` 模板；`make check-api-generated` 会校验版本、生成结果、路由一致性和残留 Handler 骨架。
 - Handler/路由只解析身份和参数、调用 Logic、返回统一响应，不应承载 SQL 或复杂状态流转。
 - Logic 负责权限之外的业务校验、状态机、第三方调用和流程编排。
 - Model 负责 SQL、事务、行锁、幂等约束和数据映射。
@@ -140,27 +141,31 @@ wplink/
 4. 初始化嵌入式管理后台 Handler。
 5. 建立 PostgreSQL 连接池。
 6. 创建 `ServiceContext`，装配 Model、Token、微信、短信、支付、审核、上传和地图客户端。
-7. 启动资源生命周期、内容审核重试、支付补偿、地图行为清理任务。
-8. 创建业务 API Router。
-9. 创建 go-zero HTTP Server，注册健康检查和已迁移 Handler。
+7. 生产模式调用 `svc.ValidateAPIServiceContext` 校验完整 API 依赖；任何必需依赖缺失都在监听端口前终止启动。
+8. 启动资源生命周期、内容审核重试、支付补偿、地图行为清理任务。
+9. 调用 `server.NewGoZeroServer` 创建 go-zero HTTP Server；其中调用 `handler.RegisterHandlers` 一次性注册 `.api` 生成的全部业务路由。
 10. 监听配置的 Host/Port 并开始服务。
 
 任何生产必需依赖装配失败都会阻止启动，避免服务在部分功能不可用的状态下接入流量。
 
-### 5.2 路由架构：迁移期双轨制
+### 5.2 路由架构：`.api` 单轨
 
-当前路由并非全部由 goctl 生成，实际由两层组成：
+生产业务路由只有一条生成链路：
 
-- go-zero 直接路由：`/healthz`、`/readyz`、后台登录、城市站列表、城市资源类型列表。
-- 兼容 API Router：其余业务接口由 `http.ServeMux` 在 `backend/app/internal/server/` 中注册，再通过 go-zero NotFound Handler 转发。
+```text
+领域 .api + app.api import
+  -> 固定版本 goctl 1.7.5 与仓库内模板
+  -> generated routes/types
+  -> Handler
+  -> Logic
+  -> Model / 外部依赖
+```
 
-`backend/app/internal/server/goctl_routes.go` 明确说明城市站和后台登录已经迁移；其他端点仍由兼容 Router 承接。当前兼容 Router 中约有 147 条注册语句，而 `.api` 契约约有 126 条端点声明，两者不是自动生成关系。
+`backend/app/api/app.api` 是聚合入口，`backend/app/internal/handler/routes.go` 和 `backend/app/internal/types/types.go` 是生成产物。`server.NewGoZeroServer` 调用 `handler.RegisterHandlers` 注册完整契约，运行时不会按依赖是否存在增删路由；生产环境通过启动前依赖校验拒绝不完整装配。
 
-维护影响：
+生成路由之外只额外注册 `GET /healthz` 和 `GET /readyz`。go-zero 的 NotFound 处理仅把 `/admin` 与 `/admin/` 子路径交给嵌入式管理后台静态 Handler，以支持 Vue history 刷新；它不承接业务 API。未声明的 API 返回 HTTP 404，已声明路径使用错误 HTTP method 返回 HTTP 405。
 
-- 新接口必须同时检查 `.api` 契约和运行时注册，不能只改其中一处。
-- 现有 `backend/scripts/api_contract.test.mjs` 主要校验字段和已下线能力，不会完整比较运行时路由集合。
-- 后续迁移应按领域逐组转成 goctl Handler，迁移完成后删除对应兼容注册，避免重复路由和契约漂移。
+项目统一从仓库根目录执行 `make generate-api` 和 `make check-api-generated`。生成脚本固定要求 goctl 1.7.5，并显式使用 `backend/app/goctl/` 模板；开发机的任意版本全局 goctl、用户级模板和 `GOCTL_HOME` 都不能作为项目生成来源。
 
 ### 5.3 分层和依赖注入
 
@@ -176,7 +181,7 @@ wplink/
 - `UploadTokenService`：七牛上传凭证签发。
 - `LocationGeocoder`：腾讯地图逆地理编码。
 
-Logic 通过小接口声明所需能力，`APIStore` 依靠 Go 接口组合满足不同模块。这降低了单元测试替身成本，但也使“接口是否被 Store 满足”决定某些兼容路由是否会注册，新增 Model 方法时需要检查路由装配结果。
+Logic 通过小接口声明所需能力，`APIStore` 依靠 Go 接口组合满足不同模块。这降低了单元测试替身成本。全部契约路由始终注册；新增 Model 方法或外部依赖时，需要同步更新 `ServiceContext` 装配及 `ValidateAPIServiceContext` 的生产启动校验，禁止通过省略路由静默降级。
 
 ### 5.4 数据访问与事务
 
@@ -526,11 +531,11 @@ VIP 商品分为套餐和次数包：
 
 后台配置写操作应同时记录 `operation_logs`。资源审核通过会触发增长事件；资源类型、会员和增长配置均应保存版本或快照，保证历史业务不被配置变更反向影响。
 
-### 6.18 已下线或未接线能力
+### 6.18 契约边界与暂缓能力
 
-代码中仍保留少量商家认证相关的兼容路由函数和旧字段引用，但当前 `registerOptionalDomainRoutes` 不再注册这组路由，`ServiceContext.APIStore` 也没有装配认证 Store，当前 `.api` 聚合契约没有认证模块。因此维护时不能把这些函数视为线上可用能力。
+线上 API 能力以 `backend/app/api/app.api` 的 import 链为准，聚合契约中的各领域均通过生成路由进入正式 Handler。某项能力若暂不开放，应通过产品入口、权限或明确业务状态控制，不能依赖缺少 Handler 或省略运行时路由。
 
-`merchants.verification_status` 等旧字段仍可能被部分展示 DTO 读取，后续如彻底清理，需要同时检查迁移、生成 Model、收藏列表、地图展示和历史数据兼容，不能只删除路由代码。
+`merchants.verification_status` 等历史字段仍可能被展示 DTO 读取。后续如清理字段，需要同时检查迁移、生成 Model、收藏列表、地图展示和历史数据，不能只修改接口契约。
 
 ## 7. 小程序架构
 
@@ -765,6 +770,7 @@ make check
 它包含：
 
 - 后端迁移与 API 契约 Node 测试。
+- `make check-api-generated`，验证 `.api`、生成 routes/types、Handler 实现和运行时路由指纹一致。
 - 后端 `go test ./...`。
 - 后端 `go vet ./...`。
 - 管理后台 Node 测试和 Vite 构建。
@@ -795,7 +801,8 @@ make check
 | `/readyz` 503 | 数据库网络、账号权限、连接池和 PostgreSQL 状态 |
 | 后台登录失败 | `logic/adminauth/`、登录尝试表、Nginx 来源 IP |
 | 小程序 401 循环 | 用户 Token 密钥、账号状态、`wxapp/api/request.js` |
-| 接口 404 | `.api` 与 `server/` 注册是否同步、是否仍处在兼容 Router |
+| 接口 404 | 请求路径是否已在对应 `.api` 声明并由 `app.api` import；生成文件是否通过 `make check-api-generated` |
+| 接口 405 | 客户端 HTTP method 是否与 `.api` 声明一致 |
 | 发布被拒 | 资源类型配置、商家资料状态、额度、内容审核运行记录 |
 | 图片一直审核中 | 审核任务状态、微信回调可达性、回调签名和重试任务 |
 | 支付后未到账 | `vip_orders`/解锁订单、统一回调日志、支付补偿任务 |
@@ -805,13 +812,13 @@ make check
 
 ## 16. 当前技术债与维护风险
 
-### 16.1 路由契约双轨
+### 16.1 生成契约维护门禁
 
-`.api` 是目标契约，但绝大多数运行时路由仍手工注册。新增或修改接口容易发生契约、类型、Router 和前端调用不一致。应优先按完整领域模块迁移到 goctl，而不是零散迁移单个端点。
+业务路由已经归一到 `.api` 和 goctl 生成结果。主要维护风险变为修改契约后漏生成、遗留临时 Handler 骨架，或手工改动生成文件。必须保留 `make generate-api`、`make check-api-generated`、契约测试和运行时路由指纹门禁，禁止再维护第二套路由注册表。
 
 ### 16.2 单体大文件
 
-`backend/app/internal/server/api.go`、`domain_routes.go`，后台 `SourcingMapView.vue`、`ResourceTypeConfigView.vue`，以及多个小程序页面体积较大。修改时应优先提取纯逻辑或领域路由文件，但不要为拆文件改变业务行为。
+后台 `SourcingMapView.vue`、`ResourceTypeConfigView.vue` 以及多个小程序页面体积较大。后端 Handler 已按生成 group 分包，新增实现应继续保持 Handler 薄、Logic 聚焦领域流程；修改大文件时优先提取可独立验证的纯逻辑，但不要为拆文件改变业务行为。
 
 ### 16.3 跨实例短信限流的长期验证门禁
 
@@ -823,9 +830,9 @@ make check
 
 微信、腾讯地图、短信和支付已有统一 `external_call` 调用日志，以及各客户端既有的超时和安全错误映射；当前尚未部署指标/告警平台，也没有统一熔断器或公共自动重试层。先基于生产日志观察真实调用基线，再决定是否按 `provider + operation` 引入指标平台、熔断或受控重试，不能把文档中的建议当作已上线能力。
 
-### 16.5 历史兼容代码
+### 16.5 历史数据与未启用页面
 
-商家认证旧路由函数、旧状态字段、未注册的地图画布页面等仍存在。清理前必须通过引用搜索、契约测试、迁移验证和历史数据检查确认影响范围，不能直接按“当前页面未使用”删除。
+部分旧状态字段和未注册的地图画布页面仍存在。清理前必须通过引用搜索、契约测试、迁移验证和历史数据检查确认影响范围，不能直接按“当前页面未使用”删除。
 
 ### 16.6 文档与本地手册滞后
 
@@ -842,13 +849,12 @@ make check
 
 ### 17.2 新增 API
 
-1. 在对应 `.api` 文件定义契约。
-2. 使用 goctl 生成可生成的 types/handler，保持项目生成规范。
-3. 在 Logic 定义最小 Store 接口并实现业务规则。
-4. 在 Model 实现数据访问和事务。
-5. 注册 go-zero 路由；不要继续扩大兼容 Router，除非是修复现有模块。
-6. 添加 Logic、路由权限和契约测试。
-7. 更新小程序或后台 API 封装，页面只调用封装函数。
+1. 在对应领域 `.api` 文件定义或修改契约；新增领域文件时同步加入 `backend/app/api/app.api` import。
+2. 从仓库根目录执行 `make generate-api`，由固定 goctl 1.7.5 和仓库模板更新 generated routes/types，并仅为缺失实现创建 Handler 骨架。
+3. 立即实现 Handler 和 Logic；按需补充 Model 或外部依赖装配。生成文件中的 `WPLINK_API_HANDLER_STUB` 只允许短暂开发存在，提交前必须由真实实现替换并清除。
+4. 明确接口的用户身份、商家管理权限或后台模块权限，补充成功、参数错误、未授权、越权和依赖失败等行为测试。
+5. 更新小程序或后台 API 封装，页面只调用封装函数。
+6. 执行 `make check-api-generated`、`cd backend && node --test scripts/api_contract.test.mjs scripts/api_route_inventory.test.mjs scripts/api_codegen.test.mjs` 和相关 Go 路由/Logic 测试；提交前再执行根目录 `make check`。
 
 ### 17.3 修改数据库
 

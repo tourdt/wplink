@@ -10,6 +10,42 @@ const apiDir = path.join(appDir, 'api')
 const typesFile = path.join(appDir, 'internal/types/types.go')
 const productDocsDir = path.resolve(scriptDir, '../../docs/product')
 
+test('product docs describe the generated API route as the only production route', () => {
+  const retiredRouteDescriptions = [
+    'NewAPIRouter',
+    'NewProductionAPIRouter',
+    'API_NOT_CONNECTED',
+    '迁移期双轨制',
+    '兼容 API Router',
+    '兼容 Router',
+    '未配置 API handler 的兜底路由',
+    '未迁移端点由 fallback',
+    'NotMigrated',
+    'registerOptionalDomainRoutes',
+    'backend/app/internal/server/goctl_routes.go',
+    'backend/app/internal/server/api.go',
+    'domain_routes.go',
+  ]
+  const docFiles = fs.readdirSync(productDocsDir)
+    .filter((fileName) => fileName.endsWith('.md'))
+    .map((fileName) => ({
+      name: fileName,
+      source: fs.readFileSync(path.join(productDocsDir, fileName), 'utf8'),
+    }))
+
+  for (const file of docFiles) {
+    for (const snippet of retiredRouteDescriptions) {
+      assert(!file.source.includes(snippet), `${file.name} should not contain retired route description ${snippet}`)
+    }
+  }
+
+  const architectureSource = fs.readFileSync(path.join(productDocsDir, 'technical-architecture.md'), 'utf8')
+  assert(
+    architectureSource.includes('make check-api-generated'),
+    'technical-architecture.md should document make check-api-generated',
+  )
+})
+
 test('product docs do not describe retired purchase demand or manual matching features', () => {
   const retiredSnippets = [
     '采购需求',
