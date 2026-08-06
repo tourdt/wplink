@@ -16,6 +16,8 @@ import (
 	"github.com/zeromicro/go-zero/rest"
 )
 
+const missingGeneratedAdminAuthMessage = "newGeneratedAPIServer requires explicit AdminAuth; use newGeneratedAPIServerWithFailClosedAdminAuth only when testing missing auth dependencies"
+
 func TestNewGeneratedAPIServerRequiresExplicitAdminAuth(t *testing.T) {
 	if os.Getenv("WPLINK_TEST_MISSING_GENERATED_ADMIN_AUTH") == "1" {
 		newGeneratedAPIServer(t, &svc.ServiceContext{})
@@ -28,8 +30,12 @@ func TestNewGeneratedAPIServerRequiresExplicitAdminAuth(t *testing.T) {
 	if err == nil {
 		t.Fatal("newGeneratedAPIServer accepted a ServiceContext without AdminAuth")
 	}
-	if !strings.Contains(string(output), "AdminAuth") {
-		t.Fatalf("subprocess output=%q, want explicit AdminAuth failure", output)
+	subprocessOutput := string(output)
+	if !strings.Contains(subprocessOutput, missingGeneratedAdminAuthMessage) {
+		t.Fatalf("subprocess output=%q, want explicit failure %q", output, missingGeneratedAdminAuthMessage)
+	}
+	if strings.Contains(subprocessOutput, "panic:") {
+		t.Fatalf("subprocess output=%q, want explicit AdminAuth failure without panic", output)
 	}
 }
 
@@ -57,7 +63,7 @@ func newGeneratedAPIServer(t *testing.T, svcCtx *svc.ServiceContext) *rest.Serve
 		return nil
 	}
 	if svcCtx.AdminAuth == nil {
-		t.Fatal("newGeneratedAPIServer requires explicit AdminAuth; use newGeneratedAPIServerWithFailClosedAdminAuth only when testing missing auth dependencies")
+		t.Fatal(missingGeneratedAdminAuthMessage)
 		return nil
 	}
 
