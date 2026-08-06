@@ -25,6 +25,7 @@ function createBackendFixture() {
   copyIfExists(path.join(backendDir, 'app/internal/handler'), path.join(fixtureBackendDir, 'app/internal/handler'))
   copyIfExists(path.join(backendDir, 'app/internal/types/types.go'), path.join(fixtureBackendDir, 'app/internal/types/types.go'))
   copyIfExists(path.join(backendDir, 'scripts/api_route_inventory.mjs'), path.join(fixtureBackendDir, 'scripts/api_route_inventory.mjs'))
+  copyIfExists(path.join(backendDir, 'scripts/api_not_migrated_scanner.go'), path.join(fixtureBackendDir, 'scripts/api_not_migrated_scanner.go'))
   copyIfExists(path.join(backendDir, 'scripts/api_codegen.mjs'), path.join(fixtureBackendDir, 'scripts/api_codegen.mjs'))
 
   return { fixtureDir, fixtureBackendDir }
@@ -186,7 +187,7 @@ test('check reports a duplicated generated route with its exact fingerprint', ()
   })
 })
 
-test('check reports a real NotMigrated call with handler and source fingerprint', () => {
+test('check reports an indirect real NotMigrated reference with source fingerprint', () => {
   withGeneratedFixture(({ fixtureBackendDir, userGoctlHome }) => {
     writeFixtureFile(
       fixtureBackendDir,
@@ -196,7 +197,8 @@ test('check reports a real NotMigrated call with handler and source fingerprint'
 import migrated "wplink/backend/app/internal/handler/handlerx"
 
 func routeGateProbe() http.HandlerFunc {
-  return migrated.NotMigrated("RouteGateProbe")
+  stub := migrated.NotMigrated
+  return stub("RouteGateProbe")
 }
 `,
     )
@@ -204,8 +206,8 @@ func routeGateProbe() http.HandlerFunc {
     const checkResult = runGenerator(fixtureBackendDir, userGoctlHome, '--check')
     const output = `${checkResult.stdout}\n${checkResult.stderr}`
     assert.notEqual(checkResult.status, 0, output)
-    assert.match(output, /city\/not_migrated_probe\.go:6/)
-    assert.match(output, /RouteGateProbe/)
+    assert.match(output, /city\/not_migrated_probe\.go:6:\d+/)
+    assert.match(output, /handlerx\.NotMigrated/)
   })
 })
 

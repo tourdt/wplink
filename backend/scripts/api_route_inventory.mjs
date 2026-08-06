@@ -1,5 +1,7 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const HTTP_METHOD_PATTERN = '(?:get|post|put|delete|patch|head|options)'
@@ -478,33 +480,28 @@ export function checkContractGeneratedParity(contractRoutes, generatedRoutes) {
 }
 
 export function checkNoMigrationStubs(rootHandlerDir) {
-  const findings = []
-  for (const filePath of listGoFiles(rootHandlerDir)) {
-    if (filePath.endsWith('_test.go')) {
-      continue
-    }
-    const tokens = tokenizeGo(fs.readFileSync(filePath, 'utf8'))
-    const imports = parseGoImports(tokens)
-    const aliases = new Set([...imports]
-      .filter(([, importPath]) => importPath === 'wplink/backend/app/internal/handler/handlerx')
-      .map(([alias]) => alias))
-    const dotImported = aliases.has('.')
-    for (let index = 0; index < tokens.length; index += 1) {
-      const qualifiedCall = aliases.has(tokens[index].value)
-        && tokens[index + 1]?.value === '.'
-        && tokens[index + 2]?.value === 'NotMigrated'
-        && tokens[index + 3]?.value === '('
-      const dotCall = dotImported && tokens[index].value === 'NotMigrated' && tokens[index + 1]?.value === '('
-      if (!qualifiedCall && !dotCall) {
-        continue
-      }
-      const argumentIndex = qualifiedCall ? index + 4 : index + 2
-      const handlerName = tokens[argumentIndex]?.type === 'string' ? tokens[argumentIndex].value : '未知 Handler'
-      findings.push(`${path.relative(rootHandlerDir, filePath).split(path.sep).join('/')}:${tokens[index].line} -> ${handlerName}`)
-    }
+  const scannerPath = path.join(scriptDir, 'api_not_migrated_scanner.go')
+  const result = spawnSync('go', ['run', scannerPath, path.resolve(rootHandlerDir)], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GOCACHE: path.join(os.tmpdir(), 'wplink-api-route-inventory-go-cache'),
+      GO111MODULE: 'off',
+      GOTOOLCHAIN: 'local',
+    },
+  })
+  if (result.error) {
+    throw new Error(`无法执行 NotMigrated AST 扫描: ${result.error.message}`)
   }
+  if (result.status !== 0) {
+    const detail = [result.stdout, result.stderr].filter(Boolean).join('\n').trim()
+    throw new Error(`NotMigrated AST 扫描失败${detail ? `:\n${detail}` : ''}`)
+  }
+  const findings = JSON.parse(result.stdout)
+    .map((finding) => `${finding.file}:${finding.line}:${finding.column} -> ${finding.label}`)
+    .sort()
   if (findings.length > 0) {
-    throw new Error(`Handler 树仍存在 NotMigrated 调用:\n- ${findings.sort().join('\n- ')}`)
+    throw new Error(`Handler 树仍存在 NotMigrated 引用:\n- ${findings.join('\n- ')}`)
   }
 }
 

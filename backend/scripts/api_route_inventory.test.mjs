@@ -278,3 +278,125 @@ func fixture() http.HandlerFunc {
     )
   })
 })
+
+test('detects direct alias and function-value references to the real project NotMigrated symbol', () => {
+  withFixture({
+    'direct.go': `package fixture
+
+import hx "wplink/backend/app/internal/handler/handlerx"
+
+var forbidden = hx.NotMigrated
+var parenthesized = (hx).NotMigrated
+`,
+    'indirect.go': `package fixture
+
+import hx "wplink/backend/app/internal/handler/handlerx"
+
+func build() http.HandlerFunc {
+  stub := hx.NotMigrated
+  return stub("IndirectHandler")
+}
+`,
+  }, (fixtureDir) => {
+    assert.throws(
+      () => checkNoMigrationStubs(fixtureDir),
+      (error) => {
+        assert.match(error.message, /direct\.go:5:\d+ -> handlerx\.NotMigrated/)
+        assert.match(error.message, /direct\.go:6:\d+ -> handlerx\.NotMigrated/)
+        assert.match(error.message, /indirect\.go:6:\d+ -> handlerx\.NotMigrated/)
+        return true
+      },
+    )
+  })
+})
+
+test('does not report a project import alias shadowed by parameters or short declarations', () => {
+  withFixture({
+    'shadow.go': `package fixture
+
+import hx "wplink/backend/app/internal/handler/handlerx"
+
+var _ = hx.ClientIP
+
+type localStub struct{}
+
+func (localStub) NotMigrated(string) http.HandlerFunc { return nil }
+
+func parameterShadow(hx localStub) http.HandlerFunc {
+  return hx.NotMigrated("ParameterShadow")
+}
+
+func shortDeclarationShadow() http.HandlerFunc {
+  hx := localStub{}
+  return hx.NotMigrated("ShortDeclarationShadow")
+}
+
+func varDeclarationShadow() http.HandlerFunc {
+  var hx localStub
+  return hx.NotMigrated("VarDeclarationShadow")
+}
+`,
+  }, (fixtureDir) => {
+    assert.doesNotThrow(() => checkNoMigrationStubs(fixtureDir))
+  })
+})
+
+test('restores the project import binding after a nested alias shadow ends', () => {
+  withFixture({
+    'nested.go': `package fixture
+
+import hx "wplink/backend/app/internal/handler/handlerx"
+
+type localStub struct{}
+
+func (localStub) NotMigrated(string) http.HandlerFunc { return nil }
+
+func build() http.HandlerFunc {
+  {
+    hx := localStub{}
+    _ = hx.NotMigrated("NestedShadow")
+  }
+  return hx.NotMigrated("RestoredImport")
+}
+`,
+  }, (fixtureDir) => {
+    assert.throws(
+      () => checkNoMigrationStubs(fixtureDir),
+      (error) => {
+        assert.match(error.message, /nested\.go:14:\d+ -> RestoredImport/)
+        assert.doesNotMatch(error.message, /NestedShadow/)
+        return true
+      },
+    )
+  })
+})
+
+test('detects a dot-imported NotMigrated reference while ignoring a local shadow', () => {
+  withFixture({
+    'dot.go': `package fixture
+
+import . "wplink/backend/app/internal/handler/handlerx"
+
+var forbidden = NotMigrated
+`,
+    'dot_shadow.go': `package fixture
+
+import . "wplink/backend/app/internal/handler/handlerx"
+
+var _ = ClientIP
+
+func build(NotMigrated func(string) http.HandlerFunc) http.HandlerFunc {
+  return NotMigrated("LocalParameter")
+}
+`,
+  }, (fixtureDir) => {
+    assert.throws(
+      () => checkNoMigrationStubs(fixtureDir),
+      (error) => {
+        assert.match(error.message, /dot\.go:5:\d+ -> handlerx\.NotMigrated/)
+        assert.doesNotMatch(error.message, /LocalParameter/)
+        return true
+      },
+    )
+  })
+})
