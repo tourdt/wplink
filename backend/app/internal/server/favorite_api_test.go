@@ -116,36 +116,6 @@ func assertTask6GeneratedStatus(t *testing.T, server http.Handler, req *http.Req
 	return decodeEnvelope(t, rec, wantStatus)
 }
 
-func TestInteractionAPIRouterBindsUserToken(t *testing.T) {
-	store := &fakeInteractionAPIStore{}
-	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/me/favorite-resources/resource-1", strings.NewReader(`{"favorited":true}`))
-	req.Header.Set("Authorization", "Bearer user-token")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d body = %s", rr.Code, rr.Body.String())
-	}
-	if store.resourceInput.UserID != "user-1" || store.resourceInput.ResourceID != "resource-1" || !store.resourceInput.Favorited {
-		t.Fatalf("route did not bind token user/resource: %+v", store.resourceInput)
-	}
-}
-
-func TestInteractionAPIRouterRequiresLogin(t *testing.T) {
-	store := &fakeInteractionAPIStore{}
-	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/me/saved-searches", strings.NewReader(`{"keyword":"库存"}`))
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d body = %s", rr.Code, rr.Body.String())
-	}
-}
-
 type fakeInteractionAPIStore struct {
 	*fakeCityAPIStore
 	resourceInput model.ResourceFavoriteInput

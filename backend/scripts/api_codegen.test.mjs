@@ -132,6 +132,38 @@ import "zmall/common/response"
   }
 })
 
+test('write creates a compilable marked handler skeleton without the retired NotMigrated helper', () => {
+  const { fixtureDir, fixtureBackendDir } = createBackendFixture()
+  try {
+    const handlerPath = path.join(fixtureBackendDir, 'app/internal/handler/merchant/get_merchant_handler.go')
+    fs.rmSync(handlerPath)
+
+    const writeResult = runGenerator(fixtureBackendDir, path.join(fixtureDir, 'unused-user-home'), '--write')
+
+    assert.equal(writeResult.status, 0, `${writeResult.stdout}\n${writeResult.stderr}`)
+    const generated = fs.readFileSync(handlerPath, 'utf8')
+    assert.match(generated, /WPLINK_API_HANDLER_STUB/)
+    assert.doesNotMatch(generated, /NotMigrated/)
+    assert.match(generated, /response\.JSON/)
+    assert.match(generated, /CodeInternalError/)
+  } finally {
+    fs.rmSync(fixtureDir, { recursive: true, force: true })
+  }
+})
+
+test('check rejects a handler mutated with the generated skeleton marker', () => {
+  withGeneratedFixture(({ fixtureBackendDir, userGoctlHome }) => {
+    const handlerPath = path.join(fixtureBackendDir, 'app/internal/handler/merchant/get_merchant_handler.go')
+    fs.appendFileSync(handlerPath, '\nconst WPLINK_API_HANDLER_STUB = "GetMerchantHandler"\n')
+
+    const checkResult = runGenerator(fixtureBackendDir, userGoctlHome, '--check')
+    const output = `${checkResult.stdout}\n${checkResult.stderr}`
+    assert.notEqual(checkResult.status, 0, output)
+    assert.match(output, /merchant\/get_merchant_handler\.go:\d+/)
+    assert.match(output, /WPLINK_API_HANDLER_STUB/)
+  })
+})
+
 test('check reports a tampered generated prefix with exact missing and extra fingerprints', () => {
   withGeneratedFixture(({ fixtureBackendDir, userGoctlHome }) => {
     mutateGeneratedRoutes(fixtureBackendDir, (source) => source.replace(

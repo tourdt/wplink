@@ -96,7 +96,9 @@ func (l *ReportLogic) Submit(ctx context.Context, objectID string, kind string, 
 		if errors.Is(err, sql.ErrNoRows) {
 			return SubmitMapObjectReportResp{}, errx.New(errx.CodeResourceNotFound, "地图点位不存在或已下线")
 		}
-		logx.Errorf("地图点位反馈入库失败: objectId=%s reporterUserId=%s kind=%s reasonCode=%s err=%+v", objectID, reporterUserID, kind, reasonCode, err)
+		LogMapDependencyFailure(ctx, "地图点位反馈入库失败", "create_map_object_report", err,
+			logx.Field("objectId", objectID), logx.Field("reporterUserId", reporterUserID),
+			logx.Field("kind", kind), logx.Field("reasonCode", reasonCode))
 		return SubmitMapObjectReportResp{}, errx.New(errx.CodeInternalError, "反馈提交失败，请稍后重试")
 	}
 

@@ -1,12 +1,60 @@
 package contentaudit
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"errors"
+	"regexp"
+	"strings"
 	"testing"
 
 	"wplink/backend/app/internal/model"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
+
+func TestMediaCheckCallbackLogsTraceFingerprintAndSafeStoreErrorCategory(t *testing.T) {
+	var logBuffer bytes.Buffer
+	previousWriter := logx.Reset()
+	logx.SetWriter(logx.NewWriter(&logBuffer))
+	t.Cleanup(func() {
+		if currentWriter := logx.Reset(); currentWriter != nil {
+			_ = currentWriter.Close()
+		}
+		if previousWriter != nil {
+			logx.SetWriter(previousWriter)
+		}
+	})
+
+	const rawTraceID = "trace-secret-openid-raw-value"
+	const rawStoreError = "postgres password=db-secret Authorization=Bearer-secret callback-body=private"
+	_, _ = NewMediaCheckCallbackLogic(&fakeMediaCheckCallbackStore{completeErr: errors.New(rawStoreError)}).Handle(
+		context.Background(),
+		model.JSONMap{"trace_id": rawTraceID, "result": map[string]interface{}{"suggest": "pass"}},
+	)
+	_, _ = NewMediaCheckCallbackLogic(&fakeMediaCheckCallbackStore{
+		completion: model.ResourceContentAuditTaskCompletion{ResourceID: "resource-safe-1", PendingCount: 1},
+	}).Handle(
+		context.Background(),
+		model.JSONMap{"trace_id": rawTraceID, "result": map[string]interface{}{"suggest": "pass"}},
+	)
+
+	logs := logBuffer.String()
+	for _, forbidden := range []string{rawTraceID, rawStoreError, "db-secret", "Bearer-secret", "callback-body=private"} {
+		if strings.Contains(logs, forbidden) {
+			t.Fatalf("log = %q, must not contain raw callback detail %q", logs, forbidden)
+		}
+	}
+	for _, field := range []string{`"operation":"complete_audit_task"`, `"errorCategory":"unknown"`, `"resourceId":"resource-safe-1"`} {
+		if !strings.Contains(logs, field) {
+			t.Fatalf("log = %q, want safe diagnostic field %s", logs, field)
+		}
+	}
+	if !regexp.MustCompile(`"traceFingerprint":"[0-9a-f]{12}"`).MatchString(logs) {
+		t.Fatalf("log = %q, want irreversible short trace fingerprint", logs)
+	}
+}
 
 func TestMediaCheckCallbackRejectsRiskyImage(t *testing.T) {
 	store := &fakeMediaCheckCallbackStore{

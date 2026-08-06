@@ -325,6 +325,21 @@ test('merchant detail contract exposes editable contact only as optional fields'
   }
 })
 
+test('message role scope is declared by the public API contract and generated DTOs', () => {
+  const messageApiSource = fs.readFileSync(path.join(apiDir, 'message.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
+
+  const listContract = messageApiSource.match(/type ListMessagesReq \{([\s\S]*?)\n\}/)?.[1] || ''
+  const readContract = messageApiSource.match(/type ReadMessageReq \{([\s\S]*?)\n\}/)?.[1] || ''
+  const generatedList = typesSource.match(/type ListMessagesReq struct \{([\s\S]*?)\n\}/)?.[1] || ''
+  const generatedRead = typesSource.match(/type ReadMessageReq struct \{([\s\S]*?)\n\}/)?.[1] || ''
+
+  assert.match(listContract, /RoleCode\s+string `form:"roleCode,optional"`/)
+  assert.match(readContract, /RoleCode\s+string `json:"roleCode,optional"`/)
+  assert.match(generatedList, /RoleCode\s+string `form:"roleCode,optional"`/)
+  assert.match(generatedRead, /RoleCode\s+string `json:"roleCode,optional"`/)
+})
+
 test('generated types do not keep retired manual matching DTOs', () => {
   const source = fs.readFileSync(typesFile, 'utf8')
 

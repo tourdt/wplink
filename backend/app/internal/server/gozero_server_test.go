@@ -25,26 +25,14 @@ func TestNewGoZeroServerMountsHealthAPIAndAdmin(t *testing.T) {
 	adminHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("admin:" + r.URL.Path))
 	})
-	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("api:" + r.URL.Path))
-	})
-
-	svcCtx := &svc.ServiceContext{CityStore: &fakeCityAPIStore{}}
-	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, svcCtx, adminHandler, apiHandler)
+	db := openReadyzTestDB(t, nil)
+	defer db.Close()
+	svcCtx := &svc.ServiceContext{DB: db, AdminAuth: generatedRouteParityAdminAuth()}
+	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, svcCtx, adminHandler)
 	if err != nil {
 		t.Fatalf("NewGoZeroServer() error = %v", err)
 	}
 	defer srv.Stop()
-	if !hasRoute(srv.Routes(), http.MethodGet, "/api/v1/city-stations") {
-		t.Fatalf("routes = %#v, city stations should be registered as go-zero route", srv.Routes())
-	}
-	if !hasRoute(srv.Routes(), http.MethodGet, "/api/v1/city-stations/:cityCode/resource-types") {
-		t.Fatalf("routes = %#v, city resource types should be registered as go-zero route", srv.Routes())
-	}
-	if hasRoute(srv.Routes(), http.MethodGet, "/api/v1/me/resources/:resourceId/detail") {
-		t.Fatalf("routes = %#v, unmigrated API routes should still use the compatibility fallback", srv.Routes())
-	}
-
 	healthRec := httptest.NewRecorder()
 	srv.ServeHTTP(healthRec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	if healthRec.Code != http.StatusOK || healthRec.Body.String() != "ok" {
@@ -54,16 +42,22 @@ func TestNewGoZeroServerMountsHealthAPIAndAdmin(t *testing.T) {
 		t.Fatalf("routes = %#v, want readyz route", srv.Routes())
 	}
 
-	apiRec := httptest.NewRecorder()
-	srv.ServeHTTP(apiRec, httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1", nil))
-	if apiRec.Code != http.StatusOK || apiRec.Body.String() != "api:/api/v1/merchants/merchant-1" {
-		t.Fatalf("api response = %d %q, want api handler", apiRec.Code, apiRec.Body.String())
+	readyRec := httptest.NewRecorder()
+	srv.ServeHTTP(readyRec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if readyRec.Code != http.StatusOK || readyRec.Body.String() != "ok" {
+		t.Fatalf("ready response = %d %q, want 200 ok", readyRec.Code, readyRec.Body.String())
 	}
 
-	ownResourceDetailRec := httptest.NewRecorder()
-	srv.ServeHTTP(ownResourceDetailRec, httptest.NewRequest(http.MethodGet, "/api/v1/me/resources/resource-1/detail?merchantId=merchant-1", nil))
-	if ownResourceDetailRec.Code != http.StatusOK || ownResourceDetailRec.Body.String() != "api:/api/v1/me/resources/resource-1/detail" {
-		t.Fatalf("own resource detail response = %d %q, want api handler", ownResourceDetailRec.Code, ownResourceDetailRec.Body.String())
+	unknownRec := httptest.NewRecorder()
+	srv.ServeHTTP(unknownRec, httptest.NewRequest(http.MethodGet, "/api/v1/not-declared", nil))
+	if unknownRec.Code != http.StatusNotFound {
+		t.Fatalf("unknown API response = %d %q, want 404", unknownRec.Code, unknownRec.Body.String())
+	}
+
+	wrongMethodRec := httptest.NewRecorder()
+	srv.ServeHTTP(wrongMethodRec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/auth/login", nil))
+	if wrongMethodRec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("wrong method response = %d %q, want 405", wrongMethodRec.Code, wrongMethodRec.Body.String())
 	}
 
 	adminRec := httptest.NewRecorder()
@@ -73,10 +67,49 @@ func TestNewGoZeroServerMountsHealthAPIAndAdmin(t *testing.T) {
 	}
 }
 
+// TestNewGoZeroServerServesContractRoutesOverHTTP 使用真实 TCP 监听验证生产入口，
+// 避免仅通过 ServeHTTP 单元测试时遗漏 rest.Server 启动链路上的行为差异。
+func TestNewGoZeroServerServesContractRoutesOverHTTP(t *testing.T) {
+	srv, err := NewGoZeroServer(
+		config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000},
+		&svc.ServiceContext{AdminAuth: generatedRouteParityAdminAuth()},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("NewGoZeroServer() error = %v", err)
+	}
+	defer srv.Stop()
+
+	testServer := httptest.NewServer(srv)
+	defer testServer.Close()
+
+	tests := []struct {
+		name       string
+		path       string
+		wantStatus int
+	}{
+		{name: "health route", path: "/healthz", wantStatus: http.StatusOK},
+		{name: "unknown API", path: "/api/v1/not-declared", wantStatus: http.StatusNotFound},
+		{name: "wrong method", path: "/api/v1/admin/auth/login", wantStatus: http.StatusMethodNotAllowed},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, requestErr := testServer.Client().Get(testServer.URL + tc.path)
+			if requestErr != nil {
+				t.Fatalf("GET %s: %v", tc.path, requestErr)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != tc.wantStatus {
+				t.Fatalf("GET %s status = %d, want %d", tc.path, resp.StatusCode, tc.wantStatus)
+			}
+		})
+	}
+}
+
 func TestGoZeroReadyzChecksDatabase(t *testing.T) {
 	db := openReadyzTestDB(t, nil)
 	defer db.Close()
-	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, &svc.ServiceContext{DB: db}, nil, nil)
+	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, &svc.ServiceContext{DB: db, AdminAuth: generatedRouteParityAdminAuth()}, nil)
 	if err != nil {
 		t.Fatalf("NewGoZeroServer() error = %v", err)
 	}
@@ -92,7 +125,7 @@ func TestGoZeroReadyzChecksDatabase(t *testing.T) {
 func TestGoZeroReadyzReturnsUnavailableWhenDatabasePingFails(t *testing.T) {
 	db := openReadyzTestDB(t, errors.New("database unavailable"))
 	defer db.Close()
-	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, &svc.ServiceContext{DB: db}, nil, nil)
+	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, &svc.ServiceContext{DB: db, AdminAuth: generatedRouteParityAdminAuth()}, nil)
 	if err != nil {
 		t.Fatalf("NewGoZeroServer() error = %v", err)
 	}
@@ -102,27 +135,6 @@ func TestGoZeroReadyzReturnsUnavailableWhenDatabasePingFails(t *testing.T) {
 	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 	if rec.Code != http.StatusServiceUnavailable || rec.Body.String() != "not ready" {
 		t.Fatalf("readyz response = %d %q, want 503 not ready", rec.Code, rec.Body.String())
-	}
-}
-
-func TestGoZeroAdminLoginRouteUsesSingleAPIHandler(t *testing.T) {
-	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("api:" + r.URL.Path))
-	})
-	svcCtx := &svc.ServiceContext{CityStore: &fakeCityAPIStore{}}
-	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, svcCtx, nil, apiHandler)
-	if err != nil {
-		t.Fatalf("NewGoZeroServer() error = %v", err)
-	}
-	defer srv.Stop()
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/login", strings.NewReader(`{"loginName":"operator","password":"secret123"}`))
-	req.Header.Set("Content-Type", "application/json")
-	srv.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK || rec.Body.String() != "api:/api/v1/admin/auth/login" {
-		t.Fatalf("admin login response = %d %q, want single api handler", rec.Code, rec.Body.String())
 	}
 }
 
@@ -250,8 +262,7 @@ func TestGoZeroAdminLoginGeneratedHidesRawInternalError(t *testing.T) {
 }
 
 func TestGoZeroServerAllowsAdminLoginCORSPreflight(t *testing.T) {
-	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
-	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, &svc.ServiceContext{}, nil, apiHandler)
+	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000}, &svc.ServiceContext{AdminAuth: generatedRouteParityAdminAuth()}, nil)
 	if err != nil {
 		t.Fatalf("NewGoZeroServer() error = %v", err)
 	}
@@ -276,8 +287,7 @@ func TestGoZeroServerAllowsAdminLoginCORSPreflight(t *testing.T) {
 }
 
 func TestGoZeroServerRestrictsProductionCORS(t *testing.T) {
-	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
-	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", RuntimeMode: "production", Host: "127.0.0.1", Port: 4000}, &svc.ServiceContext{}, nil, apiHandler)
+	srv, err := NewGoZeroServer(config.Config{Name: "wplink-api", RuntimeMode: "production", Host: "127.0.0.1", Port: 4000}, &svc.ServiceContext{AdminAuth: generatedRouteParityAdminAuth()}, nil)
 	if err != nil {
 		t.Fatalf("NewGoZeroServer() error = %v", err)
 	}
@@ -391,14 +401,11 @@ func TestGoZeroCityRoutesUseGoctlHandlers(t *testing.T) {
 			DisplayTemplate:  model.JSONMap{"title": "title"},
 		}},
 	}
-	svcCtx := &svc.ServiceContext{CityStore: store}
+	svcCtx := &svc.ServiceContext{CityStore: store, AdminAuth: generatedRouteParityAdminAuth()}
 	srv, err := NewGoZeroServer(
 		config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000},
 		svcCtx,
 		nil,
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			t.Fatalf("city route should use goctl handler, got fallback path %s", r.URL.Path)
-		}),
 	)
 	if err != nil {
 		t.Fatalf("NewGoZeroServer() error = %v", err)

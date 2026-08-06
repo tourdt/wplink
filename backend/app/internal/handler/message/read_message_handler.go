@@ -25,7 +25,7 @@ func ReadMessageHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			response.JSON(w, nil, err)
 			return
 		}
-		var req readMessageRoleReq
+		var req types.ReadMessageReq
 		if err := httpx.Parse(r, &req); err != nil {
 			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "消息参数格式不正确"))
 			return
@@ -44,8 +44,4 @@ func ReadMessageHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		}
 		response.JSON(w, types.ReadMessageResp{Id: resp.ID, Status: resp.Status}, nil)
 	}
-}
-
-type readMessageRoleReq struct {
-	RoleCode string `json:"roleCode,optional"`
 }

@@ -1216,6 +1216,7 @@ type ListMerchantPlacesResp struct {
 }
 
 type ListMessagesReq struct {
+	RoleCode string `form:"roleCode,optional"`
 	Type     string `form:"type,optional"`
 	Status   string `form:"status,optional"`
 	Page     int64  `form:"page,optional"`
@@ -1637,6 +1638,7 @@ type QuotaPackInfo struct {
 }
 
 type ReadMessageReq struct {
+	RoleCode string `json:"roleCode,optional"`
 }
 
 type ReadMessageResp struct {

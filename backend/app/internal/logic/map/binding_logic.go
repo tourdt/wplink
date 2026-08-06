@@ -115,7 +115,8 @@ func (l *BindingLogic) GetStatus(ctx context.Context, merchantID string) (MapBin
 	}
 	status, err := l.store.GetMapBindingStatus(ctx, merchantID)
 	if err != nil {
-		logx.Errorf("查询商家地图绑定状态失败: merchantId=%s err=%+v", merchantID, err)
+		LogMapDependencyFailure(ctx, "查询商家地图绑定状态失败", "get_binding_status", err,
+			logx.Field("merchantId", merchantID))
 		return MapBindingStatusResp{}, errx.New(errx.CodeInternalError, "地图档口绑定状态加载失败，请稍后重试")
 	}
 	resp := MapBindingStatusResp{}
@@ -143,7 +144,9 @@ func (l *BindingLogic) ListCandidates(ctx context.Context, req ListMapBindCandid
 		Limit:      req.Limit,
 	})
 	if err != nil {
-		logx.Errorf("查询地图绑定候选点位失败: merchantId=%s objectId=%s sceneCode=%s keyword=%s err=%+v", merchantID, req.ObjectID, req.SceneCode, req.Keyword, err)
+		LogMapDependencyFailure(ctx, "查询地图绑定候选点位失败", "list_binding_candidates", err,
+			logx.Field("merchantId", merchantID), logx.Field("objectId", strings.TrimSpace(req.ObjectID)),
+			logx.Field("sceneCode", strings.TrimSpace(req.SceneCode)))
 		return ListMapBindCandidatesResp{}, errx.New(errx.CodeInternalError, "地图档口加载失败，请稍后重试")
 	}
 	return ListMapBindCandidatesResp{Items: mapBindCandidateItems(candidates)}, nil
@@ -178,7 +181,8 @@ func (l *BindingLogic) SubmitRequest(ctx context.Context, merchantID string, req
 		if errors.Is(err, sql.ErrNoRows) {
 			return SubmitMapBindRequestResp{}, errx.New(errx.CodeResourceNotFound, "地图档口不存在或暂不可绑定")
 		}
-		logx.Errorf("自动绑定地图档口失败: merchantId=%s objectId=%s err=%+v", merchantID, objectID, err)
+		LogMapDependencyFailure(ctx, "自动绑定地图档口失败", "create_binding_request", err,
+			logx.Field("merchantId", merchantID), logx.Field("objectId", objectID))
 		return SubmitMapBindRequestResp{}, errx.New(errx.CodeInternalError, "档口绑定失败，请稍后重试")
 	}
 	logx.Infof("商家地图档口自动绑定成功: merchantId=%s objectId=%s requestId=%s", merchantID, objectID, request.ID)
@@ -193,7 +197,8 @@ func (l *BindingLogic) ListAdminRequests(ctx context.Context, req ListAdminMapBi
 		PageSize: req.PageSize,
 	})
 	if err != nil {
-		logx.Errorf("后台查询地图档口绑定申请失败: status=%s keyword=%s err=%+v", req.Status, req.Keyword, err)
+		LogMapDependencyFailure(ctx, "后台查询地图档口绑定申请失败", "list_admin_binding_requests", err,
+			logx.Field("status", strings.TrimSpace(req.Status)))
 		return ListAdminMapBindRequestsResp{}, errx.New(errx.CodeInternalError, "绑定申请加载失败，请稍后重试")
 	}
 	return ListAdminMapBindRequestsResp{Items: mapBindRequestItems(requests)}, nil
@@ -228,7 +233,9 @@ func (l *BindingLogic) ReviewRequest(ctx context.Context, requestID string, req 
 		if errors.Is(err, sql.ErrNoRows) {
 			return ReviewMapBindRequestResp{}, errx.New(errx.CodeResourceNotFound, "绑定申请不存在或已处理")
 		}
-		logx.Errorf("后台审核地图档口绑定申请失败: requestId=%s action=%s reviewerId=%s err=%+v", requestID, req.Action, req.ReviewerID, err)
+		LogMapDependencyFailure(ctx, "后台审核地图档口绑定申请失败", "review_binding_request", err,
+			logx.Field("requestId", requestID), logx.Field("action", strings.TrimSpace(req.Action)),
+			logx.Field("reviewerId", strings.TrimSpace(req.ReviewerID)))
 		return ReviewMapBindRequestResp{}, errx.New(errx.CodeInternalError, "绑定申请审核失败，请稍后重试")
 	}
 	logx.Infof("后台审核地图档口绑定申请成功: requestId=%s status=%s reviewerId=%s", requestID, status, strings.TrimSpace(req.ReviewerID))

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"wplink/backend/app/internal/config"
 	"wplink/backend/app/internal/handler"
 	"wplink/backend/app/internal/middleware"
 	"wplink/backend/app/internal/svc"
@@ -21,19 +22,28 @@ import (
 const missingGeneratedAdminAuthMessage = "newGeneratedAPIServer requires explicit AdminAuth; use newGeneratedAPIServerWithFailClosedAdminAuth only when testing missing auth dependencies"
 
 func TestGeneratedRouteParity(t *testing.T) {
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{AdminAuth: generatedRouteParityAdminAuth()})
+	server, err := NewGoZeroServer(
+		config.Config{Name: "wplink-api", Host: "127.0.0.1", Port: 4000},
+		&svc.ServiceContext{AdminAuth: generatedRouteParityAdminAuth()},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("NewGoZeroServer() error = %v", err)
+	}
+	t.Cleanup(server.Stop)
 
-	expected := make([]string, 0, len(handler.ContractRoutes()))
+	expected := make([]string, 0, len(handler.ContractRoutes())+2)
 	for _, route := range handler.ContractRoutes() {
 		expected = append(expected, fmt.Sprintf("%s %s", route.Method, route.Path))
 	}
+	expected = append(expected, "GET /healthz", "GET /readyz")
 	actual := make([]string, 0, len(server.Routes()))
 	for _, route := range server.Routes() {
 		actual = append(actual, fmt.Sprintf("%s %s", route.Method, route.Path))
 	}
 
 	if difference := generatedRouteParityDifference(expected, actual); difference != "" {
-		t.Fatalf("生成 Server 路由与 ContractRoutes 不一致:\n%s", difference)
+		t.Fatalf("生产 Server 路由与 ContractRoutes 及平台路由不一致:\n%s", difference)
 	}
 }
 

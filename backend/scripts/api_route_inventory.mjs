@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const HTTP_METHOD_PATTERN = '(?:get|post|put|delete|patch|head|options)'
+const HANDLER_STUB_MARKER = 'WPLINK_API_HANDLER_STUB'
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 
 function listGoFiles(directory) {
@@ -502,6 +503,22 @@ export function checkNoMigrationStubs(rootHandlerDir) {
     .sort()
   if (findings.length > 0) {
     throw new Error(`Handler 树仍存在 NotMigrated 引用:\n- ${findings.join('\n- ')}`)
+  }
+
+  const stubFindings = []
+  for (const filePath of listGoFiles(rootHandlerDir)) {
+    if (filePath.endsWith('_test.go')) {
+      continue
+    }
+    const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/)
+    for (let index = 0; index < lines.length; index += 1) {
+      if (lines[index].includes(HANDLER_STUB_MARKER)) {
+        stubFindings.push(`${path.relative(rootHandlerDir, filePath).split(path.sep).join('/')}:${index + 1} -> ${HANDLER_STUB_MARKER}`)
+      }
+    }
+  }
+  if (stubFindings.length > 0) {
+    throw new Error(`Handler 树仍存在代码生成占位骨架:\n- ${stubFindings.sort().join('\n- ')}`)
   }
 }
 

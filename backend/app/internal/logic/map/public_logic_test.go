@@ -200,9 +200,15 @@ func TestPublicMapLogicKeepsCurrentMerchantWhenNearbyLookupFails(t *testing.T) {
 		nearbyMerchantPlacesErr: errors.New("nearby database timeout"),
 	}
 	var logBuffer bytes.Buffer
+	previousWriter := logx.Reset()
 	logx.SetWriter(logx.NewWriter(&logBuffer))
 	t.Cleanup(func() {
-		_ = logx.Reset().Close()
+		if currentWriter := logx.Reset(); currentWriter != nil {
+			_ = currentWriter.Close()
+		}
+		if previousWriter != nil {
+			logx.SetWriter(previousWriter)
+		}
 	})
 
 	resp, err := NewPublicLogic(store).GetMerchantLocationContext(context.Background(), "merchant-1")
@@ -213,7 +219,7 @@ func TestPublicMapLogicKeepsCurrentMerchantWhenNearbyLookupFails(t *testing.T) {
 		t.Fatalf("resp = %#v, want current merchant with unavailable nearby results", resp)
 	}
 	logText := logBuffer.String()
-	for _, field := range []string{"merchantId=merchant-1", "radiusMeters=1000", "limit=20"} {
+	for _, field := range []string{`"merchantId":"merchant-1"`, `"radiusMeters":1000`, `"limit":20`, `"errorCategory":"unknown"`} {
 		if !strings.Contains(logText, field) {
 			t.Fatalf("log = %q, want field %q", logText, field)
 		}

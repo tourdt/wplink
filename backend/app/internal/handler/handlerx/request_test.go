@@ -1,10 +1,37 @@
 package handlerx
 
 import (
+	"io"
+	"math"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func TestReadLimitedBodyClosesBodyWhenLimitIsNegative(t *testing.T) {
+	body := &trackingReadCloser{Reader: strings.NewReader("secret")}
+	r := &http.Request{Body: body}
+
+	if _, err := ReadLimitedBody(r, -1); err == nil {
+		t.Fatal("ReadLimitedBody() error = nil, want invalid limit error")
+	}
+	if !body.closed {
+		t.Fatal("request body was not closed for invalid negative limit")
+	}
+}
+
+func TestReadLimitedBodyAcceptsSmallPayloadAtMaxInt64Limit(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("payload"))
+
+	body, err := ReadLimitedBody(r, math.MaxInt64)
+	if err != nil {
+		t.Fatalf("ReadLimitedBody() error = %v", err)
+	}
+	if string(body) != "payload" {
+		t.Fatalf("body = %q, want payload", body)
+	}
+}
 
 func TestReadLimitedBodyRejectsPayloadBeyondLimit(t *testing.T) {
 	r := httptest.NewRequest("POST", "/", strings.NewReader("12345"))
@@ -48,4 +75,14 @@ func TestClientIPReturnsUnknownForMissingRequest(t *testing.T) {
 	if got := ClientIP(nil); got != "unknown" {
 		t.Fatalf("ClientIP(nil) = %q, want unknown", got)
 	}
+}
+
+type trackingReadCloser struct {
+	io.Reader
+	closed bool
+}
+
+func (b *trackingReadCloser) Close() error {
+	b.closed = true
+	return nil
 }

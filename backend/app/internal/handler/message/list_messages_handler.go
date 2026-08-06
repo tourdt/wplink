@@ -29,14 +29,13 @@ func ListMessagesHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "消息查询参数格式不正确"))
 			return
 		}
-		roleCode := r.URL.Query().Get("roleCode")
-		roleCodes, err := messageRoleCodesForTokenUser(r, svcCtx, subject.UserID, roleCode)
+		roleCodes, err := messageRoleCodesForTokenUser(r, svcCtx, subject.UserID, req.RoleCode)
 		if err != nil {
 			response.JSON(w, nil, err)
 			return
 		}
 		resp, err := messagelogic.NewListMessagesLogic(svcCtx.APIStore).ListMessages(r.Context(), messagelogic.ListMessagesReq{
-			UserID: subject.UserID, RoleCode: roleCode, RoleCodes: roleCodes,
+			UserID: subject.UserID, RoleCode: req.RoleCode, RoleCodes: roleCodes,
 			Type: req.Type, Status: req.Status, Page: req.Page, PageSize: req.PageSize,
 		})
 		if err != nil {

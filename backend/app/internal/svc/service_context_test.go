@@ -10,6 +10,49 @@ import (
 	"wplink/backend/app/internal/session"
 )
 
+func TestValidateAPIServiceContextReportsEveryMissingProductionDependency(t *testing.T) {
+	ctx := &ServiceContext{Config: config.Config{
+		AdminAuth: config.AdminAuthConfig{TokenSecret: "must-not-appear-admin-secret"},
+		UserAuth:  config.UserAuthConfig{TokenSecret: "must-not-appear-user-secret"},
+	}}
+
+	err := ValidateAPIServiceContext(ctx)
+	if err == nil {
+		t.Fatal("ValidateAPIServiceContext() error = nil, want missing dependency error")
+	}
+	message := err.Error()
+	for _, name := range []string{
+		"DB", "APIStore", "CityStore", "AdminLoginService", "AdminTokenService", "AdminAuth",
+		"UploadTokenService", "UserTokenService", "WechatSessionClient", "SMSVerifier",
+		"WechatPayGateway", "WechatPayOrderGateway", "ContentAuditor",
+		"ContentAuditCallbackVerifier", "Wechat.AppID", "LocationGeocoder",
+	} {
+		if !strings.Contains(message, name) {
+			t.Fatalf("error = %q, want concrete missing dependency %s", message, name)
+		}
+	}
+	for _, secret := range []string{"must-not-appear-admin-secret", "must-not-appear-user-secret"} {
+		if strings.Contains(message, secret) {
+			t.Fatalf("error = %q, must not contain secret %q", message, secret)
+		}
+	}
+}
+
+func TestValidateAPIServiceContextReportsMissingAPIStoreModels(t *testing.T) {
+	ctx := &ServiceContext{APIStore: &APIStore{}}
+
+	err := ValidateAPIServiceContext(ctx)
+	if err == nil {
+		t.Fatal("ValidateAPIServiceContext() error = nil, want missing API store model error")
+	}
+	message := err.Error()
+	for _, name := range []string{"APIStore.UserModel", "APIStore.ResourceModel", "APIStore.MapModel", "APIStore.MerchantMapEventsModel"} {
+		if !strings.Contains(message, name) {
+			t.Fatalf("error = %q, want missing %s", message, name)
+		}
+	}
+}
+
 func TestNewServiceContextBuildsServerDependencies(t *testing.T) {
 	cfg := config.Config{
 		Name: "wplink-api",

@@ -2,10 +2,13 @@ package contentaudit
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 
 	resourcelogic "wplink/backend/app/internal/logic/resource"
@@ -50,26 +53,26 @@ func (l *MediaCheckCallbackLogic) Handle(ctx context.Context, payload model.JSON
 	input := mediaAuditTaskResultInput(traceID, payload)
 	completion, err := l.store.CompleteResourceContentAuditTask(ctx, input)
 	if errors.Is(err, sql.ErrNoRows) {
-		logx.Infof("图片审核回调未匹配任务: traceId=%s", traceID)
+		logMediaCallbackInfo(ctx, "图片审核回调未匹配任务", "complete_audit_task", "", traceID)
 		return MediaCheckCallbackResp{}, errx.New(errx.CodeStateConflict, "图片审核任务不存在")
 	}
 	if err != nil {
-		logx.Errorf("记录图片审核回调失败: traceId=%s err=%+v", traceID, err)
+		logMediaCallbackFailure(ctx, "记录图片审核回调失败", "complete_audit_task", "", traceID, err)
 		return MediaCheckCallbackResp{}, err
 	}
 
 	if input.Status == resourceAuditTaskStatusFailed {
 		retryCount, retryErr := l.store.MarkResourceAuditRetryAfterMediaAudit(ctx, completion.ResourceID, traceID, input.Reason)
 		if errors.Is(retryErr, sql.ErrNoRows) {
-			logx.Infof("图片审核依赖失败但资源状态已流转: resourceId=%s traceId=%s", completion.ResourceID, traceID)
+			logMediaCallbackInfo(ctx, "图片审核依赖失败但资源状态已流转", "mark_audit_retry", completion.ResourceID, traceID)
 			return MediaCheckCallbackResp{ResourceID: completion.ResourceID, Status: "unchanged", Message: "图片审核回调已记录"}, nil
 		}
 		if retryErr != nil {
-			logx.Errorf("图片审核依赖失败后进入重试队列失败: resourceId=%s traceId=%s err=%+v", completion.ResourceID, traceID, retryErr)
+			logMediaCallbackFailure(ctx, "图片审核依赖失败后进入重试队列失败", "mark_audit_retry", completion.ResourceID, traceID, retryErr)
 			return MediaCheckCallbackResp{}, errx.New(errx.CodeInternalError, "图片审核处理失败，请稍后重试")
 		}
 		l.recordAuditDecision(ctx, completion.ResourceID, "dependency_error", input.Reason, traceID)
-		logx.Errorf("图片审核依赖失败，已进入自动重试: resourceId=%s traceId=%s retryCount=%d", completion.ResourceID, traceID, retryCount)
+		logMediaCallbackInfo(ctx, "图片审核依赖失败，已进入自动重试", "mark_audit_retry", completion.ResourceID, traceID, logx.Field("retryCount", retryCount))
 		return MediaCheckCallbackResp{ResourceID: completion.ResourceID, Status: model.ResourceStatusAuditRetry, Message: "图片审核服务暂时不可用，系统将自动重试"}, nil
 	}
 	if input.Status == resourceAuditTaskStatusRejected {
@@ -81,11 +84,12 @@ func (l *MediaCheckCallbackLogic) Handle(ctx context.Context, payload model.JSON
 		return resp, rejectErr
 	}
 	if completion.PendingCount > 0 {
-		logx.Infof("图片审核回调已记录，仍有待完成任务: resourceId=%s traceId=%s pendingCount=%d", completion.ResourceID, traceID, completion.PendingCount)
+		logMediaCallbackInfo(ctx, "图片审核回调已记录，仍有待完成任务", "complete_audit_task", completion.ResourceID, traceID, logx.Field("pendingCount", completion.PendingCount))
 		return MediaCheckCallbackResp{ResourceID: completion.ResourceID, Status: model.ResourceStatusPending, Message: "图片审核回调已记录"}, nil
 	}
 	if completion.RejectedCount > 0 || completion.FailedCount > 0 {
-		logx.Infof("图片审核回调已记录，资源已有未通过图片: resourceId=%s traceId=%s rejectedCount=%d failedCount=%d", completion.ResourceID, traceID, completion.RejectedCount, completion.FailedCount)
+		logMediaCallbackInfo(ctx, "图片审核回调已记录，资源已有未通过图片", "complete_audit_task", completion.ResourceID, traceID,
+			logx.Field("rejectedCount", completion.RejectedCount), logx.Field("failedCount", completion.FailedCount))
 		return MediaCheckCallbackResp{ResourceID: completion.ResourceID, Status: model.ResourceStatusPending, Message: "图片审核回调已记录"}, nil
 	}
 
@@ -94,7 +98,7 @@ func (l *MediaCheckCallbackLogic) Handle(ctx context.Context, payload model.JSON
 		return l.handlePublishFailure(ctx, completion.ResourceID, traceID, err)
 	}
 	l.recordAuditDecision(ctx, completion.ResourceID, "pass", "", traceID)
-	logx.Infof("图片全部审核通过，资源已自动发布: resourceId=%s traceId=%s", completion.ResourceID, traceID)
+	logMediaCallbackInfo(ctx, "图片全部审核通过，资源已自动发布", "publish_resource", completion.ResourceID, traceID)
 	return MediaCheckCallbackResp{ResourceID: published.ID, Status: published.Status, Message: "资源已发布"}, nil
 }
 
@@ -110,7 +114,8 @@ func (l *MediaCheckCallbackLogic) recordAuditDecision(ctx context.Context, resou
 		Reason:     reason,
 		TraceIDs:   []string{traceID},
 	}); err != nil {
-		logx.Errorf("记录图片内容审核决策失败: resourceId=%s traceId=%s decision=%s err=%+v", resourceID, traceID, decision, err)
+		logMediaCallbackFailure(ctx, "记录图片内容审核决策失败", "record_audit_decision", resourceID, traceID, err,
+			logx.Field("decision", decision))
 	}
 }
 
@@ -120,20 +125,20 @@ func (l *MediaCheckCallbackLogic) rejectResource(ctx context.Context, resourceID
 	}
 	rejected, err := l.store.RejectResourceAfterMediaAudit(ctx, resourceID, traceID, reason)
 	if errors.Is(err, sql.ErrNoRows) {
-		logx.Infof("图片审核未通过但资源状态已流转: resourceId=%s traceId=%s reason=%s", resourceID, traceID, reason)
+		logMediaCallbackInfo(ctx, "图片审核未通过但资源状态已流转", "reject_resource", resourceID, traceID)
 		return MediaCheckCallbackResp{ResourceID: resourceID, Status: "unchanged", Message: "图片审核回调已记录"}, nil
 	}
 	if err != nil {
-		logx.Errorf("图片审核未通过后自动驳回资源失败: resourceId=%s traceId=%s err=%+v", resourceID, traceID, err)
+		logMediaCallbackFailure(ctx, "图片审核未通过后自动驳回资源失败", "reject_resource", resourceID, traceID, err)
 		return MediaCheckCallbackResp{}, errx.New(errx.CodeInternalError, "图片审核处理失败，请稍后重试")
 	}
-	logx.Infof("图片审核未通过，资源已自动驳回: resourceId=%s traceId=%s reason=%s", resourceID, traceID, reason)
+	logMediaCallbackInfo(ctx, "图片审核未通过，资源已自动驳回", "reject_resource", resourceID, traceID)
 	return MediaCheckCallbackResp{ResourceID: rejected.ID, Status: rejected.Status, Message: reason}, nil
 }
 
 func (l *MediaCheckCallbackLogic) handlePublishFailure(ctx context.Context, resourceID string, traceID string, err error) (MediaCheckCallbackResp, error) {
 	if errors.Is(err, sql.ErrNoRows) {
-		logx.Infof("图片审核通过但资源状态已流转: resourceId=%s traceId=%s", resourceID, traceID)
+		logMediaCallbackInfo(ctx, "图片审核通过但资源状态已流转", "publish_resource", resourceID, traceID)
 		return MediaCheckCallbackResp{ResourceID: resourceID, Status: "unchanged", Message: "图片审核回调已记录"}, nil
 	}
 	reason := ""
@@ -147,18 +152,68 @@ func (l *MediaCheckCallbackLogic) handlePublishFailure(ctx context.Context, reso
 		_, rejectErr := l.store.RejectResourceAfterMediaAudit(ctx, resourceID, traceID, reason)
 		if errors.Is(rejectErr, sql.ErrNoRows) {
 			// 当前 trace 已被新一轮审核替换时，政策性发布失败不能驳回新代际资源。
-			logx.Infof("图片审核政策性驳回未命中当前审核代际，回调已记录且资源状态未变: resourceId=%s traceId=%s", resourceID, traceID)
+			logMediaCallbackInfo(ctx, "图片审核政策性驳回未命中当前审核代际，回调已记录且资源状态未变", "policy_reject_resource", resourceID, traceID)
 			return MediaCheckCallbackResp{ResourceID: resourceID, Status: "unchanged", Message: "图片审核回调已记录"}, nil
 		}
 		if rejectErr != nil {
-			logx.Errorf("图片审核通过但自动发布失败，随后驳回资源也失败: resourceId=%s traceId=%s err=%+v rejectErr=%+v", resourceID, traceID, err, rejectErr)
+			logMediaCallbackFailure(ctx, "图片审核通过但自动发布失败，随后驳回资源也失败", "policy_reject_resource", resourceID, traceID, rejectErr,
+				logx.Field("publishErrorCategory", mediaCallbackErrorCategory(ctx, err)))
 			return MediaCheckCallbackResp{}, errx.New(errx.CodeInternalError, "发布失败，请稍后重试")
 		}
-		logx.Infof("图片审核通过但资源不满足发布条件，已自动驳回: resourceId=%s traceId=%s reason=%s", resourceID, traceID, reason)
+		logMediaCallbackInfo(ctx, "图片审核通过但资源不满足发布条件，已自动驳回", "policy_reject_resource", resourceID, traceID)
 		return MediaCheckCallbackResp{ResourceID: resourceID, Status: model.ResourceStatusRejected, Message: reason}, nil
 	}
-	logx.Errorf("图片审核通过后自动发布失败: resourceId=%s traceId=%s err=%+v", resourceID, traceID, err)
+	logMediaCallbackFailure(ctx, "图片审核通过后自动发布失败", "publish_resource", resourceID, traceID, err)
 	return MediaCheckCallbackResp{}, errx.New(errx.CodeInternalError, "发布失败，请稍后重试")
+}
+
+func logMediaCallbackInfo(ctx context.Context, message string, operation string, resourceID string, traceID string, fields ...logx.LogField) {
+	baseFields := mediaCallbackLogFields(operation, resourceID, traceID)
+	logx.WithContext(ctx).Infow(message, append(baseFields, fields...)...)
+}
+
+func logMediaCallbackFailure(ctx context.Context, message string, operation string, resourceID string, traceID string, err error, fields ...logx.LogField) {
+	baseFields := append(mediaCallbackLogFields(operation, resourceID, traceID),
+		logx.Field("errorCategory", mediaCallbackErrorCategory(ctx, err)))
+	logx.WithContext(ctx).Errorw(message, append(baseFields, fields...)...)
+}
+
+func mediaCallbackLogFields(operation string, resourceID string, traceID string) []logx.LogField {
+	fields := []logx.LogField{
+		logx.Field("operation", operation),
+		logx.Field("traceFingerprint", mediaCallbackTraceFingerprint(traceID)),
+	}
+	if resourceID = strings.TrimSpace(resourceID); resourceID != "" {
+		fields = append(fields, logx.Field("resourceId", resourceID))
+	}
+	return fields
+}
+
+func mediaCallbackTraceFingerprint(traceID string) string {
+	digest := sha256.Sum256([]byte(strings.TrimSpace(traceID)))
+	return fmt.Sprintf("%x", digest[:6])
+}
+
+// mediaCallbackErrorCategory 只基于稳定 sentinel 和错误类型分类，不读取 err.Error() 中可能携带的密钥或回调原文。
+func mediaCallbackErrorCategory(ctx context.Context, err error) string {
+	switch {
+	case errors.Is(err, context.Canceled) || (ctx != nil && errors.Is(ctx.Err(), context.Canceled)):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded) || (ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)):
+		return "timeout"
+	case errors.Is(err, sql.ErrNoRows):
+		return "not_found"
+	case errors.Is(err, sql.ErrConnDone) || errors.Is(err, driver.ErrBadConn):
+		return "unavailable"
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		if netErr.Timeout() {
+			return "timeout"
+		}
+		return "unavailable"
+	}
+	return "unknown"
 }
 
 func mediaAuditTaskResultInput(traceID string, payload model.JSONMap) model.ResourceContentAuditTaskResultInput {

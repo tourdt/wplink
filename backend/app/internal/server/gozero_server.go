@@ -7,16 +7,19 @@ import (
 	"time"
 
 	"wplink/backend/app/internal/config"
+	"wplink/backend/app/internal/handler"
 	"wplink/backend/app/internal/svc"
 
 	"github.com/zeromicro/go-zero/rest"
 )
 
-func NewGoZeroServer(cfg config.Config, svcCtx *svc.ServiceContext, adminHandler http.Handler, apiHandler http.Handler) (*rest.Server, error) {
+func NewGoZeroServer(cfg config.Config, svcCtx *svc.ServiceContext, adminHandler http.Handler) (*rest.Server, error) {
 	srv, err := rest.NewServer(
 		restConfFromConfig(cfg),
-		rest.WithNotFoundHandler(fallbackHandler(adminHandler, apiHandler)),
-		rest.WithCors(corsAllowedOrigins(cfg)...),
+		rest.WithNotFoundHandler(fallbackHandler(adminHandler)),
+		rest.WithCustomCors(nil, func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}, corsAllowedOrigins(cfg)...),
 	)
 	if err != nil {
 		return nil, err
@@ -31,7 +34,7 @@ func NewGoZeroServer(cfg config.Config, svcCtx *svc.ServiceContext, adminHandler
 		Path:    "/readyz",
 		Handler: readyzHandler(svcCtx),
 	})
-	registerGoctlHandlers(srv, svcCtx)
+	handler.RegisterHandlers(srv, svcCtx)
 	return srv, nil
 }
 
@@ -65,16 +68,13 @@ func restConfFromConfig(cfg config.Config) rest.RestConf {
 	return restConf
 }
 
-func fallbackHandler(adminHandler http.Handler, apiHandler http.Handler) http.Handler {
+func fallbackHandler(adminHandler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case isAdminPath(r.URL.Path) && adminHandler != nil:
+		if isAdminPath(r.URL.Path) && adminHandler != nil {
 			adminHandler.ServeHTTP(w, r)
-		case strings.HasPrefix(r.URL.Path, "/api/") && apiHandler != nil:
-			apiHandler.ServeHTTP(w, r)
-		default:
-			http.NotFound(w, r)
+			return
 		}
+		http.NotFound(w, r)
 	})
 }
 

@@ -3,6 +3,7 @@ package handlerx
 import (
 	"errors"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"strings"
@@ -13,11 +14,15 @@ func ReadLimitedBody(r *http.Request, limit int64) ([]byte, error) {
 	if r == nil || r.Body == nil {
 		return nil, errors.New("request body is unavailable")
 	}
+	defer r.Body.Close()
 	if limit < 0 {
 		return nil, errors.New("request body limit is invalid")
 	}
-	defer r.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
+	readLimit := limit
+	if limit < math.MaxInt64 {
+		readLimit++
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, readLimit))
 	if err != nil {
 		return nil, err
 	}

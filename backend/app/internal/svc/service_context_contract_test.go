@@ -1,14 +1,6 @@
 package svc_test
 
-import (
-	"testing"
+import "wplink/backend/app/internal/svc"
 
-	"wplink/backend/app/internal/server"
-	"wplink/backend/app/internal/svc"
-)
-
-var _ server.ResourceAPIStore = (*svc.APIStore)(nil)
-
-func TestAPIStoreSatisfiesProductionResourceDependencies(t *testing.T) {
-	// 生产路由启动前会校验 ResourceAPIStore；这里用编译期断言提前暴露缺失模型。
-}
+// 生产启动门禁与 ServiceContext 同属 svc，不再依赖已删除的兼容 Router 接口。
+var _ func(*svc.ServiceContext) error = svc.ValidateAPIServiceContext
