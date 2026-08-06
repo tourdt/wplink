@@ -212,6 +212,9 @@ func TestMerchantPlaceQueryDoesNotDependOnRetiredVerificationStatus(t *testing.T
 	if strings.Contains(selectColumns, "verification_status") {
 		t.Fatalf("商家目录查询不应读取已移除的认证字段: %s", selectColumns)
 	}
+	if !strings.Contains(selectColumns, "profile_status") {
+		t.Fatalf("地图对象响应应从现行商家资料状态读取认证信息: %s", selectColumns)
+	}
 
 	whereSQL, _ := buildMapObjectFilterSQL(ListMapObjectsFilter{Keyword: "童装"})
 	if strings.Contains(whereSQL, "verification_status") {

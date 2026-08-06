@@ -172,7 +172,12 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := adminLogic.SaveScene(r.Context(), body)
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminLogic.SaveScene(r.Context(), body, operatorID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/admin/map/scenes/{sceneCode}", func(w http.ResponseWriter, r *http.Request) {
@@ -186,11 +191,21 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 			return
 		}
 		body.Code = r.PathValue("sceneCode")
-		resp, err := adminLogic.SaveScene(r.Context(), body)
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminLogic.SaveScene(r.Context(), body, operatorID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/admin/map/scenes/{sceneCode}/publish", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := adminLogic.PublishScene(r.Context(), r.PathValue("sceneCode"))
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminLogic.PublishScene(r.Context(), r.PathValue("sceneCode"), operatorID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/admin/map/scenes/{sceneCode}/objects", func(w http.ResponseWriter, r *http.Request) {
@@ -213,7 +228,12 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := adminLogic.SaveObject(r.Context(), r.PathValue("sceneCode"), body)
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminLogic.SaveObject(r.Context(), r.PathValue("sceneCode"), body, operatorID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/admin/map/objects/{objectId}", func(w http.ResponseWriter, r *http.Request) {
@@ -223,7 +243,12 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 			return
 		}
 		body.Id = r.PathValue("objectId")
-		resp, err := adminLogic.SaveObject(r.Context(), "", body)
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminLogic.SaveObject(r.Context(), "", body, operatorID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/admin/map/objects/{objectId}/status", func(w http.ResponseWriter, r *http.Request) {
@@ -232,7 +257,12 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := adminLogic.UpdateObjectStatus(r.Context(), r.PathValue("objectId"), body)
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminLogic.UpdateObjectStatus(r.Context(), r.PathValue("objectId"), body, operatorID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("POST /api/v1/admin/map/scenes/{sceneCode}/objects/batch-generate", func(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +271,12 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := adminLogic.BatchGenerateObjects(r.Context(), r.PathValue("sceneCode"), body)
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminLogic.BatchGenerateObjects(r.Context(), r.PathValue("sceneCode"), body, operatorID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/admin/map/categories", func(w http.ResponseWriter, r *http.Request) {
@@ -255,7 +290,12 @@ func registerMapRoutes(mux *http.ServeMux, store MapAPIStore, tokenService authl
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := adminLogic.SaveCategory(r.Context(), body)
+		operatorID, err := adminOperatorIDFromRequest(r, adminTokenService, "")
+		if err != nil {
+			response.JSON(w, nil, err)
+			return
+		}
+		resp, err := adminLogic.SaveCategory(r.Context(), body, operatorID)
 		response.JSON(w, resp, err)
 	})
 	mux.HandleFunc("GET /api/v1/admin/map/bind-requests", func(w http.ResponseWriter, r *http.Request) {

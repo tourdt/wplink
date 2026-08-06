@@ -1,12 +1,24 @@
 package maplogic
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
 )
+
+func TestMapBindRequestMappingEncodesEvidenceImagesAsArray(t *testing.T) {
+	payload, err := json.Marshal(mapBindRequestItem(model.MapBindRequest{ID: "request-1"}))
+	if err != nil {
+		t.Fatalf("json.Marshal(bind request) error = %v", err)
+	}
+	if !bytes.Contains(payload, []byte(`"evidenceImages":[]`)) {
+		t.Fatalf("bind request JSON = %s, want evidenceImages: []", payload)
+	}
+}
 
 func TestBindingLogicCreatesApprovedAutomaticBinding(t *testing.T) {
 	store := &fakeBindingStore{

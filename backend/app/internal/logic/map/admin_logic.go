@@ -193,7 +193,13 @@ func (l *AdminLogic) GetScene(ctx context.Context, sceneCode string) (SceneResp,
 	return SceneResp{Item: mapSceneItem(scene)}, nil
 }
 
-func (l *AdminLogic) SaveScene(ctx context.Context, req SaveSceneReq) (SaveSceneResp, error) {
+func (l *AdminLogic) SaveScene(ctx context.Context, req SaveSceneReq, operatorID string) (resp SaveSceneResp, err error) {
+	operatorID = strings.TrimSpace(operatorID)
+	entityID := strings.TrimSpace(req.Code)
+	defer func() { logAdminMapWrite(ctx, "save_scene", operatorID, entityID, err) }()
+	if operatorID == "" {
+		return SaveSceneResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	status := strings.TrimSpace(req.Status)
 	if status == "" {
 		status = model.MapSceneStatusDraft
@@ -226,8 +232,13 @@ func (l *AdminLogic) SaveScene(ctx context.Context, req SaveSceneReq) (SaveScene
 	return SaveSceneResp{Item: mapSceneItem(scene)}, nil
 }
 
-func (l *AdminLogic) PublishScene(ctx context.Context, sceneCode string) (PublishSceneResp, error) {
+func (l *AdminLogic) PublishScene(ctx context.Context, sceneCode string, operatorID string) (resp PublishSceneResp, err error) {
 	sceneCode = strings.TrimSpace(sceneCode)
+	operatorID = strings.TrimSpace(operatorID)
+	defer func() { logAdminMapWrite(ctx, "publish_scene", operatorID, sceneCode, err) }()
+	if operatorID == "" {
+		return PublishSceneResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	if sceneCode == "" {
 		return PublishSceneResp{}, errx.New(errx.CodeValidationFailed, "请选择要发布的地图场景")
 	}
@@ -282,9 +293,18 @@ func (l *AdminLogic) ListObjects(ctx context.Context, sceneCode string, req List
 	return ListObjectsResp{SceneCode: sceneCode, Items: mapAdminObjectItems(objects), Total: int64(len(objects))}, nil
 }
 
-func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveObjectReq) (SaveObjectResp, error) {
+func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveObjectReq, operatorID string) (resp SaveObjectResp, err error) {
 	sceneCode = strings.TrimSpace(sceneCode)
 	objectID := strings.TrimSpace(req.Id)
+	operatorID = strings.TrimSpace(operatorID)
+	entityID := objectID
+	if entityID == "" {
+		entityID = strings.TrimSpace(req.Code)
+	}
+	defer func() { logAdminMapWrite(ctx, "save_object", operatorID, entityID, err) }()
+	if operatorID == "" {
+		return SaveObjectResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	if sceneCode == "" && objectID == "" {
 		return SaveObjectResp{}, errx.New(errx.CodeValidationFailed, "请选择地图场景")
 	}
@@ -327,9 +347,14 @@ func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveO
 	return SaveObjectResp{Item: mapAdminObjectItem(object)}, nil
 }
 
-func (l *AdminLogic) UpdateObjectStatus(ctx context.Context, objectID string, req UpdateObjectStatusReq) (SaveObjectResp, error) {
+func (l *AdminLogic) UpdateObjectStatus(ctx context.Context, objectID string, req UpdateObjectStatusReq, operatorID string) (resp SaveObjectResp, err error) {
 	objectID = strings.TrimSpace(objectID)
 	status := strings.TrimSpace(req.Status)
+	operatorID = strings.TrimSpace(operatorID)
+	defer func() { logAdminMapWrite(ctx, "update_object_status", operatorID, objectID, err) }()
+	if operatorID == "" {
+		return SaveObjectResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	if objectID == "" {
 		return SaveObjectResp{}, errx.New(errx.CodeValidationFailed, "请选择地图点位")
 	}
@@ -344,8 +369,13 @@ func (l *AdminLogic) UpdateObjectStatus(ctx context.Context, objectID string, re
 	return SaveObjectResp{Item: mapAdminObjectItem(object)}, nil
 }
 
-func (l *AdminLogic) BatchGenerateObjects(ctx context.Context, sceneCode string, req BatchGenerateObjectsReq) (BatchGenerateObjectsResp, error) {
+func (l *AdminLogic) BatchGenerateObjects(ctx context.Context, sceneCode string, req BatchGenerateObjectsReq, operatorID string) (resp BatchGenerateObjectsResp, err error) {
 	sceneCode = strings.TrimSpace(sceneCode)
+	operatorID = strings.TrimSpace(operatorID)
+	defer func() { logAdminMapWrite(ctx, "batch_generate_objects", operatorID, sceneCode, err) }()
+	if operatorID == "" {
+		return BatchGenerateObjectsResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	if sceneCode == "" {
 		return BatchGenerateObjectsResp{}, errx.New(errx.CodeValidationFailed, "请选择地图场景")
 	}
@@ -396,7 +426,13 @@ func (l *AdminLogic) ListCategories(ctx context.Context, req ListCategoriesReq) 
 	return ListCategoriesResp{Items: mapCategoryItems(categories)}, nil
 }
 
-func (l *AdminLogic) SaveCategory(ctx context.Context, req SaveCategoryReq) (SaveCategoryResp, error) {
+func (l *AdminLogic) SaveCategory(ctx context.Context, req SaveCategoryReq, operatorID string) (resp SaveCategoryResp, err error) {
+	operatorID = strings.TrimSpace(operatorID)
+	entityID := strings.TrimSpace(req.Code)
+	defer func() { logAdminMapWrite(ctx, "save_category", operatorID, entityID, err) }()
+	if operatorID == "" {
+		return SaveCategoryResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	status := strings.TrimSpace(req.Status)
 	if status == "" {
 		status = model.MapCategoryStatusNormal
@@ -418,6 +454,24 @@ func (l *AdminLogic) SaveCategory(ctx context.Context, req SaveCategoryReq) (Sav
 		return SaveCategoryResp{}, errx.New(errx.CodeInternalError, "地图分类保存失败，请稍后重试")
 	}
 	return SaveCategoryResp{Item: mapCategoryItem(category)}, nil
+}
+
+// logAdminMapWrite 统一记录地图后台写操作归因。只写可信管理员、动作、实体和错误类型，
+// 不记录请求正文、坐标、联系方式或审核内容，避免审计日志自身泄露业务敏感信息。
+func logAdminMapWrite(ctx context.Context, operation string, operatorID string, entityID string, err error) {
+	fields := []logx.LogField{
+		logx.Field("operatorId", strings.TrimSpace(operatorID)),
+		logx.Field("operation", strings.TrimSpace(operation)),
+		logx.Field("entityId", strings.TrimSpace(entityID)),
+	}
+	if err != nil {
+		fields = append(fields,
+			logx.Field("errorCode", errx.CodeOf(err)),
+			logx.Field("errorType", fmt.Sprintf("%T", err)))
+		logx.WithContext(ctx).Errorw("地图后台写操作失败", fields...)
+		return
+	}
+	logx.WithContext(ctx).Infow("地图后台写操作成功", fields...)
 }
 
 func validateSceneInput(req SaveSceneReq, status string) error {

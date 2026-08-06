@@ -34,6 +34,35 @@ func TestPublicMapLogicListsPublishedScenes(t *testing.T) {
 	}
 }
 
+func TestMapResponseMappingsEncodeRequiredSlicesAsArrays(t *testing.T) {
+	objectJSON, err := json.Marshal(mapPublicObjectItem(model.MapObject{
+		ID:                         "object-1",
+		MerchantID:                 "merchant-1",
+		MerchantName:               "小鹿童装",
+		MerchantVerificationStatus: "verified",
+	}))
+	if err != nil {
+		t.Fatalf("json.Marshal(map object) error = %v", err)
+	}
+	for _, field := range []string{"categoryCodes", "serviceTags", "platformTags", "poiServiceTags", "mainCategories"} {
+		if !bytes.Contains(objectJSON, []byte(`"`+field+`":[]`)) {
+			t.Fatalf("map object JSON = %s, want %s: []", objectJSON, field)
+		}
+	}
+
+	placesJSON, err := json.Marshal(mapMerchantPlaceItems([]model.MerchantPlace{{
+		Object: model.MapObject{ID: "object-1", Name: "A001", Code: "A001"},
+	}}))
+	if err != nil {
+		t.Fatalf("json.Marshal(merchant places) error = %v", err)
+	}
+	for _, field := range []string{"categoryCodes", "serviceTags", "platformTags"} {
+		if !bytes.Contains(placesJSON, []byte(`"`+field+`":[]`)) {
+			t.Fatalf("merchant place JSON = %s, want %s: []", placesJSON, field)
+		}
+	}
+}
+
 func TestPublicMapLogicListsClaimedAndPrelistedMerchantPlacesWithoutContact(t *testing.T) {
 	store := &fakePublicMapStore{
 		merchantPlaces: []model.MerchantPlace{

@@ -667,9 +667,9 @@ func mapMerchantPlaceItems(places []model.MerchantPlace) []MerchantPlaceItem {
 			ObjectId:       object.ID,
 			Name:           object.Name,
 			Code:           object.Code,
-			CategoryCodes:  append([]string(nil), object.CategoryCodes...),
-			ServiceTags:    append([]string(nil), object.ServiceTags...),
-			PlatformTags:   append([]string(nil), object.PlatformTags...),
+			CategoryCodes:  nonNilStringSlice(object.CategoryCodes),
+			ServiceTags:    nonNilStringSlice(object.ServiceTags),
+			PlatformTags:   nonNilStringSlice(object.PlatformTags),
 			CityCode:       place.CityCode,
 			MarketName:     place.MarketName,
 			BuildingName:   place.SceneName,
@@ -688,7 +688,7 @@ func mapMerchantPlaceItems(places []model.MerchantPlace) []MerchantPlaceItem {
 			item.MerchantType = strings.TrimSpace(object.MerchantType)
 			item.CoverUrl = strings.TrimSpace(object.MerchantLogoURL)
 			if len(object.MerchantMainCategories) > 0 {
-				item.CategoryCodes = append([]string(nil), object.MerchantMainCategories...)
+				item.CategoryCodes = nonNilStringSlice(object.MerchantMainCategories)
 			}
 			item.SourceType = model.MerchantPlaceSourceClaimed
 		}
@@ -759,10 +759,10 @@ func mapObjectItem(object model.MapObject, includeUnverifiedMerchant bool, inclu
 		CenterY:            formatFloat(object.CenterY),
 		MinZoom:            object.MinZoom,
 		MaxZoom:            object.MaxZoom,
-		CategoryCodes:      append([]string(nil), object.CategoryCodes...),
-		ServiceTags:        append([]string(nil), object.ServiceTags...),
-		PlatformTags:       append([]string(nil), object.PlatformTags...),
-		PoiServiceTags:     append([]string(nil), object.PoiServiceTags...),
+		CategoryCodes:      nonNilStringSlice(object.CategoryCodes),
+		ServiceTags:        nonNilStringSlice(object.ServiceTags),
+		PlatformTags:       nonNilStringSlice(object.PlatformTags),
+		PoiServiceTags:     nonNilStringSlice(object.PoiServiceTags),
 		Address:            object.Address,
 		Lat:                object.Lat,
 		Lng:                object.Lng,
@@ -777,9 +777,10 @@ func mapObjectItem(object model.MapObject, includeUnverifiedMerchant bool, inclu
 }
 
 func isVerifiedMapMerchant(object model.MapObject) bool {
+	verificationStatus := strings.TrimSpace(object.MerchantVerificationStatus)
 	return strings.TrimSpace(object.MerchantID) != "" &&
 		strings.TrimSpace(object.MerchantName) != "" &&
-		strings.TrimSpace(object.MerchantVerificationStatus) == "verified"
+		(verificationStatus == "verified" || verificationStatus == model.MerchantProfileStatusCompleted)
 }
 
 func mapObjectMerchantItem(object model.MapObject) *MapObjectMerchantItem {
@@ -792,8 +793,16 @@ func mapObjectMerchantItem(object model.MapObject) *MapObjectMerchantItem {
 		MerchantType:       strings.TrimSpace(object.MerchantType),
 		VerificationStatus: strings.TrimSpace(object.MerchantVerificationStatus),
 		LogoUrl:            strings.TrimSpace(object.MerchantLogoURL),
-		MainCategories:     append([]string(nil), object.MerchantMainCategories...),
+		MainCategories:     nonNilStringSlice(object.MerchantMainCategories),
 	}
+}
+
+// nonNilStringSlice 保持 API 中非 optional 数组的运行时契约：空集合必须编码为 []，
+// 不能把数据库扫描得到的 nil slice 直接暴露成 JSON null。
+func nonNilStringSlice(values []string) []string {
+	items := make([]string, len(values))
+	copy(items, values)
+	return items
 }
 
 func splitCSV(value string) []string {

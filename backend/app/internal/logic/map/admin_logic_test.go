@@ -1,12 +1,102 @@
 package maplogic
 
 import (
+	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
+
+func TestAdminMapLogicRejectsWriteWithoutTrustedOperator(t *testing.T) {
+	logic := NewAdminLogic(&fakeAdminMapStore{})
+
+	_, err := logic.SaveCategory(context.Background(), SaveCategoryReq{
+		Code: "booth", Name: "档口", Type: "booth_category",
+	}, "")
+	if err == nil || errx.CodeOf(err) != errx.CodeUnauthorized {
+		t.Fatalf("SaveCategory() error = %v, want unauthorized", err)
+	}
+}
+
+func TestAdminMapLogicAuditsTrustedOperatorForEveryWrite(t *testing.T) {
+	var logBuffer bytes.Buffer
+	previousWriter := logx.Reset()
+	logx.SetWriter(logx.NewWriter(&logBuffer))
+	t.Cleanup(func() {
+		if currentWriter := logx.Reset(); currentWriter != nil {
+			_ = currentWriter.Close()
+		}
+		if previousWriter != nil {
+			logx.SetWriter(previousWriter)
+		}
+	})
+
+	store := &fakeAdminMapStore{
+		scene:  model.MapScene{Code: "scene-1", BackgroundURL: "https://img.example/map.png", Width: 1000, Height: 800},
+		object: model.MapObject{ID: "object-1", Code: "A001", CategoryCodes: []string{}, ServiceTags: []string{}, PlatformTags: []string{}, PoiServiceTags: []string{}},
+		objects: []model.MapObject{{
+			ID: "object-1", Code: "A001", Name: "档口 A001", Type: "booth", Layer: "booth",
+			GeometryType:  model.MapGeometryTypeRect,
+			Geometry:      model.JSONMap{"x": float64(10), "y": float64(20), "width": float64(80), "height": float64(50)},
+			CategoryCodes: []string{"girl"}, ServiceTags: []string{"spot"}, Phone: "13800000000", Status: model.MapObjectStatusNormal,
+		}},
+	}
+	logic := NewAdminLogic(store)
+	operatorID := "operator-map-audit"
+
+	if _, err := logic.SaveScene(context.Background(), SaveSceneReq{
+		Code: "scene-1", Name: "利济路", Type: "street_segment", BackgroundUrl: "https://img.example/map.png", Width: 1000, Height: 800,
+	}, operatorID); err != nil {
+		t.Fatalf("SaveScene() error = %v", err)
+	}
+	if _, err := logic.PublishScene(context.Background(), "scene-1", operatorID); err != nil {
+		t.Fatalf("PublishScene() error = %v", err)
+	}
+	objectReq := SaveObjectReq{
+		Code: "A001", Name: "档口 A001", Type: "booth", Layer: "booth", GeometryType: model.MapGeometryTypeRect,
+		Geometry: map[string]interface{}{"x": float64(10), "y": float64(20), "width": float64(80), "height": float64(50)},
+	}
+	if _, err := logic.SaveObject(context.Background(), "scene-1", objectReq, operatorID); err != nil {
+		t.Fatalf("SaveObject(create) error = %v", err)
+	}
+	objectReq.Id = "object-1"
+	if _, err := logic.SaveObject(context.Background(), "", objectReq, operatorID); err != nil {
+		t.Fatalf("SaveObject(update) error = %v", err)
+	}
+	if _, err := logic.UpdateObjectStatus(context.Background(), "object-1", UpdateObjectStatusReq{Status: model.MapObjectStatusHidden}, operatorID); err != nil {
+		t.Fatalf("UpdateObjectStatus() error = %v", err)
+	}
+	if _, err := logic.BatchGenerateObjects(context.Background(), "scene-1", BatchGenerateObjectsReq{
+		StartCode: "B001", Count: 1, Direction: "horizontal", StartX: "100", StartY: "100", Width: "80", Height: "50", Gap: "5", Type: "booth", Layer: "booth",
+	}, operatorID); err != nil {
+		t.Fatalf("BatchGenerateObjects() error = %v", err)
+	}
+	if _, err := logic.SaveCategory(context.Background(), SaveCategoryReq{Code: "girl", Name: "女童", Type: "booth_category"}, operatorID); err != nil {
+		t.Fatalf("SaveCategory() error = %v", err)
+	}
+	if _, err := logic.SaveCategory(context.Background(), SaveCategoryReq{Code: "invalid"}, operatorID); err == nil {
+		t.Fatal("SaveCategory(invalid) error = nil, want audit failure")
+	}
+
+	logs := logBuffer.String()
+	for _, marker := range []string{
+		`"operatorId":"operator-map-audit"`, `"operation":"save_scene"`, `"operation":"publish_scene"`,
+		`"operation":"save_object"`, `"operation":"update_object_status"`, `"operation":"batch_generate_objects"`,
+		`"operation":"save_category"`, `地图后台写操作成功`, `地图后台写操作失败`,
+	} {
+		if !strings.Contains(logs, marker) {
+			t.Fatalf("audit logs = %q, want marker %q", logs, marker)
+		}
+	}
+	if strings.Count(logs, `"operation":"save_object"`) < 2 {
+		t.Fatalf("audit logs = %q, want separate create/update object attribution", logs)
+	}
+}
 
 func TestAdminMapLogicRejectsSceneWithoutBackground(t *testing.T) {
 	logic := NewAdminLogic(&fakeAdminMapStore{})
@@ -17,7 +107,8 @@ func TestAdminMapLogicRejectsSceneWithoutBackground(t *testing.T) {
 		Type:   "street_segment",
 		Width:  3000,
 		Height: 1800,
-	})
+	}, "operator-test")
+
 	if err == nil {
 		t.Fatal("SaveScene() error = nil, want validation error")
 	}
@@ -36,7 +127,8 @@ func TestAdminMapLogicSavesSceneAsDraftByDefault(t *testing.T) {
 		BackgroundUrl: "https://img.example.com/maps/lijilu.png",
 		Width:         3000,
 		Height:        1800,
-	})
+	}, "operator-test")
+
 	if err != nil {
 		t.Fatalf("SaveScene() error = %v", err)
 	}
@@ -55,7 +147,7 @@ func TestAdminMapLogicRejectsPublishWithoutObjects(t *testing.T) {
 	}
 	logic := NewAdminLogic(store)
 
-	_, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle")
+	_, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle", "operator-test")
 	if err == nil {
 		t.Fatal("PublishScene() error = nil, want validation error")
 	}
@@ -76,7 +168,7 @@ func TestAdminMapLogicRejectsPublishWithIncompleteVisibleObjects(t *testing.T) {
 	}
 	logic := NewAdminLogic(store)
 
-	_, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle")
+	_, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle", "operator-test")
 	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
 		t.Fatalf("PublishScene() error = %v, want validation error", err)
 	}
@@ -100,7 +192,7 @@ func TestAdminMapLogicPublishesCompleteVisibleObjects(t *testing.T) {
 	}
 	logic := NewAdminLogic(store)
 
-	resp, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle")
+	resp, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle", "operator-test")
 	if err != nil {
 		t.Fatalf("PublishScene() error = %v", err)
 	}
@@ -127,7 +219,7 @@ func TestAdminMapLogicPublishesBoothWithWechatFallback(t *testing.T) {
 	}
 	logic := NewAdminLogic(store)
 
-	resp, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle")
+	resp, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle", "operator-test")
 	if err != nil {
 		t.Fatalf("PublishScene() error = %v", err)
 	}
@@ -153,7 +245,7 @@ func TestAdminMapLogicPublishesPoiWithoutPhone(t *testing.T) {
 	}
 	logic := NewAdminLogic(store)
 
-	resp, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle")
+	resp, err := logic.PublishScene(context.Background(), "zhili_lijilu_middle", "operator-test")
 	if err != nil {
 		t.Fatalf("PublishScene() error = %v", err)
 	}
@@ -187,7 +279,8 @@ func TestAdminMapLogicRejectsInvalidObjectZoomRange(t *testing.T) {
 				Geometry:     map[string]interface{}{"x": float64(100), "y": float64(200), "width": float64(80), "height": float64(50)},
 				MinZoom:      tc.minZoom,
 				MaxZoom:      tc.maxZoom,
-			})
+			}, "operator-test")
+
 			if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
 				t.Fatalf("SaveObject() error = %v, want validation error", err)
 			}
@@ -212,7 +305,8 @@ func TestAdminMapLogicSavesMerchantBinding(t *testing.T) {
 		GeometryType: model.MapGeometryTypeRect,
 		Geometry:     map[string]interface{}{"x": float64(100), "y": float64(200), "width": float64(80), "height": float64(50)},
 		MerchantID:   " 1001 ",
-	})
+	}, "operator-test")
+
 	if err != nil {
 		t.Fatalf("SaveObject() error = %v", err)
 	}
@@ -275,7 +369,8 @@ func TestAdminMapLogicBatchGenerateHorizontalBooths(t *testing.T) {
 		Layer:         "booth",
 		CategoryCodes: []string{"girl"},
 		ServiceTags:   []string{"spot"},
-	})
+	}, "operator-test")
+
 	if err != nil {
 		t.Fatalf("BatchGenerateObjects() error = %v", err)
 	}
@@ -315,7 +410,8 @@ func TestAdminMapLogicBatchGenerateSkipsObjectsOutsideSceneBounds(t *testing.T) 
 		Gap:       "5",
 		Type:      "booth",
 		Layer:     "booth",
-	})
+	}, "operator-test")
+
 	if err != nil {
 		t.Fatalf("BatchGenerateObjects() error = %v", err)
 	}
@@ -348,7 +444,8 @@ func TestAdminMapLogicBatchGenerateRejectsWhenAllObjectsOutsideSceneBounds(t *te
 		Gap:       "5",
 		Type:      "booth",
 		Layer:     "booth",
-	})
+	}, "operator-test")
+
 	if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed {
 		t.Fatalf("BatchGenerateObjects() error = %v, want validation error", err)
 	}
@@ -386,7 +483,8 @@ func TestAdminMapLogicBatchGenerateReturnsActionableNumberValidationMessage(t *t
 				Gap:       "5",
 				Type:      "booth",
 				Layer:     "booth",
-			})
+			}, "operator-test")
+
 			if err == nil || errx.CodeOf(err) != errx.CodeValidationFailed || err.Error() != tc.wantMsg {
 				t.Fatalf("BatchGenerateObjects() error = %v, code=%s, want validation %q", err, errx.CodeOf(err), tc.wantMsg)
 			}

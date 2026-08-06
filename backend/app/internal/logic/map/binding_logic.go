@@ -287,7 +287,7 @@ func mapBindRequestItem(item model.MapBindRequest) MapBindRequestItem {
 		ObjectCode:      item.ObjectCode,
 		ObjectName:      item.ObjectName,
 		ApplicantUserID: item.ApplicantUserID,
-		EvidenceImages:  append([]string(nil), item.EvidenceImages...),
+		EvidenceImages:  nonNilStringSlice(item.EvidenceImages),
 		Note:            item.Note,
 		Status:          item.Status,
 		ReviewNote:      item.ReviewNote,

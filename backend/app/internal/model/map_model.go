@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -1731,7 +1732,8 @@ func joinedMapObjectSelectColumnsWithContact(alias string, includeContact bool) 
 		contactColumns = "COALESCE(" + prefix + "phone, ''), COALESCE(" + prefix + "wechat, '')"
 	}
 	return prefix + `id::text, ` + prefix + `scene_code, COALESCE(` + prefix + `merchant_id::text, ''),
-       COALESCE(m.name, ''), COALESCE(m.merchant_type, ''), ''::text,
+	       COALESCE(m.name, ''), COALESCE(m.merchant_type, ''),
+	       CASE WHEN m.id IS NULL THEN '' ELSE COALESCE(NULLIF(m.profile_status, ''), 'completed') END,
        COALESCE(m.logo_url, ''), COALESCE(m.main_categories, '[]'::jsonb),
        ` + prefix + `code, ` + prefix + `name, ` + prefix + `type, ` + prefix + `layer, ` + prefix + `geometry_type, ` + prefix + `geometry,
        COALESCE(` + prefix + `center_x, 0)::float8, COALESCE(` + prefix + `center_y, 0)::float8,
@@ -1843,6 +1845,12 @@ func numberFromGeometryValue(raw interface{}, label string) (float64, error) {
 		return float64(v), nil
 	case jsonNumber:
 		parsed, err := strconv.ParseFloat(string(v), 64)
+		if err != nil {
+			return 0, err
+		}
+		return finiteGeometryNumber(parsed, label)
+	case json.Number:
+		parsed, err := v.Float64()
 		if err != nil {
 			return 0, err
 		}

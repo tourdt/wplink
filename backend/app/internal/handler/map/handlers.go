@@ -321,7 +321,7 @@ func adminSaveMapSceneHTTPHandler(svcCtx *svc.ServiceContext, usePathCode bool) 
 			MinScale: req.MinScale, MaxScale: req.MaxScale, DefaultScale: req.DefaultScale,
 			DefaultCenterX: req.DefaultCenterX, DefaultCenterY: req.DefaultCenterY,
 			FloorNo: req.FloorNo, Sort: req.Sort, Status: req.Status,
-		})
+		}, admin.OperatorID)
 		logAdminMapFailure(r, admin, "保存地图场景", err)
 		response.JSON(w, resp, err)
 	}
@@ -346,7 +346,7 @@ func adminPublishMapSceneHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFun
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := maplogic.NewAdminLogic(store).PublishScene(r.Context(), pathvar.Vars(r)["sceneCode"])
+		resp, err := maplogic.NewAdminLogic(store).PublishScene(r.Context(), pathvar.Vars(r)["sceneCode"], admin.OperatorID)
 		logAdminMapFailure(r, admin, "发布地图场景", err)
 		response.JSON(w, resp, err)
 	}
@@ -395,7 +395,7 @@ func adminSaveMapObjectHTTPHandler(svcCtx *svc.ServiceContext, update bool) http
 			CategoryCodes: req.CategoryCodes, ServiceTags: req.ServiceTags, PlatformTags: req.PlatformTags,
 			PoiServiceTags: req.PoiServiceTags, Address: req.Address, Phone: req.Phone, Wechat: req.Wechat,
 			Lat: req.Lat, Lng: req.Lng, Extra: req.Extra, Sort: req.Sort, Status: req.Status,
-		})
+		}, admin.OperatorID)
 		logAdminMapFailure(r, admin, "保存地图点位", err)
 		response.JSON(w, resp, err)
 	}
@@ -413,7 +413,7 @@ func adminUpdateMapObjectStatusHTTPHandler(svcCtx *svc.ServiceContext) http.Hand
 			response.JSON(w, nil, err)
 			return
 		}
-		resp, err := maplogic.NewAdminLogic(store).UpdateObjectStatus(r.Context(), pathvar.Vars(r)["objectId"], maplogic.UpdateObjectStatusReq{Status: req.Status})
+		resp, err := maplogic.NewAdminLogic(store).UpdateObjectStatus(r.Context(), pathvar.Vars(r)["objectId"], maplogic.UpdateObjectStatusReq{Status: req.Status}, admin.OperatorID)
 		logAdminMapFailure(r, admin, "更新地图点位状态", err)
 		response.JSON(w, resp, err)
 	}
@@ -435,7 +435,7 @@ func adminBatchGenerateMapObjectsHTTPHandler(svcCtx *svc.ServiceContext) http.Ha
 			StartCode: req.StartCode, Count: req.Count, Direction: req.Direction,
 			StartX: req.StartX, StartY: req.StartY, Width: req.Width, Height: req.Height, Gap: req.Gap,
 			Type: req.Type, Layer: req.Layer, CategoryCodes: req.CategoryCodes, ServiceTags: req.ServiceTags,
-		})
+		}, admin.OperatorID)
 		// 批量坐标和原始请求体不写日志，只保留管理员与稳定场景标识。
 		if err != nil {
 			logx.WithContext(r.Context()).Errorw("批量生成地图点位失败",
@@ -479,7 +479,7 @@ func adminSaveMapCategoryHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFun
 		resp, err := maplogic.NewAdminLogic(store).SaveCategory(r.Context(), maplogic.SaveCategoryReq{
 			Code: req.Code, Name: req.Name, Type: req.Type, IconUrl: req.IconUrl,
 			Sort: req.Sort, IsVisible: req.IsVisible, Status: req.Status,
-		})
+		}, admin.OperatorID)
 		logAdminMapFailure(r, admin, "保存地图分类", err)
 		response.JSON(w, resp, err)
 	}
