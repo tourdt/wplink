@@ -94,6 +94,12 @@ func handleContentAuditCallbackHTTPHandler(svcCtx *svc.ServiceContext) http.Hand
 
 		// 只有业务完成或已被幂等状态机确认后才记录指纹；记录失败时不返回 success，保留供应商重试机会。
 		if err := svcCtx.ContentAuditCallbackVerifier.Verify(signature, timestamp, nonce, true); err != nil {
+			// 并发请求可能都通过只读检查；第二个请求完成幂等业务处理后再记录指纹时，
+			// 命中重放表示同一回调已经被成功记忆，此时仍须向微信确认 success。
+			if errors.Is(err, contentauditlogic.ErrWechatCallbackReplay) {
+				writeContentAuditCallbackSuccess(w)
+				return
+			}
 			response.JSON(w, nil, safeCallbackVerificationError(err))
 			return
 		}

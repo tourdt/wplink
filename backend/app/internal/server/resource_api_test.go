@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"wplink/backend/app/internal/config"
+	callbackhandler "wplink/backend/app/internal/handler/callback"
 	"wplink/backend/app/internal/logic/adminauth"
 	contentauditlogic "wplink/backend/app/internal/logic/contentaudit"
 	"wplink/backend/app/internal/model"
@@ -144,7 +146,7 @@ func TestContentAuditCallbackVerificationThroughGeneratedRoute(t *testing.T) {
 	if rec.Code != http.StatusOK || rec.Body.String() != "challenge" || rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
 		t.Fatalf("status=%d contentType=%q body=%q, want raw callback challenge", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
 	}
-	if verifier.remember {
+	if _, remembered := verifier.snapshot(); remembered {
 		t.Fatal("URL verification must not consume replay key")
 	}
 }
@@ -179,8 +181,9 @@ func TestContentAuditCallbackGeneratedRouteRejectsBeforeBusinessProcessing(t *te
 					t.Fatalf("callback response leaked sensitive value %q: %s", secret, serialized)
 				}
 			}
-			if len(tc.verifier.calls) != 1 || tc.verifier.calls[0] {
-				t.Fatalf("verifier calls=%v, failed callback must not record replay fingerprint", tc.verifier.calls)
+			calls, _ := tc.verifier.snapshot()
+			if len(calls) != 1 || calls[0] {
+				t.Fatalf("verifier calls=%v, failed callback must not record replay fingerprint", calls)
 			}
 		})
 	}
@@ -197,8 +200,9 @@ func TestContentAuditCallbackReplayThroughGeneratedRouteReturnsSuccess(t *testin
 	if rec.Code != http.StatusOK || rec.Body.String() != "success" {
 		t.Fatalf("status=%d body=%q, replay must use provider success acknowledgement", rec.Code, rec.Body.String())
 	}
-	if len(verifier.calls) != 1 || verifier.calls[0] {
-		t.Fatalf("verifier calls=%v, replay must stop after check-only verification", verifier.calls)
+	calls, _ := verifier.snapshot()
+	if len(calls) != 1 || calls[0] {
+		t.Fatalf("verifier calls=%v, replay must stop after check-only verification", calls)
 	}
 }
 
@@ -215,8 +219,9 @@ func TestContentAuditCallbackGeneratedRouteRecordsReplayOnlyAfterLogicSuccess(t 
 		if body["msg"] == "raw database secret callback failure" || strings.Contains(fmt.Sprint(body), "trace-fail") {
 			t.Fatalf("callback error leaked internal or body detail: %#v", body)
 		}
-		if len(verifier.calls) != 1 || verifier.calls[0] {
-			t.Fatalf("verifier calls=%v, failed logic must remain retryable", verifier.calls)
+		calls, _ := verifier.snapshot()
+		if len(calls) != 1 || calls[0] {
+			t.Fatalf("verifier calls=%v, failed logic must remain retryable", calls)
 		}
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Fatalf("logic failure SQL expectations: %v", err)
@@ -234,8 +239,9 @@ func TestContentAuditCallbackGeneratedRouteRecordsReplayOnlyAfterLogicSuccess(t 
 		if rec.Code != http.StatusOK || rec.Body.String() != "success" {
 			t.Fatalf("status=%d body=%q, state conflict must acknowledge success", rec.Code, rec.Body.String())
 		}
-		if len(verifier.calls) != 2 || verifier.calls[0] || !verifier.calls[1] {
-			t.Fatalf("verifier calls=%v, want check then remember", verifier.calls)
+		calls, _ := verifier.snapshot()
+		if len(calls) != 2 || calls[0] || !calls[1] {
+			t.Fatalf("verifier calls=%v, want check then remember", calls)
 		}
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Fatalf("state conflict SQL expectations: %v", err)
@@ -257,13 +263,131 @@ func TestContentAuditCallbackGeneratedRouteRecordsReplayOnlyAfterLogicSuccess(t 
 		if rec.Code != http.StatusOK || rec.Body.String() != "success" {
 			t.Fatalf("status=%d body=%q, successful callback must acknowledge success", rec.Code, rec.Body.String())
 		}
-		if len(verifier.calls) != 2 || verifier.calls[0] || !verifier.calls[1] {
-			t.Fatalf("verifier calls=%v, want check then remember", verifier.calls)
+		calls, _ := verifier.snapshot()
+		if len(calls) != 2 || calls[0] || !calls[1] {
+			t.Fatalf("verifier calls=%v, want check then remember", calls)
 		}
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Fatalf("success SQL expectations: %v", err)
 		}
 	})
+}
+
+func TestContentAuditCallbackGeneratedRouteAcknowledgesReplayWhileRemembering(t *testing.T) {
+	tests := []struct {
+		name         string
+		prepareLogic func(sqlmock.Sqlmock)
+		traceID      string
+	}{
+		{
+			name: "logic success",
+			prepareLogic: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).
+					WillReturnRows(sqlmock.NewRows([]string{"resource_id"}).AddRow("resource-1"))
+				mock.ExpectQuery(`(?s)COUNT\(\*\) FILTER`).
+					WithArgs("resource-1").
+					WillReturnRows(sqlmock.NewRows([]string{"pending", "rejected", "failed"}).AddRow(int64(1), int64(0), int64(0)))
+				mock.ExpectCommit()
+			},
+			traceID: "trace-success-remember-replay",
+		},
+		{
+			name: "state conflict",
+			prepareLogic: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).WillReturnError(sql.ErrNoRows)
+				mock.ExpectRollback()
+			},
+			traceID: "trace-conflict-remember-replay",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svcCtx, mock, verifier := newContentAuditCallbackGeneratedContext(t)
+			verifier.rememberErr = contentauditlogic.ErrWechatCallbackReplay
+			tc.prepareLogic(mock)
+			server := newGeneratedAPIServer(t, svcCtx)
+			rec := httptest.NewRecorder()
+
+			server.ServeHTTP(rec, contentAuditCallbackRequest(`{"appid":"wx-app","trace_id":"`+tc.traceID+`","errcode":0}`))
+
+			if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" || rec.Body.String() != "success" {
+				t.Fatalf("status=%d contentType=%q body=%q, remember replay must acknowledge success", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+			}
+			calls, _ := verifier.snapshot()
+			if len(calls) != 2 || calls[0] || !calls[1] {
+				t.Fatalf("verifier calls=%v, want check then remember", calls)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("callback SQL expectations: %v", err)
+			}
+		})
+	}
+}
+
+func TestContentAuditCallbackHandlerConcurrentDuplicateRequestsBothSucceed(t *testing.T) {
+	svcCtx, mock, verifier := newContentAuditCallbackGeneratedContext(t)
+	verifier.checkBarrier = newCallbackCheckBarrier(2)
+	verifier.replayConcurrentRemember = true
+	mock.MatchExpectationsInOrder(false)
+
+	// 两个请求都通过第一阶段验签后，一个事务完成有效流转，另一个事务观察到幂等状态冲突。
+	mock.ExpectBegin()
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).
+		WillReturnRows(sqlmock.NewRows([]string{"resource_id"}).AddRow("resource-1"))
+	mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)COUNT\(\*\) FILTER`).
+		WithArgs("resource-1").
+		WillReturnRows(sqlmock.NewRows([]string{"pending", "rejected", "failed"}).AddRow(int64(1), int64(0), int64(0)))
+	mock.ExpectCommit()
+	mock.ExpectRollback()
+
+	handler := callbackhandler.HandleContentAuditCallbackHandler(svcCtx)
+	recorders := []*httptest.ResponseRecorder{httptest.NewRecorder(), httptest.NewRecorder()}
+	var requests sync.WaitGroup
+	requests.Add(len(recorders))
+	for _, rec := range recorders {
+		rec := rec
+		go func() {
+			defer requests.Done()
+			handler.ServeHTTP(rec, contentAuditCallbackRequest(`{"appid":"wx-app","trace_id":"trace-concurrent","errcode":0}`))
+		}()
+	}
+	requests.Wait()
+
+	for index, rec := range recorders {
+		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" || rec.Body.String() != "success" {
+			t.Fatalf("response[%d]: status=%d contentType=%q body=%q, concurrent duplicate must acknowledge success", index, rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+		}
+	}
+	calls, _ := verifier.snapshot()
+	if len(calls) != 4 || calls[0] || calls[1] || !calls[2] || !calls[3] {
+		t.Fatalf("verifier calls=%v, want both checks before both remember calls", calls)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("concurrent callback SQL expectations: %v", err)
+	}
+}
+
+func TestContentAuditCallbackGeneratedRouteDoesNotSwallowNonReplayRememberFailure(t *testing.T) {
+	svcCtx, mock, verifier := newContentAuditCallbackGeneratedContext(t)
+	verifier.rememberErr = errx.New(errx.CodeInternalError, "remember dependency unavailable")
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).WillReturnError(sql.ErrNoRows)
+	mock.ExpectRollback()
+	server := newGeneratedAPIServer(t, svcCtx)
+
+	body := assertTask6GeneratedStatus(t, server, contentAuditCallbackRequest(`{"appid":"wx-app","trace_id":"trace-remember-failure","errcode":0}`), http.StatusInternalServerError)
+
+	if body["errorCode"] != errx.CodeInternalError {
+		t.Fatalf("body=%#v, non-replay remember failure must stay retryable", body)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("remember failure SQL expectations: %v", err)
+	}
 }
 
 func TestContentAuditCallbackGeneratedRouteRejectsNilLikeDependencies(t *testing.T) {
@@ -879,7 +1003,7 @@ func TestResourceAPIRouterHandlesWechatContentAuditMediaCallback(t *testing.T) {
 	if store.completedAuditInput.TraceID != "trace-media" || store.publishedAuditResourceID != "resource-1" || store.publishedAuditTraceID != "trace-media" {
 		t.Fatalf("completedAuditInput = %#v publishedAuditResourceID/traceID = %q/%q, want completed and published", store.completedAuditInput, store.publishedAuditResourceID, store.publishedAuditTraceID)
 	}
-	if verifier.remember != true {
+	if _, remembered := verifier.snapshot(); !remembered {
 		t.Fatal("callback verifier remember = false, want replay protection enabled")
 	}
 }
@@ -914,29 +1038,80 @@ func TestResourceAPIRouterHandlesWechatCallbackURLVerification(t *testing.T) {
 	if rec.Code != http.StatusOK || rec.Body.String() != "challenge" {
 		t.Fatalf("status=%d body=%q, want callback challenge", rec.Code, rec.Body.String())
 	}
-	if verifier.remember {
+	if _, remembered := verifier.snapshot(); remembered {
 		t.Fatal("URL verification must not consume replay key")
 	}
 }
 
 type fakeWechatCallbackVerifier struct {
+	mu          sync.Mutex
 	err         error
 	checkErr    error
 	rememberErr error
 	remember    bool
 	calls       []bool
+
+	checkBarrier             *callbackCheckBarrier
+	replayConcurrentRemember bool
+	remembered               bool
 }
 
 func (v *fakeWechatCallbackVerifier) Verify(signature string, timestamp string, nonce string, remember bool) error {
+	v.mu.Lock()
 	v.calls = append(v.calls, remember)
 	v.remember = remember
+	barrier := v.checkBarrier
 	if remember && v.rememberErr != nil {
-		return v.rememberErr
+		err := v.rememberErr
+		v.mu.Unlock()
+		return err
 	}
 	if !remember && v.checkErr != nil {
-		return v.checkErr
+		err := v.checkErr
+		v.mu.Unlock()
+		return err
 	}
-	return v.err
+	if remember && v.replayConcurrentRemember {
+		if v.remembered {
+			v.mu.Unlock()
+			return contentauditlogic.ErrWechatCallbackReplay
+		}
+		v.remembered = true
+	}
+	err := v.err
+	v.mu.Unlock()
+	if !remember && barrier != nil {
+		barrier.arriveAndWait()
+	}
+	return err
+}
+
+func (v *fakeWechatCallbackVerifier) snapshot() ([]bool, bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return append([]bool(nil), v.calls...), v.remember
+}
+
+type callbackCheckBarrier struct {
+	mu        sync.Mutex
+	target    int
+	arrived   int
+	releaseCh chan struct{}
+}
+
+func newCallbackCheckBarrier(target int) *callbackCheckBarrier {
+	return &callbackCheckBarrier{target: target, releaseCh: make(chan struct{})}
+}
+
+func (b *callbackCheckBarrier) arriveAndWait() {
+	b.mu.Lock()
+	b.arrived++
+	if b.arrived == b.target {
+		close(b.releaseCh)
+	}
+	releaseCh := b.releaseCh
+	b.mu.Unlock()
+	<-releaseCh
 }
 
 func TestResourceAPIRouterRequiresManagedMerchantWhenTokenConfigured(t *testing.T) {
