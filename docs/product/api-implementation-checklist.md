@@ -4,7 +4,6 @@
 日期：2026-08-06
 来源：
 
-- `docs/product/api-contract-design.md`
 - `docs/superpowers/plans/2026-06-27-apparel-platform-current-mvp-todo.md`
 - `backend/app/api/app.api`
 
@@ -36,7 +35,7 @@
 | `GET /api/v1/me` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | `wxapp/pages/my/index.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/me/phone` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | 后续手机号绑定预留 | 已接 handler，首发不验收 |
 | `POST /api/v1/admin/auth/login` | `backend/app/api/admin.api` | `backend/app/internal/logic/adminauth/login_service.go` | `admin-web/src/views/LoginView.vue` | 不适用 | 已接 handler，测试通过 |
-| `POST /api/v1/uploads/token` | `backend/app/api/upload.api` | `backend/app/internal/logic/upload/upload_token_logic.go` | Banner/认证资料 URL 上传前置 | 发布/认证图片上传前置 | 已接 handler，测试通过 |
+| `POST /api/v1/uploads/token` | `backend/app/api/upload.api` | `backend/app/internal/logic/upload/upload_token_logic.go` | Banner 等运营图片上传前置 | 发布与商家资料图片上传前置 | 已接 handler，测试通过 |
 
 ## 城市站与配置
 
@@ -51,7 +50,7 @@
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
-| `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue`，含认证、信用标签和发布记录 | 已接 handler，测试通过 |
+| `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue`，含资料状态、信用标签和发布记录 | 已接 handler，测试通过 |
 | `POST /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/update_merchant_logic.go` | 商家编辑 | `wxapp/pages/merchant/profile.vue` 商家资料编辑 | 已接 handler，测试通过 |
 
 ## 供需信息

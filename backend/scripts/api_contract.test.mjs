@@ -46,6 +46,51 @@ test('product docs describe the generated API route as the only production route
   )
 })
 
+test('current product docs do not restore the retired merchant verification domain', () => {
+  const currentDocNames = [
+    'wxapp-manual-acceptance.md',
+    'deployment-config.md',
+    'api-implementation-checklist.md',
+    'mvp-acceptance-checklist.md',
+  ]
+  const retiredContractReferences = [
+    '/merchants/{merchantId}/verifications',
+    '/api/v1/merchants/:merchantId/verifications',
+    '/admin/verifications',
+    'wxapp/pages/verification',
+    'pages/verification/index',
+    'VerificationView',
+  ]
+  const retiredCapabilityCopy = [
+    '商家认证',
+    '认证状态',
+    '认证资料',
+    '认证提交',
+    '认证审核',
+    '认证结果',
+    '待认证',
+  ]
+
+  for (const fileName of currentDocNames) {
+    const source = fs.readFileSync(path.join(productDocsDir, fileName), 'utf8')
+    for (const snippet of [...retiredContractReferences, ...retiredCapabilityCopy]) {
+      assert(!source.includes(snippet), `${fileName} should not describe retired merchant verification capability ${snippet}`)
+    }
+  }
+
+  const historicalDesign = fs.readFileSync(path.join(productDocsDir, 'api-contract-design.md'), 'utf8')
+  assert(historicalDesign.includes('文档状态：历史设计，已废弃'), 'api-contract-design.md should be marked as retired historical design')
+  assert(historicalDesign.includes('不作为当前实现、验收或生成依据'), 'api-contract-design.md should reject current implementation usage')
+  assert(historicalDesign.includes('backend/app/api/app.api'), 'api-contract-design.md should name the current API contract entry')
+  assert(historicalDesign.includes('make check-api-generated'), 'api-contract-design.md should name the generated API gate')
+
+  const implementationChecklist = fs.readFileSync(path.join(productDocsDir, 'api-implementation-checklist.md'), 'utf8')
+  assert(
+    !implementationChecklist.includes('docs/product/api-contract-design.md'),
+    'api-implementation-checklist.md should not use the retired design as a current source',
+  )
+})
+
 test('product docs do not describe retired purchase demand or manual matching features', () => {
   const retiredSnippets = [
     '采购需求',
