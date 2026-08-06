@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"wplink/backend/app/internal/config"
@@ -109,6 +111,99 @@ func TestVIPHTTPHandlersRejectMissingAndTypedNilDependencies(t *testing.T) {
 			body := vipHandlerEnvelope(t, rec, http.StatusInternalServerError)
 			if body["errorCode"] != "INTERNAL_ERROR" {
 				t.Fatalf("body=%#v, want safe dependency error", body)
+			}
+		})
+	}
+}
+
+func TestCreateVIPPaymentHTTPHandlerConcurrentGatewayNormalization(t *testing.T) {
+	const goroutines = 256
+	validGateway := &concurrentVIPPaymentGateway{}
+
+	tests := []struct {
+		name              string
+		gateway           paymentlogic.WechatPayGateway
+		config            config.Config
+		wantStatus        int
+		wantErrorCode     string
+		wantContextCalls  int64
+		wantCreateCalls   int64
+		wantMarkPaidCalls int64
+		wantPrepayCalls   int64
+		concurrentGateway *concurrentVIPPaymentGateway
+	}{
+		{
+			name:              "nil gateway keeps development mock semantics",
+			config:            config.Config{RuntimeMode: "development", WechatPay: config.WechatPayConfig{DevMockEnabled: true}},
+			wantStatus:        http.StatusOK,
+			wantContextCalls:  goroutines,
+			wantCreateCalls:   goroutines,
+			wantMarkPaidCalls: goroutines,
+		},
+		{
+			name:          "typed nil gateway remains rejected when mock disabled",
+			gateway:       (*concurrentVIPPaymentGateway)(nil),
+			wantStatus:    http.StatusInternalServerError,
+			wantErrorCode: "INTERNAL_ERROR",
+		},
+		{
+			name:              "valid gateway remains unchanged",
+			gateway:           validGateway,
+			wantStatus:        http.StatusOK,
+			wantContextCalls:  goroutines,
+			wantCreateCalls:   goroutines,
+			wantPrepayCalls:   goroutines,
+			concurrentGateway: validGateway,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &concurrentVIPPaymentStore{}
+			permissionStore := &concurrentVIPPermissionStore{}
+			handler := createVIPPaymentHTTPHandler(store, tc.gateway, vipTestPermissionDeps(permissionStore), tc.config)
+			start := make(chan struct{})
+			results := make(chan concurrentVIPPaymentResult, goroutines)
+			var group sync.WaitGroup
+			group.Add(goroutines)
+			for index := 0; index < goroutines; index++ {
+				go func() {
+					defer group.Done()
+					<-start
+					rec := httptest.NewRecorder()
+					handler(rec, vipHandlerRequest(http.MethodPost, "/api/v1/merchants/merchant-1/vip/orders/order-1/payment", `{}`))
+					var body struct {
+						ErrorCode string `json:"errorCode"`
+					}
+					decodeErr := json.Unmarshal(rec.Body.Bytes(), &body)
+					results <- concurrentVIPPaymentResult{status: rec.Code, errorCode: body.ErrorCode, decodeErr: decodeErr}
+				}()
+			}
+			close(start)
+			group.Wait()
+			close(results)
+
+			for result := range results {
+				if result.decodeErr != nil || result.status != tc.wantStatus || result.errorCode != tc.wantErrorCode {
+					t.Fatalf("result=%+v, want status=%d errorCode=%q", result, tc.wantStatus, tc.wantErrorCode)
+				}
+			}
+			if got := permissionStore.calls.Load(); got != goroutines {
+				t.Fatalf("permission calls=%d, want %d", got, goroutines)
+			}
+			if got := store.contextCalls.Load(); got != tc.wantContextCalls {
+				t.Fatalf("payment context calls=%d, want %d", got, tc.wantContextCalls)
+			}
+			if got := store.createCalls.Load(); got != tc.wantCreateCalls {
+				t.Fatalf("payment create calls=%d, want %d", got, tc.wantCreateCalls)
+			}
+			if got := store.markPaidCalls.Load(); got != tc.wantMarkPaidCalls {
+				t.Fatalf("payment mark paid calls=%d, want %d", got, tc.wantMarkPaidCalls)
+			}
+			if tc.concurrentGateway != nil {
+				if got := tc.concurrentGateway.prepayCalls.Load(); got != tc.wantPrepayCalls {
+					t.Fatalf("gateway prepay calls=%d, want %d", got, tc.wantPrepayCalls)
+				}
 			}
 		})
 	}
@@ -233,4 +328,59 @@ type fakeVIPAdminTokenService struct{}
 
 func (*fakeVIPAdminTokenService) ParseAdminToken(context.Context, string) (session.AdminTokenSubject, error) {
 	return session.AdminTokenSubject{}, errors.New("not admin")
+}
+
+type concurrentVIPPaymentResult struct {
+	status    int
+	errorCode string
+	decodeErr error
+}
+
+type concurrentVIPPermissionStore struct {
+	calls atomic.Int64
+}
+
+func (s *concurrentVIPPermissionStore) UserCanManageMerchant(context.Context, string, string) (bool, error) {
+	s.calls.Add(1)
+	return true, nil
+}
+
+type concurrentVIPPaymentStore struct {
+	contextCalls  atomic.Int64
+	createCalls   atomic.Int64
+	markPaidCalls atomic.Int64
+}
+
+func (s *concurrentVIPPaymentStore) GetVIPPaymentContext(_ context.Context, input model.GetVIPPaymentContextInput) (model.VIPPaymentContext, error) {
+	s.contextCalls.Add(1)
+	return model.VIPPaymentContext{
+		OrderID: input.OrderID, MerchantID: input.MerchantID, UserID: input.UserID,
+		OpenID: "openid", Status: model.PaymentOrderStatusPending, AmountTotal: 1990, Currency: "CNY", PlanName: "VIP 月卡",
+	}, nil
+}
+
+func (s *concurrentVIPPaymentStore) CreateVIPPaymentOrder(_ context.Context, input model.CreateVIPPaymentOrderInput) (model.VIPPaymentOrder, error) {
+	s.createCalls.Add(1)
+	return model.VIPPaymentOrder{
+		ID: input.OrderID, OutTradeNo: "VIP202608060001", AmountTotal: 1990,
+		Currency: "CNY", Status: model.PaymentOrderStatusPending, PlanName: "VIP 月卡",
+	}, nil
+}
+
+func (s *concurrentVIPPaymentStore) MarkVIPOrderPaid(context.Context, model.MarkVIPOrderPaidInput) (model.VIPPaymentResult, error) {
+	s.markPaidCalls.Add(1)
+	return model.VIPPaymentResult{OrderID: "order-1", MerchantID: "merchant-1", Status: model.PaymentOrderStatusPaid}, nil
+}
+
+type concurrentVIPPaymentGateway struct {
+	prepayCalls atomic.Int64
+}
+
+func (g *concurrentVIPPaymentGateway) CreatePrepay(context.Context, paymentlogic.WechatPrepayInput) (paymentlogic.WechatPayParams, error) {
+	g.prepayCalls.Add(1)
+	return paymentlogic.WechatPayParams{TimeStamp: "1", NonceStr: "n", Package: "prepay_id=p", SignType: "RSA", PaySign: "s"}, nil
+}
+
+func (*concurrentVIPPaymentGateway) DecodeNotify(context.Context, paymentlogic.WechatPayNotifyReq) (paymentlogic.WechatPayNotification, error) {
+	return paymentlogic.WechatPayNotification{}, errors.New("unused")
 }

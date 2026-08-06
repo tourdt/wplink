@@ -113,11 +113,12 @@ func createVIPPaymentHTTPHandler(store paymentlogic.VIPPaymentStore, gateway pay
 			response.JSON(w, nil, err)
 			return
 		}
-		if vipDependencyMissing(gateway) {
-			gateway = nil
+		requestGateway := gateway
+		if vipDependencyMissing(requestGateway) {
+			requestGateway = nil
 		}
 		devMock := cfg.WechatPay.DevMockEnabled && !config.IsProductionMode(cfg.RuntimeMode)
-		resp, err := paymentlogic.NewCreateVIPPaymentLogic(store, gateway, devMock).CreateVIPPayment(r.Context(), paymentlogic.CreateVIPPaymentReq{
+		resp, err := paymentlogic.NewCreateVIPPaymentLogic(store, requestGateway, devMock).CreateVIPPayment(r.Context(), paymentlogic.CreateVIPPaymentReq{
 			MerchantID: merchantID,
 			OrderID:    vars["orderId"],
 			UserID:     user.UserID,
