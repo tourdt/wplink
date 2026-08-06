@@ -1119,6 +1119,11 @@ func TestAdminGeneratedHandlersRejectTypedNilDependencies(t *testing.T) {
 }
 
 func TestAdminGeneratedDependencyFailuresLogSafeCategoryAndTrustedContext(t *testing.T) {
+	const (
+		bannerKindMarker        = "banner-kind-private-marker"
+		entitlementSourceMarker = "entitlement-source-private-marker"
+		operatorLoginMarker     = "operator-login-private-marker"
+	)
 	svcCtx, mock := newAdminGeneratedServiceContext(t, session.AdminTokenSubject{
 		OperatorID: "admin-log-1", Roles: []string{permission.RoleSuperAdmin},
 	})
@@ -1147,12 +1152,19 @@ func TestAdminGeneratedDependencyFailuresLogSafeCategoryAndTrustedContext(t *tes
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`(?s)INSERT INTO merchant_entitlements`).
-		WithArgs("merchant-log-1", "publish_quota", "manual", int64(2), "", model.EntitlementTypeTopVoucher).
+		WithArgs("merchant-log-1", "publish_quota", entitlementSourceMarker, int64(2), "", model.EntitlementTypeTopVoucher).
 		WillReturnError(sensitiveErr)
 	mock.ExpectRollback()
 	assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
 		"/api/v1/admin/merchants/merchant-log-1/entitlements",
-		`{"operatorId":"attacker","entitlementType":"publish_quota","sourceType":"manual","totalAmount":2,"reason":"运营补发"}`), http.StatusInternalServerError)
+		`{"operatorId":"attacker","entitlementType":"publish_quota","sourceType":"`+entitlementSourceMarker+`","totalAmount":2,"reason":"运营补发"}`), http.StatusInternalServerError)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT EXISTS`).WithArgs(operatorLoginMarker, "").WillReturnError(sensitiveErr)
+	mock.ExpectRollback()
+	assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
+		"/api/v1/admin/operators",
+		`{"loginName":"`+operatorLoginMarker+`","realName":"日志测试管理员","password":"secret123","roles":["platform_operator"],"status":"enabled"}`), http.StatusInternalServerError)
 
 	mock.ExpectQuery(`(?s)FROM operation_logs`).
 		WithArgs("resource", "object-log-1", "filter-operator", int64(20), int64(0)).WillReturnError(sensitiveErr)
@@ -1172,6 +1184,9 @@ func TestAdminGeneratedDependencyFailuresLogSafeCategoryAndTrustedContext(t *tes
 	mock.ExpectQuery(`(?s)FROM banner_topics bt`).WithArgs("city-secret", "banner", "active").WillReturnError(sensitiveErr)
 	assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodGet,
 		"/api/v1/admin/banner-topics?cityCode=city-secret&kind=banner&status=active", ""), http.StatusInternalServerError)
+	assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
+		"/api/v1/admin/banner-topics",
+		`{"cityCode":"zhili","kind":"`+bannerKindMarker+`","title":"日志测试","jumpType":"internal","jumpTarget":"/pages/home/index","status":"active"}`), http.StatusBadRequest)
 
 	mock.ExpectQuery(`(?s)FROM hot_search_keywords hsk`).WithArgs("city-secret", "active").WillReturnError(sensitiveErr)
 	assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodGet,
@@ -1217,6 +1232,40 @@ func TestAdminGeneratedDependencyFailuresLogSafeCategoryAndTrustedContext(t *tes
 		for _, line := range strings.Split(logText, "\n") {
 			if strings.Contains(line, `"operation":`) && strings.Contains(line, secret) {
 				t.Fatalf("application operation log contains sensitive detail %q: %q", secret, line)
+			}
+		}
+	}
+	for _, secret := range []string{
+		bannerKindMarker, "banner-kind-private",
+		entitlementSourceMarker, "entitlement-source-private",
+		operatorLoginMarker, "operator-login-private",
+	} {
+		for _, operation := range []string{"create_banner_topic", "grant_merchant_entitlement", "create_admin_operator"} {
+			if entry := logEntryForOperation(logText, operation); strings.Contains(entry, secret) {
+				t.Fatalf("operation %q log contains request marker %q: %q", operation, secret, entry)
+			}
+		}
+	}
+	for operation, fields := range map[string][]string{
+		"create_banner_topic": {
+			`"operatorId":"admin-log-1"`, `"errorCategory":"unknown"`, `"errorType":"*errx.Error"`,
+			`"kindProvided":true`, `"kindValid":false`,
+		},
+		"grant_merchant_entitlement": {
+			`"operatorId":"admin-log-1"`, `"errorCategory":"timeout"`, `"errorType":"*fmt.wrapError"`, `"sourceTypeProvided":true`,
+		},
+		"create_admin_operator": {
+			`"operatorId":"admin-log-1"`, `"errorCategory":"timeout"`, `"errorType":"*fmt.wrapError"`,
+			`"targetOperatorIdAvailable":false`, `"loginNameProvided":true`,
+		},
+	} {
+		entry := logEntryForOperation(logText, operation)
+		if entry == "" {
+			t.Fatalf("log=%q, want operation %q", logText, operation)
+		}
+		for _, field := range fields {
+			if !strings.Contains(entry, field) {
+				t.Fatalf("entry=%q, want %q for operation %q", entry, field, operation)
 			}
 		}
 	}

@@ -63,7 +63,7 @@ func (l *EntitlementAdminLogic) GrantMerchantEntitlement(ctx context.Context, re
 	if err != nil {
 		LogAdminFailure(ctx, "发放商家权益失败", "grant_merchant_entitlement", err,
 			logx.Field("operatorId", input.OperatorID), logx.Field("merchantId", input.MerchantID),
-			logx.Field("entitlementType", input.EntitlementType), logx.Field("sourceType", input.SourceType))
+			logx.Field("entitlementType", input.EntitlementType), logx.Field("sourceTypeProvided", input.SourceType != ""))
 		return GrantEntitlementResp{}, err
 	}
 	return GrantEntitlementResp{ID: result.ID, Message: "权益已发放"}, nil

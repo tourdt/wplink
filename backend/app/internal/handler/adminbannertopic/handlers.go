@@ -3,6 +3,7 @@ package adminbannertopic
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"wplink/backend/app/internal/handler/handlerx"
 	adminlogic "wplink/backend/app/internal/logic/admin"
@@ -70,9 +71,14 @@ func adminSaveBannerTopicHTTPHandler(svcCtx *svc.ServiceContext, update bool) ht
 			if update {
 				operation = "update_banner_topic"
 			}
+			// kind 在校验失败前可能是任意客户端文本，失败日志只保留是否提供和白名单校验结果。
+			kind := strings.TrimSpace(input.Kind)
+			kindProvided := kind != ""
+			kindValid := !kindProvided || kind == adminlogic.BannerTopicKindBanner ||
+				kind == adminlogic.BannerTopicKindTopic || kind == adminlogic.BannerTopicKindHomeRecommendCard
 			adminlogic.LogAdminFailure(r.Context(), "保存后台 Banner 配置失败", operation, err,
 				logx.Field("operatorId", admin.OperatorID), logx.Field("configId", pathvar.Vars(r)["configId"]),
-				logx.Field("kind", input.Kind))
+				logx.Field("kindProvided", kindProvided), logx.Field("kindValid", kindValid))
 		}
 		response.JSON(w, resp, err)
 	}
