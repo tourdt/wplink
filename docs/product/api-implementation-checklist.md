@@ -20,7 +20,8 @@
 ## 生成与维护门禁
 
 - API 生成只使用根目录 `make generate-api`。生成脚本校验 goctl 必须为 1.7.5，并显式读取仓库内 `backend/app/goctl/` 模板；不得直接用开发机任意版本的全局 goctl、用户模板或 `GOCTL_HOME` 生成项目文件。
-- 生成结果使用 `make check-api-generated` 检查；该门禁校验契约与 generated routes/types 一致、运行时路由指纹一致、路由无重复，并拒绝残留 `WPLINK_API_HANDLER_STUB`。
+- 生成结果使用 `make check-api-generated` 检查；该门禁校验 goctl 版本、契约与 generated routes/types 一致、路由无重复，并拒绝缺失 Handler 或残留 `WPLINK_API_HANDLER_STUB`。
+- 生产 Server 的运行时路由多重集由 Go 测试 `TestGeneratedRouteParity` 校验，该测试随根目录 `make check` 执行；单独运行 `make check-api-generated` 不替代运行时路由装配测试。
 - 新增或修改 API 时，先修改对应领域 `.api`；若新增领域文件，再加入 `backend/app/api/app.api` import。随后运行 `make generate-api`，实现 Handler/Logic 和所需 Model/外部依赖，补齐身份与权限测试、成功和错误行为测试。
 - 生成的 `WPLINK_API_HANDLER_STUB` 仅用于提示缺失实现，可以在开发过程中短暂存在，提交前必须实现对应 Handler 并清除。
 - 提交前至少执行 `make check-api-generated`、`cd backend && node --test scripts/api_contract.test.mjs scripts/api_route_inventory.test.mjs scripts/api_codegen.test.mjs`、相关 Go 行为测试；最终执行根目录 `make check`。
@@ -85,12 +86,12 @@
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
-| `GET /api/v1/home/banners` | `backend/app/api/discovery.api` | `backend/app/internal/logic/discovery/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | `wxapp/pages/home/index.vue` | 已接 handler，测试通过 |
+| `GET /api/v1/home/operation-config` | `backend/app/api/discovery.api` | `backend/app/internal/logic/discovery/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | `wxapp/pages/home/index.vue` | 已接 handler，测试通过 |
 | `GET /api/v1/topics/:topicId/resources` | `backend/app/api/discovery.api` | `backend/app/internal/logic/discovery/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | `wxapp/pages/topic/index.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/webview/validate` | `backend/app/api/discovery.api` | `backend/app/internal/logic/discovery/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | `wxapp/pages/webview/index.vue` | 已接 handler，测试通过 |
 | `GET /api/v1/admin/banner-topics` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/banner-topics` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | 不适用 | 已接 handler，测试通过 |
-| `PATCH /api/v1/admin/banner-topics/:configId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | 不适用 | 已接 handler，测试通过 |
+| `POST /api/v1/admin/banner-topics/:configId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | 不适用 | 已接 handler，测试通过 |
 
 ## 权益与置顶
 
@@ -141,7 +142,7 @@
 | `POST /api/v1/admin/tasks/resource-lifecycle/run` | `backend/app/api/admin.api` | `backend/app/internal/task/resource_lifecycle_task.go` | 运维/运营手动触发 | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/merchants` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/merchant_admin_logic.go` | `admin-web/src/views/MerchantView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/resource-type-configs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/resource_type_config_logic.go` | `admin-web/src/views/ResourceTypeConfigView.vue` | 不适用 | 已接 handler，测试通过 |
-| `PATCH /api/v1/admin/resource-type-configs/:configId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/resource_type_config_logic.go` | `admin-web/src/views/ResourceTypeConfigView.vue` | 不适用 | 已接 handler，测试通过 |
+| `POST /api/v1/admin/resource-type-configs/:configId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/resource_type_config_logic.go` | `admin-web/src/views/ResourceTypeConfigView.vue` | 不适用 | 已接 handler，测试通过 |
 
 ## 后续计划内接口
 

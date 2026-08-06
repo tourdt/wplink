@@ -4,11 +4,46 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
+import { parseAPIContracts, routeFingerprint } from './api_route_inventory.mjs'
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const appDir = path.resolve(scriptDir, '../app')
 const apiDir = path.join(appDir, 'api')
 const typesFile = path.join(appDir, 'internal/types/types.go')
 const productDocsDir = path.resolve(scriptDir, '../../docs/product')
+
+function parseImplementedChecklistRoutes(source) {
+  const routes = []
+  for (const [index, line] of source.split('\n').entries()) {
+    if (!line.includes('已接 handler')) {
+      continue
+    }
+    const matches = [...line.matchAll(/`(GET|POST|PUT|PATCH|DELETE)\s+(\/api\/[^`\s]+)`/g)]
+    assert(matches.length > 0, `api implementation checklist line ${index + 1} should contain a backtick METHOD /api/... route`)
+    for (const match of matches) {
+      const requestPath = match[2]
+        .split('?', 1)[0]
+        .replace(/\{([^}]+)\}/g, ':$1')
+      routes.push({ method: match[1], path: requestPath, line: index + 1 })
+    }
+  }
+  return routes
+}
+
+test('implemented API checklist routes match the app.api import contract', () => {
+  const checklistSource = fs.readFileSync(path.join(productDocsDir, 'api-implementation-checklist.md'), 'utf8')
+  const documentedRoutes = parseImplementedChecklistRoutes(checklistSource)
+  const contractFingerprints = new Set(parseAPIContracts(apiDir).map(routeFingerprint))
+
+  assert(documentedRoutes.length > 0, 'api implementation checklist should contain implemented routes')
+  for (const route of documentedRoutes) {
+    const fingerprint = routeFingerprint(route)
+    assert(
+      contractFingerprints.has(fingerprint),
+      `api-implementation-checklist.md line ${route.line} documents non-contract route ${fingerprint}`,
+    )
+  }
+})
 
 test('product docs describe the generated API route as the only production route', () => {
   const retiredRouteDescriptions = [

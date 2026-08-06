@@ -770,7 +770,8 @@ make check
 它包含：
 
 - 后端迁移与 API 契约 Node 测试。
-- `make check-api-generated`，验证 `.api`、生成 routes/types、Handler 实现和运行时路由指纹一致。
+- `make check-api-generated`，验证 goctl 版本、`.api` 与生成 routes/types 一致、路由无重复，并拒绝缺失 Handler 或残留 Handler 骨架。
+- 后端 Go 测试 `TestGeneratedRouteParity`，核对契约、生成路由与生产 Server 运行时路由多重集；该测试随 `make check` 的 `go test ./...` 执行。
 - 后端 `go test ./...`。
 - 后端 `go vet ./...`。
 - 管理后台 Node 测试和 Vite 构建。
@@ -877,7 +878,7 @@ make check
 
 1. 前端路由增加 `moduleCode`。
 2. 后端 `permission/admin.go` 登记模块。
-3. `adminModuleFromPath` 增加路径映射，未知路径默认拒绝。
+3. 在 `permission.AdminModuleForPath` 增加路径映射，未知路径默认拒绝。
 4. 更新超级管理员/平台运营默认权限和权限配置页面。
 5. 增加前后端无权限测试，不能只验证菜单隐藏。
 
