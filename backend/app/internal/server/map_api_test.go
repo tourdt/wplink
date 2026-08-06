@@ -1,540 +1,329 @@
 package server
 
 import (
-	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"wplink/backend/app/internal/logic/adminauth"
+	"wplink/backend/app/internal/middleware"
 	"wplink/backend/app/internal/model"
+	"wplink/backend/app/internal/permission"
+	"wplink/backend/app/internal/session"
+	"wplink/backend/app/internal/svc"
+	"wplink/backend/common/errx"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lib/pq"
 )
 
-func TestMapAPIRouterListsPublishedScenes(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		scenes: []model.MapScene{
-			{Code: "zhili_lijilu_middle", Name: "利济路中段", Type: "street_segment", Status: model.MapSceneStatusPublished},
-		},
-	}
-	router := NewAPIRouter(store)
+func TestMapGeneratedHandlersDoNotUseMigrationSkeleton(t *testing.T) {
+	adminAuth := middleware.NewAdminAuthMiddleware(&fakeAdminTokenService{subject: session.AdminTokenSubject{
+		OperatorID: "operator-map-1",
+		Roles:      []string{permission.RoleSuperAdmin},
+	}}).Handle
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{
+		AdminTokenService: adminauth.NewValidatingAdminTokenService(nil, nil),
+		AdminAuth:         adminAuth,
+	})
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/scenes?cityCode=zhili", nil)
-	router.ServeHTTP(rec, req)
-
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	items := data["items"].([]interface{})
-	if len(items) != 1 {
-		t.Fatalf("items = %#v, want one scene", items)
+	tests := []struct {
+		name   string
+		method string
+		target string
+		body   string
+		admin  bool
+	}{
+		{name: "merchant places", method: http.MethodGet, target: "/api/v1/map/merchant-places"},
+		{name: "merchant location context", method: http.MethodGet, target: "/api/v1/map/merchants/merchant-1/location-context"},
+		{name: "public scenes", method: http.MethodGet, target: "/api/v1/map/scenes"},
+		{name: "public scene", method: http.MethodGet, target: "/api/v1/map/scenes/scene-1"},
+		{name: "public objects", method: http.MethodGet, target: "/api/v1/map/scenes/scene-1/objects"},
+		{name: "search objects", method: http.MethodGet, target: "/api/v1/map/objects/search"},
+		{name: "public object", method: http.MethodGet, target: "/api/v1/map/objects/object-1"},
+		{name: "nearby pois", method: http.MethodGet, target: "/api/v1/map/objects/object-1/nearby-pois"},
+		{name: "location correction", method: http.MethodPost, target: "/api/v1/map/objects/object-1/location-corrections", body: `{}`},
+		{name: "risk report", method: http.MethodPost, target: "/api/v1/map/objects/object-1/risk-reports", body: `{}`},
+		{name: "public categories", method: http.MethodGet, target: "/api/v1/map/categories"},
+		{name: "bind candidates", method: http.MethodGet, target: "/api/v1/map/bind-candidates?merchantId=merchant-1"},
+		{name: "binding status", method: http.MethodGet, target: "/api/v1/merchants/merchant-1/map-binding"},
+		{name: "binding request", method: http.MethodPost, target: "/api/v1/merchants/merchant-1/map-binding-requests", body: `{}`},
+		{name: "admin scenes", method: http.MethodGet, target: "/api/v1/admin/map/scenes", admin: true},
+		{name: "admin save scene", method: http.MethodPost, target: "/api/v1/admin/map/scenes", body: `{}`, admin: true},
+		{name: "admin scene", method: http.MethodGet, target: "/api/v1/admin/map/scenes/scene-1", admin: true},
+		{name: "admin update scene", method: http.MethodPost, target: "/api/v1/admin/map/scenes/scene-1", body: `{}`, admin: true},
+		{name: "admin publish scene", method: http.MethodPost, target: "/api/v1/admin/map/scenes/scene-1/publish", admin: true},
+		{name: "admin objects", method: http.MethodGet, target: "/api/v1/admin/map/scenes/scene-1/objects", admin: true},
+		{name: "admin save object", method: http.MethodPost, target: "/api/v1/admin/map/scenes/scene-1/objects", body: `{}`, admin: true},
+		{name: "admin update object", method: http.MethodPost, target: "/api/v1/admin/map/objects/object-1", body: `{}`, admin: true},
+		{name: "admin object status", method: http.MethodPost, target: "/api/v1/admin/map/objects/object-1/status", body: `{}`, admin: true},
+		{name: "admin batch objects", method: http.MethodPost, target: "/api/v1/admin/map/scenes/scene-1/objects/batch-generate", body: `{}`, admin: true},
+		{name: "admin categories", method: http.MethodGet, target: "/api/v1/admin/map/categories", admin: true},
+		{name: "admin save category", method: http.MethodPost, target: "/api/v1/admin/map/categories", body: `{}`, admin: true},
+		{name: "admin bind requests", method: http.MethodGet, target: "/api/v1/admin/map/bind-requests", admin: true},
+		{name: "admin review bind request", method: http.MethodPost, target: "/api/v1/admin/map/bind-requests/request-1/review", body: `{}`, admin: true},
 	}
-	if store.sceneFilter.CityCode != "zhili" || store.sceneFilter.Status != model.MapSceneStatusPublished {
-		t.Fatalf("scene filter = %#v, want zhili published", store.sceneFilter)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.target, strings.NewReader(tc.body))
+			if tc.body != "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			if tc.admin {
+				req.Header.Set("Authorization", "Bearer admin-token")
+			}
+			rec := httptest.NewRecorder()
+			server.ServeHTTP(rec, req)
+			body := decodeEnvelope(t, rec, rec.Code)
+			if rec.Code == http.StatusNotFound {
+				t.Fatalf("route %s %s was not registered", tc.method, tc.target)
+			}
+			if !tc.admin && rec.Code == http.StatusUnauthorized {
+				t.Fatalf("public route %s %s was unexpectedly protected by AdminAuth", tc.method, tc.target)
+			}
+			if body["msg"] == "接口暂不可用，请稍后重试" {
+				t.Fatalf("route %s %s still uses migration skeleton", tc.method, tc.target)
+			}
+		})
 	}
 }
 
-func TestMapAPIRouterPassesMerchantDirectoryFilters(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		merchantPlaces: []model.MerchantPlace{{
-			Object:   model.MapObject{ID: "object-1", Code: "A001", Name: "小鹿童装"},
-			CityCode: "zhili", SceneName: "利济路市场",
-		}},
-		merchantPlaceTotal: 1,
-	}
-	router := NewAPIRouter(store)
+func TestMapGeneratedPublicQueriesUseGeneratedDTOAndPathVariables(t *testing.T) {
+	svcCtx, mock := newMapGeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/merchant-places?cityCode=zhili&keyword=%E7%AB%A5%E8%A3%85&categories=girl&merchantTypes=factory&claimed=claimed&page=2&pageSize=10&minLat=30.8&maxLat=30.9&minLng=120.2&maxLng=120.3", nil)
-	router.ServeHTTP(rec, req)
+	mock.ExpectQuery(`(?s)FROM map_scene s`).
+		WithArgs("zhili", "published").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	scenes := assertMapGeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/map/scenes?cityCode=zhili", nil), http.StatusOK)["data"].(map[string]interface{})
+	if items, ok := scenes["items"].([]interface{}); !ok || len(items) != 0 {
+		t.Fatalf("scenes=%#v, want items: []", scenes)
+	}
 
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	if data["total"] != float64(1) {
-		t.Fatalf("data = %#v, want merchant place total", data)
+	mock.ExpectQuery(`(?s)FROM map_object o`).
+		WithArgs(
+			"scene-path", pq.Array([]string{"booth"}), pq.Array([]string{"girl"}),
+			pq.Array([]string{"spot"}), pq.Array([]string{"packing"}), "童装", model.MapObjectStatusNormal,
+			float64(510), float64(10), float64(420), float64(20), int64(4),
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`(?s)SELECT COUNT\(\*\) FROM map_object o`).
+		WithArgs(
+			"scene-path", pq.Array([]string{"booth"}), pq.Array([]string{"girl"}),
+			pq.Array([]string{"spot"}), pq.Array([]string{"packing"}), "童装", model.MapObjectStatusNormal,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(600)))
+	objects := assertMapGeneratedStatus(t, server, httptest.NewRequest(http.MethodGet,
+		"/api/v1/map/scenes/scene-path/objects?sceneCode=scene-query&types=booth&categories=girl&serviceTags=spot&poiServiceTags=packing&keyword=%E7%AB%A5%E8%A3%85&minX=10&minY=20&maxX=510&maxY=420&zoom=4", nil), http.StatusOK)["data"].(map[string]interface{})
+	if objects["sceneCode"] != "scene-path" || objects["total"] != float64(600) {
+		t.Fatalf("objects=%#v, want path scene and total", objects)
 	}
-	filter := store.merchantPlaceFilter
-	if filter.CityCode != "zhili" || filter.Keyword != "童装" || filter.Page != 2 || filter.PageSize != 10 {
-		t.Fatalf("filter = %#v, want parsed merchant directory query", filter)
+	if items, ok := objects["items"].([]interface{}); !ok || len(items) != 0 {
+		t.Fatalf("objects=%#v, want items: []", objects)
 	}
-	if filter.Claimed == nil || !*filter.Claimed || filter.Bounds == nil || filter.Bounds.MaxLng != 120.3 {
-		t.Fatalf("filter = %#v, want claimed and geo bounds", filter)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("map public query expectations: %v", err)
 	}
 }
 
-func TestMapAPIRouterGetsMerchantLocationContext(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		merchantPlace: model.MerchantPlace{Object: model.MapObject{
-			ID: "object-1", MerchantID: "merchant-1", MerchantName: "小熊星球童装",
-			Lat: "30.8700000", Lng: "120.1200000",
-		}},
-		nearbyMerchantPlaces: []model.MerchantPlace{{
-			Object: model.MapObject{
-				ID: "object-2", MerchantID: "merchant-2", MerchantName: "布谷童装",
-				Lat: "30.8705000", Lng: "120.1200000",
-			},
-			DistanceMeters: 56,
-		}},
-	}
-	router := NewAPIRouter(store)
+func TestMapGeneratedReportsUseTokenUserAndRejectBadToken(t *testing.T) {
+	svcCtx, mock := newMapGeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/merchants/merchant-1/location-context", nil)
-	router.ServeHTTP(rec, req)
+	badToken := httptest.NewRequest(http.MethodPost, "/api/v1/map/objects/object-1/risk-reports", strings.NewReader(`{"reasonCode":"false_information"}`))
+	badToken.Header.Set("Authorization", "Bearer expired-token")
+	badBody := assertMapGeneratedStatus(t, server, badToken, http.StatusUnauthorized)
+	if badBody["errorCode"] != errx.CodeUnauthorized {
+		t.Fatalf("bad token body=%#v, want unauthorized", badBody)
+	}
 
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	current := data["current"].(map[string]interface{})
-	nearby := data["nearby"].([]interface{})
-	nearbyItem := nearby[0].(map[string]interface{})
-	if current["merchantId"] != "merchant-1" || nearbyItem["merchantId"] != "merchant-2" {
-		t.Fatalf("data = %#v, want current and nearby merchants", data)
-	}
-	if data["radiusMeters"] != float64(1000) || data["nearbyAvailable"] != true {
-		t.Fatalf("data = %#v, want available nearby results within 1000m", data)
-	}
-}
-
-func TestMapAPIRouterGetsMerchantLocationContextWhenNearbyUnavailable(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		merchantPlace: model.MerchantPlace{Object: model.MapObject{
-			ID: "object-1", MerchantID: "merchant-1", MerchantName: "小熊星球童装",
-			Lat: "30.8700000", Lng: "120.1200000",
-		}},
-		nearbyMerchantPlacesErr: errors.New("nearby database timeout"),
-	}
-	router := NewAPIRouter(store)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/merchants/merchant-1/location-context", nil)
-	router.ServeHTTP(rec, req)
-
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	current := data["current"].(map[string]interface{})
-	nearby := data["nearby"].([]interface{})
-	if current["merchantId"] != "merchant-1" || len(nearby) != 0 || data["nearbyAvailable"] != false {
-		t.Fatalf("data = %#v, want current merchant and unavailable nearby results", data)
-	}
-}
-
-func TestMapAPIRouterSavesAdminScene(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		savedScene:       model.MapScene{Code: "zhili_lijilu_middle", Name: "利济路中段", Type: "street_segment", Status: model.MapSceneStatusDraft},
-	}
-	router := NewAPIRouter(store)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/map/scenes", strings.NewReader(`{
-		"code":"zhili_lijilu_middle",
-		"name":"利济路中段",
-		"type":"street_segment",
-		"backgroundUrl":"https://img.example.com/maps/lijilu.png",
-		"width":3000,
-		"height":1800
-	}`))
-	router.ServeHTTP(rec, req)
-
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	item := data["item"].(map[string]interface{})
-	if item["code"] != "zhili_lijilu_middle" {
-		t.Fatalf("item = %#v, want saved scene", item)
-	}
-	if store.savedSceneInput.Code != "zhili_lijilu_middle" || store.savedSceneInput.Status != model.MapSceneStatusDraft {
-		t.Fatalf("saved input = %#v, want draft scene", store.savedSceneInput)
-	}
-}
-
-func TestMapAPIRouterGetsAdminDraftScene(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		savedScene:       model.MapScene{Code: "zhili_lijilu_middle", Name: "利济路中段", Type: "street_segment", Status: model.MapSceneStatusDraft},
-	}
-	router := NewAPIRouter(store)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/map/scenes/zhili_lijilu_middle", nil)
-	router.ServeHTTP(rec, req)
-
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	item := data["item"].(map[string]interface{})
-	if item["status"] != model.MapSceneStatusDraft {
-		t.Fatalf("item = %#v, want draft scene", item)
-	}
-	if store.adminSceneCode != "zhili_lijilu_middle" {
-		t.Fatalf("admin scene code = %q, want zhili_lijilu_middle", store.adminSceneCode)
-	}
-}
-
-func TestMapAPIRouterListsPublicVisibleCategories(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		categories: []model.MapCategory{
-			{Code: "girl", Name: "女童", Type: "booth_category", IsVisible: true, Status: model.MapCategoryStatusNormal},
-			{Code: "hidden", Name: "隐藏分类", Type: "booth_category", IsVisible: true, Status: model.MapCategoryStatusHidden},
-		},
-	}
-	router := NewAPIRouter(store)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/categories?type=booth_category", nil)
-	router.ServeHTTP(rec, req)
-
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	items := data["items"].([]interface{})
-	if len(items) != 1 {
-		t.Fatalf("items = %#v, want one visible category", items)
-	}
-	item := items[0].(map[string]interface{})
-	if item["code"] != "girl" || item["name"] != "女童" {
-		t.Fatalf("item = %#v, want visible girl category", item)
-	}
-	if store.categoryFilter.Type != "booth_category" || store.categoryFilter.Status != model.MapCategoryStatusNormal {
-		t.Fatalf("category filter = %#v, want booth_category normal", store.categoryFilter)
-	}
-}
-
-func TestMapAPIRouterPassesViewportAndZoomToPublicObjects(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		objects:          []model.MapObject{{ID: "object-1", SceneCode: "scene-1", Code: "A001", Name: "A001 小鹿童装"}},
-		objectTotal:      600,
-	}
-	router := NewAPIRouter(store)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/map/scenes/scene-1/objects?minX=10&minY=20&maxX=510&maxY=420&zoom=4", nil)
-	router.ServeHTTP(rec, req)
-
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	if data["total"] != float64(600) {
-		t.Fatalf("total = %#v, want 600", data["total"])
-	}
-	if store.objectFilter.Viewport == nil {
-		t.Fatalf("viewport = nil, want parsed viewport")
-	}
-	if store.objectFilter.Viewport.MinX != 10 || store.objectFilter.Viewport.MaxY != 420 || store.objectFilter.Zoom != 4 {
-		t.Fatalf("object filter = %#v, want viewport and zoom", store.objectFilter)
-	}
-}
-
-func TestMapAPIRouterPassesViewportToAdminObjects(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		objects:          []model.MapObject{{ID: "object-1", SceneCode: "scene-1", Code: "A001", Name: "A001 小鹿童装"}},
-	}
-	router := NewAPIRouter(store)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/map/scenes/scene-1/objects?minX=30&minY=40&maxX=530&maxY=440", nil)
-	router.ServeHTTP(rec, req)
-
-	_ = decodeEnvelopeData(t, rec, http.StatusOK)
-	if store.objectFilter.Viewport == nil {
-		t.Fatalf("viewport = nil, want parsed viewport")
-	}
-	if store.objectFilter.Viewport.MinX != 30 || store.objectFilter.Viewport.MaxY != 440 {
-		t.Fatalf("object filter = %#v, want viewport", store.objectFilter)
-	}
-}
-
-func TestMapAPIRouterListsAdminCategoriesWithStatus(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		categories: []model.MapCategory{
-			{Code: "hidden", Name: "隐藏分类", Type: "booth_category", IsVisible: true, Status: model.MapCategoryStatusHidden},
-		},
-	}
-	router := NewAPIRouter(store)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/map/categories?type=booth_category&status=hidden", nil)
-	router.ServeHTTP(rec, req)
-
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	items := data["items"].([]interface{})
-	if len(items) != 1 {
-		t.Fatalf("items = %#v, want one admin category", items)
-	}
-	if store.categoryFilter.Type != "booth_category" || store.categoryFilter.Status != model.MapCategoryStatusHidden {
-		t.Fatalf("category filter = %#v, want booth_category hidden", store.categoryFilter)
-	}
-}
-
-func TestMapAPIRouterSubmitsMerchantMapBindRequest(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		managedMerchants: map[string]bool{"merchant-1": true},
-		createdBindRequest: model.MapBindRequest{
-			ID:         "request-1",
-			MerchantID: "merchant-1",
-			ObjectID:   "object-1",
-			SceneCode:  "scene-1",
-			Status:     model.MapBindRequestStatusApproved,
-		},
-	}
-	router := NewAPIRouter(store)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1/map-binding-requests", strings.NewReader(`{
-		"objectId":"object-1",
-		"note":"我是 A001 档口",
-		"evidenceImages":["https://img.example.com/booth.jpg"]
-	}`))
-	router.ServeHTTP(rec, req)
-
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	item := data["item"].(map[string]interface{})
-	if item["id"] != "request-1" || item["status"] != model.MapBindRequestStatusApproved {
-		t.Fatalf("item = %#v, want approved automatic binding", item)
-	}
-	if store.createdBindInput.MerchantID != "merchant-1" || store.createdBindInput.ObjectID != "object-1" {
-		t.Fatalf("created input = %#v, want merchant/object", store.createdBindInput)
-	}
-}
-
-func TestMapAPIRouterSubmitsAuthenticatedLocationCorrection(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		mapReportResult: model.MapObjectReportResult{
-			ID:                "report-1",
-			Status:            model.MapObjectReportStatusPending,
-			ActiveReportCount: 1,
-		},
-	}
-	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/map/objects/object-1/location-corrections", strings.NewReader(`{
-		"reasonCode":"navigation_inaccurate",
-		"description":"导航落点不对"
-	}`))
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)jsonb_build_object`).
+		WithArgs("object-1").
+		WillReturnRows(sqlmock.NewRows([]string{"scene_code", "snapshot"}).AddRow("scene-1", []byte(`{}`)))
+	mock.ExpectQuery(`(?s)INSERT INTO map_object_reports`).
+		WithArgs("object-1", "scene-1", "user-1", model.MapObjectReportKindLocationCorrection, "navigation_inaccurate", "导航偏移", sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow("report-1", model.MapObjectReportStatusPending))
+	mock.ExpectQuery(`(?s)SELECT COUNT\(DISTINCT reporter_user_id\)`).
+		WithArgs("object-1", model.MapObjectReportKindLocationCorrection, "navigation_inaccurate").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(1)))
+	mock.ExpectCommit()
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/v1/map/objects/object-1/location-corrections?reporterUserId=query-attacker",
+		strings.NewReader(`{"reporterUserId":"body-attacker","reasonCode":"navigation_inaccurate","description":"导航偏移"}`))
 	req.Header.Set("Authorization", "Bearer user-token")
-	router.ServeHTTP(rec, req)
-
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	item := data["item"].(map[string]interface{})
-	if item["id"] != "report-1" || data["message"] != "反馈已记录，感谢帮助完善拿货地图" {
-		t.Fatalf("data = %#v, want stored correction", data)
+	req.Header.Set("Content-Type", "application/json")
+	data := assertMapGeneratedStatus(t, server, req, http.StatusOK)["data"].(map[string]interface{})
+	if data["message"] != "反馈已记录，感谢帮助完善拿货地图" {
+		t.Fatalf("data=%#v, want stored location correction", data)
 	}
-	if store.mapReportInput.ReporterUserID != "user-1" {
-		t.Fatalf("reporter user id = %q, want token user", store.mapReportInput.ReporterUserID)
-	}
-	if store.mapReportInput.Kind != model.MapObjectReportKindLocationCorrection || store.mapReportInput.ReasonCode != "navigation_inaccurate" {
-		t.Fatalf("input = %#v, want location correction", store.mapReportInput)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("map report expectations: %v", err)
 	}
 }
 
-func TestMapAPIRouterRejectsAnonymousRiskReport(t *testing.T) {
-	store := &fakeMapAPIStore{fakeCityAPIStore: fakeCityAPIStore{}}
-	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
+func TestMapGeneratedBindingUsesRealMerchantAndFailsClosed(t *testing.T) {
+	t.Run("missing and typed nil dependencies", func(t *testing.T) {
+		server := newGeneratedAPIServer(t, &svc.ServiceContext{AdminAuth: mapAdminAuthMiddleware()})
+		body := assertMapGeneratedStatus(t, server, authenticatedMapRequest(http.MethodGet, "/api/v1/merchants/merchant-1/map-binding", ""), http.StatusInternalServerError)
+		if body["errorCode"] != errx.CodeInternalError {
+			t.Fatalf("body=%#v, want fail-closed map dependency", body)
+		}
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/map/objects/object-1/risk-reports", strings.NewReader(`{
-		"reasonCode":"false_information"
-	}`))
-	router.ServeHTTP(rec, req)
+		server = newGeneratedAPIServer(t, &svc.ServiceContext{
+			APIStore: &svc.APIStore{MapModel: (*model.MapModel)(nil)}, AdminAuth: mapAdminAuthMiddleware(),
+		})
+		body = assertMapGeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/map/scenes", nil), http.StatusInternalServerError)
+		if body["errorCode"] != errx.CodeInternalError {
+			t.Fatalf("body=%#v, want typed-nil map store rejection", body)
+		}
+	})
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, body = %s, want unauthorized", rec.Code, rec.Body.String())
+	svcCtx, mock := newMapGeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-path").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectQuery(`(?s)FROM map_object o.*o.merchant_id::text = \$1`).
+		WithArgs("merchant-path").
+		WillReturnRows(sqlmock.NewRows([]string{"object_id"}))
+	mock.ExpectQuery(`(?s)FROM map_object_bind_request r.*r.merchant_id::text = \$1`).
+		WithArgs("merchant-path").
+		WillReturnRows(sqlmock.NewRows([]string{"request_id"}))
+	data := assertMapGeneratedStatus(t, server, authenticatedMapRequest(http.MethodGet,
+		"/api/v1/merchants/merchant-path/map-binding?merchantId=merchant-query-attacker", ""), http.StatusOK)["data"].(map[string]interface{})
+	if data["boundObject"] != nil || data["latestRequest"] != nil {
+		t.Fatalf("data=%#v, want empty binding status", data)
 	}
-	if store.mapReportInput.ObjectID != "" {
-		t.Fatalf("input = %#v, anonymous report must not reach store", store.mapReportInput)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("map binding expectations: %v", err)
 	}
 }
 
-func TestMapAPIRouterReviewsAdminMapBindRequest(t *testing.T) {
-	store := &fakeMapAPIStore{
-		fakeCityAPIStore: fakeCityAPIStore{},
-		reviewedBindRequest: model.MapBindRequest{
-			ID:         "request-1",
-			MerchantID: "merchant-1",
-			ObjectID:   "object-1",
-			SceneCode:  "scene-1",
-			Status:     model.MapBindRequestStatusApproved,
+func TestMapGeneratedAdminRoutesAlwaysUseAdminAuth(t *testing.T) {
+	tests := []struct {
+		method string
+		target string
+		body   string
+	}{
+		{http.MethodGet, "/api/v1/admin/map/scenes", ""},
+		{http.MethodPost, "/api/v1/admin/map/scenes", `{}`},
+		{http.MethodGet, "/api/v1/admin/map/scenes/scene-1", ""},
+		{http.MethodPost, "/api/v1/admin/map/scenes/scene-1", `{}`},
+		{http.MethodPost, "/api/v1/admin/map/scenes/scene-1/publish", ""},
+		{http.MethodGet, "/api/v1/admin/map/scenes/scene-1/objects", ""},
+		{http.MethodPost, "/api/v1/admin/map/scenes/scene-1/objects", `{}`},
+		{http.MethodPost, "/api/v1/admin/map/objects/object-1", `{}`},
+		{http.MethodPost, "/api/v1/admin/map/objects/object-1/status", `{}`},
+		{http.MethodPost, "/api/v1/admin/map/scenes/scene-1/objects/batch-generate", `{}`},
+		{http.MethodGet, "/api/v1/admin/map/categories", ""},
+		{http.MethodPost, "/api/v1/admin/map/categories", `{}`},
+		{http.MethodGet, "/api/v1/admin/map/bind-requests", ""},
+		{http.MethodPost, "/api/v1/admin/map/bind-requests/request-1/review", `{}`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.method+" "+tc.target, func(t *testing.T) {
+			svcCtx, _ := newMapGeneratedServiceContext(t)
+			server := newGeneratedAPIServer(t, svcCtx)
+			assertMapGeneratedStatus(t, server, httptest.NewRequest(tc.method, tc.target, strings.NewReader(tc.body)), http.StatusUnauthorized)
+		})
+	}
+}
+
+func TestMapGeneratedAdminReviewUsesContextOperatorAndPathRequest(t *testing.T) {
+	svcCtx, mock := newMapGeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+	sensitiveError := errors.New("Authorization=Bearer admin-secret reviewBody=private")
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)FROM map_object_bind_request.*status = 'pending'`).
+		WithArgs("request-path").
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_id", "object_id"}).AddRow("merchant-1", "object-1"))
+	mock.ExpectExec(`(?s)UPDATE map_object_bind_request.*reviewed_by`).
+		WithArgs("request-path", model.MapBindRequestStatusRejected, "资料不匹配", "operator-map-1").
+		WillReturnError(sensitiveError)
+	mock.ExpectRollback()
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/v1/admin/map/bind-requests/request-path/review?requestId=request-query-attacker&operatorId=query-attacker",
+		strings.NewReader(`{"requestId":"request-body-attacker","operatorId":"body-attacker","reviewerId":"body-attacker","action":"reject","reviewNote":"资料不匹配"}`))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	req.Header.Set("Content-Type", "application/json")
+	body := assertMapGeneratedStatus(t, server, req, http.StatusInternalServerError)
+	if body["errorCode"] != errx.CodeInternalError || strings.Contains(recursiveMapString(body), sensitiveError.Error()) {
+		t.Fatalf("body=%#v, want safe review error", body)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("admin map review expectations: %v", err)
+	}
+}
+
+func TestMapGeneratedAdminSceneUpdateUsesPathCode(t *testing.T) {
+	svcCtx, mock := newMapGeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+	mock.ExpectQuery(`(?s)INSERT INTO map_scene`).
+		WithArgs(
+			"", "scene-path", "利济路中段", "street_segment", "", "https://img.example/map.png",
+			int64(3000), int64(1800), "", "", "", "", "", "", int64(0), model.MapSceneStatusDraft,
+		).
+		WillReturnError(errors.New("save failed"))
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/v1/admin/map/scenes/scene-path?sceneCode=scene-query-attacker&operatorId=query-attacker",
+		strings.NewReader(`{"operatorId":"body-attacker","code":"scene-body-attacker","name":"利济路中段","type":"street_segment","backgroundUrl":"https://img.example/map.png","width":3000,"height":1800}`))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	req.Header.Set("Content-Type", "application/json")
+	assertMapGeneratedStatus(t, server, req, http.StatusInternalServerError)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("admin map scene update expectations: %v", err)
+	}
+}
+
+func newMapGeneratedServiceContext(t *testing.T) (*svc.ServiceContext, sqlmock.Sqlmock) {
+	t.Helper()
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return &svc.ServiceContext{
+		APIStore: &svc.APIStore{
+			MapModel:  model.NewMapModel(db),
+			UserModel: model.NewUserModel(db),
 		},
-	}
-	router := NewAPIRouter(store)
+		UserTokenService:  &fakeUserTokenService{},
+		AdminTokenService: adminauth.NewValidatingAdminTokenService(nil, nil),
+		AdminAuth:         mapAdminAuthMiddleware(),
+	}, mock
+}
 
+func mapAdminAuthMiddleware() func(http.HandlerFunc) http.HandlerFunc {
+	return middleware.NewAdminAuthMiddleware(&fakeAdminTokenService{subject: session.AdminTokenSubject{
+		OperatorID: "operator-map-1",
+		Roles:      []string{permission.RoleSuperAdmin},
+	}}).Handle
+}
+
+func authenticatedMapRequest(method string, target string, body string) *http.Request {
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer user-token")
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req
+}
+
+func assertMapGeneratedStatus(t *testing.T, server interface {
+	ServeHTTP(http.ResponseWriter, *http.Request)
+}, req *http.Request, wantStatus int) map[string]interface{} {
+	t.Helper()
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/map/bind-requests/request-1/review", strings.NewReader(`{
-		"action":"approve",
-		"reviewNote":"资料匹配"
-	}`))
-	router.ServeHTTP(rec, req)
-
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	item := data["item"].(map[string]interface{})
-	if item["status"] != model.MapBindRequestStatusApproved {
-		t.Fatalf("item = %#v, want approved request", item)
-	}
-	if store.reviewBindInput.ID != "request-1" || store.reviewBindInput.Status != model.MapBindRequestStatusApproved {
-		t.Fatalf("review input = %#v, want approved request", store.reviewBindInput)
-	}
+	server.ServeHTTP(rec, req)
+	return decodeEnvelope(t, rec, wantStatus)
 }
 
-type fakeMapAPIStore struct {
-	fakeCityAPIStore
-	sceneFilter             model.ListMapScenesFilter
-	objectFilter            model.ListMapObjectsFilter
-	adminSceneCode          string
-	categoryFilter          model.ListMapCategoriesFilter
-	managedMerchants        map[string]bool
-	savedSceneInput         model.MapSceneInput
-	savedObjectInput        model.MapObjectInput
-	createdBindInput        model.MapBindRequestInput
-	reviewBindInput         model.ReviewMapBindRequestInput
-	mapReportInput          model.MapObjectReportInput
-	scenes                  []model.MapScene
-	savedScene              model.MapScene
-	objects                 []model.MapObject
-	objectTotal             int64
-	object                  model.MapObject
-	categories              []model.MapCategory
-	bindingStatus           model.MapBindingStatus
-	bindCandidates          []model.MapBindCandidate
-	bindRequests            []model.MapBindRequest
-	createdBindRequest      model.MapBindRequest
-	reviewedBindRequest     model.MapBindRequest
-	mapReportResult         model.MapObjectReportResult
-	merchantPlaceFilter     model.MerchantPlaceFilter
-	merchantPlaces          []model.MerchantPlace
-	merchantPlaceTotal      int64
-	merchantPlace           model.MerchantPlace
-	merchantPlaceErr        error
-	nearbyMerchantPlaces    []model.MerchantPlace
-	nearbyMerchantPlacesErr error
-}
-
-func (s *fakeMapAPIStore) ListPublishedScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error) {
-	s.sceneFilter = filter
-	return append([]model.MapScene(nil), s.scenes...), nil
-}
-
-func (s *fakeMapAPIStore) GetPublishedScene(ctx context.Context, sceneCode string) (model.MapScene, error) {
-	return s.savedScene, nil
-}
-
-func (s *fakeMapAPIStore) ListPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) ([]model.MapObject, error) {
-	s.objectFilter = filter
-	return append([]model.MapObject(nil), s.objects...), nil
-}
-
-func (s *fakeMapAPIStore) SearchPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) ([]model.MapObject, error) {
-	s.objectFilter = filter
-	return append([]model.MapObject(nil), s.objects...), nil
-}
-
-func (s *fakeMapAPIStore) CountPublishedObjects(ctx context.Context, filter model.ListMapObjectsFilter) (int64, error) {
-	if s.objectTotal > 0 {
-		return s.objectTotal, nil
-	}
-	return int64(len(s.objects)), nil
-}
-
-func (s *fakeMapAPIStore) ListMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) ([]model.MerchantPlace, error) {
-	s.merchantPlaceFilter = filter
-	return append([]model.MerchantPlace(nil), s.merchantPlaces...), nil
-}
-
-func (s *fakeMapAPIStore) CountMerchantPlaces(ctx context.Context, filter model.MerchantPlaceFilter) (int64, error) {
-	s.merchantPlaceFilter = filter
-	return s.merchantPlaceTotal, nil
-}
-
-func (s *fakeMapAPIStore) GetPublishedMerchantPlaceByMerchantID(ctx context.Context, merchantID string) (model.MerchantPlace, error) {
-	return s.merchantPlace, s.merchantPlaceErr
-}
-
-func (s *fakeMapAPIStore) ListNearbyMerchantPlaces(ctx context.Context, origin model.MerchantPlace, radiusMeters int64, limit int64) ([]model.MerchantPlace, error) {
-	return append([]model.MerchantPlace(nil), s.nearbyMerchantPlaces...), s.nearbyMerchantPlacesErr
-}
-
-func (s *fakeMapAPIStore) GetPublishedObject(ctx context.Context, objectID string) (model.MapObject, error) {
-	return s.object, nil
-}
-
-func (s *fakeMapAPIStore) ListObjectsBySceneAndTypes(ctx context.Context, sceneCode string, types []string) ([]model.MapObject, error) {
-	return append([]model.MapObject(nil), s.objects...), nil
-}
-
-func (s *fakeMapAPIStore) ListAdminScenes(ctx context.Context, filter model.ListMapScenesFilter) ([]model.MapScene, error) {
-	s.sceneFilter = filter
-	return append([]model.MapScene(nil), s.scenes...), nil
-}
-
-func (s *fakeMapAPIStore) GetAdminScene(ctx context.Context, sceneCode string) (model.MapScene, error) {
-	s.adminSceneCode = sceneCode
-	return s.savedScene, nil
-}
-
-func (s *fakeMapAPIStore) SaveScene(ctx context.Context, input model.MapSceneInput) (model.MapScene, error) {
-	s.savedSceneInput = input
-	return s.savedScene, nil
-}
-
-func (s *fakeMapAPIStore) PublishScene(ctx context.Context, sceneCode string) (model.MapScene, error) {
-	return model.MapScene{Code: sceneCode, Status: model.MapSceneStatusPublished}, nil
-}
-
-func (s *fakeMapAPIStore) ListAdminObjects(ctx context.Context, filter model.ListMapObjectsFilter) ([]model.MapObject, error) {
-	s.objectFilter = filter
-	return append([]model.MapObject(nil), s.objects...), nil
-}
-
-func (s *fakeMapAPIStore) SaveObject(ctx context.Context, input model.MapObjectInput) (model.MapObject, error) {
-	s.savedObjectInput = input
-	return s.object, nil
-}
-
-func (s *fakeMapAPIStore) UpdateObjectStatus(ctx context.Context, objectID string, status string) (model.MapObject, error) {
-	return s.object, nil
-}
-
-func (s *fakeMapAPIStore) BatchCreateObjects(ctx context.Context, inputs []model.MapObjectInput) ([]model.MapObject, error) {
-	return append([]model.MapObject(nil), s.objects...), nil
-}
-
-func (s *fakeMapAPIStore) ListCategories(ctx context.Context, filter model.ListMapCategoriesFilter) ([]model.MapCategory, error) {
-	s.categoryFilter = filter
-	return append([]model.MapCategory(nil), s.categories...), nil
-}
-
-func (s *fakeMapAPIStore) SaveCategory(ctx context.Context, input model.MapCategoryInput) (model.MapCategory, error) {
-	return model.MapCategory{Code: input.Code, Name: input.Name, Type: input.Type, Status: input.Status}, nil
-}
-
-func (s *fakeMapAPIStore) UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error) {
-	if s.managedMerchants == nil {
-		return true, nil
-	}
-	return s.managedMerchants[merchantID], nil
-}
-
-func (s *fakeMapAPIStore) GetMapBindingStatus(ctx context.Context, merchantID string) (model.MapBindingStatus, error) {
-	return s.bindingStatus, nil
-}
-
-func (s *fakeMapAPIStore) ListMapBindCandidates(ctx context.Context, filter model.MapBindCandidateFilter) ([]model.MapBindCandidate, error) {
-	return append([]model.MapBindCandidate(nil), s.bindCandidates...), nil
-}
-
-func (s *fakeMapAPIStore) CreateMapBindRequest(ctx context.Context, input model.MapBindRequestInput) (model.MapBindRequest, error) {
-	s.createdBindInput = input
-	return s.createdBindRequest, nil
-}
-
-func (s *fakeMapAPIStore) ListMapBindRequests(ctx context.Context, filter model.ListMapBindRequestsFilter) ([]model.MapBindRequest, error) {
-	return append([]model.MapBindRequest(nil), s.bindRequests...), nil
-}
-
-func (s *fakeMapAPIStore) ReviewMapBindRequest(ctx context.Context, input model.ReviewMapBindRequestInput) (model.MapBindRequest, error) {
-	s.reviewBindInput = input
-	return s.reviewedBindRequest, nil
-}
-
-func (s *fakeMapAPIStore) CreateMapObjectReport(ctx context.Context, input model.MapObjectReportInput) (model.MapObjectReportResult, error) {
-	s.mapReportInput = input
-	return s.mapReportResult, nil
+func recursiveMapString(value interface{}) string {
+	return strings.TrimSpace(fmt.Sprintf("%#v", value))
 }

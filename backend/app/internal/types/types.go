@@ -1354,41 +1354,43 @@ type MapObjectDetailResp struct {
 }
 
 type MapObjectItem struct {
-	Id             string                 `json:"id"`
-	SceneCode      string                 `json:"sceneCode"`
-	MerchantId     string                 `json:"merchantId,optional"`
-	Code           string                 `json:"code"`
-	Name           string                 `json:"name"`
-	Type           string                 `json:"type"`
-	Layer          string                 `json:"layer"`
-	DisplaySource  string                 `json:"displaySource"`
-	DisplayLevel   string                 `json:"displayLevel"`
-	Merchant       *MapObjectMerchantItem `json:"merchant,optional"`
-	GeometryType   string                 `json:"geometryType"`
-	Geometry       map[string]interface{} `json:"geometry"`
-	CenterX        string                 `json:"centerX,optional"`
-	CenterY        string                 `json:"centerY,optional"`
-	MinZoom        int64                  `json:"minZoom,optional"`
-	MaxZoom        int64                  `json:"maxZoom,optional"`
-	CategoryCodes  []string               `json:"categoryCodes"`
-	ServiceTags    []string               `json:"serviceTags"`
-	PlatformTags   []string               `json:"platformTags"`
-	PoiServiceTags []string               `json:"poiServiceTags"`
-	Address        string                 `json:"address,optional"`
-	Phone          string                 `json:"phone,optional"`
-	Wechat         string                 `json:"wechat,optional"`
-	Lat            string                 `json:"lat,optional"`
-	Lng            string                 `json:"lng,optional"`
-	Extra          map[string]interface{} `json:"extra"`
-	Status         string                 `json:"status"`
+	Id                 string                 `json:"id"`
+	SceneCode          string                 `json:"sceneCode"`
+	MerchantId         string                 `json:"merchantId,optional"`
+	Code               string                 `json:"code"`
+	Name               string                 `json:"name"`
+	Type               string                 `json:"type"`
+	Layer              string                 `json:"layer"`
+	DisplaySource      string                 `json:"displaySource"`
+	DisplayLevel       string                 `json:"displayLevel"`
+	IsVerifiedMerchant bool                   `json:"isVerifiedMerchant"`
+	Merchant           *MapObjectMerchantItem `json:"merchant,optional"`
+	GeometryType       string                 `json:"geometryType"`
+	Geometry           map[string]interface{} `json:"geometry"`
+	CenterX            string                 `json:"centerX,optional"`
+	CenterY            string                 `json:"centerY,optional"`
+	MinZoom            int64                  `json:"minZoom,optional"`
+	MaxZoom            int64                  `json:"maxZoom,optional"`
+	CategoryCodes      []string               `json:"categoryCodes"`
+	ServiceTags        []string               `json:"serviceTags"`
+	PlatformTags       []string               `json:"platformTags"`
+	PoiServiceTags     []string               `json:"poiServiceTags"`
+	Address            string                 `json:"address,optional"`
+	Phone              string                 `json:"phone,optional"`
+	Wechat             string                 `json:"wechat,optional"`
+	Lat                string                 `json:"lat,optional"`
+	Lng                string                 `json:"lng,optional"`
+	Extra              map[string]interface{} `json:"extra"`
+	Status             string                 `json:"status"`
 }
 
 type MapObjectMerchantItem struct {
-	Id             string   `json:"id"`
-	Name           string   `json:"name"`
-	MerchantType   string   `json:"merchantType"`
-	LogoUrl        string   `json:"logoUrl,optional"`
-	MainCategories []string `json:"mainCategories"`
+	Id                 string   `json:"id"`
+	Name               string   `json:"name"`
+	MerchantType       string   `json:"merchantType"`
+	VerificationStatus string   `json:"verificationStatus"`
+	LogoUrl            string   `json:"logoUrl,optional"`
+	MainCategories     []string `json:"mainCategories"`
 }
 
 type MapObjectReportItem struct {

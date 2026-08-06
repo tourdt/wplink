@@ -614,78 +614,81 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 	)
 
 	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
-				Path:    "/map/bind-requests",
-				Handler: maphandler.AdminListMapBindRequestsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/map/bind-requests/:requestId/review",
-				Handler: maphandler.AdminReviewMapBindRequestHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/map/categories",
-				Handler: maphandler.AdminListMapCategoriesHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/map/categories",
-				Handler: maphandler.AdminSaveMapCategoryHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/map/objects/:objectId",
-				Handler: maphandler.AdminUpdateMapObjectHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/map/objects/:objectId/status",
-				Handler: maphandler.AdminUpdateMapObjectStatusHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/map/scenes",
-				Handler: maphandler.AdminListMapScenesHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/map/scenes",
-				Handler: maphandler.AdminSaveMapSceneHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/map/scenes/:sceneCode",
-				Handler: maphandler.AdminGetMapSceneHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/map/scenes/:sceneCode",
-				Handler: maphandler.AdminUpdateMapSceneHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/map/scenes/:sceneCode/objects",
-				Handler: maphandler.AdminListMapObjectsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/map/scenes/:sceneCode/objects",
-				Handler: maphandler.AdminSaveMapObjectHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/map/scenes/:sceneCode/objects/batch-generate",
-				Handler: maphandler.AdminBatchGenerateMapObjectsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/map/scenes/:sceneCode/publish",
-				Handler: maphandler.AdminPublishMapSceneHandler(serverCtx),
-			},
-		},
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/map/bind-requests",
+					Handler: maphandler.AdminListMapBindRequestsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/map/bind-requests/:requestId/review",
+					Handler: maphandler.AdminReviewMapBindRequestHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/map/categories",
+					Handler: maphandler.AdminListMapCategoriesHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/map/categories",
+					Handler: maphandler.AdminSaveMapCategoryHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/map/objects/:objectId",
+					Handler: maphandler.AdminUpdateMapObjectHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/map/objects/:objectId/status",
+					Handler: maphandler.AdminUpdateMapObjectStatusHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/map/scenes",
+					Handler: maphandler.AdminListMapScenesHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/map/scenes",
+					Handler: maphandler.AdminSaveMapSceneHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/map/scenes/:sceneCode",
+					Handler: maphandler.AdminGetMapSceneHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/map/scenes/:sceneCode",
+					Handler: maphandler.AdminUpdateMapSceneHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/map/scenes/:sceneCode/objects",
+					Handler: maphandler.AdminListMapObjectsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/map/scenes/:sceneCode/objects",
+					Handler: maphandler.AdminSaveMapObjectHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/map/scenes/:sceneCode/objects/batch-generate",
+					Handler: maphandler.AdminBatchGenerateMapObjectsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/map/scenes/:sceneCode/publish",
+					Handler: maphandler.AdminPublishMapSceneHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 

@@ -460,3 +460,29 @@ test('growth api contract exposes all runtime routes with exact DTO fields', () 
     assert.deepEqual(jsonFields(typeName), fields, `${typeName} JSON fields should match the existing logic DTO exactly`)
   }
 })
+
+test('map api separates anonymous public routes from AdminAuth protected routes', () => {
+  const mapApiSource = fs.readFileSync(path.join(apiDir, 'map.api'), 'utf8')
+  const serverBlocks = [...mapApiSource.matchAll(/@server \(([\s\S]*?)\)\s*service wplink-api \{([\s\S]*?)\n\}/g)]
+  assert.equal(serverBlocks.length, 2, 'map.api should define exactly one public and one admin server block')
+
+  const publicBlock = serverBlocks.find((match) => match[1].includes('prefix: /api/v1\n'))
+  const adminBlock = serverBlocks.find((match) => match[1].includes('prefix: /api/v1/admin'))
+  assert(publicBlock, 'map.api should define public /api/v1 map routes')
+  assert(adminBlock, 'map.api should define admin /api/v1/admin map routes')
+  assert(!publicBlock[1].includes('middleware:'), 'public map routes must remain anonymous')
+  assert.match(adminBlock[1], /middleware:\s*AdminAuth/, 'admin map routes must use AdminAuth')
+
+  const publicHandlers = [...publicBlock[2].matchAll(/@handler\s+(\w+)/g)].map((match) => match[1])
+  const adminHandlers = [...adminBlock[2].matchAll(/@handler\s+(\w+)/g)].map((match) => match[1])
+  assert.equal(publicHandlers.length, 14, 'public map contract should keep 14 handlers')
+  assert.equal(adminHandlers.length, 14, 'admin map contract should keep 14 handlers')
+  assert.equal(new Set([...publicHandlers, ...adminHandlers]).size, 28, 'map contract should expose 28 unique handlers')
+
+  const mapObjectItem = mapApiSource.match(/type MapObjectItem \{([\s\S]*?)\n\}/)?.[1] || ''
+  const mapObjectMerchantItem = mapApiSource.match(/type MapObjectMerchantItem \{([\s\S]*?)\n\}/)?.[1] || ''
+  assert.match(mapObjectItem, /IsVerifiedMerchant\s+bool\s+`json:"isVerifiedMerchant"`/,
+    'map object contract should expose the existing verified display flag')
+  assert.match(mapObjectMerchantItem, /VerificationStatus\s+string\s+`json:"verificationStatus"`/,
+    'map merchant summary should match the existing logic DTO')
+})
