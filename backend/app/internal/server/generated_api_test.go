@@ -3,6 +3,9 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"strings"
 	"testing"
 
 	"wplink/backend/app/internal/handler"
@@ -13,8 +16,25 @@ import (
 	"github.com/zeromicro/go-zero/rest"
 )
 
+func TestNewGeneratedAPIServerRequiresExplicitAdminAuth(t *testing.T) {
+	if os.Getenv("WPLINK_TEST_MISSING_GENERATED_ADMIN_AUTH") == "1" {
+		newGeneratedAPIServer(t, &svc.ServiceContext{})
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestNewGeneratedAPIServerRequiresExplicitAdminAuth$")
+	cmd.Env = append(os.Environ(), "WPLINK_TEST_MISSING_GENERATED_ADMIN_AUTH=1")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("newGeneratedAPIServer accepted a ServiceContext without AdminAuth")
+	}
+	if !strings.Contains(string(output), "AdminAuth") {
+		t.Fatalf("subprocess output=%q, want explicit AdminAuth failure", output)
+	}
+}
+
 func TestGeneratedAPIServerFailsClosedWhenAdminAuthDependencyIsMissing(t *testing.T) {
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{})
 
 	publicBody := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/growth-campaigns/active", nil), http.StatusInternalServerError)
 	if publicBody["errorCode"] != errx.CodeInternalError || publicBody["msg"] == "接口暂不可用，请稍后重试" {
@@ -33,11 +53,12 @@ func TestGeneratedAPIServerFailsClosedWhenAdminAuthDependencyIsMissing(t *testin
 func newGeneratedAPIServer(t *testing.T, svcCtx *svc.ServiceContext) *rest.Server {
 	t.Helper()
 	if svcCtx == nil {
-		svcCtx = &svc.ServiceContext{}
+		t.Fatal("newGeneratedAPIServer requires a non-nil ServiceContext with explicit AdminAuth")
+		return nil
 	}
 	if svcCtx.AdminAuth == nil {
-		// 生成路由注册要求 middleware 函数非 nil；测试缺少认证依赖时仍使用生产中间件的默认拒绝语义，绝不放行后台请求。
-		svcCtx.AdminAuth = middleware.NewAdminAuthMiddleware(nil).Handle
+		t.Fatal("newGeneratedAPIServer requires explicit AdminAuth; use newGeneratedAPIServerWithFailClosedAdminAuth only when testing missing auth dependencies")
+		return nil
 	}
 
 	server := rest.MustNewServer(rest.RestConf{
@@ -47,4 +68,19 @@ func newGeneratedAPIServer(t *testing.T, svcCtx *svc.ServiceContext) *rest.Serve
 	handler.RegisterHandlers(server, svcCtx)
 	t.Cleanup(server.Stop)
 	return server
+}
+
+// newGeneratedAPIServerWithFailClosedAdminAuth 仅用于调用方明确选择“认证依赖缺失”语义的测试。
+// 它使用生产中间件的默认拒绝分支，后台请求返回 500，不能用于模拟已正确装配的生产服务。
+func newGeneratedAPIServerWithFailClosedAdminAuth(t *testing.T, svcCtx *svc.ServiceContext) *rest.Server {
+	t.Helper()
+	if svcCtx == nil {
+		svcCtx = &svc.ServiceContext{}
+	}
+	if svcCtx.AdminAuth != nil {
+		t.Fatal("newGeneratedAPIServerWithFailClosedAdminAuth requires AdminAuth to be absent")
+		return nil
+	}
+	svcCtx.AdminAuth = middleware.NewAdminAuthMiddleware(nil).Handle
+	return newGeneratedAPIServer(t, svcCtx)
 }

@@ -16,7 +16,7 @@ func TestLocationReverseGeocodesThroughGeneratedRoutes(t *testing.T) {
 	geocoder := &fakeLocationGeocoder{
 		resp: locationlogic.ReverseGeocodeResp{Address: "织里童装城一区附近", Name: "织里童装城一区", Province: "浙江省"},
 	}
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{LocationGeocoder: geocoder})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{LocationGeocoder: geocoder})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/locations/reverse-geocode?latitude=30.8732&longitude=120.2255", nil)
@@ -35,7 +35,7 @@ func TestLocationReturnsRateLimitedThroughGeneratedRoutes(t *testing.T) {
 	geocoder := &fakeLocationGeocoder{
 		err: errx.New(errx.CodeRateLimited, "地址解析今日额度已用完，请手动填写详细地址"),
 	}
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{LocationGeocoder: geocoder})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{LocationGeocoder: geocoder})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/locations/reverse-geocode?latitude=30.8732&longitude=120.2255", nil)

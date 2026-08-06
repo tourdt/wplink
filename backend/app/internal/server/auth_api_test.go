@@ -29,7 +29,7 @@ func TestAuthGeneratedWechatLoginAndSMSCode(t *testing.T) {
 	tokenService := &fakeUserTokenService{}
 	wechatClient := &fakeAuthWechatSessionClient{session: authlogic.WechatSession{OpenID: "openid-1"}}
 	smsVerifier := &fakeAuthSMSVerifier{}
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{
 		APIStore: &svc.APIStore{
 			UserModel:           model.NewUserModel(db),
 			GrowthCampaignModel: model.NewGrowthCampaignModel(db),
@@ -70,7 +70,7 @@ func TestAuthGeneratedWechatLoginAndSMSCode(t *testing.T) {
 }
 
 func TestAuthGeneratedMeRejectsMissingAndExpiredSessionWithoutLeakingRawError(t *testing.T) {
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{
 		UserTokenService: &rawErrorUserTokenService{},
 	})
 
@@ -98,7 +98,7 @@ func TestAuthGeneratedPrivateRoutesUseOnlyTokenUserIdentity(t *testing.T) {
 	apiStore := &svc.APIStore{UserModel: model.NewUserModel(db)}
 	wechatClient := &fakeAuthWechatSessionClient{}
 	smsVerifier := &fakeAuthSMSVerifier{}
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{
 		APIStore:            apiStore,
 		UserTokenService:    &fakeUserTokenService{},
 		WechatSessionClient: wechatClient,

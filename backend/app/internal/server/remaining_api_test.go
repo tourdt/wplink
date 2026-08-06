@@ -308,7 +308,7 @@ func growthAdminRequest(method string, target string, body string) *http.Request
 }
 
 func TestEntitlementAndVIPHandlersThroughGeneratedRoutes(t *testing.T) {
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{})
 	tests := []struct {
 		name   string
 		method string
@@ -346,7 +346,7 @@ func TestVIPPublicGeneratedRoutesStayAnonymousAndKeepEmptyArrays(t *testing.T) {
 		t.Fatalf("sqlmock.New() error = %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{APIStore: &svc.APIStore{VIPModel: model.NewVIPModel(db)}})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{APIStore: &svc.APIStore{VIPModel: model.NewVIPModel(db)}})
 
 	mock.ExpectQuery(`(?s)FROM vip_plans p`).WillReturnRows(sqlmock.NewRows([]string{"code"}))
 	plans := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/vip/plans", nil), http.StatusOK)["data"].(map[string]interface{})
@@ -370,7 +370,7 @@ func TestEntitlementAndVIPPrivateGeneratedRoutesRequireMerchantPermission(t *tes
 		t.Fatalf("sqlmock.New() error = %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{
 		APIStore: &svc.APIStore{
 			UserModel:                model.NewUserModel(db),
 			MerchantEntitlementModel: model.NewMerchantEntitlementModel(db),
@@ -418,7 +418,7 @@ func TestEntitlementAndVIPPrivateGeneratedRoutesRequireMerchantPermission(t *tes
 
 func TestMerchantHandlersThroughGeneratedRoutes(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 
 	expectTask6GeneratedMerchantDetail(mock, "merchant-1")
 	publicEnvelope := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1", nil), http.StatusOK)
@@ -462,7 +462,7 @@ func TestMerchantGeneratedRoutesExposeEditableContactOnlyToManager(t *testing.T)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			svcCtx, mock := newTask6GeneratedServiceContext(t)
-			server := newGeneratedAPIServer(t, svcCtx)
+			server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 			expectTask6GeneratedMerchantDetail(mock, "merchant-1")
 			mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
 				WithArgs("user-1", "merchant-1").
@@ -489,7 +489,7 @@ func TestMerchantGeneratedRoutesExposeEditableContactOnlyToManager(t *testing.T)
 
 func TestMerchantUpdateSucceedsThroughGeneratedRoute(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 
 	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
 		WithArgs("user-1", "merchant-1").
@@ -549,7 +549,7 @@ func expectTask6GeneratedMerchantDetail(mock sqlmock.Sqlmock, merchantID string)
 
 func TestMessageHandlersEnforceRoleScopeThroughGeneratedRoutes(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 
 	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
 		WithArgs("user-1", "merchant-1").
@@ -600,7 +600,7 @@ func TestMessageGeneratedRoutesRejectClientControlledInvalidRoleCodes(t *testing
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			svcCtx, mock := newTask6GeneratedServiceContext(t)
-			server := newGeneratedAPIServer(t, svcCtx)
+			server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 			req := authenticatedRequest(tc.method, tc.target, tc.body)
 			body := assertTask6GeneratedStatus(t, server, req, http.StatusForbidden)
 			if body["errorCode"] != errx.CodeForbidden {
@@ -639,7 +639,7 @@ func TestMessageGeneratedRoutesRejectMissingDependencies(t *testing.T) {
 			t.Run(dependencyCase.name+"/"+requestCase.name, func(t *testing.T) {
 				svcCtx, _ := newTask6GeneratedServiceContext(t)
 				dependencyCase.mutate(svcCtx)
-				server := newGeneratedAPIServer(t, svcCtx)
+				server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 				body := assertTask6GeneratedStatus(t, server, authenticatedRequest(requestCase.method, requestCase.target, requestCase.body), http.StatusInternalServerError)
 				if body["errorCode"] != errx.CodeInternalError {
 					t.Fatalf("body=%#v, want internal dependency error", body)
@@ -1278,7 +1278,7 @@ func TestDiscoveryPublicEndpointsThroughGeneratedRoutes(t *testing.T) {
 		MerchantModel:         model.NewMerchantModel(db),
 		HotSearchKeywordModel: model.NewHotSearchKeywordModel(db),
 	}
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{APIStore: apiStore})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{APIStore: apiStore})
 	now := time.Date(2026, time.August, 5, 10, 0, 0, 0, time.UTC)
 
 	t.Run("首页运营配置", func(t *testing.T) {

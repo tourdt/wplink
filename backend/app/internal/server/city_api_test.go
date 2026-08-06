@@ -21,7 +21,7 @@ func TestCityListsStationsThroughGeneratedRoutes(t *testing.T) {
 			Status:          "active",
 		}},
 	}
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{CityStore: store})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{CityStore: store})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/city-stations", nil)
@@ -56,7 +56,7 @@ func TestCityListsResourceTypesThroughGeneratedRoutes(t *testing.T) {
 			DisplayTemplate:  model.JSONMap{"title": "title"},
 		}},
 	}
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{CityStore: store})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{CityStore: store})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/city-stations/zhili/resource-types", nil)
@@ -85,7 +85,7 @@ func TestCityListsResourceTypesThroughGeneratedRoutes(t *testing.T) {
 
 func TestCityPassesResourceTypeDirectionThroughGeneratedRoutes(t *testing.T) {
 	store := &fakeCityAPIStore{}
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{CityStore: store})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{CityStore: store})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/city-stations/zhili/resource-types?direction=demand", nil)
@@ -100,7 +100,7 @@ func TestCityPassesResourceTypeDirectionThroughGeneratedRoutes(t *testing.T) {
 }
 
 func TestCityReturnsNotFoundForUnsupportedGeneratedSubPath(t *testing.T) {
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{CityStore: &fakeCityAPIStore{}})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{CityStore: &fakeCityAPIStore{}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/city-stations/zhili/unknown", nil)

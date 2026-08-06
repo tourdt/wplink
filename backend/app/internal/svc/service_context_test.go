@@ -39,6 +39,9 @@ func TestNewServiceContextBuildsServerDependencies(t *testing.T) {
 	if ctx.AdminLoginService == nil {
 		t.Fatal("AdminLoginService = nil, want initialized admin login service")
 	}
+	if ctx.AdminAuth == nil {
+		t.Fatal("AdminAuth = nil, want initialized fail-closed admin middleware")
+	}
 	if ctx.UserTokenService == nil {
 		t.Fatal("UserTokenService = nil, want initialized user token service")
 	}

@@ -35,7 +35,7 @@ func TestUploadGeneratedRequiresValidUserOrAdmin(t *testing.T) {
 			Roles:       append([]string(nil), adminSubject.Roles...),
 		}},
 	)
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{
 		UploadTokenService: uploadlogic.NewUploadTokenLogic(testUploadStorageConfig()),
 		UserTokenService:   &strictUploadUserTokenService{},
 		AdminTokenService:  adminTokenService,
@@ -81,7 +81,7 @@ func TestUploadGeneratedPreservesUserAuthenticationDependencyFailures(t *testing
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			server := newGeneratedAPIServer(t, &svc.ServiceContext{
+			server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{
 				UploadTokenService: uploadlogic.NewUploadTokenLogic(testUploadStorageConfig()),
 				UserTokenService:   tc.service,
 				AdminTokenService: adminauthlogic.NewValidatingAdminTokenService(

@@ -26,7 +26,7 @@ import (
 
 func TestResourceInvalidRelatedIDThroughGeneratedRoute(t *testing.T) {
 	svcCtx, _ := newTask6GeneratedServiceContext(t)
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 
 	body := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/resources/not-a-bigint/related", nil), http.StatusNotFound)
 	if body["errorCode"] != errx.CodeResourceNotFound || body["msg"] != "资源不存在或暂不可查看" {
@@ -35,7 +35,7 @@ func TestResourceInvalidRelatedIDThroughGeneratedRoute(t *testing.T) {
 }
 
 func TestResourceHandlersThroughGeneratedRoutesDoNotUseMigrationSkeleton(t *testing.T) {
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{})
 	tests := []struct {
 		name   string
 		method string
@@ -97,7 +97,7 @@ func TestResourceOwnerActionsThroughGeneratedRoutesUseStoredOwner(t *testing.T) 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			svcCtx, mock := newTask6GeneratedServiceContext(t)
-			server := newGeneratedAPIServer(t, svcCtx)
+			server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 			mock.ExpectQuery(`(?s)SELECT merchant_id::text.*FROM resources`).
 				WithArgs("resource-2").
 				WillReturnRows(sqlmock.NewRows([]string{"merchant_id"}).AddRow("merchant-2"))
@@ -118,7 +118,7 @@ func TestResourceOwnerActionsThroughGeneratedRoutesUseStoredOwner(t *testing.T) 
 
 func TestResourcePublicListThroughGeneratedRouteKeepsEmptyArrayAndPagination(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 	mock.ExpectQuery(`(?s)FROM resources r`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
 	body := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/resources?page=2&pageSize=3&tags=%E6%80%A5%E6%B8%85,%E6%94%AF%E6%8C%81%E7%9C%8B%E8%B4%A7", nil), http.StatusOK)
@@ -137,7 +137,7 @@ func TestResourcePublicListThroughGeneratedRouteKeepsEmptyArrayAndPagination(t *
 
 func TestContentAuditCallbackVerificationThroughGeneratedRoute(t *testing.T) {
 	verifier := &fakeWechatCallbackVerifier{}
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{ContentAuditCallbackVerifier: verifier})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{ContentAuditCallbackVerifier: verifier})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/wechat/content-audit/media-callback?signature=sig&timestamp=1784971200&nonce=nonce&echostr=challenge", nil)
 
@@ -152,7 +152,7 @@ func TestContentAuditCallbackVerificationThroughGeneratedRoute(t *testing.T) {
 }
 
 func TestWechatPayNotifyGeneratedRouteUsesProviderResponse(t *testing.T) {
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat-pay/notify", strings.NewReader(`{"id":"notify-1"}`))
 
@@ -178,7 +178,7 @@ func TestContentAuditCallbackGeneratedRouteRejectsBeforeBusinessProcessing(t *te
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			server := newGeneratedAPIServer(t, &svc.ServiceContext{
+			server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{
 				Config:                       config.Config{Wechat: config.WechatConfig{AppID: tc.appid}},
 				ContentAuditCallbackVerifier: tc.verifier,
 			})
@@ -203,7 +203,7 @@ func TestContentAuditCallbackGeneratedRouteRejectsBeforeBusinessProcessing(t *te
 
 func TestContentAuditCallbackReplayThroughGeneratedRouteReturnsSuccess(t *testing.T) {
 	verifier := &fakeWechatCallbackVerifier{checkErr: contentauditlogic.ErrWechatCallbackReplay}
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{ContentAuditCallbackVerifier: verifier})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{ContentAuditCallbackVerifier: verifier})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat/content-audit/media-callback?signature=sig&timestamp=1784971200&nonce=nonce", strings.NewReader(`{"appid":"wx-app"}`))
 
@@ -221,7 +221,7 @@ func TestContentAuditCallbackReplayThroughGeneratedRouteReturnsSuccess(t *testin
 func TestContentAuditCallbackGeneratedRouteRecordsReplayOnlyAfterLogicSuccess(t *testing.T) {
 	t.Run("logic failure remains retryable", func(t *testing.T) {
 		svcCtx, mock, verifier := newContentAuditCallbackGeneratedContext(t)
-		server := newGeneratedAPIServer(t, svcCtx)
+		server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 		mock.ExpectBegin()
 		mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).
 			WillReturnError(errors.New("raw database secret callback failure"))
@@ -242,7 +242,7 @@ func TestContentAuditCallbackGeneratedRouteRecordsReplayOnlyAfterLogicSuccess(t 
 
 	t.Run("state conflict is acknowledged and remembered", func(t *testing.T) {
 		svcCtx, mock, verifier := newContentAuditCallbackGeneratedContext(t)
-		server := newGeneratedAPIServer(t, svcCtx)
+		server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 		mock.ExpectBegin()
 		mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).WillReturnError(sql.ErrNoRows)
 		mock.ExpectRollback()
@@ -262,7 +262,7 @@ func TestContentAuditCallbackGeneratedRouteRecordsReplayOnlyAfterLogicSuccess(t 
 
 	t.Run("successful pending result is remembered last", func(t *testing.T) {
 		svcCtx, mock, verifier := newContentAuditCallbackGeneratedContext(t)
-		server := newGeneratedAPIServer(t, svcCtx)
+		server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 		mock.ExpectBegin()
 		mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).
 			WillReturnRows(sqlmock.NewRows([]string{"resource_id"}).AddRow("resource-1"))
@@ -320,7 +320,7 @@ func TestContentAuditCallbackGeneratedRouteAcknowledgesReplayWhileRemembering(t 
 			svcCtx, mock, verifier := newContentAuditCallbackGeneratedContext(t)
 			verifier.rememberErr = contentauditlogic.ErrWechatCallbackReplay
 			tc.prepareLogic(mock)
-			server := newGeneratedAPIServer(t, svcCtx)
+			server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 			rec := httptest.NewRecorder()
 
 			server.ServeHTTP(rec, contentAuditCallbackRequest(`{"appid":"wx-app","trace_id":"`+tc.traceID+`","errcode":0}`))
@@ -390,7 +390,7 @@ func TestContentAuditCallbackGeneratedRouteDoesNotSwallowNonReplayRememberFailur
 	mock.ExpectBegin()
 	mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).WillReturnError(sql.ErrNoRows)
 	mock.ExpectRollback()
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 
 	body := assertTask6GeneratedStatus(t, server, contentAuditCallbackRequest(`{"appid":"wx-app","trace_id":"trace-remember-failure","errcode":0}`), http.StatusInternalServerError)
 
@@ -404,7 +404,7 @@ func TestContentAuditCallbackGeneratedRouteDoesNotSwallowNonReplayRememberFailur
 
 func TestContentAuditCallbackGeneratedRouteRejectsNilLikeDependencies(t *testing.T) {
 	var typedNilVerifier *fakeWechatCallbackVerifier
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{ContentAuditCallbackVerifier: typedNilVerifier})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{ContentAuditCallbackVerifier: typedNilVerifier})
 	body := assertTask6GeneratedStatus(t, server, contentAuditCallbackRequest(`{"appid":"wx-app"}`), http.StatusInternalServerError)
 	if body["errorCode"] != errx.CodeInternalError {
 		t.Fatalf("body=%#v, want typed-nil verifier rejected safely", body)
@@ -432,7 +432,7 @@ func contentAuditCallbackRequest(body string) *http.Request {
 
 func TestMetricsHandlersThroughGeneratedRoutes(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`(?s)INSERT INTO resource_exposure_events`).
@@ -481,7 +481,7 @@ func TestMetricsHandlersThroughGeneratedRoutes(t *testing.T) {
 
 func TestMetricsPublicGeneratedRoutesRejectInvalidTokens(t *testing.T) {
 	svcCtx, _ := newTask6GeneratedServiceContext(t)
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 
 	requests := []struct {
 		target string
@@ -510,7 +510,7 @@ func TestMetricsMerchantMapStrictJSONThroughGeneratedRoutes(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			svcCtx, mock := newTask6GeneratedServiceContext(t)
-			server := newGeneratedAPIServer(t, svcCtx)
+			server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(tc.body))
 			body := assertTask6GeneratedStatus(t, server, req, http.StatusBadRequest)
 			if body["errorCode"] != errx.CodeValidationFailed || body["msg"] != "请求参数格式不正确" {
@@ -524,14 +524,14 @@ func TestMetricsMerchantMapStrictJSONThroughGeneratedRoutes(t *testing.T) {
 }
 
 func TestMetricsGeneratedRoutesRejectMissingDependencies(t *testing.T) {
-	server := newGeneratedAPIServer(t, &svc.ServiceContext{UserTokenService: &fakeUserTokenService{}})
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{UserTokenService: &fakeUserTokenService{}})
 	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/resources/resource-1/metrics", ""), http.StatusInternalServerError)
 }
 
 func TestMetricsPermissionFailuresThroughGeneratedRoutes(t *testing.T) {
 	t.Run("resource owner mismatch", func(t *testing.T) {
 		svcCtx, mock := newTask6GeneratedServiceContext(t)
-		server := newGeneratedAPIServer(t, svcCtx)
+		server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 		mock.ExpectQuery(`(?s)SELECT merchant_id::text.*FROM resources`).
 			WithArgs("resource-2").
 			WillReturnRows(sqlmock.NewRows([]string{"merchant_id"}).AddRow("merchant-2"))
@@ -550,7 +550,7 @@ func TestMetricsPermissionFailuresThroughGeneratedRoutes(t *testing.T) {
 
 	t.Run("resource not found", func(t *testing.T) {
 		svcCtx, mock := newTask6GeneratedServiceContext(t)
-		server := newGeneratedAPIServer(t, svcCtx)
+		server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 		mock.ExpectQuery(`(?s)SELECT merchant_id::text.*FROM resources`).
 			WithArgs("missing-resource").
 			WillReturnError(sql.ErrNoRows)
@@ -567,7 +567,7 @@ func TestMetricsPermissionFailuresThroughGeneratedRoutes(t *testing.T) {
 	t.Run("merchant metrics missing dependency", func(t *testing.T) {
 		svcCtx, _ := newTask6GeneratedServiceContext(t)
 		svcCtx.APIStore.ResourceMetricDailyModel = nil
-		server := newGeneratedAPIServer(t, svcCtx)
+		server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 		body := assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/merchants/merchant-1/metrics/summary", ""), http.StatusInternalServerError)
 		if body["errorCode"] != errx.CodeInternalError || body["msg"] != "指标服务暂不可用，请稍后重试" {
 			t.Fatalf("body=%#v, want safe metrics dependency error", body)
@@ -577,7 +577,7 @@ func TestMetricsPermissionFailuresThroughGeneratedRoutes(t *testing.T) {
 
 func TestMetricsMerchantMapBodyLimitThroughGeneratedRoute(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 	validBody := validMerchantMapEventJSON("location_view")
 	body4096 := validBody + strings.Repeat(" ", 4096-len(validBody))
 
@@ -598,7 +598,7 @@ func TestMetricsMerchantMapBodyLimitThroughGeneratedRoute(t *testing.T) {
 
 func TestMetricsMerchantMapRateLimitThroughGeneratedRoute(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 	body := validMerchantMapEventJSON("location_view")
 
 	for attempt := 1; attempt <= 60; attempt++ {

@@ -134,7 +134,7 @@ func TestGoZeroAdminLoginRouteUsesGoctlHandlerWhenDependencyReady(t *testing.T) 
 			Roles:      []string{adminauthlogic.RoleSuperAdmin},
 		},
 	}
-	srv := newGeneratedAPIServer(t, &svc.ServiceContext{AdminLoginService: loginService})
+	srv := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{AdminLoginService: loginService})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/login", strings.NewReader(`{"loginName":"operator","password":"secret123"}`))
@@ -179,7 +179,7 @@ func TestGoZeroAdminLoginGeneratedSerializesEmptyRoleAndModuleArrays(t *testing.
 				Roles:      tc.roles,
 				Modules:    tc.modules,
 			}}
-			srv := newGeneratedAPIServer(t, &svc.ServiceContext{AdminLoginService: loginService})
+			srv := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{AdminLoginService: loginService})
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/login", strings.NewReader(`{"loginName":"operator","password":"secret123"}`))
@@ -207,7 +207,7 @@ func TestGoZeroAdminLoginGeneratedSerializesEmptyRoleAndModuleArrays(t *testing.
 
 func TestGoZeroAdminLoginGeneratedPreservesClientContextAndRateLimitError(t *testing.T) {
 	loginService := &goZeroAdminLoginService{err: adminauthlogic.ErrLoginRateLimited}
-	srv := newGeneratedAPIServer(t, &svc.ServiceContext{AdminLoginService: loginService})
+	srv := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{AdminLoginService: loginService})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/login", strings.NewReader(`{"loginName":"operator","password":"secret123"}`))
@@ -236,7 +236,7 @@ func TestGoZeroAdminLoginGeneratedPreservesClientContextAndRateLimitError(t *tes
 
 func TestGoZeroAdminLoginGeneratedHidesRawInternalError(t *testing.T) {
 	loginService := &goZeroAdminLoginService{err: errors.New("sql: connection refused password=secret123")}
-	srv := newGeneratedAPIServer(t, &svc.ServiceContext{AdminLoginService: loginService})
+	srv := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{AdminLoginService: loginService})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/login", strings.NewReader(`{"loginName":"operator","password":"secret123"}`))

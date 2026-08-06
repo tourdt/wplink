@@ -17,7 +17,7 @@ import (
 
 func TestFavoriteHandlersThroughGeneratedRoutes(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 
 	mock.ExpectQuery(`(?s)FROM user_favorite_resources ufr`).
 		WithArgs("user-1", int64(3), int64(3)).
@@ -78,7 +78,7 @@ func TestFavoriteHandlersThroughGeneratedRoutes(t *testing.T) {
 
 func TestFavoriteGeneratedRoutesRequireTokenIdentity(t *testing.T) {
 	svcCtx, _ := newTask6GeneratedServiceContext(t)
-	server := newGeneratedAPIServer(t, svcCtx)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/me/saved-searches?userId=attacker", strings.NewReader(`{"userId":"attacker","keyword":"库存"}`))
 	assertTask6GeneratedStatus(t, server, req, http.StatusUnauthorized)
