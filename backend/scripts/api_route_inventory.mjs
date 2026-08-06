@@ -522,51 +522,50 @@ export function checkNoMigrationStubs(rootHandlerDir) {
   }
 }
 
-function compareRoutes(contractRoutes, legacyRoutes) {
-  const legacyFingerprints = new Set(legacyRoutes.map(routeFingerprint))
-  const contractFingerprints = new Set(contractRoutes.map(routeFingerprint))
-
-  return {
-    contractOnly: contractRoutes.filter((route) => !legacyFingerprints.has(routeFingerprint(route))),
-    legacyOnly: legacyRoutes.filter((route) => !contractFingerprints.has(routeFingerprint(route))),
-    shared: contractRoutes.filter((route) => legacyFingerprints.has(routeFingerprint(route))),
-  }
-}
-
-function printTable(title, routes) {
-  console.log(`\n${title}（${routes.length}）`)
-  if (routes.length === 0) {
-    console.log('无')
-    return
-  }
-  console.table(routes.map((route) => ({
-    route: routeFingerprint(route),
-    handler: route.handler || '',
-    group: route.group || '',
-    source: route.source,
-    line: route.line || '',
-  })))
+function routesForInventory(routes, backendDir) {
+  return routes
+    .map((route) => ({
+      method: route.method,
+      path: route.path,
+      handler: route.handler || '',
+      group: route.group || '',
+      source: path.relative(backendDir, route.source).split(path.sep).join('/'),
+      line: route.line || null,
+    }))
+    .sort((left, right) => {
+      const leftKey = `${routeFingerprint(left)}\u0000${left.handler}\u0000${left.group}`
+      const rightKey = `${routeFingerprint(right)}\u0000${right.handler}\u0000${right.group}`
+      return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0
+    })
 }
 
 function runCLI() {
   const backendDir = path.resolve(scriptDir, '..')
   const contractRoutes = parseAPIContracts(path.join(backendDir, 'app/api'))
-  const legacyRoutes = parseLegacyRoutes([
-    path.join(backendDir, 'app/internal/server/api.go'),
-    path.join(backendDir, 'app/internal/server/auth_routes.go'),
-    path.join(backendDir, 'app/internal/server/domain_routes.go'),
-    path.join(backendDir, 'app/internal/server/map_routes.go'),
-  ])
-  const inventory = compareRoutes(contractRoutes, legacyRoutes)
+  const generatedRoutes = parseGeneratedRoutes(path.join(backendDir, 'app/internal/handler/routes.go'))
+  // 盘点工具以当前单轨架构为准；不一致时复用生成门禁的逐路由诊断并以非零状态退出。
+  checkContractGeneratedParity(contractRoutes, generatedRoutes)
+  const inventory = {
+    sourceOfTruth: 'app/api/app.api',
+    generatedRoutesFile: 'app/internal/handler/routes.go',
+    parity: {
+      matched: true,
+      contractRouteCount: contractRoutes.length,
+      generatedRouteCount: generatedRoutes.length,
+    },
+    contractRoutes: routesForInventory(contractRoutes, backendDir),
+    generatedRoutes: routesForInventory(generatedRoutes, backendDir),
+  }
 
   if (process.argv.includes('--json')) {
     console.log(JSON.stringify(inventory, null, 2))
     return
   }
 
-  printTable('契约独有', inventory.contractOnly)
-  printTable('旧 Router 独有', inventory.legacyOnly)
-  printTable('双方共有', inventory.shared)
+  console.log('API 路由盘点')
+  console.log(`契约路由：${inventory.parity.contractRouteCount}`)
+  console.log(`生成路由：${inventory.parity.generatedRouteCount}`)
+  console.log('一致：是')
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

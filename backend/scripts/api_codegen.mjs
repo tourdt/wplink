@@ -251,17 +251,30 @@ function formatGoFiles(files, cwd) {
 function normalizeKeywordHandlerPackages(generatedHandlerDir) {
   const routesPath = path.join(generatedHandlerDir, 'routes.go')
   let routesSource = fs.readFileSync(routesPath, 'utf8')
+  const entries = fs.readdirSync(generatedHandlerDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .sort((left, right) => left.name.localeCompare(right.name))
+  // 非关键字 group 会直接成为 Go package 标识符，先预占它们，避免 map -> maphandler
+  // 与真实 group: maphandler 冲突；后缀从 2 起递增，保证无碰撞场景的既有输出不变。
+  const occupiedPackageNames = new Set(
+    entries.filter((entry) => !goKeywords.has(entry.name)).map((entry) => entry.name),
+  )
 
-  for (const entry of fs.readdirSync(generatedHandlerDir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || !goKeywords.has(entry.name)) {
+  for (const entry of entries) {
+    if (!goKeywords.has(entry.name)) {
       continue
     }
-    const safePackageName = `${entry.name}handler`
+    const basePackageName = `${entry.name}handler`
+    let safePackageName = basePackageName
+    for (let suffix = 2; occupiedPackageNames.has(safePackageName); suffix += 1) {
+      safePackageName = `${basePackageName}${suffix}`
+    }
+    occupiedPackageNames.add(safePackageName)
     for (const filePath of listGoFiles(path.join(generatedHandlerDir, entry.name))) {
       const source = fs.readFileSync(filePath, 'utf8')
       fs.writeFileSync(filePath, source.replace(
         new RegExp(`^package\\s+${entry.name}\\b`, 'm'),
-        `package ${safePackageName}`,
+        `package ${basePackageName}`,
       ))
     }
     routesSource = routesSource

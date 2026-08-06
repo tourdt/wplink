@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 
 import {
   checkContractGeneratedParity,
@@ -12,6 +14,15 @@ import {
   parseLegacyRoutes,
   routeFingerprint,
 } from './api_route_inventory.mjs'
+
+const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+
+function runInventoryCLI(...args) {
+  return spawnSync(process.execPath, ['scripts/api_route_inventory.mjs', ...args], {
+    cwd: backendDir,
+    encoding: 'utf8',
+  })
+}
 
 function withFixture(files, callback) {
   const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'api-route-inventory-'))
@@ -26,6 +37,35 @@ function withFixture(files, callback) {
     fs.rmSync(fixtureDir, { recursive: true, force: true })
   }
 }
+
+test('json CLI inventories the current contract and generated routes', () => {
+  const result = runInventoryCLI('--json')
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+  const inventory = JSON.parse(result.stdout)
+  assert.equal(inventory.sourceOfTruth, 'app/api/app.api')
+  assert.equal(inventory.generatedRoutesFile, 'app/internal/handler/routes.go')
+  assert.equal(inventory.parity.matched, true)
+  assert.equal(inventory.parity.contractRouteCount, inventory.contractRoutes.length)
+  assert.equal(inventory.parity.generatedRouteCount, inventory.generatedRoutes.length)
+  assert.ok(inventory.contractRoutes.length > 0)
+  assert.deepEqual(
+    inventory.contractRoutes.map(routeFingerprint),
+    inventory.generatedRoutes.map(routeFingerprint),
+  )
+  assert.doesNotMatch(result.stdout, /legacy|旧 Router/i)
+})
+
+test('text CLI reports current contract and generated route parity', () => {
+  const result = runInventoryCLI()
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+  assert.match(result.stdout, /API 路由盘点/)
+  assert.match(result.stdout, /契约路由/)
+  assert.match(result.stdout, /生成路由/)
+  assert.match(result.stdout, /一致/)
+  assert.doesNotMatch(result.stdout, /legacy|旧 Router/i)
+})
 
 test('parses imported API contracts with prefixes and retains duplicate handlers', () => {
   withFixture({

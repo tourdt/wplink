@@ -132,6 +132,49 @@ import "zmall/common/response"
   }
 })
 
+test('write assigns a deterministic unique alias when map and maphandler groups coexist', () => {
+  const { fixtureDir, fixtureBackendDir } = createBackendFixture()
+  try {
+    fs.appendFileSync(path.join(fixtureBackendDir, 'app/api/app.api'), '\nimport "maphandler_collision.api"\n')
+    writeFixtureFile(
+      fixtureBackendDir,
+      'app/api/maphandler_collision.api',
+      `syntax = "v1"
+
+@server (
+  prefix: /api/v1/alias-collision
+  group: maphandler
+)
+service wplink-api {
+  @handler AliasCollisionProbe
+  get /probe
+}
+`,
+    )
+
+    const userGoctlHome = path.join(fixtureDir, 'unused-user-home')
+    const firstResult = runGenerator(fixtureBackendDir, userGoctlHome, '--write')
+    assert.equal(firstResult.status, 0, `${firstResult.stdout}\n${firstResult.stderr}`)
+
+    const routesPath = path.join(fixtureBackendDir, 'app/internal/handler/routes.go')
+    const firstRoutes = fs.readFileSync(routesPath, 'utf8')
+    assert.match(firstRoutes, /maphandler2 "wplink\/backend\/app\/internal\/handler\/map"/)
+    assert.match(firstRoutes, /maphandler "wplink\/backend\/app\/internal\/handler\/maphandler"/)
+    assert.match(firstRoutes, /maphandler2\.ListMapScenesHandler/)
+    assert.match(firstRoutes, /maphandler\.AliasCollisionProbeHandler/)
+    assert.match(
+      fs.readFileSync(path.join(fixtureBackendDir, 'app/internal/handler/map/list_map_scenes_handler.go'), 'utf8'),
+      /^package maphandler$/m,
+    )
+
+    const secondResult = runGenerator(fixtureBackendDir, userGoctlHome, '--write')
+    assert.equal(secondResult.status, 0, `${secondResult.stdout}\n${secondResult.stderr}`)
+    assert.equal(fs.readFileSync(routesPath, 'utf8'), firstRoutes)
+  } finally {
+    fs.rmSync(fixtureDir, { recursive: true, force: true })
+  }
+})
+
 test('write creates a compilable marked handler skeleton without the retired NotMigrated helper', () => {
   const { fixtureDir, fixtureBackendDir } = createBackendFixture()
   try {
