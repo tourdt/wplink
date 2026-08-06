@@ -23,4 +23,7 @@ service wplink-api {
 
 	@handler HandleContentAuditCallback
 	post /wechat/content-audit/media-callback (HandleContentAuditCallbackReq)
+
+	@handler WechatPayNotify
+	post /wechat-pay/notify
 }

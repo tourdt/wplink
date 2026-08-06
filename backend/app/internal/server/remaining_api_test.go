@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"wplink/backend/app/internal/logic/adminauth"
 	paymentlogic "wplink/backend/app/internal/logic/payment"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/permission"
@@ -20,6 +21,115 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/lib/pq"
 )
+
+func TestEntitlementAndVIPHandlersThroughGeneratedRoutes(t *testing.T) {
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{})
+	tests := []struct {
+		name   string
+		method string
+		target string
+		body   string
+	}{
+		{name: "list entitlements", method: http.MethodGet, target: "/api/v1/merchants/merchant-1/entitlements"},
+		{name: "list entitlement usage", method: http.MethodGet, target: "/api/v1/merchants/merchant-1/entitlements/entitlement-1/usage-records"},
+		{name: "list top vouchers", method: http.MethodGet, target: "/api/v1/merchants/merchant-1/top-vouchers"},
+		{name: "redeem top voucher", method: http.MethodPost, target: "/api/v1/top-vouchers/voucher-1/redeem", body: `{"resourceId":"resource-1"}`},
+		{name: "list vip plans", method: http.MethodGet, target: "/api/v1/vip/plans"},
+		{name: "list quota packs", method: http.MethodGet, target: "/api/v1/vip/quota-packs"},
+		{name: "get merchant vip", method: http.MethodGet, target: "/api/v1/merchants/merchant-1/vip"},
+		{name: "create vip order", method: http.MethodPost, target: "/api/v1/merchants/merchant-1/vip/orders", body: `{"planCode":"monthly"}`},
+		{name: "create vip payment", method: http.MethodPost, target: "/api/v1/merchants/merchant-1/vip/orders/order-1/payment", body: `{}`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.target, strings.NewReader(tc.body))
+			if tc.body != "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			body := assertTask6GeneratedStatus(t, server, req, http.StatusInternalServerError)
+			if body["msg"] == "接口暂不可用，请稍后重试" {
+				t.Fatalf("route %s %s still uses migration skeleton", tc.method, tc.target)
+			}
+		})
+	}
+}
+
+func TestVIPPublicGeneratedRoutesStayAnonymousAndKeepEmptyArrays(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{APIStore: &svc.APIStore{VIPModel: model.NewVIPModel(db)}})
+
+	mock.ExpectQuery(`(?s)FROM vip_plans p`).WillReturnRows(sqlmock.NewRows([]string{"code"}))
+	plans := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/vip/plans", nil), http.StatusOK)["data"].(map[string]interface{})
+	if items, ok := plans["items"].([]interface{}); !ok || len(items) != 0 {
+		t.Fatalf("plans=%#v, want anonymous items: []", plans)
+	}
+
+	mock.ExpectQuery(`(?s)FROM vip_quota_packs`).WillReturnRows(sqlmock.NewRows([]string{"code"}))
+	packs := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/vip/quota-packs", nil), http.StatusOK)["data"].(map[string]interface{})
+	if items, ok := packs["items"].([]interface{}); !ok || len(items) != 0 {
+		t.Fatalf("packs=%#v, want anonymous items: []", packs)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("public VIP SQL expectations: %v", err)
+	}
+}
+
+func TestEntitlementAndVIPPrivateGeneratedRoutesRequireMerchantPermission(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{
+		APIStore: &svc.APIStore{
+			UserModel:                model.NewUserModel(db),
+			MerchantEntitlementModel: model.NewMerchantEntitlementModel(db),
+			VIPModel:                 model.NewVIPModel(db),
+		},
+		UserTokenService:  &fakeUserTokenService{},
+		AdminTokenService: adminauth.NewValidatingAdminTokenService(nil, nil),
+	})
+
+	tests := []struct {
+		name         string
+		method       string
+		target       string
+		body         string
+		voucherOwner bool
+	}{
+		{name: "list entitlements", method: http.MethodGet, target: "/api/v1/merchants/merchant-2/entitlements"},
+		{name: "usage records", method: http.MethodGet, target: "/api/v1/merchants/merchant-2/entitlements/entitlement-1/usage-records"},
+		{name: "top vouchers", method: http.MethodGet, target: "/api/v1/merchants/merchant-2/top-vouchers"},
+		{name: "redeem voucher", method: http.MethodPost, target: "/api/v1/top-vouchers/voucher-1/redeem", body: `{"merchantId":"merchant-1","resourceId":"resource-1"}`, voucherOwner: true},
+		{name: "merchant vip", method: http.MethodGet, target: "/api/v1/merchants/merchant-2/vip"},
+		{name: "create vip order", method: http.MethodPost, target: "/api/v1/merchants/merchant-2/vip/orders", body: `{"userId":"attacker","planCode":"monthly"}`},
+		{name: "create vip payment", method: http.MethodPost, target: "/api/v1/merchants/merchant-2/vip/orders/order-1/payment", body: `{"userId":"attacker"}`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.voucherOwner {
+				mock.ExpectQuery(`(?s)SELECT merchant_id::text.*FROM merchant_entitlements`).
+					WithArgs("voucher-1", model.EntitlementTypeTopVoucher).
+					WillReturnRows(sqlmock.NewRows([]string{"merchant_id"}).AddRow("merchant-2"))
+			}
+			mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+				WithArgs("user-1", "merchant-2").
+				WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+			body := assertTask6GeneratedStatus(t, server, authenticatedRequest(tc.method, tc.target, tc.body), http.StatusForbidden)
+			if body["errorCode"] != errx.CodeForbidden {
+				t.Fatalf("body=%#v, want merchant permission denial", body)
+			}
+		})
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("private entitlement/VIP SQL expectations: %v", err)
+	}
+}
 
 func TestMerchantHandlersThroughGeneratedRoutes(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)

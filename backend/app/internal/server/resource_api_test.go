@@ -151,6 +151,18 @@ func TestContentAuditCallbackVerificationThroughGeneratedRoute(t *testing.T) {
 	}
 }
 
+func TestWechatPayNotifyGeneratedRouteUsesProviderResponse(t *testing.T) {
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat-pay/notify", strings.NewReader(`{"id":"notify-1"}`))
+
+	server.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError || rec.Header().Get("Content-Type") != "application/json; charset=utf-8" || rec.Body.String() != `{"code":"FAIL","message":"处理失败"}` {
+		t.Fatalf("status=%d contentType=%q body=%q, want provider failure response", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+	}
+}
+
 func TestContentAuditCallbackGeneratedRouteRejectsBeforeBusinessProcessing(t *testing.T) {
 	tests := []struct {
 		name       string

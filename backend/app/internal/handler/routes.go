@@ -317,6 +317,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 	server.AddRoutes(
 		[]rest.Route{
 			{
+				Method:  http.MethodPost,
+				Path:    "/wechat-pay/notify",
+				Handler: callback.WechatPayNotifyHandler(serverCtx),
+			},
+			{
 				Method:  http.MethodGet,
 				Path:    "/wechat/content-audit/media-callback",
 				Handler: callback.VerifyContentAuditCallbackHandler(serverCtx),

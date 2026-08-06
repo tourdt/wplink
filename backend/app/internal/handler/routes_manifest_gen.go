@@ -139,6 +139,7 @@ func ContractRoutes() []ContractRoute {
 		{Method: "POST", Path: "/api/v1/top-vouchers/:voucherId/redeem", Handler: "RedeemTopVoucher", Group: "entitlement"},
 		{Method: "POST", Path: "/api/v1/uploads/token", Handler: "CreateUploadToken", Group: "upload"},
 		{Method: "POST", Path: "/api/v1/webview/validate", Handler: "ValidateWebview", Group: "discovery"},
+		{Method: "POST", Path: "/api/v1/wechat-pay/notify", Handler: "WechatPayNotify", Group: "callback"},
 		{Method: "POST", Path: "/api/v1/wechat/content-audit/media-callback", Handler: "HandleContentAuditCallback", Group: "callback"},
 		{Method: "PUT", Path: "/api/v1/resources/:resourceId/draft", Handler: "UpdateResourceDraft", Group: "resource"},
 	}
