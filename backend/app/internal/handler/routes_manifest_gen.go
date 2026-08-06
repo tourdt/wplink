@@ -76,6 +76,7 @@ func ContractRoutes() []ContractRoute {
 		{Method: "GET", Path: "/api/v1/topics/:topicId/resources", Handler: "GetTopicResources", Group: "discovery"},
 		{Method: "GET", Path: "/api/v1/vip/plans", Handler: "ListVIPPlans", Group: "vip"},
 		{Method: "GET", Path: "/api/v1/vip/quota-packs", Handler: "ListQuotaPacks", Group: "vip"},
+		{Method: "GET", Path: "/api/v1/wechat/content-audit/media-callback", Handler: "VerifyContentAuditCallback", Group: "callback"},
 		{Method: "POST", Path: "/api/v1/admin/auth/login", Handler: "AdminLogin", Group: "adminauth"},
 		{Method: "POST", Path: "/api/v1/admin/banner-topics", Handler: "AdminCreateBannerTopic", Group: "adminbannertopic"},
 		{Method: "POST", Path: "/api/v1/admin/banner-topics/:configId", Handler: "AdminUpdateBannerTopic", Group: "adminbannertopic"},
@@ -138,6 +139,7 @@ func ContractRoutes() []ContractRoute {
 		{Method: "POST", Path: "/api/v1/top-vouchers/:voucherId/redeem", Handler: "RedeemTopVoucher", Group: "entitlement"},
 		{Method: "POST", Path: "/api/v1/uploads/token", Handler: "CreateUploadToken", Group: "upload"},
 		{Method: "POST", Path: "/api/v1/webview/validate", Handler: "ValidateWebview", Group: "discovery"},
+		{Method: "POST", Path: "/api/v1/wechat/content-audit/media-callback", Handler: "HandleContentAuditCallback", Group: "callback"},
 		{Method: "PUT", Path: "/api/v1/resources/:resourceId/draft", Handler: "UpdateResourceDraft", Group: "resource"},
 	}
 }

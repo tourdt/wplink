@@ -1,0 +1,26 @@
+syntax = "v1"
+
+type VerifyContentAuditCallbackReq {
+	Signature string `form:"signature"`
+	Timestamp string `form:"timestamp"`
+	Nonce     string `form:"nonce"`
+	Echostr   string `form:"echostr"`
+}
+
+type HandleContentAuditCallbackReq {
+	Signature string `form:"signature"`
+	Timestamp string `form:"timestamp"`
+	Nonce     string `form:"nonce"`
+}
+
+@server (
+	prefix: /api/v1
+	group: callback
+)
+service wplink-api {
+	@handler VerifyContentAuditCallback
+	get /wechat/content-audit/media-callback (VerifyContentAuditCallbackReq)
+
+	@handler HandleContentAuditCallback
+	post /wechat/content-audit/media-callback (HandleContentAuditCallbackReq)
+}

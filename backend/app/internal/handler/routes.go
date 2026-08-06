@@ -18,6 +18,7 @@ import (
 	adminresource "wplink/backend/app/internal/handler/adminresource"
 	adminvipconfig "wplink/backend/app/internal/handler/adminvipconfig"
 	auth "wplink/backend/app/internal/handler/auth"
+	callback "wplink/backend/app/internal/handler/callback"
 	city "wplink/backend/app/internal/handler/city"
 	discovery "wplink/backend/app/internal/handler/discovery"
 	entitlement "wplink/backend/app/internal/handler/entitlement"
@@ -308,6 +309,22 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Method:  http.MethodPost,
 				Path:    "/me/wechat-phone",
 				Handler: auth.BindWechatPhoneHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/wechat/content-audit/media-callback",
+				Handler: callback.VerifyContentAuditCallbackHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/wechat/content-audit/media-callback",
+				Handler: callback.HandleContentAuditCallbackHandler(serverCtx),
 			},
 		},
 		rest.WithPrefix("/api/v1"),

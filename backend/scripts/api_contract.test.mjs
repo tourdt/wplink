@@ -373,3 +373,26 @@ test('retired purchase demand and manual matching table models are removed', () 
   assert(!searchLogsModel.includes('GeneratedDemandId'), 'search_logs model should not contain GeneratedDemandId')
   assert(!searchLogsModel.includes('generated_demand_id'), 'search_logs model should not contain generated_demand_id')
 })
+
+test('content audit callback contract uses query signatures without auth middleware', () => {
+  const appApiSource = fs.readFileSync(path.join(apiDir, 'app.api'), 'utf8')
+  const callbackPath = path.join(apiDir, 'callback.api')
+
+  assert(fs.existsSync(callbackPath), 'callback.api should define provider callback routes')
+  const callbackApiSource = fs.readFileSync(callbackPath, 'utf8')
+  assert.match(appApiSource, /import "callback\.api"/)
+  for (const snippet of [
+    '@handler VerifyContentAuditCallback',
+    'get /wechat/content-audit/media-callback (VerifyContentAuditCallbackReq)',
+    '@handler HandleContentAuditCallback',
+    'post /wechat/content-audit/media-callback (HandleContentAuditCallbackReq)',
+  ]) {
+    assert(callbackApiSource.includes(snippet), `callback.api should contain ${snippet}`)
+  }
+  assert.match(callbackApiSource, /Signature\s+string `form:"signature"`/)
+  assert.match(callbackApiSource, /Timestamp\s+string `form:"timestamp"`/)
+  assert.match(callbackApiSource, /Nonce\s+string `form:"nonce"`/)
+  assert.match(callbackApiSource, /Echostr\s+string `form:"echostr"`/)
+  assert(!callbackApiSource.includes('middleware:'), 'provider callbacks must not use user or admin middleware')
+  assert(!callbackApiSource.includes('json:"'), 'POST callback body must stay raw and bounded in the Handler')
+})

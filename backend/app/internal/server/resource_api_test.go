@@ -5,12 +5,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"wplink/backend/app/internal/config"
 	"wplink/backend/app/internal/logic/adminauth"
+	contentauditlogic "wplink/backend/app/internal/logic/contentaudit"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
 	"wplink/backend/app/internal/svc"
@@ -18,6 +21,278 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
+
+func TestResourceInvalidRelatedIDThroughGeneratedRoute(t *testing.T) {
+	svcCtx, _ := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+
+	body := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/resources/not-a-bigint/related", nil), http.StatusNotFound)
+	if body["errorCode"] != errx.CodeResourceNotFound || body["msg"] != "资源不存在或暂不可查看" {
+		t.Fatalf("body=%#v, want hidden invalid related resource", body)
+	}
+}
+
+func TestResourceHandlersThroughGeneratedRoutesDoNotUseMigrationSkeleton(t *testing.T) {
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{})
+	tests := []struct {
+		name   string
+		method string
+		target string
+		body   string
+	}{
+		{name: "create", method: http.MethodPost, target: "/api/v1/resources", body: `{}`},
+		{name: "create draft", method: http.MethodPost, target: "/api/v1/resources/drafts", body: `{}`},
+		{name: "update draft", method: http.MethodPut, target: "/api/v1/resources/1/draft", body: `{}`},
+		{name: "submit", method: http.MethodPost, target: "/api/v1/resources/1/submit", body: `{}`},
+		{name: "list", method: http.MethodGet, target: "/api/v1/resources"},
+		{name: "related", method: http.MethodGet, target: "/api/v1/resources/1/related"},
+		{name: "search", method: http.MethodGet, target: "/api/v1/resource-search"},
+		{name: "my list", method: http.MethodGet, target: "/api/v1/me/resources?merchantId=1"},
+		{name: "own detail", method: http.MethodGet, target: "/api/v1/me/resources/1/detail"},
+		{name: "editable", method: http.MethodGet, target: "/api/v1/me/resources/1/edit"},
+		{name: "public detail", method: http.MethodGet, target: "/api/v1/resources/1"},
+		{name: "report", method: http.MethodPost, target: "/api/v1/resources/1/reports", body: `{}`},
+		{name: "detail view", method: http.MethodPost, target: "/api/v1/resources/1/detail-view"},
+		{name: "refresh", method: http.MethodPost, target: "/api/v1/resources/1/refresh"},
+		{name: "deal", method: http.MethodPost, target: "/api/v1/resources/1/deal-feedback", body: `{}`},
+		{name: "take down", method: http.MethodPost, target: "/api/v1/resources/1/take-down", body: `{}`},
+		{name: "delete", method: http.MethodDelete, target: "/api/v1/resources/1", body: `{}`},
+		{name: "repost", method: http.MethodPost, target: "/api/v1/resources/1/repost-similar"},
+		{name: "contact", method: http.MethodPost, target: "/api/v1/resources/1/contact-events", body: `{}`},
+		{name: "unlock order", method: http.MethodPost, target: "/api/v1/resources/1/contact-unlock-orders", body: `{}`},
+		{name: "unlock payment", method: http.MethodPost, target: "/api/v1/resources/1/contact-unlock-orders/1/payment", body: `{}`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.target, strings.NewReader(tc.body))
+			body := assertTask6GeneratedStatus(t, server, req, http.StatusInternalServerError)
+			if body["msg"] == "接口暂不可用，请稍后重试" {
+				t.Fatalf("route %s %s still uses migration skeleton", tc.method, tc.target)
+			}
+		})
+	}
+}
+
+func TestResourceOwnerActionsThroughGeneratedRoutesUseStoredOwner(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		target string
+		body   string
+	}{
+		{name: "update draft", method: http.MethodPut, target: "/api/v1/resources/resource-2/draft", body: `{}`},
+		{name: "submit", method: http.MethodPost, target: "/api/v1/resources/resource-2/submit", body: `{}`},
+		{name: "own detail", method: http.MethodGet, target: "/api/v1/me/resources/resource-2/detail"},
+		{name: "editable", method: http.MethodGet, target: "/api/v1/me/resources/resource-2/edit"},
+		{name: "refresh", method: http.MethodPost, target: "/api/v1/resources/resource-2/refresh"},
+		{name: "deal", method: http.MethodPost, target: "/api/v1/resources/resource-2/deal-feedback", body: `{"isDealt":true}`},
+		{name: "take down", method: http.MethodPost, target: "/api/v1/resources/resource-2/take-down", body: `{"reason":"已售罄"}`},
+		{name: "delete", method: http.MethodDelete, target: "/api/v1/resources/resource-2"},
+		{name: "repost", method: http.MethodPost, target: "/api/v1/resources/resource-2/repost-similar"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svcCtx, mock := newTask6GeneratedServiceContext(t)
+			server := newGeneratedAPIServer(t, svcCtx)
+			mock.ExpectQuery(`(?s)SELECT merchant_id::text.*FROM resources`).
+				WithArgs("resource-2").
+				WillReturnRows(sqlmock.NewRows([]string{"merchant_id"}).AddRow("merchant-2"))
+			mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+				WithArgs("user-1", "merchant-2").
+				WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+
+			body := assertTask6GeneratedStatus(t, server, authenticatedRequest(tc.method, tc.target, tc.body), http.StatusForbidden)
+			if body["errorCode"] != errx.CodeForbidden {
+				t.Fatalf("body=%#v, want stored owner permission denial", body)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("owner permission SQL expectations: %v", err)
+			}
+		})
+	}
+}
+
+func TestResourcePublicListThroughGeneratedRouteKeepsEmptyArrayAndPagination(t *testing.T) {
+	svcCtx, mock := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+	mock.ExpectQuery(`(?s)FROM resources r`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	body := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/resources?page=2&pageSize=3&tags=%E6%80%A5%E6%B8%85,%E6%94%AF%E6%8C%81%E7%9C%8B%E8%B4%A7", nil), http.StatusOK)
+	data, ok := body["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("body=%#v, want data object", body)
+	}
+	items, ok := data["items"].([]interface{})
+	if !ok || len(items) != 0 || data["page"] != float64(2) || data["pageSize"] != float64(3) || data["total"] != float64(0) {
+		t.Fatalf("data=%#v, want empty items with requested pagination", data)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("public list SQL expectations: %v", err)
+	}
+}
+
+func TestContentAuditCallbackVerificationThroughGeneratedRoute(t *testing.T) {
+	verifier := &fakeWechatCallbackVerifier{}
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{ContentAuditCallbackVerifier: verifier})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/wechat/content-audit/media-callback?signature=sig&timestamp=1784971200&nonce=nonce&echostr=challenge", nil)
+
+	server.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK || rec.Body.String() != "challenge" || rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+		t.Fatalf("status=%d contentType=%q body=%q, want raw callback challenge", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+	}
+	if verifier.remember {
+		t.Fatal("URL verification must not consume replay key")
+	}
+}
+
+func TestContentAuditCallbackGeneratedRouteRejectsBeforeBusinessProcessing(t *testing.T) {
+	tests := []struct {
+		name       string
+		verifier   *fakeWechatCallbackVerifier
+		appid      string
+		body       string
+		wantStatus int
+		wantCode   string
+	}{
+		{name: "bad signature", verifier: &fakeWechatCallbackVerifier{checkErr: errx.New(errx.CodeUnauthorized, "微信回调校验失败")}, appid: "wx-app", body: `{"appid":"wx-app"}`, wantStatus: http.StatusUnauthorized, wantCode: errx.CodeUnauthorized},
+		{name: "oversized body", verifier: &fakeWechatCallbackVerifier{}, appid: "wx-app", body: strings.Repeat("x", (256<<10)+1), wantStatus: http.StatusBadRequest, wantCode: errx.CodeValidationFailed},
+		{name: "appid mismatch", verifier: &fakeWechatCallbackVerifier{}, appid: "wx-app", body: `{"appid":"attacker-app","trace_id":"trace-1"}`, wantStatus: http.StatusUnauthorized, wantCode: errx.CodeUnauthorized},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := newGeneratedAPIServer(t, &svc.ServiceContext{
+				Config:                       config.Config{Wechat: config.WechatConfig{AppID: tc.appid}},
+				ContentAuditCallbackVerifier: tc.verifier,
+			})
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat/content-audit/media-callback?signature=sensitive-signature&timestamp=1784971200&nonce=sensitive-nonce", strings.NewReader(tc.body))
+			body := assertTask6GeneratedStatus(t, server, req, tc.wantStatus)
+			if body["errorCode"] != tc.wantCode {
+				t.Fatalf("body=%#v, want errorCode=%s", body, tc.wantCode)
+			}
+			serialized, _ := json.Marshal(body)
+			for _, secret := range []string{"sensitive-signature", "sensitive-nonce", "attacker-app"} {
+				if strings.Contains(string(serialized), secret) {
+					t.Fatalf("callback response leaked sensitive value %q: %s", secret, serialized)
+				}
+			}
+			if len(tc.verifier.calls) != 1 || tc.verifier.calls[0] {
+				t.Fatalf("verifier calls=%v, failed callback must not record replay fingerprint", tc.verifier.calls)
+			}
+		})
+	}
+}
+
+func TestContentAuditCallbackReplayThroughGeneratedRouteReturnsSuccess(t *testing.T) {
+	verifier := &fakeWechatCallbackVerifier{checkErr: contentauditlogic.ErrWechatCallbackReplay}
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{ContentAuditCallbackVerifier: verifier})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/wechat/content-audit/media-callback?signature=sig&timestamp=1784971200&nonce=nonce", strings.NewReader(`{"appid":"wx-app"}`))
+
+	server.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK || rec.Body.String() != "success" {
+		t.Fatalf("status=%d body=%q, replay must use provider success acknowledgement", rec.Code, rec.Body.String())
+	}
+	if len(verifier.calls) != 1 || verifier.calls[0] {
+		t.Fatalf("verifier calls=%v, replay must stop after check-only verification", verifier.calls)
+	}
+}
+
+func TestContentAuditCallbackGeneratedRouteRecordsReplayOnlyAfterLogicSuccess(t *testing.T) {
+	t.Run("logic failure remains retryable", func(t *testing.T) {
+		svcCtx, mock, verifier := newContentAuditCallbackGeneratedContext(t)
+		server := newGeneratedAPIServer(t, svcCtx)
+		mock.ExpectBegin()
+		mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).
+			WillReturnError(errors.New("raw database secret callback failure"))
+		mock.ExpectRollback()
+
+		body := assertTask6GeneratedStatus(t, server, contentAuditCallbackRequest(`{"appid":"wx-app","trace_id":"trace-fail","errcode":0}`), http.StatusInternalServerError)
+		if body["msg"] == "raw database secret callback failure" || strings.Contains(fmt.Sprint(body), "trace-fail") {
+			t.Fatalf("callback error leaked internal or body detail: %#v", body)
+		}
+		if len(verifier.calls) != 1 || verifier.calls[0] {
+			t.Fatalf("verifier calls=%v, failed logic must remain retryable", verifier.calls)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("logic failure SQL expectations: %v", err)
+		}
+	})
+
+	t.Run("state conflict is acknowledged and remembered", func(t *testing.T) {
+		svcCtx, mock, verifier := newContentAuditCallbackGeneratedContext(t)
+		server := newGeneratedAPIServer(t, svcCtx)
+		mock.ExpectBegin()
+		mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).WillReturnError(sql.ErrNoRows)
+		mock.ExpectRollback()
+		rec := httptest.NewRecorder()
+		server.ServeHTTP(rec, contentAuditCallbackRequest(`{"appid":"wx-app","trace_id":"trace-conflict","errcode":0}`))
+		if rec.Code != http.StatusOK || rec.Body.String() != "success" {
+			t.Fatalf("status=%d body=%q, state conflict must acknowledge success", rec.Code, rec.Body.String())
+		}
+		if len(verifier.calls) != 2 || verifier.calls[0] || !verifier.calls[1] {
+			t.Fatalf("verifier calls=%v, want check then remember", verifier.calls)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("state conflict SQL expectations: %v", err)
+		}
+	})
+
+	t.Run("successful pending result is remembered last", func(t *testing.T) {
+		svcCtx, mock, verifier := newContentAuditCallbackGeneratedContext(t)
+		server := newGeneratedAPIServer(t, svcCtx)
+		mock.ExpectBegin()
+		mock.ExpectQuery(`(?s)UPDATE resource_content_audit_tasks`).
+			WillReturnRows(sqlmock.NewRows([]string{"resource_id"}).AddRow("resource-1"))
+		mock.ExpectQuery(`(?s)COUNT\(\*\) FILTER`).
+			WithArgs("resource-1").
+			WillReturnRows(sqlmock.NewRows([]string{"pending", "rejected", "failed"}).AddRow(int64(1), int64(0), int64(0)))
+		mock.ExpectCommit()
+		rec := httptest.NewRecorder()
+		server.ServeHTTP(rec, contentAuditCallbackRequest(`{"appid":"wx-app","trace_id":"trace-success","errcode":0}`))
+		if rec.Code != http.StatusOK || rec.Body.String() != "success" {
+			t.Fatalf("status=%d body=%q, successful callback must acknowledge success", rec.Code, rec.Body.String())
+		}
+		if len(verifier.calls) != 2 || verifier.calls[0] || !verifier.calls[1] {
+			t.Fatalf("verifier calls=%v, want check then remember", verifier.calls)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("success SQL expectations: %v", err)
+		}
+	})
+}
+
+func TestContentAuditCallbackGeneratedRouteRejectsNilLikeDependencies(t *testing.T) {
+	var typedNilVerifier *fakeWechatCallbackVerifier
+	server := newGeneratedAPIServer(t, &svc.ServiceContext{ContentAuditCallbackVerifier: typedNilVerifier})
+	body := assertTask6GeneratedStatus(t, server, contentAuditCallbackRequest(`{"appid":"wx-app"}`), http.StatusInternalServerError)
+	if body["errorCode"] != errx.CodeInternalError {
+		t.Fatalf("body=%#v, want typed-nil verifier rejected safely", body)
+	}
+}
+
+func newContentAuditCallbackGeneratedContext(t *testing.T) (*svc.ServiceContext, sqlmock.Sqlmock, *fakeWechatCallbackVerifier) {
+	t.Helper()
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error=%v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	verifier := &fakeWechatCallbackVerifier{}
+	return &svc.ServiceContext{
+		Config:                       config.Config{Wechat: config.WechatConfig{AppID: "wx-app"}},
+		APIStore:                     &svc.APIStore{ResourceModel: model.NewResourceModel(db)},
+		ContentAuditCallbackVerifier: verifier,
+	}, mock, verifier
+}
+
+func contentAuditCallbackRequest(body string) *http.Request {
+	return httptest.NewRequest(http.MethodPost, "/api/v1/wechat/content-audit/media-callback?signature=sig&timestamp=1784971200&nonce=nonce", strings.NewReader(body))
+}
 
 func TestMetricsHandlersThroughGeneratedRoutes(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
@@ -645,12 +920,22 @@ func TestResourceAPIRouterHandlesWechatCallbackURLVerification(t *testing.T) {
 }
 
 type fakeWechatCallbackVerifier struct {
-	err      error
-	remember bool
+	err         error
+	checkErr    error
+	rememberErr error
+	remember    bool
+	calls       []bool
 }
 
 func (v *fakeWechatCallbackVerifier) Verify(signature string, timestamp string, nonce string, remember bool) error {
+	v.calls = append(v.calls, remember)
 	v.remember = remember
+	if remember && v.rememberErr != nil {
+		return v.rememberErr
+	}
+	if !remember && v.checkErr != nil {
+		return v.checkErr
+	}
 	return v.err
 }
 

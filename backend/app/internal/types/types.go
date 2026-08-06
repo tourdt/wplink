@@ -907,6 +907,12 @@ type FollowedMerchantItem struct {
 	FollowedAt     string   `json:"followedAt"`
 }
 
+type HandleContentAuditCallbackReq struct {
+	Signature string `form:"signature"`
+	Timestamp string `form:"timestamp"`
+	Nonce     string `form:"nonce"`
+}
+
 type HomeBannerItem struct {
 	Id         string   `json:"id"`
 	Title      string   `json:"title"`
@@ -1888,6 +1894,13 @@ type ValidateWebviewReq struct {
 type ValidateWebviewResp struct {
 	Allowed bool   `json:"allowed"`
 	Url     string `json:"url"`
+}
+
+type VerifyContentAuditCallbackReq struct {
+	Signature string `form:"signature"`
+	Timestamp string `form:"timestamp"`
+	Nonce     string `form:"nonce"`
+	Echostr   string `form:"echostr"`
 }
 
 type WechatLoginReq struct {
