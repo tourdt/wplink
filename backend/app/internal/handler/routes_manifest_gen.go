@@ -32,6 +32,7 @@ func ContractRoutes() []ContractRoute {
 		{Method: "GET", Path: "/api/v1/admin/operators", Handler: "AdminListOperators", Group: "adminpermission"},
 		{Method: "GET", Path: "/api/v1/admin/resource-reports", Handler: "AdminListResourceReports", Group: "adminresource"},
 		{Method: "GET", Path: "/api/v1/admin/resource-type-configs", Handler: "AdminListResourceTypeConfigs", Group: "adminconfig"},
+		{Method: "GET", Path: "/api/v1/admin/resources", Handler: "AdminListResources", Group: "adminresource"},
 		{Method: "GET", Path: "/api/v1/admin/resources/pending", Handler: "AdminListPendingResources", Group: "adminresource"},
 		{Method: "GET", Path: "/api/v1/admin/search-logs", Handler: "AdminListSearchLogs", Group: "adminlog"},
 		{Method: "GET", Path: "/api/v1/admin/vip/plans", Handler: "AdminListVIPPlans", Group: "adminvipconfig"},

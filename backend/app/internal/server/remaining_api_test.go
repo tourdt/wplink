@@ -307,6 +307,443 @@ func growthAdminRequest(method string, target string, body string) *http.Request
 	return req
 }
 
+func TestAdminHandlersThroughGeneratedRoutesUseRealAdminAuthAndNoMigrationSkeleton(t *testing.T) {
+	svcCtx := &svc.ServiceContext{AdminAuth: middleware.NewAdminAuthMiddleware(&fakeAdminTokenService{subject: session.AdminTokenSubject{
+		OperatorID: "admin-task11",
+		Roles:      []string{permission.RoleSuperAdmin},
+	}}).Handle}
+	server := newGeneratedAPIServer(t, svcCtx)
+	tests := []struct {
+		method string
+		target string
+		body   string
+	}{
+		{http.MethodGet, "/api/v1/admin/operators", ""},
+		{http.MethodPost, "/api/v1/admin/operators", `{}`},
+		{http.MethodPost, "/api/v1/admin/operators/operator-1", `{}`},
+		{http.MethodPost, "/api/v1/admin/operators/operator-1/status", `{}`},
+		{http.MethodGet, "/api/v1/admin/module-permissions", ""},
+		{http.MethodPost, "/api/v1/admin/module-permissions/platform_operator", `{}`},
+		{http.MethodGet, "/api/v1/admin/dashboard/overview", ""},
+		{http.MethodGet, "/api/v1/admin/resources?status=published", ""},
+		{http.MethodGet, "/api/v1/admin/resources/pending", ""},
+		{http.MethodPost, "/api/v1/admin/resources/resource-1/review", `{}`},
+		{http.MethodGet, "/api/v1/admin/resource-reports", ""},
+		{http.MethodPost, "/api/v1/admin/resource-reports/report-1/review", `{}`},
+		{http.MethodPost, "/api/v1/admin/merchants/merchant-1/entitlements", `{}`},
+		{http.MethodGet, "/api/v1/admin/operation-logs", ""},
+		{http.MethodGet, "/api/v1/admin/search-logs", ""},
+		{http.MethodPost, "/api/v1/admin/tasks/resource-lifecycle/run", ""},
+		{http.MethodGet, "/api/v1/admin/merchants", ""},
+		{http.MethodGet, "/api/v1/admin/banner-topics", ""},
+		{http.MethodPost, "/api/v1/admin/banner-topics", `{}`},
+		{http.MethodPost, "/api/v1/admin/banner-topics/banner-1", `{}`},
+		{http.MethodGet, "/api/v1/admin/hot-search-keywords", ""},
+		{http.MethodPost, "/api/v1/admin/hot-search-keywords", `{}`},
+		{http.MethodPost, "/api/v1/admin/hot-search-keywords/keyword-1", `{}`},
+		{http.MethodGet, "/api/v1/admin/vip/plans", ""},
+		{http.MethodPost, "/api/v1/admin/vip/plans", `{}`},
+		{http.MethodPost, "/api/v1/admin/vip/plans/monthly", `{}`},
+		{http.MethodGet, "/api/v1/admin/vip/quota-packs", ""},
+		{http.MethodPost, "/api/v1/admin/vip/quota-packs", `{}`},
+		{http.MethodPost, "/api/v1/admin/vip/quota-packs/publish-5", `{}`},
+		{http.MethodGet, "/api/v1/admin/vip/promotions", ""},
+		{http.MethodPost, "/api/v1/admin/vip/promotions", `{}`},
+		{http.MethodPost, "/api/v1/admin/vip/promotions/promotion-1", `{}`},
+		{http.MethodGet, "/api/v1/admin/resource-type-configs", ""},
+		{http.MethodPost, "/api/v1/admin/resource-type-configs", `{}`},
+		{http.MethodPost, "/api/v1/admin/resource-type-configs/config-1", `{}`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.method+" "+tc.target, func(t *testing.T) {
+			unauthorizedReq := httptest.NewRequest(tc.method, tc.target, strings.NewReader(tc.body))
+			if tc.body != "" {
+				unauthorizedReq.Header.Set("Content-Type", "application/json")
+			}
+			assertTask6GeneratedStatus(t, server, unauthorizedReq, http.StatusUnauthorized)
+
+			req := growthAdminRequest(tc.method, tc.target, tc.body)
+			rec := httptest.NewRecorder()
+			server.ServeHTTP(rec, req)
+			body := decodeEnvelope(t, rec, rec.Code)
+			if rec.Code == http.StatusNotFound {
+				t.Fatalf("route %s %s was not registered", tc.method, tc.target)
+			}
+			if body["msg"] == "接口暂不可用，请稍后重试" {
+				t.Fatalf("route %s %s still uses migration skeleton", tc.method, tc.target)
+			}
+		})
+	}
+}
+
+func TestAdminGeneratedListRoutesMapFiltersAndEncodeEmptyArrays(t *testing.T) {
+	svcCtx, mock := newAdminGeneratedServiceContext(t, session.AdminTokenSubject{
+		OperatorID: "admin-task11", Roles: []string{permission.RoleSuperAdmin},
+	})
+	server := newGeneratedAPIServer(t, svcCtx)
+
+	mock.ExpectQuery(`(?s)WITH filtered AS`).
+		WithArgs("运营", permission.RolePlatformOperator, model.AdminCredentialStatusEnabled, int64(5), int64(5)).
+		WillReturnRows(sqlmock.NewRows([]string{"operator_id"}))
+	assertAdminItemsArray(t, server, "/api/v1/admin/operators?keyword=%E8%BF%90%E8%90%A5&role=platform_operator&status=enabled&page=2&pageSize=5")
+
+	mock.ExpectQuery(`(?s)SELECT\s+\(SELECT COUNT\(\*\) FROM resources`).
+		WithArgs("zhili").WillReturnRows(sqlmock.NewRows([]string{"pending", "contacts"}).AddRow(int64(2), int64(3)))
+	mock.ExpectQuery(`(?s)FROM \(\s+SELECT '资源审核'`).
+		WithArgs("zhili").WillReturnRows(sqlmock.NewRows([]string{"type"}))
+	dashboard := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodGet, "/api/v1/admin/dashboard/overview?cityCode=zhili", ""), http.StatusOK)["data"].(map[string]interface{})
+	if tasks, ok := dashboard["tasks"].([]interface{}); !ok || len(tasks) != 0 {
+		t.Fatalf("dashboard=%#v, want tasks: []", dashboard)
+	}
+
+	mock.ExpectQuery(`(?s)FROM resources r\s+JOIN merchants`).
+		WithArgs("published", "zhili", "inventory", int64(5), int64(5)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	adminResources := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodGet,
+		"/api/v1/admin/resources?cityCode=zhili&typeCode=inventory&status=published&page=2&pageSize=5", ""), http.StatusOK)["data"].(map[string]interface{})
+	if items, ok := adminResources["items"].([]interface{}); !ok || len(items) != 0 {
+		t.Fatalf("admin resources=%#v, want items: []", adminResources)
+	}
+
+	mock.ExpectQuery(`(?s)FROM resources r\s+JOIN merchants`).
+		WithArgs(model.ResourceStatusManualReview, "hangzhou", "demand", int64(7), int64(0)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	pendingResources := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodGet,
+		"/api/v1/admin/resources/pending?cityCode=hangzhou&typeCode=demand&pageSize=7", ""), http.StatusOK)["data"].(map[string]interface{})
+	if items, ok := pendingResources["items"].([]interface{}); !ok || len(items) != 0 {
+		t.Fatalf("pending resources=%#v, want items: []", pendingResources)
+	}
+
+	mock.ExpectQuery(`(?s)WITH grouped_reports AS`).
+		WithArgs(model.ResourceReportStatusPending, int64(4), int64(4)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	assertAdminItemsArray(t, server, "/api/v1/admin/resource-reports?status=pending&page=2&pageSize=4")
+
+	mock.ExpectQuery(`(?s)FROM merchants m`).
+		WithArgs("zhili", "factory", model.MerchantStatusActive, "童装", int64(9), int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	assertAdminItemsArray(t, server, "/api/v1/admin/merchants?cityCode=zhili&merchantType=factory&status=active&keyword=%E7%AB%A5%E8%A3%85&page=2&pageSize=9")
+
+	mock.ExpectQuery(`(?s)FROM banner_topics bt`).WithArgs("zhili", "banner", "active").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	assertAdminItemsArray(t, server, "/api/v1/admin/banner-topics?cityCode=zhili&kind=banner&status=active")
+
+	mock.ExpectQuery(`(?s)FROM hot_search_keywords hsk`).WithArgs("zhili", "active").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	assertAdminItemsArray(t, server, "/api/v1/admin/hot-search-keywords?cityCode=zhili&status=active")
+
+	mock.ExpectQuery(`(?s)FROM vip_plans p`).WillReturnRows(sqlmock.NewRows([]string{"code"}))
+	assertAdminItemsArray(t, server, "/api/v1/admin/vip/plans")
+	mock.ExpectQuery(`(?s)FROM vip_quota_packs`).WillReturnRows(sqlmock.NewRows([]string{"code"}))
+	assertAdminItemsArray(t, server, "/api/v1/admin/vip/quota-packs")
+	mock.ExpectQuery(`(?s)FROM vip_promotions promo`).WillReturnRows(sqlmock.NewRows([]string{"code"}))
+	assertAdminItemsArray(t, server, "/api/v1/admin/vip/promotions")
+
+	mock.ExpectQuery(`(?s)FROM resource_type_configs rtc`).WithArgs("zhili", "active").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	assertAdminItemsArray(t, server, "/api/v1/admin/resource-type-configs?cityCode=zhili&status=active")
+
+	mock.ExpectQuery(`(?s)FROM operation_logs`).WithArgs("resource", "resource-1", "admin-task11", int64(6), int64(6)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	assertAdminItemsArray(t, server, "/api/v1/admin/operation-logs?objectType=resource&objectId=resource-1&operatorId=admin-task11&page=2&pageSize=6")
+
+	mock.ExpectQuery(`(?s)FROM search_logs sl`).WithArgs("zhili", "童装", int64(8), int64(8)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	assertAdminItemsArray(t, server, "/api/v1/admin/search-logs?cityCode=zhili&keyword=%E7%AB%A5%E8%A3%85&page=2&pageSize=8")
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("admin list SQL expectations: %v", err)
+	}
+}
+
+func TestAdminGeneratedPermissionModuleDenialAndSuperAdminCheck(t *testing.T) {
+	platformCtx, _ := newAdminGeneratedServiceContext(t, session.AdminTokenSubject{
+		OperatorID: "operator-plain", Roles: []string{permission.RolePlatformOperator}, Modules: []string{permission.AdminModuleResourceReview},
+	})
+	platformServer := newGeneratedAPIServer(t, platformCtx)
+	assertTask6GeneratedStatus(t, platformServer, growthAdminRequest(http.MethodGet, "/api/v1/admin/dashboard/overview", ""), http.StatusForbidden)
+
+	permissionCtx, _ := newAdminGeneratedServiceContext(t, session.AdminTokenSubject{
+		OperatorID: "operator-plain", Roles: []string{permission.RolePlatformOperator}, Modules: []string{permission.AdminModuleAdminPermissions},
+	})
+	permissionServer := newGeneratedAPIServer(t, permissionCtx)
+	body := assertTask6GeneratedStatus(t, permissionServer, growthAdminRequest(http.MethodGet, "/api/v1/admin/operators", ""), http.StatusForbidden)
+	if body["msg"] != "只有超级管理员可以管理管理员权限" {
+		t.Fatalf("body=%#v, want Logic super-admin check", body)
+	}
+}
+
+func TestAdminGeneratedWritesUseContextOperatorAndPathIdentifiers(t *testing.T) {
+	svcCtx, mock := newAdminGeneratedServiceContext(t, session.AdminTokenSubject{
+		OperatorID: "admin-task11", Roles: []string{permission.RoleSuperAdmin},
+	})
+	server := newGeneratedAPIServer(t, svcCtx)
+	updatedAt := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)INSERT INTO merchant_entitlements`).
+		WithArgs("merchant-path", "publish_quota", "manual", int64(3), "", model.EntitlementTypeTopVoucher).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("entitlement-1"))
+	mock.ExpectExec(`(?s)INSERT INTO operation_logs`).
+		WithArgs("admin-task11", "platform_operator", "entitlement_grant", "merchant", "merchant-path", sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
+		"/api/v1/admin/merchants/merchant-path/entitlements?merchantId=merchant-query&operatorId=attacker",
+		`{"merchantId":"merchant-body","operatorId":"attacker","entitlementType":"publish_quota","sourceType":"manual","totalAmount":3,"reason":"运营补发"}`), http.StatusOK)
+
+	mock.ExpectQuery(`(?s)UPDATE banner_topics`).WithArgs(
+		"banner-path", "zhili", "banner", "路径主键测试", "", "", model.JSONStringSlice{}, "internal", "/pages/home/index",
+		model.JSONStringSlice{}, "", "", int64(0), "active",
+	).WillReturnRows(sqlmock.NewRows([]string{"id", "updated_at"}).AddRow("banner-path", updatedAt))
+	banner := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
+		"/api/v1/admin/banner-topics/banner-path?configId=banner-query",
+		`{"id":"banner-body","kind":"banner","title":"路径主键测试","jumpType":"internal","jumpTarget":"/pages/home/index","cityCode":"zhili","status":"active"}`), http.StatusOK)["data"].(map[string]interface{})
+	if banner["id"] != "banner-path" {
+		t.Fatalf("banner=%#v, want path id", banner)
+	}
+
+	mock.ExpectQuery(`(?s)UPDATE hot_search_keywords`).WithArgs(
+		"keyword-path", "zhili", "夏款现货", int64(20), "active", "", "",
+	).WillReturnRows(sqlmock.NewRows([]string{"id", "updated_at"}).AddRow("keyword-path", updatedAt))
+	hot := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
+		"/api/v1/admin/hot-search-keywords/keyword-path?configId=keyword-query",
+		`{"id":"keyword-body","cityCode":"zhili","keyword":"夏款现货","sortOrder":20,"status":"active"}`), http.StatusOK)["data"].(map[string]interface{})
+	if hot["id"] != "keyword-path" {
+		t.Fatalf("hot=%#v, want path id", hot)
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)FROM vip_quota_packs\s+WHERE code`).WithArgs("pack-path").
+		WillReturnRows(sqlmock.NewRows([]string{"name"}))
+	mock.ExpectQuery(`(?s)INSERT INTO vip_quota_packs`).WithArgs(
+		"pack-path", "发布次数包", "临时补充次数", int64(2500), int64(1990), "限时", sqlmock.AnyArg(), "active", int64(10),
+	).WillReturnRows(sqlmock.NewRows([]string{"code", "updated_at"}).AddRow("pack-path", updatedAt))
+	mock.ExpectExec(`(?s)INSERT INTO operation_logs`).
+		WithArgs("admin-task11", "platform_operator", "vip_quota_pack_save", "vip_config", "", sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	pack := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
+		"/api/v1/admin/vip/quota-packs/pack-path?operatorId=attacker",
+		`{"code":"pack-body","operatorId":"attacker","name":"发布次数包","description":"临时补充次数","standardPriceCent":2500,"salePriceCent":1990,"saleLabel":"限时","status":"active","displayOrder":10,"benefits":{"publishQuota":5,"refreshQuota":0,"topVoucherCount":0,"topDurationHours":0}}`), http.StatusOK)["data"].(map[string]interface{})
+	if pack["code"] != "pack-path" {
+		t.Fatalf("pack=%#v, want path code", pack)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("admin write SQL expectations: %v", err)
+	}
+}
+
+func TestAdminGeneratedResourceTypeVersionConflictUsesPathIDAndChineseMessage(t *testing.T) {
+	svcCtx, mock := newAdminGeneratedServiceContext(t, session.AdminTokenSubject{
+		OperatorID: "admin-task11", Roles: []string{permission.RoleSuperAdmin},
+	})
+	server := newGeneratedAPIServer(t, svcCtx)
+	mock.ExpectQuery(`(?s)UPDATE resource_type_configs`).WithArgs(
+		"config-path", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+		sqlmock.AnyArg(), sqlmock.AnyArg(), int64(7), "active", sqlmock.AnyArg(), int64(3),
+	).WillReturnRows(sqlmock.NewRows([]string{"version", "updated_at"}))
+	body := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
+		"/api/v1/admin/resource-type-configs/config-path?configId=config-query",
+		`{"configId":"config-body","version":3,"fieldSchema":{},"requiredFields":[],"filterFields":[],"displayTemplate":{},"reviewRules":{},"sortWeights":{},"messageRules":{},"commercialRules":{},"defaultValidDays":7,"status":"active"}`), http.StatusConflict)
+	if body["msg"] != "资源类型配置已被其他人修改，请刷新后重试" {
+		t.Fatalf("body=%#v, want optimistic version conflict message", body)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("resource type SQL expectations: %v", err)
+	}
+}
+
+func TestAdminGeneratedLifecycleRunsExistingTaskAndFailsClosedOnTypedNil(t *testing.T) {
+	svcCtx, mock := newAdminGeneratedServiceContext(t, session.AdminTokenSubject{
+		OperatorID: "admin-task11", Roles: []string{permission.RoleSuperAdmin},
+	})
+	server := newGeneratedAPIServer(t, svcCtx)
+	mock.ExpectQuery(`(?s)WITH newly_expired AS`).WillReturnRows(sqlmock.NewRows([]string{"id", "merchant_id", "title"}))
+	mock.ExpectQuery(`(?s)SELECT r.id::text, r.merchant_id::text, r.title\s+FROM resources r`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "merchant_id", "title"}))
+	data := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
+		"/api/v1/admin/tasks/resource-lifecycle/run", ""), http.StatusOK)["data"].(map[string]interface{})
+	if data["expiredCount"] != float64(0) || data["expiringReminderCount"] != float64(0) {
+		t.Fatalf("data=%#v, want empty lifecycle result", data)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("lifecycle SQL expectations: %v", err)
+	}
+
+	typedNilCases := []struct {
+		name   string
+		mutate func(*svc.APIStore)
+	}{
+		{name: "resource model", mutate: func(store *svc.APIStore) { store.ResourceModel = (*model.ResourceModel)(nil) }},
+		{name: "message model", mutate: func(store *svc.APIStore) { store.MessageModel = (*model.MessageModel)(nil) }},
+	}
+	for _, tc := range typedNilCases {
+		t.Run(tc.name, func(t *testing.T) {
+			typedNilCtx, _ := newAdminGeneratedServiceContext(t, session.AdminTokenSubject{OperatorID: "admin-task11", Roles: []string{permission.RoleSuperAdmin}})
+			tc.mutate(typedNilCtx.APIStore)
+			typedNilServer := newGeneratedAPIServer(t, typedNilCtx)
+			body := assertTask6GeneratedStatus(t, typedNilServer, growthAdminRequest(http.MethodPost,
+				"/api/v1/admin/tasks/resource-lifecycle/run", ""), http.StatusInternalServerError)
+			if body["errorCode"] != errx.CodeInternalError {
+				t.Fatalf("body=%#v, want fail-closed dependency error", body)
+			}
+		})
+	}
+}
+
+func TestAdminGeneratedReviewsUseContextReviewerAndPathIDs(t *testing.T) {
+	svcCtx, mock := newAdminGeneratedServiceContext(t, session.AdminTokenSubject{
+		OperatorID: "admin-task11", Roles: []string{permission.RoleSuperAdmin},
+	})
+	server := newGeneratedAPIServer(t, svcCtx)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)UPDATE resources\s+SET status`).WithArgs(
+		"resource-path", model.ResourceStatusRejected, "reject", sqlmock.AnyArg(), "资料不完整",
+	).WillReturnRows(sqlmock.NewRows([]string{"id", "merchant_id", "title", "status"}).
+		AddRow("resource-path", "merchant-1", "童装库存", model.ResourceStatusRejected))
+	mock.ExpectExec(`(?s)INSERT INTO resource_review_records`).
+		WithArgs("resource-path", "admin-task11", "reject", "资料不完整").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`(?s)INSERT INTO messages`).
+		WithArgs("merchant:merchant-1", "resource_reject", "resource-path", "资源审核驳回", "童装库存 审核未通过，请修改后重新提交", model.MerchantMyResourcesTargetURL("merchant-1")).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`(?s)INSERT INTO operation_logs`).
+		WithArgs("admin-task11", "platform_operator", "resource_reject", "resource", "resource-path", sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	resource := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
+		"/api/v1/admin/resources/resource-path/review?resourceId=resource-query&reviewerId=attacker",
+		`{"resourceId":"resource-body","reviewerId":"attacker","action":"reject","reason":"资料不完整"}`), http.StatusOK)["data"].(map[string]interface{})
+	if resource["id"] != "resource-path" || resource["status"] != model.ResourceStatusRejected {
+		t.Fatalf("resource=%#v, want path resource reviewed", resource)
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)FROM resource_reports rr`).WithArgs("report-path").
+		WillReturnRows(sqlmock.NewRows([]string{"report_id", "resource_id", "merchant_id", "title", "status", "deleted"}).
+			AddRow("report-path", "resource-1", "merchant-1", "童装库存", model.ResourceStatusPublished, false))
+	mock.ExpectQuery(`(?s)UPDATE resource_reports`).WithArgs(
+		"resource-1", model.ResourceReportStatusInvalid, "admin-task11", model.ResourceReportActionInvalid,
+		"举报不成立，资源维持原状态", false, "report-path",
+	).WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(model.ResourceReportStatusInvalid))
+	mock.ExpectQuery(`(?s)SELECT COUNT\(\*\)\s+FROM resource_reports`).WithArgs("resource-1", "report-path").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(2)))
+	mock.ExpectExec(`(?s)INSERT INTO operation_logs`).WithArgs(
+		"admin-task11", "platform_operator", "resource_report_review", "resource_report", "report-path", sqlmock.AnyArg(), sqlmock.AnyArg(),
+	).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	report := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
+		"/api/v1/admin/resource-reports/report-path/review?reportId=report-query&reviewerId=attacker",
+		`{"reportId":"report-body","reviewerId":"attacker","action":"invalid"}`), http.StatusOK)["data"].(map[string]interface{})
+	if report["id"] != "report-path" || report["resolvedReportCount"] != float64(2) {
+		t.Fatalf("report=%#v, want path report reviewed", report)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("admin review SQL expectations: %v", err)
+	}
+}
+
+func TestAdminGeneratedPermissionWriteUsesContextActorAndPathRole(t *testing.T) {
+	svcCtx, mock := newAdminGeneratedServiceContext(t, session.AdminTokenSubject{
+		OperatorID: "admin-task11", Roles: []string{permission.RoleSuperAdmin},
+	})
+	server := newGeneratedAPIServer(t, svcCtx)
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)FROM admin_roles\s+WHERE code`).WithArgs(permission.RolePlatformOperator).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "code", "modules"}).
+			AddRow("role-1", permission.RolePlatformOperator, []byte(`["resource_review"]`)))
+	mock.ExpectExec(`(?s)UPDATE admin_roles`).WithArgs(permission.RolePlatformOperator, model.JSONStringSlice{
+		permission.AdminModuleMerchants, permission.AdminModuleResourceReview,
+	}).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`(?s)UPDATE admin_operators ao`).WithArgs("role-1").WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectExec(`(?s)INSERT INTO operation_logs`).WithArgs(
+		"admin-task11", permission.RoleSuperAdmin, "admin_role_modules_update", "admin_role", "role-1", sqlmock.AnyArg(), sqlmock.AnyArg(),
+	).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery(`(?s)FROM admin_roles\s+WHERE code`).WithArgs(permission.RolePlatformOperator).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "code", "modules"}).
+			AddRow("role-1", permission.RolePlatformOperator, []byte(`["merchants","resource_review"]`)))
+	mock.ExpectCommit()
+	data := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost,
+		"/api/v1/admin/module-permissions/platform_operator?roleCode=super_admin&operatorId=attacker",
+		`{"roleCode":"super_admin","operatorId":"attacker","modules":["merchants","resource_review"]}`), http.StatusOK)["data"].(map[string]interface{})
+	if data["roleCode"] != permission.RolePlatformOperator {
+		t.Fatalf("data=%#v, want path role code", data)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("admin permission SQL expectations: %v", err)
+	}
+}
+
+func TestAdminGeneratedHandlersRejectTypedNilDependencies(t *testing.T) {
+	cases := []struct {
+		name   string
+		method string
+		target string
+		mutate func(*svc.APIStore)
+	}{
+		{name: "permissions", method: http.MethodGet, target: "/api/v1/admin/operators", mutate: func(s *svc.APIStore) { s.AdminPermissionModel = (*model.AdminPermissionModel)(nil) }},
+		{name: "dashboard", method: http.MethodGet, target: "/api/v1/admin/dashboard/overview", mutate: func(s *svc.APIStore) { s.AdminDashboardModel = (*model.AdminDashboardModel)(nil) }},
+		{name: "resources", method: http.MethodGet, target: "/api/v1/admin/resources", mutate: func(s *svc.APIStore) { s.ResourceModel = (*model.ResourceModel)(nil) }},
+		{name: "entitlements", method: http.MethodPost, target: "/api/v1/admin/merchants/merchant-1/entitlements", mutate: func(s *svc.APIStore) { s.MerchantEntitlementModel = (*model.MerchantEntitlementModel)(nil) }},
+		{name: "operation logs", method: http.MethodGet, target: "/api/v1/admin/operation-logs", mutate: func(s *svc.APIStore) { s.OperationLogModel = (*model.OperationLogModel)(nil) }},
+		{name: "search logs", method: http.MethodGet, target: "/api/v1/admin/search-logs", mutate: func(s *svc.APIStore) { s.SearchLogModel = (*model.SearchLogModel)(nil) }},
+		{name: "merchants", method: http.MethodGet, target: "/api/v1/admin/merchants", mutate: func(s *svc.APIStore) { s.MerchantModel = (*model.MerchantModel)(nil) }},
+		{name: "banners", method: http.MethodGet, target: "/api/v1/admin/banner-topics", mutate: func(s *svc.APIStore) { s.BannerTopicModel = (*model.BannerTopicModel)(nil) }},
+		{name: "hot keywords", method: http.MethodGet, target: "/api/v1/admin/hot-search-keywords", mutate: func(s *svc.APIStore) { s.HotSearchKeywordModel = (*model.HotSearchKeywordModel)(nil) }},
+		{name: "vip", method: http.MethodGet, target: "/api/v1/admin/vip/plans", mutate: func(s *svc.APIStore) { s.VIPModel = (*model.VIPModel)(nil) }},
+		{name: "resource configs", method: http.MethodGet, target: "/api/v1/admin/resource-type-configs", mutate: func(s *svc.APIStore) { s.ResourceTypeConfigModel = (*model.ResourceTypeConfigModel)(nil) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svcCtx, _ := newAdminGeneratedServiceContext(t, session.AdminTokenSubject{OperatorID: "admin-task11", Roles: []string{permission.RoleSuperAdmin}})
+			tc.mutate(svcCtx.APIStore)
+			server := newGeneratedAPIServer(t, svcCtx)
+			body := assertTask6GeneratedStatus(t, server, growthAdminRequest(tc.method, tc.target, ""), http.StatusInternalServerError)
+			if body["errorCode"] != errx.CodeInternalError {
+				t.Fatalf("body=%#v, want typed-nil dependency rejection", body)
+			}
+		})
+	}
+}
+
+func assertAdminItemsArray(t *testing.T, server *rest.Server, target string) {
+	t.Helper()
+	data := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodGet, target, ""), http.StatusOK)["data"].(map[string]interface{})
+	if items, ok := data["items"].([]interface{}); !ok || len(items) != 0 {
+		t.Fatalf("target=%s data=%#v, want items: []", target, data)
+	}
+}
+
+func newAdminGeneratedServiceContext(t *testing.T, subject session.AdminTokenSubject) (*svc.ServiceContext, sqlmock.Sqlmock) {
+	t.Helper()
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return &svc.ServiceContext{
+		APIStore: &svc.APIStore{
+			ResourceTypeConfigModel:  model.NewResourceTypeConfigModel(db),
+			AdminDashboardModel:      model.NewAdminDashboardModel(db),
+			MerchantModel:            model.NewMerchantModel(db),
+			ResourceModel:            model.NewResourceModel(db),
+			BannerTopicModel:         model.NewBannerTopicModel(db),
+			HotSearchKeywordModel:    model.NewHotSearchKeywordModel(db),
+			MerchantEntitlementModel: model.NewMerchantEntitlementModel(db),
+			VIPModel:                 model.NewVIPModel(db),
+			MessageModel:             model.NewMessageModel(db),
+			SearchLogModel:           model.NewSearchLogModel(db),
+			OperationLogModel:        model.NewOperationLogModel(db),
+			AdminPermissionModel:     model.NewAdminPermissionModel(db),
+		},
+		AdminAuth: middleware.NewAdminAuthMiddleware(&fakeAdminTokenService{subject: subject}).Handle,
+	}, mock
+}
+
 func TestEntitlementAndVIPHandlersThroughGeneratedRoutes(t *testing.T) {
 	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{})
 	tests := []struct {

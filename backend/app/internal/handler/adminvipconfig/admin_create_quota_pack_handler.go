@@ -3,10 +3,9 @@ package adminvipconfig
 import (
 	"net/http"
 
-	"wplink/backend/app/internal/handler/handlerx"
 	"wplink/backend/app/internal/svc"
 )
 
 func AdminCreateQuotaPackHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
-	return handlerx.NotMigrated("AdminCreateQuotaPackHandler")
+	return adminSaveQuotaPackHTTPHandler(svcCtx, false)
 }

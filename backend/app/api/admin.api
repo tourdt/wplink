@@ -109,6 +109,14 @@ type AdminPendingResourcesReq {
 	PageSize int64  `form:"pageSize,optional"`
 }
 
+type AdminResourcesReq {
+	CityCode string `form:"cityCode,optional"`
+	TypeCode string `form:"typeCode,optional"`
+	Status   string `form:"status,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
 type AdminPendingResourceItem {
 	Id           string `json:"id"`
 	Title        string `json:"title"`
@@ -538,6 +546,7 @@ service wplink-api {
 @server (
 	prefix: /api/v1/admin
 	group:  adminpermission
+	middleware: AdminAuth
 )
 service wplink-api {
 	@handler AdminListOperators
@@ -562,6 +571,7 @@ service wplink-api {
 @server (
 	prefix: /api/v1/admin
 	group:  admindashboard
+	middleware: AdminAuth
 )
 service wplink-api {
 	@handler AdminDashboardOverview
@@ -571,8 +581,12 @@ service wplink-api {
 @server (
 	prefix: /api/v1/admin
 	group:  adminresource
+	middleware: AdminAuth
 )
 service wplink-api {
+	@handler AdminListResources
+	get /resources (AdminResourcesReq) returns (AdminPendingResourcesResp)
+
 	@handler AdminListPendingResources
 	get /resources/pending (AdminPendingResourcesReq) returns (AdminPendingResourcesResp)
 
@@ -589,6 +603,7 @@ service wplink-api {
 @server (
 	prefix: /api/v1/admin
 	group:  adminentitlement
+	middleware: AdminAuth
 )
 service wplink-api {
 	@handler AdminGrantMerchantEntitlement
@@ -598,6 +613,7 @@ service wplink-api {
 @server (
 	prefix: /api/v1/admin
 	group:  adminlog
+	middleware: AdminAuth
 )
 service wplink-api {
 	@handler AdminListOperationLogs
@@ -613,6 +629,7 @@ service wplink-api {
 @server (
 	prefix: /api/v1/admin
 	group:  adminmerchant
+	middleware: AdminAuth
 )
 service wplink-api {
 	@handler AdminListMerchants
@@ -622,6 +639,7 @@ service wplink-api {
 @server (
 	prefix: /api/v1/admin
 	group:  adminbannertopic
+	middleware: AdminAuth
 )
 service wplink-api {
 	@handler AdminListBannerTopics
@@ -637,6 +655,7 @@ service wplink-api {
 @server (
 	prefix: /api/v1/admin
 	group:  adminhotsearchkeyword
+	middleware: AdminAuth
 )
 service wplink-api {
 	@handler AdminListHotSearchKeywords
@@ -652,6 +671,7 @@ service wplink-api {
 @server (
 	prefix: /api/v1/admin
 	group:  adminvipconfig
+	middleware: AdminAuth
 )
 service wplink-api {
 	@handler AdminListVIPPlans
@@ -685,6 +705,7 @@ service wplink-api {
 @server (
 	prefix: /api/v1/admin
 	group:  adminconfig
+	middleware: AdminAuth
 )
 service wplink-api {
 	@handler AdminListResourceTypeConfigs

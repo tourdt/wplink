@@ -210,7 +210,7 @@ func (l *ResourceTypeConfigLogic) CreateResourceTypeConfig(ctx context.Context, 
 			logx.Infof("创建供需二级类型被拦截: cityCode=%s typeCode=%s reason=duplicate_type_code", input.CityCode, input.TypeCode)
 			return CreateResourceTypeConfigResp{}, errx.New(errx.CodeValidationFailed, "二级分类编码已存在，请更换编码")
 		}
-		logx.Errorf("创建供需二级类型失败: cityCode=%s typeCode=%s groupCode=%s err=%+v", input.CityCode, input.TypeCode, groupCodeFromDisplayTemplate(input.DisplayTemplate), err)
+		logx.Errorf("创建供需二级类型失败: cityCode=%s typeCode=%s groupCode=%s errorType=%T", input.CityCode, input.TypeCode, groupCodeFromDisplayTemplate(input.DisplayTemplate), err)
 		return CreateResourceTypeConfigResp{}, errx.New(errx.CodeInternalError, "新增供需类型失败，请稍后重试")
 	}
 	logx.Infof("创建供需二级类型成功: cityCode=%s typeCode=%s groupCode=%s configId=%s", input.CityCode, input.TypeCode, groupCodeFromDisplayTemplate(input.DisplayTemplate), result.ID)

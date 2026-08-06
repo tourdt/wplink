@@ -129,7 +129,7 @@ func (l *AdminPermissionLogic) ListOperators(ctx context.Context, req ListAdminO
 		PageSize: req.PageSize,
 	})
 	if err != nil {
-		logx.Errorf("查询后台管理员账号失败: operatorId=%s role=%s status=%s err=%+v", actor.OperatorID, role, status, err)
+		logx.Errorf("查询后台管理员账号失败: operatorId=%s role=%s status=%s errorType=%T", actor.OperatorID, role, status, err)
 		return ListAdminOperatorsResp{}, errx.New(errx.CodeInternalError, "管理员账号加载失败，请稍后重试")
 	}
 	return mapAdminOperatorsResult(result), nil
@@ -205,7 +205,7 @@ func (l *AdminPermissionLogic) ListModulePermissions(ctx context.Context, actor 
 	}
 	rolePermission, err := l.store.GetAdminRoleModulePermissions(ctx, permission.RolePlatformOperator)
 	if err != nil {
-		logx.Errorf("查询后台角色模块权限失败: operatorId=%s roleCode=%s err=%+v", actor.OperatorID, permission.RolePlatformOperator, err)
+		logx.Errorf("查询后台角色模块权限失败: operatorId=%s roleCode=%s errorType=%T", actor.OperatorID, permission.RolePlatformOperator, err)
 		return AdminModulePermissionsResp{}, errx.New(errx.CodeInternalError, "模块权限配置加载失败，请稍后重试")
 	}
 	modules := permission.NormalizeConfigurableAdminModules(rolePermission.Modules)
@@ -243,7 +243,7 @@ func (l *AdminPermissionLogic) UpdateRoleModulePermissions(ctx context.Context, 
 		if errors.Is(err, model.ErrAdminRoleNotFound) {
 			return SaveAdminRoleModulePermissionsResp{}, errx.New(errx.CodeResourceNotFound, "管理员角色不存在")
 		}
-		logx.Errorf("保存后台角色模块权限失败: operatorId=%s roleCode=%s modules=%v err=%+v", actor.OperatorID, roleCode, modules, err)
+		logx.Errorf("保存后台角色模块权限失败: operatorId=%s roleCode=%s modules=%v errorType=%T", actor.OperatorID, roleCode, modules, err)
 		return SaveAdminRoleModulePermissionsResp{}, errx.New(errx.CodeInternalError, "模块权限配置保存失败，请稍后重试")
 	}
 	logx.Infof("保存后台角色模块权限成功: operatorId=%s roleCode=%s modules=%v", actor.OperatorID, roleCode, rolePermission.Modules)
@@ -283,7 +283,7 @@ func (l *AdminPermissionLogic) buildOperatorInput(operatorID string, req SaveAdm
 		}
 		hash, err := l.hasher.Hash(password)
 		if err != nil {
-			logx.Errorf("生成后台管理员密码哈希失败: operatorId=%s loginName=%s err=%+v", actor.OperatorID, loginName, err)
+			logx.Errorf("生成后台管理员密码哈希失败: operatorId=%s loginName=%s errorType=%T", actor.OperatorID, loginName, err)
 			return model.AdminOperatorInput{}, errx.New(errx.CodeInternalError, "管理员账号保存失败，请稍后重试")
 		}
 		passwordHash = hash
@@ -307,7 +307,7 @@ func (l *AdminPermissionLogic) mapSaveError(action string, operatorID string, ta
 	case errors.Is(err, model.ErrAdminOperatorNotFound):
 		return errx.New(errx.CodeResourceNotFound, "管理员账号不存在或已被删除")
 	default:
-		logx.Errorf("%s失败: operatorId=%s target=%s err=%+v", action, strings.TrimSpace(operatorID), strings.TrimSpace(target), err)
+		logx.Errorf("%s失败: operatorId=%s target=%s errorType=%T", action, strings.TrimSpace(operatorID), strings.TrimSpace(target), err)
 		return errx.New(errx.CodeInternalError, "管理员账号保存失败，请稍后重试")
 	}
 }

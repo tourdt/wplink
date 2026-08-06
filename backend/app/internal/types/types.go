@@ -372,6 +372,14 @@ type AdminResourceTypeConfigItem struct {
 	Status           string                 `json:"status"`
 }
 
+type AdminResourcesReq struct {
+	CityCode string `form:"cityCode,optional"`
+	TypeCode string `form:"typeCode,optional"`
+	Status   string `form:"status,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
 type AdminReviewMapBindRequestReq struct {
 	Action     string `json:"action"`
 	ReviewNote string `json:"reviewNote,optional"`

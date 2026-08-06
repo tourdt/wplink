@@ -486,3 +486,46 @@ test('map api separates anonymous public routes from AdminAuth protected routes'
   assert.match(mapObjectMerchantItem, /VerificationStatus\s+string\s+`json:"verificationStatus"`/,
     'map merchant summary should match the existing logic DTO')
 })
+
+test('admin api protects every non-login group and keeps resource list request independent', () => {
+  const adminApiSource = fs.readFileSync(path.join(apiDir, 'admin.api'), 'utf8')
+  const serverBlocks = [...adminApiSource.matchAll(/@server \(([\s\S]*?)\)\s*service wplink-api \{([\s\S]*?)\n\}/g)]
+
+  assert(serverBlocks.length > 1, 'admin.api should define login and protected admin groups')
+  for (const [, metadata] of serverBlocks) {
+    const group = metadata.match(/group:\s+(\w+)/)?.[1]
+    assert(group, 'every admin @server block should declare a group')
+    if (group === 'adminauth') {
+      assert(!/middleware:\s*AdminAuth/.test(metadata), 'admin login must remain outside AdminAuth')
+      continue
+    }
+    assert.match(metadata, /middleware:\s*AdminAuth/, `${group} must use AdminAuth`)
+  }
+
+  const resourcesReq = adminApiSource.match(/type AdminResourcesReq \{([\s\S]*?)\n\}/)?.[1]
+  assert(resourcesReq, 'admin.api should define an independent AdminResourcesReq')
+  for (const field of [
+    'CityCode string `form:"cityCode,optional"`',
+    'TypeCode string `form:"typeCode,optional"`',
+    'Status   string `form:"status,optional"`',
+    'Page     int64  `form:"page,optional"`',
+    'PageSize int64  `form:"pageSize,optional"`',
+  ]) {
+    assert(resourcesReq.includes(field), `AdminResourcesReq should contain ${field}`)
+  }
+  const resourceBlock = serverBlocks.find(([, metadata]) => /group:\s+adminresource/.test(metadata))
+  assert(resourceBlock, 'admin.api should define adminresource routes')
+  assert(
+    resourceBlock[2].includes('get /resources (AdminResourcesReq) returns (AdminPendingResourcesResp)'),
+    'admin resources list must use AdminResourcesReq',
+  )
+  assert(
+    resourceBlock[2].includes('get /resources/pending (AdminPendingResourcesReq) returns (AdminPendingResourcesResp)'),
+    'pending resources route must keep its dedicated request',
+  )
+  assert.equal(
+    [...resourceBlock[2].matchAll(/@handler\s+AdminListResources\b/g)].length,
+    1,
+    'admin resources list handler must be declared exactly once',
+  )
+})

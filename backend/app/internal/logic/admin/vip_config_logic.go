@@ -130,7 +130,7 @@ type SaveVIPConfigResp struct {
 func (l *VIPConfigAdminLogic) ListVIPPlans(ctx context.Context) (AdminListVIPPlansResp, error) {
 	plans, err := l.store.ListAdminVIPPlans(ctx)
 	if err != nil {
-		logx.Errorf("查询后台 VIP 套餐配置失败: err=%+v", err)
+		logx.Errorf("查询后台 VIP 套餐配置失败: errorType=%T", err)
 		return AdminListVIPPlansResp{}, err
 	}
 	items := make([]VIPPlanConfigItem, 0, len(plans))
@@ -165,7 +165,7 @@ func (l *VIPConfigAdminLogic) SaveVIPPlan(ctx context.Context, pathCode string, 
 	}
 	result, err := l.store.SaveAdminVIPPlan(ctx, input)
 	if err != nil {
-		logx.Errorf("保存 VIP 套餐配置失败: operatorId=%s planCode=%s err=%+v", input.OperatorID, input.Code, err)
+		logx.Errorf("保存 VIP 套餐配置失败: operatorId=%s planCode=%s errorType=%T", input.OperatorID, input.Code, err)
 		return SaveVIPConfigResp{}, errx.New(errx.CodeInternalError, "保存失败，请稍后重试")
 	}
 	return SaveVIPConfigResp{Code: result.Code, UpdatedAt: result.UpdatedAt}, nil
@@ -174,7 +174,7 @@ func (l *VIPConfigAdminLogic) SaveVIPPlan(ctx context.Context, pathCode string, 
 func (l *VIPConfigAdminLogic) ListQuotaPacks(ctx context.Context) (AdminListQuotaPacksResp, error) {
 	packs, err := l.store.ListAdminQuotaPacks(ctx)
 	if err != nil {
-		logx.Errorf("查询后台次数包配置失败: err=%+v", err)
+		logx.Errorf("查询后台次数包配置失败: errorType=%T", err)
 		return AdminListQuotaPacksResp{}, err
 	}
 	items := make([]QuotaPackConfigItem, 0, len(packs))
@@ -213,7 +213,7 @@ func (l *VIPConfigAdminLogic) SaveQuotaPack(ctx context.Context, pathCode string
 	}
 	result, err := l.store.SaveAdminQuotaPack(ctx, input)
 	if err != nil {
-		logx.Errorf("保存次数包配置失败: operatorId=%s packCode=%s err=%+v", input.OperatorID, input.Code, err)
+		logx.Errorf("保存次数包配置失败: operatorId=%s packCode=%s errorType=%T", input.OperatorID, input.Code, err)
 		return SaveVIPConfigResp{}, errx.New(errx.CodeInternalError, "保存失败，请稍后重试")
 	}
 	return SaveVIPConfigResp{Code: result.Code, UpdatedAt: result.UpdatedAt}, nil
@@ -222,7 +222,7 @@ func (l *VIPConfigAdminLogic) SaveQuotaPack(ctx context.Context, pathCode string
 func (l *VIPConfigAdminLogic) ListVIPPromotions(ctx context.Context) (AdminListVIPPromotionsResp, error) {
 	promotions, err := l.store.ListAdminVIPPromotions(ctx)
 	if err != nil {
-		logx.Errorf("查询 VIP 优惠配置失败: err=%+v", err)
+		logx.Errorf("查询 VIP 优惠配置失败: errorType=%T", err)
 		return AdminListVIPPromotionsResp{}, err
 	}
 	items := make([]VIPPromotionConfigItem, 0, len(promotions))
@@ -264,7 +264,7 @@ func (l *VIPConfigAdminLogic) SaveVIPPromotion(ctx context.Context, pathCode str
 		if errors.Is(err, sql.ErrNoRows) {
 			return SaveVIPConfigResp{}, errx.New(errx.CodeValidationFailed, "请选择有效的 VIP 套餐")
 		}
-		logx.Errorf("保存 VIP 优惠配置失败: operatorId=%s promotionCode=%s planCode=%s err=%+v", input.OperatorID, input.Code, input.PlanCode, err)
+		logx.Errorf("保存 VIP 优惠配置失败: operatorId=%s promotionCode=%s planCode=%s errorType=%T", input.OperatorID, input.Code, input.PlanCode, err)
 		return SaveVIPConfigResp{}, errx.New(errx.CodeInternalError, "保存失败，请稍后重试")
 	}
 	return SaveVIPConfigResp{Code: result.Code, UpdatedAt: result.UpdatedAt}, nil

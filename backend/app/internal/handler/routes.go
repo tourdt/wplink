@@ -51,66 +51,78 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 	)
 
 	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
-				Path:    "/banner-topics",
-				Handler: adminbannertopic.AdminListBannerTopicsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/banner-topics",
-				Handler: adminbannertopic.AdminCreateBannerTopicHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/banner-topics/:configId",
-				Handler: adminbannertopic.AdminUpdateBannerTopicHandler(serverCtx),
-			},
-		},
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/banner-topics",
+					Handler: adminbannertopic.AdminListBannerTopicsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/banner-topics",
+					Handler: adminbannertopic.AdminCreateBannerTopicHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/banner-topics/:configId",
+					Handler: adminbannertopic.AdminUpdateBannerTopicHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 
 	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
-				Path:    "/resource-type-configs",
-				Handler: adminconfig.AdminListResourceTypeConfigsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/resource-type-configs",
-				Handler: adminconfig.AdminCreateResourceTypeConfigHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/resource-type-configs/:configId",
-				Handler: adminconfig.AdminUpdateResourceTypeConfigHandler(serverCtx),
-			},
-		},
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/resource-type-configs",
+					Handler: adminconfig.AdminListResourceTypeConfigsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/resource-type-configs",
+					Handler: adminconfig.AdminCreateResourceTypeConfigHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/resource-type-configs/:configId",
+					Handler: adminconfig.AdminUpdateResourceTypeConfigHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 
 	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
-				Path:    "/dashboard/overview",
-				Handler: admindashboard.AdminDashboardOverviewHandler(serverCtx),
-			},
-		},
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/dashboard/overview",
+					Handler: admindashboard.AdminDashboardOverviewHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 
 	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodPost,
-				Path:    "/merchants/:merchantId/entitlements",
-				Handler: adminentitlement.AdminGrantMerchantEntitlementHandler(serverCtx),
-			},
-		},
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodPost,
+					Path:    "/merchants/:merchantId/entitlements",
+					Handler: adminentitlement.AdminGrantMerchantEntitlementHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 
@@ -159,168 +171,191 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 	)
 
 	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
-				Path:    "/hot-search-keywords",
-				Handler: adminhotsearchkeyword.AdminListHotSearchKeywordsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/hot-search-keywords",
-				Handler: adminhotsearchkeyword.AdminCreateHotSearchKeywordHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/hot-search-keywords/:configId",
-				Handler: adminhotsearchkeyword.AdminUpdateHotSearchKeywordHandler(serverCtx),
-			},
-		},
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/hot-search-keywords",
+					Handler: adminhotsearchkeyword.AdminListHotSearchKeywordsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/hot-search-keywords",
+					Handler: adminhotsearchkeyword.AdminCreateHotSearchKeywordHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/hot-search-keywords/:configId",
+					Handler: adminhotsearchkeyword.AdminUpdateHotSearchKeywordHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 
 	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
-				Path:    "/operation-logs",
-				Handler: adminlog.AdminListOperationLogsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/search-logs",
-				Handler: adminlog.AdminListSearchLogsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/tasks/resource-lifecycle/run",
-				Handler: adminlog.AdminRunResourceLifecycleHandler(serverCtx),
-			},
-		},
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/operation-logs",
+					Handler: adminlog.AdminListOperationLogsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/search-logs",
+					Handler: adminlog.AdminListSearchLogsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/tasks/resource-lifecycle/run",
+					Handler: adminlog.AdminRunResourceLifecycleHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 
 	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
-				Path:    "/merchants",
-				Handler: adminmerchant.AdminListMerchantsHandler(serverCtx),
-			},
-		},
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/merchants",
+					Handler: adminmerchant.AdminListMerchantsHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 
 	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
-				Path:    "/module-permissions",
-				Handler: adminpermission.AdminListModulePermissionsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/module-permissions/:roleCode",
-				Handler: adminpermission.AdminUpdateRoleModulePermissionsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/operators",
-				Handler: adminpermission.AdminListOperatorsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/operators",
-				Handler: adminpermission.AdminCreateOperatorHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/operators/:operatorId",
-				Handler: adminpermission.AdminUpdateOperatorHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/operators/:operatorId/status",
-				Handler: adminpermission.AdminUpdateOperatorStatusHandler(serverCtx),
-			},
-		},
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/module-permissions",
+					Handler: adminpermission.AdminListModulePermissionsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/module-permissions/:roleCode",
+					Handler: adminpermission.AdminUpdateRoleModulePermissionsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/operators",
+					Handler: adminpermission.AdminListOperatorsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/operators",
+					Handler: adminpermission.AdminCreateOperatorHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/operators/:operatorId",
+					Handler: adminpermission.AdminUpdateOperatorHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/operators/:operatorId/status",
+					Handler: adminpermission.AdminUpdateOperatorStatusHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 
 	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
-				Path:    "/resource-reports",
-				Handler: adminresource.AdminListResourceReportsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/resource-reports/:reportId/review",
-				Handler: adminresource.AdminReviewResourceReportHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/resources/:resourceId/review",
-				Handler: adminresource.AdminReviewResourceHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/resources/pending",
-				Handler: adminresource.AdminListPendingResourcesHandler(serverCtx),
-			},
-		},
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/resource-reports",
+					Handler: adminresource.AdminListResourceReportsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/resource-reports/:reportId/review",
+					Handler: adminresource.AdminReviewResourceReportHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/resources",
+					Handler: adminresource.AdminListResourcesHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/resources/:resourceId/review",
+					Handler: adminresource.AdminReviewResourceHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/resources/pending",
+					Handler: adminresource.AdminListPendingResourcesHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 
 	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
-				Path:    "/vip/plans",
-				Handler: adminvipconfig.AdminListVIPPlansHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/vip/plans",
-				Handler: adminvipconfig.AdminCreateVIPPlanHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/vip/plans/:planCode",
-				Handler: adminvipconfig.AdminUpdateVIPPlanHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/vip/promotions",
-				Handler: adminvipconfig.AdminListVIPPromotionsHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/vip/promotions",
-				Handler: adminvipconfig.AdminCreateVIPPromotionHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/vip/promotions/:promotionCode",
-				Handler: adminvipconfig.AdminUpdateVIPPromotionHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/vip/quota-packs",
-				Handler: adminvipconfig.AdminListQuotaPacksHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/vip/quota-packs",
-				Handler: adminvipconfig.AdminCreateQuotaPackHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/vip/quota-packs/:packCode",
-				Handler: adminvipconfig.AdminUpdateQuotaPackHandler(serverCtx),
-			},
-		},
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/vip/plans",
+					Handler: adminvipconfig.AdminListVIPPlansHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/vip/plans",
+					Handler: adminvipconfig.AdminCreateVIPPlanHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/vip/plans/:planCode",
+					Handler: adminvipconfig.AdminUpdateVIPPlanHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/vip/promotions",
+					Handler: adminvipconfig.AdminListVIPPromotionsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/vip/promotions",
+					Handler: adminvipconfig.AdminCreateVIPPromotionHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/vip/promotions/:promotionCode",
+					Handler: adminvipconfig.AdminUpdateVIPPromotionHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/vip/quota-packs",
+					Handler: adminvipconfig.AdminListQuotaPacksHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/vip/quota-packs",
+					Handler: adminvipconfig.AdminCreateQuotaPackHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/vip/quota-packs/:packCode",
+					Handler: adminvipconfig.AdminUpdateQuotaPackHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 
