@@ -907,6 +907,84 @@ type FollowedMerchantItem struct {
 	FollowedAt     string   `json:"followedAt"`
 }
 
+type GetGrowthTasksResp struct {
+	Campaign GrowthTaskCampaignInfo `json:"campaign"`
+	Summary  GrowthTaskSummary      `json:"summary"`
+	Tasks    []GrowthTaskItem       `json:"tasks"`
+}
+
+type GrowthCampaignItem struct {
+	Code      string                 `json:"code"`
+	Name      string                 `json:"name"`
+	Status    string                 `json:"status"`
+	StartsAt  string                 `json:"startsAt,optional"`
+	EndsAt    string                 `json:"endsAt,optional"`
+	Config    map[string]interface{} `json:"config,optional"`
+	UpdatedAt string                 `json:"updatedAt,optional"`
+}
+
+type GrowthGrantItem struct {
+	Id           string `json:"id"`
+	CampaignCode string `json:"campaignCode"`
+	RuleCode     string `json:"ruleCode"`
+	RuleName     string `json:"ruleName,optional"`
+	MerchantId   string `json:"merchantId"`
+	ResourceId   string `json:"resourceId,optional"`
+	RewardType   string `json:"rewardType"`
+	RewardAmount int64  `json:"rewardAmount"`
+	Status       string `json:"status"`
+	Reason       string `json:"reason,optional"`
+	CreatedAt    string `json:"createdAt"`
+}
+
+type GrowthRuleItem struct {
+	CampaignCode          string                 `json:"campaignCode"`
+	RuleCode              string                 `json:"ruleCode"`
+	RuleName              string                 `json:"ruleName"`
+	TriggerEvent          string                 `json:"triggerEvent"`
+	Status                string                 `json:"status"`
+	Priority              int64                  `json:"priority"`
+	Conditions            map[string]interface{} `json:"conditions,optional"`
+	RewardType            string                 `json:"rewardType"`
+	RewardAmount          int64                  `json:"rewardAmount"`
+	ValidDays             int64                  `json:"validDays"`
+	PerUserLimit          int64                  `json:"perUserLimit,optional"`
+	PerUserDailyLimit     int64                  `json:"perUserDailyLimit,optional"`
+	PerResourceDailyLimit int64                  `json:"perResourceDailyLimit,optional"`
+	Description           string                 `json:"description,optional"`
+	UpdatedAt             string                 `json:"updatedAt,optional"`
+}
+
+type GrowthTaskCampaignInfo struct {
+	Code  string `json:"code,optional"`
+	Title string `json:"title,optional"`
+	Hint  string `json:"hint,optional"`
+}
+
+type GrowthTaskItem struct {
+	TaskCode        string `json:"taskCode"`
+	Group           string `json:"group"`
+	Title           string `json:"title"`
+	Description     string `json:"description"`
+	ProgressCurrent int64  `json:"progressCurrent"`
+	ProgressTarget  int64  `json:"progressTarget"`
+	Status          string `json:"status"`
+	RewardType      string `json:"rewardType"`
+	RewardAmount    int64  `json:"rewardAmount"`
+	RewardText      string `json:"rewardText"`
+	ValidDays       int64  `json:"validDays"`
+	ActionType      string `json:"actionType"`
+	ActionText      string `json:"actionText"`
+	Hint            string `json:"hint,optional"`
+}
+
+type GrowthTaskSummary struct {
+	PublishQuotaRemaining int64 `json:"publishQuotaRemaining"`
+	RefreshQuotaRemaining int64 `json:"refreshQuotaRemaining"`
+	StarterCompletedCount int64 `json:"starterCompletedCount"`
+	StarterTotalCount     int64 `json:"starterTotalCount"`
+}
+
 type HandleContentAuditCallbackReq struct {
 	Signature string `form:"signature"`
 	Timestamp string `form:"timestamp"`
@@ -1005,6 +1083,10 @@ type HotSearchKeywordsResp struct {
 	Items []HotSearchKeywordItem `json:"items"`
 }
 
+type ListActiveGrowthCampaignsResp struct {
+	Items []PublicGrowthCampaignItem `json:"items"`
+}
+
 type ListCityStationsResp struct {
 	Items []CityStationInfo `json:"items"`
 }
@@ -1018,6 +1100,29 @@ type ListFollowedMerchantsResp struct {
 	Page     int64                  `json:"page"`
 	PageSize int64                  `json:"pageSize"`
 	Total    int64                  `json:"total"`
+}
+
+type ListGrowthCampaignsReq struct {
+	Status string `form:"status,optional"`
+}
+
+type ListGrowthCampaignsResp struct {
+	Items []GrowthCampaignItem `json:"items"`
+}
+
+type ListGrowthRewardGrantsReq struct {
+	RuleCode   string `form:"ruleCode,optional"`
+	MerchantId string `form:"merchantId,optional"`
+	Status     string `form:"status,optional"`
+	PageSize   int64  `form:"pageSize,optional"`
+}
+
+type ListGrowthRewardGrantsResp struct {
+	Items []GrowthGrantItem `json:"items"`
+}
+
+type ListGrowthRulesResp struct {
+	Items []GrowthRuleItem `json:"items"`
 }
 
 type ListInteractionReq struct {
@@ -1487,6 +1592,29 @@ type NearbyPoiItem struct {
 	CenterY      string `json:"centerY,optional"`
 }
 
+type PublicGrowthCampaignItem struct {
+	Code  string                 `json:"code"`
+	Name  string                 `json:"name"`
+	Title string                 `json:"title"`
+	Hint  string                 `json:"hint,optional"`
+	Rules []PublicGrowthRuleItem `json:"rules"`
+}
+
+type PublicGrowthRuleItem struct {
+	RuleCode              string                 `json:"ruleCode"`
+	RuleName              string                 `json:"ruleName"`
+	TriggerEvent          string                 `json:"triggerEvent"`
+	RewardType            string                 `json:"rewardType"`
+	RewardAmount          int64                  `json:"rewardAmount"`
+	RewardText            string                 `json:"rewardText"`
+	ValidDays             int64                  `json:"validDays"`
+	PerUserLimit          int64                  `json:"perUserLimit,optional"`
+	PerUserDailyLimit     int64                  `json:"perUserDailyLimit,optional"`
+	PerResourceDailyLimit int64                  `json:"perResourceDailyLimit,optional"`
+	Description           string                 `json:"description,optional"`
+	Conditions            map[string]interface{} `json:"conditions,optional"`
+}
+
 type QuotaPackInfo struct {
 	Code              string         `json:"code"`
 	Name              string         `json:"name"`
@@ -1699,6 +1827,37 @@ type ReverseGeocodeResp struct {
 	Address  string `json:"address"`
 	Name     string `json:"name,optional"`
 	Province string `json:"province,optional"`
+}
+
+type SaveGrowthCampaignReq struct {
+	Code           string                 `json:"code,optional"`
+	Name           string                 `json:"name"`
+	Status         string                 `json:"status,optional"`
+	StartsAt       string                 `json:"startsAt,optional"`
+	EndsAt         string                 `json:"endsAt,optional"`
+	ConfigSnapshot map[string]interface{} `json:"configSnapshot,optional"`
+	DisableReason  string                 `json:"disableReason,optional"`
+}
+
+type SaveGrowthConfigResp struct {
+	Code      string `json:"code"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+type SaveGrowthRuleReq struct {
+	RuleCode              string                 `json:"ruleCode,optional"`
+	RuleName              string                 `json:"ruleName"`
+	TriggerEvent          string                 `json:"triggerEvent"`
+	Status                string                 `json:"status,optional"`
+	Priority              int64                  `json:"priority,optional"`
+	Conditions            map[string]interface{} `json:"conditions,optional"`
+	RewardType            string                 `json:"rewardType"`
+	RewardAmount          int64                  `json:"rewardAmount"`
+	ValidDays             int64                  `json:"validDays"`
+	PerUserLimit          int64                  `json:"perUserLimit,optional"`
+	PerUserDailyLimit     int64                  `json:"perUserDailyLimit,optional"`
+	PerResourceDailyLimit int64                  `json:"perResourceDailyLimit,optional"`
+	Description           string                 `json:"description,optional"`
 }
 
 type SavedSearchItem struct {

@@ -1,0 +1,200 @@
+syntax = "v1"
+
+type PublicGrowthCampaignItem {
+	Code  string                 `json:"code"`
+	Name  string                 `json:"name"`
+	Title string                 `json:"title"`
+	Hint  string                 `json:"hint,optional"`
+	Rules []PublicGrowthRuleItem `json:"rules"`
+}
+
+type PublicGrowthRuleItem {
+	RuleCode              string                 `json:"ruleCode"`
+	RuleName              string                 `json:"ruleName"`
+	TriggerEvent          string                 `json:"triggerEvent"`
+	RewardType            string                 `json:"rewardType"`
+	RewardAmount          int64                  `json:"rewardAmount"`
+	RewardText            string                 `json:"rewardText"`
+	ValidDays             int64                  `json:"validDays"`
+	PerUserLimit          int64                  `json:"perUserLimit,optional"`
+	PerUserDailyLimit     int64                  `json:"perUserDailyLimit,optional"`
+	PerResourceDailyLimit int64                  `json:"perResourceDailyLimit,optional"`
+	Description           string                 `json:"description,optional"`
+	Conditions            map[string]interface{} `json:"conditions,optional"`
+}
+
+type ListActiveGrowthCampaignsResp {
+	Items []PublicGrowthCampaignItem `json:"items"`
+}
+
+type GrowthTaskCampaignInfo {
+	Code  string `json:"code,optional"`
+	Title string `json:"title,optional"`
+	Hint  string `json:"hint,optional"`
+}
+
+type GrowthTaskSummary {
+	PublishQuotaRemaining int64 `json:"publishQuotaRemaining"`
+	RefreshQuotaRemaining int64 `json:"refreshQuotaRemaining"`
+	StarterCompletedCount int64 `json:"starterCompletedCount"`
+	StarterTotalCount     int64 `json:"starterTotalCount"`
+}
+
+type GrowthTaskItem {
+	TaskCode        string `json:"taskCode"`
+	Group           string `json:"group"`
+	Title           string `json:"title"`
+	Description     string `json:"description"`
+	ProgressCurrent int64  `json:"progressCurrent"`
+	ProgressTarget  int64  `json:"progressTarget"`
+	Status          string `json:"status"`
+	RewardType      string `json:"rewardType"`
+	RewardAmount    int64  `json:"rewardAmount"`
+	RewardText      string `json:"rewardText"`
+	ValidDays       int64  `json:"validDays"`
+	ActionType      string `json:"actionType"`
+	ActionText      string `json:"actionText"`
+	Hint            string `json:"hint,optional"`
+}
+
+type GetGrowthTasksResp {
+	Campaign GrowthTaskCampaignInfo `json:"campaign"`
+	Summary  GrowthTaskSummary      `json:"summary"`
+	Tasks    []GrowthTaskItem       `json:"tasks"`
+}
+
+type ListGrowthCampaignsReq {
+	Status string `form:"status,optional"`
+}
+
+type GrowthCampaignItem {
+	Code      string                 `json:"code"`
+	Name      string                 `json:"name"`
+	Status    string                 `json:"status"`
+	StartsAt  string                 `json:"startsAt,optional"`
+	EndsAt    string                 `json:"endsAt,optional"`
+	Config    map[string]interface{} `json:"config,optional"`
+	UpdatedAt string                 `json:"updatedAt,optional"`
+}
+
+type ListGrowthCampaignsResp {
+	Items []GrowthCampaignItem `json:"items"`
+}
+
+type SaveGrowthCampaignReq {
+	Code           string                 `json:"code,optional"`
+	Name           string                 `json:"name"`
+	Status         string                 `json:"status,optional"`
+	StartsAt       string                 `json:"startsAt,optional"`
+	EndsAt         string                 `json:"endsAt,optional"`
+	ConfigSnapshot map[string]interface{} `json:"configSnapshot,optional"`
+	DisableReason  string                 `json:"disableReason,optional"`
+}
+
+type SaveGrowthConfigResp {
+	Code      string `json:"code"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+type GrowthRuleItem {
+	CampaignCode          string                 `json:"campaignCode"`
+	RuleCode              string                 `json:"ruleCode"`
+	RuleName              string                 `json:"ruleName"`
+	TriggerEvent          string                 `json:"triggerEvent"`
+	Status                string                 `json:"status"`
+	Priority              int64                  `json:"priority"`
+	Conditions            map[string]interface{} `json:"conditions,optional"`
+	RewardType            string                 `json:"rewardType"`
+	RewardAmount          int64                  `json:"rewardAmount"`
+	ValidDays             int64                  `json:"validDays"`
+	PerUserLimit          int64                  `json:"perUserLimit,optional"`
+	PerUserDailyLimit     int64                  `json:"perUserDailyLimit,optional"`
+	PerResourceDailyLimit int64                  `json:"perResourceDailyLimit,optional"`
+	Description           string                 `json:"description,optional"`
+	UpdatedAt             string                 `json:"updatedAt,optional"`
+}
+
+type ListGrowthRulesResp {
+	Items []GrowthRuleItem `json:"items"`
+}
+
+type SaveGrowthRuleReq {
+	RuleCode              string                 `json:"ruleCode,optional"`
+	RuleName              string                 `json:"ruleName"`
+	TriggerEvent          string                 `json:"triggerEvent"`
+	Status                string                 `json:"status,optional"`
+	Priority              int64                  `json:"priority,optional"`
+	Conditions            map[string]interface{} `json:"conditions,optional"`
+	RewardType            string                 `json:"rewardType"`
+	RewardAmount          int64                  `json:"rewardAmount"`
+	ValidDays             int64                  `json:"validDays"`
+	PerUserLimit          int64                  `json:"perUserLimit,optional"`
+	PerUserDailyLimit     int64                  `json:"perUserDailyLimit,optional"`
+	PerResourceDailyLimit int64                  `json:"perResourceDailyLimit,optional"`
+	Description           string                 `json:"description,optional"`
+}
+
+type ListGrowthRewardGrantsReq {
+	RuleCode   string `form:"ruleCode,optional"`
+	MerchantId string `form:"merchantId,optional"`
+	Status     string `form:"status,optional"`
+	PageSize   int64  `form:"pageSize,optional"`
+}
+
+type GrowthGrantItem {
+	Id           string `json:"id"`
+	CampaignCode string `json:"campaignCode"`
+	RuleCode     string `json:"ruleCode"`
+	RuleName     string `json:"ruleName,optional"`
+	MerchantId   string `json:"merchantId"`
+	ResourceId   string `json:"resourceId,optional"`
+	RewardType   string `json:"rewardType"`
+	RewardAmount int64  `json:"rewardAmount"`
+	Status       string `json:"status"`
+	Reason       string `json:"reason,optional"`
+	CreatedAt    string `json:"createdAt"`
+}
+
+type ListGrowthRewardGrantsResp {
+	Items []GrowthGrantItem `json:"items"`
+}
+
+@server (
+	prefix: /api/v1
+	group:  growth
+)
+service wplink-api {
+	@handler ListActiveGrowthCampaigns
+	get /growth-campaigns/active returns (ListActiveGrowthCampaignsResp)
+
+	@handler GetMerchantGrowthTasks
+	get /merchants/:merchantId/growth-tasks returns (GetGrowthTasksResp)
+}
+
+@server (
+	prefix: /api/v1/admin
+	group:  admingrowth
+	middleware: AdminAuth
+)
+service wplink-api {
+	@handler AdminListGrowthCampaigns
+	get /growth-campaigns (ListGrowthCampaignsReq) returns (ListGrowthCampaignsResp)
+
+	@handler AdminCreateGrowthCampaign
+	post /growth-campaigns (SaveGrowthCampaignReq) returns (SaveGrowthConfigResp)
+
+	@handler AdminUpdateGrowthCampaign
+	post /growth-campaigns/:campaignCode (SaveGrowthCampaignReq) returns (SaveGrowthConfigResp)
+
+	@handler AdminListGrowthRules
+	get /growth-campaigns/:campaignCode/rules returns (ListGrowthRulesResp)
+
+	@handler AdminCreateGrowthRule
+	post /growth-campaigns/:campaignCode/rules (SaveGrowthRuleReq) returns (SaveGrowthConfigResp)
+
+	@handler AdminUpdateGrowthRule
+	post /growth-campaigns/:campaignCode/rules/:ruleCode (SaveGrowthRuleReq) returns (SaveGrowthConfigResp)
+
+	@handler AdminListGrowthRewardGrants
+	get /growth-campaigns/:campaignCode/grants (ListGrowthRewardGrantsReq) returns (ListGrowthRewardGrantsResp)
+}

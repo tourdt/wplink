@@ -11,6 +11,7 @@ import (
 	adminconfig "wplink/backend/app/internal/handler/adminconfig"
 	admindashboard "wplink/backend/app/internal/handler/admindashboard"
 	adminentitlement "wplink/backend/app/internal/handler/adminentitlement"
+	admingrowth "wplink/backend/app/internal/handler/admingrowth"
 	adminhotsearchkeyword "wplink/backend/app/internal/handler/adminhotsearchkeyword"
 	adminlog "wplink/backend/app/internal/handler/adminlog"
 	adminmerchant "wplink/backend/app/internal/handler/adminmerchant"
@@ -23,6 +24,7 @@ import (
 	discovery "wplink/backend/app/internal/handler/discovery"
 	entitlement "wplink/backend/app/internal/handler/entitlement"
 	favorite "wplink/backend/app/internal/handler/favorite"
+	growth "wplink/backend/app/internal/handler/growth"
 	location "wplink/backend/app/internal/handler/location"
 	maphandler "wplink/backend/app/internal/handler/map"
 	merchant "wplink/backend/app/internal/handler/merchant"
@@ -109,6 +111,50 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Handler: adminentitlement.AdminGrantMerchantEntitlementHandler(serverCtx),
 			},
 		},
+		rest.WithPrefix("/api/v1/admin"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AdminAuth},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/growth-campaigns",
+					Handler: admingrowth.AdminListGrowthCampaignsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/growth-campaigns",
+					Handler: admingrowth.AdminCreateGrowthCampaignHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/growth-campaigns/:campaignCode",
+					Handler: admingrowth.AdminUpdateGrowthCampaignHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/growth-campaigns/:campaignCode/grants",
+					Handler: admingrowth.AdminListGrowthRewardGrantsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/growth-campaigns/:campaignCode/rules",
+					Handler: admingrowth.AdminListGrowthRulesHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/growth-campaigns/:campaignCode/rules",
+					Handler: admingrowth.AdminCreateGrowthRuleHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/growth-campaigns/:campaignCode/rules/:ruleCode",
+					Handler: admingrowth.AdminUpdateGrowthRuleHandler(serverCtx),
+				},
+			}...,
+		),
 		rest.WithPrefix("/api/v1/admin"),
 	)
 
@@ -459,6 +505,22 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Method:  http.MethodDelete,
 				Path:    "/me/saved-searches/:savedSearchId",
 				Handler: favorite.DeleteSavedSearchHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/growth-campaigns/active",
+				Handler: growth.ListActiveGrowthCampaignsHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/merchants/:merchantId/growth-tasks",
+				Handler: growth.GetMerchantGrowthTasksHandler(serverCtx),
 			},
 		},
 		rest.WithPrefix("/api/v1"),

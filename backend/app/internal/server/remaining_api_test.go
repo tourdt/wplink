@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -12,6 +13,7 @@ import (
 
 	"wplink/backend/app/internal/logic/adminauth"
 	paymentlogic "wplink/backend/app/internal/logic/payment"
+	"wplink/backend/app/internal/middleware"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/permission"
 	"wplink/backend/app/internal/session"
@@ -20,7 +22,290 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/lib/pq"
+	"github.com/zeromicro/go-zero/rest"
 )
+
+func TestGrowthHandlersThroughGeneratedRoutesDoNotUseMigrationSkeleton(t *testing.T) {
+	svcCtx, _ := newGrowthGeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+	tests := []struct {
+		name   string
+		method string
+		target string
+		body   string
+		admin  bool
+	}{
+		{name: "public campaigns", method: http.MethodGet, target: "/api/v1/growth-campaigns/active"},
+		{name: "merchant tasks", method: http.MethodGet, target: "/api/v1/merchants/merchant-1/growth-tasks"},
+		{name: "admin campaigns", method: http.MethodGet, target: "/api/v1/admin/growth-campaigns", admin: true},
+		{name: "create campaign", method: http.MethodPost, target: "/api/v1/admin/growth-campaigns", body: `{}`, admin: true},
+		{name: "update campaign", method: http.MethodPost, target: "/api/v1/admin/growth-campaigns/starter", body: `{}`, admin: true},
+		{name: "admin rules", method: http.MethodGet, target: "/api/v1/admin/growth-campaigns/starter/rules", admin: true},
+		{name: "create rule", method: http.MethodPost, target: "/api/v1/admin/growth-campaigns/starter/rules", body: `{}`, admin: true},
+		{name: "update rule", method: http.MethodPost, target: "/api/v1/admin/growth-campaigns/starter/rules/first-login", body: `{}`, admin: true},
+		{name: "admin grants", method: http.MethodGet, target: "/api/v1/admin/growth-campaigns/starter/grants", admin: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.target, strings.NewReader(tc.body))
+			if tc.body != "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			if tc.admin {
+				req.Header.Set("Authorization", "Bearer admin-token")
+			}
+			rec := httptest.NewRecorder()
+			server.ServeHTTP(rec, req)
+			body := decodeEnvelope(t, rec, rec.Code)
+			if rec.Code == http.StatusNotFound {
+				t.Fatalf("route %s %s was not registered", tc.method, tc.target)
+			}
+			if body["msg"] == "接口暂不可用，请稍后重试" {
+				t.Fatalf("route %s %s still uses migration skeleton", tc.method, tc.target)
+			}
+		})
+	}
+}
+
+func TestGrowthPublicCampaignsStayAnonymousAndMatchExistingDTO(t *testing.T) {
+	svcCtx, mock := newGrowthGeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+	mock.ExpectQuery(`(?s)FROM growth_campaigns gc`).WillReturnRows(sqlmock.NewRows([]string{
+		"code", "name", "config_snapshot", "rule_code", "rule_name", "trigger_event", "reward_type", "reward_amount", "valid_days",
+		"per_user_limit", "per_user_daily_limit", "per_resource_daily_limit", "description", "conditions",
+	}).AddRow(
+		"starter", "新手活动", []byte(`{"frontendTitle":"新手发布权益","frontendHint":"完成任务即可领取"}`),
+		"first-login", "首次登录", model.GrowthEventUserFirstLogin, model.EntitlementTypePublishQuota, int64(5), int64(30),
+		nil, nil, nil, "登录得发布次数", []byte(`{}`),
+	))
+
+	body := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/growth-campaigns/active", nil), http.StatusOK)
+	data := body["data"].(map[string]interface{})
+	items, ok := data["items"].([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("data=%#v, want one anonymous growth campaign", data)
+	}
+	campaign := items[0].(map[string]interface{})
+	rules := campaign["rules"].([]interface{})
+	if campaign["code"] != "starter" || campaign["title"] != "新手发布权益" || len(rules) != 1 {
+		t.Fatalf("campaign=%#v, want existing public campaign DTO", campaign)
+	}
+	rule := rules[0].(map[string]interface{})
+	if rule["ruleCode"] != "first-login" || rule["rewardText"] != "5 次发布次数" {
+		t.Fatalf("rule=%#v, want existing public rule DTO", rule)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("public growth SQL expectations: %v", err)
+	}
+}
+
+func TestGrowthMerchantTasksUsePathMerchantAndRequireRealPermission(t *testing.T) {
+	t.Run("missing dependencies", func(t *testing.T) {
+		server := newGeneratedAPIServer(t, &svc.ServiceContext{AdminAuth: growthAdminAuthMiddleware()})
+		body := assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/merchants/merchant-1/growth-tasks", ""), http.StatusInternalServerError)
+		if body["errorCode"] != errx.CodeInternalError {
+			t.Fatalf("body=%#v, want fail-closed dependency error", body)
+		}
+	})
+
+	t.Run("typed nil growth store", func(t *testing.T) {
+		server := newGeneratedAPIServer(t, &svc.ServiceContext{
+			APIStore:  &svc.APIStore{GrowthCampaignModel: (*model.GrowthCampaignModel)(nil)},
+			AdminAuth: growthAdminAuthMiddleware(),
+		})
+		body := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodGet, "/api/v1/growth-campaigns/active", nil), http.StatusInternalServerError)
+		if body["errorCode"] != errx.CodeInternalError {
+			t.Fatalf("body=%#v, want typed-nil store rejection", body)
+		}
+	})
+
+	svcCtx, mock := newGrowthGeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+
+	badToken := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1/growth-tasks", nil)
+	badToken.Header.Set("Authorization", "Bearer expired-token")
+	assertTask6GeneratedStatus(t, server, badToken, http.StatusUnauthorized)
+
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-2").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/merchants/merchant-2/growth-tasks", ""), http.StatusForbidden)
+
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectQuery(`(?s)FROM merchant_entitlements`).
+		WithArgs("merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`(?s)FROM growth_campaigns gc`).
+		WillReturnRows(sqlmock.NewRows([]string{"code"}))
+	body := assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodGet, "/api/v1/merchants/merchant-1/growth-tasks?merchantId=merchant-2", ""), http.StatusOK)
+	data := body["data"].(map[string]interface{})
+	if tasks, ok := data["tasks"].([]interface{}); !ok || len(tasks) != 0 {
+		t.Fatalf("data=%#v, want path merchant and tasks: []", data)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("merchant growth SQL expectations: %v", err)
+	}
+}
+
+func TestGrowthAdminRoutesAlwaysUseAdminAuth(t *testing.T) {
+	tests := []struct {
+		method string
+		target string
+		body   string
+	}{
+		{method: http.MethodGet, target: "/api/v1/admin/growth-campaigns"},
+		{method: http.MethodPost, target: "/api/v1/admin/growth-campaigns", body: `{}`},
+		{method: http.MethodPost, target: "/api/v1/admin/growth-campaigns/starter", body: `{}`},
+		{method: http.MethodGet, target: "/api/v1/admin/growth-campaigns/starter/rules"},
+		{method: http.MethodPost, target: "/api/v1/admin/growth-campaigns/starter/rules", body: `{}`},
+		{method: http.MethodPost, target: "/api/v1/admin/growth-campaigns/starter/rules/first-login", body: `{}`},
+		{method: http.MethodGet, target: "/api/v1/admin/growth-campaigns/starter/grants"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.method+" "+tc.target, func(t *testing.T) {
+			svcCtx, _ := newGrowthGeneratedServiceContext(t)
+			server := newGeneratedAPIServer(t, svcCtx)
+			req := httptest.NewRequest(tc.method, tc.target, strings.NewReader(tc.body))
+			assertTask6GeneratedStatus(t, server, req, http.StatusUnauthorized)
+		})
+	}
+}
+
+func TestGrowthAdminListsPreserveStatusGrantFiltersAndEmptyArrays(t *testing.T) {
+	svcCtx, mock := newGrowthGeneratedServiceContext(t)
+	server := newGeneratedAPIServer(t, svcCtx)
+
+	mock.ExpectQuery(`(?s)FROM growth_campaigns`).
+		WithArgs("paused").
+		WillReturnRows(sqlmock.NewRows([]string{"code"}))
+	campaigns := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodGet, "/api/v1/admin/growth-campaigns?status=paused&operatorId=attacker", ""), http.StatusOK)["data"].(map[string]interface{})
+	if items, ok := campaigns["items"].([]interface{}); !ok || len(items) != 0 {
+		t.Fatalf("campaigns=%#v, want filtered items: []", campaigns)
+	}
+
+	mock.ExpectQuery(`(?s)FROM growth_campaign_rules`).
+		WithArgs("starter").
+		WillReturnRows(sqlmock.NewRows([]string{"campaign_code"}))
+	rules := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodGet, "/api/v1/admin/growth-campaigns/starter/rules", ""), http.StatusOK)["data"].(map[string]interface{})
+	if items, ok := rules["items"].([]interface{}); !ok || len(items) != 0 {
+		t.Fatalf("rules=%#v, want items: []", rules)
+	}
+
+	mock.ExpectQuery(`(?s)FROM growth_reward_grants`).
+		WithArgs("starter", "first-login", "merchant-1", "granted", int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	grants := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodGet, "/api/v1/admin/growth-campaigns/starter/grants?ruleCode=first-login&merchantId=merchant-1&status=granted&pageSize=7", ""), http.StatusOK)["data"].(map[string]interface{})
+	if items, ok := grants["items"].([]interface{}); !ok || len(items) != 0 {
+		t.Fatalf("grants=%#v, want filtered items: []", grants)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("admin growth list SQL expectations: %v", err)
+	}
+}
+
+func TestGrowthAdminWritesUsePathCodesAndContextOperator(t *testing.T) {
+	tests := []struct {
+		name         string
+		target       string
+		body         string
+		queryPattern string
+		queryArgs    []driver.Value
+		resultCode   string
+		action       string
+	}{
+		{
+			name: "create campaign", target: "/api/v1/admin/growth-campaigns?operatorId=attacker",
+			body:         `{"operatorId":"attacker","code":"created-campaign","name":"新活动","status":"draft"}`,
+			queryPattern: `(?s)INSERT INTO growth_campaigns`,
+			queryArgs:    []driver.Value{"created-campaign", "新活动", "draft", "", "", sqlmock.AnyArg(), "operator-9"},
+			resultCode:   "created-campaign", action: "growth_campaign_save",
+		},
+		{
+			name: "update campaign", target: "/api/v1/admin/growth-campaigns/path-campaign?operatorId=attacker",
+			body:         `{"operatorId":"attacker","code":"body-campaign","name":"更新活动","status":"paused"}`,
+			queryPattern: `(?s)INSERT INTO growth_campaigns`,
+			queryArgs:    []driver.Value{"path-campaign", "更新活动", "paused", "", "", sqlmock.AnyArg(), "operator-9"},
+			resultCode:   "path-campaign", action: "growth_campaign_save",
+		},
+		{
+			name: "create rule", target: "/api/v1/admin/growth-campaigns/starter/rules?operatorId=attacker",
+			body:         `{"operatorId":"attacker","ruleCode":"created-rule","ruleName":"首次登录","triggerEvent":"user_first_login","rewardType":"publish_quota","rewardAmount":5,"validDays":30}`,
+			queryPattern: `(?s)INSERT INTO growth_campaign_rules`,
+			queryArgs:    []driver.Value{"starter", "created-rule", "首次登录", "user_first_login", "active", int64(100), sqlmock.AnyArg(), "publish_quota", int64(5), int64(30), int64(0), int64(0), int64(0), ""},
+			resultCode:   "created-rule", action: "growth_campaign_rule_save",
+		},
+		{
+			name: "update rule", target: "/api/v1/admin/growth-campaigns/starter/rules/path-rule?operatorId=attacker",
+			body:         `{"operatorId":"attacker","ruleCode":"body-rule","ruleName":"首次登录更新","triggerEvent":"user_first_login","status":"inactive","priority":8,"rewardType":"publish_quota","rewardAmount":3,"validDays":10}`,
+			queryPattern: `(?s)INSERT INTO growth_campaign_rules`,
+			queryArgs:    []driver.Value{"starter", "path-rule", "首次登录更新", "user_first_login", "inactive", int64(8), sqlmock.AnyArg(), "publish_quota", int64(3), int64(10), int64(0), int64(0), int64(0), ""},
+			resultCode:   "path-rule", action: "growth_campaign_rule_save",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svcCtx, mock := newGrowthGeneratedServiceContext(t)
+			server := newGeneratedAPIServer(t, svcCtx)
+			updatedAt := time.Date(2026, 8, 6, 10, 0, 0, 0, time.UTC)
+			mock.ExpectBegin()
+			mock.ExpectQuery(tc.queryPattern).WithArgs(tc.queryArgs...).
+				WillReturnRows(sqlmock.NewRows([]string{"code", "updated_at"}).AddRow(tc.resultCode, updatedAt))
+			mock.ExpectExec(`(?s)INSERT INTO operation_logs`).
+				WithArgs("operator-9", "platform_operator", tc.action, "growth_campaign", "", sqlmock.AnyArg(), sqlmock.AnyArg()).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectCommit()
+
+			data := assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodPost, tc.target, tc.body), http.StatusOK)["data"].(map[string]interface{})
+			if data["code"] != tc.resultCode || data["updatedAt"] != updatedAt.Format(time.RFC3339) {
+				t.Fatalf("data=%#v, want saved code and updatedAt", data)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("admin growth write SQL expectations: %v", err)
+			}
+		})
+	}
+}
+
+func newGrowthGeneratedServiceContext(t *testing.T) (*svc.ServiceContext, sqlmock.Sqlmock) {
+	t.Helper()
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	apiStore := &svc.APIStore{
+		UserModel:                model.NewUserModel(db),
+		MerchantEntitlementModel: model.NewMerchantEntitlementModel(db),
+		GrowthCampaignModel:      model.NewGrowthCampaignModel(db),
+	}
+	return &svc.ServiceContext{
+		APIStore:          apiStore,
+		UserTokenService:  &fakeUserTokenService{},
+		AdminTokenService: adminauth.NewValidatingAdminTokenService(nil, nil),
+		AdminAuth:         growthAdminAuthMiddleware(),
+	}, mock
+}
+
+func growthAdminAuthMiddleware() rest.Middleware {
+	adminService := &fakeAdminTokenService{subject: session.AdminTokenSubject{
+		OperatorID: "operator-9",
+		Roles:      []string{permission.RoleSuperAdmin},
+	}}
+	return middleware.NewAdminAuthMiddleware(adminService).Handle
+}
+
+func growthAdminRequest(method string, target string, body string) *http.Request {
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req
+}
 
 func TestEntitlementAndVIPHandlersThroughGeneratedRoutes(t *testing.T) {
 	server := newGeneratedAPIServer(t, &svc.ServiceContext{})
@@ -732,29 +1017,6 @@ func TestAPIRouterRequiresMerchantPermissionForEntitlements(t *testing.T) {
 	}
 }
 
-func TestAPIRouterRequiresMerchantPermissionForGrowthTasks(t *testing.T) {
-	store := newFakeFullAPIStore()
-	store.managedMerchants = map[string]bool{"merchant-1": true}
-	router := NewAPIRouter(store, WithUserTokenService(&fakeUserTokenService{}))
-
-	forbiddenRec := httptest.NewRecorder()
-	forbiddenReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-2/growth-tasks", nil)
-	forbiddenReq.Header.Set("Authorization", "Bearer user-token")
-	router.ServeHTTP(forbiddenRec, forbiddenReq)
-	if forbiddenRec.Code != http.StatusForbidden {
-		t.Fatalf("status = %d body = %s, want forbidden", forbiddenRec.Code, forbiddenRec.Body.String())
-	}
-
-	allowedRec := httptest.NewRecorder()
-	allowedReq := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/merchant-1/growth-tasks", nil)
-	allowedReq.Header.Set("Authorization", "Bearer user-token")
-	router.ServeHTTP(allowedRec, allowedReq)
-	data := decodeEnvelopeData(t, allowedRec, http.StatusOK)
-	if _, ok := data["tasks"].([]interface{}); !ok {
-		t.Fatalf("data = %#v, want tasks array", data)
-	}
-}
-
 func TestAPIRouterRegistersVIPMembershipRoutes(t *testing.T) {
 	store := newFakeFullAPIStore()
 	store.managedMerchants = map[string]bool{"merchant-1": true}
@@ -848,29 +1110,6 @@ func TestAPIRouterRegistersUnifiedWechatPayNotifyRoute(t *testing.T) {
 	}
 	if store.contactUnlockMarkInput.OutTradeNo != "CU202607140001" {
 		t.Fatalf("contactUnlockMarkInput = %#v, want contact unlock notify", store.contactUnlockMarkInput)
-	}
-}
-
-func TestAPIRouterRegistersPublicGrowthCampaignRoute(t *testing.T) {
-	store := newFakeFullAPIStore()
-	router := NewAPIRouter(store)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/growth-campaigns/active", nil)
-	router.ServeHTTP(rec, req)
-
-	data := decodeEnvelopeData(t, rec, http.StatusOK)
-	items, ok := data["items"].([]interface{})
-	if !ok || len(items) != 1 {
-		t.Fatalf("growth campaign data = %#v, want one active campaign", data)
-	}
-	campaign := items[0].(map[string]interface{})
-	if campaign["title"] != "新手发布权益" {
-		t.Fatalf("campaign = %#v, want public starter title", campaign)
-	}
-	rules := campaign["rules"].([]interface{})
-	if len(rules) != 1 || rules[0].(map[string]interface{})["rewardText"] != "5 次发布次数" {
-		t.Fatalf("rules = %#v, want Chinese public rule", rules)
 	}
 }
 

@@ -396,3 +396,67 @@ test('content audit callback contract uses query signatures without auth middlew
   assert(!callbackApiSource.includes('middleware:'), 'provider callbacks must not use user or admin middleware')
   assert(!callbackApiSource.includes('json:"'), 'POST callback body must stay raw and bounded in the Handler')
 })
+
+test('growth api contract exposes all runtime routes with exact DTO fields', () => {
+  const appApiSource = fs.readFileSync(path.join(apiDir, 'app.api'), 'utf8')
+  const growthPath = path.join(apiDir, 'growth.api')
+
+  assert(fs.existsSync(growthPath), 'growth.api should define growth campaign routes')
+  const growthApiSource = fs.readFileSync(growthPath, 'utf8')
+  assert.match(appApiSource, /import "growth\.api"/)
+
+  for (const route of [
+    'get /growth-campaigns/active returns (ListActiveGrowthCampaignsResp)',
+    'get /merchants/:merchantId/growth-tasks returns (GetGrowthTasksResp)',
+    'get /growth-campaigns (ListGrowthCampaignsReq) returns (ListGrowthCampaignsResp)',
+    'post /growth-campaigns (SaveGrowthCampaignReq) returns (SaveGrowthConfigResp)',
+    'post /growth-campaigns/:campaignCode (SaveGrowthCampaignReq) returns (SaveGrowthConfigResp)',
+    'get /growth-campaigns/:campaignCode/rules returns (ListGrowthRulesResp)',
+    'post /growth-campaigns/:campaignCode/rules (SaveGrowthRuleReq) returns (SaveGrowthConfigResp)',
+    'post /growth-campaigns/:campaignCode/rules/:ruleCode (SaveGrowthRuleReq) returns (SaveGrowthConfigResp)',
+    'get /growth-campaigns/:campaignCode/grants (ListGrowthRewardGrantsReq) returns (ListGrowthRewardGrantsResp)',
+  ]) {
+    assert(growthApiSource.includes(route), `growth.api should contain ${route}`)
+  }
+
+  assert.match(
+    growthApiSource,
+    /@server \(\s*prefix: \/api\/v1\/admin\s*group:\s+admingrowth\s*middleware: AdminAuth\s*\)/,
+    'admin growth routes must use the AdminAuth middleware',
+  )
+
+  const jsonFields = (typeName) => {
+    const body = growthApiSource.match(new RegExp(`type ${typeName} \\{([\\s\\S]*?)\\n\\}`))?.[1]
+    assert(body, `growth.api should define ${typeName}`)
+    return [...body.matchAll(/`json:"([^",]+)(?:,optional)?"`/g)].map((match) => match[1])
+  }
+
+  const exactFields = {
+    PublicGrowthCampaignItem: ['code', 'name', 'title', 'hint', 'rules'],
+    PublicGrowthRuleItem: [
+      'ruleCode', 'ruleName', 'triggerEvent', 'rewardType', 'rewardAmount', 'rewardText', 'validDays',
+      'perUserLimit', 'perUserDailyLimit', 'perResourceDailyLimit', 'description', 'conditions',
+    ],
+    GrowthTaskCampaignInfo: ['code', 'title', 'hint'],
+    GrowthTaskSummary: [
+      'publishQuotaRemaining', 'refreshQuotaRemaining', 'starterCompletedCount', 'starterTotalCount',
+    ],
+    GrowthTaskItem: [
+      'taskCode', 'group', 'title', 'description', 'progressCurrent', 'progressTarget', 'status',
+      'rewardType', 'rewardAmount', 'rewardText', 'validDays', 'actionType', 'actionText', 'hint',
+    ],
+    GrowthCampaignItem: ['code', 'name', 'status', 'startsAt', 'endsAt', 'config', 'updatedAt'],
+    GrowthRuleItem: [
+      'campaignCode', 'ruleCode', 'ruleName', 'triggerEvent', 'status', 'priority', 'conditions',
+      'rewardType', 'rewardAmount', 'validDays', 'perUserLimit', 'perUserDailyLimit',
+      'perResourceDailyLimit', 'description', 'updatedAt',
+    ],
+    GrowthGrantItem: [
+      'id', 'campaignCode', 'ruleCode', 'ruleName', 'merchantId', 'resourceId', 'rewardType',
+      'rewardAmount', 'status', 'reason', 'createdAt',
+    ],
+  }
+  for (const [typeName, fields] of Object.entries(exactFields)) {
+    assert.deepEqual(jsonFields(typeName), fields, `${typeName} JSON fields should match the existing logic DTO exactly`)
+  }
+})
