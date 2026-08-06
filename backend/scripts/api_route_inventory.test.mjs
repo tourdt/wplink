@@ -5,7 +5,10 @@ import path from 'node:path'
 import test from 'node:test'
 
 import {
+  checkContractGeneratedParity,
+  checkNoMigrationStubs,
   parseAPIContracts,
+  parseGeneratedRoutes,
   parseLegacyRoutes,
   routeFingerprint,
 } from './api_route_inventory.mjs'
@@ -114,5 +117,164 @@ mux.HandleFunc("GET /api/v1/active", active)
       'GET /api/v1/active',
     ])
     assert.equal(routes[0].line, 3)
+  })
+})
+
+test('parses generated routes with import aliases and applies each AddRoutes prefix', () => {
+  withFixture({
+    'routes.go': `package handler
+
+import (
+  "net/http"
+  maphandler "wplink/backend/app/internal/handler/map"
+  public "wplink/backend/app/internal/handler/public"
+)
+
+func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
+  // server.AddRoutes([]rest.Route{{Method: http.MethodDelete, Path: "/fake", Handler: public.FakeHandler(serverCtx)}})
+  server.AddRoutes(
+    []rest.Route{
+      {Method: http.MethodGet, Path: "/scenes/:sceneId", Handler: maphandler.GetSceneHandler(serverCtx)},
+    },
+    rest.WithPrefix("/api/v1/map"),
+  )
+  server.AddRoutes(
+    []rest.Route{
+      {Method: http.MethodPost, Path: "/search", Handler: public.SearchHandler(serverCtx)},
+    },
+    rest.WithPrefix("/api/v1"),
+  )
+}
+`,
+  }, (fixtureDir) => {
+    const routes = parseGeneratedRoutes(path.join(fixtureDir, 'routes.go'))
+
+    assert.deepEqual(routes.map((route) => ({
+      fingerprint: routeFingerprint(route),
+      handler: route.handler,
+      group: route.group,
+    })), [
+      { fingerprint: 'GET /api/v1/map/scenes/:sceneId', handler: 'GetScene', group: 'map' },
+      { fingerprint: 'POST /api/v1/search', handler: 'Search', group: 'public' },
+    ])
+  })
+})
+
+test('reports sorted contract and generated route parity differences with exact handlers', () => {
+  const contractRoutes = [
+    { method: 'POST', path: '/api/v1/z', handler: 'CreateZ' },
+    { method: 'GET', path: '/api/v1/a', handler: 'ReadA' },
+  ]
+  const generatedRoutes = [
+    { method: 'GET', path: '/api/v1/a', handler: 'WrongReadA' },
+    { method: 'DELETE', path: '/api/v1/b', handler: 'DeleteB' },
+  ]
+
+  assert.throws(
+    () => checkContractGeneratedParity(contractRoutes, generatedRoutes),
+    (error) => {
+      assert.equal(error.message, `API 契约与生成路由不一致:
+缺失:
+- GET /api/v1/a -> ReadA
+- POST /api/v1/z -> CreateZ
+多余:
+- DELETE /api/v1/b -> DeleteB
+- GET /api/v1/a -> WrongReadA`)
+      return true
+    },
+  )
+})
+
+test('reports sorted duplicate fingerprints in contracts and generated routes', () => {
+  const contractRoutes = [
+    { method: 'POST', path: '/api/v1/z', handler: 'CreateZAgain' },
+    { method: 'GET', path: '/api/v1/a', handler: 'ReadA' },
+    { method: 'POST', path: '/api/v1/z', handler: 'CreateZ' },
+  ]
+  const generatedRoutes = [
+    { method: 'GET', path: '/api/v1/a', handler: 'ReadA' },
+    { method: 'GET', path: '/api/v1/a', handler: 'ReadA' },
+    { method: 'POST', path: '/api/v1/z', handler: 'CreateZ' },
+    { method: 'POST', path: '/api/v1/z', handler: 'CreateZAgain' },
+  ]
+
+  assert.throws(
+    () => checkContractGeneratedParity(contractRoutes, generatedRoutes),
+    (error) => {
+      assert.equal(error.message, `API 路由存在重复:
+契约重复:
+- POST /api/v1/z -> CreateZ
+- POST /api/v1/z -> CreateZAgain
+生成路由重复:
+- GET /api/v1/a -> ReadA
+- GET /api/v1/a -> ReadA
+- POST /api/v1/z -> CreateZ
+- POST /api/v1/z -> CreateZAgain`)
+      return true
+    },
+  )
+})
+
+test('rejects a same-named Handler imported from another package', () => {
+  const contractRoutes = [
+    { method: 'GET', path: '/api/v1/map/scenes', handler: 'ListMapScenes', group: 'map' },
+  ]
+  const generatedRoutes = [
+    {
+      method: 'GET',
+      path: '/api/v1/map/scenes',
+      handler: 'ListMapScenes',
+      group: 'map',
+      handlerPackage: 'example.com/decoy/app/internal/handler/map',
+    },
+  ]
+
+  assert.throws(
+    () => checkContractGeneratedParity(contractRoutes, generatedRoutes),
+    /example\.com\/decoy\/app\/internal\/handler\/map\.ListMapScenes/,
+  )
+})
+
+test('detects real handlerx NotMigrated calls without matching comments strings or another package', () => {
+  withFixture({
+    'real/handler.go': `package real
+
+import migrated "wplink/backend/app/internal/handler/handlerx"
+
+func build() http.HandlerFunc {
+  return migrated.NotMigrated("RealHandler")
+}
+`,
+    'decoy/comment.go': `package decoy
+
+// handlerx.NotMigrated("CommentHandler")
+const text = "handlerx.NotMigrated(\\\"StringHandler\\\")"
+`,
+    'decoy/other.go': `package decoy
+
+import other "example.com/other/app/internal/handler/handlerx"
+
+func build() http.HandlerFunc {
+  return other.NotMigrated("OtherHandler")
+}
+`,
+    'real/handler_test.go': `package real
+
+import handlerx "wplink/backend/app/internal/handler/handlerx"
+
+func fixture() http.HandlerFunc {
+  return handlerx.NotMigrated("TestOnlyHandler")
+}
+`,
+  }, (fixtureDir) => {
+    assert.throws(
+      () => checkNoMigrationStubs(fixtureDir),
+      (error) => {
+        assert.match(error.message, /real\/handler\.go:6/)
+        assert.match(error.message, /RealHandler/)
+        assert.doesNotMatch(error.message, /CommentHandler|StringHandler|OtherHandler|TestOnlyHandler/)
+        return true
+      },
+    )
   })
 })

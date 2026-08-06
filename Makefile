@@ -2,8 +2,9 @@
 
 check: check-backend check-admin check-wxapp
 
-check-backend: check-api-generated
+check-backend:
 	cd backend && node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs scripts/api_route_inventory.test.mjs scripts/api_codegen.test.mjs
+	$(MAKE) check-api-generated
 	cd backend && go test ./...
 	cd backend && go vet ./...
 

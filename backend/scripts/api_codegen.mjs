@@ -4,7 +4,14 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
-import { parseAPIContracts, routeFingerprint } from './api_route_inventory.mjs'
+import {
+  checkContractGeneratedParity,
+  checkNoDuplicateRoutes,
+  checkNoMigrationStubs,
+  parseAPIContracts,
+  parseGeneratedRoutes,
+  routeFingerprint,
+} from './api_route_inventory.mjs'
 
 const requiredGoctlVersion = '1.7.5'
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
@@ -365,6 +372,17 @@ function run(mode) {
     throw new Error('用法: node scripts/api_codegen.mjs --write|--check')
   }
   verifyGoctlVersion()
+  const contractRoutes = parseAPIContracts(apiDir)
+  // 在调用 goctl 前给出稳定、可定位的重复指纹，避免上游错误格式变化削弱门禁诊断。
+  checkNoDuplicateRoutes(contractRoutes, '契约')
+  if (mode === '--check') {
+    const generatedRoutesPath = path.join(handlerDir, 'routes.go')
+    if (!fs.existsSync(generatedRoutesPath)) {
+      throw new Error(`生成路由不存在: ${path.relative(backendDir, generatedRoutesPath)}`)
+    }
+    checkContractGeneratedParity(contractRoutes, parseGeneratedRoutes(generatedRoutesPath))
+    checkNoMigrationStubs(handlerDir)
+  }
   const temporaryDir = generateIntoTemporaryModule()
   try {
     const generatedAppDir = path.join(temporaryDir, 'app')

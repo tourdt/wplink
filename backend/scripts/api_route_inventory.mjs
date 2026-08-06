@@ -5,6 +5,22 @@ import { fileURLToPath } from 'node:url'
 const HTTP_METHOD_PATTERN = '(?:get|post|put|delete|patch|head|options)'
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 
+function listGoFiles(directory) {
+  if (!fs.existsSync(directory)) {
+    return []
+  }
+  const files = []
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...listGoFiles(entryPath))
+    } else if (entry.name.endsWith('.go')) {
+      files.push(entryPath)
+    }
+  }
+  return files.sort()
+}
+
 function normalizeRoutePath(routePath) {
   let normalized = String(routePath)
     .trim()
@@ -169,6 +185,327 @@ export function parseLegacyRoutes(files) {
 export function routeFingerprint(route) {
   const normalized = normalizeRoute(route.method, route.path)
   return `${normalized.method} ${normalized.path}`
+}
+
+function tokenizeGo(source) {
+  const tokens = []
+  let line = 1
+
+  for (let index = 0; index < source.length;) {
+    const current = source[index]
+    const next = source[index + 1]
+    if (/\s/.test(current)) {
+      if (current === '\n') {
+        line += 1
+      }
+      index += 1
+      continue
+    }
+    if (current === '/' && next === '/') {
+      index += 2
+      while (index < source.length && source[index] !== '\n') {
+        index += 1
+      }
+      continue
+    }
+    if (current === '/' && next === '*') {
+      index += 2
+      while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) {
+        if (source[index] === '\n') {
+          line += 1
+        }
+        index += 1
+      }
+      index = Math.min(source.length, index + 2)
+      continue
+    }
+    if (current === '"' || current === '`' || current === '\'') {
+      const quote = current
+      const tokenLine = line
+      let raw = current
+      index += 1
+      let escaped = false
+      while (index < source.length) {
+        const char = source[index]
+        raw += char
+        index += 1
+        if (char === '\n') {
+          line += 1
+        }
+        if (quote !== '`' && char === '\\' && !escaped) {
+          escaped = true
+          continue
+        }
+        if (char === quote && !escaped) {
+          break
+        }
+        escaped = false
+      }
+      let value = raw.slice(1, -1)
+      if (quote === '"') {
+        try {
+          value = JSON.parse(raw)
+        } catch {
+          // 生成路由只应出现 goctl 输出的普通双引号字符串；保留原值以便错误包含具体指纹。
+        }
+      }
+      tokens.push({ type: quote === '\'' ? 'rune' : 'string', value, line: tokenLine })
+      continue
+    }
+    if (/[A-Za-z_]/.test(current)) {
+      const tokenLine = line
+      let value = current
+      index += 1
+      while (index < source.length && /[A-Za-z0-9_]/.test(source[index])) {
+        value += source[index]
+        index += 1
+      }
+      tokens.push({ type: 'identifier', value, line: tokenLine })
+      continue
+    }
+    tokens.push({ type: 'symbol', value: current, line })
+    index += 1
+  }
+  return tokens
+}
+
+function matchingTokenIndex(tokens, openingIndex, opening, closing) {
+  let depth = 0
+  for (let index = openingIndex; index < tokens.length; index += 1) {
+    if (tokens[index].value === opening) {
+      depth += 1
+    } else if (tokens[index].value === closing) {
+      depth -= 1
+      if (depth === 0) {
+        return index
+      }
+    }
+  }
+  return tokens.length - 1
+}
+
+function parseGoImports(tokens) {
+  const imports = new Map()
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (tokens[index].value !== 'import') {
+      continue
+    }
+    const importTokens = []
+    if (tokens[index + 1]?.value === '(') {
+      const closingIndex = matchingTokenIndex(tokens, index + 1, '(', ')')
+      importTokens.push(...tokens.slice(index + 2, closingIndex))
+      index = closingIndex
+    } else {
+      importTokens.push(...tokens.slice(index + 1, index + 3))
+    }
+    for (let cursor = 0; cursor < importTokens.length; cursor += 1) {
+      let alias = ''
+      let pathToken = importTokens[cursor]
+      if (pathToken?.type !== 'string' && importTokens[cursor + 1]?.type === 'string') {
+        alias = pathToken?.value || ''
+        pathToken = importTokens[cursor + 1]
+        cursor += 1
+      }
+      if (pathToken?.type !== 'string') {
+        continue
+      }
+      const packageName = alias || pathToken.value.split('/').at(-1)
+      imports.set(packageName, pathToken.value)
+    }
+  }
+  return imports
+}
+
+const generatedMethodNames = new Map([
+  ['MethodGet', 'GET'],
+  ['MethodPost', 'POST'],
+  ['MethodPut', 'PUT'],
+  ['MethodDelete', 'DELETE'],
+  ['MethodPatch', 'PATCH'],
+  ['MethodHead', 'HEAD'],
+  ['MethodOptions', 'OPTIONS'],
+])
+
+function routeFieldValue(tokens, startIndex, endIndex, fieldName) {
+  let depth = 0
+  for (let index = startIndex + 1; index < endIndex; index += 1) {
+    if (tokens[index].value === '{' || tokens[index].value === '(' || tokens[index].value === '[') {
+      depth += 1
+      continue
+    }
+    if (tokens[index].value === '}' || tokens[index].value === ')' || tokens[index].value === ']') {
+      depth = Math.max(0, depth - 1)
+      continue
+    }
+    if (depth === 0 && tokens[index].value === fieldName && tokens[index + 1]?.value === ':') {
+      return { index: index + 2, token: tokens[index + 2] }
+    }
+  }
+  return null
+}
+
+function parseGeneratedRouteBlock(tokens, openingIndex, closingIndex, prefix, imports, sourcePath) {
+  const methodField = routeFieldValue(tokens, openingIndex, closingIndex, 'Method')
+  const pathField = routeFieldValue(tokens, openingIndex, closingIndex, 'Path')
+  const handlerField = routeFieldValue(tokens, openingIndex, closingIndex, 'Handler')
+  if (!methodField || !pathField || !handlerField || pathField.token?.type !== 'string') {
+    return null
+  }
+
+  let method = ''
+  if (methodField.token?.type === 'string') {
+    method = methodField.token.value
+  } else if (tokens[methodField.index + 1]?.value === '.' && imports.get(methodField.token?.value) === 'net/http') {
+    method = generatedMethodNames.get(tokens[methodField.index + 2]?.value) || ''
+  }
+  const handlerAlias = handlerField.token?.value || ''
+  const handlerFunction = tokens[handlerField.index + 1]?.value === '.'
+    ? tokens[handlerField.index + 2]?.value || ''
+    : handlerAlias
+  if (!method || !handlerFunction) {
+    return null
+  }
+
+  const importPath = imports.get(handlerAlias) || ''
+  return {
+    ...normalizeRoute(method, joinRoutePath(prefix, pathField.token.value)),
+    // goctl 将 @handler Foo 生成为 FooHandler；门禁比较的是契约中的原始 Handler 名称。
+    handler: handlerFunction.endsWith('Handler') ? handlerFunction.slice(0, -'Handler'.length) : handlerFunction,
+    group: importPath.split('/').at(-1) || handlerAlias,
+    handlerPackage: importPath,
+    source: sourcePath,
+    line: methodField.token.line,
+  }
+}
+
+export function parseGeneratedRoutes(routesFile) {
+  const resolvedPath = path.resolve(routesFile)
+  const tokens = tokenizeGo(fs.readFileSync(resolvedPath, 'utf8'))
+  const imports = parseGoImports(tokens)
+  const routes = []
+
+  for (let index = 0; index < tokens.length - 3; index += 1) {
+    if (tokens[index + 1]?.value !== '.' || tokens[index + 2]?.value !== 'AddRoutes' || tokens[index + 3]?.value !== '(') {
+      continue
+    }
+    const callEnd = matchingTokenIndex(tokens, index + 3, '(', ')')
+    let prefix = '/'
+    for (let cursor = index + 4; cursor < callEnd - 3; cursor += 1) {
+      if (tokens[cursor].value === 'WithPrefix' && tokens[cursor + 1]?.value === '(' && tokens[cursor + 2]?.type === 'string') {
+        prefix = tokens[cursor + 2].value
+      }
+    }
+    for (let cursor = index + 4; cursor < callEnd; cursor += 1) {
+      if (tokens[cursor].value !== '{') {
+        continue
+      }
+      const blockEnd = matchingTokenIndex(tokens, cursor, '{', '}')
+      const route = parseGeneratedRouteBlock(tokens, cursor, blockEnd, prefix, imports, resolvedPath)
+      if (route) {
+        routes.push(route)
+      }
+    }
+    index = callEnd
+  }
+  return routes
+}
+
+function routeDetail(route) {
+  const expectedPackage = route.group ? `wplink/backend/app/internal/handler/${route.group}` : ''
+  const handlerPackage = route.handlerPackage ?? expectedPackage
+  const handlerLabel = handlerPackage && handlerPackage !== expectedPackage
+    ? `${handlerPackage}.${route.handler || '未知 Handler'}`
+    : route.handler || '未知 Handler'
+  return `${routeFingerprint(route)} -> ${handlerLabel}`
+}
+
+function exactRouteKey(route) {
+  const expectedPackage = route.group ? `wplink/backend/app/internal/handler/${route.group}` : ''
+  const handlerPackage = route.handlerPackage ?? expectedPackage
+  return `${routeFingerprint(route)}\u0000${handlerPackage}\u0000${route.handler}`
+}
+
+function duplicateRouteDetails(routes) {
+  const byFingerprint = new Map()
+  for (const route of routes) {
+    const fingerprint = routeFingerprint(route)
+    const matches = byFingerprint.get(fingerprint) || []
+    matches.push(route)
+    byFingerprint.set(fingerprint, matches)
+  }
+  return [...byFingerprint.values()]
+    .filter((matches) => matches.length > 1)
+    .flatMap((matches) => matches.map(routeDetail))
+    .sort()
+}
+
+export function checkNoDuplicateRoutes(routes, label) {
+  const duplicates = duplicateRouteDetails(routes)
+  if (duplicates.length > 0) {
+    throw new Error(`API 路由存在重复:\n${label}重复:\n- ${duplicates.join('\n- ')}`)
+  }
+}
+
+export function checkContractGeneratedParity(contractRoutes, generatedRoutes) {
+  const contractDuplicates = duplicateRouteDetails(contractRoutes)
+  const generatedDuplicates = duplicateRouteDetails(generatedRoutes)
+  if (contractDuplicates.length > 0 || generatedDuplicates.length > 0) {
+    const sections = ['API 路由存在重复:']
+    if (contractDuplicates.length > 0) {
+      sections.push(`契约重复:\n- ${contractDuplicates.join('\n- ')}`)
+    }
+    if (generatedDuplicates.length > 0) {
+      sections.push(`生成路由重复:\n- ${generatedDuplicates.join('\n- ')}`)
+    }
+    throw new Error(sections.join('\n'))
+  }
+
+  const generatedKeys = new Set(generatedRoutes.map(exactRouteKey))
+  const contractKeys = new Set(contractRoutes.map(exactRouteKey))
+  const missing = contractRoutes.filter((route) => !generatedKeys.has(exactRouteKey(route))).map(routeDetail).sort()
+  const extra = generatedRoutes.filter((route) => !contractKeys.has(exactRouteKey(route))).map(routeDetail).sort()
+  if (missing.length === 0 && extra.length === 0) {
+    return
+  }
+  const sections = ['API 契约与生成路由不一致:']
+  if (missing.length > 0) {
+    sections.push(`缺失:\n- ${missing.join('\n- ')}`)
+  }
+  if (extra.length > 0) {
+    sections.push(`多余:\n- ${extra.join('\n- ')}`)
+  }
+  throw new Error(sections.join('\n'))
+}
+
+export function checkNoMigrationStubs(rootHandlerDir) {
+  const findings = []
+  for (const filePath of listGoFiles(rootHandlerDir)) {
+    if (filePath.endsWith('_test.go')) {
+      continue
+    }
+    const tokens = tokenizeGo(fs.readFileSync(filePath, 'utf8'))
+    const imports = parseGoImports(tokens)
+    const aliases = new Set([...imports]
+      .filter(([, importPath]) => importPath === 'wplink/backend/app/internal/handler/handlerx')
+      .map(([alias]) => alias))
+    const dotImported = aliases.has('.')
+    for (let index = 0; index < tokens.length; index += 1) {
+      const qualifiedCall = aliases.has(tokens[index].value)
+        && tokens[index + 1]?.value === '.'
+        && tokens[index + 2]?.value === 'NotMigrated'
+        && tokens[index + 3]?.value === '('
+      const dotCall = dotImported && tokens[index].value === 'NotMigrated' && tokens[index + 1]?.value === '('
+      if (!qualifiedCall && !dotCall) {
+        continue
+      }
+      const argumentIndex = qualifiedCall ? index + 4 : index + 2
+      const handlerName = tokens[argumentIndex]?.type === 'string' ? tokens[argumentIndex].value : '未知 Handler'
+      findings.push(`${path.relative(rootHandlerDir, filePath).split(path.sep).join('/')}:${tokens[index].line} -> ${handlerName}`)
+    }
+  }
+  if (findings.length > 0) {
+    throw new Error(`Handler 树仍存在 NotMigrated 调用:\n- ${findings.sort().join('\n- ')}`)
+  }
 }
 
 function compareRoutes(contractRoutes, legacyRoutes) {
