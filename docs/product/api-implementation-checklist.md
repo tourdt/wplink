@@ -50,7 +50,7 @@
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
-| `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue`，含资料状态、信用标签和发布记录 | 已接 handler，测试通过 |
+| `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue`，展示商家资料和发布记录 | 已接 handler，测试通过 |
 | `POST /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/update_merchant_logic.go` | 商家编辑 | `wxapp/pages/merchant/profile.vue` 商家资料编辑 | 已接 handler，测试通过 |
 
 ## 供需信息

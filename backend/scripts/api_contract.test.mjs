@@ -94,6 +94,10 @@ test('current product docs do not restore the retired merchant verification doma
 
   const implementationChecklist = fs.readFileSync(path.join(productDocsDir, 'api-implementation-checklist.md'), 'utf8')
   assert(
+    !implementationChecklist.includes('信用标签'),
+    'api-implementation-checklist.md should not claim the merchant detail page renders credit tags',
+  )
+  assert(
     !implementationChecklist.includes('docs/product/api-contract-design.md'),
     'api-implementation-checklist.md should not use the retired design as a current source',
   )
