@@ -4,11 +4,139 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
+import { parseAPIContracts, routeFingerprint } from './api_route_inventory.mjs'
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const appDir = path.resolve(scriptDir, '../app')
 const apiDir = path.join(appDir, 'api')
 const typesFile = path.join(appDir, 'internal/types/types.go')
 const productDocsDir = path.resolve(scriptDir, '../../docs/product')
+
+function parseImplementedChecklistRoutes(source) {
+  const routes = []
+  for (const [index, line] of source.split('\n').entries()) {
+    if (!line.includes('已接 handler')) {
+      continue
+    }
+    const matches = [...line.matchAll(/`(GET|POST|PUT|PATCH|DELETE)\s+(\/api\/[^`\s]+)`/g)]
+    assert(matches.length > 0, `api implementation checklist line ${index + 1} should contain a backtick METHOD /api/... route`)
+    for (const match of matches) {
+      const requestPath = match[2]
+        .split('?', 1)[0]
+        .replace(/\{([^}]+)\}/g, ':$1')
+      routes.push({ method: match[1], path: requestPath, line: index + 1 })
+    }
+  }
+  return routes
+}
+
+test('implemented API checklist routes match the app.api import contract', () => {
+  const checklistSource = fs.readFileSync(path.join(productDocsDir, 'api-implementation-checklist.md'), 'utf8')
+  const documentedRoutes = parseImplementedChecklistRoutes(checklistSource)
+  const contractFingerprints = new Set(parseAPIContracts(apiDir).map(routeFingerprint))
+
+  assert(documentedRoutes.length > 0, 'api implementation checklist should contain implemented routes')
+  for (const route of documentedRoutes) {
+    const fingerprint = routeFingerprint(route)
+    assert(
+      contractFingerprints.has(fingerprint),
+      `api-implementation-checklist.md line ${route.line} documents non-contract route ${fingerprint}`,
+    )
+  }
+})
+
+test('product docs describe the generated API route as the only production route', () => {
+  const retiredRouteDescriptions = [
+    'NewAPIRouter',
+    'NewProductionAPIRouter',
+    'API_NOT_CONNECTED',
+    '迁移期双轨制',
+    '兼容 API Router',
+    '兼容 Router',
+    '未配置 API handler 的兜底路由',
+    '未迁移端点由 fallback',
+    'NotMigrated',
+    'registerOptionalDomainRoutes',
+    'backend/app/internal/server/goctl_routes.go',
+    'backend/app/internal/server/api.go',
+    'domain_routes.go',
+  ]
+  const docFiles = fs.readdirSync(productDocsDir)
+    .filter((fileName) => fileName.endsWith('.md'))
+    .map((fileName) => ({
+      name: fileName,
+      source: fs.readFileSync(path.join(productDocsDir, fileName), 'utf8'),
+    }))
+
+  for (const file of docFiles) {
+    for (const snippet of retiredRouteDescriptions) {
+      assert(!file.source.includes(snippet), `${file.name} should not contain retired route description ${snippet}`)
+    }
+  }
+
+  const architectureSource = fs.readFileSync(path.join(productDocsDir, 'technical-architecture.md'), 'utf8')
+  assert(
+    architectureSource.includes('make check-api-generated'),
+    'technical-architecture.md should document make check-api-generated',
+  )
+})
+
+test('current product docs do not restore the retired merchant verification domain', () => {
+  const currentDocNames = [
+    'wxapp-manual-acceptance.md',
+    'deployment-config.md',
+    'api-implementation-checklist.md',
+    'mvp-acceptance-checklist.md',
+  ]
+  const retiredContractReferences = [
+    '/merchants/{merchantId}/verifications',
+    '/api/v1/merchants/:merchantId/verifications',
+    '/admin/verifications',
+    'wxapp/pages/verification',
+    'pages/verification/index',
+    'VerificationView',
+  ]
+  const retiredCapabilityCopy = [
+    '商家认证',
+    '认证状态',
+    '认证资料',
+    '认证提交',
+    '认证审核',
+    '认证结果',
+    '待认证',
+  ]
+
+  for (const fileName of currentDocNames) {
+    const source = fs.readFileSync(path.join(productDocsDir, fileName), 'utf8')
+    for (const snippet of [...retiredContractReferences, ...retiredCapabilityCopy]) {
+      assert(!source.includes(snippet), `${fileName} should not describe retired merchant verification capability ${snippet}`)
+    }
+  }
+
+  const mvpAcceptance = fs.readFileSync(path.join(productDocsDir, 'mvp-acceptance-checklist.md'), 'utf8')
+  for (const unsupportedAcceptance of ['信用标签', '商家数量']) {
+    assert(
+      !mvpAcceptance.includes(unsupportedAcceptance),
+      `mvp-acceptance-checklist.md should not require unsupported acceptance result ${unsupportedAcceptance}`,
+    )
+  }
+
+  const historicalDesign = fs.readFileSync(path.join(productDocsDir, 'api-contract-design.md'), 'utf8')
+  assert(historicalDesign.includes('文档状态：历史设计，已废弃'), 'api-contract-design.md should be marked as retired historical design')
+  assert(historicalDesign.includes('不作为当前实现、验收或生成依据'), 'api-contract-design.md should reject current implementation usage')
+  assert(historicalDesign.includes('backend/app/api/app.api'), 'api-contract-design.md should name the current API contract entry')
+  assert(historicalDesign.includes('make check-api-generated'), 'api-contract-design.md should name the generated API gate')
+
+  const implementationChecklist = fs.readFileSync(path.join(productDocsDir, 'api-implementation-checklist.md'), 'utf8')
+  assert(
+    !implementationChecklist.includes('信用标签'),
+    'api-implementation-checklist.md should not claim the merchant detail page renders credit tags',
+  )
+  assert(
+    !implementationChecklist.includes('docs/product/api-contract-design.md'),
+    'api-implementation-checklist.md should not use the retired design as a current source',
+  )
+})
 
 test('product docs do not describe retired purchase demand or manual matching features', () => {
   const retiredSnippets = [
@@ -325,6 +453,21 @@ test('merchant detail contract exposes editable contact only as optional fields'
   }
 })
 
+test('message role scope is declared by the public API contract and generated DTOs', () => {
+  const messageApiSource = fs.readFileSync(path.join(apiDir, 'message.api'), 'utf8')
+  const typesSource = fs.readFileSync(typesFile, 'utf8')
+
+  const listContract = messageApiSource.match(/type ListMessagesReq \{([\s\S]*?)\n\}/)?.[1] || ''
+  const readContract = messageApiSource.match(/type ReadMessageReq \{([\s\S]*?)\n\}/)?.[1] || ''
+  const generatedList = typesSource.match(/type ListMessagesReq struct \{([\s\S]*?)\n\}/)?.[1] || ''
+  const generatedRead = typesSource.match(/type ReadMessageReq struct \{([\s\S]*?)\n\}/)?.[1] || ''
+
+  assert.match(listContract, /RoleCode\s+string `form:"roleCode,optional"`/)
+  assert.match(readContract, /RoleCode\s+string `json:"roleCode,optional"`/)
+  assert.match(generatedList, /RoleCode\s+string `form:"roleCode,optional"`/)
+  assert.match(generatedRead, /RoleCode\s+string `json:"roleCode,optional"`/)
+})
+
 test('generated types do not keep retired manual matching DTOs', () => {
   const source = fs.readFileSync(typesFile, 'utf8')
 
@@ -372,4 +515,167 @@ test('retired purchase demand and manual matching table models are removed', () 
   const searchLogsModel = fs.readFileSync(path.join(appDir, 'internal/model/search_logs_model_gen.go'), 'utf8')
   assert(!searchLogsModel.includes('GeneratedDemandId'), 'search_logs model should not contain GeneratedDemandId')
   assert(!searchLogsModel.includes('generated_demand_id'), 'search_logs model should not contain generated_demand_id')
+})
+
+test('content audit callback contract uses query signatures without auth middleware', () => {
+  const appApiSource = fs.readFileSync(path.join(apiDir, 'app.api'), 'utf8')
+  const callbackPath = path.join(apiDir, 'callback.api')
+
+  assert(fs.existsSync(callbackPath), 'callback.api should define provider callback routes')
+  const callbackApiSource = fs.readFileSync(callbackPath, 'utf8')
+  assert.match(appApiSource, /import "callback\.api"/)
+  for (const snippet of [
+    '@handler VerifyContentAuditCallback',
+    'get /wechat/content-audit/media-callback (VerifyContentAuditCallbackReq)',
+    '@handler HandleContentAuditCallback',
+    'post /wechat/content-audit/media-callback (HandleContentAuditCallbackReq)',
+  ]) {
+    assert(callbackApiSource.includes(snippet), `callback.api should contain ${snippet}`)
+  }
+  assert.match(callbackApiSource, /Signature\s+string `form:"signature"`/)
+  assert.match(callbackApiSource, /Timestamp\s+string `form:"timestamp"`/)
+  assert.match(callbackApiSource, /Nonce\s+string `form:"nonce"`/)
+  assert.match(callbackApiSource, /Echostr\s+string `form:"echostr"`/)
+  assert(!callbackApiSource.includes('middleware:'), 'provider callbacks must not use user or admin middleware')
+  assert(!callbackApiSource.includes('json:"'), 'POST callback body must stay raw and bounded in the Handler')
+})
+
+test('growth api contract exposes all runtime routes with exact DTO fields', () => {
+  const appApiSource = fs.readFileSync(path.join(apiDir, 'app.api'), 'utf8')
+  const growthPath = path.join(apiDir, 'growth.api')
+
+  assert(fs.existsSync(growthPath), 'growth.api should define growth campaign routes')
+  const growthApiSource = fs.readFileSync(growthPath, 'utf8')
+  assert.match(appApiSource, /import "growth\.api"/)
+
+  for (const route of [
+    'get /growth-campaigns/active returns (ListActiveGrowthCampaignsResp)',
+    'get /merchants/:merchantId/growth-tasks returns (GetGrowthTasksResp)',
+    'get /growth-campaigns (ListGrowthCampaignsReq) returns (ListGrowthCampaignsResp)',
+    'post /growth-campaigns (SaveGrowthCampaignReq) returns (SaveGrowthConfigResp)',
+    'post /growth-campaigns/:campaignCode (SaveGrowthCampaignReq) returns (SaveGrowthConfigResp)',
+    'get /growth-campaigns/:campaignCode/rules returns (ListGrowthRulesResp)',
+    'post /growth-campaigns/:campaignCode/rules (SaveGrowthRuleReq) returns (SaveGrowthConfigResp)',
+    'post /growth-campaigns/:campaignCode/rules/:ruleCode (SaveGrowthRuleReq) returns (SaveGrowthConfigResp)',
+    'get /growth-campaigns/:campaignCode/grants (ListGrowthRewardGrantsReq) returns (ListGrowthRewardGrantsResp)',
+  ]) {
+    assert(growthApiSource.includes(route), `growth.api should contain ${route}`)
+  }
+
+  assert.match(
+    growthApiSource,
+    /@server \(\s*prefix: \/api\/v1\/admin\s*group:\s+admingrowth\s*middleware: AdminAuth\s*\)/,
+    'admin growth routes must use the AdminAuth middleware',
+  )
+
+  const jsonFields = (typeName) => {
+    const body = growthApiSource.match(new RegExp(`type ${typeName} \\{([\\s\\S]*?)\\n\\}`))?.[1]
+    assert(body, `growth.api should define ${typeName}`)
+    return [...body.matchAll(/`json:"([^",]+)(?:,optional)?"`/g)].map((match) => match[1])
+  }
+
+  const exactFields = {
+    PublicGrowthCampaignItem: ['code', 'name', 'title', 'hint', 'rules'],
+    PublicGrowthRuleItem: [
+      'ruleCode', 'ruleName', 'triggerEvent', 'rewardType', 'rewardAmount', 'rewardText', 'validDays',
+      'perUserLimit', 'perUserDailyLimit', 'perResourceDailyLimit', 'description', 'conditions',
+    ],
+    GrowthTaskCampaignInfo: ['code', 'title', 'hint'],
+    GrowthTaskSummary: [
+      'publishQuotaRemaining', 'refreshQuotaRemaining', 'starterCompletedCount', 'starterTotalCount',
+    ],
+    GrowthTaskItem: [
+      'taskCode', 'group', 'title', 'description', 'progressCurrent', 'progressTarget', 'status',
+      'rewardType', 'rewardAmount', 'rewardText', 'validDays', 'actionType', 'actionText', 'hint',
+    ],
+    GrowthCampaignItem: ['code', 'name', 'status', 'startsAt', 'endsAt', 'config', 'updatedAt'],
+    GrowthRuleItem: [
+      'campaignCode', 'ruleCode', 'ruleName', 'triggerEvent', 'status', 'priority', 'conditions',
+      'rewardType', 'rewardAmount', 'validDays', 'perUserLimit', 'perUserDailyLimit',
+      'perResourceDailyLimit', 'description', 'updatedAt',
+    ],
+    GrowthGrantItem: [
+      'id', 'campaignCode', 'ruleCode', 'ruleName', 'merchantId', 'resourceId', 'rewardType',
+      'rewardAmount', 'status', 'reason', 'createdAt',
+    ],
+  }
+  for (const [typeName, fields] of Object.entries(exactFields)) {
+    assert.deepEqual(jsonFields(typeName), fields, `${typeName} JSON fields should match the existing logic DTO exactly`)
+  }
+})
+
+test('map api separates anonymous public routes from AdminAuth protected routes', () => {
+  const mapApiSource = fs.readFileSync(path.join(apiDir, 'map.api'), 'utf8')
+  const serverBlocks = [...mapApiSource.matchAll(/@server \(([\s\S]*?)\)\s*service wplink-api \{([\s\S]*?)\n\}/g)]
+  assert.equal(serverBlocks.length, 2, 'map.api should define exactly one public and one admin server block')
+
+  const publicBlock = serverBlocks.find((match) => match[1].includes('prefix: /api/v1\n'))
+  const adminBlock = serverBlocks.find((match) => match[1].includes('prefix: /api/v1/admin'))
+  assert(publicBlock, 'map.api should define public /api/v1 map routes')
+  assert(adminBlock, 'map.api should define admin /api/v1/admin map routes')
+  assert(!publicBlock[1].includes('middleware:'), 'public map routes must remain anonymous')
+  assert.match(adminBlock[1], /middleware:\s*AdminAuth/, 'admin map routes must use AdminAuth')
+
+  const publicHandlers = [...publicBlock[2].matchAll(/@handler\s+(\w+)/g)].map((match) => match[1])
+  const adminHandlers = [...adminBlock[2].matchAll(/@handler\s+(\w+)/g)].map((match) => match[1])
+  assert.equal(publicHandlers.length, 14, 'public map contract should keep 14 handlers')
+  assert.equal(adminHandlers.length, 14, 'admin map contract should keep 14 handlers')
+  assert.equal(new Set([...publicHandlers, ...adminHandlers]).size, 28, 'map contract should expose 28 unique handlers')
+
+  const mapObjectItem = mapApiSource.match(/type MapObjectItem \{([\s\S]*?)\n\}/)?.[1] || ''
+  const mapObjectMerchantItem = mapApiSource.match(/type MapObjectMerchantItem \{([\s\S]*?)\n\}/)?.[1] || ''
+  assert.match(mapObjectItem, /IsVerifiedMerchant\s+bool\s+`json:"isVerifiedMerchant"`/,
+    'map object contract should expose the existing verified display flag')
+  assert.match(mapObjectMerchantItem, /VerificationStatus\s+string\s+`json:"verificationStatus"`/,
+    'map merchant summary should match the existing logic DTO')
+})
+
+test('admin api protects every non-login group and keeps resource list request independent', () => {
+  const adminApiSource = fs.readFileSync(path.join(apiDir, 'admin.api'), 'utf8')
+  const serverBlocks = [...adminApiSource.matchAll(/@server \(([\s\S]*?)\)\s*service wplink-api \{([\s\S]*?)\n\}/g)]
+
+  assert(serverBlocks.length > 1, 'admin.api should define login and protected admin groups')
+  for (const [, metadata] of serverBlocks) {
+    const group = metadata.match(/group:\s+(\w+)/)?.[1]
+    assert(group, 'every admin @server block should declare a group')
+    if (group === 'adminauth') {
+      assert(!/middleware:\s*AdminAuth/.test(metadata), 'admin login must remain outside AdminAuth')
+      continue
+    }
+    assert.match(metadata, /middleware:\s*AdminAuth/, `${group} must use AdminAuth`)
+  }
+
+  const resourcesReq = adminApiSource.match(/type AdminResourcesReq \{([\s\S]*?)\n\}/)?.[1]
+  assert(resourcesReq, 'admin.api should define an independent AdminResourcesReq')
+  for (const field of [
+    'CityCode string `form:"cityCode,optional"`',
+    'TypeCode string `form:"typeCode,optional"`',
+    'Status   string `form:"status,optional"`',
+    'Page     int64  `form:"page,optional"`',
+    'PageSize int64  `form:"pageSize,optional"`',
+  ]) {
+    assert(resourcesReq.includes(field), `AdminResourcesReq should contain ${field}`)
+  }
+  const resourceBlock = serverBlocks.find(([, metadata]) => /group:\s+adminresource/.test(metadata))
+  assert(resourceBlock, 'admin.api should define adminresource routes')
+  assert(
+    resourceBlock[2].includes('get /resources (AdminResourcesReq) returns (AdminPendingResourcesResp)'),
+    'admin resources list must use AdminResourcesReq',
+  )
+  assert(
+    resourceBlock[2].includes('get /resources/pending (AdminPendingResourcesReq) returns (AdminPendingResourcesResp)'),
+    'pending resources route must keep its dedicated request',
+  )
+  assert.equal(
+    [...resourceBlock[2].matchAll(/@handler\s+AdminListResources\b/g)].length,
+    1,
+    'admin resources list handler must be declared exactly once',
+  )
+
+  const resourceItem = adminApiSource.match(/type AdminPendingResourceItem \{([\s\S]*?)\n\}/)?.[1] || ''
+  assert.match(
+    resourceItem,
+    /Status\s+string\s+`json:"status"`/,
+    'the shared admin resource item must declare the runtime status field',
+  )
 })

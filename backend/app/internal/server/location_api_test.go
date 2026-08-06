@@ -8,18 +8,19 @@ import (
 	"testing"
 
 	locationlogic "wplink/backend/app/internal/logic/location"
+	"wplink/backend/app/internal/svc"
 	"wplink/backend/common/errx"
 )
 
-func TestAPIRouterReverseGeocodesLocation(t *testing.T) {
+func TestLocationReverseGeocodesThroughGeneratedRoutes(t *testing.T) {
 	geocoder := &fakeLocationGeocoder{
 		resp: locationlogic.ReverseGeocodeResp{Address: "织里童装城一区附近", Name: "织里童装城一区", Province: "浙江省"},
 	}
-	router := NewAPIRouter(&fakeCityAPIStore{}, WithLocationGeocoder(geocoder))
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{LocationGeocoder: geocoder})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/locations/reverse-geocode?latitude=30.8732&longitude=120.2255", nil)
-	router.ServeHTTP(rec, req)
+	server.ServeHTTP(rec, req)
 
 	data := decodeEnvelopeData(t, rec, http.StatusOK)
 	if data["address"] != "织里童装城一区附近" || data["name"] != "织里童装城一区" || data["province"] != "浙江省" {
@@ -30,15 +31,15 @@ func TestAPIRouterReverseGeocodesLocation(t *testing.T) {
 	}
 }
 
-func TestAPIRouterReverseGeocodeReturnsRateLimitedForMapQuota(t *testing.T) {
+func TestLocationReturnsRateLimitedThroughGeneratedRoutes(t *testing.T) {
 	geocoder := &fakeLocationGeocoder{
 		err: errx.New(errx.CodeRateLimited, "地址解析今日额度已用完，请手动填写详细地址"),
 	}
-	router := NewAPIRouter(&fakeCityAPIStore{}, WithLocationGeocoder(geocoder))
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, &svc.ServiceContext{LocationGeocoder: geocoder})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/locations/reverse-geocode?latitude=30.8732&longitude=120.2255", nil)
-	router.ServeHTTP(rec, req)
+	server.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusTooManyRequests {
 		t.Fatalf("status = %d body = %s, want 429", rec.Code, rec.Body.String())

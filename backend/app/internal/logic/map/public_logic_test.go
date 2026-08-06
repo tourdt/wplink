@@ -34,6 +34,35 @@ func TestPublicMapLogicListsPublishedScenes(t *testing.T) {
 	}
 }
 
+func TestMapResponseMappingsEncodeRequiredSlicesAsArrays(t *testing.T) {
+	objectJSON, err := json.Marshal(mapPublicObjectItem(model.MapObject{
+		ID:                         "object-1",
+		MerchantID:                 "merchant-1",
+		MerchantName:               "小鹿童装",
+		MerchantVerificationStatus: "verified",
+	}))
+	if err != nil {
+		t.Fatalf("json.Marshal(map object) error = %v", err)
+	}
+	for _, field := range []string{"categoryCodes", "serviceTags", "platformTags", "poiServiceTags", "mainCategories"} {
+		if !bytes.Contains(objectJSON, []byte(`"`+field+`":[]`)) {
+			t.Fatalf("map object JSON = %s, want %s: []", objectJSON, field)
+		}
+	}
+
+	placesJSON, err := json.Marshal(mapMerchantPlaceItems([]model.MerchantPlace{{
+		Object: model.MapObject{ID: "object-1", Name: "A001", Code: "A001"},
+	}}))
+	if err != nil {
+		t.Fatalf("json.Marshal(merchant places) error = %v", err)
+	}
+	for _, field := range []string{"categoryCodes", "serviceTags", "platformTags"} {
+		if !bytes.Contains(placesJSON, []byte(`"`+field+`":[]`)) {
+			t.Fatalf("merchant place JSON = %s, want %s: []", placesJSON, field)
+		}
+	}
+}
+
 func TestPublicMapLogicListsClaimedAndPrelistedMerchantPlacesWithoutContact(t *testing.T) {
 	store := &fakePublicMapStore{
 		merchantPlaces: []model.MerchantPlace{
@@ -171,9 +200,15 @@ func TestPublicMapLogicKeepsCurrentMerchantWhenNearbyLookupFails(t *testing.T) {
 		nearbyMerchantPlacesErr: errors.New("nearby database timeout"),
 	}
 	var logBuffer bytes.Buffer
+	previousWriter := logx.Reset()
 	logx.SetWriter(logx.NewWriter(&logBuffer))
 	t.Cleanup(func() {
-		_ = logx.Reset().Close()
+		if currentWriter := logx.Reset(); currentWriter != nil {
+			_ = currentWriter.Close()
+		}
+		if previousWriter != nil {
+			logx.SetWriter(previousWriter)
+		}
 	})
 
 	resp, err := NewPublicLogic(store).GetMerchantLocationContext(context.Background(), "merchant-1")
@@ -184,7 +219,7 @@ func TestPublicMapLogicKeepsCurrentMerchantWhenNearbyLookupFails(t *testing.T) {
 		t.Fatalf("resp = %#v, want current merchant with unavailable nearby results", resp)
 	}
 	logText := logBuffer.String()
-	for _, field := range []string{"merchantId=merchant-1", "radiusMeters=1000", "limit=20"} {
+	for _, field := range []string{`"merchantId":"merchant-1"`, `"radiusMeters":1000`, `"limit":20`, `"errorCategory":"unknown"`} {
 		if !strings.Contains(logText, field) {
 			t.Fatalf("log = %q, want field %q", logText, field)
 		}

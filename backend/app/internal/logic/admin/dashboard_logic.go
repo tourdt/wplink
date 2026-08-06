@@ -50,6 +50,7 @@ func (l *DashboardLogic) GetOverview(ctx context.Context, req DashboardOverviewR
 			PendingResourceCount: overview.PendingResourceCount,
 			TodayContactCount:    overview.TodayContactCount,
 		},
+		Tasks: make([]DashboardTask, 0, len(overview.Tasks)),
 	}
 	for _, task := range overview.Tasks {
 		resp.Tasks = append(resp.Tasks, DashboardTask{

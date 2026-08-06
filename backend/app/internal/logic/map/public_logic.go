@@ -236,7 +236,7 @@ func (l *PublicLogic) ListScenes(ctx context.Context, req ListScenesReq) (ListSc
 		Status:     model.MapSceneStatusPublished,
 	})
 	if err != nil {
-		logx.Errorf("查询拿货地图场景失败: cityCode=%s parentCode=%s type=%s err=%+v", req.CityCode, req.ParentCode, req.Type, err)
+		LogMapDependencyFailure(ctx, "查询拿货地图场景失败", "list_public_scenes", err)
 		return ListScenesResp{}, errx.New(errx.CodeInternalError, "地图场景加载失败，请稍后重试")
 	}
 	return ListScenesResp{Items: mapSceneItems(scenes)}, nil
@@ -274,12 +274,13 @@ func (l *PublicLogic) ListMerchantPlaces(ctx context.Context, req ListMerchantPl
 	}
 	places, err := l.store.ListMerchantPlaces(ctx, filter)
 	if err != nil {
-		logx.Errorf("查询商家目录失败: cityCode=%s keyword=%s page=%d pageSize=%d err=%+v", filter.CityCode, filter.Keyword, page, pageSize, err)
+		LogMapDependencyFailure(ctx, "查询商家目录失败", "list_merchant_places", err,
+			logx.Field("page", page), logx.Field("pageSize", pageSize))
 		return ListMerchantPlacesResp{}, errx.New(errx.CodeInternalError, "商家列表加载失败，请稍后重试")
 	}
 	total, err := l.store.CountMerchantPlaces(ctx, filter)
 	if err != nil {
-		logx.Errorf("统计商家目录失败: cityCode=%s keyword=%s err=%+v", filter.CityCode, filter.Keyword, err)
+		LogMapDependencyFailure(ctx, "统计商家目录失败", "count_merchant_places", err)
 		return ListMerchantPlacesResp{}, errx.New(errx.CodeInternalError, "商家数量加载失败，请稍后重试")
 	}
 	return ListMerchantPlacesResp{
@@ -301,7 +302,8 @@ func (l *PublicLogic) GetMerchantLocationContext(ctx context.Context, merchantID
 		if errors.Is(err, sql.ErrNoRows) {
 			return MerchantLocationContextResp{}, errx.New(errx.CodeResourceNotFound, "该商家暂时无法查看")
 		}
-		logx.Errorf("查询商家位置上下文原点失败: merchantId=%s err=%+v", merchantID, err)
+		LogMapDependencyFailure(ctx, "查询商家位置上下文原点失败", "get_merchant_location_origin", err,
+			logx.Field("merchantId", merchantID))
 		return MerchantLocationContextResp{}, errx.New(errx.CodeInternalError, "该商家暂时无法查看")
 	}
 	if !validMerchantPlaceCoordinates(current) {
@@ -312,13 +314,9 @@ func (l *PublicLogic) GetMerchantLocationContext(ctx context.Context, merchantID
 	nearby, err := l.store.ListNearbyMerchantPlaces(ctx, current, merchantLocationRadiusMeters, merchantLocationNearbyLimit)
 	if err != nil {
 		// 周边推荐是位置页的辅助能力，查询失败时保留当前商家，避免影响用户查看地址和导航。
-		logx.Errorf(
-			"查询商家位置上下文周边商家失败: merchantId=%s radiusMeters=%d limit=%d err=%+v",
-			merchantID,
-			merchantLocationRadiusMeters,
-			merchantLocationNearbyLimit,
-			err,
-		)
+		LogMapDependencyFailure(ctx, "查询商家位置上下文周边商家失败", "list_nearby_merchant_places", err,
+			logx.Field("merchantId", merchantID), logx.Field("radiusMeters", merchantLocationRadiusMeters),
+			logx.Field("limit", merchantLocationNearbyLimit))
 		return MerchantLocationContextResp{
 			Current:         currentItem,
 			Nearby:          []MerchantPlaceItem{},
@@ -414,7 +412,8 @@ func (l *PublicLogic) GetScene(ctx context.Context, sceneCode string) (SceneResp
 		if errors.Is(err, sql.ErrNoRows) {
 			return SceneResp{}, errx.New(errx.CodeResourceNotFound, "地图场景不存在或未发布")
 		}
-		logx.Errorf("查询拿货地图场景详情失败: sceneCode=%s err=%+v", sceneCode, err)
+		LogMapDependencyFailure(ctx, "查询拿货地图场景详情失败", "get_public_scene", err,
+			logx.Field("sceneCode", sceneCode))
 		return SceneResp{}, errx.New(errx.CodeInternalError, "地图场景加载失败，请稍后重试")
 	}
 	return SceneResp{Item: mapSceneItem(scene)}, nil
@@ -442,12 +441,14 @@ func (l *PublicLogic) ListObjects(ctx context.Context, sceneCode string, req Lis
 	}
 	objects, err := l.store.ListPublishedObjects(ctx, filter)
 	if err != nil {
-		logx.Errorf("查询拿货地图对象失败: sceneCode=%s keyword=%s viewport=%+v zoom=%d err=%+v", sceneCode, req.Keyword, viewport, req.Zoom, err)
+		LogMapDependencyFailure(ctx, "查询拿货地图对象失败", "list_public_objects", err,
+			logx.Field("sceneCode", sceneCode), logx.Field("zoom", req.Zoom))
 		return ListObjectsResp{}, errx.New(errx.CodeInternalError, "地图点位加载失败，请稍后重试")
 	}
 	total, err := l.countPublishedObjects(ctx, filter)
 	if err != nil {
-		logx.Errorf("统计拿货地图对象总数失败: sceneCode=%s keyword=%s err=%+v", sceneCode, req.Keyword, err)
+		LogMapDependencyFailure(ctx, "统计拿货地图对象总数失败", "count_public_objects", err,
+			logx.Field("sceneCode", sceneCode))
 		return ListObjectsResp{}, errx.New(errx.CodeInternalError, "地图点位数量加载失败，请稍后重试")
 	}
 	return ListObjectsResp{SceneCode: sceneCode, Items: mapPublicObjectItems(objects), Total: total}, nil
@@ -476,12 +477,14 @@ func (l *PublicLogic) SearchObjects(ctx context.Context, req SearchObjectsReq) (
 	}
 	objects, err := l.store.SearchPublishedObjects(ctx, filter)
 	if err != nil {
-		logx.Errorf("搜索拿货地图对象失败: sceneCode=%s keyword=%s viewport=%+v zoom=%d err=%+v", req.SceneCode, req.Keyword, viewport, req.Zoom, err)
+		LogMapDependencyFailure(ctx, "搜索拿货地图对象失败", "search_public_objects", err,
+			logx.Field("sceneCode", strings.TrimSpace(req.SceneCode)), logx.Field("zoom", req.Zoom))
 		return SearchObjectsResp{}, errx.New(errx.CodeInternalError, "地图搜索失败，请稍后重试")
 	}
 	total, err := l.countPublishedObjects(ctx, filter)
 	if err != nil {
-		logx.Errorf("统计拿货地图搜索结果总数失败: sceneCode=%s keyword=%s err=%+v", req.SceneCode, req.Keyword, err)
+		LogMapDependencyFailure(ctx, "统计拿货地图搜索结果总数失败", "count_public_search_objects", err,
+			logx.Field("sceneCode", strings.TrimSpace(req.SceneCode)))
 		return SearchObjectsResp{}, errx.New(errx.CodeInternalError, "地图搜索数量加载失败，请稍后重试")
 	}
 	return SearchObjectsResp{Items: mapPublicObjectItems(objects), Total: total}, nil
@@ -550,7 +553,7 @@ func (l *PublicLogic) ListCategories(ctx context.Context, req ListCategoriesReq)
 	}
 	categories, err := l.store.ListCategories(ctx, filter)
 	if err != nil {
-		logx.Errorf("查询公开地图分类失败: type=%s err=%+v", req.Type, err)
+		LogMapDependencyFailure(ctx, "查询公开地图分类失败", "list_public_categories", err)
 		return ListCategoriesResp{}, errx.New(errx.CodeInternalError, "地图筛选项加载失败，请稍后重试")
 	}
 	return ListCategoriesResp{Items: publicMapCategoryItems(categories)}, nil
@@ -566,7 +569,8 @@ func (l *PublicLogic) GetObject(ctx context.Context, objectID string) (ObjectDet
 		if errors.Is(err, sql.ErrNoRows) {
 			return ObjectDetailResp{}, errx.New(errx.CodeResourceNotFound, "地图点位不存在或未发布")
 		}
-		logx.Errorf("查询拿货地图对象详情失败: objectID=%s err=%+v", objectID, err)
+		LogMapDependencyFailure(ctx, "查询拿货地图对象详情失败", "get_public_object", err,
+			logx.Field("objectId", objectID))
 		return ObjectDetailResp{}, errx.New(errx.CodeInternalError, "地图点位加载失败，请稍后重试")
 	}
 	return ObjectDetailResp{Item: mapPublicObjectItem(object)}, nil
@@ -582,7 +586,8 @@ func (l *PublicLogic) ListNearbyPois(ctx context.Context, objectID string, req L
 		if errors.Is(err, sql.ErrNoRows) {
 			return ListNearbyPoisResp{}, errx.New(errx.CodeResourceNotFound, "地图点位不存在或未发布")
 		}
-		logx.Errorf("查询附近配套原点失败: objectID=%s err=%+v", objectID, err)
+		LogMapDependencyFailure(ctx, "查询附近配套原点失败", "get_nearby_poi_origin", err,
+			logx.Field("objectId", objectID))
 		return ListNearbyPoisResp{}, errx.New(errx.CodeInternalError, "附近配套加载失败，请稍后重试")
 	}
 	types := splitCSV(req.Types)
@@ -591,7 +596,8 @@ func (l *PublicLogic) ListNearbyPois(ctx context.Context, objectID string, req L
 	}
 	candidates, err := l.store.ListObjectsBySceneAndTypes(ctx, origin.SceneCode, types)
 	if err != nil {
-		logx.Errorf("查询附近配套候选失败: objectID=%s sceneCode=%s types=%v err=%+v", objectID, origin.SceneCode, types, err)
+		LogMapDependencyFailure(ctx, "查询附近配套候选失败", "list_nearby_pois", err,
+			logx.Field("objectId", objectID), logx.Field("sceneCode", origin.SceneCode), logx.Field("typeCount", len(types)))
 		return ListNearbyPoisResp{}, errx.New(errx.CodeInternalError, "附近配套加载失败，请稍后重试")
 	}
 	limit := int(req.Limit)
@@ -667,9 +673,9 @@ func mapMerchantPlaceItems(places []model.MerchantPlace) []MerchantPlaceItem {
 			ObjectId:       object.ID,
 			Name:           object.Name,
 			Code:           object.Code,
-			CategoryCodes:  append([]string(nil), object.CategoryCodes...),
-			ServiceTags:    append([]string(nil), object.ServiceTags...),
-			PlatformTags:   append([]string(nil), object.PlatformTags...),
+			CategoryCodes:  nonNilStringSlice(object.CategoryCodes),
+			ServiceTags:    nonNilStringSlice(object.ServiceTags),
+			PlatformTags:   nonNilStringSlice(object.PlatformTags),
 			CityCode:       place.CityCode,
 			MarketName:     place.MarketName,
 			BuildingName:   place.SceneName,
@@ -688,7 +694,7 @@ func mapMerchantPlaceItems(places []model.MerchantPlace) []MerchantPlaceItem {
 			item.MerchantType = strings.TrimSpace(object.MerchantType)
 			item.CoverUrl = strings.TrimSpace(object.MerchantLogoURL)
 			if len(object.MerchantMainCategories) > 0 {
-				item.CategoryCodes = append([]string(nil), object.MerchantMainCategories...)
+				item.CategoryCodes = nonNilStringSlice(object.MerchantMainCategories)
 			}
 			item.SourceType = model.MerchantPlaceSourceClaimed
 		}
@@ -759,10 +765,10 @@ func mapObjectItem(object model.MapObject, includeUnverifiedMerchant bool, inclu
 		CenterY:            formatFloat(object.CenterY),
 		MinZoom:            object.MinZoom,
 		MaxZoom:            object.MaxZoom,
-		CategoryCodes:      append([]string(nil), object.CategoryCodes...),
-		ServiceTags:        append([]string(nil), object.ServiceTags...),
-		PlatformTags:       append([]string(nil), object.PlatformTags...),
-		PoiServiceTags:     append([]string(nil), object.PoiServiceTags...),
+		CategoryCodes:      nonNilStringSlice(object.CategoryCodes),
+		ServiceTags:        nonNilStringSlice(object.ServiceTags),
+		PlatformTags:       nonNilStringSlice(object.PlatformTags),
+		PoiServiceTags:     nonNilStringSlice(object.PoiServiceTags),
 		Address:            object.Address,
 		Lat:                object.Lat,
 		Lng:                object.Lng,
@@ -777,9 +783,10 @@ func mapObjectItem(object model.MapObject, includeUnverifiedMerchant bool, inclu
 }
 
 func isVerifiedMapMerchant(object model.MapObject) bool {
+	verificationStatus := strings.TrimSpace(object.MerchantVerificationStatus)
 	return strings.TrimSpace(object.MerchantID) != "" &&
 		strings.TrimSpace(object.MerchantName) != "" &&
-		strings.TrimSpace(object.MerchantVerificationStatus) == "verified"
+		(verificationStatus == "verified" || verificationStatus == model.MerchantProfileStatusCompleted)
 }
 
 func mapObjectMerchantItem(object model.MapObject) *MapObjectMerchantItem {
@@ -792,8 +799,16 @@ func mapObjectMerchantItem(object model.MapObject) *MapObjectMerchantItem {
 		MerchantType:       strings.TrimSpace(object.MerchantType),
 		VerificationStatus: strings.TrimSpace(object.MerchantVerificationStatus),
 		LogoUrl:            strings.TrimSpace(object.MerchantLogoURL),
-		MainCategories:     append([]string(nil), object.MerchantMainCategories...),
+		MainCategories:     nonNilStringSlice(object.MerchantMainCategories),
 	}
+}
+
+// nonNilStringSlice 保持 API 中非 optional 数组的运行时契约：空集合必须编码为 []，
+// 不能把数据库扫描得到的 nil slice 直接暴露成 JSON null。
+func nonNilStringSlice(values []string) []string {
+	items := make([]string, len(values))
+	copy(items, values)
+	return items
 }
 
 func splitCSV(value string) []string {

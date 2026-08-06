@@ -1,0 +1,11 @@
+package adminpermission
+
+import (
+	"net/http"
+
+	"wplink/backend/app/internal/svc"
+)
+
+func AdminUpdateRoleModulePermissionsHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
+	return adminUpdateRoleModulePermissionsHTTPHandler(svcCtx)
+}

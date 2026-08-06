@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"wplink/backend/app/internal/config"
@@ -15,11 +16,13 @@ import (
 	paymentlogic "wplink/backend/app/internal/logic/payment"
 	resourcelogic "wplink/backend/app/internal/logic/resource"
 	uploadlogic "wplink/backend/app/internal/logic/upload"
+	"wplink/backend/app/internal/middleware"
 	"wplink/backend/app/internal/model"
 	"wplink/backend/app/internal/session"
 	"wplink/backend/common/externalcall"
 
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
+	"github.com/zeromicro/go-zero/rest"
 )
 
 type CityStore interface {
@@ -63,6 +66,7 @@ type ServiceContext struct {
 	CityStore                    CityStore
 	AdminLoginService            AdminLoginService
 	AdminTokenService            *adminauth.ValidatingAdminTokenService
+	AdminAuth                    rest.Middleware
 	UploadTokenService           *uploadlogic.UploadTokenLogic
 	UserTokenService             authlogic.TokenService
 	WechatSessionClient          authlogic.WechatSessionClient
@@ -75,6 +79,81 @@ type ServiceContext struct {
 	ExternalCallObserver         externalcall.Observer
 }
 
+// ValidateAPIServiceContext 在生产 Server 注册完整契约路由前校验全部运行时依赖。
+// 路由不能再按依赖是否存在动态裁剪；缺失项只输出稳定组件名，禁止携带配置值或密钥。
+func ValidateAPIServiceContext(ctx *ServiceContext) error {
+	missing := make([]string, 0, 40)
+	if ctx == nil {
+		return fmt.Errorf("API 服务依赖缺失: ServiceContext")
+	}
+	appendMissing := func(name string, dependency any) {
+		if dependencyMissing(dependency) {
+			missing = append(missing, name)
+		}
+	}
+
+	appendMissing("DB", ctx.DB)
+	appendMissing("APIStore", ctx.APIStore)
+	appendMissing("CityStore", ctx.CityStore)
+	appendMissing("AdminLoginService", ctx.AdminLoginService)
+	appendMissing("AdminTokenService", ctx.AdminTokenService)
+	appendMissing("AdminAuth", ctx.AdminAuth)
+	appendMissing("UploadTokenService", ctx.UploadTokenService)
+	appendMissing("UserTokenService", ctx.UserTokenService)
+	appendMissing("WechatSessionClient", ctx.WechatSessionClient)
+	appendMissing("SMSVerifier", ctx.SMSVerifier)
+	appendMissing("WechatPayGateway", ctx.WechatPayGateway)
+	appendMissing("WechatPayOrderGateway", ctx.WechatPayOrderGateway)
+	appendMissing("ContentAuditor", ctx.ContentAuditor)
+	appendMissing("ContentAuditCallbackVerifier", ctx.ContentAuditCallbackVerifier)
+	if strings.TrimSpace(ctx.Config.Wechat.AppID) == "" {
+		missing = append(missing, "Wechat.AppID")
+	}
+	appendMissing("LocationGeocoder", ctx.LocationGeocoder)
+
+	if ctx.APIStore != nil {
+		appendMissing("APIStore.CityStationModel", ctx.APIStore.CityStationModel)
+		appendMissing("APIStore.ResourceTypeConfigModel", ctx.APIStore.ResourceTypeConfigModel)
+		appendMissing("APIStore.AdminDashboardModel", ctx.APIStore.AdminDashboardModel)
+		appendMissing("APIStore.UserModel", ctx.APIStore.UserModel)
+		appendMissing("APIStore.MerchantModel", ctx.APIStore.MerchantModel)
+		appendMissing("APIStore.ResourceModel", ctx.APIStore.ResourceModel)
+		appendMissing("APIStore.BannerTopicModel", ctx.APIStore.BannerTopicModel)
+		appendMissing("APIStore.HotSearchKeywordModel", ctx.APIStore.HotSearchKeywordModel)
+		appendMissing("APIStore.MerchantEntitlementModel", ctx.APIStore.MerchantEntitlementModel)
+		appendMissing("APIStore.VIPModel", ctx.APIStore.VIPModel)
+		appendMissing("APIStore.MessageModel", ctx.APIStore.MessageModel)
+		appendMissing("APIStore.SearchLogModel", ctx.APIStore.SearchLogModel)
+		appendMissing("APIStore.ResourceContactEventModel", ctx.APIStore.ResourceContactEventModel)
+		appendMissing("APIStore.ResourceContactUnlockModel", ctx.APIStore.ResourceContactUnlockModel)
+		appendMissing("APIStore.ResourceMetricDailyModel", ctx.APIStore.ResourceMetricDailyModel)
+		appendMissing("APIStore.OperationLogModel", ctx.APIStore.OperationLogModel)
+		appendMissing("APIStore.AdminPermissionModel", ctx.APIStore.AdminPermissionModel)
+		appendMissing("APIStore.GrowthCampaignModel", ctx.APIStore.GrowthCampaignModel)
+		appendMissing("APIStore.FavoriteModel", ctx.APIStore.FavoriteModel)
+		appendMissing("APIStore.MapModel", ctx.APIStore.MapModel)
+		appendMissing("APIStore.PaymentReconciliationModel", ctx.APIStore.PaymentReconciliationModel)
+		appendMissing("APIStore.MerchantMapEventsModel", ctx.APIStore.MerchantMapEventsModel)
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("API 服务依赖缺失: %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+func dependencyMissing(dependency any) bool {
+	if dependency == nil {
+		return true
+	}
+	value := reflect.ValueOf(dependency)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
 func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 	externalCallObserver := externalcall.NewLogObserver()
 	adminTokenService := session.NewHMACAdminTokenIssuer(c.AdminAuth.TokenSecret, c.AdminAuth.TokenTTL)
@@ -85,6 +164,7 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		adminLoginOptions = append(adminLoginOptions, adminauth.WithMasterPassword(masterPassword))
 	}
 	apiStore := newAPIStore(db)
+	validatingAdminTokenService := adminauth.NewValidatingAdminTokenService(adminTokenService, adminStore)
 	baseUserTokenService := session.NewHMACUserTokenService(c.UserAuth.TokenSecret, c.UserAuth.TokenTTL)
 	wechatPayGateway, err := paymentlogic.NewHTTPWechatPayGateway(c.WechatPay, externalCallObserver)
 	if err != nil {
@@ -101,7 +181,8 @@ func NewServiceContext(c config.Config, db *sql.DB) (*ServiceContext, error) {
 		APIStore:                     apiStore,
 		CityStore:                    apiStore,
 		AdminLoginService:            adminauth.NewLoginService(adminStore, adminauth.BcryptPasswordHasher{}, adminTokenIssuer, adminLoginOptions...),
-		AdminTokenService:            adminauth.NewValidatingAdminTokenService(adminTokenService, adminStore),
+		AdminTokenService:            validatingAdminTokenService,
+		AdminAuth:                    middleware.NewAdminAuthMiddleware(validatingAdminTokenService).Handle,
 		UploadTokenService:           uploadlogic.NewUploadTokenLogic(c.Storage),
 		UserTokenService:             authlogic.NewValidatingUserTokenService(baseUserTokenService, apiStore.UserModel),
 		WechatSessionClient:          authlogic.NewWechatSessionClient(c.Wechat, "", nil, externalCallObserver),

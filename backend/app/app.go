@@ -59,6 +59,12 @@ func main() {
 	if err != nil {
 		fatalf("初始化服务上下文失败: err=%v", err)
 	}
+	if config.IsProductionMode(cfg.RuntimeMode) {
+		// 生产环境一次性注册全部契约路由；任何依赖缺失都必须在启动前明确拒绝，不能通过裁剪路由静默降级。
+		if err := svc.ValidateAPIServiceContext(svcCtx); err != nil {
+			fatalf("生产 API 服务依赖校验失败: err=%v", err)
+		}
+	}
 	instanceID := task.CurrentInstanceID()
 	coordinator := task.NewPostgresCoordinator(svcCtx.DB, instanceID)
 
@@ -143,24 +149,7 @@ func main() {
 		paymentScheduler.Start(appCtx)
 	}
 
-	apiHandler, err := server.NewProductionAPIRouter(
-		svcCtx.APIStore,
-		server.WithAdminLoginService(svcCtx.AdminLoginService),
-		server.WithAdminTokenService(svcCtx.AdminTokenService),
-		server.WithUploadTokenService(svcCtx.UploadTokenService),
-		server.WithUserTokenService(svcCtx.UserTokenService),
-		server.WithWechatSessionClient(svcCtx.WechatSessionClient),
-		server.WithSMSVerifier(svcCtx.SMSVerifier),
-		server.WithWechatPayGateway(svcCtx.WechatPayGateway),
-		server.WithWechatPayDevMock(cfg.WechatPay.DevMockEnabled && !config.IsProductionMode(cfg.RuntimeMode)),
-		server.WithContentAuditor(svcCtx.ContentAuditor),
-		server.WithContentAuditCallbackVerifier(svcCtx.ContentAuditCallbackVerifier, cfg.Wechat.AppID),
-		server.WithLocationGeocoder(svcCtx.LocationGeocoder),
-	)
-	if err != nil {
-		fatalf("初始化 API 路由失败: err=%v", err)
-	}
-	goZeroServer, err := server.NewGoZeroServer(cfg, svcCtx, adminHandler, apiHandler)
+	goZeroServer, err := server.NewGoZeroServer(cfg, svcCtx, adminHandler)
 	if err != nil {
 		fatalf("初始化 go-zero HTTP 服务失败: err=%v", err)
 	}

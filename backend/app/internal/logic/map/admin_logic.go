@@ -174,7 +174,7 @@ func (l *AdminLogic) ListScenes(ctx context.Context, req ListAdminScenesReq) (Li
 		Type:     strings.TrimSpace(req.Type),
 	})
 	if err != nil {
-		logx.Errorf("后台查询拿货地图场景失败: cityCode=%s status=%s type=%s err=%+v", req.CityCode, req.Status, req.Type, err)
+		LogMapDependencyFailure(ctx, "后台查询拿货地图场景失败", "list_admin_scenes", err)
 		return ListScenesResp{}, errx.New(errx.CodeInternalError, "地图场景加载失败，请稍后重试")
 	}
 	return ListScenesResp{Items: mapSceneItems(scenes)}, nil
@@ -187,13 +187,20 @@ func (l *AdminLogic) GetScene(ctx context.Context, sceneCode string) (SceneResp,
 	}
 	scene, err := l.store.GetAdminScene(ctx, sceneCode)
 	if err != nil {
-		logx.Errorf("后台查询拿货地图场景详情失败: sceneCode=%s err=%+v", sceneCode, err)
+		LogMapDependencyFailure(ctx, "后台查询拿货地图场景详情失败", "get_admin_scene", err,
+			logx.Field("sceneCode", sceneCode))
 		return SceneResp{}, errx.New(errx.CodeInternalError, "地图场景加载失败，请稍后重试")
 	}
 	return SceneResp{Item: mapSceneItem(scene)}, nil
 }
 
-func (l *AdminLogic) SaveScene(ctx context.Context, req SaveSceneReq) (SaveSceneResp, error) {
+func (l *AdminLogic) SaveScene(ctx context.Context, req SaveSceneReq, operatorID string) (resp SaveSceneResp, err error) {
+	operatorID = strings.TrimSpace(operatorID)
+	entityID := strings.TrimSpace(req.Code)
+	defer func() { logAdminMapWrite(ctx, "save_scene", operatorID, entityID, err) }()
+	if operatorID == "" {
+		return SaveSceneResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	status := strings.TrimSpace(req.Status)
 	if status == "" {
 		status = model.MapSceneStatusDraft
@@ -220,30 +227,40 @@ func (l *AdminLogic) SaveScene(ctx context.Context, req SaveSceneReq) (SaveScene
 		Status:         status,
 	})
 	if err != nil {
-		logx.Errorf("后台保存拿货地图场景失败: code=%s name=%s err=%+v", req.Code, req.Name, err)
+		LogMapDependencyFailure(ctx, "后台保存拿货地图场景失败", "save_admin_scene", err,
+			logx.Field("sceneCode", strings.TrimSpace(req.Code)), logx.Field("operatorId", operatorID))
 		return SaveSceneResp{}, errx.New(errx.CodeInternalError, "地图场景保存失败，请稍后重试")
 	}
 	return SaveSceneResp{Item: mapSceneItem(scene)}, nil
 }
 
-func (l *AdminLogic) PublishScene(ctx context.Context, sceneCode string) (PublishSceneResp, error) {
+func (l *AdminLogic) PublishScene(ctx context.Context, sceneCode string, operatorID string) (resp PublishSceneResp, err error) {
 	sceneCode = strings.TrimSpace(sceneCode)
+	operatorID = strings.TrimSpace(operatorID)
+	defer func() { logAdminMapWrite(ctx, "publish_scene", operatorID, sceneCode, err) }()
+	if operatorID == "" {
+		return PublishSceneResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	if sceneCode == "" {
 		return PublishSceneResp{}, errx.New(errx.CodeValidationFailed, "请选择要发布的地图场景")
 	}
 	scene, err := l.store.GetAdminScene(ctx, sceneCode)
 	if err != nil {
-		logx.Errorf("发布前查询地图场景失败: sceneCode=%s err=%+v", sceneCode, err)
+		LogMapDependencyFailure(ctx, "发布前查询地图场景失败", "get_scene_for_publish", err,
+			logx.Field("sceneCode", sceneCode), logx.Field("operatorId", operatorID))
 		return PublishSceneResp{}, errx.New(errx.CodeInternalError, "地图场景发布失败，请稍后重试")
 	}
 	if err := validateScenePublishReadiness(scene); err != nil {
-		logx.Infof("地图场景发布前检查未通过: sceneCode=%s err=%v", sceneCode, err)
+		logx.WithContext(ctx).Infow("地图场景发布前检查未通过",
+			logx.Field("operation", "validate_scene_for_publish"), logx.Field("sceneCode", sceneCode),
+			logx.Field("operatorId", operatorID), logx.Field("errorCode", errx.CodeOf(err)))
 		return PublishSceneResp{}, err
 	}
 	// 发布前必须至少有一个可展示对象，避免小程序拿到空地图造成运营误发布。
 	objects, err := l.store.ListAdminObjects(ctx, model.ListMapObjectsFilter{SceneCode: sceneCode, Status: model.MapObjectStatusNormal})
 	if err != nil {
-		logx.Errorf("发布前检查地图对象失败: sceneCode=%s err=%+v", sceneCode, err)
+		LogMapDependencyFailure(ctx, "发布前检查地图对象失败", "list_objects_for_publish", err,
+			logx.Field("sceneCode", sceneCode), logx.Field("operatorId", operatorID))
 		return PublishSceneResp{}, errx.New(errx.CodeInternalError, "地图场景发布失败，请稍后重试")
 	}
 	if issues := mapPublishChecklistIssues(objects); len(issues) > 0 {
@@ -252,7 +269,8 @@ func (l *AdminLogic) PublishScene(ctx context.Context, sceneCode string) (Publis
 	}
 	scene, err = l.store.PublishScene(ctx, sceneCode)
 	if err != nil {
-		logx.Errorf("发布拿货地图场景失败: sceneCode=%s err=%+v", sceneCode, err)
+		LogMapDependencyFailure(ctx, "发布拿货地图场景失败", "publish_admin_scene", err,
+			logx.Field("sceneCode", sceneCode), logx.Field("operatorId", operatorID))
 		return PublishSceneResp{}, errx.New(errx.CodeInternalError, "地图场景发布失败，请稍后重试")
 	}
 	return PublishSceneResp{Item: mapSceneItem(scene), Message: "地图场景已发布"}, nil
@@ -276,15 +294,25 @@ func (l *AdminLogic) ListObjects(ctx context.Context, sceneCode string, req List
 		Zoom:      req.Zoom,
 	})
 	if err != nil {
-		logx.Errorf("后台查询地图点位失败: sceneCode=%s viewport=%+v zoom=%d err=%+v", sceneCode, viewport, req.Zoom, err)
+		LogMapDependencyFailure(ctx, "后台查询地图点位失败", "list_admin_objects", err,
+			logx.Field("sceneCode", strings.TrimSpace(sceneCode)), logx.Field("zoom", req.Zoom))
 		return ListObjectsResp{}, errx.New(errx.CodeInternalError, "地图点位加载失败，请稍后重试")
 	}
 	return ListObjectsResp{SceneCode: sceneCode, Items: mapAdminObjectItems(objects), Total: int64(len(objects))}, nil
 }
 
-func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveObjectReq) (SaveObjectResp, error) {
+func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveObjectReq, operatorID string) (resp SaveObjectResp, err error) {
 	sceneCode = strings.TrimSpace(sceneCode)
 	objectID := strings.TrimSpace(req.Id)
+	operatorID = strings.TrimSpace(operatorID)
+	entityID := objectID
+	if entityID == "" {
+		entityID = strings.TrimSpace(req.Code)
+	}
+	defer func() { logAdminMapWrite(ctx, "save_object", operatorID, entityID, err) }()
+	if operatorID == "" {
+		return SaveObjectResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	if sceneCode == "" && objectID == "" {
 		return SaveObjectResp{}, errx.New(errx.CodeValidationFailed, "请选择地图场景")
 	}
@@ -321,15 +349,22 @@ func (l *AdminLogic) SaveObject(ctx context.Context, sceneCode string, req SaveO
 		Status:         status,
 	})
 	if err != nil {
-		logx.Errorf("后台保存地图点位失败: sceneCode=%s code=%s err=%+v", sceneCode, req.Code, err)
+		LogMapDependencyFailure(ctx, "后台保存地图点位失败", "save_admin_object", err,
+			logx.Field("sceneCode", strings.TrimSpace(sceneCode)), logx.Field("objectId", strings.TrimSpace(req.Id)),
+			logx.Field("operatorId", operatorID))
 		return SaveObjectResp{}, errx.New(errx.CodeInternalError, "地图点位保存失败，请稍后重试")
 	}
 	return SaveObjectResp{Item: mapAdminObjectItem(object)}, nil
 }
 
-func (l *AdminLogic) UpdateObjectStatus(ctx context.Context, objectID string, req UpdateObjectStatusReq) (SaveObjectResp, error) {
+func (l *AdminLogic) UpdateObjectStatus(ctx context.Context, objectID string, req UpdateObjectStatusReq, operatorID string) (resp SaveObjectResp, err error) {
 	objectID = strings.TrimSpace(objectID)
 	status := strings.TrimSpace(req.Status)
+	operatorID = strings.TrimSpace(operatorID)
+	defer func() { logAdminMapWrite(ctx, "update_object_status", operatorID, objectID, err) }()
+	if operatorID == "" {
+		return SaveObjectResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	if objectID == "" {
 		return SaveObjectResp{}, errx.New(errx.CodeValidationFailed, "请选择地图点位")
 	}
@@ -338,14 +373,20 @@ func (l *AdminLogic) UpdateObjectStatus(ctx context.Context, objectID string, re
 	}
 	object, err := l.store.UpdateObjectStatus(ctx, objectID, status)
 	if err != nil {
-		logx.Errorf("后台更新地图点位状态失败: objectID=%s status=%s err=%+v", objectID, status, err)
+		LogMapDependencyFailure(ctx, "后台更新地图点位状态失败", "update_admin_object_status", err,
+			logx.Field("objectId", objectID), logx.Field("status", status), logx.Field("operatorId", operatorID))
 		return SaveObjectResp{}, errx.New(errx.CodeInternalError, "地图点位状态保存失败，请稍后重试")
 	}
 	return SaveObjectResp{Item: mapAdminObjectItem(object)}, nil
 }
 
-func (l *AdminLogic) BatchGenerateObjects(ctx context.Context, sceneCode string, req BatchGenerateObjectsReq) (BatchGenerateObjectsResp, error) {
+func (l *AdminLogic) BatchGenerateObjects(ctx context.Context, sceneCode string, req BatchGenerateObjectsReq, operatorID string) (resp BatchGenerateObjectsResp, err error) {
 	sceneCode = strings.TrimSpace(sceneCode)
+	operatorID = strings.TrimSpace(operatorID)
+	defer func() { logAdminMapWrite(ctx, "batch_generate_objects", operatorID, sceneCode, err) }()
+	if operatorID == "" {
+		return BatchGenerateObjectsResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	if sceneCode == "" {
 		return BatchGenerateObjectsResp{}, errx.New(errx.CodeValidationFailed, "请选择地图场景")
 	}
@@ -354,7 +395,8 @@ func (l *AdminLogic) BatchGenerateObjects(ctx context.Context, sceneCode string,
 		if errors.Is(err, sql.ErrNoRows) {
 			return BatchGenerateObjectsResp{}, errx.New(errx.CodeResourceNotFound, "地图场景不存在或已删除")
 		}
-		logx.Errorf("批量生成前查询地图场景失败: sceneCode=%s err=%+v", sceneCode, err)
+		LogMapDependencyFailure(ctx, "批量生成前查询地图场景失败", "get_scene_for_batch_generate", err,
+			logx.Field("sceneCode", sceneCode), logx.Field("operatorId", operatorID))
 		return BatchGenerateObjectsResp{}, errx.New(errx.CodeInternalError, "批量生成地图点位失败，请稍后重试")
 	}
 	if scene.Width <= 0 || scene.Height <= 0 {
@@ -377,7 +419,8 @@ func (l *AdminLogic) BatchGenerateObjects(ctx context.Context, sceneCode string,
 	}
 	objects, err := l.store.BatchCreateObjects(ctx, inputs)
 	if err != nil {
-		logx.Errorf("后台批量生成地图点位失败: sceneCode=%s startCode=%s count=%d err=%+v", sceneCode, req.StartCode, req.Count, err)
+		LogMapDependencyFailure(ctx, "后台批量生成地图点位失败", "batch_generate_admin_objects", err,
+			logx.Field("sceneCode", sceneCode), logx.Field("count", req.Count), logx.Field("operatorId", operatorID))
 		return BatchGenerateObjectsResp{}, errx.New(errx.CodeInternalError, "批量生成地图点位失败，请稍后重试")
 	}
 	return BatchGenerateObjectsResp{Items: mapAdminObjectItems(objects)}, nil
@@ -390,13 +433,20 @@ func (l *AdminLogic) ListCategories(ctx context.Context, req ListCategoriesReq) 
 	}
 	categories, err := l.store.ListCategories(ctx, filter)
 	if err != nil {
-		logx.Errorf("后台查询地图分类失败: type=%s status=%s err=%+v", req.Type, req.Status, err)
+		LogMapDependencyFailure(ctx, "后台查询地图分类失败", "list_admin_categories", err,
+			logx.Field("status", strings.TrimSpace(req.Status)))
 		return ListCategoriesResp{}, errx.New(errx.CodeInternalError, "地图分类加载失败，请稍后重试")
 	}
 	return ListCategoriesResp{Items: mapCategoryItems(categories)}, nil
 }
 
-func (l *AdminLogic) SaveCategory(ctx context.Context, req SaveCategoryReq) (SaveCategoryResp, error) {
+func (l *AdminLogic) SaveCategory(ctx context.Context, req SaveCategoryReq, operatorID string) (resp SaveCategoryResp, err error) {
+	operatorID = strings.TrimSpace(operatorID)
+	entityID := strings.TrimSpace(req.Code)
+	defer func() { logAdminMapWrite(ctx, "save_category", operatorID, entityID, err) }()
+	if operatorID == "" {
+		return SaveCategoryResp{}, errx.New(errx.CodeUnauthorized, "请先登录管理后台")
+	}
 	status := strings.TrimSpace(req.Status)
 	if status == "" {
 		status = model.MapCategoryStatusNormal
@@ -414,10 +464,29 @@ func (l *AdminLogic) SaveCategory(ctx context.Context, req SaveCategoryReq) (Sav
 		Status:    status,
 	})
 	if err != nil {
-		logx.Errorf("后台保存地图分类失败: code=%s type=%s err=%+v", req.Code, req.Type, err)
+		LogMapDependencyFailure(ctx, "后台保存地图分类失败", "save_admin_category", err,
+			logx.Field("categoryCode", strings.TrimSpace(req.Code)), logx.Field("operatorId", operatorID))
 		return SaveCategoryResp{}, errx.New(errx.CodeInternalError, "地图分类保存失败，请稍后重试")
 	}
 	return SaveCategoryResp{Item: mapCategoryItem(category)}, nil
+}
+
+// logAdminMapWrite 统一记录地图后台写操作归因。只写可信管理员、动作、实体和错误类型，
+// 不记录请求正文、坐标、联系方式或审核内容，避免审计日志自身泄露业务敏感信息。
+func logAdminMapWrite(ctx context.Context, operation string, operatorID string, entityID string, err error) {
+	fields := []logx.LogField{
+		logx.Field("operatorId", strings.TrimSpace(operatorID)),
+		logx.Field("operation", strings.TrimSpace(operation)),
+		logx.Field("entityId", strings.TrimSpace(entityID)),
+	}
+	if err != nil {
+		fields = append(fields,
+			logx.Field("errorCode", errx.CodeOf(err)),
+			logx.Field("errorType", fmt.Sprintf("%T", err)))
+		logx.WithContext(ctx).Errorw("地图后台写操作失败", fields...)
+		return
+	}
+	logx.WithContext(ctx).Infow("地图后台写操作成功", fields...)
 }
 
 func validateSceneInput(req SaveSceneReq, status string) error {

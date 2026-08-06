@@ -1,10 +1,9 @@
 # API 实施清单
 
-版本：v0.1  
-日期：2026-06-28
+版本：v0.2
+日期：2026-08-06
 来源：
 
-- `docs/product/api-contract-design.md`
 - `docs/superpowers/plans/2026-06-27-apparel-platform-current-mvp-todo.md`
 - `backend/app/api/app.api`
 
@@ -12,10 +11,21 @@
 
 - API 契约源文件统一放在 `backend/app/api/*.api`。
 - `backend/app/api/app.api` 是 go-zero API 单一入口，其他 `.api` 文件只按领域拆分。
+- 生产请求固定经过 `.api -> goctl 1.7.5 generated routes/types -> Handler -> Logic -> Model/外部依赖`，运行时不按依赖是否存在裁剪路由。
 - 小程序和后台共用 `/api/v1` 前缀。
 - 管理后台接口统一使用 `/api/v1/admin` 前缀。
 - 运行时实现必须保持 `resources` 统一供需信息模型，不能为库存、工厂、招聘、出租等类型拆独立业务系统。
 - 前端可见错误必须中文、明确、可操作；后端日志记录内部原因，接口不返回 SQL、堆栈、表名、token 或敏感原始字段。
+
+## 生成与维护门禁
+
+- API 生成只使用根目录 `make generate-api`。生成脚本校验 goctl 必须为 1.7.5，并显式读取仓库内 `backend/app/goctl/` 模板；不得直接用开发机任意版本的全局 goctl、用户模板或 `GOCTL_HOME` 生成项目文件。
+- 生成结果使用 `make check-api-generated` 检查；该门禁校验 goctl 版本、契约与 generated routes/types 一致、路由无重复，并拒绝缺失 Handler 或残留 `WPLINK_API_HANDLER_STUB`。
+- 生产 Server 的运行时路由多重集由 Go 测试 `TestGeneratedRouteParity` 校验，该测试随根目录 `make check` 执行；单独运行 `make check-api-generated` 不替代运行时路由装配测试。
+- 新增或修改 API 时，先修改对应领域 `.api`；若新增领域文件，再加入 `backend/app/api/app.api` import。随后运行 `make generate-api`，实现 Handler/Logic 和所需 Model/外部依赖，补齐身份与权限测试、成功和错误行为测试。
+- 生成的 `WPLINK_API_HANDLER_STUB` 仅用于提示缺失实现，可以在开发过程中短暂存在，提交前必须实现对应 Handler 并清除。
+- 提交前至少执行 `make check-api-generated`、`cd backend && node --test scripts/api_contract.test.mjs scripts/api_route_inventory.test.mjs scripts/api_codegen.test.mjs`、相关 Go 行为测试；最终执行根目录 `make check`。
+- `server.NewGoZeroServer` 通过 `handler.RegisterHandlers` 注册全部契约路由。额外路由只有 `/healthz`、`/readyz`；`/admin` 由嵌入式静态 NotFound 回退承接。未声明 API 返回 404，错误 HTTP method 返回 405。
 
 ## 账号与权限
 
@@ -26,7 +36,7 @@
 | `GET /api/v1/me` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | `wxapp/pages/my/index.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/me/phone` | `backend/app/api/auth.api` | `backend/app/internal/logic/auth/auth_logic.go` | 不适用 | 后续手机号绑定预留 | 已接 handler，首发不验收 |
 | `POST /api/v1/admin/auth/login` | `backend/app/api/admin.api` | `backend/app/internal/logic/adminauth/login_service.go` | `admin-web/src/views/LoginView.vue` | 不适用 | 已接 handler，测试通过 |
-| `POST /api/v1/uploads/token` | `backend/app/api/upload.api` | `backend/app/internal/logic/upload/upload_token_logic.go` | Banner/认证资料 URL 上传前置 | 发布/认证图片上传前置 | 已接 handler，测试通过 |
+| `POST /api/v1/uploads/token` | `backend/app/api/upload.api` | `backend/app/internal/logic/upload/upload_token_logic.go` | Banner 等运营图片上传前置 | 发布与商家资料图片上传前置 | 已接 handler，测试通过 |
 
 ## 城市站与配置
 
@@ -41,7 +51,7 @@
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
-| `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue`，含认证、信用标签和发布记录 | 已接 handler，测试通过 |
+| `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue`，展示商家资料和发布记录 | 已接 handler，测试通过 |
 | `POST /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/update_merchant_logic.go` | 商家编辑 | `wxapp/pages/merchant/profile.vue` 商家资料编辑 | 已接 handler，测试通过 |
 
 ## 供需信息
@@ -76,19 +86,12 @@
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
-| `GET /api/v1/home/banners` | `backend/app/api/discovery.api` | `backend/app/internal/logic/discovery/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | `wxapp/pages/home/index.vue` | 已接 handler，测试通过 |
+| `GET /api/v1/home/operation-config` | `backend/app/api/discovery.api` | `backend/app/internal/logic/discovery/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | `wxapp/pages/home/index.vue` | 已接 handler，测试通过 |
 | `GET /api/v1/topics/:topicId/resources` | `backend/app/api/discovery.api` | `backend/app/internal/logic/discovery/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | `wxapp/pages/topic/index.vue` | 已接 handler，测试通过 |
 | `POST /api/v1/webview/validate` | `backend/app/api/discovery.api` | `backend/app/internal/logic/discovery/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | `wxapp/pages/webview/index.vue` | 已接 handler，测试通过 |
 | `GET /api/v1/admin/banner-topics` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/banner-topics` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | 不适用 | 已接 handler，测试通过 |
-| `PATCH /api/v1/admin/banner-topics/:configId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | 不适用 | 已接 handler，测试通过 |
-
-## 认证
-
-| 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
-|---|---|---|---|---|---|
-| `POST /api/v1/merchants/:merchantId/verifications` | `backend/app/api/verification.api` | `backend/app/internal/logic/verification/submit_verification_logic.go` | 认证审核列表 | `wxapp/pages/verification/index.vue` | 已接 handler，测试通过 |
-| `GET /api/v1/merchants/:merchantId/verifications/latest` | `backend/app/api/verification.api` | `backend/app/internal/logic/verification/submit_verification_logic.go` | 商家详情 | `wxapp/pages/verification/index.vue` 认证状态 | 已接 handler，测试通过 |
+| `POST /api/v1/admin/banner-topics/:configId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/banner_topic_logic.go` | `admin-web/src/views/BannerTopicView.vue` | 不适用 | 已接 handler，测试通过 |
 
 ## 权益与置顶
 
@@ -133,15 +136,13 @@
 | `GET /api/v1/admin/dashboard/overview` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/dashboard_logic.go` | `admin-web/src/views/DashboardView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/resources/pending` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/list_pending_resources_logic.go` | `admin-web/src/views/ResourceReviewView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/resources/:resourceId/review` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/review_resource_logic.go` | `admin-web/src/views/ResourceReviewView.vue` | 不适用 | 已接 handler，测试通过 |
-| `GET /api/v1/admin/verifications/pending` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/verification_admin_logic.go` | `admin-web/src/views/VerificationView.vue` | 不适用 | 已接 handler，测试通过 |
-| `POST /api/v1/admin/verifications/:verificationId/review` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/verification_admin_logic.go` | `admin-web/src/views/VerificationView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/merchants/:merchantId/entitlements` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/entitlement_admin_logic.go` | `admin-web/src/views/EntitlementView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/operation-logs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/operation_log_logic.go` | `admin-web/src/views/OperationLogView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/search-logs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/search_log_logic.go` | `admin-web/src/views/SearchLogView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/tasks/resource-lifecycle/run` | `backend/app/api/admin.api` | `backend/app/internal/task/resource_lifecycle_task.go` | 运维/运营手动触发 | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/merchants` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/merchant_admin_logic.go` | `admin-web/src/views/MerchantView.vue` | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/resource-type-configs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/resource_type_config_logic.go` | `admin-web/src/views/ResourceTypeConfigView.vue` | 不适用 | 已接 handler，测试通过 |
-| `PATCH /api/v1/admin/resource-type-configs/:configId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/resource_type_config_logic.go` | `admin-web/src/views/ResourceTypeConfigView.vue` | 不适用 | 已接 handler，测试通过 |
+| `POST /api/v1/admin/resource-type-configs/:configId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/resource_type_config_logic.go` | `admin-web/src/views/ResourceTypeConfigView.vue` | 不适用 | 已接 handler，测试通过 |
 
 ## 后续计划内接口
 

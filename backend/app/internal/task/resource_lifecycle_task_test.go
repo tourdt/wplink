@@ -2,10 +2,40 @@ package task
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"wplink/backend/app/internal/model"
 )
+
+func TestResourceLifecycleTaskPreservesStableFailureStage(t *testing.T) {
+	sentinel := errors.New("password=db-secret Authorization=Bearer-secret")
+	tests := []struct {
+		name  string
+		store *fakeLifecycleStore
+		want  string
+	}{
+		{name: "mark expired", store: &fakeLifecycleStore{markExpiredErr: sentinel}, want: "mark_expired_resources"},
+		{name: "create expired message", store: &fakeLifecycleStore{
+			expired: []model.LifecycleResource{{ID: "resource-expired", MerchantID: "merchant-1"}}, messageErr: sentinel,
+		}, want: "create_expired_message"},
+		{name: "list expiring", store: &fakeLifecycleStore{listExpiringErr: sentinel}, want: "list_expiring_resources"},
+		{name: "create expiring message", store: &fakeLifecycleStore{
+			expiring: []model.LifecycleResource{{ID: "resource-expiring", MerchantID: "merchant-1"}}, messageErr: sentinel,
+		}, want: "create_expiring_message"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NewResourceLifecycleTask(tc.store).Run(context.Background())
+			if !errors.Is(err, sentinel) {
+				t.Fatalf("Run() error=%v, want preserved sentinel", err)
+			}
+			if got := ResourceLifecycleErrorStage(err); got != tc.want {
+				t.Fatalf("ResourceLifecycleErrorStage()=%q, want %q", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestResourceLifecycleTaskExpiresResourcesAndCreatesMessages(t *testing.T) {
 	store := &fakeLifecycleStore{
@@ -66,17 +96,23 @@ type fakeLifecycleStore struct {
 	expiring         []model.LifecycleResource
 	messages         []model.CreateMessageInput
 	messageDuplicate bool
+	markExpiredErr   error
+	listExpiringErr  error
+	messageErr       error
 }
 
 func (s *fakeLifecycleStore) MarkExpiredResources(ctx context.Context) ([]model.LifecycleResource, error) {
-	return s.expired, nil
+	return s.expired, s.markExpiredErr
 }
 
 func (s *fakeLifecycleStore) ListResourcesExpiringSoon(ctx context.Context) ([]model.LifecycleResource, error) {
-	return s.expiring, nil
+	return s.expiring, s.listExpiringErr
 }
 
 func (s *fakeLifecycleStore) CreateMessage(ctx context.Context, input model.CreateMessageInput) (model.CreateMessageResult, error) {
 	s.messages = append(s.messages, input)
+	if s.messageErr != nil {
+		return model.CreateMessageResult{}, s.messageErr
+	}
 	return model.CreateMessageResult{ID: "message", Created: !s.messageDuplicate}, nil
 }

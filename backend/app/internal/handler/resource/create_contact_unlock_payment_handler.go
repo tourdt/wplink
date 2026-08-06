@@ -1,0 +1,11 @@
+package resource
+
+import (
+	"net/http"
+
+	"wplink/backend/app/internal/svc"
+)
+
+func CreateContactUnlockPaymentHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
+	return contactUnlockPaymentHTTPHandler(svcCtx)
+}

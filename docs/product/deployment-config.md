@@ -28,7 +28,7 @@ node backend/scripts/prepare_admin_embed.mjs
 1. `VITE_ADMIN_BASE=/admin/ npm run build`
 2. 将 `admin-web/dist` 复制到 `backend/app/internal/adminweb/dist`
 
-Go 服务已提供 `adminweb.EmbeddedHandler("/admin/")` 和业务 API router，Vue history 路由刷新会回退到 `index.html`，缺失的静态供需信息仍返回 404。当前 `backend/app/api/app.api` 中的 MVP API 已接入；后续新增但未接线的 `/api/` 路由会返回 `API_NOT_CONNECTED`。
+Go 服务由 `NewGoZeroServer` 创建，`handler.RegisterHandlers` 注册 `backend/app/api/app.api` 生成的全部业务路由，并额外提供 `/healthz`、`/readyz`。`adminweb.EmbeddedHandler("/admin/")` 仅通过 NotFound 处理承接 `/admin` 静态资源与 Vue history 回退；其他未知路径（包括未声明 API）返回 404，已声明路径使用错误 HTTP method 返回 405。
 
 后台 API 客户端默认使用同源 `/api/...`，一体化部署时不需要设置 `VITE_API_BASE_URL`。本地分离开发时可以设置 `VITE_API_BASE_URL=http://127.0.0.1:4000`。
 
@@ -106,7 +106,7 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 
 后台 `/api/v1/admin/*` 接口在配置 admin token 服务时会校验 `Authorization: Bearer <token>`，只有 `platform_operator` 和 `super_admin` 可访问。小程序侧供需信息发布、草稿、我的发布列表、刷新、成交反馈、下架、再发类似、权益查看和置顶券核销等商家操作，在生产服务启用用户 token 后，会校验当前用户与目标商家的 active 管理绑定关系；未绑定商家会返回 `FORBIDDEN`。
 
-用户私有数据接口在生产启用用户 token 后以 token 身份为准，不信任前端传入的 `userId`。当前覆盖供需信息发布、草稿和我的发布、认证提交、用户消息列表和消息已读；商家角色消息 `merchant:<merchantId>` 还会校验当前用户是否能管理该商家，点击后可按商家角色标记已读。
+用户私有数据接口在生产启用用户 token 后以 token 身份为准，不信任前端传入的 `userId`。当前覆盖供需信息发布、草稿和我的发布、用户消息列表和消息已读；商家角色消息 `merchant:<merchantId>` 还会校验当前用户是否能管理该商家，点击后可按商家角色标记已读。
 
 供需信息发布和草稿保存接口在生产启用用户 token 或后台 token 后，会把 `resources.created_by` 绑定为后端解析出的用户或后台操作员；前端不能提交或覆盖供需信息创建人身份。
 
