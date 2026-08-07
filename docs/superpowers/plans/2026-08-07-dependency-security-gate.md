@@ -6,7 +6,7 @@
 
 **Architecture:** 两个前端以 lockfile 为唯一安装输入，先有针对性升级再通过 `npm audit --audit-level=high` 验证；根目录新增 `check-dependencies` 作为本地和 CI 的唯一安全检查入口。Go 使用固定版本 `golang.org/x/vuln/cmd/govulncheck@v1.1.4`，Dependabot 仅负责生成更新 PR，仍由同一 CI 判定。
 
-**Tech Stack:** npm lockfile v3、Uni App/Vite、Go 1.23、govulncheck v1.1.4、GNU Make、GitHub Actions、Dependabot。
+**Tech Stack:** npm lockfile v3、Uni App/Vite、Go 1.25.12、govulncheck v1.1.4、GNU Make、GitHub Actions、Dependabot。
 
 ## Global Constraints
 
@@ -15,6 +15,11 @@
 - npm 安全阈值为 `high`：high/critical 阻断，低/中风险不允许通过忽略名单静默屏蔽。
 - npm 或 Go 漏洞服务不可用时命令必须失败，不得以 `|| true`、`continue-on-error` 或忽略名单绕过。
 - 不修改业务功能代码、数据库结构、公共 API 或 `AGENTS.md`。
+
+## 实施差异（2026-08-07）
+
+- npm 默认 Uni App 标签属于另一条旧发行线，不能与现有 Alpha 工具链混用；经确认后保留当前 Uni 版本，通过 `wxapp/package.json` 的 `overrides` 修复高危传递依赖，并用 `wxapp/.npmrc` 的 `legacy-peer-deps=true` 处理其将 Vite 精确锁定为 `5.2.8` 的上游 peer 冲突。
+- `govulncheck` 在首次接入时发现 7 个可达漏洞；修复 `grpc 1.82.1` 要求 Go 1.25，因此实际将后端与 CI 升级为 Go `1.25.12`，并升级 OpenTelemetry 至 `1.44.0`、JWT 至 `4.5.2`。该范围是安全门禁发现后的直接修复，已获确认。
 
 ---
 

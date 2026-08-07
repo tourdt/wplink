@@ -9,6 +9,28 @@ permissions:
   contents: read
 
 jobs:
+  dependency-security:
+    name: 依赖安全
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 安装 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.25.12
+          cache-dependency-path: backend/go.sum
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            admin-web/package-lock.json
+            wxapp/package-lock.json
+      - name: 扫描依赖漏洞
+        run: make check-dependencies
+
   backend:
     name: 后端与迁移
     runs-on: ubuntu-latest
@@ -36,7 +58,7 @@ jobs:
       - name: 安装 Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: backend/go.mod
+          go-version: 1.25.12
           cache-dependency-path: backend/go.sum
       - name: 安装 Node.js
         uses: actions/setup-node@v4
@@ -44,7 +66,7 @@ jobs:
           node-version: 22
       - name: 校验迁移与 API 契约
         working-directory: backend
-        run: node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs
+        run: node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs scripts/product_doc_governance.test.mjs
       - name: 动态验证迁移回滚
         working-directory: backend
         run: go run ./scripts/verify_migrations.go

@@ -7,6 +7,10 @@
 - `docs/product/apparel-industry-platform-prd.md`
 - `docs/product/domain-model-ddd.md`
 
+> **文档状态：历史归档，不作为当前实现、验收、数据库迁移或 API 生成依据**
+>
+> 当前事实来源：`backend/app/api/app.api`、`backend/migrations/`、`docs/product/technical-architecture.md`、`docs/product/mvp-acceptance-checklist.md`。
+
 ## 1. 设计目标
 
 数据库设计围绕 DDD 领域模型展开，核心目标是：
