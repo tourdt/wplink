@@ -3,7 +3,7 @@
 check: check-backend check-admin check-wxapp
 
 check-backend:
-	cd backend && node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs scripts/api_route_inventory.test.mjs scripts/api_codegen.test.mjs
+	cd backend && node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs scripts/api_route_inventory.test.mjs scripts/api_codegen.test.mjs scripts/product_doc_governance.test.mjs
 	$(MAKE) check-api-generated
 	cd backend && go test ./...
 	cd backend && go vet ./...

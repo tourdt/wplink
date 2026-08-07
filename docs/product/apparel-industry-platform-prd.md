@@ -5,6 +5,10 @@
 首发站：织里  
 扩展方向：广州、虎门、杭州、常熟、石狮等服装产业集中地
 
+> **文档状态：历史归档，不作为当前实现、验收、数据库迁移或 API 生成依据**
+>
+> 当前事实来源：`backend/app/api/app.api`、`backend/migrations/`、`docs/product/technical-architecture.md`、`docs/product/mvp-acceptance-checklist.md`。
+
 相关设计文档：
 
 - `docs/product/domain-model-ddd.md`

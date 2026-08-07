@@ -44,7 +44,7 @@ jobs:
           node-version: 22
       - name: 校验迁移与 API 契约
         working-directory: backend
-        run: node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs
+        run: node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs scripts/product_doc_governance.test.mjs
       - name: 动态验证迁移回滚
         working-directory: backend
         run: go run ./scripts/verify_migrations.go

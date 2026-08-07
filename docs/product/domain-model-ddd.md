@@ -4,6 +4,10 @@
 日期：2026-06-27  
 输入文档：`docs/product/apparel-industry-platform-prd.md`
 
+> **文档状态：历史归档，不作为当前实现、验收、数据库迁移或 API 生成依据**
+>
+> 当前事实来源：`backend/app/api/app.api`、`backend/migrations/`、`docs/product/technical-architecture.md`、`docs/product/mvp-acceptance-checklist.md`。
+
 ## 1. 设计目标
 
 本设计用于把产品规划转换为领域模型。目标不是按页面或功能拆系统，而是按服装产业供需信息撮合的领域对象、业务规则和上下文边界建模。

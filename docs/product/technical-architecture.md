@@ -26,6 +26,10 @@
 
 维护时如果本文与代码不一致，应先以运行时代码和数据库迁移为准，再同步更新本文。
 
+### 1.1 文档优先级
+
+运行时代码、`backend/app/api/app.api` 与 `backend/migrations/` 是当前实现的最高优先级事实来源；`docs/product/mvp-acceptance-checklist.md` 是当前验收范围依据。`apparel-industry-platform-prd.md`、`domain-model-ddd.md`、`database-er-design.md`、`resource-management-rules.md` 为历史归档文档不得作为当前依据；它们仅用于追溯早期设计决策。
+
 ## 2. 系统定位与核心业务模型
 
 衣货通是面向服装产业带的供需信息平台。当前系统围绕三类核心主体组织：

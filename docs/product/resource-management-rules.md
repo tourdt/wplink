@@ -10,6 +10,10 @@
 - `docs/product/database-er-design.md`
 - `docs/product/api-contract-design.md`
 
+> **文档状态：历史归档，不作为当前实现、验收、数据库迁移或 API 生成依据**
+>
+> 当前事实来源：`backend/app/api/app.api`、`backend/migrations/`、`docs/product/technical-architecture.md`、`docs/product/mvp-acceptance-checklist.md`。
+
 ## 1. 文档目标
 
 本文档定义平台内“供需信息”的管理规则，作为产品、后端、小程序、管理后台和运营执行的统一依据。
