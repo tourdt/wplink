@@ -781,6 +781,16 @@ make check
 - 管理后台 Node 测试和 Vite 构建。
 - 小程序页面/流程静态校验、Node 测试和微信小程序构建。
 
+依赖安全使用独立入口，根目录执行：
+
+```bash
+make check-dependencies
+```
+
+该命令对 `admin-web` 与 `wxapp` 执行 `npm audit --audit-level=high`，并使用固定的 `govulncheck@v1.1.4` 扫描后端可达 Go 漏洞。CI 的“依赖安全”任务在每次推送和拉取请求中执行同一命令；`Dependabot` 每周为两个 npm 项目和后端 Go 模块创建更新请求。后端固定使用 Go `1.25.12`，与 `backend/go.mod` 的 `toolchain go1.25.12` 保持一致。
+
+小程序目前保留 Uni App Alpha 发行线。由于该上游插件将 Vite peer 依赖精确锁定在已知不安全版本，`wxapp/.npmrc` 以 `legacy-peer-deps=true` 处理该单一冲突；不得删除小程序的安装、审计和构建检查，也不得用 audit 忽略名单替代真实升级。当前上游仍有低/中危传递依赖，`high/critical` 门禁会阻断其升级为高危后的任何提交。
+
 当前仓库大约有 108 个 Go 测试文件、56 个小程序 Node 测试文件和 7 个后台脚本测试文件。测试重点覆盖业务 Logic、Model SQL、路由权限、内容审核、支付幂等、任务调度、地图算法和前端纯状态逻辑。
 
 涉及数据库迁移时，`make check` 不能替代真实 PostgreSQL up/down 验证；涉及微信、支付、地图、短信和上传时，自动测试也不能替代测试环境端到端验收。
@@ -839,9 +849,11 @@ make check
 
 部分旧状态字段和未注册的地图画布页面仍存在。清理前必须通过引用搜索、契约测试、迁移验证和历史数据检查确认影响范围，不能直接按“当前页面未使用”删除。
 
-### 16.6 文档与本地手册滞后
+### 16.6 文档来源与依赖安全治理
 
-部分早期文档仍描述旧模块或较早迁移编号。本文作为当前架构入口，其他运行手册在相关功能变更时也必须同步，尤其是部署配置、数据库初始化和生产检查清单。
+`apparel-industry-platform-prd.md`、`domain-model-ddd.md`、`database-er-design.md` 与 `resource-management-rules.md` 已明确为历史归档，不得作为当前实现、验收、数据库迁移或 API 生成依据。`product_doc_governance.test.mjs` 会校验其状态栏、当前事实来源以及 Makefile/CI 接入；新增或恢复历史设计文档时必须先补齐同一治理信息。
+
+依赖漏洞由 `make check-dependencies` 阻断。npm 仅阻断 high/critical，以避免无法替换的 Uni App Alpha 上游低/中危风险导致所有工程改动停摆；Go `govulncheck` 阻断全部可达漏洞。安全扫描服务不可用也必须视为失败，禁止使用 `continue-on-error`、`|| true` 或忽略名单绕过。
 
 ## 17. 维护操作索引
 

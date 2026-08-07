@@ -14,7 +14,7 @@
 - `docs/product/apparel-industry-platform-prd.md`、`domain-model-ddd.md`、`database-er-design.md`、`resource-management-rules.md` 含已退役认证域描述，且缺少醒目的历史状态标识。
 - 当前可执行事实来源分别是：`backend/app/api/app.api`（接口）、`backend/migrations/`（数据库）、`docs/product/technical-architecture.md`（系统架构）与 `docs/product/mvp-acceptance-checklist.md`（验收范围）。
 - 2026-08-07 的 npm 审计显示：管理后台有 1 个高危漏洞；小程序有 39 个漏洞，其中 13 个高危。小程序根因是过期的 Uni App Alpha 工具链及其传递依赖。
-- 项目尚未上线，允许对小程序工具链进行破坏性升级；升级后以现有 `check`、构建和审计结果作为兼容性验收。
+- 项目尚未上线，但 npm Registry 的默认 Uni App 标签属于另一条旧发行线，不能与现有 Alpha 系列混用；因此保留当前 Uni 系列，以根级 `overrides` 升级高危传递依赖，并以 `npm ci`、构建和审计结果作为兼容性验收。
 
 ## 方案选择
 
@@ -48,10 +48,11 @@ Dependabot ──────────────────────> �
 ### 依赖安全
 
 - 管理后台使用锁文件的最小安全升级修复 `postcss`。
-- 小程序将 `@dcloudio/uni-*` 组件保持同一已发布版本，升级 Vite 及锁定传递依赖；不以 `npm audit fix --force` 盲目改写依赖树。
+- 小程序将 `@dcloudio/uni-*` 组件保持同一已发布版本，使用 `overrides` 固定高危传递依赖并将 Vite 升至 `6.4.3`；`wxapp/.npmrc` 仅为上游精确 peer 冲突设置 `legacy-peer-deps=true`，不以 `npm audit fix --force` 盲目改写依赖树。
 - 新增 `make check-dependencies`：分别对管理后台、小程序执行 `npm audit --audit-level=high`，对 `backend` 执行固定版本的 `govulncheck`。
 - CI 调用该目标，确保本地和 CI 的安全判断一致；Go 漏洞工具版本固定，避免扫描器自身升级造成不可复现结果。
 - Dependabot 配置为每周检查 `/admin-web`、`/wxapp` 与 `/backend`，限制未处理更新请求数量，避免噪声淹没维护者。
+- Go 扫描发现可达漏洞后，后端升级至 Go `1.25.12`、`grpc 1.82.1`、OpenTelemetry `1.44.0` 与 JWT `4.5.2`；版本下限由策略测试锁定。
 
 ## 异常处理与维护规则
 
