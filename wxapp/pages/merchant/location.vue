@@ -94,7 +94,7 @@
             <text class="current-label">当前档口</text>
             <text class="merchant-name">{{ context.current.name }}</text>
           </view>
-          <text v-if="context.current.code" class="booth-code">{{ context.current.code }}</text>
+          <text v-if="context.current.boothNo" class="booth-code">{{ context.current.boothNo }}</text>
         </view>
 
         <view class="merchant-facts">
@@ -119,9 +119,15 @@
 
 <script setup>
 import { computed, nextTick, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
-import { getMerchantLocationContext } from '../../api/sourcingMap'
-import { trackMerchantMapEvent } from '../../common/merchantMapAnalytics'
+import { onLoad, onShow } from '@dcloudio/uni-app'
+import { getMerchantLocationContext, submitMerchantLocationReport } from '../../api/merchantDirectory'
+import { requireLogin } from '../../common/auth'
+import {
+  clearNavigationFeedback,
+  consumeNavigationFeedback,
+  saveNavigationFeedback,
+  trackMerchantDirectoryEvent,
+} from '../../common/merchantDirectoryAnalytics'
 import {
   buildMerchantLocationMarkers,
   merchantMainTags,
@@ -138,20 +144,21 @@ const selectedNearbyMerchantId = ref('')
 const nearbyDrawerOpen = ref(false)
 const scrollIntoViewId = ref('')
 const mapScale = ref(16)
+const reportSubmitting = ref(false)
 let locationViewTracked = false
 
 const initialLoading = computed(() => loading.value && !context.value.current)
 const markers = computed(() => buildMerchantLocationMarkers(context.value, selectedNearbyMerchantId.value))
 const mapCenter = computed(() => ({
-  latitude: Number(context.value.current?.lat || 0),
-  longitude: Number(context.value.current?.lng || 0),
+  latitude: Number(context.value.current?.latitude || 0),
+  longitude: Number(context.value.current?.longitude || 0),
 }))
 const currentAddress = computed(() => {
   return merchantAddress(context.value.current, '店铺地址待完善')
 })
 const currentCategories = computed(() => {
   const current = context.value.current || {}
-  return [...(current.categoryCodes || []), ...(current.serviceTags || [])].slice(0, 4).join(' · ') || '主营待完善'
+  return (current.mainCategories || []).slice(0, 4).join(' · ') || '主营待完善'
 })
 const radiusText = computed(() => {
   const meters = context.value.radiusMeters
@@ -167,6 +174,10 @@ onLoad(async (options) => {
     return
   }
   await loadLocationContext()
+})
+
+onShow(() => {
+  promptNavigationFeedback()
 })
 
 async function loadLocationContext({ preserveCurrent = false } = {}) {
@@ -193,7 +204,7 @@ async function loadLocationContext({ preserveCurrent = false } = {}) {
     if (!locationViewTracked) {
       // 同一位置页的周边重试会复用上下文加载，只在首次获得有效坐标时记录一次页面查看。
       locationViewTracked = true
-      trackMerchantMapEvent({
+      trackMerchantDirectoryEvent({
         merchantId: merchantId.value,
         eventType: 'location_view',
         source: 'merchant_location',
@@ -229,7 +240,7 @@ function handleMarkerTap(event) {
     closeNearbyDrawer()
     return
   }
-  trackMerchantMapEvent({
+  trackMerchantDirectoryEvent({
     merchantId: merchantId.value,
     targetMerchantId: tappedMerchantId,
     eventType: 'nearby_marker_click',
@@ -241,7 +252,7 @@ function handleMarkerTap(event) {
 function openNearbyDrawer() {
   if (nearbyDrawerOpen.value || !context.value.nearbyAvailable || !context.value.nearby.length) return
   nearbyDrawerOpen.value = true
-  trackMerchantMapEvent({
+  trackMerchantDirectoryEvent({
     merchantId: merchantId.value,
     eventType: 'nearby_drawer_open',
     source: 'merchant_location',
@@ -259,8 +270,8 @@ function closeNearbyDrawer() {
   // 关闭周边浏览后主动恢复当前档口中心，确保临时选择不会改变位置页的主商家上下文。
   nextTick(() => {
     uni.createMapContext('merchantLocationMap').moveToLocation({
-      latitude: Number(current.lat),
-      longitude: Number(current.lng),
+      latitude: Number(current.latitude),
+      longitude: Number(current.longitude),
       fail(err) {
         console.warn('恢复当前商家地图中心失败', { merchantId: current.merchantId, err })
       },
@@ -274,7 +285,7 @@ function selectNearbyMerchant(targetMerchantId) {
   if (!place || !context.value.current) return
 
   // 只有用户真实点击半屏列表项才记录该事件；Marker 联动直接调用内部聚焦函数，避免两种入口混记。
-  trackMerchantMapEvent({
+  trackMerchantDirectoryEvent({
     merchantId: merchantId.value,
     targetMerchantId: normalizedMerchantId,
     eventType: 'nearby_list_item_click',
@@ -297,8 +308,8 @@ function focusNearbyMerchant(targetMerchantId) {
   nextTick(() => {
     uni.createMapContext('merchantLocationMap').includePoints({
       points: [context.value.current, place].map((item) => ({
-        latitude: Number(item.lat),
-        longitude: Number(item.lng),
+        latitude: Number(item.latitude),
+        longitude: Number(item.longitude),
       })),
       padding: [72, 48, 72, 48],
       fail(err) {
@@ -311,7 +322,7 @@ function focusNearbyMerchant(targetMerchantId) {
 function openNearbyMerchant(place) {
   const normalizedMerchantId = String(place?.merchantId || '').trim()
   if (!normalizedMerchantId) return
-  trackMerchantMapEvent({
+  trackMerchantDirectoryEvent({
     merchantId: merchantId.value,
     targetMerchantId: normalizedMerchantId,
     eventType: 'nearby_merchant_click',
@@ -329,22 +340,62 @@ function openNearbyMerchant(place) {
 function openCurrentLocation() {
   const current = context.value.current
   if (!current) return
-  trackMerchantMapEvent({
+  saveNavigationFeedback({ merchantId: current.merchantId, name: current.name })
+  trackMerchantDirectoryEvent({
     merchantId: merchantId.value,
     eventType: 'navigation_click',
     source: 'merchant_location',
   })
   uni.openLocation({
-    latitude: Number(current.lat),
-    longitude: Number(current.lng),
+    latitude: Number(current.latitude),
+    longitude: Number(current.longitude),
     name: current.name,
     address: currentAddress.value,
     scale: 18,
     fail(err) {
+      clearNavigationFeedback()
       console.warn('打开商家导航失败', { merchantId: current.merchantId, err })
       uni.showToast({ title: '导航打开失败，请稍后重试', icon: 'none' })
     },
   })
+}
+
+function promptNavigationFeedback() {
+  const target = consumeNavigationFeedback()
+  if (!target) return
+  uni.showModal({
+    title: '位置是否准确？',
+    content: `${target.name || '该商家'} 的导航位置是否准确？`,
+    confirmText: '位置有误',
+    cancelText: '位置准确',
+    success: ({ confirm }) => {
+      if (confirm) submitNavigationFeedback(target)
+    },
+  })
+}
+
+async function submitNavigationFeedback(target) {
+  if (!target?.merchantId || reportSubmitting.value || !requireLogin()) return
+  reportSubmitting.value = true
+  uni.showLoading({ title: '提交中', mask: true })
+  try {
+    const response = await submitMerchantLocationReport(target.merchantId, {
+      reasonCode: 'navigation_inaccurate',
+      description: '用户在腾讯地图导航后反馈位置不准确',
+    })
+    trackMerchantDirectoryEvent({
+      merchantId: target.merchantId,
+      eventType: 'location_report_submit',
+      source: 'merchant_location',
+    })
+    uni.showToast({ title: response?.idempotent ? '已收到你的反馈' : '反馈已提交', icon: 'none' })
+  } catch (err) {
+    console.error('提交商家导航位置反馈失败', { merchantId: target.merchantId, err })
+    uni.showToast({ title: '位置反馈提交失败，请稍后重试', icon: 'none' })
+  } finally {
+    uni.hideLoading()
+    reportSubmitting.value = false
+  }
 }
 
 function goBack() {
@@ -364,7 +415,7 @@ function formatDistance(distanceMeters) {
 }
 
 function merchantAddress(place = {}, fallback = '档口地址待完善') {
-  return [place.marketName, place.buildingName, place.floorNo, place.address]
+  return [place.marketName, place.buildingName, place.floorNo, place.boothNo, place.addressText]
     .filter(Boolean)
     .join(' · ') || fallback
 }

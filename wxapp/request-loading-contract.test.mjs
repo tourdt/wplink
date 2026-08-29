@@ -7,6 +7,8 @@ import { parse, compileTemplate } from '@vue/compiler-sfc'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from '@vue/server-renderer'
 
+import * as merchantLocationForm from './common/merchantLocationForm.js'
+
 const root = path.resolve(new URL('.', import.meta.url).pathname)
 
 function read(relativePath) {
@@ -47,7 +49,7 @@ function assertNativeBusyFeedback(html, contract) {
   assert.match(html, new RegExp(contract.busyText), `${contract.file}: busy button should show action text`)
 }
 
-test('busy labels replace idle labels for reload, search, refresh, correction and reporting actions', async () => {
+test('busy labels replace idle labels for current reload and search actions', async () => {
   const noop = () => {}
   const contracts = [
     {
@@ -63,28 +65,8 @@ test('busy labels replace idle labels for reload, search, refresh, correction an
       busyContext: { loading: true, submitSearch: noop }, idleContext: { loading: false, submitSearch: noop },
     },
     {
-      file: 'pages/sourcing-map/index.vue', click: 'loadPlaces({ reset: true })', busyText: '加载中', idleText: '重新加载',
-      busyContext: { loading: true, loadPlaces: noop }, idleContext: { loading: false, loadPlaces: noop },
-    },
-    {
-      file: 'pages/sourcing-map/legacy-canvas.vue', click: 'refreshCurrentMapData', busyText: '刷新中', idleText: '刷新',
-      busyContext: { loading: true, objectLoading: false, refreshCurrentMapData: noop }, idleContext: { loading: false, objectLoading: false, refreshCurrentMapData: noop },
-    },
-    {
-      file: 'pages/sourcing-map/legacy-canvas.vue', click: 'loadScenes', busyText: '加载中', idleText: '重新加载',
-      busyContext: { loading: true, loadScenes: noop }, idleContext: { loading: false, loadScenes: noop },
-    },
-    {
-      file: 'pages/sourcing-map/legacy-canvas.vue', click: 'submitSearch', busyText: '搜索中', idleText: '搜索',
-      busyContext: { objectLoading: true, submitSearch: noop }, idleContext: { objectLoading: false, submitSearch: noop },
-    },
-    {
-      file: 'pages/sourcing-map/legacy-canvas.vue', click: 'submitSelectedObjectLocationCorrection', busyText: '纠错中', idleText: '位置纠错',
-      busyContext: { reportSubmitting: true, reportAction: 'location', submitSelectedObjectLocationCorrection: noop }, idleContext: { reportSubmitting: false, reportAction: '', submitSelectedObjectLocationCorrection: noop },
-    },
-    {
-      file: 'pages/sourcing-map/legacy-canvas.vue', click: 'submitSelectedObjectRiskReport', busyText: '举报中', idleText: '举报问题',
-      busyContext: { reportSubmitting: true, reportAction: 'risk', submitSelectedObjectRiskReport: noop }, idleContext: { reportSubmitting: false, reportAction: '', submitSelectedObjectRiskReport: noop },
+      file: 'pages/sourcing-map/index.vue', click: 'loadMerchants({ reset: true })', busyText: '加载中', idleText: '重新加载',
+      busyContext: { loading: true, loadMerchants: noop }, idleContext: { loading: false, loadMerchants: noop },
     },
   ]
 
@@ -106,19 +88,12 @@ test('existing foreground request states render native busy button feedback', as
     { file: 'pages/vip/index.vue', click: 'openSelectedPlan', context: { purchaseBusy: true, paying: true, selectedPlanCode: 'yearly', openSelectedPlan: noop }, busyText: '正在开通' },
     { file: 'pages/vip/index.vue', click: 'openQuotaPack(item)', context: { purchaseBusy: true, item: { code: 'publish_5', actionText: '购买' }, payingPackCode: 'publish_5', openQuotaPack: noop, packActionText: (item) => item.actionText }, busyText: '购买中' },
     { file: 'pages/merchant/profile.vue', click: 'submitMerchantProfile', context: { submitting: true, submitMerchantProfile: noop, saveButtonText: '保存资料' }, busyText: '保存中' },
-    { file: 'pages/merchant/map-binding.vue', click: 'searchCandidates', context: { candidateLoading: true, searchCandidates: noop }, busyText: '搜索中' },
-    { file: 'pages/merchant/map-binding.vue', click: 'submitBindingRequest', context: { submitting: true, selectedObjectId: 'object-1', submitBindingRequest: noop }, busyText: '绑定中' },
     { file: 'pages/merchant/location.vue', click: 'loadLocationContext()', context: { loading: true, loadLocationContext: noop }, busyText: '加载中' },
     { file: 'pages/merchant/location.vue', click: 'retryNearby', context: { loading: true, retryNearby: noop }, busyText: '加载中' },
     { file: 'pages/publish/index.vue', click: 'loadPublishCategories', context: { loadingCategories: true, loadPublishCategories: noop }, busyText: '刷新中' },
     { file: 'pages/search/index.vue', click: 'search', context: { loading: true, search: noop }, busyText: '搜索中' },
     { file: 'pages/sourcing-map/index.vue', click: 'submitSearch', context: { loading: true, submitSearch: noop }, busyText: '搜索中' },
-    { file: 'pages/sourcing-map/index.vue', click: 'loadPlaces({ reset: true })', context: { loading: true, loadPlaces: noop }, busyText: '加载中' },
-    { file: 'pages/sourcing-map/legacy-canvas.vue', click: 'submitSearch', context: { objectLoading: true, submitSearch: noop }, busyText: '搜索中' },
-    { file: 'pages/sourcing-map/legacy-canvas.vue', click: 'refreshCurrentMapData', context: { loading: true, objectLoading: false, refreshCurrentMapData: noop }, busyText: '刷新中' },
-    { file: 'pages/sourcing-map/legacy-canvas.vue', click: 'loadScenes', context: { loading: true, loadScenes: noop }, busyText: '加载中' },
-    { file: 'pages/sourcing-map/legacy-canvas.vue', click: 'submitSelectedObjectLocationCorrection', context: { reportSubmitting: true, reportAction: 'location', submitSelectedObjectLocationCorrection: noop }, busyText: '纠错中' },
-    { file: 'pages/sourcing-map/legacy-canvas.vue', click: 'submitSelectedObjectRiskReport', context: { reportSubmitting: true, reportAction: 'risk', submitSelectedObjectRiskReport: noop }, busyText: '举报中' },
+    { file: 'pages/sourcing-map/index.vue', click: 'loadMerchants({ reset: true })', context: { loading: true, loadMerchants: noop }, busyText: '加载中' },
     { file: 'components/ResourceList.vue', click: "emit('load-more')", context: { hasMore: true, loading: true, emit: noop, loadingText: '加载中...', loadMoreText: '加载更多' }, busyText: '加载中' },
   ]
 
@@ -143,6 +118,7 @@ function loadPage(relativePath, additions, exports) {
   const { descriptor } = parse(read(relativePath), { filename: relativePath })
   const script = descriptor.scriptSetup.content.replace(/^import\s+[\s\S]*?\s+from\s+['"][^'"]+['"]\s*$/gm, '')
   const sandbox = {
+    ...merchantLocationForm,
     console,
     Promise,
     setTimeout,
@@ -221,8 +197,9 @@ test('foreground handlers ignore duplicate programmatic requests and recover the
     getMerchantId: () => '', updateMerchant: () => { profileCalls += 1; return profileRequest.promise },
     getMerchant: async () => ({}), bindWechatPhone: async () => ({}), reverseGeocodeLocation: async () => ({}),
     createImageFileFromPath: async () => ({}), uploadSelectedImage: async () => '',
-  }, ['merchantId', 'submitting', 'mainCategoriesText', 'form', 'submitMerchantProfile'])
+  }, ['merchantId', 'merchantProfileLoading', 'submitting', 'mainCategoriesText', 'form', 'submitMerchantProfile'])
   profilePage.merchantId.value = 'merchant-1'
+  profilePage.merchantProfileLoading.value = false
   profilePage.mainCategoriesText.value = '童装'
   profilePage.form.name = '童装档口'
   const firstProfile = profilePage.submitMerchantProfile()
@@ -233,39 +210,6 @@ test('foreground handlers ignore duplicate programmatic requests and recover the
   await Promise.all([firstProfile, duplicateProfile])
   assert.equal(profilePage.submitting.value, false, 'profile busy state should reset after completion')
 
-  const candidateRequest = deferred()
-  let candidateCalls = 0
-  const bindingPage = loadPage('pages/merchant/map-binding.vue', {
-    DEFAULT_CITY_CODE: 'huzhou', getMerchantId: () => '', ensureMerchantProfileReady: async () => true,
-    getMerchantMapBinding: async () => ({}), listMapScenes: async () => ({ items: [] }),
-    listMapBindCandidates: () => { candidateCalls += 1; return candidateRequest.promise },
-    submitMapBindRequest: async () => ({}),
-  }, ['merchantId', 'selectedObjectId', 'candidateLoading', 'submitting', 'searchCandidates', 'submitBindingRequest'])
-  bindingPage.merchantId.value = 'merchant-1'
-  const firstCandidateSearch = bindingPage.searchCandidates()
-  const duplicateCandidateSearch = bindingPage.searchCandidates()
-  await flushAsyncWork()
-  assert.equal(candidateCalls, 1, 'duplicate candidate search should not create another server request')
-  candidateRequest.resolve({ items: [] })
-  await Promise.all([firstCandidateSearch, duplicateCandidateSearch])
-  assert.equal(bindingPage.candidateLoading.value, false, 'candidate search busy state should reset after completion')
-
-  const bindingRequest = deferred()
-  let bindingCalls = 0
-  const submitPage = loadPage('pages/merchant/map-binding.vue', {
-    DEFAULT_CITY_CODE: 'huzhou', getMerchantId: () => '', ensureMerchantProfileReady: async () => true,
-    getMerchantMapBinding: async () => ({}), listMapScenes: async () => ({ items: [] }), listMapBindCandidates: async () => ({ items: [] }),
-    submitMapBindRequest: () => { bindingCalls += 1; return bindingRequest.promise },
-  }, ['merchantId', 'selectedObjectId', 'submitting', 'submitBindingRequest'])
-  submitPage.merchantId.value = 'merchant-1'
-  submitPage.selectedObjectId.value = 'object-1'
-  const firstBindingSubmit = submitPage.submitBindingRequest()
-  const duplicateBindingSubmit = submitPage.submitBindingRequest()
-  await flushAsyncWork()
-  assert.equal(bindingCalls, 1, 'duplicate binding submit should not create another request')
-  bindingRequest.resolve({})
-  await Promise.all([firstBindingSubmit, duplicateBindingSubmit])
-  assert.equal(submitPage.submitting.value, false, 'binding busy state should reset after completion')
 })
 
 test('VIP failures, payment cancellation and quota-pack duplicates restore their request states', async () => {
@@ -407,94 +351,24 @@ test('VIP and quota-pack purchases share one lock while only the active action s
   assert.equal(packPage.purchaseBusy.value, false, '次数包链路完成后应释放共享锁')
 })
 
-test('map request entry points reject duplicate programmatic loading', async () => {
-  const placesRequest = deferred()
-  let placeCalls = 0
-  const directoryPage = loadPage('pages/sourcing-map/index.vue', {
-    DEFAULT_CITY_CODE: 'zhili', requireLogin: () => true, getMerchantId: () => '', trackMerchantMapEvent: () => {},
-    buildMerchantTagLabels: () => () => [], buildMerchantPlaceQuery: (query) => query,
-    hasMerchantDetail: () => false, hasValidLocation: () => false, merchantDetailPath: () => '', normalizeMerchantPlace: (item) => item,
-    listMapCategories: async () => ({ items: [] }), submitMapLocationCorrection: async () => {},
-    listMerchantPlaces: () => { placeCalls += 1; return placesRequest.promise },
-    uni: { showModal: () => {}, showToast: () => {}, navigateTo: () => {}, redirectTo: () => {}, switchTab: () => {} },
-  }, ['loading', 'loadPlaces', 'submitSearch'])
-  const firstPlaces = directoryPage.loadPlaces({ reset: true })
-  const duplicatePlaces = directoryPage.submitSearch()
+test('merchant directory rejects duplicate programmatic loading', async () => {
+  const directoryRequest = deferred()
+  let calls = 0
+  const page = loadPage('pages/sourcing-map/index.vue', {
+    DEFAULT_CITY_CODE: 'zhili', requireLogin: () => true, trackMerchantDirectoryEvent: () => {},
+    consumeNavigationFeedback: () => null, submitMerchantLocationReport: async () => ({}),
+    buildMerchantDirectoryQuery: (query) => query, normalizeMerchantDirectoryItem: (item) => item,
+    mergeMerchantDirectoryItems: (_current, incoming) => incoming,
+    hasValidMerchantLocation: () => false, merchantDirectoryDetailPath: () => '',
+    listMerchantDirectory: () => { calls += 1; return directoryRequest.promise },
+    uni: { showModal: () => {}, showToast: () => {}, showLoading: () => {}, hideLoading: () => {}, navigateTo: () => {}, switchTab: () => {} },
+  }, ['loading', 'loadMerchants', 'submitSearch'])
+
+  const first = page.loadMerchants({ reset: true })
+  const duplicate = page.submitSearch()
   await flushAsyncWork()
-  assert.equal(placeCalls, 1, 'duplicate directory reset should not create another request')
-  placesRequest.resolve({ items: [], total: 0 })
-  await Promise.all([firstPlaces, duplicatePlaces])
-  assert.equal(directoryPage.loading.value, false, 'directory loading should clear after the request finishes')
-
-  const scenesRequest = deferred()
-  let sceneCalls = 0
-  const legacyScenePage = loadPage('pages/sourcing-map/legacy-canvas.vue', {
-    DEFAULT_CITY_CODE: 'zhili', requireLogin: () => true,
-    listMapScenes: () => { sceneCalls += 1; return scenesRequest.promise },
-    listMapCategories: async () => ({ items: [] }), listMapObjects: async () => ({ items: [], total: 0 }), searchMapObjects: async () => ({ items: [], total: 0 }),
-    listNearbyPois: async () => ({ items: [] }), getMapObject: async () => ({}), submitMapLocationCorrection: async () => ({}), submitMapRiskReport: async () => ({}),
-    uni: { showToast: () => {}, showActionSheet: () => {}, redirectTo: () => {}, switchTab: () => {} },
-  }, ['loading', 'loadScenes'])
-  const firstScenes = legacyScenePage.loadScenes()
-  const duplicateScenes = legacyScenePage.loadScenes()
-  await flushAsyncWork()
-  assert.equal(sceneCalls, 1, 'duplicate scene loading should not create another request')
-  scenesRequest.resolve({ items: [] })
-  await Promise.all([firstScenes, duplicateScenes])
-  assert.equal(legacyScenePage.loading.value, false, 'scene loading should clear after the request finishes')
-
-  const objectsRequest = deferred()
-  let objectCalls = 0
-  const legacyObjectPage = loadPage('pages/sourcing-map/legacy-canvas.vue', {
-    DEFAULT_CITY_CODE: 'zhili', requireLogin: () => true, listMapScenes: async () => ({ items: [] }), listMapCategories: async () => ({ items: [] }),
-    listMapObjects: () => { objectCalls += 1; return objectsRequest.promise }, searchMapObjects: async () => ({ items: [], total: 0 }),
-    listNearbyPois: async () => ({ items: [] }), getMapObject: async () => ({}), submitMapLocationCorrection: async () => ({}), submitMapRiskReport: async () => ({}),
-    uni: { showToast: () => {}, showActionSheet: () => {}, redirectTo: () => {}, switchTab: () => {} },
-  }, ['selectedSceneCode', 'objectLoading', 'loadSceneObjects'])
-  legacyObjectPage.selectedSceneCode.value = 'scene-1'
-  const firstObjects = legacyObjectPage.loadSceneObjects()
-  const duplicateObjects = legacyObjectPage.loadSceneObjects()
-  await flushAsyncWork()
-  assert.equal(objectCalls, 1, 'duplicate visible object loading should not create another request')
-  objectsRequest.resolve({ items: [], total: 0 })
-  await Promise.all([firstObjects, duplicateObjects])
-  assert.equal(legacyObjectPage.objectLoading.value, false, 'object loading should clear after the request finishes')
-})
-
-test('legacy canvas condition changes start a latest-wins object request', async () => {
-  const firstRequest = deferred()
-  const latestRequest = deferred()
-  const queries = []
-  const page = loadPage('pages/sourcing-map/legacy-canvas.vue', {
-    DEFAULT_CITY_CODE: 'zhili', requireLogin: () => true,
-    listMapScenes: async () => ({ items: [] }), listMapCategories: async () => ({ items: [] }),
-    listMapObjects: async () => ({ items: [], total: 0 }),
-    searchMapObjects: (query) => {
-      queries.push(structuredClone(query))
-      return queries.length === 1 ? firstRequest.promise : latestRequest.promise
-    },
-    listNearbyPois: async () => ({ items: [] }), getMapObject: async () => ({}),
-    submitMapLocationCorrection: async () => ({}), submitMapRiskReport: async () => ({}),
-    uni: { showToast: () => {}, showActionSheet: () => {}, redirectTo: () => {}, switchTab: () => {} },
-  }, ['selectedSceneCode', 'keyword', 'activeFilters', 'rawMapObjects', 'objectLoading', 'submitSearch', 'toggleFilter'])
-  page.selectedSceneCode.value = 'scene-1'
-  page.keyword.value = '童装'
-
-  const firstLoad = page.submitSearch()
-  page.submitSearch()
-  await flushAsyncWork()
-  assert.equal(queries.length, 1, '相同显式搜索在请求中仍应防重复')
-
-  const latestLoad = page.toggleFilter('categories', 'girl')
-  await flushAsyncWork()
-  assert.equal(queries.length, 2, '搜索中的筛选变化必须启动新的对象请求')
-  assert.equal(queries[1].categories, 'girl')
-  assert.equal(page.objectLoading.value, true, '最新对象请求完成前应持续显示 loading')
-
-  latestRequest.resolve({ items: [{ id: 'latest' }], total: 1 })
-  await latestLoad
-  firstRequest.resolve({ items: [{ id: 'old' }], total: 1 })
-  await firstLoad
-  assert.deepEqual(page.rawMapObjects.value.map((item) => item.id), ['latest'], '迟到的旧响应不得覆盖最新筛选结果')
-  assert.equal(page.objectLoading.value, false, '最新请求完成后应释放 loading')
+  assert.equal(calls, 1, 'duplicate directory reset should not create another request')
+  directoryRequest.resolve({ items: [], total: 0 })
+  await Promise.all([first, duplicate])
+  assert.equal(page.loading.value, false, 'directory loading should clear after the request finishes')
 })

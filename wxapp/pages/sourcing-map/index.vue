@@ -6,64 +6,57 @@
           <view class="search-icon" />
           <input
             v-model="keyword"
-            placeholder="搜索商家、档口号或市场"
+            placeholder="搜索商家、市场、楼栋或档口号"
             confirm-type="search"
             @confirm="submitSearch"
           />
         </view>
-        <button class="search-button" :disabled="loading" :loading="loading" @click="submitSearch">{{ loading ? '搜索中' : '搜索' }}</button>
+        <button class="search-button" :disabled="loading" :loading="loading" @click="submitSearch">
+          {{ loading ? '搜索中' : '搜索' }}
+        </button>
       </view>
 
-      <scroll-view class="filter-scroll" scroll-x>
-        <button
-          v-for="filter in sourceFilters"
-          :key="filter.value"
-          :class="['filter-chip', { active: claimedFilter === filter.value }]"
-          @click="selectSourceFilter(filter.value)"
-        >
-          {{ filter.label }}
-        </button>
-        <button
-          v-for="category in categories"
-          :key="category.code"
-          :class="['filter-chip', { active: categoryCodes.includes(category.code) }]"
-          @click="toggleCategory(category.code)"
-        >
-          {{ category.name }}
-        </button>
-      </scroll-view>
+      <view class="category-row">
+        <input
+          v-model="categoriesText"
+          class="category-input"
+          placeholder="主营品类，多个用逗号分隔"
+          confirm-type="search"
+          @confirm="applyCategoryFilter"
+        />
+        <button v-if="categoriesText" class="category-clear" @click="clearCategories">清空</button>
+        <button class="category-apply" :disabled="loading" @click="applyCategoryFilter">筛选</button>
+      </view>
     </view>
 
     <view class="merchant-list">
-      <view v-if="loading && !places.length" class="state-card">
+      <view v-if="loading && !merchants.length" class="state-card">
         <text class="state-title">正在查找商家</text>
-        <text class="state-desc">档口资料正在加载，请稍候。</text>
+        <text class="state-desc">正在加载已入驻档口，请稍候。</text>
       </view>
-      <view v-else-if="errorText && !places.length" class="state-card error">
-        <text class="state-title">商家列表加载失败，请重试</text>
+      <view v-else-if="errorText && !merchants.length" class="state-card error">
+        <text class="state-title">商家列表加载失败</text>
         <text class="state-desc">{{ errorText }}</text>
-        <button class="state-button" :disabled="loading" :loading="loading" @click="loadPlaces({ reset: true })">{{ loading ? '加载中' : '重新加载' }}</button>
+        <button class="state-button" :disabled="loading" :loading="loading" @click="loadMerchants({ reset: true })">
+          {{ loading ? '加载中' : '重新加载' }}
+        </button>
       </view>
-      <view v-else-if="!places.length" class="state-card">
+      <view v-else-if="!merchants.length" class="state-card">
         <text class="state-title">暂无匹配商家</text>
-        <text class="state-desc">换个商家名、档口号或减少筛选条件试试。</text>
+        <text class="state-desc">换个商家名、市场、档口号或减少主营品类试试。</text>
         <button v-if="hasConditions" class="state-button secondary" @click="clearConditions">清除条件</button>
       </view>
       <template v-else>
         <MerchantPlaceCard
-          v-for="place in places"
-          :key="place.objectId"
-          :place="place"
-          @select="handlePlaceSelect"
+          v-for="merchant in merchants"
+          :key="merchant.merchantId"
+          :merchant="merchant"
           @detail="openMerchantDetail"
           @location="openMerchantLocation"
-          @navigate="openPlaceLocation"
-          @claim="openPlaceClaim"
         />
         <text class="load-more-text">{{ loadMoreText }}</text>
       </template>
     </view>
-
   </view>
 </template>
 
@@ -71,140 +64,103 @@
 import { computed, ref } from 'vue'
 import { onLoad, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import MerchantPlaceCard from '../../components/MerchantPlaceCard.vue'
+import { listMerchantDirectory, submitMerchantLocationReport } from '../../api/merchantDirectory'
 import { requireLogin } from '../../common/auth'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
-import { trackMerchantMapEvent } from '../../common/merchantMapAnalytics'
-import { getMerchantId } from '../../store/session'
 import {
-  listMapCategories,
-  listMerchantPlaces,
-  submitMapLocationCorrection,
-} from '../../api/sourcingMap'
+  consumeNavigationFeedback,
+  trackMerchantDirectoryEvent,
+} from '../../common/merchantDirectoryAnalytics'
 import {
-  buildMerchantTagLabels,
-  buildMerchantPlaceQuery,
-  hasMerchantDetail,
-  hasValidLocation,
-  merchantDetailPath,
-  normalizeMerchantPlace,
-} from './merchantPlaceState'
+  buildMerchantDirectoryQuery,
+  hasValidMerchantLocation,
+  merchantDirectoryDetailPath,
+  mergeMerchantDirectoryItems,
+  normalizeMerchantDirectoryItem,
+} from './merchantDirectoryState'
 
-const NAVIGATION_FEEDBACK_KEY = 'sourcing-map-navigation-feedback'
 const LIST_PAGE_SIZE = 20
 
 const keyword = ref('')
-const claimedFilter = ref('all')
-const categoryCodes = ref([])
-const categories = ref([])
-const tagCategories = ref([])
-const places = ref([])
+const categoriesText = ref('')
+const merchants = ref([])
 const total = ref(0)
 const page = ref(1)
 const loading = ref(false)
 const errorText = ref('')
-const loadedOnce = ref(false)
-const navigationCorrectionBusy = ref(false)
+const reportSubmitting = ref(false)
 let requestVersion = 0
-const pendingPlaceRequests = new Map()
-let shouldAskNavigationFeedback = false
+const pendingDirectoryRequests = new Map()
+const exposedMerchantIds = new Set()
 
-const sourceFilters = [
-  { label: '全部商家', value: 'all' },
-  { label: '已入驻', value: 'claimed' },
-  { label: '待认领', value: 'prelisted' },
-]
-const hasMore = computed(() => places.value.length < total.value)
-const hasConditions = computed(() => Boolean(keyword.value.trim() || claimedFilter.value !== 'all' || categoryCodes.value.length))
-const merchantTagLabels = computed(() => buildMerchantTagLabels(tagCategories.value))
+const hasMore = computed(() => merchants.value.length < total.value)
+const hasConditions = computed(() => Boolean(keyword.value.trim() || categoriesText.value.trim()))
 const loadMoreText = computed(() => {
   if (loading.value) return '正在加载'
+  if (errorText.value && merchants.value.length) return '加载失败，继续上拉重试'
   if (hasMore.value) return '继续上拉查看更多'
-  return places.value.length ? '已展示全部商家' : ''
+  return merchants.value.length ? '已展示全部商家' : ''
 })
 
-onLoad(async () => {
-  await loadCategories()
-  await loadPlaces({ reset: true })
-  loadedOnce.value = true
-})
+onLoad(() => loadMerchants({ reset: true }))
 
 onShow(() => {
-  if (loadedOnce.value) promptNavigationFeedback()
+  promptNavigationFeedback()
 })
 
 onPullDownRefresh(async () => {
-  await loadPlaces({ reset: true })
+  await loadMerchants({ reset: true })
   uni.stopPullDownRefresh()
 })
 
 onReachBottom(() => {
-  if (hasMore.value && !loading.value) {
-    loadPlaces({ reset: false })
-  }
+  if (hasMore.value && !loading.value) loadMerchants({ reset: false })
 })
 
-async function loadCategories() {
-  const types = ['booth_category', 'booth_service', 'platform_tag']
-  const results = await Promise.all(types.map(async (type) => {
-    try {
-      return await listMapCategories({ type })
-    } catch (err) {
-      // 单类标签配置失败时保留其他配置与商家浏览，未映射标签会按原值展示。
-      return { items: [] }
-    }
-  }))
-  categories.value = (results[0].items || []).slice(0, 8)
-  tagCategories.value = results.flatMap((result) => result.items || [])
-}
-
-function loadPlaces({ reset }) {
+function loadMerchants({ reset }) {
   const targetPage = reset ? 1 : page.value + 1
-  const query = buildMerchantPlaceQuery({
+  const query = buildMerchantDirectoryQuery({
     cityCode: DEFAULT_CITY_CODE,
     keyword: keyword.value,
-    categories: categoryCodes.value,
-    claimed: claimedFilter.value,
+    categories: categoriesText.value,
     page: targetPage,
     pageSize: LIST_PAGE_SIZE,
   })
-  // 签名覆盖分页语义和 API 的完整实参；相同查询复用网络 Promise，签名变化仍可并发并由版本号决定落地结果。
-  const signature = JSON.stringify({ reset: Boolean(reset), page: targetPage, query })
-  let request = pendingPlaceRequests.get(signature)
+  // 同一页同一查询共享 Promise；筛选变化允许并发，并由请求代次保证迟到响应不能覆盖最新结果。
+  const signature = JSON.stringify({ reset: Boolean(reset), query })
+  let request = pendingDirectoryRequests.get(signature)
   if (!request) {
     request = Promise.resolve()
-      .then(() => listMerchantPlaces(query))
+      .then(() => listMerchantDirectory(query))
       .finally(() => {
-        if (pendingPlaceRequests.get(signature) === request) pendingPlaceRequests.delete(signature)
+        if (pendingDirectoryRequests.get(signature) === request) pendingDirectoryRequests.delete(signature)
       })
-    pendingPlaceRequests.set(signature, request)
+    pendingDirectoryRequests.set(signature, request)
   }
   const version = ++requestVersion
   loading.value = true
   if (reset) errorText.value = ''
+
   return (async () => {
     try {
-      const resp = await request
+      const response = await request
       if (version !== requestVersion) return
-      const nextItems = (resp.items || []).map((raw) => {
-        const place = normalizeMerchantPlace(raw)
-        return {
-          ...place,
-          displayTags: merchantTagLabels.value([
-            ...place.categoryCodes,
-            ...place.serviceTags,
-            ...place.platformTags,
-          ]).slice(0, 3),
-        }
-      })
-      places.value = reset ? nextItems : [...places.value, ...nextItems]
-      total.value = Number(resp.total || 0)
+      errorText.value = ''
+      const nextItems = (Array.isArray(response?.items) ? response.items : [])
+        .map((item) => normalizeMerchantDirectoryItem(item))
+        .filter((item) => item.merchantId)
+      merchants.value = reset ? mergeMerchantDirectoryItems([], nextItems) : mergeMerchantDirectoryItems(merchants.value, nextItems)
+      total.value = Math.max(0, Number(response?.total) || 0)
       page.value = targetPage
+      recordDirectoryExposures(nextItems)
     } catch (err) {
       if (version !== requestVersion) return
-      errorText.value = err.message || '网络连接不稳定，请稍后重试'
+      console.error('加载拿货档口目录失败', { page: targetPage, reset: Boolean(reset), err })
+      errorText.value = '商家列表加载失败，请稍后重试'
       if (reset) {
-        places.value = []
+        merchants.value = []
         total.value = 0
+        page.value = 1
       }
     } finally {
       if (version === requestVersion) loading.value = false
@@ -212,173 +168,157 @@ function loadPlaces({ reset }) {
   })()
 }
 
+function recordDirectoryExposures(items) {
+  for (const item of items) {
+    if (!item.merchantId || exposedMerchantIds.has(item.merchantId)) continue
+    exposedMerchantIds.add(item.merchantId)
+    trackMerchantDirectoryEvent({
+      merchantId: item.merchantId,
+      eventType: 'directory_exposure',
+      source: 'directory',
+    })
+  }
+}
+
 function submitSearch() {
-  return loadPlaces({ reset: true })
+  return loadMerchants({ reset: true })
 }
 
-function selectSourceFilter(value) {
-  claimedFilter.value = value
-  return loadPlaces({ reset: true })
+function applyCategoryFilter() {
+  return loadMerchants({ reset: true })
 }
 
-function toggleCategory(code) {
-  categoryCodes.value = categoryCodes.value.includes(code)
-    ? categoryCodes.value.filter((item) => item !== code)
-    : [...categoryCodes.value, code]
-  return loadPlaces({ reset: true })
+function clearCategories() {
+  categoriesText.value = ''
+  return loadMerchants({ reset: true })
 }
 
 function clearConditions() {
   keyword.value = ''
-  claimedFilter.value = 'all'
-  categoryCodes.value = []
-  return loadPlaces({ reset: true })
+  categoriesText.value = ''
+  return loadMerchants({ reset: true })
 }
 
-function handlePlaceSelect(place) {
-  if (merchantDetailPath(place)) {
-    openMerchantDetail(place)
-    return
-  }
-  uni.showModal({
-    title: place.code || '平台预录档口',
-    content: '这是平台预录的档口资料，尚未有商家完成认领。',
-    confirmText: '这是我的档口',
-    success: ({ confirm }) => {
-      if (confirm) openPlaceClaim(place)
-    },
+function recordMerchantClick(merchantId) {
+  trackMerchantDirectoryEvent({
+    merchantId,
+    eventType: 'directory_merchant_click',
+    source: 'directory',
   })
 }
 
-function openMerchantDetail(place) {
-  const url = merchantDetailPath(place)
+function openMerchantDetail(merchant) {
+  const url = merchantDirectoryDetailPath(merchant)
   if (!url) return
-  // 档口卡片保留独立的商家主页入口，方便买家先看经营资料再决定是否联系。
+  recordMerchantClick(merchant.merchantId)
   uni.navigateTo({ url })
 }
 
-function openMerchantLocation(place) {
-  if (!hasMerchantDetail(place) || !hasValidLocation(place)) return
-  const merchantId = String(place.merchantId || '').trim()
-  // 已入驻档口进入商家位置页；待认领点位没有可靠的商家上下文，只允许直接导航。
-  trackMerchantMapEvent({ merchantId, eventType: 'location_entry_click', source: 'directory' })
+function openMerchantLocation(merchant) {
+  const merchantId = String(merchant?.merchantId || '').trim()
+  if (!merchantId || !hasValidMerchantLocation(merchant)) return
+  recordMerchantClick(merchantId)
   uni.navigateTo({ url: `/pages/merchant/location?merchantId=${encodeURIComponent(merchantId)}` })
 }
 
-function openPlaceClaim(place) {
-  if (!requireLogin()) return
-  const merchantId = getMerchantId()
-  const merchantQuery = merchantId ? `&merchantId=${merchantId}` : ''
-  uni.navigateTo({ url: `/pages/merchant/map-binding?objectId=${place.objectId}${merchantQuery}` })
-}
-
-function openPlaceLocation(place) {
-  if (!hasValidLocation(place)) {
-    uni.showToast({ title: '该档口位置待完善，暂时无法导航', icon: 'none' })
-    return
-  }
-  uni.setStorageSync(NAVIGATION_FEEDBACK_KEY, {
-    objectId: place.objectId,
-    name: place.name,
-  })
-  shouldAskNavigationFeedback = true
-  uni.openLocation({
-    latitude: Number(place.lat),
-    longitude: Number(place.lng),
-    name: place.name,
-    address: [place.marketName, place.buildingName, place.floorNo, place.address].filter(Boolean).join(' · '),
-    scale: 18,
-    fail: () => {
-      shouldAskNavigationFeedback = false
-      uni.removeStorageSync(NAVIGATION_FEEDBACK_KEY)
-      uni.showToast({ title: '导航打开失败，请稍后重试', icon: 'none' })
-    },
-  })
-}
-
 function promptNavigationFeedback() {
-  if (!shouldAskNavigationFeedback) return
-  shouldAskNavigationFeedback = false
-  const target = uni.getStorageSync(NAVIGATION_FEEDBACK_KEY)
-  uni.removeStorageSync(NAVIGATION_FEEDBACK_KEY)
-  if (!target?.objectId) return
+  const target = consumeNavigationFeedback()
+  if (!target) return
   uni.showModal({
     title: '位置是否准确？',
-    content: `${target.name || '该档口'} 的导航位置是否准确？`,
+    content: `${target.name || '该商家'} 的导航位置是否准确？`,
     confirmText: '位置有误',
     cancelText: '位置准确',
     success: ({ confirm }) => {
-      if (confirm) submitLocationCorrection(target.objectId)
+      if (confirm) submitNavigationFeedback(target)
     },
   })
 }
 
-async function submitLocationCorrection(objectId) {
-  if (!requireLogin()) return
-  if (navigationCorrectionBusy.value) return
-  // 导航返回后的纠错没有页面按钮承载状态，使用局部遮罩明确反馈并阻止重复提交。
-  navigationCorrectionBusy.value = true
+async function submitNavigationFeedback(target) {
+  if (!target?.merchantId || reportSubmitting.value || !requireLogin()) return
+  reportSubmitting.value = true
   uni.showLoading({ title: '提交中', mask: true })
   try {
-    await submitMapLocationCorrection(objectId, {
+    const response = await submitMerchantLocationReport(target.merchantId, {
       reasonCode: 'navigation_inaccurate',
       description: '用户在腾讯地图导航后反馈位置不准确',
     })
-    uni.showToast({ title: '反馈已提交', icon: 'none' })
+    trackMerchantDirectoryEvent({
+      merchantId: target.merchantId,
+      eventType: 'location_report_submit',
+      source: 'directory',
+    })
+    uni.showToast({ title: response?.idempotent ? '已收到你的反馈' : '反馈已提交', icon: 'none' })
   } catch (err) {
-    uni.showToast({ title: err.message || '反馈提交失败，请重试', icon: 'none' })
+    console.error('提交目录导航位置反馈失败', { merchantId: target.merchantId, err })
+    uni.showToast({ title: '位置反馈提交失败，请稍后重试', icon: 'none' })
   } finally {
     uni.hideLoading()
-    navigationCorrectionBusy.value = false
+    reportSubmitting.value = false
   }
 }
-
 </script>
 
 <style lang="scss" scoped>
 .sourcing-map-page {
   min-height: 100vh;
-  background: #f3f6fa;
-  color: #172033;
+  background: $wplink-bg;
+  color: $wplink-text;
 }
 
 .directory-toolbar {
   position: sticky;
   top: 0;
   z-index: 10;
+  display: grid;
+  gap: 14rpx;
   padding: 20rpx 24rpx 16rpx;
   border-bottom: 1rpx solid rgba(148, 163, 184, 0.22);
   background: rgba(255, 255, 255, 0.97);
 }
 
-.search-row {
+.search-row,
+.category-row {
   display: flex;
   align-items: center;
-  gap: 14rpx;
+  gap: 12rpx;
+}
+
+.search-field,
+.category-input {
+  flex: 1;
+  min-width: 0;
+  height: 76rpx;
+  border: 1rpx solid $wplink-line;
+  border-radius: 10rpx;
+  background: #f8fafc;
+  font-size: 26rpx;
 }
 
 .search-field {
   display: flex;
-  flex: 1;
   align-items: center;
   gap: 14rpx;
-  height: 76rpx;
   padding: 0 22rpx;
-  border: 1rpx solid #cfd6e1;
-  border-radius: 12rpx;
-  background: #f8fafc;
 }
 
 .search-field input {
   flex: 1;
+  min-width: 0;
   font-size: 27rpx;
+}
+
+.category-input {
+  box-sizing: border-box;
+  padding: 0 22rpx;
 }
 
 .search-icon {
   position: relative;
   width: 24rpx;
   height: 24rpx;
-  border: 3rpx solid #65748a;
+  border: 3rpx solid $wplink-muted;
   border-radius: 50%;
 }
 
@@ -388,18 +328,25 @@ async function submitLocationCorrection(objectId) {
   bottom: -6rpx;
   width: 12rpx;
   height: 3rpx;
-  background: #65748a;
+  background: $wplink-muted;
   content: '';
   transform: rotate(45deg);
 }
 
 .search-button,
+.category-apply,
+.category-clear,
 .state-button {
   margin: 0;
-  border-radius: 10rpx;
-  background: #172033;
-  color: #ffffff;
-  font-size: 25rpx;
+  border-radius: 9rpx;
+  font-size: 24rpx;
+}
+
+.search-button,
+.category-apply,
+.state-button {
+  background: $wplink-primary;
+  color: $wplink-card;
 }
 
 .search-button {
@@ -407,34 +354,23 @@ async function submitLocationCorrection(objectId) {
   line-height: 76rpx;
 }
 
+.category-apply,
+.category-clear {
+  padding: 0 16rpx;
+  line-height: 64rpx;
+}
+
+.category-clear {
+  border: 1rpx solid $wplink-line;
+  background: $wplink-card;
+  color: $wplink-muted;
+}
+
 .search-button::after,
-.filter-chip::after,
+.category-apply::after,
+.category-clear::after,
 .state-button::after {
   border: 0;
-}
-
-.filter-scroll {
-  width: 100%;
-  margin-top: 16rpx;
-  white-space: nowrap;
-}
-
-.filter-chip {
-  display: inline-block;
-  margin: 0 10rpx 0 0;
-  padding: 0 20rpx;
-  border: 1rpx solid #d7dee8;
-  border-radius: 999rpx;
-  background: #ffffff;
-  color: #607086;
-  font-size: 22rpx;
-  line-height: 52rpx;
-}
-
-.filter-chip.active {
-  border-color: #172033;
-  background: #172033;
-  color: #ffffff;
 }
 
 .merchant-list {
@@ -458,7 +394,7 @@ async function submitLocationCorrection(objectId) {
 }
 
 .state-desc {
-  color: #7a8799;
+  color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.6;
 }
@@ -470,16 +406,15 @@ async function submitLocationCorrection(objectId) {
 }
 
 .state-button.secondary {
-  border: 1rpx solid #cfd6e1;
-  background: #ffffff;
-  color: #172033;
+  border: 1rpx solid $wplink-line;
+  background: $wplink-card;
+  color: $wplink-primary;
 }
 
 .load-more-text {
   padding: 14rpx;
-  color: #8b97a8;
+  color: $wplink-muted;
   font-size: 22rpx;
   text-align: center;
 }
-
 </style>

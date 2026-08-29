@@ -100,7 +100,7 @@ test('rejects unauthorized background request without clearing session, toast, o
   const request = requestModule.namespace.default
 
   await assert.rejects(() => request({
-    url: '/api/v1/metrics/merchant-map-events',
+    url: '/api/v1/metrics/merchant-directory-events',
     method: 'POST',
     suppressErrorToast: true,
     suppressUnauthorizedSideEffects: true,
@@ -111,6 +111,39 @@ test('rejects unauthorized background request without clearing session, toast, o
   assert.equal(storage.get('wplink_token'), 'expired-token')
   assert.deepEqual(toasts, [])
   assert.deepEqual(navigations, [])
+})
+
+test('merchant directory API uses only the new directory location context and report routes', async () => {
+  const source = fs.readFileSync(path.join(root, 'api/merchantDirectory.js'), 'utf8')
+    .replace("import request from './request'", '')
+    .replaceAll('export function ', 'function ')
+  const calls = []
+  const sandbox = { request: async (options) => { calls.push(options); return {} } }
+  vm.runInNewContext(`${source}\nglobalThis.api = {
+    listMerchantDirectory, getMerchantLocationContext, submitMerchantLocationReport,
+  }`, sandbox)
+
+  await sandbox.api.listMerchantDirectory({ cityCode: 'zhili', keyword: 'A108', categories: '童装', page: 2, pageSize: 20 })
+  await sandbox.api.getMerchantLocationContext(' merchant/a?b#c% ')
+  await sandbox.api.submitMerchantLocationReport(' merchant/a?b#c% ', {
+    reasonCode: 'navigation_inaccurate', description: '导航后反馈位置不准确', reporterUserId: 'untrusted',
+  })
+
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    {
+      url: '/api/v1/merchant-directory', method: 'GET',
+      data: { cityCode: 'zhili', keyword: 'A108', categories: '童装', page: 2, pageSize: 20 },
+      suppressErrorToast: true,
+    },
+    {
+      url: '/api/v1/merchants/merchant%2Fa%3Fb%23c%25/location-context', method: 'GET',
+      suppressErrorToast: true,
+    },
+    {
+      url: '/api/v1/merchants/merchant%2Fa%3Fb%23c%25/location-reports', method: 'POST',
+      data: { reasonCode: 'navigation_inaccurate', description: '导航后反馈位置不准确' }, requireAuth: true,
+    },
+  ])
 })
 
 test('requires local login before sending protected API requests', async () => {

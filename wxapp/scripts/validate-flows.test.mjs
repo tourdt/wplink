@@ -1561,12 +1561,12 @@ test('merchant profile disables location actions until its initial baseline fini
   assert.match(clearSource, /merchantProfileLoading\.value/)
 })
 
-test('merchant profile page hides sourcing map binding entry while keeping the page registered', () => {
+test('merchant profile and page registry remove sourcing map binding entry', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
   const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
 
-  assert.ok(pagesConfig.pages.some((entry) => entry.path === 'pages/merchant/map-binding'))
+  assert.equal(pagesConfig.pages.some((entry) => entry.path === 'pages/merchant/map-binding'), false)
   for (const token of [
     '拿货地图档口',
     'map-binding-section',
@@ -1576,6 +1576,34 @@ test('merchant profile page hides sourcing map binding entry while keeping the p
     '/pages/merchant/map-binding',
   ]) {
     assert.equal(source.includes(token), false)
+  }
+  assert.equal(fs.existsSync(path.join(root, 'pages/merchant/map-binding.vue')), false)
+})
+
+test('retired canvas modules and source markers are absent while location markers remain', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  for (const relativePath of [
+    'api/sourcingMap.js',
+    'common/merchantMapAnalytics.js',
+    'pages/sourcing-map/legacy-canvas.vue',
+    'pages/sourcing-map/canvasRenderer.js',
+    'pages/sourcing-map/mapGeometry.js',
+    'pages/sourcing-map/mapGesture.js',
+    'pages/sourcing-map/mapHitTest.js',
+    'pages/sourcing-map/mapObjectState.js',
+    'pages/sourcing-map/merchantPlaceState.js',
+    'pages/sourcing-map/tencentMapState.js',
+    'static/map/marker-claimed.png',
+    'static/map/marker-prelisted.png',
+  ]) {
+    assert.equal(fs.existsSync(path.join(root, relativePath)), false, `${relativePath} should be removed`)
+  }
+  for (const relativePath of [
+    'static/map/marker-selected.png',
+    'static/map/marker-nearby.png',
+    'static/map/marker-nearby-selected.png',
+  ]) {
+    assert.equal(fs.existsSync(path.join(root, relativePath)), true, `${relativePath} should remain`)
   }
 })
 

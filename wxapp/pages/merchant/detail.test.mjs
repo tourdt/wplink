@@ -72,7 +72,7 @@ async function renderMerchantDetailTemplate(context) {
 }
 
 function loadMerchantDetailPage(additions = {}) {
-  const { trackMerchantMapEvent = () => {}, timeline = [] } = additions
+  const { trackMerchantDirectoryEvent = () => {}, timeline = [] } = additions
   const source = fs.readFileSync(sourcePath, 'utf8')
   const script = source
     .match(/<script setup>([\s\S]*?)<\/script>/)?.[1]
@@ -92,7 +92,7 @@ function loadMerchantDetailPage(additions = {}) {
       return { value }
     },
     setMerchantFollow: async () => ({ followed: false }),
-    trackMerchantMapEvent,
+    trackMerchantDirectoryEvent,
     uni: {
       navigateTo(options) {
         timeline.push(['navigateTo', options.url])
@@ -242,10 +242,10 @@ test('merchant detail page only directs users to contact details in published su
   assert.match(source, /联系方式仅随有效供需信息展示/)
 })
 
-test('merchant detail records its valid location entry immediately before navigation', () => {
+test('merchant detail records its valid directory merchant click immediately before location navigation', () => {
   const timeline = []
   const page = loadMerchantDetailPage({
-    trackMerchantMapEvent(event) {
+    trackMerchantDirectoryEvent(event) {
       timeline.push(['track', event])
       return new Promise(() => {})
     },
@@ -262,7 +262,7 @@ test('merchant detail records its valid location entry immediately before naviga
   assert.deepEqual(plain(timeline), [
     ['track', {
       merchantId: 'merchant-detail',
-      eventType: 'location_entry_click',
+      eventType: 'directory_merchant_click',
       source: 'merchant_detail',
     }],
     ['navigateTo', '/pages/merchant/location?merchantId=merchant-detail'],
@@ -272,6 +272,9 @@ test('merchant detail records its valid location entry immediately before naviga
   page.merchant.value.location.status = 'risk_hidden'
   page.openMerchantLocation()
   assert.deepEqual(timeline, [])
+
+  const source = fs.readFileSync(sourcePath, 'utf8')
+  assert.doesNotMatch(source, /merchantMapAnalytics|trackMerchantMapEvent|location_entry_click/)
 })
 
 test('merchant follow action shows native loading, rejects duplicates, and restores feedback state', async () => {

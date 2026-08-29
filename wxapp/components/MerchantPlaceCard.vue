@@ -1,31 +1,28 @@
 <template>
   <MerchantListItem
-    :title="place.name"
-    :subtitle="locationText"
-    :tags="place.displayTags"
-    :selected="selected"
-    @activate="$emit('select', place)"
+    :title="merchant.name"
+    :subtitle="coordinateText"
+    :tags="merchant.mainCategories"
+    @activate="$emit('detail', merchant)"
   >
     <template #leading>
       <view class="doorplate">
         <text class="doorplate-label">档口</text>
-        <text class="doorplate-code">{{ place.code || '--' }}</text>
+        <text class="doorplate-code">{{ merchant.boothNo || '--' }}</text>
       </view>
     </template>
 
     <template #badge>
-      <text :class="['source-badge', { claimed: place.claimed }]">{{ sourceLabel }}</text>
+      <text v-if="merchant.merchantNo" class="merchant-number">{{ merchant.merchantNo }}</text>
     </template>
 
     <template #meta>
-      <text class="distance-text">{{ hasLocation ? (place.distanceText || '可导航到店') : '位置待完善' }}</text>
+      <text class="coordinate-strip">{{ coordinateText }}</text>
     </template>
 
     <template #actions>
-      <button v-if="hasMerchantDetail(place)" class="detail-button" @click.stop="$emit('detail', place)">进入主页</button>
-      <button v-if="canOpenMerchantLocation" class="location-button" @click.stop="$emit('location', place)">查看位置</button>
-      <button v-else-if="!place.claimed && hasLocation" class="navigate-button" @click.stop="$emit('navigate', place)">导航</button>
-      <button v-if="!place.claimed" class="claim-button" @click.stop="$emit('claim', place)">这是我的档口</button>
+      <button class="detail-button" @click.stop="$emit('detail', merchant)">进入主页</button>
+      <button v-if="hasLocation" class="location-button" @click.stop="$emit('location', merchant)">查看位置</button>
     </template>
   </MerchantListItem>
 </template>
@@ -33,37 +30,29 @@
 <script setup>
 import { computed } from 'vue'
 import MerchantListItem from './MerchantListItem.vue'
-import { hasMerchantDetail, hasValidLocation } from '../pages/sourcing-map/merchantPlaceState'
+import {
+  hasValidMerchantLocation,
+  merchantDirectoryCoordinateText,
+} from '../pages/sourcing-map/merchantDirectoryState'
 
 const props = defineProps({
-  place: {
+  merchant: {
     type: Object,
     required: true,
   },
-  selected: {
-    type: Boolean,
-    default: false,
-  },
 })
 
-defineEmits(['select', 'detail', 'location', 'navigate', 'claim'])
+defineEmits(['detail', 'location'])
 
-const hasLocation = computed(() => hasValidLocation(props.place))
-const canOpenMerchantLocation = computed(() => hasMerchantDetail(props.place) && hasLocation.value)
-const sourceLabel = computed(() => props.place.claimed ? '已入驻' : '待认领')
-const locationText = computed(() => [
-  props.place.marketName,
-  props.place.buildingName,
-  props.place.floorNo,
-  props.place.address,
-].filter(Boolean).join(' · ') || '档口地址待完善')
+const hasLocation = computed(() => hasValidMerchantLocation(props.merchant))
+const coordinateText = computed(() => merchantDirectoryCoordinateText(props.merchant))
 </script>
 
 <style lang="scss" scoped>
 .doorplate {
   width: 112rpx;
   overflow: hidden;
-  border: 2rpx solid #172033;
+  border: 2rpx solid $wplink-primary;
   border-radius: 8rpx;
   background: #f8fafc;
   text-align: center;
@@ -72,8 +61,8 @@ const locationText = computed(() => [
 .doorplate-label {
   display: block;
   padding: 5rpx 8rpx;
-  background: #172033;
-  color: #ffffff;
+  background: $wplink-primary;
+  color: $wplink-card;
   font-size: 18rpx;
   letter-spacing: 4rpx;
 }
@@ -82,67 +71,56 @@ const locationText = computed(() => [
   display: block;
   overflow: hidden;
   padding: 15rpx 8rpx;
-  color: #172033;
+  color: $wplink-primary;
   font-size: 25rpx;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.source-badge {
-  flex: none;
-  padding: 5rpx 12rpx;
-  border: 1rpx solid #8190a5;
-  border-radius: 999rpx;
-  color: #607086;
+.merchant-number {
+  color: $wplink-muted;
   font-size: 20rpx;
+  font-weight: 650;
 }
 
-.source-badge.claimed {
-  border-color: #172033;
-  background: #172033;
-  color: #ffffff;
-}
-
-.distance-text {
-  color: #8190a5;
-  font-size: 22rpx;
+.coordinate-strip {
+  display: block;
+  overflow: hidden;
+  padding-left: 12rpx;
+  border-left: 4rpx solid $wplink-warning;
+  color: $wplink-primary;
+  font-size: 23rpx;
+  font-weight: 650;
+  letter-spacing: 0.5rpx;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-button,
-.location-button,
-.navigate-button,
-.claim-button {
-  min-width: 92rpx;
+.location-button {
+  min-width: 104rpx;
   margin: 0;
-  padding: 0 14rpx;
+  padding: 0 16rpx;
   border-radius: 8rpx;
   font-size: 22rpx;
-  line-height: 50rpx;
+  line-height: 52rpx;
 }
 
 .detail-button {
-  border: 1rpx solid #172033;
-  background: #ffffff;
-  color: #172033;
+  border: 1rpx solid $wplink-primary;
+  background: $wplink-card;
+  color: $wplink-primary;
 }
 
-.location-button,
-.navigate-button {
-  background: #c23a00;
-  color: #ffffff;
-}
-
-.claim-button {
-  border: 1rpx solid #c23a00;
-  background: #fff7f2;
-  color: #a83200;
+.location-button {
+  background: $wplink-warning;
+  color: $wplink-card;
 }
 
 .detail-button::after,
-.location-button::after,
-.navigate-button::after,
-.claim-button::after {
+.location-button::after {
   border: 0;
 }
 </style>

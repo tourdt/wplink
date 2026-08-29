@@ -91,7 +91,7 @@ import { getMerchantFollowState, setMerchantFollow } from '../../api/favorite'
 import { getMerchant } from '../../api/merchant'
 import { listResources } from '../../api/resource'
 import { requireLogin } from '../../common/auth'
-import { trackMerchantMapEvent } from '../../common/merchantMapAnalytics'
+import { trackMerchantDirectoryEvent } from '../../common/merchantDirectoryAnalytics'
 import { getSession } from '../../store/session'
 
 const merchant = ref({})
@@ -241,9 +241,9 @@ function openResource(resource) {
 function openMerchantLocation() {
   if (!merchant.value.id || !merchantLocationVisible.value || !merchantAddressLocation.value?.hasGps) return
   // 已入驻商家的坐标要进入独立位置页，确保用户始终处于明确的商家上下文中。
-  trackMerchantMapEvent({
+  trackMerchantDirectoryEvent({
     merchantId: merchant.value.id,
-    eventType: 'location_entry_click',
+    eventType: 'directory_merchant_click',
     source: 'merchant_detail',
   })
   uni.navigateTo({ url: `/pages/merchant/location?merchantId=${encodeURIComponent(merchant.value.id)}` })
