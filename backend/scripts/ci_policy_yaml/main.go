@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -111,7 +112,24 @@ func setupGoVersion(with map[string]any) (string, error) {
 
 func isSetupGoAction(uses string) bool {
 	actionName, _, ok := splitActionReference(uses)
-	return ok && strings.EqualFold(actionName, "actions/setup-go")
+	if !ok || path.IsAbs(actionName) {
+		return false
+	}
+
+	actionSegments := strings.Split(actionName, "/")
+	if len(actionSegments) < 2 || actionSegments[0] == "" || actionSegments[1] == "" ||
+		!strings.EqualFold(actionSegments[0], "actions") ||
+		!strings.EqualFold(actionSegments[1], "setup-go") {
+		return false
+	}
+
+	// 重复斜杠表示根目录的空路径；清理后仅根目录等价路径才属于 setup-go 根 Action。
+	optionalSubpath := strings.TrimLeft(strings.Join(actionSegments[2:], "/"), "/")
+	cleanedSubpath := path.Clean(optionalSubpath)
+	if cleanedSubpath == ".." || strings.HasPrefix(cleanedSubpath, "../") {
+		return false
+	}
+	return cleanedSubpath == "."
 }
 
 func splitActionReference(uses string) (actionName string, ref string, ok bool) {
@@ -121,10 +139,11 @@ func splitActionReference(uses string) (actionName string, ref string, ok bool) 
 		return "", "", false
 	}
 
-	actionName = strings.TrimSpace(trimmedUses[:separator])
-	ref = strings.TrimSpace(trimmedUses[separator+1:])
-	// owner/repo 不能含空白；ref 必须非空且可保留 Git 合法的 @ 字符。
-	if actionName == "" || ref == "" || strings.ContainsAny(actionName, " \t\r\n") ||
+	actionName = trimmedUses[:separator]
+	ref = trimmedUses[separator+1:]
+	// 仅允许整个 YAML 标量带外层空白；action/ref 分段边界和内部都不能含空白。
+	if actionName == "" || ref == "" || strings.TrimSpace(actionName) != actionName ||
+		strings.TrimSpace(ref) != ref || strings.ContainsAny(actionName, " \t\r\n") ||
 		strings.ContainsAny(ref, " \t\r\n") {
 		return "", "", false
 	}

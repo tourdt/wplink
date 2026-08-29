@@ -246,3 +246,36 @@ test('缺少 ref suffix 的 setup-go uses 不得计为有效 action ref', (t) =>
 
   assert.notEqual(result.status, 0)
 })
+
+test('setup-go 根目录等价引用仍计入版本门禁', (t) => {
+  for (const rootEquivalentUses of [
+    'actions/setup-go/.@v5',
+    'actions/setup-go/./@v5',
+    'actions/setup-go//@v5',
+    'actions/setup-go//./@v5',
+  ]) {
+    const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    steps:\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - uses: ${rootEquivalentUses}\n        with: { go-version: 1.25.12 }\n      - run: make check-dependencies\n`)
+
+    assert.notEqual(result.status, 0, `${rootEquivalentUses} 必须按第三个 setup-go step 计入`)
+  }
+})
+
+test('action 与 ref 分隔符两侧的内部空白使 uses 无效', (t) => {
+  for (const invalidUses of ['actions/setup-go @v5', 'actions/setup-go@ v5']) {
+    const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    steps:\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - uses: '${invalidUses}'\n        with: { go-version: 1.25.13 }\n      - run: make check-dependencies\n`)
+
+    assert.notEqual(result.status, 0, `${invalidUses} 不得计为有效 setup-go step`)
+  }
+})
+
+test('uses YAML 标量的外层空白不影响 setup-go 识别', (t) => {
+  const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    steps:\n      - uses: '  actions/setup-go@v5  '\n        with: { go-version: 1.25.13 }\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - run: make check-dependencies\n`)
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('setup-go 非根 subpath、本地、Docker、绝对路径、空仓库与上级逃逸引用均不计数', (t) => {
+  const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    steps:\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - uses: actions/setup-go/subaction@v5\n        with: { go-version: 1.25.12 }\n      - uses: actions/setup-go-fork@v5\n        with: { go-version: 1.25.12 }\n      - uses: ./actions/setup-go@v5\n        with: { go-version: 1.25.12 }\n      - uses: 'docker://actions/setup-go@v5'\n        with: { go-version: 1.25.12 }\n      - uses: /actions/setup-go@v5\n        with: { go-version: 1.25.12 }\n      - uses: actions/@v5\n        with: { go-version: 1.25.12 }\n      - uses: actions/setup-go/../other@v5\n        with: { go-version: 1.25.12 }\n      - run: make check-dependencies\n`)
+
+  assert.equal(result.status, 0, result.stderr)
+})
