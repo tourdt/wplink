@@ -149,8 +149,8 @@ func visibleMerchantLocation(location model.MerchantLocation, canManage bool) Me
 	publiclyVisible := status == model.MerchantLocationStatusVisible && coordinatesAvailable
 	managerCanCorrectRisk := canManage && status == model.MerchantLocationStatusRiskHidden && coordinatesAvailable
 	if !publiclyVisible && !managerCanCorrectRisk {
-		// 隐藏及风险隐藏位置不得向公开访问者泄露坐标或档口文字；状态保留给客户端决定是否展示“待完善”。
-		return MerchantLocationInfo{Status: status, Available: false}
+		// 公开访问统一收敛为 hidden，既不泄露坐标和档口文字，也不能通过状态推断商家曾被风险隐藏。
+		return MerchantLocationInfo{Status: model.MerchantLocationStatusHidden, Available: false}
 	}
 
 	return MerchantLocationInfo{

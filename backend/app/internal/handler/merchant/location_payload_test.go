@@ -2,9 +2,14 @@ package merchant
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"wplink/backend/app/internal/types"
+
+	"github.com/zeromicro/go-zero/rest/httpx"
 )
 
 func TestUpdateMerchantPayloadPreservesMissingAndZeroCoordinates(t *testing.T) {
@@ -17,6 +22,19 @@ func TestUpdateMerchantPayloadPreservesMissingAndZeroCoordinates(t *testing.T) {
 	}
 	if payload.Longitude != nil {
 		t.Fatalf("longitude = %#v, want missing coordinate to remain nil", payload.Longitude)
+	}
+}
+
+func TestUpdateMerchantPayloadKeepsNonLocationFieldsOptional(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1", strings.NewReader(`{"locationAction":"clear"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	var payload updateMerchantPayload
+	if err := httpx.Parse(req, &payload); err != nil {
+		t.Fatalf("parse clear-only merchant payload: %v", err)
+	}
+	if payload.LocationAction != "clear" {
+		t.Fatalf("locationAction = %q, want clear", payload.LocationAction)
 	}
 }
 

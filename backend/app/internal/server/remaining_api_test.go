@@ -1517,14 +1517,14 @@ func TestMerchantUpdateSucceedsThroughGeneratedRoute(t *testing.T) {
 		WithArgs("user-1", "merchant-1").
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 	mock.ExpectBegin()
-	mock.ExpectQuery(`(?s)SELECT.*merchant_type.*FOR UPDATE`).
+	mock.ExpectQuery(`(?s)SELECT.*merchant_type.*location_status.*FOR UPDATE`).
 		WithArgs("merchant-1").
-		WillReturnRows(sqlmock.NewRows([]string{"merchant_type"}).AddRow("factory"))
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_type", "location_status"}).AddRow("factory", model.MerchantLocationStatusHidden))
 	mock.ExpectExec(`(?s)UPDATE merchants`).
 		WithArgs(
 			"merchant-1", "晨星新名", []byte(`["童装","配饰"]`), "factory", "新简介", "https://img.example.com/new-logo.jpg",
-			[]byte(`["https://img.example.com/new-a.jpg"]`), sqlmock.AnyArg(), "李经理", "18800000003", "wechat-new", "织里新地址", true,
-			[]byte(`{"latitude":30.2,"longitude":120.3}`),
+			[]byte(`["https://img.example.com/new-a.jpg"]`), sqlmock.AnyArg(), "李经理", "18800000003", "wechat-new", "织里新地址",
+			"set", "织里童装城", "一期", "1F", "A108", 30.2, 120.3, "织里童装城", model.MerchantLocationStatusVisible,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
@@ -1540,7 +1540,14 @@ func TestMerchantUpdateSucceedsThroughGeneratedRoute(t *testing.T) {
 		"contactPhone":"18800000003",
 		"contactWechat":"wechat-new",
 		"addressText":"织里新地址",
-		"location":{"latitude":30.2,"longitude":120.3}
+		"locationAction":"set",
+		"marketName":"织里童装城",
+		"buildingName":"一期",
+		"floorNo":"1F",
+		"boothNo":"A108",
+		"latitude":30.2,
+		"longitude":120.3,
+		"locationName":"织里童装城"
 	}`)
 	envelope := assertTask6GeneratedStatus(t, server, req, http.StatusOK)
 	data := envelope["data"].(map[string]interface{})
@@ -1557,11 +1564,15 @@ func expectTask6GeneratedMerchantDetail(mock sqlmock.Sqlmock, merchantID string)
 		WithArgs(merchantID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "merchant_no", "name", "merchant_type", "city_code", "main_categories", "profile_status", "vip_status",
-			"contact_name", "contact_phone", "contact_wechat", "address_text", "location", "description", "logo_url", "images",
+			"contact_name", "contact_phone", "contact_wechat", "address_text",
+			"market_name", "building_name", "floor_no", "booth_no", "latitude", "longitude", "location_name", "location_status", "location_updated_at",
+			"description", "logo_url", "images",
 			"last_active_at", "published_count", "dealt_count", "follower_count",
 		}).AddRow(
 			merchantID, "M001", "晨星童装", "factory", "zhili", []byte(`["童装"]`), "completed", "none",
-			"周经理", "18800000002", "stock-demo", "织里镇", []byte(`{"latitude":30.1}`), "童装工厂", "https://img.example.com/logo.jpg", []byte(`["https://img.example.com/a.jpg"]`),
+			"周经理", "18800000002", "stock-demo", "织里镇",
+			"织里童装城", "一期", "1F", "A108", 30.1, 120.2, "织里童装城", model.MerchantLocationStatusVisible, time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC),
+			"童装工厂", "https://img.example.com/logo.jpg", []byte(`["https://img.example.com/a.jpg"]`),
 			nil, int64(2), int64(1), int64(3),
 		))
 	mock.ExpectQuery(`(?s)FROM credit_records`).

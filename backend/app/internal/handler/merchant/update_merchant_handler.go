@@ -50,23 +50,23 @@ func UpdateMerchantHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 }
 
 type updateMerchantPayload struct {
-	Name           string   `json:"name"`
-	MainCategories []string `json:"mainCategories"`
-	MerchantType   string   `json:"merchantType"`
-	Description    string   `json:"description"`
-	LogoURL        string   `json:"logoUrl"`
-	Images         []string `json:"images"`
-	ContactName    string   `json:"contactName"`
-	ContactPhone   string   `json:"contactPhone"`
-	ContactWechat  string   `json:"contactWechat"`
-	AddressText    string   `json:"addressText"`
+	Name           string   `json:"name,optional"`
+	MainCategories []string `json:"mainCategories,optional"`
+	MerchantType   string   `json:"merchantType,optional"`
+	Description    string   `json:"description,optional"`
+	LogoURL        string   `json:"logoUrl,optional"`
+	Images         []string `json:"images,optional"`
+	ContactName    string   `json:"contactName,optional"`
+	ContactPhone   string   `json:"contactPhone,optional"`
+	ContactWechat  string   `json:"contactWechat,optional"`
+	AddressText    string   `json:"addressText,optional"`
 	LocationAction string   `json:"locationAction"`
-	MarketName     string   `json:"marketName"`
-	BuildingName   string   `json:"buildingName"`
-	FloorNo        string   `json:"floorNo"`
-	BoothNo        string   `json:"boothNo"`
-	Latitude       *float64 `json:"latitude"`
-	Longitude      *float64 `json:"longitude"`
-	LocationName   string   `json:"locationName"`
-	SmsCode        string   `json:"smsCode"`
+	MarketName     string   `json:"marketName,optional"`
+	BuildingName   string   `json:"buildingName,optional"`
+	FloorNo        string   `json:"floorNo,optional"`
+	BoothNo        string   `json:"boothNo,optional"`
+	Latitude       *float64 `json:"latitude,optional"`
+	Longitude      *float64 `json:"longitude,optional"`
+	LocationName   string   `json:"locationName,optional"`
+	SmsCode        string   `json:"smsCode,optional"`
 }

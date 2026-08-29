@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -103,10 +104,35 @@ func TestGetMerchantHidesNonPublicLocationFromAnonymousViewer(t *testing.T) {
 			if resp.Location.Available || resp.Location.Latitude != nil || resp.Location.Longitude != nil {
 				t.Fatalf("public location = %#v, want unavailable location without coordinates", resp.Location)
 			}
+			if resp.Location.Status != model.MerchantLocationStatusHidden {
+				t.Fatalf("public location status = %q, want normalized hidden", resp.Location.Status)
+			}
 			if resp.Location.MarketName != "" || resp.Location.BoothNo != "" || resp.Location.LocationName != "" {
 				t.Fatalf("public location = %#v, want hidden location details removed", resp.Location)
 			}
 		})
+	}
+}
+
+func TestGetMerchantFailsClosedWhenPermissionLookupFails(t *testing.T) {
+	store := &fakeMerchantDetailStore{
+		permissionErr: errors.New("permission database unavailable"),
+		detail: model.MerchantDetail{
+			ID: "merchant-1", Name: "织里样板童装厂", MerchantType: "factory", CityCode: "zhili",
+			ContactName: "李厂长", ContactPhone: "13800000000", ContactWechat: "zhili_factory",
+			Location: model.MerchantLocation{
+				MarketName: "织里童装城", BoothNo: "A108", Latitude: float64Ptr(30.8732), Longitude: float64Ptr(120.2255),
+				LocationName: "织里童装城", Status: model.MerchantLocationStatusRiskHidden,
+			},
+		},
+	}
+
+	resp, err := NewGetMerchantLogic(store).GetMerchant(context.Background(), "merchant-1", "user-1")
+	if errx.CodeOf(err) != errx.CodeInternalError {
+		t.Fatalf("error = %v, want internal error", err)
+	}
+	if resp.Contact != nil || resp.Location.Latitude != nil || resp.Location.Longitude != nil {
+		t.Fatalf("response = %#v, permission failure must not expose contact or risk location", resp)
 	}
 }
 
@@ -191,6 +217,7 @@ type fakeMerchantDetailStore struct {
 	permissionUserID     string
 	permissionMerchantID string
 	canManage            bool
+	permissionErr        error
 	detail               model.MerchantDetail
 	err                  error
 }
@@ -206,5 +233,5 @@ func (s *fakeMerchantDetailStore) GetMerchantDetail(ctx context.Context, merchan
 func (s *fakeMerchantDetailStore) UserCanManageMerchant(ctx context.Context, userID string, merchantID string) (bool, error) {
 	s.permissionUserID = userID
 	s.permissionMerchantID = merchantID
-	return s.canManage, nil
+	return s.canManage, s.permissionErr
 }
