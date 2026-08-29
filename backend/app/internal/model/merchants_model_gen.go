@@ -18,7 +18,7 @@ import (
 
 var (
 	merchantsFieldNames          = builder.RawFieldNames(&Merchants{}, true)
-	merchantsRows                = postgresTextIDRows(merchantsFieldNames)
+	merchantsRows                = strings.Join(merchantsFieldNames, ",")
 	merchantsRowsExpectAutoSet   = strings.Join(stringx.Remove(merchantsFieldNames, "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"), ",")
 	merchantsRowsWithPlaceHolder = builder.PostgreSqlJoin(stringx.Remove(merchantsFieldNames, "id", "create_at", "create_time", "created_at", "update_at", "update_time", "updated_at"))
 )
@@ -26,9 +26,10 @@ var (
 type (
 	merchantsModel interface {
 		Insert(ctx context.Context, data *Merchants) (sql.Result, error)
-		FindOne(ctx context.Context, id string) (*Merchants, error)
+		FindOne(ctx context.Context, id int64) (*Merchants, error)
+		FindOneByMerchantNo(ctx context.Context, merchantNo string) (*Merchants, error)
 		Update(ctx context.Context, data *Merchants) error
-		Delete(ctx context.Context, id string) error
+		Delete(ctx context.Context, id int64) error
 	}
 
 	defaultMerchantsModel struct {
@@ -37,24 +38,35 @@ type (
 	}
 
 	Merchants struct {
-		Id                 string         `db:"id"`
-		CityStationId      string         `db:"city_station_id"`
-		Name               string         `db:"name"`
-		MerchantType       string         `db:"merchant_type"`
-		MainCategories     string         `db:"main_categories"`
-		Description        sql.NullString `db:"description"`
-		ContactName        string         `db:"contact_name"`
-		ContactPhone       string         `db:"contact_phone"`
-		ContactWechat      sql.NullString `db:"contact_wechat"`
-		AddressText        sql.NullString `db:"address_text"`
-		Location           string         `db:"location"`
-		Images             string         `db:"images"`
-		VerificationStatus string         `db:"verification_status"`
-		Status             string         `db:"status"`
-		LastActiveAt       sql.NullTime   `db:"last_active_at"`
-		CreatedAt          time.Time      `db:"created_at"`
-		UpdatedAt          time.Time      `db:"updated_at"`
-		DeletedAt          sql.NullTime   `db:"deleted_at"`
+		Id                int64           `db:"id"`
+		CityStationId     int64           `db:"city_station_id"`
+		Name              string          `db:"name"`
+		MerchantType      string          `db:"merchant_type"`
+		MainCategories    string          `db:"main_categories"`
+		Description       sql.NullString  `db:"description"`
+		ContactName       string          `db:"contact_name"`
+		ContactPhone      string          `db:"contact_phone"`
+		ContactWechat     sql.NullString  `db:"contact_wechat"`
+		AddressText       sql.NullString  `db:"address_text"`
+		MarketName        sql.NullString  `db:"market_name"`
+		BuildingName      sql.NullString  `db:"building_name"`
+		FloorNo           sql.NullString  `db:"floor_no"`
+		BoothNo           sql.NullString  `db:"booth_no"`
+		Latitude          sql.NullFloat64 `db:"latitude"`
+		Longitude         sql.NullFloat64 `db:"longitude"`
+		LocationName      sql.NullString  `db:"location_name"`
+		LocationStatus    string          `db:"location_status"`
+		LocationUpdatedAt sql.NullTime    `db:"location_updated_at"`
+		LogoUrl           sql.NullString  `db:"logo_url"`
+		Images            string          `db:"images"`
+		ProfileStatus     string          `db:"profile_status"`
+		Status            string          `db:"status"`
+		LastActiveAt      sql.NullTime    `db:"last_active_at"`
+		CreatedAt         time.Time       `db:"created_at"`
+		UpdatedAt         time.Time       `db:"updated_at"`
+		DeletedAt         sql.NullTime    `db:"deleted_at"`
+		MerchantNo        string          `db:"merchant_no"`
+		OnboardedAt       sql.NullTime    `db:"onboarded_at"`
 	}
 )
 
@@ -65,13 +77,13 @@ func newMerchantsModel(conn sqlx.SqlConn) *defaultMerchantsModel {
 	}
 }
 
-func (m *defaultMerchantsModel) Delete(ctx context.Context, id string) error {
+func (m *defaultMerchantsModel) Delete(ctx context.Context, id int64) error {
 	query := fmt.Sprintf("delete from %s where id = $1", m.table)
 	_, err := m.conn.ExecCtx(ctx, query, id)
 	return err
 }
 
-func (m *defaultMerchantsModel) FindOne(ctx context.Context, id string) (*Merchants, error) {
+func (m *defaultMerchantsModel) FindOne(ctx context.Context, id int64) (*Merchants, error) {
 	query := fmt.Sprintf("select %s from %s where id = $1 limit 1", merchantsRows, m.table)
 	var resp Merchants
 	err := m.conn.QueryRowCtx(ctx, &resp, query, id)
@@ -85,15 +97,29 @@ func (m *defaultMerchantsModel) FindOne(ctx context.Context, id string) (*Mercha
 	}
 }
 
+func (m *defaultMerchantsModel) FindOneByMerchantNo(ctx context.Context, merchantNo string) (*Merchants, error) {
+	var resp Merchants
+	query := fmt.Sprintf("select %s from %s where merchant_no = $1 limit 1", merchantsRows, m.table)
+	err := m.conn.QueryRowCtx(ctx, &resp, query, merchantNo)
+	switch err {
+	case nil:
+		return &resp, nil
+	case sqlx.ErrNotFound:
+		return nil, ErrNotFound
+	default:
+		return nil, err
+	}
+}
+
 func (m *defaultMerchantsModel) Insert(ctx context.Context, data *Merchants) (sql.Result, error) {
-	query := fmt.Sprintf("insert into %s (%s) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)", m.table, merchantsRowsExpectAutoSet)
-	ret, err := m.conn.ExecCtx(ctx, query, data.Id, data.CityStationId, data.Name, data.MerchantType, data.MainCategories, data.Description, data.ContactName, data.ContactPhone, data.ContactWechat, data.AddressText, data.Location, data.Images, data.VerificationStatus, data.Status, data.LastActiveAt, data.DeletedAt)
+	query := fmt.Sprintf("insert into %s (%s) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)", m.table, merchantsRowsExpectAutoSet)
+	ret, err := m.conn.ExecCtx(ctx, query, data.Id, data.CityStationId, data.Name, data.MerchantType, data.MainCategories, data.Description, data.ContactName, data.ContactPhone, data.ContactWechat, data.AddressText, data.MarketName, data.BuildingName, data.FloorNo, data.BoothNo, data.Latitude, data.Longitude, data.LocationName, data.LocationStatus, data.LocationUpdatedAt, data.LogoUrl, data.Images, data.ProfileStatus, data.Status, data.LastActiveAt, data.DeletedAt, data.MerchantNo, data.OnboardedAt)
 	return ret, err
 }
 
-func (m *defaultMerchantsModel) Update(ctx context.Context, data *Merchants) error {
+func (m *defaultMerchantsModel) Update(ctx context.Context, newData *Merchants) error {
 	query := fmt.Sprintf("update %s set %s where id = $1", m.table, merchantsRowsWithPlaceHolder)
-	_, err := m.conn.ExecCtx(ctx, query, data.Id, data.CityStationId, data.Name, data.MerchantType, data.MainCategories, data.Description, data.ContactName, data.ContactPhone, data.ContactWechat, data.AddressText, data.Location, data.Images, data.VerificationStatus, data.Status, data.LastActiveAt, data.DeletedAt)
+	_, err := m.conn.ExecCtx(ctx, query, newData.Id, newData.CityStationId, newData.Name, newData.MerchantType, newData.MainCategories, newData.Description, newData.ContactName, newData.ContactPhone, newData.ContactWechat, newData.AddressText, newData.MarketName, newData.BuildingName, newData.FloorNo, newData.BoothNo, newData.Latitude, newData.Longitude, newData.LocationName, newData.LocationStatus, newData.LocationUpdatedAt, newData.LogoUrl, newData.Images, newData.ProfileStatus, newData.Status, newData.LastActiveAt, newData.DeletedAt, newData.MerchantNo, newData.OnboardedAt)
 	return err
 }
 

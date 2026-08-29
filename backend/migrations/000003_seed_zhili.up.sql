@@ -8,8 +8,8 @@ WITH zhili AS (
     '童装',
     'active',
     '{
-      "enabledTypeCodes": ["factory_direct","spot_wholesale","stock_clearance","buy_kids_goods","fabric_supply","accessory_supply","processing_accept","find_factory","production_support","job_hiring","job_seeking","sample_rental","shop_office_rental","shop_sale","seek_shop_office","apartment_rental","housing_sale","seek_housing","factory_warehouse_rental","workshop_rental","factory_sale","seek_factory_warehouse","secondhand_sale","secondhand_buy","education_training","appliance_repair","moving_cleaning","other_local_service"],
-      "primaryCategories": ["童装批发","面料辅料","加工生产","招聘求职","商铺办公","住宅公寓","厂房仓库","本地服务"]
+      "enabledTypeCodes": ["factory_direct","spot_wholesale","stock_clearance","buy_kids_goods","fabric_supply","accessory_supply","processing_accept","find_factory","production_support","sample_rental","shop_office_rental","shop_sale","seek_shop_office","apartment_rental","housing_sale","seek_housing","factory_warehouse_rental","workshop_rental","factory_sale","seek_factory_warehouse","secondhand_sale","secondhand_buy","education_training","appliance_repair","moving_cleaning","other_local_service"],
+      "primaryCategories": ["童装批发","面料辅料","加工生产","商铺办公","住宅公寓","厂房仓库","本地服务"]
     }'::jsonb
   )
   ON CONFLICT (code) DO UPDATE
@@ -51,7 +51,7 @@ SELECT
   cfg.sort_weights::jsonb,
   cfg.message_rules::jsonb,
   cfg.default_valid_days,
-  'active'
+  CASE WHEN cfg.type_code IN ('job_hiring', 'job_seeking') THEN 'inactive' ELSE 'active' END
 FROM zhili
 CROSS JOIN (
   VALUES
@@ -109,6 +109,83 @@ DO UPDATE SET
   default_valid_days = EXCLUDED.default_valid_days,
   status = EXCLUDED.status,
   direction = EXCLUDED.direction,
+  updated_at = now();
+
+-- 冷启动库直接包含一个可公开展示的位置样例，便于验证商家目录和腾讯地图位置链路。
+INSERT INTO merchants (
+  id,
+  city_station_id,
+  name,
+  merchant_type,
+  main_categories,
+  description,
+  contact_name,
+  contact_phone,
+  contact_wechat,
+  address_text,
+  market_name,
+  building_name,
+  floor_no,
+  booth_no,
+  latitude,
+  longitude,
+  location_name,
+  location_status,
+  location_updated_at,
+  images,
+  status,
+  profile_status,
+  last_active_at
+)
+SELECT
+  8020000000000000001,
+  cs.id,
+  '湖州织里晨星童装厂',
+  'factory',
+  '["童装","卫衣","套装"]'::jsonb,
+  '主做童装卫衣和套装，可承接小单快反。',
+  '陈厂长',
+  '18800000001',
+  'factory-demo',
+  '织里镇利济路88号',
+  '织里童装城',
+  '一期',
+  '1F',
+  'A108',
+  30.8732,
+  120.2255,
+  '织里童装城',
+  'visible',
+  now(),
+  '[]'::jsonb,
+  'active',
+  'completed',
+  now()
+FROM city_stations cs
+WHERE cs.code = 'zhili'
+ON CONFLICT (id) DO UPDATE SET
+  city_station_id = EXCLUDED.city_station_id,
+  name = EXCLUDED.name,
+  merchant_type = EXCLUDED.merchant_type,
+  main_categories = EXCLUDED.main_categories,
+  description = EXCLUDED.description,
+  contact_name = EXCLUDED.contact_name,
+  contact_phone = EXCLUDED.contact_phone,
+  contact_wechat = EXCLUDED.contact_wechat,
+  address_text = EXCLUDED.address_text,
+  market_name = EXCLUDED.market_name,
+  building_name = EXCLUDED.building_name,
+  floor_no = EXCLUDED.floor_no,
+  booth_no = EXCLUDED.booth_no,
+  latitude = EXCLUDED.latitude,
+  longitude = EXCLUDED.longitude,
+  location_name = EXCLUDED.location_name,
+  location_status = EXCLUDED.location_status,
+  location_updated_at = EXCLUDED.location_updated_at,
+  images = EXCLUDED.images,
+  status = EXCLUDED.status,
+  profile_status = EXCLUDED.profile_status,
+  last_active_at = EXCLUDED.last_active_at,
   updated_at = now();
 
 -- 发布标签使用 resources.tags 持久化；可选项挂在类型 field_schema 顶层，供小程序发布页渲染多选标签。

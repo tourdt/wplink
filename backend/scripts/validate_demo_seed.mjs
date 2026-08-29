@@ -9,6 +9,42 @@ if (!fs.existsSync(scriptPath)) {
 }
 
 const sql = fs.readFileSync(scriptPath, 'utf8')
+const merchantInsertStart = sql.indexOf('INSERT INTO merchants (')
+const merchantInsertEnd = sql.indexOf('INSERT INTO merchant_admin_bindings', merchantInsertStart)
+assert(merchantInsertStart >= 0 && merchantInsertEnd > merchantInsertStart, '缺少完整的 merchants 演示数据区块')
+
+const merchantSql = sql.slice(merchantInsertStart, merchantInsertEnd)
+for (const locationSnippet of [
+  'market_name',
+  'building_name',
+  'floor_no',
+  'booth_no',
+  'latitude',
+  'longitude',
+  'location_name',
+  'location_status',
+  "'织里童装城'",
+  "'一期'",
+  "'1F'",
+  "'A108'",
+  '30.8732',
+  '120.2255',
+  "'visible'",
+]) {
+  assert(merchantSql.includes(locationSnippet), `演示商家缺少最终位置字段或示例值: ${locationSnippet}`)
+}
+
+for (const retiredMapTable of [
+  'map_scene',
+  'map_object',
+  'map_category',
+  'map_object_bind_request',
+  'map_object_reports',
+  'merchant_map_events',
+]) {
+  assert(!sql.includes(retiredMapTable), `演示种子不应引用旧地图表: ${retiredMapTable}`)
+}
+
 const resourceInsertStart = sql.indexOf('INSERT INTO resources (')
 const resourceInsertEnd = sql.indexOf('INSERT INTO merchant_entitlements', resourceInsertStart)
 assert(resourceInsertStart >= 0 && resourceInsertEnd > resourceInsertStart, '缺少完整的 resources 演示数据区块')
@@ -205,18 +241,6 @@ const requiredSnippets = [
   'expired',
   'messages',
   'resource_metrics_daily',
-  'map_scene',
-  'map_object',
-  'zhili_lijilu_demo',
-  '利济路童装拿货示范图',
-  '晨星童装 A 区',
-  '云仓尾货 B 区',
-  '利济路打包点',
-  'A006',
-  'C306',
-  '童装城快递集包点',
-  '利济路样衣中心',
-  '早餐简餐补给点',
   'published',
 ]
 
@@ -224,11 +248,6 @@ for (const snippet of requiredSnippets) {
   if (!sql.includes(snippet)) {
     throw new Error(`演示种子缺少关键内容: ${snippet}`)
   }
-}
-
-const demoSceneRefs = sql.match(/'zhili_lijilu_demo'/g) || []
-if (demoSceneRefs.length < 13) {
-  throw new Error(`拿货地图演示数据对象偏少: scene refs=${demoSceneRefs.length}, want >= 13`)
 }
 
 if (sql.includes('8020000000000002,')) {

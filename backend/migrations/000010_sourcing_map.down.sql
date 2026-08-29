@@ -1,3 +1,0 @@
-DROP TABLE IF EXISTS map_object;
-DROP TABLE IF EXISTS map_category;
-DROP TABLE IF EXISTS map_scene;

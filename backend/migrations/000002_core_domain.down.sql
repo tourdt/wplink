@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS merchant_directory_events;
+DROP TABLE IF EXISTS merchant_location_reports;
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS banner_topics;
 DROP TABLE IF EXISTS resource_metrics_daily;

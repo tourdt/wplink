@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 CREATE TABLE IF NOT EXISTS city_stations (
   id bigint PRIMARY KEY DEFAULT next_tsid(),
   code varchar(64) UNIQUE NOT NULL,
@@ -39,18 +41,109 @@ CREATE TABLE IF NOT EXISTS merchants (
   contact_phone varchar(32) NOT NULL,
   contact_wechat varchar(64),
   address_text varchar(255),
-  location jsonb NOT NULL DEFAULT '{}'::jsonb,
+  market_name varchar(128),
+  building_name varchar(64),
+  floor_no varchar(32),
+  booth_no varchar(64),
+  latitude double precision,
+  longitude double precision,
+  location_name varchar(128),
+  location_status varchar(32) NOT NULL DEFAULT 'hidden',
+  location_updated_at timestamptz,
   logo_url text,
   images jsonb NOT NULL DEFAULT '[]'::jsonb,
+  profile_status varchar(32) NOT NULL DEFAULT 'completed',
   status varchar(32) NOT NULL DEFAULT 'active',
   last_active_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  deleted_at timestamptz
+  deleted_at timestamptz,
+  CONSTRAINT chk_merchants_location_pair CHECK ((latitude IS NULL) = (longitude IS NULL)),
+  CONSTRAINT chk_merchants_latitude CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90),
+  CONSTRAINT chk_merchants_longitude CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180),
+  CONSTRAINT chk_merchants_location_status CHECK (location_status IN ('visible', 'hidden', 'risk_hidden')),
+  CONSTRAINT chk_merchants_visible_location CHECK (location_status <> 'visible' OR (latitude IS NOT NULL AND longitude IS NOT NULL)),
+  CONSTRAINT chk_merchants_risk_hidden_location CHECK (location_status <> 'risk_hidden' OR (latitude IS NOT NULL AND longitude IS NOT NULL)),
+  CONSTRAINT chk_merchants_profile_status CHECK (profile_status IN ('incomplete', 'completed'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_merchants_city_type ON merchants(city_station_id, merchant_type);
 CREATE INDEX IF NOT EXISTS idx_merchants_last_active_at ON merchants(last_active_at);
+CREATE INDEX IF NOT EXISTS idx_merchants_directory_location
+  ON merchants(city_station_id, status, profile_status, location_status)
+  WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_merchants_location_coordinates
+  ON merchants(latitude, longitude)
+  WHERE location_status = 'visible' AND latitude IS NOT NULL AND longitude IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_merchants_main_categories_gin
+  ON merchants USING gin(main_categories);
+CREATE INDEX IF NOT EXISTS idx_merchants_market_name_trgm
+  ON merchants USING gin(market_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_merchants_booth_no_trgm
+  ON merchants USING gin(booth_no gin_trgm_ops);
+
+CREATE TABLE IF NOT EXISTS merchant_location_reports (
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  merchant_id bigint NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+  reporter_user_id bigint NOT NULL REFERENCES users(id),
+  reason_code varchar(64) NOT NULL,
+  description varchar(200) NOT NULL DEFAULT '',
+  status varchar(32) NOT NULL DEFAULT 'pending',
+  location_snapshot jsonb NOT NULL,
+  reviewed_by bigint REFERENCES admin_operators(id),
+  review_note text,
+  reviewed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_merchant_location_report_reason CHECK (length(btrim(reason_code)) > 0),
+  CONSTRAINT chk_merchant_location_report_status CHECK (status IN ('pending', 'valid', 'invalid', 'resolved')),
+  CONSTRAINT chk_merchant_location_report_snapshot CHECK (jsonb_typeof(location_snapshot) = 'object')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_pending_merchant_location_report_user
+  ON merchant_location_reports(merchant_id, reporter_user_id)
+  WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_merchant_location_reports_merchant_status_created
+  ON merchant_location_reports(merchant_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_merchant_location_reports_pending_created
+  ON merchant_location_reports(created_at DESC)
+  WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_merchant_location_reports_reporter
+  ON merchant_location_reports(reporter_user_id);
+CREATE INDEX IF NOT EXISTS idx_merchant_location_reports_reviewer
+  ON merchant_location_reports(reviewed_by)
+  WHERE reviewed_by IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS merchant_directory_events (
+  id bigint PRIMARY KEY DEFAULT next_tsid(),
+  user_id bigint REFERENCES users(id) ON DELETE SET NULL,
+  merchant_id bigint NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+  target_merchant_id bigint REFERENCES merchants(id) ON DELETE SET NULL,
+  visitor_key varchar(96) NOT NULL,
+  session_id varchar(96) NOT NULL,
+  event_type varchar(40) NOT NULL,
+  source varchar(30) NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_merchant_directory_event_type CHECK (event_type IN (
+    'directory_exposure', 'directory_merchant_click', 'location_view',
+    'nearby_marker_click', 'nearby_list_item_click', 'nearby_merchant_click',
+    'nearby_drawer_open', 'navigation_click', 'location_report_submit'
+  )),
+  CONSTRAINT chk_merchant_directory_event_source CHECK (source IN (
+    'directory', 'merchant_detail', 'merchant_location'
+  ))
+);
+
+CREATE INDEX IF NOT EXISTS idx_merchant_directory_events_merchant_event_created
+  ON merchant_directory_events(merchant_id, event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_merchant_directory_events_target_created
+  ON merchant_directory_events(target_merchant_id, created_at DESC)
+  WHERE target_merchant_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_merchant_directory_events_user_created
+  ON merchant_directory_events(user_id, created_at DESC)
+  WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_merchant_directory_events_created
+  ON merchant_directory_events(created_at);
 
 CREATE TABLE IF NOT EXISTS merchant_admin_bindings (
   id bigint PRIMARY KEY DEFAULT next_tsid(),

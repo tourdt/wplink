@@ -1,8 +1,3 @@
-DROP INDEX IF EXISTS idx_map_bind_request_note_trgm;
-DROP INDEX IF EXISTS idx_map_object_search_text_trgm;
-DROP INDEX IF EXISTS idx_map_object_address_trgm;
-DROP INDEX IF EXISTS idx_map_object_name_trgm;
-DROP INDEX IF EXISTS idx_map_object_code_trgm;
 DROP INDEX IF EXISTS idx_merchants_contact_name_trgm;
 DROP INDEX IF EXISTS idx_merchants_name_trgm;
 DROP INDEX IF EXISTS idx_resources_attributes_text_trgm;

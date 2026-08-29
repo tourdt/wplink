@@ -56,40 +56,46 @@ test('current migrations pass static validation', () => {
   assert.deepEqual(issues, [])
 })
 
-test('cold-start migration disables recruitment publish types and removes station entries', () => {
-  const fileName = '000030_sourcing_map_cold_start_core_rules.up.sql'
-  assert.equal(fs.existsSync(path.resolve(migrationsDir, fileName)), true, `${fileName} should exist`)
+test('cold-start schema stores one public location on merchants without custom map tables', () => {
+  const migrations = loadMigrationFiles(migrationsDir)
+  const core = migrations.find((item) => item.fileName === '000002_core_domain.up.sql').sql
+  const allUpSQL = migrations.filter((item) => item.direction === 'up').map((item) => item.sql).join('\n')
 
-  const source = fs.readFileSync(path.resolve(migrationsDir, fileName), 'utf8')
-  assert.match(source, /type_code IN \('job_hiring', 'job_seeking'\)[\s\S]*status = 'inactive'|status = 'inactive'[\s\S]*type_code IN \('job_hiring', 'job_seeking'\)/)
-  assert.match(source, /enabledTypeCodes/)
-  assert.match(source, /job_hiring/)
-  assert.match(source, /job_seeking/)
+  for (const field of ['market_name', 'building_name', 'floor_no', 'booth_no', 'latitude', 'longitude', 'location_name', 'location_status', 'location_updated_at']) {
+    assert.match(core, new RegExp(`\\b${field}\\b`))
+  }
+  assert.match(core, /CREATE TABLE IF NOT EXISTS merchant_location_reports/)
+  assert.match(core, /CREATE TABLE IF NOT EXISTS merchant_directory_events/)
+  assert.doesNotMatch(allUpSQL, /CREATE TABLE IF NOT EXISTS map_(scene|object|category|object_bind_request|object_reports)/)
+  assert.doesNotMatch(allUpSQL, /CREATE TABLE IF NOT EXISTS merchant_map_events/)
+  assert.doesNotMatch(allUpSQL, /\bmap_(scene|object|category|object_bind_request|object_reports)\b/)
+  assert.doesNotMatch(allUpSQL, /\bmerchant_map_events\b/)
+
+  for (const migration of [
+    '000010_sourcing_map',
+    '000011_map_object_bind_requests',
+    '000030_sourcing_map_cold_start_core_rules',
+    '000031_map_object_reports',
+    '000033_merchant_map_events',
+  ]) {
+    assert.equal(fs.existsSync(path.resolve(migrationsDir, `${migration}.up.sql`)), false)
+    assert.equal(fs.existsSync(path.resolve(migrationsDir, `${migration}.down.sql`)), false)
+  }
 })
 
-test('cold-start migration enforces one main map booth per merchant', () => {
-  const source = fs.readFileSync(path.resolve(migrationsDir, '000030_sourcing_map_cold_start_core_rules.up.sql'), 'utf8')
+test('zhili initial seed disables recruitment without exposing recruitment station entries', () => {
+  const source = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')
+  const stationConfigSource = source.match(/VALUES \(\s*'zhili',[\s\S]*?'(\{[\s\S]*?\})'::jsonb/)?.[1]
+  assert.ok(stationConfigSource, 'zhili station config should be seeded as JSON')
 
-  assert.match(source, /duplicate_map_merchant_binding/)
-  assert.match(source, /CREATE UNIQUE INDEX IF NOT EXISTS uniq_map_object_merchant/)
-  assert.match(source, /ON map_object\(merchant_id\)/)
-  assert.match(source, /WHERE merchant_id IS NOT NULL/)
-})
-
-test('map object report migration stores corrections and risk reports with deduplication', () => {
-  const fileName = '000031_map_object_reports.up.sql'
-  assert.equal(fs.existsSync(path.resolve(migrationsDir, fileName)), true, `${fileName} should exist`)
-
-  const source = fs.readFileSync(path.resolve(migrationsDir, fileName), 'utf8')
-  assert.match(source, /CREATE TABLE IF NOT EXISTS map_object_reports/)
-  assert.match(source, /location_correction/)
-  assert.match(source, /risk_report/)
-  assert.match(source, /object_snapshot jsonb NOT NULL/)
-  assert.match(source, /CREATE UNIQUE INDEX IF NOT EXISTS uniq_open_map_object_report_user_reason/)
-  assert.match(source, /reporter_user_id/)
-  assert.match(source, /reason_code/)
-  assert.match(source, /CREATE INDEX IF NOT EXISTS idx_map_object_reports_aggregate/)
-  assert.match(source, /CREATE INDEX IF NOT EXISTS idx_map_object_reports_pending/)
+  const stationConfig = JSON.parse(stationConfigSource)
+  assert.equal(stationConfig.enabledTypeCodes.includes('job_hiring'), false)
+  assert.equal(stationConfig.enabledTypeCodes.includes('job_seeking'), false)
+  assert.equal(stationConfig.primaryCategories.includes('招聘求职'), false)
+  assert.match(
+    source,
+    /CASE WHEN cfg\.type_code IN \('job_hiring', 'job_seeking'\) THEN 'inactive' ELSE 'active' END/,
+  )
 })
 
 test('merchant onboarding migration records first completed profile time for homepage exposure', () => {
@@ -169,60 +175,6 @@ test('demo merchants seed completed onboarding without overwriting first onboard
     merchantSeed,
     /onboarded_at = COALESCE\(merchants\.onboarded_at, EXCLUDED\.onboarded_at\)/,
   )
-})
-
-test('merchant map event migration constrains attribution data and supports map metrics queries', () => {
-  const upFileName = '000033_merchant_map_events.up.sql'
-  const downFileName = '000033_merchant_map_events.down.sql'
-  assert.equal(fs.existsSync(path.resolve(migrationsDir, upFileName)), true, `${upFileName} should exist`)
-  assert.equal(fs.existsSync(path.resolve(migrationsDir, downFileName)), true, `${downFileName} should exist`)
-
-  const upSource = fs.readFileSync(path.resolve(migrationsDir, upFileName), 'utf8')
-  const downSource = fs.readFileSync(path.resolve(migrationsDir, downFileName), 'utf8')
-  for (const column of [
-    'user_id',
-    'merchant_id',
-    'target_merchant_id',
-    'event_type',
-    'source',
-    'visitor_key',
-    'session_id',
-  ]) {
-    assert.match(upSource, new RegExp(`\\b${column}\\b`), `up migration should define ${column}`)
-  }
-  for (const eventType of [
-    'location_entry_click',
-    'location_view',
-    'navigation_click',
-    'nearby_drawer_open',
-    'nearby_marker_click',
-    'nearby_list_item_click',
-    'nearby_merchant_click',
-  ]) {
-    assert.match(upSource, new RegExp(`'${eventType}'`), `event CHECK should allow ${eventType}`)
-  }
-  for (const source of ['directory', 'merchant_detail', 'merchant_location']) {
-    assert.match(upSource, new RegExp(`'${source}'`), `source CHECK should allow ${source}`)
-  }
-  assert.match(upSource, /CREATE TABLE IF NOT EXISTS merchant_map_events/)
-  assert.match(upSource, /CONSTRAINT chk_merchant_map_event_type CHECK/)
-  assert.match(upSource, /CONSTRAINT chk_merchant_map_event_source CHECK/)
-  assert.match(
-    upSource,
-    /CREATE INDEX IF NOT EXISTS idx_merchant_map_events_merchant_event_created[\s\S]*ON merchant_map_events\(merchant_id, event_type, created_at DESC\)/,
-  )
-  assert.match(
-    upSource,
-    /CREATE INDEX IF NOT EXISTS idx_merchant_map_events_target_created[\s\S]*ON merchant_map_events\(target_merchant_id, created_at DESC\)/,
-  )
-  assert.match(
-    upSource,
-    /CREATE INDEX IF NOT EXISTS idx_merchant_map_events_user_created[\s\S]*ON merchant_map_events\(user_id, created_at DESC\)[\s\S]*WHERE user_id IS NOT NULL/,
-  )
-  assert.match(downSource, /DROP INDEX IF EXISTS idx_merchant_map_events_user_created/)
-  assert.match(downSource, /DROP INDEX IF EXISTS idx_merchant_map_events_target_created/)
-  assert.match(downSource, /DROP INDEX IF EXISTS idx_merchant_map_events_merchant_event_created/)
-  assert.match(downSource, /DROP TABLE IF EXISTS merchant_map_events/)
 })
 
 test('migrations and demo seed do not point to retired demand pages', () => {
