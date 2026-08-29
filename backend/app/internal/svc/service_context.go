@@ -57,7 +57,6 @@ type APIStore struct {
 	*model.AdminPermissionModel
 	*model.GrowthCampaignModel
 	*model.FavoriteModel
-	*model.MapModel
 	*model.PaymentReconciliationModel
 }
 
@@ -136,7 +135,6 @@ func ValidateAPIServiceContext(ctx *ServiceContext) error {
 		appendMissing("APIStore.AdminPermissionModel", ctx.APIStore.AdminPermissionModel)
 		appendMissing("APIStore.GrowthCampaignModel", ctx.APIStore.GrowthCampaignModel)
 		appendMissing("APIStore.FavoriteModel", ctx.APIStore.FavoriteModel)
-		appendMissing("APIStore.MapModel", ctx.APIStore.MapModel)
 		appendMissing("APIStore.PaymentReconciliationModel", ctx.APIStore.PaymentReconciliationModel)
 	}
 	if len(missing) > 0 {
@@ -231,7 +229,6 @@ func newAPIStore(db *sql.DB) *APIStore {
 		AdminPermissionModel:        model.NewAdminPermissionModel(db),
 		GrowthCampaignModel:         model.NewGrowthCampaignModel(db),
 		FavoriteModel:               model.NewFavoriteModel(db),
-		MapModel:                    model.NewMapModel(db),
 		PaymentReconciliationModel:  model.NewPaymentReconciliationModel(db),
 	}
 }

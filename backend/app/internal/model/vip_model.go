@@ -1624,3 +1624,10 @@ func nullStringToString(value sql.NullString) string {
 	}
 	return value.String
 }
+
+func nonNilJSONMap(value JSONMap) JSONMap {
+	if value == nil {
+		return JSONMap{}
+	}
+	return value
+}

@@ -16,7 +16,6 @@ const (
 	AdminModuleHotSearchKeywords   = "hot_search_keywords"
 	AdminModuleVIPConfigs          = "vip_configs"
 	AdminModuleGrowthCampaigns     = "growth_campaigns"
-	AdminModuleSourcingMap         = "sourcing_map"
 	AdminModuleResourceTypeConfigs = "resource_type_configs"
 	AdminModuleOperationLogs       = "operation_logs"
 	AdminModuleSearchLogs          = "search_logs"
@@ -33,7 +32,6 @@ var allAdminModules = []string{
 	AdminModuleHotSearchKeywords,
 	AdminModuleVIPConfigs,
 	AdminModuleGrowthCampaigns,
-	AdminModuleSourcingMap,
 	AdminModuleResourceTypeConfigs,
 	AdminModuleOperationLogs,
 	AdminModuleSearchLogs,

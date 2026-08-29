@@ -21,25 +21,6 @@ type AdminBannerTopicItem struct {
 	UpdatedAt  string   `json:"updatedAt"`
 }
 
-type AdminBatchGenerateMapObjectsReq struct {
-	StartCode     string   `json:"startCode"`
-	Count         int64    `json:"count"`
-	Direction     string   `json:"direction"`
-	StartX        string   `json:"startX"`
-	StartY        string   `json:"startY"`
-	Width         string   `json:"width"`
-	Height        string   `json:"height"`
-	Gap           string   `json:"gap"`
-	Type          string   `json:"type"`
-	Layer         string   `json:"layer"`
-	CategoryCodes []string `json:"categoryCodes,optional"`
-	ServiceTags   []string `json:"serviceTags,optional"`
-}
-
-type AdminBatchGenerateMapObjectsResp struct {
-	Items []MapObjectItem `json:"items"`
-}
-
 type AdminCreateResourceTypeConfigReq struct {
 	CityCode         string                 `json:"cityCode"`
 	TypeCode         string                 `json:"typeCode"`
@@ -128,43 +109,6 @@ type AdminListHotSearchKeywordsReq struct {
 
 type AdminListHotSearchKeywordsResp struct {
 	Items []AdminHotSearchKeywordItem `json:"items"`
-}
-
-type AdminListMapBindRequestsReq struct {
-	Status   string `form:"status,optional"`
-	Keyword  string `form:"keyword,optional"`
-	Page     int64  `form:"page,optional"`
-	PageSize int64  `form:"pageSize,optional"`
-}
-
-type AdminListMapBindRequestsResp struct {
-	Items []MapBindRequestItem `json:"items"`
-}
-
-type AdminListMapCategoriesReq struct {
-	Type   string `form:"type,optional"`
-	Status string `form:"status,optional"`
-}
-
-type AdminListMapCategoriesResp struct {
-	Items []MapCategoryItem `json:"items"`
-}
-
-type AdminListMapObjectsReq struct {
-	Types   string `form:"types,optional"`
-	Status  string `form:"status,optional"`
-	Keyword string `form:"keyword,optional"`
-	MinX    string `form:"minX,optional"`
-	MinY    string `form:"minY,optional"`
-	MaxX    string `form:"maxX,optional"`
-	MaxY    string `form:"maxY,optional"`
-	Zoom    int64  `form:"zoom,optional"`
-}
-
-type AdminListMapScenesReq struct {
-	CityCode string `form:"cityCode,optional"`
-	Status   string `form:"status,optional"`
-	Type     string `form:"type,optional"`
 }
 
 type AdminListMerchantLocationReportsReq struct {
@@ -344,11 +288,6 @@ type AdminPendingResourcesResp struct {
 	Total    int64                      `json:"total"`
 }
 
-type AdminPublishMapSceneResp struct {
-	Item    MapSceneItem `json:"item"`
-	Message string       `json:"message"`
-}
-
 type AdminQuotaPackConfigItem struct {
 	Code              string                `json:"code"`
 	Name              string                `json:"name"`
@@ -414,15 +353,6 @@ type AdminResourcesReq struct {
 	Status   string `form:"status,optional"`
 	Page     int64  `form:"page,optional"`
 	PageSize int64  `form:"pageSize,optional"`
-}
-
-type AdminReviewMapBindRequestReq struct {
-	Action     string `json:"action"`
-	ReviewNote string `json:"reviewNote,optional"`
-}
-
-type AdminReviewMapBindRequestResp struct {
-	Item MapBindRequestItem `json:"item"`
 }
 
 type AdminReviewMerchantLocationReportReq struct {
@@ -511,72 +441,6 @@ type AdminSaveHotSearchKeywordResp struct {
 	UpdatedAt string `json:"updatedAt"`
 }
 
-type AdminSaveMapCategoryReq struct {
-	Code      string `json:"code"`
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	IconUrl   string `json:"iconUrl,optional"`
-	Sort      int64  `json:"sort,optional"`
-	IsVisible bool   `json:"isVisible,optional"`
-	Status    string `json:"status,optional"`
-}
-
-type AdminSaveMapCategoryResp struct {
-	Item MapCategoryItem `json:"item"`
-}
-
-type AdminSaveMapObjectReq struct {
-	Id             string                 `json:"id,optional"`
-	MerchantId     string                 `json:"merchantId,optional"`
-	Code           string                 `json:"code"`
-	Name           string                 `json:"name"`
-	Type           string                 `json:"type"`
-	Layer          string                 `json:"layer"`
-	GeometryType   string                 `json:"geometryType"`
-	Geometry       map[string]interface{} `json:"geometry"`
-	MinZoom        int64                  `json:"minZoom,optional"`
-	MaxZoom        int64                  `json:"maxZoom,optional"`
-	CategoryCodes  []string               `json:"categoryCodes,optional"`
-	ServiceTags    []string               `json:"serviceTags,optional"`
-	PlatformTags   []string               `json:"platformTags,optional"`
-	PoiServiceTags []string               `json:"poiServiceTags,optional"`
-	Address        string                 `json:"address,optional"`
-	Phone          string                 `json:"phone,optional"`
-	Wechat         string                 `json:"wechat,optional"`
-	Lat            string                 `json:"lat,optional"`
-	Lng            string                 `json:"lng,optional"`
-	Extra          map[string]interface{} `json:"extra,optional"`
-	Sort           int64                  `json:"sort,optional"`
-	Status         string                 `json:"status,optional"`
-}
-
-type AdminSaveMapObjectResp struct {
-	Item MapObjectItem `json:"item"`
-}
-
-type AdminSaveMapSceneReq struct {
-	CityCode       string `json:"cityCode,optional"`
-	Code           string `json:"code"`
-	Name           string `json:"name"`
-	Type           string `json:"type"`
-	ParentCode     string `json:"parentCode,optional"`
-	BackgroundUrl  string `json:"backgroundUrl"`
-	Width          int64  `json:"width"`
-	Height         int64  `json:"height"`
-	MinScale       string `json:"minScale,optional"`
-	MaxScale       string `json:"maxScale,optional"`
-	DefaultScale   string `json:"defaultScale,optional"`
-	DefaultCenterX string `json:"defaultCenterX,optional"`
-	DefaultCenterY string `json:"defaultCenterY,optional"`
-	FloorNo        string `json:"floorNo,optional"`
-	Sort           int64  `json:"sort,optional"`
-	Status         string `json:"status,optional"`
-}
-
-type AdminSaveMapSceneResp struct {
-	Item MapSceneItem `json:"item"`
-}
-
 type AdminSaveOperatorReq struct {
 	LoginName string   `json:"loginName"`
 	RealName  string   `json:"realName"`
@@ -651,14 +515,6 @@ type AdminSearchLogsResp struct {
 	Page     int64                `json:"page"`
 	PageSize int64                `json:"pageSize"`
 	Total    int64                `json:"total"`
-}
-
-type AdminUpdateMapObjectStatusReq struct {
-	Status string `json:"status"`
-}
-
-type AdminUpdateMapObjectStatusResp struct {
-	Item MapObjectItem `json:"item"`
 }
 
 type AdminUpdateMerchantLocationStatusReq struct {
@@ -1210,55 +1066,6 @@ type ListInteractionReq struct {
 	PageSize int64 `form:"pageSize,optional"`
 }
 
-type ListMapBindCandidatesReq struct {
-	MerchantId string `form:"merchantId"`
-	ObjectId   string `form:"objectId,optional"`
-	SceneCode  string `form:"sceneCode,optional"`
-	Keyword    string `form:"keyword,optional"`
-	Limit      int64  `form:"limit,optional"`
-}
-
-type ListMapBindCandidatesResp struct {
-	Items []MapBindCandidateItem `json:"items"`
-}
-
-type ListMapCategoriesReq struct {
-	Type string `form:"type,optional"`
-}
-
-type ListMapCategoriesResp struct {
-	Items []MapCategoryItem `json:"items"`
-}
-
-type ListMapObjectsReq struct {
-	Types          string `form:"types,optional"`
-	Categories     string `form:"categories,optional"`
-	ServiceTags    string `form:"serviceTags,optional"`
-	PoiServiceTags string `form:"poiServiceTags,optional"`
-	Keyword        string `form:"keyword,optional"`
-	MinX           string `form:"minX,optional"`
-	MinY           string `form:"minY,optional"`
-	MaxX           string `form:"maxX,optional"`
-	MaxY           string `form:"maxY,optional"`
-	Zoom           int64  `form:"zoom,optional"`
-}
-
-type ListMapObjectsResp struct {
-	SceneCode string          `json:"sceneCode"`
-	Items     []MapObjectItem `json:"items"`
-	Total     int64           `json:"total"`
-}
-
-type ListMapScenesReq struct {
-	CityCode   string `form:"cityCode,optional"`
-	ParentCode string `form:"parentCode,optional"`
-	Type       string `form:"type,optional"`
-}
-
-type ListMapScenesResp struct {
-	Items []MapSceneItem `json:"items"`
-}
-
 type ListMerchantDirectoryReq struct {
 	CityCode   string `form:"cityCode,optional"`
 	Keyword    string `form:"keyword,optional"`
@@ -1276,29 +1083,6 @@ type ListMerchantDirectoryResp struct {
 
 type ListMerchantEntitlementsResp struct {
 	Items []MerchantEntitlementInfo `json:"items"`
-}
-
-type ListMerchantPlacesReq struct {
-	CityCode      string `form:"cityCode,optional"`
-	Keyword       string `form:"keyword,optional"`
-	Categories    string `form:"categories,optional"`
-	MerchantTypes string `form:"merchantTypes,optional"`
-	Claimed       string `form:"claimed,optional"`
-	Page          int64  `form:"page,optional"`
-	PageSize      int64  `form:"pageSize,optional"`
-	MinLat        string `form:"minLat,optional"`
-	MaxLat        string `form:"maxLat,optional"`
-	MinLng        string `form:"minLng,optional"`
-	MaxLng        string `form:"maxLng,optional"`
-	Lat           string `form:"lat,optional"`
-	Lng           string `form:"lng,optional"`
-}
-
-type ListMerchantPlacesResp struct {
-	Items    []MerchantPlaceItem `json:"items"`
-	Total    int64               `json:"total"`
-	Page     int64               `json:"page"`
-	PageSize int64               `json:"pageSize"`
 }
 
 type ListMessagesReq struct {
@@ -1329,15 +1113,6 @@ type ListMyResourcesResp struct {
 	Page     int64            `json:"page"`
 	PageSize int64            `json:"pageSize"`
 	Total    int64            `json:"total"`
-}
-
-type ListNearbyPoisReq struct {
-	Types string `form:"types,optional"`
-	Limit int64  `form:"limit,optional"`
-}
-
-type ListNearbyPoisResp struct {
-	Items []NearbyPoiItem `json:"items"`
 }
 
 type ListQuotaPacksResp struct {
@@ -1392,128 +1167,6 @@ type ManagedMerchantInfo struct {
 	Name          string `json:"name"`
 	Role          string `json:"role"`
 	ProfileStatus string `json:"profileStatus"`
-}
-
-type MapBindCandidateItem struct {
-	ObjectId     string `json:"objectId"`
-	SceneCode    string `json:"sceneCode"`
-	SceneName    string `json:"sceneName"`
-	Code         string `json:"code"`
-	Name         string `json:"name"`
-	Address      string `json:"address,optional"`
-	MerchantId   string `json:"merchantId,optional"`
-	MerchantName string `json:"merchantName,optional"`
-	IsBound      bool   `json:"isBound"`
-}
-
-type MapBindRequestItem struct {
-	Id              string   `json:"id"`
-	MerchantId      string   `json:"merchantId"`
-	MerchantName    string   `json:"merchantName,optional"`
-	ObjectId        string   `json:"objectId"`
-	SceneCode       string   `json:"sceneCode"`
-	SceneName       string   `json:"sceneName,optional"`
-	ObjectCode      string   `json:"objectCode,optional"`
-	ObjectName      string   `json:"objectName,optional"`
-	ApplicantUserId string   `json:"applicantUserId,optional"`
-	EvidenceImages  []string `json:"evidenceImages"`
-	Note            string   `json:"note,optional"`
-	Status          string   `json:"status"`
-	ReviewNote      string   `json:"reviewNote,optional"`
-	ReviewedBy      string   `json:"reviewedBy,optional"`
-	ReviewedAt      string   `json:"reviewedAt,optional"`
-	CreatedAt       string   `json:"createdAt"`
-}
-
-type MapBindingStatusResp struct {
-	BoundObject   *MapBindCandidateItem `json:"boundObject,optional"`
-	LatestRequest *MapBindRequestItem   `json:"latestRequest,optional"`
-}
-
-type MapCategoryItem struct {
-	Code      string `json:"code"`
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	IconUrl   string `json:"iconUrl,optional"`
-	Sort      int64  `json:"sort"`
-	IsVisible bool   `json:"isVisible"`
-	Status    string `json:"status"`
-}
-
-type MapGeometry struct {
-	Type string                 `json:"type"`
-	Data map[string]interface{} `json:"data"`
-}
-
-type MapObjectDetailResp struct {
-	Item MapObjectItem `json:"item"`
-}
-
-type MapObjectItem struct {
-	Id                 string                 `json:"id"`
-	SceneCode          string                 `json:"sceneCode"`
-	MerchantId         string                 `json:"merchantId,optional"`
-	Code               string                 `json:"code"`
-	Name               string                 `json:"name"`
-	Type               string                 `json:"type"`
-	Layer              string                 `json:"layer"`
-	DisplaySource      string                 `json:"displaySource"`
-	DisplayLevel       string                 `json:"displayLevel"`
-	IsVerifiedMerchant bool                   `json:"isVerifiedMerchant"`
-	Merchant           *MapObjectMerchantItem `json:"merchant,optional"`
-	GeometryType       string                 `json:"geometryType"`
-	Geometry           map[string]interface{} `json:"geometry"`
-	CenterX            string                 `json:"centerX,optional"`
-	CenterY            string                 `json:"centerY,optional"`
-	MinZoom            int64                  `json:"minZoom,optional"`
-	MaxZoom            int64                  `json:"maxZoom,optional"`
-	CategoryCodes      []string               `json:"categoryCodes"`
-	ServiceTags        []string               `json:"serviceTags"`
-	PlatformTags       []string               `json:"platformTags"`
-	PoiServiceTags     []string               `json:"poiServiceTags"`
-	Address            string                 `json:"address,optional"`
-	Phone              string                 `json:"phone,optional"`
-	Wechat             string                 `json:"wechat,optional"`
-	Lat                string                 `json:"lat,optional"`
-	Lng                string                 `json:"lng,optional"`
-	Extra              map[string]interface{} `json:"extra"`
-	Status             string                 `json:"status"`
-}
-
-type MapObjectMerchantItem struct {
-	Id                 string   `json:"id"`
-	Name               string   `json:"name"`
-	MerchantType       string   `json:"merchantType"`
-	VerificationStatus string   `json:"verificationStatus"`
-	LogoUrl            string   `json:"logoUrl,optional"`
-	MainCategories     []string `json:"mainCategories"`
-}
-
-type MapObjectReportItem struct {
-	Id                string `json:"id"`
-	Status            string `json:"status"`
-	ActiveReportCount int64  `json:"activeReportCount"`
-	WarningTriggered  bool   `json:"warningTriggered"`
-}
-
-type MapSceneItem struct {
-	Code           string `json:"code"`
-	Name           string `json:"name"`
-	Type           string `json:"type"`
-	ParentCode     string `json:"parentCode,optional"`
-	BackgroundUrl  string `json:"backgroundUrl,optional"`
-	Width          int64  `json:"width,optional"`
-	Height         int64  `json:"height,optional"`
-	DefaultScale   string `json:"defaultScale,optional"`
-	DefaultCenterX string `json:"defaultCenterX,optional"`
-	DefaultCenterY string `json:"defaultCenterY,optional"`
-	FloorNo        string `json:"floorNo,optional"`
-	Sort           int64  `json:"sort"`
-	Status         string `json:"status"`
-}
-
-type MapSceneResp struct {
-	Item MapSceneItem `json:"item"`
 }
 
 type MeResp struct {
@@ -1617,13 +1270,6 @@ type MerchantLast7DaysMetrics struct {
 	ContactClickCount int64 `json:"contactClickCount"`
 }
 
-type MerchantLocationContextResp struct {
-	Current         MerchantPlaceItem   `json:"current"`
-	Nearby          []MerchantPlaceItem `json:"nearby"`
-	RadiusMeters    int64               `json:"radiusMeters"`
-	NearbyAvailable bool                `json:"nearbyAvailable"`
-}
-
 type MerchantLocationInfo struct {
 	MarketName   string  `json:"marketName,optional"`
 	BuildingName string  `json:"buildingName,optional"`
@@ -1643,30 +1289,6 @@ type MerchantMetricsSummaryResp struct {
 	ExpiringResourceCount  int64                    `json:"expiringResourceCount"`
 	DealtResourceCount     int64                    `json:"dealtResourceCount"`
 	Last7Days              MerchantLast7DaysMetrics `json:"last7Days"`
-}
-
-type MerchantPlaceItem struct {
-	ObjectId       string   `json:"objectId"`
-	MerchantId     string   `json:"merchantId,optional"`
-	Name           string   `json:"name"`
-	Code           string   `json:"code"`
-	MerchantType   string   `json:"merchantType,optional"`
-	CategoryCodes  []string `json:"categoryCodes"`
-	ServiceTags    []string `json:"serviceTags"`
-	PlatformTags   []string `json:"platformTags"`
-	CityCode       string   `json:"cityCode,optional"`
-	MarketName     string   `json:"marketName,optional"`
-	BuildingName   string   `json:"buildingName,optional"`
-	FloorNo        string   `json:"floorNo,optional"`
-	Address        string   `json:"address,optional"`
-	CoverUrl       string   `json:"coverUrl,optional"`
-	Claimed        bool     `json:"claimed"`
-	SourceType     string   `json:"sourceType"`
-	Lat            string   `json:"lat,optional"`
-	Lng            string   `json:"lng,optional"`
-	DistanceText   string   `json:"distanceText,optional"`
-	DistanceMeters int64    `json:"distanceMeters,optional"`
-	RiskWarning    bool     `json:"riskWarning,optional"`
 }
 
 type MerchantResourcesSummary struct {
@@ -1718,15 +1340,6 @@ type MyResourceMetrics struct {
 	DetailViewCount int64 `json:"detailViewCount"`
 	PhoneClickCount int64 `json:"phoneClickCount"`
 	WechatCopyCount int64 `json:"wechatCopyCount"`
-}
-
-type NearbyPoiItem struct {
-	Id           string `json:"id"`
-	Name         string `json:"name"`
-	Type         string `json:"type"`
-	DistanceText string `json:"distanceText"`
-	CenterX      string `json:"centerX,optional"`
-	CenterY      string `json:"centerY,optional"`
 }
 
 type PublicGrowthCampaignItem struct {
@@ -2012,26 +1625,6 @@ type SavedSearchResp struct {
 	Id string `json:"id"`
 }
 
-type SearchMapObjectsReq struct {
-	SceneCode      string `form:"sceneCode,optional"`
-	Keyword        string `form:"keyword,optional"`
-	Types          string `form:"types,optional"`
-	Categories     string `form:"categories,optional"`
-	ServiceTags    string `form:"serviceTags,optional"`
-	PoiServiceTags string `form:"poiServiceTags,optional"`
-	MinX           string `form:"minX,optional"`
-	MinY           string `form:"minY,optional"`
-	MaxX           string `form:"maxX,optional"`
-	MaxY           string `form:"maxY,optional"`
-	Zoom           int64  `form:"zoom,optional"`
-	Limit          int64  `form:"limit,optional"`
-}
-
-type SearchMapObjectsResp struct {
-	Items []MapObjectItem `json:"items"`
-	Total int64           `json:"total"`
-}
-
 type SearchResourcesReq struct {
 	CityCode     string `form:"cityCode,optional"`
 	GroupCode    string `form:"groupCode,optional"`
@@ -2059,26 +1652,6 @@ type SetMerchantFollowReq struct {
 
 type SetResourceFavoriteReq struct {
 	Favorited bool `json:"favorited"`
-}
-
-type SubmitMapBindRequestReq struct {
-	ObjectId       string   `json:"objectId"`
-	Note           string   `json:"note,optional"`
-	EvidenceImages []string `json:"evidenceImages,optional"`
-}
-
-type SubmitMapBindRequestResp struct {
-	Item MapBindRequestItem `json:"item"`
-}
-
-type SubmitMapObjectReportReq struct {
-	ReasonCode  string `json:"reasonCode"`
-	Description string `json:"description,optional"`
-}
-
-type SubmitMapObjectReportResp struct {
-	Item    MapObjectReportItem `json:"item"`
-	Message string              `json:"message"`
 }
 
 type SubmitResourceReq struct {

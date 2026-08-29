@@ -65,3 +65,16 @@ func TestCanAccessAdminModuleRejectsUnmappedPathForEveryRole(t *testing.T) {
 		t.Fatal("platform operator should not access an unmapped admin route")
 	}
 }
+
+func TestAdminModulesOmitRetiredSourcingMap(t *testing.T) {
+	for _, modules := range [][]string{AllAdminModules(), ConfigurableAdminModules()} {
+		for _, module := range modules {
+			if module == "sourcing_map" {
+				t.Fatalf("modules = %#v, must not contain retired sourcing_map", modules)
+			}
+		}
+	}
+	if modules := NormalizeConfigurableAdminModules([]string{"sourcing_map"}); len(modules) != 0 {
+		t.Fatalf("NormalizeConfigurableAdminModules() = %#v, want retired module removed", modules)
+	}
+}

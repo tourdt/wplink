@@ -17,7 +17,7 @@ func TestAdminModuleForPathMapsEveryCurrentAdminModule(t *testing.T) {
 		{name: "hot search", path: "/api/v1/admin/hot-search-keywords/keyword-1", want: AdminModuleHotSearchKeywords},
 		{name: "VIP", path: "/api/v1/admin/vip/plans", want: AdminModuleVIPConfigs},
 		{name: "growth", path: "/api/v1/admin/growth-campaigns/invite", want: AdminModuleGrowthCampaigns},
-		{name: "map", path: "/api/v1/admin/map/scenes", want: AdminModuleSourcingMap},
+		{name: "retired map", path: "/api/v1/admin/map/scenes", want: ""},
 		{name: "resource type", path: "/api/v1/admin/resource-type-configs/config-1", want: AdminModuleResourceTypeConfigs},
 		{name: "operators", path: "/api/v1/admin/operators/operator-1", want: AdminModuleAdminPermissions},
 		{name: "module permissions", path: "/api/v1/admin/module-permissions/platform_operator", want: AdminModuleAdminPermissions},

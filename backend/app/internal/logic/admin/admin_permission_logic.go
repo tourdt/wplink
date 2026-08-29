@@ -412,7 +412,6 @@ func adminModuleItems() []AdminModuleItem {
 		permission.AdminModuleHotSearchKeywords:   {Code: permission.AdminModuleHotSearchKeywords, Label: "热门搜索词", Group: "运营配置"},
 		permission.AdminModuleVIPConfigs:          {Code: permission.AdminModuleVIPConfigs, Label: "VIP 配置", Group: "运营配置"},
 		permission.AdminModuleGrowthCampaigns:     {Code: permission.AdminModuleGrowthCampaigns, Label: "增长活动", Group: "运营配置"},
-		permission.AdminModuleSourcingMap:         {Code: permission.AdminModuleSourcingMap, Label: "拿货地图", Group: "运营配置"},
 		permission.AdminModuleResourceTypeConfigs: {Code: permission.AdminModuleResourceTypeConfigs, Label: "供需类型配置", Group: "运营配置"},
 		permission.AdminModuleOperationLogs:       {Code: permission.AdminModuleOperationLogs, Label: "操作日志", Group: "日志"},
 		permission.AdminModuleSearchLogs:          {Code: permission.AdminModuleSearchLogs, Label: "搜索日志", Group: "日志"},

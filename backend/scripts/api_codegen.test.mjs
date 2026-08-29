@@ -187,7 +187,22 @@ import "zmall/common/response"
 test('write assigns a deterministic unique alias when map and maphandler groups coexist', () => {
   const { fixtureDir, fixtureBackendDir } = createBackendFixture()
   try {
-    fs.appendFileSync(path.join(fixtureBackendDir, 'app/api/app.api'), '\nimport "maphandler_collision.api"\n')
+    fs.appendFileSync(path.join(fixtureBackendDir, 'app/api/app.api'), '\nimport "map_collision.api"\nimport "maphandler_collision.api"\n')
+    writeFixtureFile(
+      fixtureBackendDir,
+      'app/api/map_collision.api',
+      `syntax = "v1"
+
+@server (
+  prefix: /api/v1/alias-collision
+  group: map
+)
+service wplink-api {
+  @handler AliasMapCollisionProbe
+  get /map-probe
+}
+`,
+    )
     writeFixtureFile(
       fixtureBackendDir,
       'app/api/maphandler_collision.api',
@@ -212,10 +227,10 @@ service wplink-api {
     const firstRoutes = fs.readFileSync(routesPath, 'utf8')
     assert.match(firstRoutes, /maphandler2 "wplink\/backend\/app\/internal\/handler\/map"/)
     assert.match(firstRoutes, /maphandler "wplink\/backend\/app\/internal\/handler\/maphandler"/)
-    assert.match(firstRoutes, /maphandler2\.ListMapScenesHandler/)
+    assert.match(firstRoutes, /maphandler2\.AliasMapCollisionProbeHandler/)
     assert.match(firstRoutes, /maphandler\.AliasCollisionProbeHandler/)
     assert.match(
-      fs.readFileSync(path.join(fixtureBackendDir, 'app/internal/handler/map/list_map_scenes_handler.go'), 'utf8'),
+      fs.readFileSync(path.join(fixtureBackendDir, 'app/internal/handler/map/alias_map_collision_probe_handler.go'), 'utf8'),
       /^package maphandler$/m,
     )
 

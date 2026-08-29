@@ -23,8 +23,6 @@ func AdminModuleForPath(path string) string {
 		return AdminModuleVIPConfigs
 	case adminPathMatches(path, "/api/v1/admin/growth-campaigns"):
 		return AdminModuleGrowthCampaigns
-	case adminPathMatches(path, "/api/v1/admin/map"):
-		return AdminModuleSourcingMap
 	case adminPathMatches(path, "/api/v1/admin/resource-type-configs"):
 		return AdminModuleResourceTypeConfigs
 	case adminPathMatches(path, "/api/v1/admin/operators"), adminPathMatches(path, "/api/v1/admin/module-permissions"):

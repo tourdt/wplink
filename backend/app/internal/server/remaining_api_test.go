@@ -977,13 +977,16 @@ func assertCompleteAdminModulePermissionDTO(t *testing.T, data map[string]interf
 		t.Fatalf("data=%#v, want only modules and roles", data)
 	}
 	modules, ok := data["modules"].([]interface{})
-	if !ok || len(modules) != 13 {
-		t.Fatalf("modules=%#v, want all 13 configurable modules", data["modules"])
+	if !ok || len(modules) != 12 {
+		t.Fatalf("modules=%#v, want all 12 configurable modules", data["modules"])
 	}
 	for _, module := range modules {
 		item, ok := module.(map[string]interface{})
 		if !ok || len(item) != 3 || item["code"] == "" || item["label"] == "" || item["group"] == "" {
 			t.Fatalf("module=%#v, want complete code/label/group DTO", module)
+		}
+		if item["code"] == "sourcing_map" {
+			t.Fatalf("module=%#v, must not expose retired sourcing_map", module)
 		}
 	}
 	roles, ok := data["roles"].([]interface{})

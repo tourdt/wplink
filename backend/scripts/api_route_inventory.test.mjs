@@ -67,6 +67,16 @@ test('text CLI reports current contract and generated route parity', () => {
   assert.doesNotMatch(result.stdout, /legacy|旧 Router/i)
 })
 
+test('production contract contains only merchant-owned location APIs', () => {
+  const apiDir = path.join(backendDir, 'app/api')
+  const paths = parseAPIContracts(apiDir).map((route) => route.path)
+  for (const fragment of ['/map/scenes', '/map/objects', '/map/categories', '/map/bind-candidates', '/map-binding']) {
+    assert.equal(paths.some((routePath) => routePath.includes(fragment)), false, `retired route remains: ${fragment}`)
+  }
+  assert.equal(paths.includes('/api/v1/merchant-directory'), true)
+  assert.equal(paths.includes('/api/v1/merchants/:merchantId/location-context'), true)
+})
+
 test('parses imported API contracts with prefixes and retains duplicate handlers', () => {
   withFixture({
     'app.api': 'import "public.api"\nimport "admin.api"\n',
