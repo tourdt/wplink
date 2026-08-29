@@ -1,8 +1,8 @@
 # 衣货通项目现状架构与系统维护手册
 
-版本：v1.1
+版本：v1.2
 
-基线日期：2026-08-06
+基线日期：2026-08-29
 
 适用仓库：`wplink`
 
@@ -35,7 +35,7 @@
 衣货通是面向服装产业带的供需信息平台。当前系统围绕三类核心主体组织：
 
 - 用户：通过微信小程序登录、浏览、搜索、收藏、关注和联系，也可以管理自己的默认商家。
-- 商家：承载公开资料、联系方式、供需信息、地图位置、会员、权益和经营指标。
+- 商家：承载公开资料、联系方式、供需信息、可选的腾讯地图位置、会员、权益和经营指标。
 - 资源：平台统一的供需信息对象，通过 `direction` 区分供应方向和需求方向，通过 `type_code` 区分具体业务类型。
 
 最重要的建模原则是：所有供需内容统一落在 `resources` 表，不按业务类别拆独立内容表；不同类别的发布字段、展示名称和商业规则由 `resource_type_configs` 配置驱动。
@@ -51,6 +51,8 @@ flowchart LR
   wxapp --> api["Go + go-zero 单体 API"]
   admin --> api
   api --> pg["PostgreSQL"]
+  wxapp --> directory["织里真实商家目录"]
+  directory --> api
   api --> wechat["微信登录、内容安全、微信支付"]
   api --> qiniu["七牛 Kodo 对象存储"]
   api --> tmap["腾讯地图逆地理编码"]
@@ -66,18 +68,18 @@ flowchart LR
 
 | 工程 | 目录 | 运行形态 | 主要职责 |
 |---|---|---|---|
-| 微信小程序 | `wxapp/` | uni-app 编译为微信小程序 | 用户登录、浏览搜索、发布管理、地图、会员权益、互动 |
-| 管理后台 | `admin-web/` | Vue 3 SPA，构建后嵌入 Go 二进制 | 审核、配置、运营、权限、日志和地图数据管理 |
+| 微信小程序 | `wxapp/` | uni-app 编译为微信小程序 | 用户登录、浏览搜索、发布管理、商家目录与位置导航、会员权益、互动 |
+| 管理后台 | `admin-web/` | Vue 3 SPA，构建后嵌入 Go 二进制 | 审核、配置、运营、权限、日志和商家位置异常治理 |
 | API 服务 | `backend/` | Go 1.23 + go-zero 单体服务 | 业务规则、权限、数据访问、第三方集成和定时任务 |
 | 数据库 | `backend/migrations/` | PostgreSQL | 业务数据、审计数据、任务状态和配置数据 |
 | 部署 | `deploy/` | Nginx + systemd + Shell | 构建、上传、迁移、重启和健康检查 |
 
-截至本文基线，仓库包含 32 对数据库迁移、53 张唯一业务/支撑表、24 个注册小程序页面、14 个后台业务路由、69 个非测试 Logic 文件和 64 个非测试 Model 文件。
+实际路由、页面、数据表和迁移数量以当前契约、注册文件与迁移目录为准；本文不锁定易随实现变化的文件计数。
 
 ### 3.2 当前不包含的基础设施
 
 - 没有独立微服务或 go-zero RPC 服务。
-- 没有实际接入 Redis；登录态使用自包含 HMAC Token，短信发送限流由 PostgreSQL 共享状态保证跨实例一致性，地图行为等局部保护仍需按各自实现评估；自动任务由 PostgreSQL Advisory Lock 协调。
+- 没有实际接入 Redis；登录态使用自包含 HMAC Token，短信发送限流由 PostgreSQL 共享状态保证跨实例一致性，商家目录行为上报使用单进程限流；自动任务由 PostgreSQL Advisory Lock 协调。
 - 没有独立消息队列或任务 Worker；自动任务随 API 进程启动。
 - 没有独立搜索引擎；搜索依赖 PostgreSQL 文本匹配、`pg_trgm` 和 GIN 索引。
 - 没有独立静态站点服务；管理后台资源通过 Go `embed` 提供。
@@ -146,7 +148,7 @@ wplink/
 5. 建立 PostgreSQL 连接池。
 6. 创建 `ServiceContext`，装配 Model、Token、微信、短信、支付、审核、上传和地图客户端。
 7. 生产模式调用 `svc.ValidateAPIServiceContext` 校验完整 API 依赖；任何必需依赖缺失都在监听端口前终止启动。
-8. 启动资源生命周期、内容审核重试、支付补偿、地图行为清理任务。
+8. 启动资源生命周期、内容审核重试、支付补偿、商家目录行为清理任务。
 9. 调用 `server.NewGoZeroServer` 创建 go-zero HTTP Server；其中调用 `handler.RegisterHandlers` 一次性注册 `.api` 生成的全部业务路由。
 10. 监听配置的 Host/Port 并开始服务。
 
@@ -175,7 +177,7 @@ wplink/
 
 `ServiceContext` 是后端依赖入口，主要成员包括：
 
-- `APIStore`：组合城市、资源、商家、会员、权益、消息、互动、地图、增长、后台等 Model。
+- `APIStore`：组合城市、资源、商家、商家目录与位置报告、会员、权益、消息、互动、增长、后台等 Model。
 - `AdminLoginService` / `AdminTokenService`：后台登录与会话实时校验。
 - `UserTokenService`：小程序用户 Token 签发和账号状态实时校验。
 - `WechatSessionClient`：微信 `code2session` 和手机号能力。
@@ -194,7 +196,7 @@ Logic 通过小接口声明所需能力，`APIStore` 依靠 Go 接口组合满�
 - 主体业务 Model 多使用 `database/sql` 手写 PostgreSQL SQL。
 - goctl 生成的基础 Model 和部分新 Model 使用 `sqlx.SqlConn`。
 - `backend/app/internal/model/db.go` 提供连接池设置和 `WithTx` 事务包装。
-- 资源发布、权益扣减、支付到账、会员权益发放、地图绑定等关键流程在数据库事务中执行。
+- 资源发布、权益扣减、支付到账、会员权益发放、位置报告阈值隐藏与商家重新选点结案等关键流程在数据库事务中执行。
 - 并发安全主要依赖条件更新、唯一索引、事务和必要的行锁，不依赖进程内互斥锁。
 
 所有 bigint ID 通过 PostgreSQL `next_tsid()` 生成，API 层统一转成字符串，避免 JavaScript 对 64 位整数的精度丢失。`postgresTextIDRows` 会将 `id`、`*_id`、`created_by`、`reviewed_by` 等字段转换为文本读取。
@@ -285,7 +287,9 @@ Logic 通过小接口声明所需能力，`APIStore` 依靠 Go 接口组合满�
 
 功能：默认商家、商家公开资料、商家资料维护、最近入驻商家、管理权限关系。
 
-商家资料包括名称、商家类型、主营分类、简介、联系人、电话、微信、地址、坐标、Logo、相册、资料完整状态和入驻时间。公开读取会隐藏或脱敏敏感联系方式；商家 owner 编辑时才返回可编辑信息。
+商家资料包括名称、商家类型、主营分类、简介、联系人、电话、微信、地址、Logo、相册、资料完整状态和入驻时间。位置是可选资料：商家自主选择腾讯地图位置，同时维护市场、楼栋、楼层和档口号；也可清除已选位置。手工改文字地址时小程序会清除旧坐标，防止地址和导航位置漂移。公开读取会隐藏或脱敏敏感联系方式；商家 owner 编辑时才返回可编辑信息。
+
+未设置位置不影响商家保存资料、展示主页、发布或管理供需信息，但该商家不进入拿货档口目录，也不提供位置页、附近商家或导航入口。
 
 商家名称有独立业务校验；商家类型变更写入 `merchant_type_change_logs`。`merchant_no` 使用独立序列生成稳定的展示编号，不使用主键直接作为业务编号。
 
@@ -464,42 +468,41 @@ VIP 商品分为套餐和次数包：
 
 ### 6.13 指标与行为数据
 
-功能：资源曝光、详情浏览、联系动作、商家汇总指标和地图行为事件。
+功能：资源曝光、详情浏览、联系动作、商家汇总指标和商家目录行为事件。
 
 资源列表通过 `ResourceExposure` 组件批量上报曝光，后端写入明细事件并更新每日聚合。详情浏览、电话、微信、分享等行为进入对应指标。商家和单资源指标属于私有经营数据，需要商家管理权限或后台权限。
 
-地图行为支持匿名 `visitorKey` 和登录用户归因。接口限制请求体大小、拒绝未知字段，并使用单进程 IP/访客键限流。明细仅保留配置天数，默认 90 天。
+目录行为支持匿名 `visitorKey` 和登录用户归因，记录曝光、商家点击、位置查看、附近商家交互、导航和位置报告。接口限制请求体大小、拒绝未知字段，并使用单进程 IP/访客键限流。明细仅保留配置天数，默认 90 天，不记录联系方式、Token、详细地址或原始请求体。
 
-主要代码：`logic/metrics/`、`model/resource_metric_daily_model.go`、`model/merchant_map_events_model.go`。
+主要代码：`logic/metrics/`、`model/resource_metric_daily_model.go`、`model/merchant_directory_events_model.go`。
 
-主要数据：`resource_exposure_events`、`resource_contact_events`、`resource_metrics_daily`、`merchant_map_events`。
+主要数据：`resource_exposure_events`、`resource_contact_events`、`resource_metrics_daily`、`merchant_directory_events`。
 
-### 6.14 拿货地图、商家位置与纠错
+### 6.14 织里拿货档口、商家位置与纠错
 
-地图模块同时支持两种视图：
+当前只运营织里站。“拿货档口”是列表优先的真实商家目录：公开接口只返回商家状态 `active`、资料状态 `completed`、位置状态 `visible` 且经纬度有效的真实入驻商家。列表支持商家名、市场、楼栋、档口号关键词和主营品类筛选，稳定分页。
 
-- 腾讯地图商家点位：以真实经纬度查询当前视野、附近商家和距离。
-- 场景画布：`map_scene` + `map_object` 表达市场、楼层、档口和配套点位，使用归一化画布坐标和缩放级别。
+商家资料每次保存都明确传入 `locationAction=set|clear`。`set` 使有效位置立即成为 `visible`，不经过人工审核；`clear` 清空经纬度、位置名和结构化档口字段，状态变为 `hidden`。
 
-公开端只读取已发布场景和点位，支持视野范围、缩放级别、类型、分类、关键词和附近 POI。商家点位只在满足公开状态和有效坐标时展示，公开响应隐藏敏感联系方式。
+单商家位置页使用微信原生 `<map>` 和 `uni.openLocation`。位置上下文以当前商家为原点，先用经纬度外接矩形粗筛，再用 Haversine 计算精确距离，只返回 1000 米内最近 20 家。附近查询失败时仍保留当前商家和导航。
 
-商家可从候选点位发起绑定申请；运营审核通过后，在事务中建立商家与地图对象的一对一关系。用户可提交位置纠错或风险举报，聚合达到规则阈值时可以自动给点位加风险提示。
+已登录用户可提交位置错误报告。同一用户对同一商家最多一条 `pending` 报告；三名不同用户的待处理报告在同一事务中将位置自动改为 `risk_hidden`，目录和位置接口立即不再公开。商家重新选择有效位置后恢复 `visible`，历史待处理报告统一结案并保留审计记录。后台在商家管理中查询和处理报告，人工隐藏或恢复位置，并写入 `operation_logs`。
 
-商家编辑地址时可调用腾讯地图逆地理编码；腾讯配额异常会映射为可识别的限流错误。
+腾讯逆地理编码仍作为服务端外部依赖；超时、配额和参数异常映射为安全中文错误，`external_call` 只记录白名单字段。
 
-主要代码：`logic/map/`、`logic/location/`、`model/map_model.go`、`wxapp/pages/sourcing-map/`、`admin-web/src/views/SourcingMapView.vue`。
+主要代码：`logic/merchant/`、`logic/location/`、`model/merchant_model.go`、`model/merchant_location_report_model.go`、`wxapp/pages/sourcing-map/`、`wxapp/pages/merchant/location.vue`、`admin-web/src/views/MerchantView.vue`。
 
-主要数据：`map_scene`、`map_object`、`map_category`、`map_object_bind_request`、`map_object_reports`、`merchant_map_events`。
+主要数据：`merchants`、`merchant_location_reports`、`merchant_directory_events`、`operation_logs`。
 
 ### 6.15 举报与平台治理
 
 登录用户可以对公开资源提交标准原因和最多 200 字说明。同一用户对同一资源的未处理举报受唯一索引约束。运营后台查看举报详情、证据和资源快照，可执行忽略、下架等处理，并写入操作日志。
 
-地图纠错和风险举报使用独立 `map_object_reports`，不与资源举报混表。
+商家位置纠错使用独立 `merchant_location_reports`，不与资源举报混表。资源举报由资源审核模块处理；位置报告由商家管理模块处理。
 
-主要代码：`logic/resource/report_resource_logic.go`、`logic/admin/resource_report_logic.go`、`logic/map/report_logic.go`。
+主要代码：`logic/resource/report_resource_logic.go`、`logic/admin/resource_report_logic.go`、`logic/merchant/location_report_logic.go`、`logic/admin/merchant_admin_logic.go`。
 
-主要数据：`resource_reports`、`map_object_reports`、`operation_logs`。
+主要数据：`resource_reports`、`merchant_location_reports`、`operation_logs`。
 
 ### 6.16 图片上传
 
@@ -527,7 +530,7 @@ VIP 商品分为套餐和次数包：
 - 热门搜索词
 - VIP 与次数包配置
 - 增长活动配置
-- 拿货地图配置
+- 商家位置异常治理
 - 资源类型配置
 - 后台账号与模块权限
 - 操作日志
@@ -539,13 +542,13 @@ VIP 商品分为套餐和次数包：
 
 线上 API 能力以 `backend/app/api/app.api` 的 import 链为准，聚合契约中的各领域均通过生成路由进入正式 Handler。某项能力若暂不开放，应通过产品入口、权限或明确业务状态控制，不能依赖缺少 Handler 或省略运行时路由。
 
-`merchants.verification_status` 等历史字段仍可能被展示 DTO 读取。后续如清理字段，需要同时检查迁移、生成 Model、收藏列表、地图展示和历史数据，不能只修改接口契约。
+`merchants.verification_status` 等历史字段仍可能被展示 DTO 读取。后续如清理字段，需要同时检查迁移、生成 Model、收藏列表、商家目录与历史数据，不能只修改接口契约。
 
 ## 7. 小程序架构
 
 ### 7.1 页面组织
 
-五个 Tab 页面为：首页、拿货档口、发布、供需、我的。其他页面按业务跳转，包括搜索、登录、协议、账号设置、我的发布、新手权益、VIP、收藏关注、资源详情与举报、商家详情与资料、地图绑定、专题和 WebView。
+五个 Tab 页面为：首页、拿货档口、发布、供需、我的。其他页面按业务跳转，包括搜索、登录、协议、账号设置、我的发布、新手权益、VIP、收藏关注、资源详情与举报、商家详情、商家资料、商家位置、专题和 WebView。
 
 关键页面职责：
 
@@ -554,7 +557,8 @@ VIP 商品分为套餐和次数包：
 | `pages/home/index.vue` | 运营位、资源流、最近入驻商家 |
 | `pages/market/index.vue` | 供应/需求方向市场和分类筛选 |
 | `pages/search/index.vue` | 关键词、类型、分类、地区搜索 |
-| `pages/sourcing-map/index.vue` | 腾讯地图商家点位与附近商家 |
+| `pages/sourcing-map/index.vue` | 列表优先的织里真实商家目录 |
+| `pages/merchant/location.vue` | 当前商家位置、1000 米内附近商家、导航与纠错 |
 | `pages/publish/index.vue` | 读取类型配置并创建资源/草稿 |
 | `pages/my-resources/index.vue` | 按状态管理自己的资源 |
 | `pages/resource/detail.vue` | 详情、联系方式权限、互动、指标、相关推荐 |
@@ -562,7 +566,7 @@ VIP 商品分为套餐和次数包：
 | `pages/vip/index.vue` | VIP、次数包和支付入口 |
 | `pages/my/growth-entitlement.vue` | 成长任务与权益余额 |
 
-`pages/sourcing-map/legacy-canvas.vue` 未注册为页面，属于旧场景画布实现残留；当前公开入口使用 `index.vue`。修改地图时应确认目标是腾讯地图点位还是后台场景画布，避免误改未使用文件。
+拿货档口 Tab 不请求用户实时位置；只有用户进入单商家位置页时才展示微信原生地图和附近商家。
 
 ### 7.2 请求与会话
 
@@ -582,7 +586,7 @@ VIP 商品分为套餐和次数包：
 
 资源展示主要复用 `ResourceCard`、`ResourceFeedCard`、`ResourceList`、`ResourceExposure`；发布复用 `ResourcePublishForm`；商家展示复用 `MerchantListItem`、`MerchantPlaceCard` 等。
 
-复杂页面状态尽量拆到 `common/*.js` 或页面旁的纯 JS 文件，并用 Node Test 验证。例如资源详情展示、地图手势、地图对象状态、卡片状态、商家位置状态均有独立测试。维护大型 `.vue` 文件时，应继续把可纯化的计算和状态转换提取出来，避免页面文件继续膨胀。
+复杂页面状态尽量拆到 `common/*.js` 或页面旁的纯 JS 文件，并用 Node Test 验证。例如资源详情展示、商家目录分页、附近商家 Marker 联动、卡片状态、商家位置意图与请求代次都有独立测试。维护大型 `.vue` 文件时，应继续把可纯化的计算和状态转换提取出来，避免页面文件继续膨胀。
 
 ## 8. 管理后台架构
 
@@ -621,7 +625,7 @@ VIP 商品分为套餐和次数包：
 | 联系与指标 | `resource_contact_events`、`resource_contact_unlock_orders`、`resource_contact_unlocks`、`resource_exposure_events`、`resource_metrics_daily` |
 | 会员与权益 | `vip_plans`、`vip_plan_versions`、`vip_quota_packs`、`vip_promotions`、`vip_orders`、`merchant_vip_subscriptions`、`merchant_entitlements`、`merchant_entitlement_usage_records` |
 | 增长 | `growth_campaigns`、`growth_campaign_rules`、`growth_reward_grants` |
-| 地图 | `map_scene`、`map_object`、`map_category`、`map_object_bind_request`、`map_object_reports`、`merchant_map_events` |
+| 商家目录与位置治理 | `merchants`中的位置字段、`merchant_location_reports`、`merchant_directory_events` |
 | 消息与审计 | `messages`、`operation_logs` |
 
 ### 9.2 核心关系
@@ -645,8 +649,9 @@ erDiagram
   merchants ||--o{ vip_orders : purchases
   growth_campaigns ||--o{ growth_campaign_rules : contains
   growth_campaign_rules ||--o{ growth_reward_grants : grants
-  map_scene ||--o{ map_object : contains
-  merchants o|--o| map_object : binds
+  merchants ||--o{ merchant_location_reports : receives
+  users ||--o{ merchant_location_reports : submits
+  merchants ||--o{ merchant_directory_events : attributes
 ```
 
 ### 9.3 数据设计约定
@@ -656,8 +661,8 @@ erDiagram
 - 扩展字段：`jsonb`，用于动态字段、规则、配置和第三方原始载荷。
 - 软删除：核心对象使用状态或 `deleted_at`，审计类数据通常不物理删除。
 - 配置快照：资源、订单和权益保存创建时快照，避免历史语义漂移。
-- 幂等：支付、消息、审核回调、增长奖励、举报和绑定关系通过唯一约束与条件更新保证。
-- 搜索索引：资源文字使用 trigram，JSON/标签使用 GIN，常用列表按城市、方向、类型、状态、时间建立组合索引。
+- 幂等：支付、消息、审核回调、增长奖励和举报通过唯一约束与条件更新保证。
+- 搜索索引：资源文字使用 trigram，JSON/标签使用 GIN；商家目录使用城市、商家状态、资料状态、位置状态组合索引，以及主营品类 GIN 和市场/档口号 trigram 索引。
 
 ### 9.4 迁移管理
 
@@ -706,7 +711,7 @@ erDiagram
 | 资源生命周期 | `1h` / `5m` | `1001` | 资源状态条件更新；提醒消息唯一约束 |
 | 内容审核重试 | `1m` / `10m` | `1002` | `FOR UPDATE SKIP LOCKED`、`audit_processing_by + audit_lease_until` 租约；超限转人工 |
 | 支付补偿 | `1m` / `5m` | `1003` | pending 条件更新、支付到账事务幂等；单笔失败继续批次 |
-| 地图行为清理 | `24h` / `10m` | `1004` | 按保留期条件删除，重复执行幂等 |
+| 商家目录行为清理 | `24h` / `10m` | `1004` | 按保留期条件删除，重复执行幂等 |
 
 保护分为两层。Advisory Lock 只保证连接正常期间同类任务最多有一个执行者，减少重复扫描和第三方调用；业务幂等、条件更新与内容审核租约继续负责连接中断、进程退出和旧结果迟到边界，不能因为有锁而删除。四种任务锁不同，最坏可同时占用四条专用数据库连接；Coordinator 必须直连 PostgreSQL，或经过保证后端会话粘性的 session-pooling，transaction-pooling 不适用于 session-level Advisory Lock。
 
@@ -791,7 +796,7 @@ make check-dependencies
 
 小程序目前保留 Uni App Alpha 发行线。由于该上游插件将 Vite peer 依赖精确锁定在已知不安全版本，`wxapp/.npmrc` 以 `legacy-peer-deps=true` 处理该单一冲突；不得删除小程序的安装、审计和构建检查，也不得用 audit 忽略名单替代真实升级。当前上游仍有低/中危传递依赖，`high/critical` 门禁会阻断其升级为高危后的任何提交。
 
-当前仓库大约有 108 个 Go 测试文件、56 个小程序 Node 测试文件和 7 个后台脚本测试文件。测试重点覆盖业务 Logic、Model SQL、路由权限、内容审核、支付幂等、任务调度、地图算法和前端纯状态逻辑。
+自动测试重点覆盖业务 Logic、Model SQL、路由权限、内容审核、支付幂等、任务调度、目录搜索与距离算法、位置风险治理和前端纯状态逻辑。
 
 涉及数据库迁移时，`make check` 不能替代真实 PostgreSQL up/down 验证；涉及微信、支付、地图、短信和上传时，自动测试也不能替代测试环境端到端验收。
 
@@ -804,7 +809,7 @@ make check-dependencies
 - 支付：业务类型、业务订单 ID、商户订单号、微信交易号，禁止记录密钥和完整敏感载荷。
 - 内容审核：`resourceId`、decision、trace ID、重试次数。
 - 权益：`merchantId`、entitlement ID、使用动作、关联资源。
-- 地图：scene/object/merchant ID、举报或绑定申请 ID。
+- 商家位置：`merchantId`、旧/新 `locationStatus`、报告 ID、待处理的不同用户数、操作来源；不记录精确坐标、详细地址或联系方式。
 - 自动任务：扫描数、成功数、失败数、转人工数和删除数。
 - 第三方 HTTP 调用：一条 `event=external_call` 事件，字段为 `provider`、`operation`、`outcome`、`duration_ms`，有响应时附带 `status_code`。按第 10.1 节白名单记录；不能将手机号、Token、签名、密钥、请求/响应体或原始错误全文放入该事件。
 
@@ -822,7 +827,9 @@ make check-dependencies
 | 图片一直审核中 | 审核任务状态、微信回调可达性、回调签名和重试任务 |
 | 支付后未到账 | `vip_orders`/解锁订单、统一回调日志、支付补偿任务 |
 | 权益余额异常 | `merchant_entitlements` 与 usage records，检查事务和重复事件 |
-| 地图不显示商家 | 坐标有效性、公开状态、点位绑定、视野参数和分类筛选 |
+| 拿货档口不显示商家 | 站点是否为 `zhili`，商家是否 `active`、资料是否 `completed`、位置是否 `visible`，经纬度是否有效 |
+| 位置页没有附近商家 | `location-context` 日志、当前商家公开条件、1000 米半径、20 家上限与 `nearbyAvailable` |
+| 商家位置突然不公开 | `merchant_location_reports` 的 `pending` 不同用户数、`location_status`、商家是否重新选点、`operation_logs` |
 | 后台页面无权限 | Token roles/modules、角色模块配置、路由 `moduleCode` 和后端路径映射 |
 
 ## 16. 当前技术债与维护风险
@@ -833,7 +840,7 @@ make check-dependencies
 
 ### 16.2 单体大文件
 
-后台 `SourcingMapView.vue`、`ResourceTypeConfigView.vue` 以及多个小程序页面体积较大。后端 Handler 已按生成 group 分包，新增实现应继续保持 Handler 薄、Logic 聚焦领域流程；修改大文件时优先提取可独立验证的纯逻辑，但不要为拆文件改变业务行为。
+`ResourceTypeConfigView.vue`、`MerchantView.vue` 以及多个小程序页面体积较大。后端 Handler 已按生成 group 分包，新增实现应继续保持 Handler 薄、Logic 聚焦领域流程；修改大文件时优先提取可独立验证的纯逻辑，但不要为拆文件改变业务行为。
 
 ### 16.3 跨实例短信限流的长期验证门禁
 
@@ -845,9 +852,9 @@ make check-dependencies
 
 微信、腾讯地图、短信和支付已有统一 `external_call` 调用日志，以及各客户端既有的超时和安全错误映射；当前尚未部署指标/告警平台，也没有统一熔断器或公共自动重试层。先基于生产日志观察真实调用基线，再决定是否按 `provider + operation` 引入指标平台、熔断或受控重试，不能把文档中的建议当作已上线能力。
 
-### 16.5 历史数据与未启用页面
+### 16.5 商家位置质量与目录观测
 
-部分旧状态字段和未注册的地图画布页面仍存在。清理前必须通过引用搜索、契约测试、迁移验证和历史数据检查确认影响范围，不能直接按“当前页面未使用”删除。
+当前位置质量主要依赖商家自主维护与用户报告。`merchant_directory_events` 已记录目录、位置页、附近商家和导航行为，但当前没有独立指标平台和自动告警。上线后应先建立位置报告率、`risk_hidden` 数量、附近查询失败率和导航点击的基线，再决定是否增加告警。
 
 ### 16.6 文档来源与依赖安全治理
 

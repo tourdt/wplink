@@ -40,6 +40,21 @@ test('当前架构文档声明历史归档文档不得作为当前依据', () =>
   )
 })
 
+test('当前文档只描述商家自主位置，不包含旧自定义地图运营', () => {
+  const architectureSource = fs.readFileSync(path.join(productDocsDir, 'technical-architecture.md'), 'utf8')
+
+  for (const retiredCapability of ['地图场景', '画布', '预录档口', '绑定申请']) {
+    assert.equal(
+      architectureSource.includes(retiredCapability),
+      false,
+      `technical-architecture.md still describes ${retiredCapability}`,
+    )
+  }
+  assert.match(architectureSource, /商家自主选择腾讯地图位置/)
+  assert.match(architectureSource, /merchant_location_reports/)
+  assert.match(architectureSource, /merchant_directory_events/)
+})
+
 test('本地检查与 CI 都执行文档来源治理校验', () => {
   const makefileSource = fs.readFileSync(path.join(repositoryRoot, 'Makefile'), 'utf8')
   const workflowSource = fs.readFileSync(path.join(repositoryRoot, '.github/workflows/ci.yml'), 'utf8')

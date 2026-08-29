@@ -85,13 +85,27 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 - `AdminAuth.TokenSecret`
 - `UserAuth.TokenSecret`
 - `Wechat.AppID`、`Wechat.AppSecret`
+- `TencentMap.Key`、`TencentMap.RequestTimeout`；用于腾讯地图逆地理编码
 - `SMS.Provider`，以及对应供应商所需字段；`http` 模式需要 `SMS.SendURL`、`SMS.VerifyURL`、`SMS.AccessKeySecret`
 - `Tasks.ResourceLifecycleInterval`
 - `Storage.Provider`、`Storage.Endpoint`、`Storage.Bucket`、`Storage.AccessKeyID`、`Storage.AccessKeySecret`、`Storage.PublicBaseURL`
 
-## 微信与短信
+## 微信、腾讯地图与短信
 
 微信登录通过 `jscode2session` 获取 OpenID，手机号授权也直接调用微信接口。本地、测试和生产环境均须使用测试或正式小程序实际生成的 code，并配置与该小程序匹配的 `Wechat.AppID`、`Wechat.AppSecret`。文字审核会直接调用微信内容安全接口；启用图片审核时，测试和生产环境都须配置微信可访问的 HTTPS 回调地址 `/api/v1/wechat/content-audit/media-callback`。
+
+商家选点使用小程序原生 `uni.chooseLocation`；服务端仍保留腾讯逆地理编码，用于将经纬度解析为建议地址和位置名。配置模板为：
+
+```yaml
+TencentMap:
+  Key: "${TENCENT_MAP_KEY}"
+  RequestTimeout: 5s
+```
+
+- `TENCENT_MAP_KEY` 只放在服务器环境变量或密钥系统，不得写入仓库、小程序包、URL 日志或错误文本。
+- `RequestTimeout` 限制单次服务端请求时间，生产模板默认 5 秒。
+- 调用日志使用 `event=external_call`、`provider=tencent_map`、`operation=reverse_geocode`，只记录 `outcome`、`duration_ms` 和可选 `status_code`等白名单字段，禁止记录 Key、完整 URL、详细地址或响应体。
+- 腾讯返回日配额用尽或 HTTP 429 时，接口映射为安全限流错误。运维应按 `provider + operation + outcome` 查看基线，核对腾讯控制台配额与 Key 限制，不得为排障开启敏感请求日志。
 
 短信验证码支持两种落地方式：
 
@@ -141,7 +155,7 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 
 衣货通没有独立 Worker；每个兼容版本的 API 实例都应保持 `Tasks.Enabled: true`，随进程启动同一套 Scheduler。未配置 `Enabled` 时默认启用。`false` 仅用于维护窗口或事故应急停用全部自动任务，不能长期只开一台“主任务实例”，否则会失去自动接管能力。
 
-多实例通过两层机制保护：第一层是 PostgreSQL session-level Advisory Lock，固定锁号为 `1001=resource_lifecycle`、`1002=content_audit_retry`、`1003=payment_reconciliation`、`1004=merchant_map_event_cleanup`；同类任务只有抢锁成功的实例执行，持锁实例退出或会话断开后，其他实例下一周期自动接管。第二层是业务幂等、条件更新以及内容审核的 `audit_processing_by + audit_lease_until` 租约，防止连接异常或旧实例迟到结果破坏业务状态。Advisory Lock 不能替代第二层保护。
+多实例通过两层机制保护：第一层是 PostgreSQL session-level Advisory Lock，固定锁号为 `1001=resource_lifecycle`、`1002=content_audit_retry`、`1003=payment_reconciliation`、`1004=merchant_directory_event_cleanup`；同类任务只有抢锁成功的实例执行，持锁实例退出或会话断开后，其他实例下一周期自动接管。第二层是业务幂等、条件更新以及内容审核的 `audit_processing_by + audit_lease_until` 租约，防止连接异常或旧实例迟到结果破坏业务状态。Advisory Lock 不能替代第二层保护。
 
 生产模板的四个任务超时分别为：
 
@@ -150,7 +164,7 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 | 资源生命周期 | `1h` | `5m` | `1001` |
 | 内容审核重试 | `1m` | `10m` | `1002` |
 | 微信支付补偿 | `1m` | `5m` | `1003` |
-| 商家地图行为清理 | `24h` | `10m` | `1004` |
+| 商家目录行为清理 | `24h` | `10m` | `1004` |
 
 生产模式要求周期与四个 timeout 均大于零。首次从没有固定锁/审核租约的旧版本升级，必须先停止所有旧 Scheduler 再执行 `000035_resource_audit_retry_lease`；只有协议兼容版本之间才能让所有实例保持 `Tasks.Enabled: true` 滚动发布。架构细节见[多实例自动任务架构](../architecture.md)，发布步骤见[多实例自动任务部署与运维](../deployment.md)。
 

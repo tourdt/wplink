@@ -1,7 +1,7 @@
 # API 实施清单
 
 版本：v0.2
-日期：2026-08-06
+日期：2026-08-29
 来源：
 
 - `docs/superpowers/plans/2026-06-27-apparel-platform-current-mvp-todo.md`
@@ -47,12 +47,15 @@
 
 ## 商家
 
-普通用户登录时由后端幂等初始化唯一商家，资料页只更新该商家，不提供再次创建商家的接口。
+普通用户登录时由后端幂等初始化唯一商家，资料页只更新该商家，不提供再次创建商家的接口。位置资料为可选项；未设置位置的商家仍可保存资料、展示主页并发布供需信息，但不进入拿货档口目录。
 
 | 接口 | API 文件 | 后端 Logic | 后台页面 | 小程序页面 | 状态 |
 |---|---|---|---|---|---|
 | `GET /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/get_merchant_logic.go` | 商家详情抽屉 | `wxapp/pages/merchant/detail.vue`，展示商家资料和发布记录 | 已接 handler，测试通过 |
-| `POST /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/update_merchant_logic.go` | 商家编辑 | `wxapp/pages/merchant/profile.vue` 商家资料编辑 | 已接 handler，测试通过 |
+| `POST /api/v1/merchants/:merchantId` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/update_merchant_logic.go` | 商家资料查看 | `wxapp/pages/merchant/profile.vue` 使用 `locationAction=set|clear` 设置或清除腾讯位置 | 已接 handler，测试通过 |
+| `GET /api/v1/merchant-directory` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/directory_logic.go` | 不适用 | `wxapp/pages/sourcing-map/index.vue` 列表优先的织里真实商家目录 | 已接 handler，只返回 `active + completed + visible` 商家 |
+| `GET /api/v1/merchants/:merchantId/location-context` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/directory_logic.go` | 不适用 | `wxapp/pages/merchant/location.vue` 当前商家和 1000 米内最多 20 家附近商家 | 已接 handler，测试通过 |
+| `POST /api/v1/merchants/:merchantId/location-reports` | `backend/app/api/merchant.api` | `backend/app/internal/logic/merchant/location_report_logic.go` | 商家管理中查看后续治理结果 | `wxapp/pages/merchant/location.vue` 登录用户报告位置错误 | 已接 handler，三名不同用户会自动 `risk_hidden` |
 
 ## 供需信息
 
@@ -107,6 +110,7 @@
 |---|---|---|---|---|---|
 | `GET /api/v1/resources/:resourceId/metrics` | `backend/app/api/metrics.api` | `backend/app/internal/logic/metrics/get_resource_metrics_logic.go` | 供需信息效果详情 | 我的发布供需信息卡片/效果页 | 已接 handler，测试通过 |
 | `GET /api/v1/merchants/:merchantId/metrics/summary` | `backend/app/api/metrics.api` | `backend/app/internal/logic/metrics/get_merchant_metrics_logic.go` | 数据概览/商家详情 | 我的页/商家后台入口 | 已接 handler，测试通过 |
+| `POST /api/v1/metrics/merchant-directory-events` | `backend/app/api/metrics.api` | `backend/app/internal/logic/metrics/record_merchant_directory_event_logic.go` | 目录行为数据 | 拿货档口、商家详情和位置页 | 已接 handler，写入 `merchant_directory_events` |
 
 ## 消息
 
@@ -141,6 +145,9 @@
 | `GET /api/v1/admin/search-logs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/search_log_logic.go` | `admin-web/src/views/SearchLogView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/tasks/resource-lifecycle/run` | `backend/app/api/admin.api` | `backend/app/internal/task/resource_lifecycle_task.go` | 运维/运营手动触发 | 不适用 | 已接 handler，测试通过 |
 | `GET /api/v1/admin/merchants` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/merchant_admin_logic.go` | `admin-web/src/views/MerchantView.vue` | 不适用 | 已接 handler，测试通过 |
+| `GET /api/v1/admin/merchants/location-reports` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/merchant_admin_logic.go` | `admin-web/src/views/MerchantView.vue` 位置报告 | 不适用 | 已接 handler，测试通过 |
+| `POST /api/v1/admin/merchants/location-reports/:reportId/review` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/merchant_admin_logic.go` | `admin-web/src/views/MerchantView.vue` 标记有效、无效或已解决 | 不适用 | 已接 handler，写入 `operation_logs` |
+| `POST /api/v1/admin/merchants/:merchantId/location-status` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/merchant_admin_logic.go` | `admin-web/src/views/MerchantView.vue` 隐藏或恢复位置 | 不适用 | 已接 handler，写入 `operation_logs` |
 | `GET /api/v1/admin/resource-type-configs` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/resource_type_config_logic.go` | `admin-web/src/views/ResourceTypeConfigView.vue` | 不适用 | 已接 handler，测试通过 |
 | `POST /api/v1/admin/resource-type-configs/:configId` | `backend/app/api/admin.api` | `backend/app/internal/logic/admin/resource_type_config_logic.go` | `admin-web/src/views/ResourceTypeConfigView.vue` | 不适用 | 已接 handler，测试通过 |
 

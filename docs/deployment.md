@@ -1,6 +1,6 @@
 # 多实例自动任务部署与运维
 
-衣货通不单独部署 Worker。资源生命周期、内容审核重试、微信支付补偿和商家地图行为清理都随每个 API 实例启动；当所有运行版本都支持相同固定锁号和审核租约协议后，多实例之间由 PostgreSQL Advisory Lock 自动协调，不需要指定“唯一任务实例”。首次从不支持该协议的旧版本升级属于例外，必须按本文“首次引入协调协议”停掉旧 Scheduler 后切换。架构原理见[多实例自动任务架构](architecture.md)，可用生产参数见[配置模板](../backend/etc/app.production.yaml.example)。
+衣货通不单独部署 Worker。资源生命周期、内容审核重试、微信支付补偿和商家目录行为清理都随每个 API 实例启动；当所有运行版本都支持相同固定锁号和审核租约协议后，多实例之间由 PostgreSQL Advisory Lock 自动协调，不需要指定“唯一任务实例”。首次从不支持该协议的旧版本升级属于例外，必须按本文“首次引入协调协议”停掉旧 Scheduler 后切换。架构原理见[多实例自动任务架构](architecture.md)，可用生产参数见[配置模板](../backend/etc/app.production.yaml.example)。
 
 ## 生产配置
 
@@ -11,7 +11,7 @@ Tasks:
   Enabled: true
   ResourceLifecycleTimeout: 5m
   ContentAuditRetryTimeout: 10m
-  MerchantMapEventCleanupTimeout: 10m
+  MerchantDirectoryEventCleanupTimeout: 10m
   PaymentReconcileTimeout: 5m
 ```
 
@@ -139,7 +139,7 @@ ORDER BY l.objid, l.pid;
 
 当前四个正数 `int64` 锁号都小于 `2^32`，因此 `pg_try_advisory_lock(bigint)` 在 `pg_locks` 中显示为 `classid = 0`、`objid = 1001..1004`、`objsubid = 1`。因为实现使用 try-lock，不会排队等待，查询通常只看到当前已经 `granted` 的持有者；竞争失败应从 `task_skipped_lock_held` 日志观察。
 
-锁号含义：`1001=resource_lifecycle`、`1002=content_audit_retry`、`1003=payment_reconciliation`、`1004=merchant_map_event_cleanup`。
+锁号含义：`1001=resource_lifecycle`、`1002=content_audit_retry`、`1003=payment_reconciliation`、`1004=merchant_directory_event_cleanup`。
 
 Advisory Lock 不是业务表记录，不能通过删除行解除，也不能在另一个数据库会话调用 `pg_advisory_unlock` 释放持有者的会话锁。异常持锁时先结合 PID、`pg_stat_activity` 和应用日志定位实例，优先让该实例正常退出；连接关闭后 PostgreSQL 自动释放锁。
 
