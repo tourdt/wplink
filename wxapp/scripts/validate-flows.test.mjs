@@ -3,8 +3,34 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { parse as parseVueSfc } from '@vue/compiler-sfc'
 
 import { validateFlows } from './validate-flows.mjs'
+
+function readVueSfc(filePath) {
+  const source = fs.readFileSync(filePath, 'utf8')
+  const { descriptor, errors } = parseVueSfc(source, { filename: filePath })
+  assert.equal(errors.length, 0, errors.join('\n'))
+  return {
+    template: descriptor.template?.content || '',
+    script: descriptor.scriptSetup?.content || descriptor.script?.content || '',
+    styles: descriptor.styles.map((style) => style.content).join('\n'),
+  }
+}
+
+function findFunctionSource(script, functionName) {
+  const start = script.indexOf(`function ${functionName}(`)
+  assert.ok(start >= 0, `missing function ${functionName}`)
+  const bodyStart = script.indexOf('{', start)
+  let depth = 0
+  for (let index = bodyStart; index < script.length; index += 1) {
+    if (script[index] === '{') depth += 1
+    if (script[index] !== '}') continue
+    depth -= 1
+    if (depth === 0) return script.slice(start, index + 1)
+  }
+  assert.fail(`unterminated function ${functionName}`)
+}
 
 test('current wxapp pages satisfy MVP flow checks', () => {
   assert.deepEqual(validateFlows(path.resolve(new URL('..', import.meta.url).pathname)), [])
@@ -1423,44 +1449,69 @@ test('merchant profile page allows merchant type changes without certification w
 
 test('merchant profile page supports map based address selection', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+  const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
 
   for (const token of [
     'chooseMerchantLocation',
     'clearMerchantLocation',
     'uni.chooseLocation',
     'locationSelected',
-    'form.location',
-    '地图选择',
-    '清除位置',
-    '已选地图位置',
-    '可选地图定位',
+    'form.latitude',
+    'form.longitude',
+    'form.locationName',
   ]) {
-    assert.match(source, new RegExp(token))
+    assert.match(profile.script, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 
-  assert.equal(source.includes(':disabled="Boolean(merchantId)" placeholder="请输入地址"'), false)
+  for (const token of ['市场名称', '楼栋 / 区域', '楼层', '档口号', '选择地图位置', '清除地图位置']) {
+    assert.match(profile.template, new RegExp(token))
+  }
+
+  assert.equal(profile.template.includes(':disabled="Boolean(merchantId)" placeholder="请输入地址"'), false)
 })
 
 test('merchant profile map selection writes a detailed address and reverse-geocodes empty results', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+  const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
+  const chooseLocationSource = findFunctionSource(profile.script, 'chooseMerchantLocation')
 
-  assert.match(source, /import \{ reverseGeocodeLocation \} from '\.\.\/\.\.\/api\/location'/)
-  assert.match(source, /success: async \(result\) => \{[\s\S]*await resolveMerchantLocationAddress\(result, latitude, longitude\)[\s\S]*form\.addressText = resolvedAddress\.address/)
-  assert.match(source, /async function resolveMerchantLocationAddress\(result, latitude, longitude\) \{[\s\S]*buildMerchantLocationAddressText\(result\)[\s\S]*reverseGeocodeMerchantLocation\(latitude, longitude, selectedName\)/)
-  assert.match(source, /function buildMerchantLocationAddressText\(result\) \{[\s\S]*if \(address && name && !address\.includes\(name\) && !name\.includes\(address\)\) \{[\s\S]*return `\$\{address\}\$\{name\}`/)
+  assert.match(profile.script, /import \{ reverseGeocodeLocation \} from '\.\.\/\.\.\/api\/location'/)
+  assert.match(chooseLocationSource, /await resolveMerchantLocationAddress\(result, latitude, longitude\)/)
+  assert.match(chooseLocationSource, /form\.latitude = latitude/)
+  assert.match(chooseLocationSource, /form\.longitude = longitude/)
+  assert.match(chooseLocationSource, /form\.locationName = resolvedAddress\.name/)
+  assert.match(chooseLocationSource, /form\.addressText = resolvedAddress\.address/)
+  assert.match(profile.script, /async function resolveMerchantLocationAddress\(result, latitude, longitude\) \{[\s\S]*buildMerchantLocationAddressText\(result\)[\s\S]*reverseGeocodeMerchantLocation\(latitude, longitude, selectedName\)/)
 })
 
 test('merchant profile clears stale map coordinates when the address is edited manually', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+  const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
+  const addressInputSource = findFunctionSource(profile.script, 'handleAddressTextInput')
+  const clearLocationSource = findFunctionSource(profile.script, 'clearMerchantLocation')
 
-  assert.match(source, /v-model="form\.addressText"[^>]*@input="handleAddressTextInput"/)
-  assert.match(source, /const addressLocationNeedsReselection = ref\(false\)/)
-  assert.match(source, /addressLocationNeedsReselection \? '地址已修改，请重新地图选择' : '可选地图定位'/)
-  assert.match(source, /function handleAddressTextInput\(event\) \{[\s\S]*form\.addressText = String\(event\?\.detail\?\.value \?\? ''\)[\s\S]*if \(!hasValidLocation\(form\.location\)\) return[\s\S]*form\.location = \{\}[\s\S]*addressLocationNeedsReselection\.value = true/)
-  assert.match(source, /form\.addressText = resolvedAddress\.address[\s\S]*addressLocationNeedsReselection\.value = false/)
+  assert.match(profile.template, /v-model="form\.addressText"[^>]*@input="handleAddressTextInput"/)
+  assert.match(profile.script, /const addressLocationNeedsReselection = ref\(false\)/)
+  assert.match(addressInputSource, /Object\.assign\(form, clearMerchantLocationForm\(form\)\)/)
+  assert.match(addressInputSource, /addressLocationNeedsReselection\.value = true/)
+  assert.match(clearLocationSource, /Object\.assign\(form, clearMerchantLocationForm\(form\)\)/)
+  assert.match(clearLocationSource, /addressLocationNeedsReselection\.value = false/)
+})
+
+test('merchant profile submits a complete structured location intent and keeps risk-hidden coordinates editable', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
+  const submitSource = findFunctionSource(profile.script, 'submitMerchantProfile')
+  const loadSource = findFunctionSource(profile.script, 'loadMerchant')
+
+  assert.match(profile.script, /import \{[\s\S]*buildMerchantLocationPayload,[\s\S]*clearMerchantLocationForm,[\s\S]*normalizeMerchantLocationForm,[\s\S]*\} from '\.\.\/\.\.\/common\/merchantLocationForm'/)
+  assert.match(loadSource, /Object\.assign\(form, normalizeMerchantLocationForm\(detail\)\)/)
+  assert.match(loadSource, /locationStatus\.value = detail\.location\?\.status/)
+  assert.match(submitSource, /const locationPayload = buildMerchantLocationPayload\(form\)/)
+  assert.match(submitSource, /\.\.\.locationPayload/)
+  assert.match(profile.script, /locationStatus\.value === 'risk_hidden'/)
+  assert.match(profile.template, /位置暂未公开/)
+  assert.match(profile.template, /重新选择/)
 })
 
 test('merchant profile page hides sourcing map binding entry while keeping the page registered', () => {
@@ -1486,7 +1537,8 @@ test('merchant detail page opens an independent location page when coordinates e
   const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
 
   for (const token of [
-    'buildMerchantAddressLocation',
+    'buildPublicMerchantAddressLocation',
+    'merchantLocationVisible',
     'openMerchantLocation',
     '/pages/merchant/location',
     '查看位置',
@@ -1495,6 +1547,7 @@ test('merchant detail page opens an independent location page when coordinates e
     assert.match(source, new RegExp(token))
   }
   assert.doesNotMatch(source, /<map|uni\.openLocation/)
+  assert.doesNotMatch(source, /location\.lat\b|location\.lng\b|location\.name\b/)
 })
 
 test('merchant detail page previews merchant images from tapped image', () => {

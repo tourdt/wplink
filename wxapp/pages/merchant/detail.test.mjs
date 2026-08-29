@@ -7,8 +7,6 @@ import { compileTemplate, parse } from '@vue/compiler-sfc'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from '@vue/server-renderer'
 
-import * as merchantPlaceState from '../sourcing-map/merchantPlaceState.js'
-
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const sourcePath = path.join(root, 'pages/merchant/detail.vue')
 
@@ -80,7 +78,6 @@ function loadMerchantDetailPage(additions = {}) {
     .match(/<script setup>([\s\S]*?)<\/script>/)?.[1]
     .replace(/import[\s\S]*?from\s+['"][^'"]+['"]\s*/g, '') || ''
   const sandbox = {
-    buildMerchantAddressLocation: merchantPlaceState.buildMerchantAddressLocation,
     computed(getter) {
       return { get value() { return getter() } }
     },
@@ -104,7 +101,7 @@ function loadMerchantDetailPage(additions = {}) {
     },
     ...additions,
   }
-  vm.runInNewContext(`${script}\nglobalThis.merchantDetailPage = { merchant, ownMerchantId, followed, followBusy: typeof followBusy === 'undefined' ? undefined : followBusy, isOwnMerchant, toggleFollow, openMerchantLocation }`, sandbox)
+  vm.runInNewContext(`${script}\nglobalThis.merchantDetailPage = { merchant, ownMerchantId, followed, followBusy: typeof followBusy === 'undefined' ? undefined : followBusy, isOwnMerchant, merchantAddressLocation, merchantLocationVisible, buildPublicMerchantAddressLocation, toggleFollow, openMerchantLocation }`, sandbox)
   return sandbox.merchantDetailPage
 }
 
@@ -159,13 +156,13 @@ test('merchant detail page renders address as a lightweight single-address block
   assert.doesNotMatch(source, />经营地址</)
   assert.doesNotMatch(source, /merchant-address-title/)
   assert.match(source, /<view class="section-head">[\s\S]*<text class="section-title">地址<\/text>[\s\S]*<button/)
-  assert.match(source, /<button v-if="merchantAddressLocation\.hasGps" class="address-action" @click="openMerchantLocation">查看位置<\/button>/)
+  assert.match(source, /<button v-if="merchantLocationVisible && merchantAddressLocation\.hasGps" class="address-action" @click="openMerchantLocation">查看位置<\/button>/)
   assert.match(source, /<button v-else class="address-action secondary" @click="copyMerchantAddress\(\)">复制<\/button>/)
   assert.match(source, /<text class="merchant-address-text">\{\{ merchantAddressLocation\.address \}\}<\/text>/)
   assert.doesNotMatch(source, /<map|merchant-address-map/)
-  assert.match(source, /import \{ buildMerchantAddressLocation \} from '\.\.\/sourcing-map\/merchantPlaceState'/)
-  assert.match(source, /const merchantAddressLocation = computed\(\(\) => buildMerchantAddressLocation\(merchant\.value\)\)/)
-  assert.doesNotMatch(source, /function buildMerchantAddressLocation\(/)
+  assert.doesNotMatch(source, /merchantPlaceState|buildMerchantAddressLocation/)
+  assert.match(source, /const merchantLocationVisible = computed\(\(\) => merchant\.value\.location\?\.status === 'visible' && merchant\.value\.location\?\.available === true\)/)
+  assert.match(source, /const merchantAddressLocation = computed\(\(\) => buildPublicMerchantAddressLocation\(merchant\.value\)\)/)
   assert.match(source, /function openMerchantLocation\(\) \{[\s\S]*merchant\.value\.id[\s\S]*merchantAddressLocation\.value\?\.hasGps[\s\S]*\/pages\/merchant\/location\?merchantId=\$\{encodeURIComponent\(merchant\.value\.id\)\}/)
   assert.doesNotMatch(source, /uni\.openLocation/)
   assert.match(source, /function copyMerchantAddress\(title = '地址已复制'\) \{[\s\S]*uni\.setClipboardData\(\{ data: location\.address \}\)/)
@@ -174,39 +171,67 @@ test('merchant detail page renders address as a lightweight single-address block
   assert.match(source, /\.merchant-address-text \{[\s\S]*display: block;[\s\S]*font-size: 30rpx;[\s\S]*line-height: 1\.55;[\s\S]*word-break: break-word;/)
 })
 
-test('merchant detail address builder rejects blank, non-finite, and out-of-range coordinates', () => {
-  assert.equal(typeof merchantPlaceState.buildMerchantAddressLocation, 'function')
-  const buildMerchantAddressLocation = merchantPlaceState.buildMerchantAddressLocation
+test('merchant detail address builder only accepts the structured visible and available location', () => {
+  const page = loadMerchantDetailPage()
+  assert.equal(typeof page.buildPublicMerchantAddressLocation, 'function')
+  const buildPublicMerchantAddressLocation = page.buildPublicMerchantAddressLocation
   const cases = [
     {
-      merchant: { addressText: '织里商城 A-101', location: { lat: '30.89912', lng: '120.20482' } },
+      merchant: {
+        addressText: '织里商城 A-101',
+        location: { status: 'visible', available: true, latitude: 30.89912, longitude: 120.20482 },
+      },
       expected: { address: '织里商城 A-101', hasGps: true, latitude: 30.89912, longitude: 120.20482 },
     },
     {
-      merchant: { addressText: '织里商城 A-101', location: { lat: '   ', lng: '120.20482' } },
-      expected: { address: '织里商城 A-101', hasGps: false },
-    },
-    { merchant: { location: { lat: '\t', lng: '120.20482' } }, expected: null },
-    {
-      merchant: { addressText: '织里商城 A-101', location: { lat: Number.NaN, lng: '120.20482' } },
-      expected: { address: '织里商城 A-101', hasGps: false },
-    },
-    {
-      merchant: { addressText: '织里商城 A-101', location: { lat: Number.POSITIVE_INFINITY, lng: '120.20482' } },
+      merchant: {
+        addressText: '织里商城 A-101',
+        location: { status: 'visible', available: false, latitude: 30.89912, longitude: 120.20482 },
+      },
       expected: { address: '织里商城 A-101', hasGps: false },
     },
     {
-      merchant: { addressText: '织里商城 A-101', location: { lat: '91', lng: '120.20482' } },
+      merchant: {
+        addressText: '织里商城 A-101',
+        location: { status: 'risk_hidden', available: true, latitude: 30.89912, longitude: 120.20482 },
+      },
       expected: { address: '织里商城 A-101', hasGps: false },
     },
     {
-      merchant: { addressText: '织里商城 A-101', location: { lat: '30.89912', lng: '-181' } },
+      merchant: {
+        addressText: '织里商城 A-101',
+        location: { status: 'visible', available: true, latitude: Number.NaN, longitude: 120.20482 },
+      },
+      expected: { address: '织里商城 A-101', hasGps: false },
+    },
+    {
+      merchant: {
+        addressText: '织里商城 A-101',
+        location: { status: 'visible', available: true, latitude: 91, longitude: 120.20482 },
+      },
+      expected: { address: '织里商城 A-101', hasGps: false },
+    },
+    {
+      merchant: {
+        addressText: '',
+        location: {
+          status: 'visible', available: true, latitude: 30.89912, longitude: 120.20482,
+          marketName: '织里商城', buildingName: '一期', floorNo: '1F', boothNo: 'A-101', locationName: '北门',
+        },
+      },
+      expected: { address: '织里商城 · 一期 · 1F · A-101 · 北门', hasGps: true, latitude: 30.89912, longitude: 120.20482 },
+    },
+    {
+      merchant: {
+        addressText: '织里商城 A-101',
+        location: { status: 'visible', available: true, lat: 30.89912, lng: 120.20482, name: '旧 JSON 位置' },
+      },
       expected: { address: '织里商城 A-101', hasGps: false },
     },
   ]
 
   for (const { merchant, expected } of cases) {
-    assert.deepEqual(buildMerchantAddressLocation(merchant), expected)
+    assert.deepEqual(plain(buildPublicMerchantAddressLocation(merchant)), expected)
   }
 })
 
@@ -229,7 +254,7 @@ test('merchant detail records its valid location entry immediately before naviga
   page.merchant.value = {
     id: 'merchant-detail',
     addressText: '织里商城 A-101',
-    location: { lat: '30.89912', lng: '120.20482' },
+    location: { status: 'visible', available: true, latitude: 30.89912, longitude: 120.20482 },
   }
 
   page.openMerchantLocation()
@@ -244,7 +269,7 @@ test('merchant detail records its valid location entry immediately before naviga
   ])
 
   timeline.length = 0
-  page.merchant.value.location.lat = ''
+  page.merchant.value.location.status = 'risk_hidden'
   page.openMerchantLocation()
   assert.deepEqual(timeline, [])
 })

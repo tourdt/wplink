@@ -122,13 +122,49 @@
           </view>
           <view class="form-field">
             <text class="field-label">经营地址</text>
-            <view class="address-row">
-              <input v-model="form.addressText" class="field" placeholder="请输入经营地址" @input="handleAddressTextInput" />
-              <button class="map-button" @click="chooseMerchantLocation">地图选择</button>
+            <input v-model="form.addressText" class="field" placeholder="请输入经营地址" @input="handleAddressTextInput" />
+          </view>
+          <view class="location-fields">
+            <view class="form-field">
+              <text class="field-label">市场名称</text>
+              <input v-model="form.marketName" class="field" placeholder="如：织里童装城" />
             </view>
-            <view class="location-status">
-              <text>{{ locationSelected ? '已选地图位置' : (addressLocationNeedsReselection ? '地址已修改，请重新地图选择' : '可选地图定位') }}</text>
-              <button v-if="locationSelected" class="location-clear-button" @click="clearMerchantLocation">清除位置</button>
+            <view class="form-field">
+              <text class="field-label">楼栋 / 区域</text>
+              <input v-model="form.buildingName" class="field" placeholder="如：一期 A 区" />
+            </view>
+            <view class="form-field">
+              <text class="field-label">楼层</text>
+              <input v-model="form.floorNo" class="field" placeholder="如：1F" />
+            </view>
+            <view class="form-field">
+              <text class="field-label">档口号</text>
+              <input v-model="form.boothNo" class="field" placeholder="如：A108" />
+            </view>
+          </view>
+          <view class="location-status-block" :class="locationStatusTone">
+            <view class="location-status-copy">
+              <text v-if="locationRiskHidden" class="location-status-title">位置暂未公开</text>
+              <text v-else-if="locationSelected" class="location-status-title">地图位置已设置</text>
+              <text v-else-if="addressLocationNeedsReselection" class="location-status-title">地址已修改，需重新选择</text>
+              <text v-else class="location-status-title">未设置地图位置</text>
+              <text v-if="locationRiskHidden" class="location-status-detail">已保留原坐标，请重新选择地图位置恢复展示</text>
+              <text v-else-if="locationSelected" class="location-status-detail">{{ form.locationName || '坐标有效，保存后可提供导航' }}</text>
+              <text v-else-if="addressLocationNeedsReselection" class="location-status-detail">旧坐标已清除，保存前请核对并重新选点</text>
+              <text v-else class="location-status-detail">设置后才会在拿货档口目录提供查看位置</text>
+            </view>
+            <view class="location-actions">
+              <button class="map-button" :disabled="submitting" @click="chooseMerchantLocation">
+                {{ locationSelected ? '重新选择' : '选择地图位置' }}
+              </button>
+              <button
+                v-if="locationSelected"
+                class="location-clear-button"
+                :disabled="submitting"
+                @click="clearMerchantLocation"
+              >
+                清除地图位置
+              </button>
             </view>
           </view>
         </view>
@@ -149,6 +185,11 @@ import { onLoad } from '@dcloudio/uni-app'
 import UniGrid from '../../components/uni-ui/uni-grid/uni-grid.vue'
 import UniGridItem from '../../components/uni-ui/uni-grid-item/uni-grid-item.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
+import {
+  buildMerchantLocationPayload,
+  clearMerchantLocationForm,
+  normalizeMerchantLocationForm,
+} from '../../common/merchantLocationForm'
 import { validateMerchantName } from '../../common/merchantName'
 import { bindWechatPhone } from '../../api/auth'
 import { reverseGeocodeLocation } from '../../api/location'
@@ -183,6 +224,7 @@ const submitting = ref(false)
 const phoneAuthorizing = ref(false)
 const contactSectionOpen = ref(false)
 const addressLocationNeedsReselection = ref(false)
+const locationStatus = ref('hidden')
 const mainCategoriesText = ref('')
 const pendingLogoFile = ref(null)
 const merchantImageEntries = ref([])
@@ -214,7 +256,13 @@ const form = reactive({
   contactPhone: '',
   contactWechat: '',
   addressText: '',
-  location: {},
+  marketName: '',
+  buildingName: '',
+  floorNo: '',
+  boothNo: '',
+  latitude: null,
+  longitude: null,
+  locationName: '',
   description: '',
   logoUrl: '',
 })
@@ -223,7 +271,12 @@ const currentMerchantTypeLabel = computed(() => {
   const matched = merchantTypeOptions.find((item) => item.value === form.merchantType) || {}
   return matched.label || legacyMerchantTypeText[form.merchantType] || '个人'
 })
-const locationSelected = computed(() => hasValidLocation(form.location))
+const locationSelected = computed(() => buildMerchantLocationPayload(form).locationAction === 'set')
+const locationRiskHidden = computed(() => locationStatus.value === 'risk_hidden' && locationSelected.value)
+const locationStatusTone = computed(() => {
+  if (locationRiskHidden.value || addressLocationNeedsReselection.value) return 'attention'
+  return locationSelected.value ? 'selected' : 'empty'
+})
 
 onLoad((options) => {
   merchantId.value = options.merchantId || getMerchantId()
@@ -242,7 +295,8 @@ async function loadMerchant() {
     form.contactPhone = sanitizeContactPhoneValue(contact.phone || '')
     form.contactWechat = sanitizeContactWechatValue(contact.wechat || '')
     form.addressText = detail.addressText || ''
-    form.location = detail.location || {}
+    Object.assign(form, normalizeMerchantLocationForm(detail))
+    locationStatus.value = detail.location?.status || 'hidden'
     addressLocationNeedsReselection.value = false
     form.description = detail.description || ''
     form.logoUrl = detail.logoUrl || ''
@@ -293,6 +347,7 @@ async function submitMerchantProfile() {
     submitting.value = true
     await uploadPendingMerchantImages()
     const images = getStoredMerchantImageUrls(merchantImageEntries.value)
+    const locationPayload = buildMerchantLocationPayload(form)
     const patch = {
       name: form.name.trim(),
       mainCategories,
@@ -302,7 +357,7 @@ async function submitMerchantProfile() {
       images,
       contactName: form.contactName.trim(),
       addressText: form.addressText.trim(),
-      location: form.location || {},
+      ...locationPayload,
     }
     if (normalizedContactPhone) {
       patch.contactPhone = normalizedContactPhone
@@ -324,29 +379,36 @@ function chooseMerchantLocation() {
     success: async (result) => {
       const latitude = Number(result.latitude)
       const longitude = Number(result.longitude)
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-        uni.showToast({ title: '未获取到有效地图位置', icon: 'none' })
+      if (buildMerchantLocationPayload({ latitude, longitude }).locationAction !== 'set') {
+        Object.assign(form, clearMerchantLocationForm(form))
+        locationStatus.value = 'hidden'
+        addressLocationNeedsReselection.value = true
+        uni.showToast({ title: '地图位置格式不正确，请重新选择', icon: 'none' })
         return
       }
       const resolvedAddress = await resolveMerchantLocationAddress(result, latitude, longitude)
       if (!resolvedAddress.address) {
         // 地图拖动到非 POI 点位时，微信可能只返回经纬度；不保存空地址，避免资料页显示无意义的位置。
+        Object.assign(form, clearMerchantLocationForm(form))
+        locationStatus.value = 'hidden'
+        addressLocationNeedsReselection.value = true
         uni.showToast({ title: '未获取到详细地址，请搜索具体地点后重试', icon: 'none' })
         return
       }
       // 地图坐标用于发布者资料页导航，完整地址同步写入输入框，方便用户核对和补充。
-      form.location = {
-        latitude,
-        longitude,
-        name: resolvedAddress.name,
-        address: resolvedAddress.address,
-      }
+      form.latitude = latitude
+      form.longitude = longitude
+      form.locationName = resolvedAddress.name
       form.addressText = resolvedAddress.address
+      locationStatus.value = 'visible'
       addressLocationNeedsReselection.value = false
       uni.showToast({ title: '地图位置已保存', icon: 'none' })
     },
     fail: (err) => {
       if (String(err?.errMsg || '').includes('cancel')) return
+      Object.assign(form, clearMerchantLocationForm(form))
+      locationStatus.value = 'hidden'
+      addressLocationNeedsReselection.value = true
       uni.showToast({ title: '地图选择失败，请稍后重试', icon: 'none' })
     },
   })
@@ -354,10 +416,11 @@ function chooseMerchantLocation() {
 
 function handleAddressTextInput(event) {
   form.addressText = String(event?.detail?.value ?? '')
-  if (!hasValidLocation(form.location)) return
+  if (!locationSelected.value) return
 
-  // 手工修改文字地址后，原地图点位已无法证明仍对应当前地址，必须重新选点以免向买家展示错误导航位置。
-  form.location = {}
+  // 手工地址与地图坐标必须作为一个整体保存；文字变化后统一清空结构字段，避免旧坐标导航到错误档口。
+  Object.assign(form, clearMerchantLocationForm(form))
+  locationStatus.value = 'hidden'
   addressLocationNeedsReselection.value = true
 }
 
@@ -419,7 +482,8 @@ function isCoordinateMerchantLocationText(text) {
 }
 
 function clearMerchantLocation() {
-  form.location = {}
+  Object.assign(form, clearMerchantLocationForm(form))
+  locationStatus.value = 'hidden'
   addressLocationNeedsReselection.value = false
 }
 
@@ -588,18 +652,13 @@ function parseList(value) {
     .filter(Boolean)
 }
 
-function hasValidLocation(location) {
-  if (!location) return false
-  return Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude))
-}
-
 function hasExistingContactInfo() {
   return Boolean(
     form.contactName.trim()
       || form.contactPhone.trim()
       || form.contactWechat.trim()
       || form.addressText.trim()
-      || hasValidLocation(form.location),
+      || locationSelected.value,
   )
 }
 
@@ -787,40 +846,76 @@ function isValidContactPhone(value) {
   border: 0;
 }
 
-.address-row {
+.location-fields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 172rpx;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14rpx;
-  align-items: center;
 }
 
 .map-button {
-  height: 80rpx;
+  width: 100%;
+  min-height: 88rpx;
   border: 1rpx solid $wplink-primary;
   border-radius: 10rpx;
   background: $wplink-card;
   color: $wplink-primary;
   font-size: 26rpx;
-  line-height: 80rpx;
+  line-height: 1.35;
 }
 
-.location-status {
+.location-status-block {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 148rpx;
-  gap: 12rpx;
+  grid-template-columns: minmax(0, 1fr) 192rpx;
+  gap: 18rpx;
   align-items: center;
+  padding: 18rpx 0 18rpx 18rpx;
+  border-top: 1rpx solid $wplink-line;
+  border-bottom: 1rpx solid $wplink-line;
+  border-left: 6rpx solid $wplink-line;
+}
+
+.location-status-block.selected {
+  border-left-color: $wplink-success;
+}
+
+.location-status-block.attention {
+  border-left-color: $wplink-warning;
+}
+
+.location-status-copy,
+.location-actions {
+  display: grid;
+  gap: 10rpx;
+}
+
+.location-status-title {
+  color: $wplink-primary;
+  font-size: 28rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.location-status-detail {
   color: $wplink-muted;
   font-size: 24rpx;
   line-height: 1.45;
 }
 
 .location-clear-button {
-  height: 56rpx;
+  width: 100%;
+  min-height: 88rpx;
+  padding: 8rpx 10rpx;
+  border: 1rpx solid $wplink-line;
   border-radius: 8rpx;
-  background: #f8fafc;
+  background: $wplink-card;
   color: $wplink-muted;
   font-size: 24rpx;
-  line-height: 56rpx;
+  line-height: 1.35;
+}
+
+.map-button[disabled],
+.location-clear-button[disabled] {
+  opacity: 0.55;
 }
 
 .picker-field {

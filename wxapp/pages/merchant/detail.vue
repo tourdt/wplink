@@ -50,7 +50,7 @@
     <view class="section merchant-address-section" v-if="merchantAddressLocation">
       <view class="section-head">
         <text class="section-title">地址</text>
-        <button v-if="merchantAddressLocation.hasGps" class="address-action" @click="openMerchantLocation">查看位置</button>
+        <button v-if="merchantLocationVisible && merchantAddressLocation.hasGps" class="address-action" @click="openMerchantLocation">查看位置</button>
         <button v-else class="address-action secondary" @click="copyMerchantAddress()">复制</button>
       </view>
       <text class="merchant-address-text">{{ merchantAddressLocation.address }}</text>
@@ -93,7 +93,6 @@ import { listResources } from '../../api/resource'
 import { requireLogin } from '../../common/auth'
 import { trackMerchantMapEvent } from '../../common/merchantMapAnalytics'
 import { getSession } from '../../store/session'
-import { buildMerchantAddressLocation } from '../sourcing-map/merchantPlaceState'
 
 const merchant = ref({})
 const currentMerchantId = ref('')
@@ -116,7 +115,8 @@ const merchantTypeText = {
 }
 const merchantLogo = computed(() => merchant.value.logoUrl || '')
 const merchantImages = computed(() => merchant.value.images || [])
-const merchantAddressLocation = computed(() => buildMerchantAddressLocation(merchant.value))
+const merchantLocationVisible = computed(() => merchant.value.location?.status === 'visible' && merchant.value.location?.available === true)
+const merchantAddressLocation = computed(() => buildPublicMerchantAddressLocation(merchant.value))
 const resourcesSummary = computed(() => merchant.value.resourcesSummary || {})
 const isOwnMerchant = computed(() => Boolean(merchant.value.id) && merchant.value.id === ownMerchantId.value)
 const merchantInitial = computed(() => String(merchant.value.name || '商').slice(0, 1))
@@ -239,7 +239,7 @@ function openResource(resource) {
 }
 
 function openMerchantLocation() {
-  if (!merchant.value.id || !merchantAddressLocation.value?.hasGps) return
+  if (!merchant.value.id || !merchantLocationVisible.value || !merchantAddressLocation.value?.hasGps) return
   // 已入驻商家的坐标要进入独立位置页，确保用户始终处于明确的商家上下文中。
   trackMerchantMapEvent({
     merchantId: merchant.value.id,
@@ -254,6 +254,35 @@ function copyMerchantAddress(title = '地址已复制') {
   if (!location?.address) return
   uni.setClipboardData({ data: location.address })
   uni.showToast({ title, icon: 'none' })
+}
+
+function buildPublicMerchantAddressLocation(detail = {}) {
+  const location = detail.location || {}
+  const visible = location.status === 'visible' && location.available === true
+  const structuredAddress = visible
+    ? [location.marketName, location.buildingName, location.floorNo, location.boothNo, location.locationName]
+      .map((item) => String(item || '').trim())
+      .filter((item, index, items) => item && items.indexOf(item) === index)
+      .join(' · ')
+    : ''
+  const address = String(detail.addressText || structuredAddress).trim()
+  if (!address) return null
+
+  const latitude = normalizePublicCoordinate(location.latitude)
+  const longitude = normalizePublicCoordinate(location.longitude)
+  const hasGps = visible
+    && latitude !== null && longitude !== null
+    && latitude >= -90 && latitude <= 90
+    && longitude >= -180 && longitude <= 180
+  if (!hasGps) return { address, hasGps: false }
+  return { address, hasGps: true, latitude, longitude }
+}
+
+function normalizePublicCoordinate(value) {
+  if (typeof value !== 'number' && typeof value !== 'string') return null
+  if (typeof value === 'string' && value.trim() === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
 }
 
 function previewMerchantImage(url) {
