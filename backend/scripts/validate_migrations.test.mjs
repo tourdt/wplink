@@ -98,6 +98,21 @@ test('zhili initial seed disables recruitment without exposing recruitment stati
   )
 })
 
+test('core domain owns merchant profile status while 000016 only owns its lookup index', () => {
+  const core = fs.readFileSync(path.resolve(migrationsDir, '000002_core_domain.up.sql'), 'utf8')
+  const profileUp = fs.readFileSync(path.resolve(migrationsDir, '000016_merchant_profile_status.up.sql'), 'utf8')
+  const profileDown = fs.readFileSync(path.resolve(migrationsDir, '000016_merchant_profile_status.down.sql'), 'utf8')
+
+  assert.match(core, /profile_status varchar\(32\) NOT NULL DEFAULT 'completed'/)
+  assert.match(core, /CONSTRAINT chk_merchants_profile_status/)
+  assert.match(profileUp, /CREATE INDEX IF NOT EXISTS idx_merchants_profile_status/)
+  assert.doesNotMatch(profileUp, /ADD COLUMN IF NOT EXISTS profile_status/)
+  assert.doesNotMatch(profileUp, /ADD CONSTRAINT chk_merchants_profile_status/)
+  assert.match(profileDown, /DROP INDEX IF EXISTS idx_merchants_profile_status/)
+  assert.doesNotMatch(profileDown, /DROP CONSTRAINT IF EXISTS chk_merchants_profile_status/)
+  assert.doesNotMatch(profileDown, /DROP COLUMN IF EXISTS profile_status/)
+})
+
 test('merchant onboarding migration records first completed profile time for homepage exposure', () => {
   const upFileName = '000032_merchant_onboarded_at.up.sql'
   const downFileName = '000032_merchant_onboarded_at.down.sql'
