@@ -14,7 +14,12 @@ function loadAnalytics({ record = async () => ({ recorded: true }) } = {}) {
     .replaceAll('export function ', 'function ')
   const sandbox = { recordMerchantDirectoryEvent: record, uni: globalThis.uni, Date, Math, Promise, Set, String }
   vm.runInNewContext(`${source}\nglobalThis.analytics = {
-    trackMerchantDirectoryEvent, saveNavigationFeedback, consumeNavigationFeedback, clearNavigationFeedback,
+    trackMerchantDirectoryEvent,
+    saveNavigationFeedback,
+    claimNavigationFeedback: typeof claimNavigationFeedback === 'function' ? claimNavigationFeedback : undefined,
+    completeNavigationFeedback: typeof completeNavigationFeedback === 'function' ? completeNavigationFeedback : undefined,
+    releaseNavigationFeedback: typeof releaseNavigationFeedback === 'function' ? releaseNavigationFeedback : undefined,
+    clearNavigationFeedback,
   }`, sandbox)
   return sandbox.analytics
 }
@@ -89,28 +94,66 @@ test('directory analytics failure is silent and is attempted once without retry'
   assert.equal(calls, 1)
 })
 
-test('navigation feedback stores only merchant identity and is consumed exactly once across concurrent page shows', () => {
+test('navigation feedback stays stored while one page owns the shared claim and is removed only after completion', () => {
   const uniMock = installUni()
   const analytics = loadAnalytics()
+
+  assert.equal(typeof analytics.claimNavigationFeedback, 'function')
+  assert.equal(typeof analytics.completeNavigationFeedback, 'function')
+  assert.equal(typeof analytics.releaseNavigationFeedback, 'function')
 
   assert.equal(analytics.saveNavigationFeedback({
     merchantId: ' merchant-1 ', name: ' 晨星童装 ', objectId: 'legacy-object', claimed: true,
   }), true)
   assert.deepEqual(plain(uniMock.storage.get(FEEDBACK_STORAGE_KEY)), { merchantId: 'merchant-1', name: '晨星童装' })
 
-  const [directoryShow, locationShow] = [analytics.consumeNavigationFeedback(), analytics.consumeNavigationFeedback()]
-  assert.deepEqual(plain(directoryShow), { merchantId: 'merchant-1', name: '晨星童装' })
-  assert.equal(locationShow, null)
+  const directoryClaim = analytics.claimNavigationFeedback()
+  const locationClaim = analytics.claimNavigationFeedback()
+  assert.deepEqual(plain(directoryClaim), { merchantId: 'merchant-1', name: '晨星童装' })
+  assert.equal(locationClaim, null)
+  assert.deepEqual(plain(uniMock.storage.get(FEEDBACK_STORAGE_KEY)), { merchantId: 'merchant-1', name: '晨星童装' })
+  assert.equal(uniMock.removals.filter((key) => key === FEEDBACK_STORAGE_KEY).length, 0)
+
+  assert.equal(analytics.releaseNavigationFeedback(directoryClaim), true)
+  const retriedClaim = analytics.claimNavigationFeedback()
+  assert.deepEqual(plain(retriedClaim), { merchantId: 'merchant-1', name: '晨星童装' })
+  assert.equal(analytics.completeNavigationFeedback(retriedClaim), true)
+  assert.equal(uniMock.storage.has(FEEDBACK_STORAGE_KEY), false)
   assert.equal(uniMock.removals.filter((key) => key === FEEDBACK_STORAGE_KEY).length, 1)
+})
+
+test('directory and location page claims allow at most one concurrent feedback request', async () => {
+  installUni(new Map([[FEEDBACK_STORAGE_KEY, { merchantId: 'merchant-1', name: '晨星童装' }]]))
+  const analytics = loadAnalytics()
+  assert.equal(typeof analytics.claimNavigationFeedback, 'function')
+  let requests = 0
+  let finishRequest
+  const pendingRequest = new Promise((resolve) => { finishRequest = resolve })
+
+  async function runPageShow() {
+    const claim = analytics.claimNavigationFeedback()
+    if (!claim) return false
+    requests += 1
+    await pendingRequest
+    analytics.completeNavigationFeedback(claim)
+    return true
+  }
+
+  const directoryShow = runPageShow()
+  const locationShow = runPageShow()
+  assert.equal(requests, 1)
+  finishRequest()
+  assert.deepEqual(await Promise.all([directoryShow, locationShow]), [true, false])
 })
 
 test('invalid navigation feedback is never persisted and clear removes an armed target', () => {
   const uniMock = installUni()
   const analytics = loadAnalytics()
+  assert.equal(typeof analytics.claimNavigationFeedback, 'function')
 
   assert.equal(analytics.saveNavigationFeedback({ merchantId: ' ', name: '无效商家' }), false)
   assert.equal(uniMock.storage.has(FEEDBACK_STORAGE_KEY), false)
   analytics.saveNavigationFeedback({ merchantId: '2', name: '商家二' })
   analytics.clearNavigationFeedback()
-  assert.equal(analytics.consumeNavigationFeedback(), null)
+  assert.equal(analytics.claimNavigationFeedback(), null)
 })

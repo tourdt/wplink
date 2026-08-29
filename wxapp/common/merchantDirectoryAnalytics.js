@@ -16,6 +16,8 @@ const ALLOWED_EVENTS = new Set([
 ])
 const ALLOWED_SOURCES = new Set(['directory', 'merchant_detail', 'merchant_location'])
 const sessionId = createIdentifier('session')
+let navigationFeedbackRevision = 0
+let activeNavigationFeedbackClaim = null
 
 export function trackMerchantDirectoryEvent({ merchantId, targetMerchantId = '', eventType, source } = {}) {
   const normalizedMerchantId = String(merchantId || '').trim()
@@ -39,32 +41,56 @@ export function trackMerchantDirectoryEvent({ merchantId, targetMerchantId = '',
 }
 
 export function saveNavigationFeedback(target = {}) {
-  const merchantId = String(target.merchantId || '').trim()
-  if (!merchantId) return false
+  const feedback = normalizeNavigationFeedback(target)
+  if (!feedback) return false
   try {
     // 跨页缓存只保留公开商家身份；不保存坐标、旧点位身份或其他页面状态。
-    uni.setStorageSync(NAVIGATION_FEEDBACK_KEY, {
-      merchantId,
-      name: String(target.name || '').trim(),
-    })
+    uni.setStorageSync(NAVIGATION_FEEDBACK_KEY, feedback)
+    navigationFeedbackRevision += 1
     return true
   } catch (err) {
     return false
   }
 }
 
-export function consumeNavigationFeedback() {
+export function claimNavigationFeedback() {
+  if (activeNavigationFeedbackClaim) return null
   try {
-    const target = uni.getStorageSync(NAVIGATION_FEEDBACK_KEY)
-    if (!target) return null
-    // get/remove 同步执行，使目录页和位置页连续 onShow 时只有先到者能消费反馈。
-    uni.removeStorageSync(NAVIGATION_FEEDBACK_KEY)
-    const merchantId = String(target?.merchantId || '').trim()
-    if (!merchantId) return null
-    return { merchantId, name: String(target?.name || '').trim() }
+    const feedback = normalizeNavigationFeedback(uni.getStorageSync(NAVIGATION_FEEDBACK_KEY))
+    if (!feedback) return null
+    // 同一 JS 进程共享一个同步认领；目录页和位置页连续 onShow 时只有先到者能发起报告请求。
+    activeNavigationFeedbackClaim = {
+      feedback,
+      revision: navigationFeedbackRevision,
+    }
+    return feedback
   } catch (err) {
     return null
   }
+}
+
+export function completeNavigationFeedback(feedback) {
+  const claim = activeNavigationFeedbackClaim
+  if (!claim || claim.feedback !== feedback) return false
+  activeNavigationFeedbackClaim = null
+  if (claim.revision !== navigationFeedbackRevision) return false
+
+  try {
+    const stored = normalizeNavigationFeedback(uni.getStorageSync(NAVIGATION_FEEDBACK_KEY))
+    if (!stored || stored.merchantId !== feedback.merchantId || stored.name !== feedback.name) return false
+    uni.removeStorageSync(NAVIGATION_FEEDBACK_KEY)
+    navigationFeedbackRevision += 1
+    return true
+  } catch (err) {
+    // 完成清理失败时保留缓存，允许下一次 onShow 重新认领并完成反馈。
+    return false
+  }
+}
+
+export function releaseNavigationFeedback(feedback) {
+  if (!activeNavigationFeedbackClaim || activeNavigationFeedbackClaim.feedback !== feedback) return false
+  activeNavigationFeedbackClaim = null
+  return true
 }
 
 export function clearNavigationFeedback() {
@@ -72,7 +98,16 @@ export function clearNavigationFeedback() {
     uni.removeStorageSync(NAVIGATION_FEEDBACK_KEY)
   } catch (err) {
     // 清理失败只会跳过本次反馈询问，不影响导航失败提示。
+  } finally {
+    navigationFeedbackRevision += 1
+    activeNavigationFeedbackClaim = null
   }
+}
+
+function normalizeNavigationFeedback(target) {
+  const merchantId = String(target?.merchantId || '').trim()
+  if (!merchantId) return null
+  return { merchantId, name: String(target?.name || '').trim() }
 }
 
 function getVisitorKey() {

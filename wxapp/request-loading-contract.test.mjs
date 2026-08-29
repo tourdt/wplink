@@ -356,7 +356,8 @@ test('merchant directory rejects duplicate programmatic loading', async () => {
   let calls = 0
   const page = loadPage('pages/sourcing-map/index.vue', {
     DEFAULT_CITY_CODE: 'zhili', requireLogin: () => true, trackMerchantDirectoryEvent: () => {},
-    consumeNavigationFeedback: () => null, submitMerchantLocationReport: async () => ({}),
+    claimNavigationFeedback: () => null, completeNavigationFeedback: () => true,
+    releaseNavigationFeedback: () => true, submitMerchantLocationReport: async () => ({}),
     buildMerchantDirectoryQuery: (query) => query, normalizeMerchantDirectoryItem: (item) => item,
     mergeMerchantDirectoryItems: (_current, incoming) => incoming,
     hasValidMerchantLocation: () => false, merchantDirectoryDetailPath: () => '',

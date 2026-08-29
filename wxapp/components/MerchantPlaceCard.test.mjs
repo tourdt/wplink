@@ -13,6 +13,7 @@ test('merchant card uses the compact market building floor booth coordinate stri
   }), '织里童装城 · 一期 · 1F · A108')
   assert.match(source, /coordinate-strip/)
   assert.match(source, /merchantDirectoryCoordinateText/)
+  assert.equal(source.match(/coordinateText/g)?.length, 2, '坐标只应由计算属性生成并在签名坐标条渲染一次')
 })
 
 test('merchant card has only homepage and valid-location actions', () => {

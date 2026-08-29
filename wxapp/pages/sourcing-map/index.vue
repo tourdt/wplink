@@ -68,7 +68,9 @@ import { listMerchantDirectory, submitMerchantLocationReport } from '../../api/m
 import { requireLogin } from '../../common/auth'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import {
-  consumeNavigationFeedback,
+  claimNavigationFeedback,
+  completeNavigationFeedback,
+  releaseNavigationFeedback,
   trackMerchantDirectoryEvent,
 } from '../../common/merchantDirectoryAnalytics'
 import {
@@ -90,6 +92,13 @@ const loading = ref(false)
 const errorText = ref('')
 const reportSubmitting = ref(false)
 let requestVersion = 0
+let appliedDirectoryQuery = buildMerchantDirectoryQuery({
+  cityCode: DEFAULT_CITY_CODE,
+  keyword: '',
+  categories: '',
+  page: 1,
+  pageSize: LIST_PAGE_SIZE,
+})
 const pendingDirectoryRequests = new Map()
 const exposedMerchantIds = new Set()
 
@@ -119,12 +128,10 @@ onReachBottom(() => {
 
 function loadMerchants({ reset }) {
   const targetPage = reset ? 1 : page.value + 1
+  // 上拉和刷新只沿用最近一次明确提交的条件，输入框中的未提交草稿不能污染下一页。
   const query = buildMerchantDirectoryQuery({
-    cityCode: DEFAULT_CITY_CODE,
-    keyword: keyword.value,
-    categories: categoriesText.value,
+    ...appliedDirectoryQuery,
     page: targetPage,
-    pageSize: LIST_PAGE_SIZE,
   })
   // 同一页同一查询共享 Promise；筛选变化允许并发，并由请求代次保证迟到响应不能覆盖最新结果。
   const signature = JSON.stringify({ reset: Boolean(reset), query })
@@ -181,22 +188,29 @@ function recordDirectoryExposures(items) {
 }
 
 function submitSearch() {
+  appliedDirectoryQuery = buildMerchantDirectoryQuery({
+    cityCode: DEFAULT_CITY_CODE,
+    keyword: keyword.value,
+    categories: categoriesText.value,
+    page: 1,
+    pageSize: LIST_PAGE_SIZE,
+  })
   return loadMerchants({ reset: true })
 }
 
 function applyCategoryFilter() {
-  return loadMerchants({ reset: true })
+  return submitSearch()
 }
 
 function clearCategories() {
   categoriesText.value = ''
-  return loadMerchants({ reset: true })
+  return submitSearch()
 }
 
 function clearConditions() {
   keyword.value = ''
   categoriesText.value = ''
-  return loadMerchants({ reset: true })
+  return submitSearch()
 }
 
 function recordMerchantClick(merchantId) {
@@ -222,7 +236,7 @@ function openMerchantLocation(merchant) {
 }
 
 function promptNavigationFeedback() {
-  const target = consumeNavigationFeedback()
+  const target = claimNavigationFeedback()
   if (!target) return
   uni.showModal({
     title: '位置是否准确？',
@@ -230,13 +244,23 @@ function promptNavigationFeedback() {
     confirmText: '位置有误',
     cancelText: '位置准确',
     success: ({ confirm }) => {
-      if (confirm) submitNavigationFeedback(target)
+      if (confirm) {
+        submitNavigationFeedback(target)
+        return
+      }
+      completeNavigationFeedback(target)
     },
+    fail: () => releaseNavigationFeedback(target),
   })
 }
 
 async function submitNavigationFeedback(target) {
-  if (!target?.merchantId || reportSubmitting.value || !requireLogin()) return
+  if (!target?.merchantId || reportSubmitting.value) return
+  if (!requireLogin()) {
+    // 登录跳转前归还认领但保留缓存，用户登录返回后可再次从 onShow 提交。
+    releaseNavigationFeedback(target)
+    return
+  }
   reportSubmitting.value = true
   uni.showLoading({ title: '提交中', mask: true })
   try {
@@ -244,13 +268,15 @@ async function submitNavigationFeedback(target) {
       reasonCode: 'navigation_inaccurate',
       description: '用户在腾讯地图导航后反馈位置不准确',
     })
+    completeNavigationFeedback(target)
+    uni.showToast({ title: response?.idempotent ? '已收到你的反馈' : '反馈已提交', icon: 'none' })
     trackMerchantDirectoryEvent({
       merchantId: target.merchantId,
       eventType: 'location_report_submit',
       source: 'directory',
     })
-    uni.showToast({ title: response?.idempotent ? '已收到你的反馈' : '反馈已提交', icon: 'none' })
   } catch (err) {
+    releaseNavigationFeedback(target)
     console.error('提交目录导航位置反馈失败', { merchantId: target.merchantId, err })
     uni.showToast({ title: '位置反馈提交失败，请稍后重试', icon: 'none' })
   } finally {

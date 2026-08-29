@@ -44,7 +44,9 @@ function loadPage({
   trackMerchantDirectoryEvent = () => {},
   saveNavigationFeedback = () => true,
   clearNavigationFeedback = () => {},
-  consumeNavigationFeedback = () => null,
+  claimNavigationFeedback = () => null,
+  completeNavigationFeedback = () => true,
+  releaseNavigationFeedback = () => true,
   requireLogin = () => true,
   timeline = [],
   uni: uniOverrides = {},
@@ -55,14 +57,16 @@ function loadPage({
   let showHook
   const sandbox = {
     ...locationState,
+    claimNavigationFeedback,
     clearNavigationFeedback,
+    completeNavigationFeedback,
     computed(getter) { return { get value() { return getter() } } },
-    consumeNavigationFeedback,
     getMerchantLocationContext,
     nextTick(callback) { callback() },
     onLoad(callback) { loadHook = callback },
     onShow(callback) { showHook = callback },
     ref(value) { return { value } },
+    releaseNavigationFeedback,
     requireLogin,
     saveNavigationFeedback,
     submitMerchantLocationReport,
@@ -176,33 +180,54 @@ test('navigation open failure clears pending feedback without losing current con
   assert.ok(timeline.some((item) => item[0] === 'showToast' && item[1] === '导航打开失败，请稍后重试'))
 })
 
-test('location onShow submits one logged-in idempotent feedback and records submit event', async () => {
-  const report = deferred()
+test('location releases a failed feedback request and retries successfully on the next onShow', async () => {
   let reportCalls = 0
-  let consumeCalls = 0
+  let claimed = false
+  const feedback = { merchantId: 'merchant-main', name: '主商家' }
   const timeline = []
   const page = loadPage({
     timeline,
-    consumeNavigationFeedback() {
-      consumeCalls += 1
-      return consumeCalls === 1 ? { merchantId: 'merchant-main', name: '主商家' } : null
+    claimNavigationFeedback() {
+      if (claimed) return null
+      claimed = true
+      return feedback
     },
-    submitMerchantLocationReport() { reportCalls += 1; return report.promise },
+    releaseNavigationFeedback(target) {
+      timeline.push(['release', target.merchantId])
+      claimed = false
+      return true
+    },
+    completeNavigationFeedback(target) {
+      timeline.push(['complete', target.merchantId])
+      claimed = false
+      return true
+    },
+    async submitMerchantLocationReport() {
+      reportCalls += 1
+      if (reportCalls === 1) throw new Error('network unavailable')
+      return { idempotent: true }
+    },
     trackMerchantDirectoryEvent(event) { timeline.push(['track', event]) },
   })
 
   page.showHook()
-  page.showHook()
+  await flush()
   await flush()
   assert.equal(reportCalls, 1)
-  assert.equal(page.state.reportSubmitting.value, true)
-  report.resolve({ idempotent: true })
+  assert.equal(page.state.reportSubmitting.value, false)
+  assert.deepEqual(timeline.filter((item) => item[0] === 'release'), [['release', 'merchant-main']])
+  assert.equal(timeline.some((item) => item[0] === 'track' && item[1].eventType === 'location_report_submit'), false)
+
+  page.showHook()
   await flush()
   await flush()
 
+  assert.equal(reportCalls, 2)
   assert.equal(page.state.reportSubmitting.value, false)
-  assert.ok(timeline.some((item) => item[0] === 'showToast' && item[1] === '已收到你的反馈'))
-  assert.ok(timeline.some((item) => item[0] === 'track' && item[1].eventType === 'location_report_submit'))
+  const completionIndex = timeline.findIndex((item) => item[0] === 'complete')
+  const toastIndex = timeline.findIndex((item) => item[0] === 'showToast' && item[1] === '已收到你的反馈')
+  const trackIndex = timeline.findIndex((item) => item[0] === 'track' && item[1].eventType === 'location_report_submit')
+  assert.ok(completionIndex >= 0 && completionIndex < toastIndex && toastIndex < trackIndex)
 })
 
 test('nearby marker list and merchant actions keep distinct directory events', async () => {

@@ -1,7 +1,6 @@
 <template>
   <MerchantListItem
     :title="merchant.name"
-    :subtitle="coordinateText"
     :tags="merchant.mainCategories"
     @activate="$emit('detail', merchant)"
   >

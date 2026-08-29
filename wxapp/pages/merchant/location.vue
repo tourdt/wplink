@@ -123,8 +123,10 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { getMerchantLocationContext, submitMerchantLocationReport } from '../../api/merchantDirectory'
 import { requireLogin } from '../../common/auth'
 import {
+  claimNavigationFeedback,
   clearNavigationFeedback,
-  consumeNavigationFeedback,
+  completeNavigationFeedback,
+  releaseNavigationFeedback,
   saveNavigationFeedback,
   trackMerchantDirectoryEvent,
 } from '../../common/merchantDirectoryAnalytics'
@@ -361,7 +363,7 @@ function openCurrentLocation() {
 }
 
 function promptNavigationFeedback() {
-  const target = consumeNavigationFeedback()
+  const target = claimNavigationFeedback()
   if (!target) return
   uni.showModal({
     title: '位置是否准确？',
@@ -369,13 +371,23 @@ function promptNavigationFeedback() {
     confirmText: '位置有误',
     cancelText: '位置准确',
     success: ({ confirm }) => {
-      if (confirm) submitNavigationFeedback(target)
+      if (confirm) {
+        submitNavigationFeedback(target)
+        return
+      }
+      completeNavigationFeedback(target)
     },
+    fail: () => releaseNavigationFeedback(target),
   })
 }
 
 async function submitNavigationFeedback(target) {
-  if (!target?.merchantId || reportSubmitting.value || !requireLogin()) return
+  if (!target?.merchantId || reportSubmitting.value) return
+  if (!requireLogin()) {
+    // 登录跳转前归还认领但保留缓存，用户登录返回后可再次从 onShow 提交。
+    releaseNavigationFeedback(target)
+    return
+  }
   reportSubmitting.value = true
   uni.showLoading({ title: '提交中', mask: true })
   try {
@@ -383,13 +395,15 @@ async function submitNavigationFeedback(target) {
       reasonCode: 'navigation_inaccurate',
       description: '用户在腾讯地图导航后反馈位置不准确',
     })
+    completeNavigationFeedback(target)
+    uni.showToast({ title: response?.idempotent ? '已收到你的反馈' : '反馈已提交', icon: 'none' })
     trackMerchantDirectoryEvent({
       merchantId: target.merchantId,
       eventType: 'location_report_submit',
       source: 'merchant_location',
     })
-    uni.showToast({ title: response?.idempotent ? '已收到你的反馈' : '反馈已提交', icon: 'none' })
   } catch (err) {
+    releaseNavigationFeedback(target)
     console.error('提交商家导航位置反馈失败', { merchantId: target.merchantId, err })
     uni.showToast({ title: '位置反馈提交失败，请稍后重试', icon: 'none' })
   } finally {

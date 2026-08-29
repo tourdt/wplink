@@ -29,7 +29,9 @@ function loadPage({
   listMerchantDirectory = async () => ({ items: [], total: 0, page: 1, pageSize: 20 }),
   submitMerchantLocationReport = async () => ({ idempotent: false }),
   trackMerchantDirectoryEvent = () => {},
-  consumeNavigationFeedback = () => null,
+  claimNavigationFeedback = () => null,
+  completeNavigationFeedback = () => true,
+  releaseNavigationFeedback = () => true,
   requireLogin = () => true,
   timeline = [],
   uni: uniOverrides = {},
@@ -42,13 +44,15 @@ function loadPage({
     ...directoryState,
     DEFAULT_CITY_CODE: 'zhili',
     computed(getter) { return { get value() { return getter() } } },
-    consumeNavigationFeedback,
+    claimNavigationFeedback,
+    completeNavigationFeedback,
     listMerchantDirectory,
     onLoad(callback) { loadHook = callback },
     onPullDownRefresh() {},
     onReachBottom() {},
     onShow(callback) { showHook = callback },
     ref(value) { return { value } },
+    releaseNavigationFeedback,
     requireLogin,
     submitMerchantLocationReport,
     trackMerchantDirectoryEvent,
@@ -99,9 +103,9 @@ test('directory keeps stable pagination and records each merchant exposure once 
   page.state.keyword.value = ' A108 '
   page.state.categoriesText.value = '童装, 女童'
 
-  await page.loadMerchants({ reset: true })
+  await page.submitSearch()
   await page.loadMerchants({ reset: false })
-  await page.loadMerchants({ reset: true })
+  await page.submitSearch()
 
   assert.deepEqual(queries, [
     { cityCode: 'zhili', keyword: 'A108', categories: '童装,女童', page: 1, pageSize: 20 },
@@ -110,6 +114,43 @@ test('directory keeps stable pagination and records each merchant exposure once 
   ])
   assert.deepEqual(page.state.merchants.value.map((item) => item.merchantId), ['1', '2'])
   assert.deepEqual(events.filter((item) => item.eventType === 'directory_exposure').map((item) => item.merchantId), ['1', '2', '3'])
+})
+
+test('directory pagination uses the applied query until edited drafts are explicitly submitted', async () => {
+  const oldPageTwo = deferred()
+  const newPageOne = deferred()
+  const queries = []
+  const page = loadPage({
+    listMerchantDirectory(query) {
+      queries.push(plain(query))
+      if (queries.length === 1) return Promise.resolve({ items: [merchant('old-1')], total: 2, page: 1, pageSize: 20 })
+      return queries.length === 2 ? oldPageTwo.promise : newPageOne.promise
+    },
+  })
+
+  page.state.keyword.value = '旧档口'
+  page.state.categoriesText.value = '童装'
+  await page.submitSearch()
+
+  page.state.keyword.value = '新档口'
+  page.state.categoriesText.value = '女童'
+  const loadingOldPageTwo = page.loadMerchants({ reset: false })
+  await flush()
+  const loadingNewPageOne = page.submitSearch()
+  await flush()
+
+  assert.deepEqual(queries, [
+    { cityCode: 'zhili', keyword: '旧档口', categories: '童装', page: 1, pageSize: 20 },
+    { cityCode: 'zhili', keyword: '旧档口', categories: '童装', page: 2, pageSize: 20 },
+    { cityCode: 'zhili', keyword: '新档口', categories: '女童', page: 1, pageSize: 20 },
+  ])
+
+  newPageOne.resolve({ items: [merchant('new-1', '新条件结果')], total: 1, page: 1, pageSize: 20 })
+  await loadingNewPageOne
+  oldPageTwo.resolve({ items: [merchant('old-2', '迟到旧分页')], total: 2, page: 2, pageSize: 20 })
+  await loadingOldPageTwo
+
+  assert.deepEqual(page.state.merchants.value.map((item) => item.name), ['新条件结果'])
 })
 
 test('same directory query shares one request while changed filters use latest-wins state', async () => {
@@ -195,21 +236,42 @@ test('directory homepage and location actions record clicks before merchantId-on
   ])
 })
 
-test('directory onShow consumes navigation feedback once and idempotent report success is tracked', async () => {
+test('directory releases an anonymous feedback claim and completes it after login returns', async () => {
   const report = deferred()
   const timeline = []
-  let consumeCalls = 0
+  const feedback = { merchantId: 'merchant-1', name: '晨星童装' }
+  let claimed = false
+  let loggedIn = false
   let reportCalls = 0
   const page = loadPage({
     timeline,
-    consumeNavigationFeedback() {
-      consumeCalls += 1
-      return consumeCalls === 1 ? { merchantId: 'merchant-1', name: '晨星童装' } : null
+    claimNavigationFeedback() {
+      if (claimed) return null
+      claimed = true
+      return feedback
     },
+    releaseNavigationFeedback(target) {
+      timeline.push(['release', target.merchantId])
+      claimed = false
+      return true
+    },
+    completeNavigationFeedback(target) {
+      timeline.push(['complete', target.merchantId])
+      claimed = false
+      return true
+    },
+    requireLogin() { return loggedIn },
     submitMerchantLocationReport() { reportCalls += 1; return report.promise },
     trackMerchantDirectoryEvent(event) { timeline.push(['track', event]) },
   })
 
+  page.showHook()
+  await flush()
+  assert.equal(reportCalls, 0)
+  assert.deepEqual(timeline.filter((item) => item[0] === 'release'), [['release', 'merchant-1']])
+  assert.equal(page.state.reportSubmitting.value, false)
+
+  loggedIn = true
   page.showHook()
   page.showHook()
   await flush()
@@ -220,6 +282,8 @@ test('directory onShow consumes navigation feedback once and idempotent report s
   await flush()
 
   assert.equal(page.state.reportSubmitting.value, false)
-  assert.ok(timeline.some((item) => item[0] === 'showToast' && item[1] === '已收到你的反馈'))
-  assert.ok(timeline.some((item) => item[0] === 'track' && item[1].eventType === 'location_report_submit'))
+  const completionIndex = timeline.findIndex((item) => item[0] === 'complete')
+  const toastIndex = timeline.findIndex((item) => item[0] === 'showToast' && item[1] === '已收到你的反馈')
+  const trackIndex = timeline.findIndex((item) => item[0] === 'track' && item[1].eventType === 'location_report_submit')
+  assert.ok(completionIndex >= 0 && completionIndex < toastIndex && toastIndex < trackIndex)
 })
