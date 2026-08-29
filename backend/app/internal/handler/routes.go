@@ -731,6 +731,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 		[]rest.Route{
 			{
 				Method:  http.MethodGet,
+				Path:    "/merchant-directory",
+				Handler: merchant.ListMerchantDirectoryHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
 				Path:    "/merchants/:merchantId",
 				Handler: merchant.GetMerchantHandler(serverCtx),
 			},
@@ -738,6 +743,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Method:  http.MethodPost,
 				Path:    "/merchants/:merchantId",
 				Handler: merchant.UpdateMerchantHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/merchants/:merchantId/location-context",
+				Handler: merchant.GetMerchantLocationContextHandler(serverCtx),
 			},
 		},
 		rest.WithPrefix("/api/v1"),

@@ -79,13 +79,61 @@ type UpdateMerchantResp {
 	UpdatedAt string `json:"updatedAt"`
 }
 
+type ListMerchantDirectoryReq {
+	CityCode  string `form:"cityCode,optional"`
+	Keyword   string `form:"keyword,optional"`
+	Categories string `form:"categories,optional"`
+	Page      int64  `form:"page,optional"`
+	PageSize  int64  `form:"pageSize,optional"`
+}
+
+// MerchantDirectoryItem 只定义公开目录字段，不得加入联系人、电话或微信。
+type MerchantDirectoryItem {
+	MerchantId           string   `json:"merchantId"`
+	MerchantNo           string   `json:"merchantNo"`
+	Name                 string   `json:"name"`
+	MerchantType         string   `json:"merchantType"`
+	MainCategories       []string `json:"mainCategories"`
+	LogoUrl              string   `json:"logoUrl,optional"`
+	AddressText          string   `json:"addressText,optional"`
+	MarketName           string   `json:"marketName,optional"`
+	BuildingName         string   `json:"buildingName,optional"`
+	FloorNo              string   `json:"floorNo,optional"`
+	BoothNo              string   `json:"boothNo,optional"`
+	Latitude             float64  `json:"latitude"`
+	Longitude            float64  `json:"longitude"`
+	LocationName         string   `json:"locationName,optional"`
+	LastResourceActiveAt string   `json:"lastResourceActiveAt,optional"`
+	DistanceMeters       float64  `json:"distanceMeters,optional"`
+}
+
+type ListMerchantDirectoryResp {
+	Items    []MerchantDirectoryItem `json:"items"`
+	Total    int64                   `json:"total"`
+	Page     int64                   `json:"page"`
+	PageSize int64                   `json:"pageSize"`
+}
+
+type MerchantDirectoryLocationContextResp {
+	Current         MerchantDirectoryItem   `json:"current"`
+	Nearby          []MerchantDirectoryItem `json:"nearby"`
+	RadiusMeters    int64                   `json:"radiusMeters"`
+	NearbyAvailable bool                    `json:"nearbyAvailable"`
+}
+
 @server (
 	prefix: /api/v1
 	group:  merchant
 )
 service wplink-api {
+	@handler ListMerchantDirectory
+	get /merchant-directory (ListMerchantDirectoryReq) returns (ListMerchantDirectoryResp)
+
 	@handler GetMerchant
 	get /merchants/:merchantId returns (MerchantDetailResp)
+
+	@handler GetMerchantLocationContext
+	get /merchants/:merchantId/location-context returns (MerchantDirectoryLocationContextResp)
 
 	@handler UpdateMerchant
 	post /merchants/:merchantId (UpdateMerchantReq) returns (UpdateMerchantResp)

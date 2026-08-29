@@ -40,6 +40,7 @@ type APIStore struct {
 	*model.AdminDashboardModel
 	*model.UserModel
 	*model.MerchantModel
+	*model.MerchantDirectoryModel
 	*model.ResourceModel
 	*model.BannerTopicModel
 	*model.HotSearchKeywordModel
@@ -117,6 +118,7 @@ func ValidateAPIServiceContext(ctx *ServiceContext) error {
 		appendMissing("APIStore.AdminDashboardModel", ctx.APIStore.AdminDashboardModel)
 		appendMissing("APIStore.UserModel", ctx.APIStore.UserModel)
 		appendMissing("APIStore.MerchantModel", ctx.APIStore.MerchantModel)
+		appendMissing("APIStore.MerchantDirectoryModel", ctx.APIStore.MerchantDirectoryModel)
 		appendMissing("APIStore.ResourceModel", ctx.APIStore.ResourceModel)
 		appendMissing("APIStore.BannerTopicModel", ctx.APIStore.BannerTopicModel)
 		appendMissing("APIStore.HotSearchKeywordModel", ctx.APIStore.HotSearchKeywordModel)
@@ -210,6 +212,7 @@ func newAPIStore(db *sql.DB) *APIStore {
 		AdminDashboardModel:        model.NewAdminDashboardModel(db),
 		UserModel:                  model.NewUserModel(db),
 		MerchantModel:              model.NewMerchantModel(db),
+		MerchantDirectoryModel:     model.NewMerchantDirectoryModel(db),
 		ResourceModel:              model.NewResourceModel(db),
 		BannerTopicModel:           model.NewBannerTopicModel(db),
 		HotSearchKeywordModel:      model.NewHotSearchKeywordModel(db),

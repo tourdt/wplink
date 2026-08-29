@@ -1188,6 +1188,21 @@ type ListMapScenesResp struct {
 	Items []MapSceneItem `json:"items"`
 }
 
+type ListMerchantDirectoryReq struct {
+	CityCode   string `form:"cityCode,optional"`
+	Keyword    string `form:"keyword,optional"`
+	Categories string `form:"categories,optional"`
+	Page       int64  `form:"page,optional"`
+	PageSize   int64  `form:"pageSize,optional"`
+}
+
+type ListMerchantDirectoryResp struct {
+	Items    []MerchantDirectoryItem `json:"items"`
+	Total    int64                   `json:"total"`
+	Page     int64                   `json:"page"`
+	PageSize int64                   `json:"pageSize"`
+}
+
 type ListMerchantEntitlementsResp struct {
 	Items []MerchantEntitlementInfo `json:"items"`
 }
@@ -1466,6 +1481,32 @@ type MerchantDetailResp struct {
 	LogoUrl          string                   `json:"logoUrl,optional"`
 	Images           []string                 `json:"images,optional"`
 	LastActiveAt     string                   `json:"lastActiveAt,optional"`
+}
+
+type MerchantDirectoryItem struct {
+	MerchantId           string   `json:"merchantId"`
+	MerchantNo           string   `json:"merchantNo"`
+	Name                 string   `json:"name"`
+	MerchantType         string   `json:"merchantType"`
+	MainCategories       []string `json:"mainCategories"`
+	LogoUrl              string   `json:"logoUrl,optional"`
+	AddressText          string   `json:"addressText,optional"`
+	MarketName           string   `json:"marketName,optional"`
+	BuildingName         string   `json:"buildingName,optional"`
+	FloorNo              string   `json:"floorNo,optional"`
+	BoothNo              string   `json:"boothNo,optional"`
+	Latitude             float64  `json:"latitude"`
+	Longitude            float64  `json:"longitude"`
+	LocationName         string   `json:"locationName,optional"`
+	LastResourceActiveAt string   `json:"lastResourceActiveAt,optional"`
+	DistanceMeters       float64  `json:"distanceMeters,optional"`
+}
+
+type MerchantDirectoryLocationContextResp struct {
+	Current         MerchantDirectoryItem   `json:"current"`
+	Nearby          []MerchantDirectoryItem `json:"nearby"`
+	RadiusMeters    int64                   `json:"radiusMeters"`
+	NearbyAvailable bool                    `json:"nearbyAvailable"`
 }
 
 type MerchantEntitlementInfo struct {
