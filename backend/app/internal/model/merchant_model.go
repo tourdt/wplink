@@ -5,18 +5,47 @@ import (
 	"database/sql"
 	"strings"
 	"time"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 const (
-	MerchantStatusActive            = "active"
-	MerchantProfileStatusIncomplete = "incomplete"
-	MerchantProfileStatusCompleted  = "completed"
-	homeRecentMerchantsMaxLimit     = int64(6)
+	MerchantStatusActive             = "active"
+	MerchantProfileStatusIncomplete  = "incomplete"
+	MerchantProfileStatusCompleted   = "completed"
+	MerchantLocationStatusVisible    = "visible"
+	MerchantLocationStatusHidden     = "hidden"
+	MerchantLocationStatusRiskHidden = "risk_hidden"
+	homeRecentMerchantsMaxLimit      = int64(6)
 )
 
 type CreditTag struct {
 	Code  string
 	Label string
+}
+
+type MerchantLocation struct {
+	MarketName   string
+	BuildingName string
+	FloorNo      string
+	BoothNo      string
+	Latitude     *float64
+	Longitude    *float64
+	LocationName string
+	Status       string
+	UpdatedAt    string
+}
+
+type MerchantLocationPatch struct {
+	Action       string
+	MarketName   string
+	BuildingName string
+	FloorNo      string
+	BoothNo      string
+	Latitude     float64
+	Longitude    float64
+	LocationName string
+	Status       string
 }
 
 type MerchantDetail struct {
@@ -38,7 +67,7 @@ type MerchantDetail struct {
 	DealtCount     int64
 	FollowerCount  int64
 	AddressText    string
-	Location       JSONMap
+	Location       MerchantLocation
 	Description    string
 	LogoURL        string
 	Images         []string
@@ -56,8 +85,7 @@ type UpdateMerchantPatch struct {
 	ContactPhone   string
 	ContactWechat  string
 	AddressText    string
-	Location       JSONMap
-	LocationSet    bool
+	Location       MerchantLocationPatch
 }
 
 type ListMerchantsFilter struct {
@@ -107,6 +135,9 @@ func (m *MerchantModel) GetMerchantDetail(ctx context.Context, merchantID string
 	var categories JSONStringSlice
 	var images JSONStringSlice
 	var lastActive sql.NullTime
+	var marketName, buildingName, floorNo, boothNo, locationName sql.NullString
+	var latitude, longitude sql.NullFloat64
+	var locationUpdatedAt sql.NullTime
 
 	err := m.db.QueryRowContext(ctx, `
 SELECT
@@ -129,7 +160,15 @@ SELECT
   m.contact_phone,
   COALESCE(m.contact_wechat, ''),
   COALESCE(m.address_text, ''),
-  m.location,
+	COALESCE(m.market_name, ''),
+	COALESCE(m.building_name, ''),
+	COALESCE(m.floor_no, ''),
+	COALESCE(m.booth_no, ''),
+	m.latitude,
+	m.longitude,
+	COALESCE(m.location_name, ''),
+	m.location_status,
+	m.location_updated_at,
   COALESCE(m.description, ''),
   COALESCE(m.logo_url, ''),
   m.images,
@@ -163,7 +202,15 @@ GROUP BY m.id, cs.code
 		&detail.ContactPhone,
 		&detail.ContactWechat,
 		&detail.AddressText,
-		&detail.Location,
+		&marketName,
+		&buildingName,
+		&floorNo,
+		&boothNo,
+		&latitude,
+		&longitude,
+		&locationName,
+		&detail.Location.Status,
+		&locationUpdatedAt,
 		&detail.Description,
 		&detail.LogoURL,
 		&images,
@@ -179,6 +226,20 @@ GROUP BY m.id, cs.code
 	detail.MainCategories = []string(categories)
 	detail.ProfileStatus = normalizeMerchantProfileStatus(detail.ProfileStatus)
 	detail.Images = []string(images)
+	detail.Location.MarketName = marketName.String
+	detail.Location.BuildingName = buildingName.String
+	detail.Location.FloorNo = floorNo.String
+	detail.Location.BoothNo = boothNo.String
+	detail.Location.LocationName = locationName.String
+	if latitude.Valid {
+		detail.Location.Latitude = float64Pointer(latitude.Float64)
+	}
+	if longitude.Valid {
+		detail.Location.Longitude = float64Pointer(longitude.Float64)
+	}
+	if locationUpdatedAt.Valid {
+		detail.Location.UpdatedAt = locationUpdatedAt.Time.Format(time.RFC3339)
+	}
 	detail.PhoneMasked = maskContact(detail.ContactPhone)
 	detail.WechatMasked = maskWechat(detail.ContactWechat)
 	if lastActive.Valid {
@@ -206,15 +267,17 @@ LIMIT 1
 
 func (m *MerchantModel) UpdateMerchant(ctx context.Context, merchantID string, patch UpdateMerchantPatch) (string, error) {
 	updatedAt := time.Now().UTC()
+	oldLocationStatus := ""
 	err := WithTx(ctx, m.db, func(tx *sql.Tx) error {
 		var oldMerchantType string
 		if err := tx.QueryRowContext(ctx, `
 SELECT
-  merchant_type
+	merchant_type,
+	location_status
 FROM merchants
 WHERE id = $1 AND deleted_at IS NULL
 FOR UPDATE
-`, merchantID).Scan(&oldMerchantType); err != nil {
+`, merchantID).Scan(&oldMerchantType, &oldLocationStatus); err != nil {
 			return err
 		}
 
@@ -237,8 +300,15 @@ FOR UPDATE
 			patch.ContactPhone,
 			patch.ContactWechat,
 			patch.AddressText,
-			patch.LocationSet,
-			patch.Location,
+			patch.Location.Action,
+			patch.Location.MarketName,
+			patch.Location.BuildingName,
+			patch.Location.FloorNo,
+			patch.Location.BoothNo,
+			patch.Location.Latitude,
+			patch.Location.Longitude,
+			patch.Location.LocationName,
+			patch.Location.Status,
 		)
 		if err != nil {
 			return err
@@ -269,6 +339,8 @@ VALUES ($1, $2, $3, $4)
 	if err != nil {
 		return "", err
 	}
+	// 位置公开状态变化会直接影响目录与导航入口，记录安全上下文便于后续审计商家自助操作。
+	logx.WithContext(ctx).Infow("商家自助更新地图位置", logx.Field("merchantId", merchantID), logx.Field("locationAction", patch.Location.Action), logx.Field("oldStatus", oldLocationStatus), logx.Field("newStatus", patch.Location.Status), logx.Field("operationSource", "merchant_profile"))
 	return updatedAt.Format(time.RFC3339), nil
 }
 
@@ -286,11 +358,23 @@ SET
   contact_phone = COALESCE(NULLIF($10, ''), contact_phone),
   contact_wechat = COALESCE(NULLIF($11, ''), contact_wechat),
   address_text = COALESCE(NULLIF($12, ''), address_text),
-  location = CASE WHEN $13 THEN $14 ELSE location END,
+	market_name = CASE WHEN $13 = 'set' THEN NULLIF($14, '') WHEN $13 = 'clear' THEN NULL ELSE market_name END,
+	building_name = CASE WHEN $13 = 'set' THEN NULLIF($15, '') WHEN $13 = 'clear' THEN NULL ELSE building_name END,
+	floor_no = CASE WHEN $13 = 'set' THEN NULLIF($16, '') WHEN $13 = 'clear' THEN NULL ELSE floor_no END,
+	booth_no = CASE WHEN $13 = 'set' THEN NULLIF($17, '') WHEN $13 = 'clear' THEN NULL ELSE booth_no END,
+	latitude = CASE WHEN $13 = 'set' THEN $18 WHEN $13 = 'clear' THEN NULL ELSE latitude END,
+	longitude = CASE WHEN $13 = 'set' THEN $19 WHEN $13 = 'clear' THEN NULL ELSE longitude END,
+	location_name = CASE WHEN $13 = 'set' THEN NULLIF($20, '') WHEN $13 = 'clear' THEN NULL ELSE location_name END,
+	location_status = CASE WHEN $13 = 'set' THEN $21 WHEN $13 = 'clear' THEN 'hidden' ELSE location_status END,
+	location_updated_at = CASE WHEN $13 = 'set' THEN $8 WHEN $13 = 'clear' THEN NULL ELSE location_updated_at END,
   onboarded_at = COALESCE(onboarded_at, $8),
   profile_status = 'completed'
 WHERE id = $1 AND deleted_at IS NULL
 `
+
+func float64Pointer(value float64) *float64 {
+	return &value
+}
 
 const listHomeRecentMerchantsSQL = `
 SELECT

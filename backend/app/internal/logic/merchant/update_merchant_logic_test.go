@@ -3,6 +3,7 @@ package merchant
 import (
 	"context"
 	"database/sql"
+	"math"
 	"testing"
 
 	"wplink/backend/app/internal/model"
@@ -35,7 +36,14 @@ func TestUpdateMerchantPassesPatchToStore(t *testing.T) {
 		ContactPhone:   "18800000001",
 		ContactWechat:  "factory-demo",
 		AddressText:    "织里镇利济路88号",
-		Location:       model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"},
+		LocationAction: "set",
+		MarketName:     "织里童装城",
+		BuildingName:   "一期",
+		FloorNo:        "1F",
+		BoothNo:        "A108",
+		Latitude:       float64Ptr(30.1),
+		Longitude:      float64Ptr(120.2),
+		LocationName:   "织里童装城",
 	})
 	if err != nil {
 		t.Fatalf("UpdateMerchant() error = %v", err)
@@ -62,8 +70,8 @@ func TestUpdateMerchantPassesPatchToStore(t *testing.T) {
 	if store.patch.AddressText != "织里镇利济路88号" {
 		t.Fatalf("addressText = %q, want updated merchant address", store.patch.AddressText)
 	}
-	if store.patch.Location["name"] != "织里童装城" || store.patch.Location["address"] != "织里镇利济路88号" {
-		t.Fatalf("location = %#v, want updated map location", store.patch.Location)
+	if store.patch.Location.Status != model.MerchantLocationStatusVisible || store.patch.Location.BoothNo != "A108" {
+		t.Fatalf("location = %#v, want visible structured location", store.patch.Location)
 	}
 	if verifier.phone != "" || verifier.code != "" {
 		t.Fatalf("sms verifier = %q/%q, want no sms verification", verifier.phone, verifier.code)
@@ -113,12 +121,138 @@ func TestUpdateMerchantMapsMissingMerchant(t *testing.T) {
 
 	_, err := logic.UpdateMerchant(context.Background(), "merchant-missing", UpdateMerchantReq{
 		MainCategories: []string{"童装"},
+		LocationAction: "clear",
 	})
 
 	if errx.CodeOf(err) != errx.CodeResourceNotFound {
 		t.Fatalf("error code = %q, want resource not found", errx.CodeOf(err))
 	}
 }
+
+func TestUpdateMerchantSetsVisibleStructuredLocation(t *testing.T) {
+	store := &fakeMerchantUpdateStore{updatedAt: "2026-08-28T10:00:00+08:00"}
+	logic := NewUpdateMerchantLogic(store)
+
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+		Name:           "织里晨星童装",
+		LocationAction: "set",
+		MarketName:     " 织里童装城 ",
+		BuildingName:   " 一期 ",
+		FloorNo:        " 1F ",
+		BoothNo:        " A108 ",
+		Latitude:       float64Ptr(30.8732),
+		Longitude:      float64Ptr(120.2255),
+		LocationName:   " 织里童装城 ",
+	})
+	if err != nil {
+		t.Fatalf("UpdateMerchant() error = %v", err)
+	}
+	if store.patch.Location.Action != "set" || store.patch.Location.Status != model.MerchantLocationStatusVisible {
+		t.Fatalf("location action/status = %#v, want set/visible", store.patch.Location)
+	}
+	if store.patch.Location.MarketName != "织里童装城" || store.patch.Location.BuildingName != "一期" || store.patch.Location.FloorNo != "1F" || store.patch.Location.BoothNo != "A108" {
+		t.Fatalf("structured location = %#v, want trimmed stall fields", store.patch.Location)
+	}
+	if store.patch.Location.Latitude != 30.8732 || store.patch.Location.Longitude != 120.2255 || store.patch.Location.LocationName != "织里童装城" {
+		t.Fatalf("map location = %#v, want selected Tencent location", store.patch.Location)
+	}
+}
+
+func TestUpdateMerchantRejectsHalfLocation(t *testing.T) {
+	logic := NewUpdateMerchantLogic(&fakeMerchantUpdateStore{})
+
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+		Name:           "织里晨星童装",
+		LocationAction: "set",
+		Latitude:       float64Ptr(30.8732),
+	})
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error = %v, want validation failed", err)
+	}
+}
+
+func TestUpdateMerchantRejectsInvalidCoordinates(t *testing.T) {
+	tests := []struct {
+		name      string
+		latitude  float64
+		longitude float64
+	}{
+		{name: "latitude out of range", latitude: 90.0001, longitude: 120.2255},
+		{name: "longitude out of range", latitude: 30.8732, longitude: 180.0001},
+		{name: "latitude not finite", latitude: math.NaN(), longitude: 120.2255},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logic := NewUpdateMerchantLogic(&fakeMerchantUpdateStore{})
+			_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+				Name:           "织里晨星童装",
+				LocationAction: "set",
+				Latitude:       float64Ptr(tt.latitude),
+				Longitude:      float64Ptr(tt.longitude),
+			})
+			if errx.CodeOf(err) != errx.CodeValidationFailed {
+				t.Fatalf("error = %v, want validation failed", err)
+			}
+		})
+	}
+}
+
+func TestUpdateMerchantClearsLocation(t *testing.T) {
+	store := &fakeMerchantUpdateStore{updatedAt: "2026-08-28T10:00:00+08:00"}
+	logic := NewUpdateMerchantLogic(store)
+
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+		Name:           "织里晨星童装",
+		LocationAction: "clear",
+		MarketName:     "应忽略的市场",
+		BuildingName:   "应忽略的楼栋",
+		FloorNo:        "9F",
+		BoothNo:        "Z999",
+		Latitude:       float64Ptr(30.8732),
+		Longitude:      float64Ptr(120.2255),
+		LocationName:   "应忽略的位置",
+	})
+	if err != nil {
+		t.Fatalf("UpdateMerchant() error = %v", err)
+	}
+	if store.patch.Location.Action != "clear" || store.patch.Location.Status != model.MerchantLocationStatusHidden {
+		t.Fatalf("location action/status = %#v, want clear/hidden", store.patch.Location)
+	}
+	if store.patch.Location.MarketName != "" || store.patch.Location.BuildingName != "" || store.patch.Location.FloorNo != "" || store.patch.Location.BoothNo != "" || store.patch.Location.LocationName != "" || store.patch.Location.Latitude != 0 || store.patch.Location.Longitude != 0 {
+		t.Fatalf("cleared location = %#v, want all location values empty", store.patch.Location)
+	}
+}
+
+func TestUpdateMerchantRejectsUnknownLocationAction(t *testing.T) {
+	logic := NewUpdateMerchantLogic(&fakeMerchantUpdateStore{})
+
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+		Name:           "织里晨星童装",
+		LocationAction: "keep",
+	})
+	if errx.CodeOf(err) != errx.CodeValidationFailed || errx.PublicMessage(err) != "地图位置操作不正确，请重新选择" {
+		t.Fatalf("error = %v, want safe invalid location action message", err)
+	}
+}
+
+func TestUpdateMerchantMapsStoreFailureToSafeError(t *testing.T) {
+	store := &fakeMerchantUpdateStore{err: databaseError("write failed")}
+	logic := NewUpdateMerchantLogic(store)
+
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+		Name:           "织里晨星童装",
+		LocationAction: "clear",
+	})
+	if errx.CodeOf(err) != errx.CodeInternalError || errx.PublicMessage(err) != "商家资料保存失败，请稍后重试" {
+		t.Fatalf("error = %v, want safe merchant save failure", err)
+	}
+}
+
+type databaseError string
+
+func (e databaseError) Error() string { return string(e) }
+
+func float64Ptr(value float64) *float64 { return &value }
 
 type fakeMerchantUpdateStore struct {
 	merchantID string

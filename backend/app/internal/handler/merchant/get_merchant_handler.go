@@ -56,16 +56,35 @@ func GetMerchantHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			CityCode: resp.CityCode, MainCategories: append([]string{}, resp.MainCategories...), ProfileStatus: resp.ProfileStatus,
 			VipStatus: resp.VIPStatus, CreditTags: creditTags,
 			ResourcesSummary: types.MerchantResourcesSummary{PublishedCount: resp.ResourcesSummary.PublishedCount, DealtCount: resp.ResourcesSummary.DealtCount},
-			HeatScore:        resp.HeatScore, AddressText: resp.AddressText, Location: map[string]interface{}(resp.Location),
+			HeatScore:        resp.HeatScore, AddressText: resp.AddressText,
 			Description: resp.Description, LogoUrl: resp.LogoURL, Images: append([]string{}, resp.Images...), LastActiveAt: resp.LastActiveAt,
-		}, Contact: contact}, nil)
+		}, Contact: contact, Location: merchantLocationPayload{
+			MarketName: resp.Location.MarketName, BuildingName: resp.Location.BuildingName, FloorNo: resp.Location.FloorNo,
+			BoothNo: resp.Location.BoothNo, Latitude: resp.Location.Latitude, Longitude: resp.Location.Longitude,
+			LocationName: resp.Location.LocationName, Status: resp.Location.Status, UpdatedAt: resp.Location.UpdatedAt,
+			Available: resp.Location.Available,
+		}}, nil)
 	}
 }
 
-// goctl 保留了契约中的 optional 标记但 encoding/json 不识别该选项；外层字段确保匿名详情继续彻底省略联系方式。
+// goctl 保留了契约中的 optional 标记但 encoding/json 不识别该选项；外层字段确保联系方式和不可见坐标都能彻底省略。
 type merchantDetailPayload struct {
 	types.MerchantDetailResp
-	Contact *types.MerchantContactInfo `json:"contact,omitempty"`
+	Contact  *types.MerchantContactInfo `json:"contact,omitempty"`
+	Location merchantLocationPayload    `json:"location"`
+}
+
+type merchantLocationPayload struct {
+	MarketName   string   `json:"marketName,omitempty"`
+	BuildingName string   `json:"buildingName,omitempty"`
+	FloorNo      string   `json:"floorNo,omitempty"`
+	BoothNo      string   `json:"boothNo,omitempty"`
+	Latitude     *float64 `json:"latitude,omitempty"`
+	Longitude    *float64 `json:"longitude,omitempty"`
+	LocationName string   `json:"locationName,omitempty"`
+	Status       string   `json:"status"`
+	UpdatedAt    string   `json:"updatedAt,omitempty"`
+	Available    bool     `json:"available"`
 }
 
 func requireMerchantHandlerStore(r *http.Request, svcCtx *svc.ServiceContext, requirePermissionStore bool) error {

@@ -38,6 +38,19 @@ type MerchantResourcesSummary struct {
 	DealtCount     int64 `json:"dealtCount"`
 }
 
+type MerchantLocationInfo struct {
+	MarketName   string   `json:"marketName,omitempty"`
+	BuildingName string   `json:"buildingName,omitempty"`
+	FloorNo      string   `json:"floorNo,omitempty"`
+	BoothNo      string   `json:"boothNo,omitempty"`
+	Latitude     *float64 `json:"latitude,omitempty"`
+	Longitude    *float64 `json:"longitude,omitempty"`
+	LocationName string   `json:"locationName,omitempty"`
+	Status       string   `json:"status"`
+	UpdatedAt    string   `json:"updatedAt,omitempty"`
+	Available    bool     `json:"available"`
+}
+
 type MerchantDetailResp struct {
 	ID               string                   `json:"id"`
 	MerchantNo       string                   `json:"merchantNo"`
@@ -52,7 +65,7 @@ type MerchantDetailResp struct {
 	ResourcesSummary MerchantResourcesSummary `json:"resourcesSummary"`
 	HeatScore        int64                    `json:"heatScore"`
 	AddressText      string                   `json:"addressText,omitempty"`
-	Location         model.JSONMap            `json:"location,omitempty"`
+	Location         MerchantLocationInfo     `json:"location"`
 	Description      string                   `json:"description,omitempty"`
 	LogoURL          string                   `json:"logoUrl,omitempty"`
 	Images           []string                 `json:"images,omitempty"`
@@ -78,20 +91,21 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string, v
 		if errors.Is(err, sql.ErrNoRows) {
 			return MerchantDetailResp{}, errx.New(errx.CodeMerchantNotFound, "商家不存在或已停用")
 		}
-		return MerchantDetailResp{}, err
+		logx.WithContext(ctx).Errorw("商家详情数据库查询失败", logx.Field("merchantId", merchantID), logx.Field("err", err))
+		return MerchantDetailResp{}, errx.New(errx.CodeInternalError, "商家资料加载失败，请稍后重试")
 	}
 
 	tags := make([]CreditTagInfo, 0, len(detail.CreditTags))
 	for _, tag := range detail.CreditTags {
 		tags = append(tags, CreditTagInfo{Code: tag.Code, Label: tag.Label})
 	}
-	canExposeContact, err := canExposeEditableContact(ctx, l.store, merchantID, firstViewerUserID(viewerUserID))
+	canManageMerchant, err := canExposeEditableContact(ctx, l.store, merchantID, firstViewerUserID(viewerUserID))
 	if err != nil {
-		logx.Errorf("商家详情联系方式权限判断失败: merchantId=%s userId=%s err=%+v", merchantID, firstViewerUserID(viewerUserID), err)
+		logx.Errorf("商家详情编辑权限判断失败: merchantId=%s userId=%s err=%+v", merchantID, firstViewerUserID(viewerUserID), err)
 		return MerchantDetailResp{}, errx.New(errx.CodeInternalError, "资料加载失败，请稍后重试")
 	}
 	var contact *MerchantContactInfo
-	if canExposeContact {
+	if canManageMerchant {
 		// 联系方式只服务于商家本人编辑资料，公开商家主页不会返回联系人、脱敏电话或微信。
 		contact = &MerchantContactInfo{
 			Name:         detail.ContactName,
@@ -118,12 +132,47 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string, v
 		},
 		HeatScore:    calculateMerchantHeatScore(detail),
 		AddressText:  detail.AddressText,
-		Location:     cloneJSONMap(detail.Location),
+		Location:     visibleMerchantLocation(detail.Location, canManageMerchant),
 		Description:  detail.Description,
 		LogoURL:      detail.LogoURL,
 		Images:       append([]string(nil), detail.Images...),
 		LastActiveAt: detail.LastActiveAt,
 	}, nil
+}
+
+func visibleMerchantLocation(location model.MerchantLocation, canManage bool) MerchantLocationInfo {
+	status := strings.TrimSpace(location.Status)
+	if status == "" {
+		status = model.MerchantLocationStatusHidden
+	}
+	coordinatesAvailable := location.Latitude != nil && location.Longitude != nil
+	publiclyVisible := status == model.MerchantLocationStatusVisible && coordinatesAvailable
+	managerCanCorrectRisk := canManage && status == model.MerchantLocationStatusRiskHidden && coordinatesAvailable
+	if !publiclyVisible && !managerCanCorrectRisk {
+		// 隐藏及风险隐藏位置不得向公开访问者泄露坐标或档口文字；状态保留给客户端决定是否展示“待完善”。
+		return MerchantLocationInfo{Status: status, Available: false}
+	}
+
+	return MerchantLocationInfo{
+		MarketName:   location.MarketName,
+		BuildingName: location.BuildingName,
+		FloorNo:      location.FloorNo,
+		BoothNo:      location.BoothNo,
+		Latitude:     copyFloat64Pointer(location.Latitude),
+		Longitude:    copyFloat64Pointer(location.Longitude),
+		LocationName: location.LocationName,
+		Status:       status,
+		UpdatedAt:    location.UpdatedAt,
+		Available:    true,
+	}
+}
+
+func copyFloat64Pointer(value *float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func firstViewerUserID(values []string) string {
@@ -180,15 +229,4 @@ func calculateMerchantHeatScore(detail model.MerchantDetail) int64 {
 		return 0
 	}
 	return score
-}
-
-func cloneJSONMap(value model.JSONMap) model.JSONMap {
-	if value == nil {
-		return nil
-	}
-	cloned := make(model.JSONMap, len(value))
-	for key, item := range value {
-		cloned[key] = item
-	}
-	return cloned
 }

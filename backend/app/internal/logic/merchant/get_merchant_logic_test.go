@@ -29,9 +29,13 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 			DealtCount:     3,
 			FollowerCount:  6,
 			AddressText:    "织里镇利济路88号",
-			Location:       model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"},
-			LogoURL:        "https://example.com/logo.png",
-			Images:         []string{"https://example.com/a.png", "https://example.com/b.png"},
+			Location: model.MerchantLocation{
+				MarketName: "织里童装城", BuildingName: "一期", FloorNo: "1F", BoothNo: "A108",
+				Latitude: float64Ptr(30.1), Longitude: float64Ptr(120.2), LocationName: "织里童装城",
+				Status: model.MerchantLocationStatusVisible, UpdatedAt: "2026-08-28T10:00:00+08:00",
+			},
+			LogoURL: "https://example.com/logo.png",
+			Images:  []string{"https://example.com/a.png", "https://example.com/b.png"},
 		},
 	}
 	logic := NewGetMerchantLogic(store)
@@ -62,8 +66,8 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	if resp.AddressText != "织里镇利济路88号" {
 		t.Fatalf("addressText = %q, want merchant address", resp.AddressText)
 	}
-	if resp.Location["name"] != "织里童装城" || resp.Location["address"] != "织里镇利济路88号" {
-		t.Fatalf("location = %#v, want merchant map location", resp.Location)
+	if !resp.Location.Available || resp.Location.Latitude == nil || *resp.Location.Latitude != 30.1 || resp.Location.BoothNo != "A108" {
+		t.Fatalf("location = %#v, want visible structured merchant location", resp.Location)
 	}
 	payload, err := json.Marshal(resp)
 	if err != nil {
@@ -78,6 +82,53 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	}
 	if contact, ok := decoded["contact"]; ok {
 		t.Fatalf("contact = %#v, public merchant detail should not expose any merchant contact field", contact)
+	}
+}
+
+func TestGetMerchantHidesNonPublicLocationFromAnonymousViewer(t *testing.T) {
+	for _, status := range []string{model.MerchantLocationStatusHidden, model.MerchantLocationStatusRiskHidden} {
+		t.Run(status, func(t *testing.T) {
+			store := &fakeMerchantDetailStore{detail: model.MerchantDetail{
+				ID: "merchant-1", Name: "织里样板童装厂", MerchantType: "factory", CityCode: "zhili",
+				Location: model.MerchantLocation{
+					MarketName: "织里童装城", BoothNo: "A108", Latitude: float64Ptr(30.8732), Longitude: float64Ptr(120.2255),
+					LocationName: "织里童装城", Status: status, UpdatedAt: "2026-08-28T10:00:00+08:00",
+				},
+			}}
+
+			resp, err := NewGetMerchantLogic(store).GetMerchant(context.Background(), "merchant-1")
+			if err != nil {
+				t.Fatalf("GetMerchant() error = %v", err)
+			}
+			if resp.Location.Available || resp.Location.Latitude != nil || resp.Location.Longitude != nil {
+				t.Fatalf("public location = %#v, want unavailable location without coordinates", resp.Location)
+			}
+			if resp.Location.MarketName != "" || resp.Location.BoothNo != "" || resp.Location.LocationName != "" {
+				t.Fatalf("public location = %#v, want hidden location details removed", resp.Location)
+			}
+		})
+	}
+}
+
+func TestGetMerchantReturnsRiskHiddenLocationToManager(t *testing.T) {
+	store := &fakeMerchantDetailStore{canManage: true, detail: model.MerchantDetail{
+		ID: "merchant-1", Name: "织里样板童装厂", MerchantType: "factory", CityCode: "zhili",
+		Location: model.MerchantLocation{
+			MarketName: "织里童装城", BuildingName: "一期", FloorNo: "1F", BoothNo: "A108",
+			Latitude: float64Ptr(30.8732), Longitude: float64Ptr(120.2255), LocationName: "织里童装城",
+			Status: model.MerchantLocationStatusRiskHidden, UpdatedAt: "2026-08-28T10:00:00+08:00",
+		},
+	}}
+
+	resp, err := NewGetMerchantLogic(store).GetMerchant(context.Background(), "merchant-1", "user-1")
+	if err != nil {
+		t.Fatalf("GetMerchant() error = %v", err)
+	}
+	if !resp.Location.Available || resp.Location.Latitude == nil || resp.Location.Longitude == nil {
+		t.Fatalf("manager location = %#v, want saved risk-hidden coordinates for correction", resp.Location)
+	}
+	if *resp.Location.Latitude != 30.8732 || *resp.Location.Longitude != 120.2255 || resp.Location.Status != model.MerchantLocationStatusRiskHidden {
+		t.Fatalf("manager location = %#v, want original risk-hidden location", resp.Location)
 	}
 }
 

@@ -27,16 +27,19 @@ func UpdateMerchantHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			response.JSON(w, nil, err)
 			return
 		}
-		var req types.UpdateMerchantReq
+		// goctl 将 optional float64 生成为值类型；路由专属 Payload 用指针保留“字段缺失”与合法 0 坐标的区别。
+		var req updateMerchantPayload
 		if err := httpx.Parse(r, &req); err != nil {
 			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "商家资料参数格式不正确"))
 			return
 		}
 		resp, err := merchantlogic.NewUpdateMerchantLogic(svcCtx.APIStore, svcCtx.SMSVerifier).UpdateMerchant(r.Context(), merchantID, merchantlogic.UpdateMerchantReq{
 			Name: req.Name, MainCategories: append([]string(nil), req.MainCategories...), MerchantType: req.MerchantType,
-			Description: req.Description, LogoURL: req.LogoUrl, Images: append([]string(nil), req.Images...),
+			Description: req.Description, LogoURL: req.LogoURL, Images: append([]string(nil), req.Images...),
 			ContactName: req.ContactName, ContactPhone: req.ContactPhone, ContactWechat: req.ContactWechat,
-			AddressText: req.AddressText, Location: req.Location, SmsCode: req.SmsCode,
+			AddressText: req.AddressText, LocationAction: req.LocationAction,
+			MarketName: req.MarketName, BuildingName: req.BuildingName, FloorNo: req.FloorNo, BoothNo: req.BoothNo,
+			Latitude: req.Latitude, Longitude: req.Longitude, LocationName: req.LocationName, SmsCode: req.SmsCode,
 		})
 		if err != nil {
 			response.JSON(w, nil, err)
@@ -44,4 +47,26 @@ func UpdateMerchantHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		}
 		response.JSON(w, types.UpdateMerchantResp{Id: resp.ID, UpdatedAt: resp.UpdatedAt}, nil)
 	}
+}
+
+type updateMerchantPayload struct {
+	Name           string   `json:"name"`
+	MainCategories []string `json:"mainCategories"`
+	MerchantType   string   `json:"merchantType"`
+	Description    string   `json:"description"`
+	LogoURL        string   `json:"logoUrl"`
+	Images         []string `json:"images"`
+	ContactName    string   `json:"contactName"`
+	ContactPhone   string   `json:"contactPhone"`
+	ContactWechat  string   `json:"contactWechat"`
+	AddressText    string   `json:"addressText"`
+	LocationAction string   `json:"locationAction"`
+	MarketName     string   `json:"marketName"`
+	BuildingName   string   `json:"buildingName"`
+	FloorNo        string   `json:"floorNo"`
+	BoothNo        string   `json:"boothNo"`
+	Latitude       *float64 `json:"latitude"`
+	Longitude      *float64 `json:"longitude"`
+	LocationName   string   `json:"locationName"`
+	SmsCode        string   `json:"smsCode"`
 }

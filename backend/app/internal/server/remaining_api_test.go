@@ -1869,7 +1869,8 @@ func (s *fakeAdminTokenService) ParseAdminToken(ctx context.Context, token strin
 }
 
 func (s *fakeFullAPIStore) GetMerchantDetail(ctx context.Context, merchantID string) (model.MerchantDetail, error) {
-	return model.MerchantDetail{ID: merchantID, Name: "织里云仓", MerchantType: "stockist", CityCode: "zhili", MainCategories: []string{"童装"}, ContactName: "周经理", ContactPhone: "18800000002", ContactWechat: "stock-demo", PhoneMasked: "188****0002", WechatMasked: "stock-demo", AddressText: "织里镇利济路88号", Location: model.JSONMap{"latitude": 30.1, "longitude": 120.2, "name": "织里童装城", "address": "织里镇利济路88号"}, PublishedCount: 1}, nil
+	latitude, longitude := 30.1, 120.2
+	return model.MerchantDetail{ID: merchantID, Name: "织里云仓", MerchantType: "stockist", CityCode: "zhili", MainCategories: []string{"童装"}, ContactName: "周经理", ContactPhone: "18800000002", ContactWechat: "stock-demo", PhoneMasked: "188****0002", WechatMasked: "stock-demo", AddressText: "织里镇利济路88号", Location: model.MerchantLocation{MarketName: "织里童装城", Latitude: &latitude, Longitude: &longitude, LocationName: "织里童装城", Status: model.MerchantLocationStatusVisible}, PublishedCount: 1}, nil
 }
 
 func (s *fakeFullAPIStore) UpdateMerchant(ctx context.Context, merchantID string, patch model.UpdateMerchantPatch) (string, error) {

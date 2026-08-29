@@ -1461,7 +1461,7 @@ type MerchantDetailResp struct {
 	ResourcesSummary MerchantResourcesSummary `json:"resourcesSummary"`
 	HeatScore        int64                    `json:"heatScore"`
 	AddressText      string                   `json:"addressText,optional"`
-	Location         map[string]interface{}   `json:"location,optional"`
+	Location         MerchantLocationInfo     `json:"location"`
 	Description      string                   `json:"description,optional"`
 	LogoUrl          string                   `json:"logoUrl,optional"`
 	Images           []string                 `json:"images,optional"`
@@ -1497,6 +1497,19 @@ type MerchantLocationContextResp struct {
 	Nearby          []MerchantPlaceItem `json:"nearby"`
 	RadiusMeters    int64               `json:"radiusMeters"`
 	NearbyAvailable bool                `json:"nearbyAvailable"`
+}
+
+type MerchantLocationInfo struct {
+	MarketName   string  `json:"marketName,optional"`
+	BuildingName string  `json:"buildingName,optional"`
+	FloorNo      string  `json:"floorNo,optional"`
+	BoothNo      string  `json:"boothNo,optional"`
+	Latitude     float64 `json:"latitude,optional"`
+	Longitude    float64 `json:"longitude,optional"`
+	LocationName string  `json:"locationName,optional"`
+	Status       string  `json:"status"`
+	UpdatedAt    string  `json:"updatedAt,optional"`
+	Available    bool    `json:"available"`
 }
 
 type MerchantMapEventReq struct {
@@ -2021,18 +2034,25 @@ type TopicResourcesResp struct {
 }
 
 type UpdateMerchantReq struct {
-	Name           string                 `json:"name,optional"`
-	MainCategories []string               `json:"mainCategories,optional"`
-	MerchantType   string                 `json:"merchantType,optional"`
-	Description    string                 `json:"description,optional"`
-	LogoUrl        string                 `json:"logoUrl,optional"`
-	Images         []string               `json:"images,optional"`
-	ContactName    string                 `json:"contactName,optional"`
-	ContactPhone   string                 `json:"contactPhone,optional"`
-	ContactWechat  string                 `json:"contactWechat,optional"`
-	AddressText    string                 `json:"addressText,optional"`
-	Location       map[string]interface{} `json:"location,optional"`
-	SmsCode        string                 `json:"smsCode,optional"`
+	Name           string   `json:"name,optional"`
+	MainCategories []string `json:"mainCategories,optional"`
+	MerchantType   string   `json:"merchantType,optional"`
+	Description    string   `json:"description,optional"`
+	LogoUrl        string   `json:"logoUrl,optional"`
+	Images         []string `json:"images,optional"`
+	ContactName    string   `json:"contactName,optional"`
+	ContactPhone   string   `json:"contactPhone,optional"`
+	ContactWechat  string   `json:"contactWechat,optional"`
+	AddressText    string   `json:"addressText,optional"`
+	LocationAction string   `json:"locationAction"`
+	MarketName     string   `json:"marketName,optional"`
+	BuildingName   string   `json:"buildingName,optional"`
+	FloorNo        string   `json:"floorNo,optional"`
+	BoothNo        string   `json:"boothNo,optional"`
+	Latitude       float64  `json:"latitude,optional"`
+	Longitude      float64  `json:"longitude,optional"`
+	LocationName   string   `json:"locationName,optional"`
+	SmsCode        string   `json:"smsCode,optional"`
 }
 
 type UpdateMerchantResp struct {
