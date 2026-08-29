@@ -38,6 +38,14 @@ function withFixture(files, callback) {
   }
 }
 
+function assertNoRetiredMapRoutes(paths) {
+  for (const routePath of paths) {
+    assert.equal(routePath.startsWith('/api/v1/map/'), false, `retired route remains: ${routePath}`)
+    assert.equal(routePath.startsWith('/api/v1/admin/map/'), false, `retired route remains: ${routePath}`)
+    assert.equal(routePath.includes('/map-binding'), false, `retired route remains: ${routePath}`)
+  }
+}
+
 test('json CLI inventories the current contract and generated routes', () => {
   const result = runInventoryCLI('--json')
 
@@ -70,11 +78,24 @@ test('text CLI reports current contract and generated route parity', () => {
 test('production contract contains only merchant-owned location APIs', () => {
   const apiDir = path.join(backendDir, 'app/api')
   const paths = parseAPIContracts(apiDir).map((route) => route.path)
-  for (const fragment of ['/map/scenes', '/map/objects', '/map/categories', '/map/bind-candidates', '/map-binding']) {
-    assert.equal(paths.some((routePath) => routePath.includes(fragment)), false, `retired route remains: ${fragment}`)
-  }
+  assertNoRetiredMapRoutes(paths)
   assert.equal(paths.includes('/api/v1/merchant-directory'), true)
   assert.equal(paths.includes('/api/v1/merchants/:merchantId/location-context'), true)
+})
+
+test('retired map route guard covers every legacy route family', () => {
+  for (const routePath of [
+    '/api/v1/map/merchant-places',
+    '/api/v1/map/merchants/:merchantId/location-context',
+    '/api/v1/admin/map/bind-requests',
+    '/api/v1/admin/map/bind-requests/:requestId/review',
+  ]) {
+    assert.throws(
+      () => assertNoRetiredMapRoutes([routePath]),
+      /retired route remains/,
+      `retired route guard accepted ${routePath}`,
+    )
+  }
 })
 
 test('parses imported API contracts with prefixes and retains duplicate handlers', () => {
