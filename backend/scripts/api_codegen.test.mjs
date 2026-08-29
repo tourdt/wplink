@@ -40,11 +40,17 @@ test('goctl toolchain verify accepts only the required executable version', () =
   }
 })
 
-test('goctl toolchain install exits successfully after building the required version', () => {
+test('goctl toolchain install reuses an existing required-version binary without invoking Go', () => {
   const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'goctl-toolchain-install-'))
   try {
-    const result = spawnSync(goctlToolchainScript, ['--install', fixtureDir], {
-      env: { ...process.env },
+    const installDir = path.join(fixtureDir, 'bin')
+    fs.mkdirSync(installDir)
+    const existingBinary = path.join(installDir, 'goctl')
+    fs.writeFileSync(existingBinary, '#!/bin/sh\necho "goctl version 1.7.5 linux/amd64"\n')
+    fs.chmodSync(existingBinary, 0o755)
+
+    const result = spawnSync(goctlToolchainScript, ['--install', installDir], {
+      env: { ...process.env, PATH: '/bin' },
       encoding: 'utf8',
     })
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)

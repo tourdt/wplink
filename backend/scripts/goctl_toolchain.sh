@@ -25,6 +25,12 @@ verify_goctl() {
 }
 
 install_goctl() {
+  # 同一检查链路已准备好正确版本时只做校验，避免重复下载与构建。
+  if [[ -x "$goctl_bin" ]]; then
+    verify_goctl
+    return
+  fi
+
   mkdir -p "$install_dir"
   local build_dir
   build_dir="$(mktemp -d)"

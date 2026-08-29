@@ -74,7 +74,7 @@ jobs:
         working-directory: backend
         run: node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs scripts/api_route_inventory.test.mjs scripts/api_codegen.test.mjs scripts/product_doc_governance.test.mjs
       - name: 校验生成结果
-        run: make check-api-generated
+        run: make check-api-generated GOCTL_BIN_DIR="$RUNNER_TEMP/goctl/bin"
       - name: 动态验证迁移回滚
         working-directory: backend
         run: go run ./scripts/verify_migrations.go
