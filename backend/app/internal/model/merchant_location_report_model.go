@@ -24,7 +24,36 @@ var ErrMerchantLocationNotReportable = errors.New("merchant location is not repo
 var (
 	ErrMerchantLocationReportAlreadyReviewed = errors.New("merchant location report already reviewed")
 	ErrMerchantLocationCoordinatesMissing    = errors.New("merchant location coordinates missing")
+	ErrMerchantLocationAutoHideInvariant     = errors.New("merchant location auto-hide invariant violated")
 )
+
+const adminMerchantLocationReportStatusFilterSQL = `WHERE ($1 = '' OR mlr.status = $1)`
+
+const adminMerchantLocationReportCountSQL = `
+SELECT COUNT(*)
+FROM merchant_location_reports mlr
+` + adminMerchantLocationReportStatusFilterSQL
+
+const adminMerchantLocationReportListSQL = `
+SELECT
+  mlr.id::text,
+  mlr.status,
+  mlr.merchant_id::text,
+  m.name,
+  mlr.reporter_user_id::text,
+  mlr.reason_code,
+  mlr.description,
+  mlr.location_snapshot,
+  COALESCE(mlr.reviewed_by::text, ''),
+  COALESCE(mlr.review_note, ''),
+  mlr.created_at,
+  mlr.reviewed_at
+FROM merchant_location_reports mlr
+JOIN merchants m ON m.id = mlr.merchant_id
+` + adminMerchantLocationReportStatusFilterSQL + `
+ORDER BY mlr.created_at DESC, mlr.id DESC
+LIMIT $2 OFFSET $3
+`
 
 type CreateMerchantLocationReportInput struct {
 	MerchantID     string
@@ -206,7 +235,11 @@ WHERE id = $1 AND location_status = 'visible' AND deleted_at IS NULL
 		if err != nil {
 			return err
 		}
-		result.AutoHidden = affected == 1
+		if affected != 1 {
+			// 商家行已在本事务开头锁定且状态为 visible；此处 0/多行都表示事务不变量被破坏，禁止提交孤立报告。
+			return fmt.Errorf("%w: merchantId=%s affectedRows=%d", ErrMerchantLocationAutoHideInvariant, strings.TrimSpace(input.MerchantID), affected)
+		}
+		result.AutoHidden = true
 		return nil
 	})
 	if err != nil {
@@ -243,33 +276,20 @@ func (m *MerchantLocationReportModel) ListAdminMerchantLocationReports(ctx conte
 	if err != nil {
 		return ListAdminMerchantLocationReportsResult{}, err
 	}
-	rows, err := m.db.QueryContext(ctx, `
-SELECT
-  mlr.id::text,
-  mlr.status,
-  mlr.merchant_id::text,
-  m.name,
-  mlr.reporter_user_id::text,
-  mlr.reason_code,
-  mlr.description,
-  mlr.location_snapshot,
-  COALESCE(mlr.reviewed_by::text, ''),
-  COALESCE(mlr.review_note, ''),
-  mlr.created_at,
-  mlr.reviewed_at,
-  COUNT(*) OVER() AS total
-FROM merchant_location_reports mlr
-JOIN merchants m ON m.id = mlr.merchant_id
-WHERE ($1 = '' OR mlr.status = $1)
-ORDER BY mlr.created_at DESC, mlr.id DESC
-LIMIT $2 OFFSET $3
-`, strings.TrimSpace(filter.Status), pageSize, offset)
+	status := strings.TrimSpace(filter.Status)
+	result := ListAdminMerchantLocationReportsResult{
+		Items: make([]AdminMerchantLocationReportItem, 0), Page: page, PageSize: pageSize,
+	}
+	// total 必须独立于当前页是否有行；COUNT 和列表共用同一筛选片段，避免状态条件漂移。
+	if err := m.db.QueryRowContext(ctx, adminMerchantLocationReportCountSQL, status).Scan(&result.Total); err != nil {
+		return ListAdminMerchantLocationReportsResult{}, err
+	}
+	rows, err := m.db.QueryContext(ctx, adminMerchantLocationReportListSQL, status, pageSize, offset)
 	if err != nil {
 		return ListAdminMerchantLocationReportsResult{}, err
 	}
 	defer rows.Close()
 
-	result := ListAdminMerchantLocationReportsResult{Page: page, PageSize: pageSize}
 	for rows.Next() {
 		var item AdminMerchantLocationReportItem
 		var createdAt time.Time
@@ -277,7 +297,7 @@ LIMIT $2 OFFSET $3
 		if err := rows.Scan(
 			&item.ID, &item.Status, &item.MerchantID, &item.MerchantName, &item.ReporterUserID,
 			&item.ReasonCode, &item.Description, &item.LocationSnapshot, &item.ReviewedBy,
-			&item.ReviewNote, &createdAt, &reviewedAt, &result.Total,
+			&item.ReviewNote, &createdAt, &reviewedAt,
 		); err != nil {
 			return ListAdminMerchantLocationReportsResult{}, err
 		}

@@ -15,7 +15,7 @@ func TestListMerchantsPassesFiltersToStore(t *testing.T) {
 	store := &fakeAdminMerchantStore{
 		result: model.ListMerchantsResult{
 			Items: []model.MerchantListItem{
-				{ID: "merchant-1", Name: "织里样板童装厂", MerchantType: "factory", Status: "active"},
+				{ID: "merchant-1", Name: "织里样板童装厂", MerchantType: "factory", Status: "active", LocationStatus: model.MerchantLocationStatusRiskHidden, MarketName: "织里童装城", BuildingName: "一期", FloorNo: "1F", BoothNo: "A108", PendingLocationReportCount: 3},
 			},
 			Page:     1,
 			PageSize: 20,
@@ -25,11 +25,13 @@ func TestListMerchantsPassesFiltersToStore(t *testing.T) {
 	logic := NewMerchantAdminLogic(store)
 
 	resp, err := logic.ListMerchants(context.Background(), ListMerchantsReq{
-		CityCode:     " zhili ",
-		MerchantType: "factory",
-		Keyword:      " 样板 ",
-		Page:         1,
-		PageSize:     20,
+		CityCode:       " zhili ",
+		MerchantType:   "factory",
+		Status:         " active ",
+		LocationStatus: " risk_hidden ",
+		Keyword:        " 样板 ",
+		Page:           1,
+		PageSize:       20,
 	})
 	if err != nil {
 		t.Fatalf("ListMerchants() error = %v", err)
@@ -41,8 +43,15 @@ func TestListMerchantsPassesFiltersToStore(t *testing.T) {
 	if store.filter.Keyword != "样板" {
 		t.Fatalf("keyword = %q, want trimmed 样板", store.filter.Keyword)
 	}
+	if store.filter.Status != model.MerchantStatusActive || store.filter.LocationStatus != model.MerchantLocationStatusRiskHidden {
+		t.Fatalf("status filters = %q/%q, want independent business and location filters", store.filter.Status, store.filter.LocationStatus)
+	}
 	if len(resp.Items) != 1 || resp.Items[0].Name != "织里样板童装厂" {
 		t.Fatalf("items = %#v, want merchant list item", resp.Items)
+	}
+	item := resp.Items[0]
+	if item.LocationStatus != model.MerchantLocationStatusRiskHidden || item.MarketName != "织里童装城" || item.BuildingName != "一期" || item.FloorNo != "1F" || item.BoothNo != "A108" || item.PendingLocationReportCount != 3 {
+		t.Fatalf("item = %#v, want complete location governance summary", item)
 	}
 }
 
@@ -72,6 +81,16 @@ func TestListMerchantLocationReportsRejectsOverflowingOffsetBeforeStore(t *testi
 	}
 	if store.reportListCalls != 0 {
 		t.Fatal("store must not be called when pagination offset overflows")
+	}
+}
+
+func TestListMerchantLocationReportsHidesStoreCountError(t *testing.T) {
+	store := &fakeAdminMerchantStore{reportErr: errors.New("pq: relation merchant_location_reports is unavailable")}
+	_, err := NewMerchantAdminLogic(store).ListMerchantLocationReports(context.Background(), ListMerchantLocationReportsReq{
+		Status: model.MerchantLocationReportStatusPending, Page: 2, PageSize: 20,
+	})
+	if errx.CodeOf(err) != errx.CodeInternalError || errx.PublicMessage(err) != "位置反馈列表加载失败，请稍后重试" {
+		t.Fatalf("error = %v, want safe list failure", err)
 	}
 }
 
@@ -195,6 +214,7 @@ type fakeAdminMerchantStore struct {
 	result          model.ListMerchantsResult
 	reportFilter    model.AdminMerchantLocationReportFilter
 	reportList      model.ListAdminMerchantLocationReportsResult
+	reportErr       error
 	reportListCalls int
 	reviewCalled    bool
 	reviewInput     model.ReviewMerchantLocationReportInput
@@ -214,7 +234,7 @@ func (s *fakeAdminMerchantStore) ListMerchants(ctx context.Context, filter model
 func (s *fakeAdminMerchantStore) ListAdminMerchantLocationReports(_ context.Context, filter model.AdminMerchantLocationReportFilter) (model.ListAdminMerchantLocationReportsResult, error) {
 	s.reportListCalls++
 	s.reportFilter = filter
-	return s.reportList, nil
+	return s.reportList, s.reportErr
 }
 
 func (s *fakeAdminMerchantStore) ReviewMerchantLocationReport(_ context.Context, input model.ReviewMerchantLocationReportInput) (model.ReviewMerchantLocationReportResult, error) {

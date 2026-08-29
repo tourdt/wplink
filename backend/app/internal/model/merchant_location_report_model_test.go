@@ -111,6 +111,43 @@ func TestCreateMerchantLocationReportRollsBackWhenReporterCountFails(t *testing.
 	}
 }
 
+func TestCreateMerchantLocationReportRollsBackWhenAutoHideAffectsNoMerchant(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectBegin()
+	expectVisibleMerchantLocationForUpdate(mock, "101")
+	mock.ExpectQuery(`SELECT mlr.id::text, mlr.status,.*FROM merchant_location_reports mlr`).
+		WithArgs("101", "203").
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`INSERT INTO merchant_location_reports`).
+		WithArgs("101", "203", "wrong_market", "市场不正确", sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow("9001", MerchantLocationReportStatusPending))
+	mock.ExpectQuery(`SELECT COUNT\(DISTINCT reporter_user_id\).*FROM merchant_location_reports`).
+		WithArgs("101").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(3)))
+	mock.ExpectExec(`UPDATE merchants.*SET location_status = 'risk_hidden'.*WHERE id = \$1.*location_status = 'visible'`).
+		WithArgs("101").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	result, err := NewMerchantLocationReportModel(db).CreateMerchantLocationReport(context.Background(), CreateMerchantLocationReportInput{
+		MerchantID: "101", ReporterUserID: "203", ReasonCode: "wrong_market", Description: "市场不正确",
+	})
+	if !errors.Is(err, ErrMerchantLocationAutoHideInvariant) {
+		t.Fatalf("CreateMerchantLocationReport() error = %v, want auto-hide invariant error", err)
+	}
+	if result.ID != "9001" || result.ActiveReporterCount != 3 || result.AutoHidden {
+		t.Fatalf("result = %#v, want diagnostic identifiers without a successful auto-hide", result)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("auto-hide invariant rollback expectations: %v", err)
+	}
+}
+
 func TestResolvePendingLocationReportsCommitsStatusChange(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -177,11 +214,14 @@ func TestListAdminMerchantLocationReportsReturnsPagedReports(t *testing.T) {
 	defer db.Close()
 
 	createdAt := time.Date(2026, time.August, 29, 1, 0, 0, 0, time.UTC)
-	mock.ExpectQuery(`SELECT mlr.id::text, mlr.status, mlr.merchant_id::text, m.name, mlr.reporter_user_id::text, mlr.reason_code, mlr.description, mlr.location_snapshot, COALESCE\(mlr.reviewed_by::text, ''\), COALESCE\(mlr.review_note, ''\), mlr.created_at, mlr.reviewed_at, COUNT\(\*\) OVER\(\) AS total FROM merchant_location_reports mlr JOIN merchants m ON m.id = mlr.merchant_id WHERE \(\$1 = '' OR mlr.status = \$1\) ORDER BY mlr.created_at DESC, mlr.id DESC LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM merchant_location_reports mlr WHERE \(\$1 = '' OR mlr.status = \$1\)`).
+		WithArgs(MerchantLocationReportStatusPending).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(1)))
+	mock.ExpectQuery(`SELECT mlr.id::text, mlr.status, mlr.merchant_id::text, m.name, mlr.reporter_user_id::text, mlr.reason_code, mlr.description, mlr.location_snapshot, COALESCE\(mlr.reviewed_by::text, ''\), COALESCE\(mlr.review_note, ''\), mlr.created_at, mlr.reviewed_at FROM merchant_location_reports mlr JOIN merchants m ON m.id = mlr.merchant_id WHERE \(\$1 = '' OR mlr.status = \$1\) ORDER BY mlr.created_at DESC, mlr.id DESC LIMIT \$2 OFFSET \$3`).
 		WithArgs(MerchantLocationReportStatusPending, int64(20), int64(0)).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "status", "merchant_id", "merchant_name", "reporter_user_id", "reason_code", "description", "location_snapshot", "reviewed_by", "review_note", "created_at", "reviewed_at", "total",
-		}).AddRow("9001", MerchantLocationReportStatusPending, "101", "晨星童装", "201", "wrong_booth", "A108 已搬走", []byte(`{"boothNo":"A108"}`), "", "", createdAt, nil, int64(1)))
+			"id", "status", "merchant_id", "merchant_name", "reporter_user_id", "reason_code", "description", "location_snapshot", "reviewed_by", "review_note", "created_at", "reviewed_at",
+		}).AddRow("9001", MerchantLocationReportStatusPending, "101", "晨星童装", "201", "wrong_booth", "A108 已搬走", []byte(`{"boothNo":"A108"}`), "", "", createdAt, nil))
 
 	result, err := NewMerchantLocationReportModel(db).ListAdminMerchantLocationReports(context.Background(), AdminMerchantLocationReportFilter{
 		Status: MerchantLocationReportStatusPending, Page: 1, PageSize: 20,
@@ -194,6 +234,36 @@ func TestListAdminMerchantLocationReportsReturnsPagedReports(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("list expectations: %v", err)
+	}
+}
+
+func TestListAdminMerchantLocationReportsReturnsTotalForEmptyPage(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM merchant_location_reports mlr WHERE \(\$1 = '' OR mlr.status = \$1\)`).
+		WithArgs(MerchantLocationReportStatusPending).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(1)))
+	mock.ExpectQuery(`SELECT mlr.id::text,.*FROM merchant_location_reports mlr.*WHERE \(\$1 = '' OR mlr.status = \$1\).*LIMIT \$2 OFFSET \$3`).
+		WithArgs(MerchantLocationReportStatusPending, int64(20), int64(20)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "status", "merchant_id", "merchant_name", "reporter_user_id", "reason_code", "description", "location_snapshot", "reviewed_by", "review_note", "created_at", "reviewed_at",
+		}))
+
+	result, err := NewMerchantLocationReportModel(db).ListAdminMerchantLocationReports(context.Background(), AdminMerchantLocationReportFilter{
+		Status: MerchantLocationReportStatusPending, Page: 2, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("ListAdminMerchantLocationReports() error = %v", err)
+	}
+	if result.Total != 1 || len(result.Items) != 0 || result.Page != 2 {
+		t.Fatalf("result = %#v, want empty page 2 with total 1", result)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("empty report page expectations: %v", err)
 	}
 }
 

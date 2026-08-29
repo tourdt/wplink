@@ -23,20 +23,27 @@ type MerchantAdminStore interface {
 }
 
 type ListMerchantsReq struct {
-	CityCode     string
-	MerchantType string
-	Status       string
-	Keyword      string
-	Page         int64
-	PageSize     int64
+	CityCode       string
+	MerchantType   string
+	Status         string
+	LocationStatus string
+	Keyword        string
+	Page           int64
+	PageSize       int64
 }
 
 type MerchantListItem struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	MerchantType string `json:"merchantType"`
-	Status       string `json:"status"`
-	LastActiveAt string `json:"lastActiveAt,omitempty"`
+	ID                         string `json:"id"`
+	Name                       string `json:"name"`
+	MerchantType               string `json:"merchantType"`
+	Status                     string `json:"status"`
+	LocationStatus             string `json:"locationStatus"`
+	MarketName                 string `json:"marketName,omitempty"`
+	BuildingName               string `json:"buildingName,omitempty"`
+	FloorNo                    string `json:"floorNo,omitempty"`
+	BoothNo                    string `json:"boothNo,omitempty"`
+	PendingLocationReportCount int64  `json:"pendingLocationReportCount"`
+	LastActiveAt               string `json:"lastActiveAt,omitempty"`
 }
 
 type ListMerchantsResp struct {
@@ -107,12 +114,13 @@ func NewMerchantAdminLogic(store MerchantAdminStore) *MerchantAdminLogic {
 
 func (l *MerchantAdminLogic) ListMerchants(ctx context.Context, req ListMerchantsReq) (ListMerchantsResp, error) {
 	result, err := l.store.ListMerchants(ctx, model.ListMerchantsFilter{
-		CityCode:     strings.TrimSpace(req.CityCode),
-		MerchantType: strings.TrimSpace(req.MerchantType),
-		Status:       strings.TrimSpace(req.Status),
-		Keyword:      strings.TrimSpace(req.Keyword),
-		Page:         req.Page,
-		PageSize:     req.PageSize,
+		CityCode:       strings.TrimSpace(req.CityCode),
+		MerchantType:   strings.TrimSpace(req.MerchantType),
+		Status:         strings.TrimSpace(req.Status),
+		LocationStatus: strings.TrimSpace(req.LocationStatus),
+		Keyword:        strings.TrimSpace(req.Keyword),
+		Page:           req.Page,
+		PageSize:       req.PageSize,
 	})
 	if err != nil {
 		return ListMerchantsResp{}, err
@@ -121,11 +129,17 @@ func (l *MerchantAdminLogic) ListMerchants(ctx context.Context, req ListMerchant
 	items := make([]MerchantListItem, 0, len(result.Items))
 	for _, item := range result.Items {
 		items = append(items, MerchantListItem{
-			ID:           item.ID,
-			Name:         item.Name,
-			MerchantType: item.MerchantType,
-			Status:       item.Status,
-			LastActiveAt: item.LastActiveAt,
+			ID:                         item.ID,
+			Name:                       item.Name,
+			MerchantType:               item.MerchantType,
+			Status:                     item.Status,
+			LocationStatus:             item.LocationStatus,
+			MarketName:                 item.MarketName,
+			BuildingName:               item.BuildingName,
+			FloorNo:                    item.FloorNo,
+			BoothNo:                    item.BoothNo,
+			PendingLocationReportCount: item.PendingLocationReportCount,
+			LastActiveAt:               item.LastActiveAt,
 		})
 	}
 	return ListMerchantsResp{Items: items, Page: result.Page, PageSize: result.PageSize, Total: result.Total}, nil

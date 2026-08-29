@@ -89,20 +89,27 @@ type UpdateMerchantPatch struct {
 }
 
 type ListMerchantsFilter struct {
-	CityCode     string
-	MerchantType string
-	Status       string
-	Keyword      string
-	Page         int64
-	PageSize     int64
+	CityCode       string
+	MerchantType   string
+	Status         string
+	LocationStatus string
+	Keyword        string
+	Page           int64
+	PageSize       int64
 }
 
 type MerchantListItem struct {
-	ID           string
-	Name         string
-	MerchantType string
-	Status       string
-	LastActiveAt string
+	ID                         string
+	Name                       string
+	MerchantType               string
+	Status                     string
+	LocationStatus             string
+	MarketName                 string
+	BuildingName               string
+	FloorNo                    string
+	BoothNo                    string
+	PendingLocationReportCount int64
+	LastActiveAt               string
 }
 
 type HomeRecentMerchant struct {
@@ -452,7 +459,17 @@ SELECT
   m.name,
   m.merchant_type,
   m.status,
+	m.location_status,
+	COALESCE(m.market_name, ''),
+	COALESCE(m.building_name, ''),
+	COALESCE(m.floor_no, ''),
+	COALESCE(m.booth_no, ''),
   m.last_active_at,
+	(
+		SELECT COUNT(*)
+		FROM merchant_location_reports mlr
+		WHERE mlr.merchant_id = m.id AND mlr.status = 'pending'
+	) AS pending_location_report_count,
   COUNT(*) OVER() AS total
 FROM merchants m
 JOIN city_stations cs ON cs.id = m.city_station_id
@@ -460,10 +477,11 @@ WHERE m.deleted_at IS NULL
 	  AND ($1 = '' OR cs.code = $1)
 	  AND ($2 = '' OR m.merchant_type = $2)
 	  AND ($3 = '' OR m.status = $3)
-	  AND ($4 = '' OR m.name ILIKE '%' || $4 || '%' OR m.contact_name ILIKE '%' || $4 || '%')
+	  AND ($4 = '' OR m.location_status = $4)
+	  AND ($5 = '' OR m.name ILIKE '%' || $5 || '%' OR m.contact_name ILIKE '%' || $5 || '%')
 	ORDER BY m.created_at DESC
-	LIMIT $5 OFFSET $6
-	`, filter.CityCode, filter.MerchantType, filter.Status, filter.Keyword, pageSize, offset)
+	LIMIT $6 OFFSET $7
+	`, filter.CityCode, filter.MerchantType, filter.Status, filter.LocationStatus, filter.Keyword, pageSize, offset)
 	if err != nil {
 		return ListMerchantsResult{}, err
 	}
@@ -474,7 +492,11 @@ WHERE m.deleted_at IS NULL
 	for rows.Next() {
 		var item MerchantListItem
 		var lastActive sql.NullTime
-		if err := rows.Scan(&item.ID, &item.Name, &item.MerchantType, &item.Status, &lastActive, &total); err != nil {
+		if err := rows.Scan(
+			&item.ID, &item.Name, &item.MerchantType, &item.Status, &item.LocationStatus,
+			&item.MarketName, &item.BuildingName, &item.FloorNo, &item.BoothNo, &lastActive,
+			&item.PendingLocationReportCount, &total,
+		); err != nil {
 			return ListMerchantsResult{}, err
 		}
 		if lastActive.Valid {

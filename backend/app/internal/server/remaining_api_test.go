@@ -426,7 +426,7 @@ func TestAdminGeneratedListRoutesMapFiltersAndEncodeEmptyArrays(t *testing.T) {
 	assertAdminItemsArray(t, server, "/api/v1/admin/resource-reports?status=pending&page=2&pageSize=4")
 
 	mock.ExpectQuery(`(?s)FROM merchants m`).
-		WithArgs("zhili", "factory", model.MerchantStatusActive, "童装", int64(9), int64(9)).
+		WithArgs("zhili", "factory", model.MerchantStatusActive, "", "童装", int64(9), int64(9)).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	assertAdminItemsArray(t, server, "/api/v1/admin/merchants?cityCode=zhili&merchantType=factory&status=active&keyword=%E7%AB%A5%E8%A3%85&page=2&pageSize=9")
 
@@ -1177,7 +1177,7 @@ func TestAdminGeneratedDependencyFailuresLogSafeCategoryAndTrustedContext(t *tes
 		"/api/v1/admin/search-logs?cityCode=city-secret&keyword=keyword-secret", ""), http.StatusInternalServerError)
 
 	mock.ExpectQuery(`(?s)FROM merchants m`).
-		WithArgs("city-secret", "factory", "active", "keyword-secret", int64(20), int64(0)).WillReturnError(sensitiveErr)
+		WithArgs("city-secret", "factory", "active", "", "keyword-secret", int64(20), int64(0)).WillReturnError(sensitiveErr)
 	assertTask6GeneratedStatus(t, server, growthAdminRequest(http.MethodGet,
 		"/api/v1/admin/merchants?cityCode=city-secret&merchantType=factory&status=active&keyword=keyword-secret", ""), http.StatusInternalServerError)
 

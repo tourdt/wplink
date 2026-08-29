@@ -35,13 +35,14 @@ func adminListMerchantsHTTPHandler(svcCtx *svc.ServiceContext) http.HandlerFunc 
 			return
 		}
 		resp, err := adminlogic.NewMerchantAdminLogic(svcCtx.APIStore).ListMerchants(r.Context(), adminlogic.ListMerchantsReq{
-			CityCode: req.CityCode, MerchantType: req.MerchantType, Status: req.Status,
+			CityCode: req.CityCode, MerchantType: req.MerchantType, Status: req.Status, LocationStatus: req.LocationStatus,
 			Keyword: req.Keyword, Page: req.Page, PageSize: req.PageSize,
 		})
 		if err != nil {
 			adminlogic.LogAdminFailure(r.Context(), "加载后台商家列表失败", "list_admin_merchants", err,
 				logx.Field("operatorId", admin.OperatorID), logx.Field("cityFiltered", req.CityCode != ""),
 				logx.Field("merchantTypeFiltered", req.MerchantType != ""), logx.Field("statusFiltered", req.Status != ""),
+				logx.Field("locationStatusFiltered", req.LocationStatus != ""),
 				logx.Field("keywordFiltered", req.Keyword != ""), logx.Field("page", req.Page), logx.Field("pageSize", req.PageSize))
 		}
 		response.JSON(w, resp, err)

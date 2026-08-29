@@ -261,17 +261,24 @@ type AdminListMerchantsReq {
 	CityCode     string `form:"cityCode,optional"`
 	MerchantType string `form:"merchantType,optional"`
 	Status       string `form:"status,optional"`
+	LocationStatus string `form:"locationStatus,optional"`
 	Keyword      string `form:"keyword,optional"`
 	Page         int64  `form:"page,optional"`
 	PageSize     int64  `form:"pageSize,optional"`
 }
 
 type AdminMerchantListItem {
-	Id                 string `json:"id"`
-	Name               string `json:"name"`
-	MerchantType       string `json:"merchantType"`
-	Status             string `json:"status"`
-	LastActiveAt       string `json:"lastActiveAt,optional"`
+	Id                         string `json:"id"`
+	Name                       string `json:"name"`
+	MerchantType               string `json:"merchantType"`
+	Status                     string `json:"status"`
+	LocationStatus             string `json:"locationStatus"`
+	MarketName                 string `json:"marketName,optional"`
+	BuildingName               string `json:"buildingName,optional"`
+	FloorNo                    string `json:"floorNo,optional"`
+	BoothNo                    string `json:"boothNo,optional"`
+	PendingLocationReportCount int64  `json:"pendingLocationReportCount"`
+	LastActiveAt               string `json:"lastActiveAt,optional"`
 }
 
 type AdminListMerchantsResp {

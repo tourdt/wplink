@@ -4,9 +4,43 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
+
+func TestListMerchantsFiltersLocationStatusAndReturnsGovernanceSummaryWithoutDuplicates(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	defer db.Close()
+
+	lastActiveAt := time.Date(2026, time.August, 29, 1, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(`SELECT m.id::text, m.name, m.merchant_type, m.status, m.location_status, COALESCE\(m.market_name, ''\), COALESCE\(m.building_name, ''\), COALESCE\(m.floor_no, ''\), COALESCE\(m.booth_no, ''\), m.last_active_at, \( SELECT COUNT\(\*\) FROM merchant_location_reports mlr WHERE mlr.merchant_id = m.id AND mlr.status = 'pending' \) AS pending_location_report_count, COUNT\(\*\) OVER\(\) AS total FROM merchants m JOIN city_stations cs ON cs.id = m.city_station_id WHERE m.deleted_at IS NULL AND \(\$1 = '' OR cs.code = \$1\) AND \(\$2 = '' OR m.merchant_type = \$2\) AND \(\$3 = '' OR m.status = \$3\) AND \(\$4 = '' OR m.location_status = \$4\) AND \(\$5 = '' OR m.name ILIKE '%' \|\| \$5 \|\| '%' OR m.contact_name ILIKE '%' \|\| \$5 \|\| '%'\) ORDER BY m.created_at DESC LIMIT \$6 OFFSET \$7`).
+		WithArgs("zhili", "factory", MerchantStatusActive, MerchantLocationStatusRiskHidden, "晨星", int64(20), int64(0)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "name", "merchant_type", "status", "location_status", "market_name", "building_name", "floor_no", "booth_no", "last_active_at", "pending_location_report_count", "total",
+		}).AddRow("101", "织里晨星童装", "factory", MerchantStatusActive, MerchantLocationStatusRiskHidden, "织里童装城", "一期", "1F", "A108", lastActiveAt, int64(3), int64(1)))
+
+	result, err := NewMerchantModel(db).ListMerchants(context.Background(), ListMerchantsFilter{
+		CityCode: "zhili", MerchantType: "factory", Status: MerchantStatusActive,
+		LocationStatus: MerchantLocationStatusRiskHidden, Keyword: "晨星", Page: 1, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("ListMerchants() error = %v", err)
+	}
+	if result.Total != 1 || len(result.Items) != 1 {
+		t.Fatalf("result = %#v, want one merchant without report JOIN duplication", result)
+	}
+	item := result.Items[0]
+	if item.LocationStatus != MerchantLocationStatusRiskHidden || item.MarketName != "织里童装城" || item.BuildingName != "一期" || item.FloorNo != "1F" || item.BoothNo != "A108" || item.PendingLocationReportCount != 3 || item.LastActiveAt != lastActiveAt.Format(time.RFC3339) {
+		t.Fatalf("item = %#v, want complete location governance summary", item)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("merchant list expectations: %v", err)
+	}
+}
 
 func TestListHomeRecentMerchantsSQLScopesEligibleSelfOnboardedMerchants(t *testing.T) {
 	for _, token := range []string{
