@@ -7,6 +7,52 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const goctlToolchainScript = path.join(backendDir, 'scripts/goctl_toolchain.sh')
+
+function createGoctlFixture(version) {
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'goctl-toolchain-'))
+  const binaryPath = path.join(fixtureDir, 'goctl')
+  fs.writeFileSync(binaryPath, `#!/usr/bin/env sh\necho 'goctl version ${version} linux/amd64'\n`)
+  fs.chmodSync(binaryPath, 0o755)
+  return { fixtureDir, binaryPath }
+}
+
+test('goctl toolchain verify accepts only the required executable version', () => {
+  const requiredFixture = createGoctlFixture('1.7.5')
+  const wrongFixture = createGoctlFixture('1.10.1')
+  try {
+    const requiredResult = spawnSync(goctlToolchainScript, ['--verify'], {
+      env: { ...process.env, GOCTL_BIN: requiredFixture.binaryPath },
+      encoding: 'utf8',
+    })
+    assert.equal(requiredResult.status, 0, `${requiredResult.stdout}\n${requiredResult.stderr}`)
+    assert.match(requiredResult.stdout, /goctl version 1\.7\.5/)
+
+    const wrongResult = spawnSync(goctlToolchainScript, ['--verify'], {
+      env: { ...process.env, GOCTL_BIN: wrongFixture.binaryPath },
+      encoding: 'utf8',
+    })
+    assert.notEqual(wrongResult.status, 0, `${wrongResult.stdout}\n${wrongResult.stderr}`)
+    assert.match(`${wrongResult.stdout}\n${wrongResult.stderr}`, /需要 1\.7\.5/)
+  } finally {
+    fs.rmSync(requiredFixture.fixtureDir, { recursive: true, force: true })
+    fs.rmSync(wrongFixture.fixtureDir, { recursive: true, force: true })
+  }
+})
+
+test('goctl toolchain install exits successfully after building the required version', () => {
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'goctl-toolchain-install-'))
+  try {
+    const result = spawnSync(goctlToolchainScript, ['--install', fixtureDir], {
+      env: { ...process.env },
+      encoding: 'utf8',
+    })
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+    assert.match(result.stdout, /goctl version 1\.7\.5/)
+  } finally {
+    fs.rmSync(fixtureDir, { recursive: true, force: true })
+  }
+})
 
 function copyIfExists(source, destination) {
   if (!fs.existsSync(source)) {

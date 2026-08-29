@@ -64,9 +64,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: 校验迁移与 API 契约
+      - name: 安装固定 goctl
+        run: |
+          backend/scripts/goctl_toolchain.sh --install "$RUNNER_TEMP/goctl/bin"
+          echo "$RUNNER_TEMP/goctl/bin" >> "$GITHUB_PATH"
+      - name: 校验固定 goctl
+        run: GOCTL_BIN="$RUNNER_TEMP/goctl/bin/goctl" backend/scripts/goctl_toolchain.sh --verify
+      - name: 校验迁移、文档与 API 生成链路
         working-directory: backend
-        run: node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs scripts/product_doc_governance.test.mjs
+        run: node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs scripts/api_route_inventory.test.mjs scripts/api_codegen.test.mjs scripts/product_doc_governance.test.mjs
+      - name: 校验生成结果
+        run: make check-api-generated
       - name: 动态验证迁移回滚
         working-directory: backend
         run: go run ./scripts/verify_migrations.go

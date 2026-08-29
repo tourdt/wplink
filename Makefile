@@ -1,18 +1,23 @@
-.PHONY: check check-backend check-admin check-wxapp check-postgres check-dependencies generate-api check-api-generated
+.PHONY: check check-backend check-admin check-wxapp check-postgres check-dependencies ensure-goctl generate-api check-api-generated
+
+GOCTL_BIN_DIR ?= $(if $(TMPDIR),$(TMPDIR),/tmp)/wplink-goctl-1.7.5
 
 check: check-backend check-admin check-wxapp
 
-check-backend:
-	cd backend && node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs scripts/api_route_inventory.test.mjs scripts/api_codegen.test.mjs scripts/product_doc_governance.test.mjs
-	$(MAKE) check-api-generated
+check-backend: ensure-goctl
+	cd backend && PATH="$(GOCTL_BIN_DIR):$$PATH" node --test scripts/validate_migrations.test.mjs scripts/api_contract.test.mjs scripts/api_route_inventory.test.mjs scripts/api_codegen.test.mjs scripts/product_doc_governance.test.mjs
+	PATH="$(GOCTL_BIN_DIR):$$PATH" $(MAKE) check-api-generated GOCTL_BIN_DIR="$(GOCTL_BIN_DIR)"
 	cd backend && go test ./...
 	cd backend && go vet ./...
+
+ensure-goctl:
+	backend/scripts/goctl_toolchain.sh --install "$(GOCTL_BIN_DIR)"
 
 generate-api:
 	cd backend && node scripts/api_codegen.mjs --write
 
-check-api-generated:
-	cd backend && node scripts/api_codegen.mjs --check
+check-api-generated: ensure-goctl
+	cd backend && PATH="$(GOCTL_BIN_DIR):$$PATH" node scripts/api_codegen.mjs --check
 
 check-postgres:
 	@test -n "$(WPLINK_TEST_POSTGRES_DSN)" || (echo "WPLINK_TEST_POSTGRES_DSN 必须指向可丢弃测试库"; exit 1)
