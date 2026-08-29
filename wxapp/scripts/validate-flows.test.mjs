@@ -1476,7 +1476,7 @@ test('merchant profile map selection writes a detailed address and reverse-geoco
   const chooseLocationSource = findFunctionSource(profile.script, 'chooseMerchantLocation')
 
   assert.match(profile.script, /import \{ reverseGeocodeLocation \} from '\.\.\/\.\.\/api\/location'/)
-  assert.match(chooseLocationSource, /await resolveMerchantLocationAddress\(result, latitude, longitude\)/)
+  assert.match(chooseLocationSource, /task: \(\) => resolveMerchantLocationAddress\(result, latitude, longitude\)/)
   assert.match(chooseLocationSource, /form\.latitude = latitude/)
   assert.match(chooseLocationSource, /form\.longitude = longitude/)
   assert.match(chooseLocationSource, /form\.locationName = resolvedAddress\.name/)
@@ -1504,14 +1504,42 @@ test('merchant profile submits a complete structured location intent and keeps r
   const submitSource = findFunctionSource(profile.script, 'submitMerchantProfile')
   const loadSource = findFunctionSource(profile.script, 'loadMerchant')
 
-  assert.match(profile.script, /import \{[\s\S]*buildMerchantLocationPayload,[\s\S]*clearMerchantLocationForm,[\s\S]*normalizeMerchantLocationForm,[\s\S]*\} from '\.\.\/\.\.\/common\/merchantLocationForm'/)
+  for (const token of [
+    'buildMerchantLocationSubmission',
+    'clearMerchantLocationForm',
+    'createMerchantLocationSession',
+    'normalizeMerchantLocationForm',
+    'reduceMerchantLocationSession',
+    'resolveLatestMerchantLocationRequest',
+  ]) {
+    assert.match(profile.script, new RegExp(token))
+  }
   assert.match(loadSource, /Object\.assign\(form, normalizeMerchantLocationForm\(detail\)\)/)
   assert.match(loadSource, /locationStatus\.value = detail\.location\?\.status/)
-  assert.match(submitSource, /const locationPayload = buildMerchantLocationPayload\(form\)/)
+  assert.match(submitSource, /const locationPayload = locationSubmission\.payload/)
   assert.match(submitSource, /\.\.\.locationPayload/)
-  assert.match(profile.script, /locationStatus\.value === 'risk_hidden'/)
+  assert.match(profile.script, /locationSession\.value\.intent === 'decision_required'/)
   assert.match(profile.template, /位置暂未公开/)
   assert.match(profile.template, /重新选择/)
+})
+
+test('merchant profile binds resolving state and latest-request guards to every location action', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
+  const submitSource = findFunctionSource(profile.script, 'submitMerchantProfile')
+  const chooseSource = findFunctionSource(profile.script, 'chooseMerchantLocation')
+  const addressSource = findFunctionSource(profile.script, 'handleAddressTextInput')
+  const clearSource = findFunctionSource(profile.script, 'clearMerchantLocation')
+
+  assert.match(profile.template, /class="map-button"[^>]*:disabled="submitting \|\| locationResolving"[^>]*:loading="locationResolving"/)
+  assert.match(profile.template, /class="primary-button"[^>]*:disabled="submitting \|\| locationResolving"/)
+  assert.match(profile.template, /locationResolving \? '位置解析中' : saveButtonText/)
+  assert.match(submitSource, /buildMerchantLocationSubmission\(locationSession\.value, form\)/)
+  assert.match(submitSource, /if \(!locationSubmission\.ok\)/)
+  assert.match(chooseSource, /resolveLatestMerchantLocationRequest/)
+  assert.match(chooseSource, /isMerchantLocationRequestCurrent/)
+  assert.match(addressSource, /type: 'address_changed'/)
+  assert.match(clearSource, /type: 'location_cleared'/)
 })
 
 test('merchant profile page hides sourcing map binding entry while keeping the page registered', () => {

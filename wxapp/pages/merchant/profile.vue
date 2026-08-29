@@ -122,40 +122,42 @@
           </view>
           <view class="form-field">
             <text class="field-label">经营地址</text>
-            <input v-model="form.addressText" class="field" placeholder="请输入经营地址" @input="handleAddressTextInput" />
+            <input v-model="form.addressText" class="field" :disabled="submitting" placeholder="请输入经营地址" @input="handleAddressTextInput" />
           </view>
           <view class="location-fields">
             <view class="form-field">
               <text class="field-label">市场名称</text>
-              <input v-model="form.marketName" class="field" placeholder="如：织里童装城" />
+              <input v-model="form.marketName" class="field" :disabled="submitting || locationResolving" placeholder="如：织里童装城" />
             </view>
             <view class="form-field">
               <text class="field-label">楼栋 / 区域</text>
-              <input v-model="form.buildingName" class="field" placeholder="如：一期 A 区" />
+              <input v-model="form.buildingName" class="field" :disabled="submitting || locationResolving" placeholder="如：一期 A 区" />
             </view>
             <view class="form-field">
               <text class="field-label">楼层</text>
-              <input v-model="form.floorNo" class="field" placeholder="如：1F" />
+              <input v-model="form.floorNo" class="field" :disabled="submitting || locationResolving" placeholder="如：1F" />
             </view>
             <view class="form-field">
               <text class="field-label">档口号</text>
-              <input v-model="form.boothNo" class="field" placeholder="如：A108" />
+              <input v-model="form.boothNo" class="field" :disabled="submitting || locationResolving" placeholder="如：A108" />
             </view>
           </view>
           <view class="location-status-block" :class="locationStatusTone">
             <view class="location-status-copy">
-              <text v-if="locationRiskHidden" class="location-status-title">位置暂未公开</text>
+              <text v-if="locationResolving" class="location-status-title">正在确认地图位置</text>
+              <text v-else-if="locationRiskHidden" class="location-status-title">位置暂未公开</text>
               <text v-else-if="locationSelected" class="location-status-title">地图位置已设置</text>
               <text v-else-if="addressLocationNeedsReselection" class="location-status-title">地址已修改，需重新选择</text>
               <text v-else class="location-status-title">未设置地图位置</text>
-              <text v-if="locationRiskHidden" class="location-status-detail">已保留原坐标，请重新选择地图位置恢复展示</text>
+              <text v-if="locationResolving" class="location-status-detail">正在解析详细地址，完成前暂不能保存</text>
+              <text v-else-if="locationRiskHidden" class="location-status-detail">已保留原坐标，请重新选择地图位置或清除地图位置后再保存</text>
               <text v-else-if="locationSelected" class="location-status-detail">{{ form.locationName || '坐标有效，保存后可提供导航' }}</text>
               <text v-else-if="addressLocationNeedsReselection" class="location-status-detail">旧坐标已清除，保存前请核对并重新选点</text>
               <text v-else class="location-status-detail">设置后才会在拿货档口目录提供查看位置</text>
             </view>
             <view class="location-actions">
-              <button class="map-button" :disabled="submitting" @click="chooseMerchantLocation">
-                {{ locationSelected ? '重新选择' : '选择地图位置' }}
+              <button class="map-button" :disabled="submitting || locationResolving" :loading="locationResolving" @click="chooseMerchantLocation">
+                {{ locationResolving ? '解析中' : locationSelected ? '重新选择' : '选择地图位置' }}
               </button>
               <button
                 v-if="locationSelected"
@@ -172,8 +174,8 @@
     </view>
     <view class="fixed-save-spacer" />
     <view class="fixed-save-bar">
-      <button class="primary-button" :disabled="submitting" :loading="submitting" @click="submitMerchantProfile">
-        {{ submitting ? '保存中' : saveButtonText }}
+      <button class="primary-button" :disabled="submitting || locationResolving" :loading="submitting" @click="submitMerchantProfile">
+        {{ submitting ? '保存中' : locationResolving ? '位置解析中' : saveButtonText }}
       </button>
     </view>
   </view>
@@ -187,8 +189,13 @@ import UniGridItem from '../../components/uni-ui/uni-grid-item/uni-grid-item.vue
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import {
   buildMerchantLocationPayload,
+  buildMerchantLocationSubmission,
   clearMerchantLocationForm,
+  createMerchantLocationSession,
+  isMerchantLocationRequestCurrent,
   normalizeMerchantLocationForm,
+  reduceMerchantLocationSession,
+  resolveLatestMerchantLocationRequest,
 } from '../../common/merchantLocationForm'
 import { validateMerchantName } from '../../common/merchantName'
 import { bindWechatPhone } from '../../api/auth'
@@ -225,6 +232,7 @@ const phoneAuthorizing = ref(false)
 const contactSectionOpen = ref(false)
 const addressLocationNeedsReselection = ref(false)
 const locationStatus = ref('hidden')
+const locationSession = ref(createMerchantLocationSession())
 const mainCategoriesText = ref('')
 const pendingLogoFile = ref(null)
 const merchantImageEntries = ref([])
@@ -272,9 +280,10 @@ const currentMerchantTypeLabel = computed(() => {
   return matched.label || legacyMerchantTypeText[form.merchantType] || '个人'
 })
 const locationSelected = computed(() => buildMerchantLocationPayload(form).locationAction === 'set')
-const locationRiskHidden = computed(() => locationStatus.value === 'risk_hidden' && locationSelected.value)
+const locationResolving = computed(() => locationSession.value.resolving)
+const locationRiskHidden = computed(() => locationSession.value.intent === 'decision_required' && locationSelected.value)
 const locationStatusTone = computed(() => {
-  if (locationRiskHidden.value || addressLocationNeedsReselection.value) return 'attention'
+  if (locationResolving.value || locationRiskHidden.value || addressLocationNeedsReselection.value) return 'attention'
   return locationSelected.value ? 'selected' : 'empty'
 })
 
@@ -297,6 +306,10 @@ async function loadMerchant() {
     form.addressText = detail.addressText || ''
     Object.assign(form, normalizeMerchantLocationForm(detail))
     locationStatus.value = detail.location?.status || 'hidden'
+    locationSession.value = createMerchantLocationSession({
+      status: locationStatus.value,
+      form,
+    })
     addressLocationNeedsReselection.value = false
     form.description = detail.description || ''
     form.logoUrl = detail.logoUrl || ''
@@ -343,11 +356,16 @@ async function submitMerchantProfile() {
     uni.showToast({ title: '登录状态异常，请重新登录', icon: 'none' })
     return
   }
+  const locationSubmission = buildMerchantLocationSubmission(locationSession.value, form)
+  if (!locationSubmission.ok) {
+    uni.showToast({ title: locationSubmission.message, icon: 'none' })
+    return
+  }
   try {
     submitting.value = true
     await uploadPendingMerchantImages()
     const images = getStoredMerchantImageUrls(merchantImageEntries.value)
-    const locationPayload = buildMerchantLocationPayload(form)
+    const locationPayload = locationSubmission.payload
     const patch = {
       name: form.name.trim(),
       mainCategories,
@@ -375,24 +393,38 @@ async function submitMerchantProfile() {
 }
 
 function chooseMerchantLocation() {
+  if (submitting.value) return
+  if (locationResolving.value) uni.hideLoading()
+  locationSession.value = reduceMerchantLocationSession(locationSession.value, { type: 'selection_started' })
+  const requestToken = locationSession.value.requestToken
   uni.chooseLocation({
     success: async (result) => {
+      if (!isMerchantLocationRequestCurrent(locationSession.value, requestToken)) return
       const latitude = Number(result.latitude)
       const longitude = Number(result.longitude)
       if (buildMerchantLocationPayload({ latitude, longitude }).locationAction !== 'set') {
-        Object.assign(form, clearMerchantLocationForm(form))
-        locationStatus.value = 'hidden'
-        addressLocationNeedsReselection.value = true
-        uni.showToast({ title: '地图位置格式不正确，请重新选择', icon: 'none' })
+        failMerchantLocationSelection(requestToken, '地图位置格式不正确，请重新选择')
         return
       }
-      const resolvedAddress = await resolveMerchantLocationAddress(result, latitude, longitude)
+      const reverseGeocoding = !buildMerchantLocationAddressText(result)
+      if (reverseGeocoding) {
+        uni.showLoading({ title: '解析地址中', mask: false })
+      }
+      const resolution = await resolveLatestMerchantLocationRequest({
+        token: requestToken,
+        task: () => resolveMerchantLocationAddress(result, latitude, longitude),
+        getSession: () => locationSession.value,
+      })
+      if (!resolution.current) return
+      if (reverseGeocoding) uni.hideLoading()
+      if (resolution.error) {
+        failMerchantLocationSelection(requestToken, '地图选择失败，请稍后重试')
+        return
+      }
+      const resolvedAddress = resolution.value
       if (!resolvedAddress.address) {
         // 地图拖动到非 POI 点位时，微信可能只返回经纬度；不保存空地址，避免资料页显示无意义的位置。
-        Object.assign(form, clearMerchantLocationForm(form))
-        locationStatus.value = 'hidden'
-        addressLocationNeedsReselection.value = true
-        uni.showToast({ title: '未获取到详细地址，请搜索具体地点后重试', icon: 'none' })
+        failMerchantLocationSelection(requestToken, '未获取到详细地址，请搜索具体地点后重试')
         return
       }
       // 地图坐标用于发布者资料页导航，完整地址同步写入输入框，方便用户核对和补充。
@@ -400,23 +432,35 @@ function chooseMerchantLocation() {
       form.longitude = longitude
       form.locationName = resolvedAddress.name
       form.addressText = resolvedAddress.address
+      locationSession.value = reduceMerchantLocationSession(locationSession.value, {
+        type: 'selection_succeeded',
+        token: requestToken,
+      })
       locationStatus.value = 'visible'
       addressLocationNeedsReselection.value = false
       uni.showToast({ title: '地图位置已保存', icon: 'none' })
     },
     fail: (err) => {
-      if (String(err?.errMsg || '').includes('cancel')) return
-      Object.assign(form, clearMerchantLocationForm(form))
-      locationStatus.value = 'hidden'
-      addressLocationNeedsReselection.value = true
-      uni.showToast({ title: '地图选择失败，请稍后重试', icon: 'none' })
+      if (!isMerchantLocationRequestCurrent(locationSession.value, requestToken)) return
+      uni.hideLoading()
+      if (String(err?.errMsg || '').includes('cancel')) {
+        locationSession.value = reduceMerchantLocationSession(locationSession.value, {
+          type: 'selection_cancelled',
+          token: requestToken,
+        })
+        return
+      }
+      failMerchantLocationSelection(requestToken, '地图选择失败，请稍后重试')
     },
   })
 }
 
 function handleAddressTextInput(event) {
   form.addressText = String(event?.detail?.value ?? '')
-  if (!locationSelected.value) return
+  const shouldClearLocation = locationSelected.value || locationResolving.value || locationRiskHidden.value
+  if (locationResolving.value) uni.hideLoading()
+  locationSession.value = reduceMerchantLocationSession(locationSession.value, { type: 'address_changed' })
+  if (!shouldClearLocation) return
 
   // 手工地址与地图坐标必须作为一个整体保存；文字变化后统一清空结构字段，避免旧坐标导航到错误档口。
   Object.assign(form, clearMerchantLocationForm(form))
@@ -434,7 +478,6 @@ async function resolveMerchantLocationAddress(result, latitude, longitude) {
 }
 
 async function reverseGeocodeMerchantLocation(latitude, longitude, selectedName) {
-  uni.showLoading({ title: '解析地址中', mask: false })
   try {
     const result = await reverseGeocodeLocation({ latitude, longitude })
     const address = buildMerchantLocationAddressText(result)
@@ -452,8 +495,6 @@ async function reverseGeocodeMerchantLocation(latitude, longitude, selectedName)
       longitude,
       errMsg: err?.message || err?.errMsg || String(err || ''),
     })
-  } finally {
-    uni.hideLoading()
   }
   return { address: '', name: selectedName }
 }
@@ -482,9 +523,22 @@ function isCoordinateMerchantLocationText(text) {
 }
 
 function clearMerchantLocation() {
+  if (locationResolving.value) uni.hideLoading()
+  locationSession.value = reduceMerchantLocationSession(locationSession.value, { type: 'location_cleared' })
   Object.assign(form, clearMerchantLocationForm(form))
   locationStatus.value = 'hidden'
   addressLocationNeedsReselection.value = false
+}
+
+function failMerchantLocationSelection(requestToken, message) {
+  if (!isMerchantLocationRequestCurrent(locationSession.value, requestToken)) return
+  uni.hideLoading()
+  locationSession.value = reduceMerchantLocationSession(locationSession.value, {
+    type: 'selection_failed',
+    token: requestToken,
+  })
+  addressLocationNeedsReselection.value = !locationSelected.value
+  uni.showToast({ title: message, icon: 'none' })
 }
 
 async function uploadMerchantImage() {
