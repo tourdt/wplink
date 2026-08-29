@@ -353,6 +353,8 @@ test('admin merges location governance into merchants and removes custom map edi
   assert.match(merchantSource, /pendingLocationReportCount/)
   assert.match(merchantSource, /marketName/)
   assert.match(merchantSource, /boothNo/)
+  assert.doesNotMatch(merchantSource, /getMerchant|state\.detail\.(?:locationName|locationUpdatedAt|resourcesSummary|contact)/)
+  assert.doesNotMatch(merchantApiSource, /export function getMerchant/)
   assert.match(merchantApiSource, /\/api\/v1\/admin\/merchants\/location-reports/)
   assert.match(merchantApiSource, /\/api\/v1\/admin\/merchants\/location-reports\/\$\{reportId\}\/review/)
   assert.match(merchantApiSource, /\/api\/v1\/admin\/merchants\/\$\{merchantId\}\/location-status/)

@@ -1,9 +1,9 @@
 import axios from 'axios'
-import { ElMessage } from '../plugins/elementPlus'
-import { clearAdminSession, readAdminToken } from '../stores/adminSession'
+import { ElMessage } from '../plugins/elementPlus.js'
+import { clearAdminSession, readAdminToken } from '../stores/adminSession.js'
 
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '',
+  baseURL: import.meta.env?.VITE_API_BASE_URL || '',
   timeout: 12000,
 })
 
@@ -20,15 +20,23 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response.data?.data ?? response.data,
   (error) => {
-    if (isUnauthorized(error)) {
+    const handling = classifyHttpError(error)
+    if (handling === 'unauthorized') {
       handleUnauthorized()
       return Promise.reject(error)
     }
-    const message = error.response?.data?.message || error.response?.data?.msg || '请求失败，请稍后重试'
-    ElMessage.error(message)
+    if (handling === 'global') {
+      const message = error.response?.data?.message || error.response?.data?.msg || '请求失败，请稍后重试'
+      ElMessage.error(message)
+    }
     return Promise.reject(error)
   },
 )
+
+export function classifyHttpError(error) {
+  if (isUnauthorized(error)) return 'unauthorized'
+  return error.config?.skipGlobalErrorMessage ? 'page' : 'global'
+}
 
 function isUnauthorized(error) {
   return error.response?.status === 401 || error.response?.data?.code === 401 || error.response?.data?.errorCode === 'UNAUTHORIZED'

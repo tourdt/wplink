@@ -117,34 +117,23 @@
       size="560px"
       @closed="governance.closeDetail"
     >
-      <div v-loading="state.detailLoading" class="detail-content">
-        <el-descriptions v-if="state.detail" :column="1" border>
-          <el-descriptions-item label="商家名称">{{ state.detail.name }}</el-descriptions-item>
-          <el-descriptions-item label="主要身份">
-            {{ merchantTypeText[state.detail.merchantType] || state.detail.merchantType }}
-          </el-descriptions-item>
-          <el-descriptions-item label="主营品类">{{ state.detail.mainCategories?.join('、') || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="联系人">{{ state.detail.contact?.name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="电话">{{ state.detail.contact?.phoneMasked || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="微信">{{ state.detail.contact?.wechatMasked || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="位置摘要">
-            <div class="detail-location">
-              <div class="location-signal">
-                <el-tag size="small" :type="merchantLocationSignal(state.detail).statusType">
-                  {{ merchantLocationSignal(state.detail).statusText }}
-                </el-tag>
-                <span>{{ merchantLocationSignal(state.detail).boothSummary }}</span>
-                <span class="pending-count">{{ merchantLocationSignal(state.detail).pendingText }}</span>
-              </div>
-              <small>{{ state.detail.locationName || state.detail.addressText || '未设置地图位置' }}</small>
-              <small v-if="state.detail.locationUpdatedAt">最近更新：{{ state.detail.locationUpdatedAt }}</small>
-            </div>
-          </el-descriptions-item>
-          <el-descriptions-item label="发布概况">
-            已发布 {{ state.detail.resourcesSummary?.publishedCount || 0 }}，已成交 {{ state.detail.resourcesSummary?.dealtCount || 0 }}
-          </el-descriptions-item>
-        </el-descriptions>
-      </div>
+      <el-descriptions v-if="state.detail" :column="1" border>
+        <el-descriptions-item label="商家名称">{{ state.detail.name }}</el-descriptions-item>
+        <el-descriptions-item label="主要身份">
+          {{ merchantTypeText[state.detail.merchantType] || state.detail.merchantType }}
+        </el-descriptions-item>
+        <el-descriptions-item label="商家状态">{{ state.detail.status === 'active' ? '正常' : state.detail.status }}</el-descriptions-item>
+        <el-descriptions-item label="最近活跃">{{ state.detail.lastActiveAt || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="位置摘要">
+          <div class="location-signal">
+            <el-tag size="small" :type="merchantLocationSignal(state.detail).statusType">
+              {{ merchantLocationSignal(state.detail).statusText }}
+            </el-tag>
+            <span>{{ merchantLocationSignal(state.detail).boothSummary }}</span>
+            <span class="pending-count">{{ merchantLocationSignal(state.detail).pendingText }}</span>
+          </div>
+        </el-descriptions-item>
+      </el-descriptions>
     </el-drawer>
 
     <el-drawer
@@ -263,16 +252,12 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from '../plugins/elementPlus'
 import {
   createMerchant,
-  getMerchant,
-  listMerchantLocationReports,
-  listMerchants,
-  reviewMerchantLocationReport,
-  updateMerchantLocationStatus,
+  merchantLocationGovernanceApi,
 } from '../api/merchant'
 import { cityStationOptions, defaultCityCode } from '../common/cityStations'
 import { merchantIdentityOptions, merchantTypeText } from '../common/merchantIdentity'
@@ -308,13 +293,11 @@ const locationActionCopy = {
   restore: { actionText: '恢复位置', prompt: '仅坐标有效的商家可以恢复公开，确认恢复位置？' },
 }
 
-const governance = createMerchantLocationGovernance({
-  getMerchant,
-  listMerchants,
-  listMerchantLocationReports,
-  reviewMerchantLocationReport,
-  updateMerchantLocationStatus,
-}, (type, message) => ElMessage[type](message), reactive)
+const governance = createMerchantLocationGovernance(
+  merchantLocationGovernanceApi,
+  (type, message) => ElMessage[type](message),
+  reactive,
+)
 const state = governance.state
 const filters = state.merchantFilters
 const form = reactive({
@@ -333,6 +316,7 @@ const drawerVisible = ref(false)
 const router = useRouter()
 
 onMounted(() => governance.loadMerchants(1))
+onUnmounted(governance.dispose)
 
 async function confirmReview(row, status) {
   const copy = reviewActionCopy[status]
@@ -422,16 +406,6 @@ function openEntitlement() {
   font-weight: 600;
 }
 
-.detail-content {
-  min-height: 180px;
-}
-
-.detail-location {
-  display: grid;
-  gap: 8px;
-}
-
-.detail-location small,
 .report-description {
   display: block;
   color: #697586;

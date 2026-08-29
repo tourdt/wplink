@@ -45,35 +45,37 @@ export function createMerchantLocationGovernance(api, notify = () => {}, makeRea
     reportDrawerOpen: false,
     detail: null,
     detailDrawerOpen: false,
-    detailLoading: false,
     actions: [],
   })
 
+  let disposed = false
   let merchantRequestGeneration = 0
   let reportRequestGeneration = 0
   let detailRequestGeneration = 0
 
   async function loadMerchants(page = state.merchantPage.page) {
+    if (disposed) return false
     state.merchantPage.page = page
     const generation = ++merchantRequestGeneration
     state.merchantsLoading = true
     state.merchantError = ''
     try {
       const response = await api.listMerchants(buildMerchantListParams(state.merchantFilters, state.merchantPage))
-      if (generation !== merchantRequestGeneration) return false
+      if (disposed || generation !== merchantRequestGeneration) return false
       state.merchants = response.items || []
       state.merchantPage.total = response.total || 0
       return true
     } catch (error) {
-      if (generation !== merchantRequestGeneration) return false
+      if (disposed || generation !== merchantRequestGeneration) return false
       state.merchantError = backendMessage(error) || '商家列表加载失败，请重试'
       return false
     } finally {
-      if (generation === merchantRequestGeneration) state.merchantsLoading = false
+      if (!disposed && generation === merchantRequestGeneration) state.merchantsLoading = false
     }
   }
 
   async function loadReports(page = state.reportPage.page) {
+    if (disposed) return false
     state.reportPage.page = page
     const generation = ++reportRequestGeneration
     state.reportsLoading = true
@@ -84,20 +86,21 @@ export function createMerchantLocationGovernance(api, notify = () => {}, makeRea
         page: state.reportPage.page,
         pageSize: state.reportPage.pageSize,
       })
-      if (generation !== reportRequestGeneration || !state.reportDrawerOpen) return false
+      if (disposed || generation !== reportRequestGeneration || !state.reportDrawerOpen) return false
       state.reports = response.items || []
       state.reportPage.total = response.total || 0
       return true
     } catch (error) {
-      if (generation !== reportRequestGeneration || !state.reportDrawerOpen) return false
+      if (disposed || generation !== reportRequestGeneration || !state.reportDrawerOpen) return false
       state.reportError = backendMessage(error) || '位置反馈列表加载失败，请重试'
       return false
     } finally {
-      if (generation === reportRequestGeneration) state.reportsLoading = false
+      if (!disposed && generation === reportRequestGeneration) state.reportsLoading = false
     }
   }
 
   function openReports(page = 1) {
+    if (disposed) return false
     state.reportDrawerOpen = true
     return loadReports(page)
   }
@@ -110,46 +113,36 @@ export function createMerchantLocationGovernance(api, notify = () => {}, makeRea
     reportRequestGeneration += 1
   }
 
-  async function openDetail(row) {
-    const generation = ++detailRequestGeneration
-    state.detail = null
+  function openDetail(row) {
+    if (disposed) return false
+    detailRequestGeneration += 1
+    state.detail = merchantListRowDetail(row)
     state.detailDrawerOpen = true
-    state.detailLoading = true
-    try {
-      const response = await api.getMerchant(row.id)
-      if (generation !== detailRequestGeneration || !state.detailDrawerOpen) return false
-      state.detail = response
-      return true
-    } catch {
-      if (generation === detailRequestGeneration && state.detailDrawerOpen) {
-        notify('error', '商家详情加载失败，请重试')
-      }
-      return false
-    } finally {
-      if (generation === detailRequestGeneration) state.detailLoading = false
-    }
+    return true
   }
 
   function closeDetail() {
     state.detailDrawerOpen = false
     state.detail = null
-    state.detailLoading = false
     detailRequestGeneration += 1
   }
 
   async function reviewReport(report, status, reviewNote = '') {
+    if (disposed) return false
     const key = actionKey('report', report.reportId)
     if (hasAction(state.actions, key)) return false
     state.actions.push({ key, action: status })
     try {
       const response = await api.reviewMerchantLocationReport(report.reportId, { status, reviewNote })
+      if (disposed) return false
       notify('success', response.message || '位置反馈已处理')
       await Promise.all([
         loadMerchants(state.merchantPage.page),
         state.reportDrawerOpen ? loadReports(state.reportPage.page) : Promise.resolve(),
       ])
-      return true
+      return !disposed
     } catch (error) {
+      if (disposed) return false
       notify('error', backendMessage(error) || '位置反馈处理失败，请重试')
       return false
     } finally {
@@ -158,15 +151,18 @@ export function createMerchantLocationGovernance(api, notify = () => {}, makeRea
   }
 
   async function updateLocation(merchant, action, reason = '') {
+    if (disposed) return false
     const key = actionKey('merchant', merchant.id)
     if (hasAction(state.actions, key)) return false
     state.actions.push({ key, action })
     try {
       const response = await api.updateMerchantLocationStatus(merchant.id, { action, reason })
+      if (disposed) return false
       notify('success', response.message || (action === 'restore' ? '位置已恢复' : '位置已隐藏'))
       await loadMerchants(state.merchantPage.page)
-      return true
+      return !disposed
     } catch (error) {
+      if (disposed) return false
       notify('error', backendMessage(error) || '位置状态更新失败，请重试')
       return false
     } finally {
@@ -177,6 +173,19 @@ export function createMerchantLocationGovernance(api, notify = () => {}, makeRea
   function isActionLoading(scope, id, action = '') {
     const current = state.actions.find((item) => item.key === actionKey(scope, id))
     return Boolean(current && (!action || current.action === action))
+  }
+
+  function dispose() {
+    disposed = true
+    merchantRequestGeneration += 1
+    reportRequestGeneration += 1
+    detailRequestGeneration += 1
+    state.merchantsLoading = false
+    state.reportsLoading = false
+    state.reportDrawerOpen = false
+    state.detailDrawerOpen = false
+    state.detail = null
+    state.actions.splice(0)
   }
 
   return {
@@ -190,7 +199,16 @@ export function createMerchantLocationGovernance(api, notify = () => {}, makeRea
     reviewReport,
     updateLocation,
     isActionLoading,
+    dispose,
   }
+}
+
+function merchantListRowDetail(row = {}) {
+  const fields = [
+    'id', 'name', 'merchantType', 'status', 'locationStatus', 'marketName', 'buildingName',
+    'floorNo', 'boothNo', 'pendingLocationReportCount', 'lastActiveAt',
+  ]
+  return Object.fromEntries(fields.map((field) => [field, row[field]]).filter(([, value]) => value !== undefined))
 }
 
 function hasAction(actions, key) {

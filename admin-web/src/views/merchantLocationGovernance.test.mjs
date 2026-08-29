@@ -19,7 +19,6 @@ function deferred() {
 
 function apiFixture(overrides = {}) {
   return {
-    getMerchant: async (merchantId) => ({ id: merchantId }),
     listMerchants: async () => ({ items: [], total: 0 }),
     listMerchantLocationReports: async () => ({ items: [], total: 0 }),
     reviewMerchantLocationReport: async () => ({ message: '位置反馈已处理' }),
@@ -188,22 +187,46 @@ test('list failures expose backend Chinese messages or the list-specific fallbac
   assert.equal(governance.state.reportError, '位置反馈查询暂时不可用')
 })
 
-test('closing a drawer or switching merchant prevents stale detail and report requests from polluting state', async () => {
-  const firstDetail = deferred()
-  const secondDetail = deferred()
+test('detail drawer uses only fields available from the admin merchant list row', () => {
+  const governance = createMerchantLocationGovernance(apiFixture())
+
+  governance.openDetail({
+    id: 'm-1',
+    name: '童装工厂',
+    merchantType: 'factory',
+    status: 'active',
+    locationStatus: 'risk_hidden',
+    marketName: '织里童装城',
+    buildingName: 'A 区',
+    floorNo: '2F',
+    boothNo: '2088',
+    pendingLocationReportCount: 3,
+    lastActiveAt: '2026-08-29T10:00:00+08:00',
+    contact: { name: '不应显示' },
+    locationName: '不在后台列表契约',
+  })
+
+  assert.deepEqual(governance.state.detail, {
+    id: 'm-1',
+    name: '童装工厂',
+    merchantType: 'factory',
+    status: 'active',
+    locationStatus: 'risk_hidden',
+    marketName: '织里童装城',
+    buildingName: 'A 区',
+    floorNo: '2F',
+    boothNo: '2088',
+    pendingLocationReportCount: 3,
+    lastActiveAt: '2026-08-29T10:00:00+08:00',
+  })
+  assert.equal(governance.state.detailDrawerOpen, true)
+})
+
+test('closing report drawer prevents its stale request from polluting state', async () => {
   const reportRequest = deferred()
   const governance = createMerchantLocationGovernance(apiFixture({
-    getMerchant: (merchantId) => merchantId === 'm-1' ? firstDetail.promise : secondDetail.promise,
     listMerchantLocationReports: () => reportRequest.promise,
   }))
-
-  const first = governance.openDetail({ id: 'm-1' })
-  const second = governance.openDetail({ id: 'm-2' })
-  secondDetail.resolve({ id: 'm-2', name: '新商家' })
-  await second
-  firstDetail.resolve({ id: 'm-1', name: '旧商家' })
-  await first
-  assert.deepEqual(governance.state.detail, { id: 'm-2', name: '新商家' })
 
   const reports = governance.openReports(1)
   governance.closeReports()
@@ -211,6 +234,79 @@ test('closing a drawer or switching merchant prevents stale detail and report re
   await reports
   assert.deepEqual(governance.state.reports, [])
   assert.equal(governance.state.reportDrawerOpen, false)
+})
+
+test('dispose prevents stale merchant and report list responses from writing state', async () => {
+  const merchantRequest = deferred()
+  const reportRequest = deferred()
+  const governance = createMerchantLocationGovernance(apiFixture({
+    listMerchants: () => merchantRequest.promise,
+    listMerchantLocationReports: () => reportRequest.promise,
+  }))
+
+  const merchants = governance.loadMerchants(1)
+  const reports = governance.openReports(1)
+  governance.dispose()
+  merchantRequest.resolve({ items: [{ id: 'stale-merchant' }], total: 1 })
+  reportRequest.resolve({ items: [{ reportId: 'stale-report' }], total: 1 })
+  await Promise.all([merchants, reports])
+
+  assert.deepEqual(governance.state.merchants, [])
+  assert.deepEqual(governance.state.reports, [])
+  assert.equal(governance.state.merchantsLoading, false)
+  assert.equal(governance.state.reportsLoading, false)
+  assert.equal(governance.state.reportDrawerOpen, false)
+})
+
+test('dispose suppresses update success toast refresh and action loading after await', async () => {
+  const update = deferred()
+  const notices = []
+  let merchantRefreshes = 0
+  const governance = createMerchantLocationGovernance(apiFixture({
+    updateMerchantLocationStatus: () => update.promise,
+    listMerchants: async () => {
+      merchantRefreshes += 1
+      return { items: [], total: 0 }
+    },
+  }), (type, message) => notices.push({ type, message }))
+
+  const action = governance.updateLocation({ id: 'm-1' }, 'hide')
+  governance.dispose()
+  update.resolve({ message: '位置已隐藏' })
+  await action
+
+  assert.deepEqual(notices, [])
+  assert.equal(merchantRefreshes, 0)
+  assert.deepEqual(governance.state.actions, [])
+})
+
+test('dispose suppresses review success toast and both refreshes after await', async () => {
+  const review = deferred()
+  const notices = []
+  let merchantRefreshes = 0
+  let reportRefreshes = 0
+  const governance = createMerchantLocationGovernance(apiFixture({
+    reviewMerchantLocationReport: () => review.promise,
+    listMerchants: async () => {
+      merchantRefreshes += 1
+      return { items: [], total: 0 }
+    },
+    listMerchantLocationReports: async () => {
+      reportRefreshes += 1
+      return { items: [], total: 0 }
+    },
+  }), (type, message) => notices.push({ type, message }))
+  governance.state.reportDrawerOpen = true
+
+  const action = governance.reviewReport({ reportId: 'r-1' }, 'valid')
+  governance.dispose()
+  review.resolve({ message: '位置反馈已标记有效' })
+  await action
+
+  assert.deepEqual(notices, [])
+  assert.equal(merchantRefreshes, 0)
+  assert.equal(reportRefreshes, 0)
+  assert.deepEqual(governance.state.actions, [])
 })
 
 test('location governance signal renders status booth summary and pending count together', () => {
