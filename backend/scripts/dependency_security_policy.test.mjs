@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -9,6 +11,21 @@ const repositoryRoot = path.resolve(scriptDir, '../..')
 
 function readRepositoryFile(relativePath) {
   return fs.readFileSync(path.join(repositoryRoot, relativePath), 'utf8')
+}
+
+function runCIWorkflowPolicy(workflowPath) {
+  return spawnSync('go', ['run', './scripts/ci_policy_yaml', '-workflow', workflowPath], {
+    cwd: path.join(repositoryRoot, 'backend'),
+    encoding: 'utf8',
+  })
+}
+
+function runCIWorkflowFixture(t, source) {
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wplink-ci-policy-'))
+  t.after(() => fs.rmSync(fixtureDir, { recursive: true, force: true }))
+  const workflowPath = path.join(fixtureDir, 'ci.yml')
+  fs.writeFileSync(workflowPath, source)
+  return runCIWorkflowPolicy(workflowPath)
 }
 
 function parseGoMod(source) {
@@ -47,76 +64,6 @@ function parseGoMod(source) {
   return directives
 }
 
-function stripYamlComment(line) {
-  let singleQuoted = false
-  let doubleQuoted = false
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index]
-    if (character === "'" && !doubleQuoted) singleQuoted = !singleQuoted
-    if (character === '"' && !singleQuoted && line[index - 1] !== '\\') doubleQuoted = !doubleQuoted
-    if (character === '#' && !singleQuoted && !doubleQuoted) return line.slice(0, index)
-  }
-  return line
-}
-
-function unquoteYamlScalar(value) {
-  const trimmed = value.trim()
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-    return trimmed.slice(1, -1)
-  }
-  return trimmed
-}
-
-function parseYamlScalarAssignments(source, key) {
-  const assignments = []
-  const assignmentPattern = new RegExp(`^\\s*${key}:\\s*(.*?)\\s*$`)
-  for (const rawLine of source.split(/\r?\n/)) {
-    const line = stripYamlComment(rawLine)
-    const match = line.match(assignmentPattern)
-    if (match && match[1] && match[1] !== '|' && match[1] !== '>') {
-      assignments.push(unquoteYamlScalar(match[1]))
-    }
-  }
-  return assignments
-}
-
-function parseSetupGoVersions(source) {
-  const steps = []
-  const allGoVersions = []
-  let currentStep = null
-
-  for (const rawLine of source.split(/\r?\n/)) {
-    const line = stripYamlComment(rawLine)
-    if (!line.trim()) continue
-
-    const indentation = line.match(/^\s*/)[0].length
-    const stepStart = line.match(/^(\s*)-\s+(.*)$/)
-    if (stepStart && (!currentStep || indentation <= currentStep.indent)) {
-      currentStep = { indent: stepStart[1].length, uses: '', goVersions: [] }
-      steps.push(currentStep)
-      const inlineUses = stepStart[2].match(/^uses:\s*(\S+)\s*$/)
-      if (inlineUses) currentStep.uses = unquoteYamlScalar(inlineUses[1])
-    } else if (currentStep && indentation <= currentStep.indent) {
-      currentStep = null
-    }
-
-    const uses = line.match(/^\s*uses:\s*(\S+)\s*$/)
-    if (uses && currentStep && indentation > currentStep.indent) currentStep.uses = unquoteYamlScalar(uses[1])
-
-    const goVersion = line.match(/^\s*go-version:\s*(.*?)\s*$/)
-    if (goVersion && goVersion[1]) {
-      const value = unquoteYamlScalar(goVersion[1])
-      allGoVersions.push(value)
-      if (currentStep && indentation > currentStep.indent) currentStep.goVersions.push(value)
-    }
-  }
-
-  return {
-    allGoVersions,
-    setupGoSteps: steps.filter((step) => /^actions\/setup-go@/.test(step.uses)),
-  }
-}
-
 function parseMakeTargetRecipes(source) {
   const targets = new Map()
   let currentTarget = null
@@ -139,17 +86,10 @@ function parseMakeTargetRecipes(source) {
   return targets
 }
 
-function assertGoToolchainPolicy(goModSource, workflowSource) {
+function assertGoModPolicy(goModSource) {
   const goMod = parseGoMod(goModSource)
   assert.deepEqual(goMod.go, ['1.25.0'])
   assert.deepEqual(goMod.toolchain, ['go1.25.13'])
-
-  const workflow = parseSetupGoVersions(workflowSource)
-  assert.equal(workflow.setupGoSteps.length, 2)
-  assert.deepEqual(workflow.allGoVersions, ['1.25.13', '1.25.13'])
-  for (const setupGoStep of workflow.setupGoSteps) {
-    assert.deepEqual(setupGoStep.goVersions, ['1.25.13'])
-  }
 }
 
 test('依赖安全门禁在 Makefile 中阻断 high 及以上漏洞', () => {
@@ -164,20 +104,42 @@ test('依赖安全门禁在 Makefile 中阻断 high 及以上漏洞', () => {
   ])
 })
 
-test('CI 调用统一依赖安全门禁', () => {
-  const workflow = readRepositoryFile('.github/workflows/ci.yml')
+test('CI 使用两个安全 Go 工具链 step 并调用一次统一依赖安全门禁', () => {
+  const result = runCIWorkflowPolicy(path.join(repositoryRoot, '.github/workflows/ci.yml'))
 
-  assert.equal(parseYamlScalarAssignments(workflow, 'run').filter((run) => run === 'make check-dependencies').length, 1)
-  assert.equal(parseYamlScalarAssignments(workflow, 'continue-on-error').includes('true'), false)
+  assert.equal(result.status, 0, result.stderr)
 })
 
 test('注释不能伪装依赖安全门禁接线', () => {
-  const makefileFixture = `check-dependencies:\n\t# cd backend && node --test scripts/dependency_security_policy.test.mjs\n\tnpm audit --prefix admin-web --audit-level=high\n`
-  const workflowFixture = `jobs:\n  dependency-security:\n    steps:\n      # run: make check-dependencies\n      - name: 伪装步骤\n        run: echo skipped\n`
+  const makefileFixture = `check-dependencies:\n\t# cd backend && node --test scripts/dependency_security_policy.test.mjs\n\techo cd backend && node --test scripts/dependency_security_policy.test.mjs\n\tnpm audit --prefix admin-web --audit-level=high\n`
 
   const recipes = parseMakeTargetRecipes(makefileFixture).get('check-dependencies') || []
   assert.equal(recipes.includes('cd backend && node --test scripts/dependency_security_policy.test.mjs'), false)
-  assert.equal(parseYamlScalarAssignments(workflowFixture, 'run').includes('make check-dependencies'), false)
+})
+
+test('YAML 内联 with 降级不能由 env 块标量中的安全文本伪装', (t) => {
+  const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    env:\n      NOTE: |\n        go-version: 1.25.13\n        run: make check-dependencies\n    steps:\n      - name: Go 一\n        uses: actions/setup-go@v5\n        with: { go-version: 1.25.12 }\n      - name: Go 二\n        uses: actions/setup-go@v5\n        with:\n          go-version: 1.25.13\n      - name: 真正门禁\n        run: make check-dependencies\n`)
+
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /1\.25\.12/)
+})
+
+test('YAML run 块标量只包含统一门禁命令时通过', (t) => {
+  const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    steps:\n      - uses: actions/setup-go@v5\n        with:\n          go-version: 1.25.13\n      - uses: actions/setup-go@v5\n        with:\n          go-version: 1.25.13\n      - name: 统一门禁\n        run: |\n          make check-dependencies\n`)
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('YAML run 中 echo 或多命令不能伪装统一门禁', (t) => {
+  for (const runValue of [
+    'echo make check-dependencies',
+    'make check-dependencies\\necho done',
+  ]) {
+    const indentedRun = runValue.split('\\n').map((line) => `          ${line}`).join('\\n')
+    const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    steps:\n      - uses: actions/setup-go@v5\n        with:\n          go-version: 1.25.13\n      - uses: actions/setup-go@v5\n        with:\n          go-version: 1.25.13\n      - name: 伪装门禁\n        run: |\n${indentedRun}\n`)
+
+    assert.notEqual(result.status, 0)
+  }
 })
 
 test('Dependabot 覆盖两个前端项目和 Go 模块', () => {
@@ -234,30 +196,29 @@ test('两端锁文件使用已修复无限循环漏洞的 nanoid 补丁版', () 
 
 test('Go 模块与 CI 工具链满足已扫描到的可达漏洞修复下限', () => {
   const goModSource = readRepositoryFile('backend/go.mod')
-  const workflowSource = readRepositoryFile('.github/workflows/ci.yml')
   const goMod = parseGoMod(goModSource)
 
-  assertGoToolchainPolicy(goModSource, workflowSource)
+  assertGoModPolicy(goModSource)
   for (const [modulePath, expectedVersion] of Object.entries({
     'github.com/golang-jwt/jwt/v4': 'v4.5.2',
     'google.golang.org/grpc': 'v1.82.1',
     'go.opentelemetry.io/otel/sdk': 'v1.44.0',
     'go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp': 'v1.44.0',
+    'gopkg.in/yaml.v3': 'v3.0.1',
   })) {
     assert.equal(goMod.requirements.get(modulePath), expectedVersion)
   }
 })
 
-test('真实 Go 工具链与 CI 版本降级时不能由 1.25.13 注释伪装通过', () => {
+test('真实 Go 工具链降级时不能由 1.25.13 注释伪装通过', () => {
   const downgradedGoMod = `module example.com/policy\n\ngo 1.25.0\ntoolchain go1.25.12 // toolchain go1.25.13\n`
-  const downgradedWorkflow = `jobs:\n  first:\n    steps:\n      - name: Go 一\n        uses: actions/setup-go@v5\n        with:\n          go-version: 1.25.12 # go-version: 1.25.13\n  second:\n    steps:\n      - name: Go 二\n        uses: actions/setup-go@v5\n        with:\n          go-version: 1.25.12 # go-version: 1.25.13\n# go-version: 1.25.13\n`
 
-  assert.throws(() => assertGoToolchainPolicy(downgradedGoMod, downgradedWorkflow))
+  assert.throws(() => assertGoModPolicy(downgradedGoMod))
 })
 
-test('setup-go step 外的 go-version 标量不能伪装成 step 配置', () => {
-  const validGoMod = `module example.com/policy\n\ngo 1.25.0\ntoolchain go1.25.13\n`
-  const misplacedWorkflow = `jobs:\n  first:\n    steps:\n      - name: Go 一\n        uses: actions/setup-go@v5\n    env:\n      go-version: 1.25.13\n  second:\n    steps:\n      - name: Go 二\n        uses: actions/setup-go@v5\n    env:\n      go-version: 1.25.13\n`
+test('setup-go step 外的 go-version 标量不能伪装成 step 配置', (t) => {
+  const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    env:\n      first-go-version: 1.25.13\n      second-go-version: 1.25.13\n    steps:\n      - name: Go 一\n        uses: actions/setup-go@v5\n      - name: Go 二\n        uses: actions/setup-go@v5\n      - name: 统一门禁\n        run: make check-dependencies\n`)
 
-  assert.throws(() => assertGoToolchainPolicy(validGoMod, misplacedWorkflow))
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /缺少 with\.go-version/)
 })
