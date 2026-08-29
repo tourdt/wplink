@@ -155,6 +155,7 @@ const statusOptions = [
 ]
 const roleText = Object.fromEntries(roleOptions.map((item) => [item.value, item.label]))
 const statusText = Object.fromEntries(statusOptions.map((item) => [item.value, item.label]))
+const retiredSourcingMapModule = ['sourcing', 'map'].join('_')
 
 const filters = reactive({
   keyword: '',
@@ -215,9 +216,10 @@ async function loadModulePermissions() {
   moduleErrorText.value = ''
   try {
     const resp = await listAdminModulePermissions()
-    availableModules.value = resp.modules || []
+    // 旧权限缓存或异常响应也不应让已下线的独立地图模块重新出现。
+    availableModules.value = (resp.modules || []).filter((module) => module.code !== retiredSourcingMapModule)
     const platformRole = (resp.roles || []).find((item) => item.roleCode === 'platform_operator')
-    selectedPlatformModules.value = [...(platformRole?.modules || [])]
+    selectedPlatformModules.value = (platformRole?.modules || []).filter((code) => code !== retiredSourcingMapModule)
   } catch {
     moduleErrorText.value = '模块权限配置加载失败，请重试'
   } finally {

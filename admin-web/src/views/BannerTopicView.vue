@@ -218,7 +218,7 @@ const jumpTypeOptions = [
 ]
 const internalPageOptions = [
   { label: '首页', value: '/pages/home/index' },
-  { label: '拿货地图', value: '/pages/sourcing-map/index' },
+  { label: '拿货档口', value: '/pages/sourcing-map/index' },
   { label: '搜索页', value: '/pages/search/index' },
   { label: '发布页', value: '/pages/publish/index' },
   { label: '消息页', value: '/pages/messages/index' },

@@ -13,7 +13,6 @@ const SearchLogView = () => import('../views/SearchLogView.vue')
 const ResourceTypeConfigView = () => import('../views/ResourceTypeConfigView.vue')
 const BannerTopicView = () => import('../views/BannerTopicView.vue')
 const HotSearchKeywordView = () => import('../views/HotSearchKeywordView.vue')
-const SourcingMapView = () => import('../views/SourcingMapView.vue')
 const VIPConfigView = () => import('../views/VIPConfigView.vue')
 const GrowthCampaignView = () => import('../views/GrowthCampaignView.vue')
 const AdminPermissionView = () => import('../views/AdminPermissionView.vue')
@@ -39,7 +38,6 @@ const routes = [
       { path: 'hot-search-keywords', name: 'hotSearchKeywords', component: HotSearchKeywordView, meta: { moduleCode: 'hot_search_keywords' } },
       { path: 'vip-configs', name: 'vipConfigs', component: VIPConfigView, meta: { moduleCode: 'vip_configs' } },
       { path: 'growth-campaigns', name: 'growthCampaigns', component: GrowthCampaignView, meta: { moduleCode: 'growth_campaigns' } },
-      { path: 'sourcing-map', name: 'sourcingMap', component: SourcingMapView, meta: { moduleCode: 'sourcing_map' } },
       { path: 'resource-type-configs', name: 'resourceTypeConfigs', component: ResourceTypeConfigView, meta: { moduleCode: 'resource_type_configs' } },
       { path: 'admin-permissions', name: 'adminPermissions', component: AdminPermissionView, meta: { moduleCode: 'admin_permissions', requiresSuperAdmin: true } },
       { path: 'operation-logs', name: 'operationLogs', component: OperationLogView, meta: { moduleCode: 'operation_logs' } },

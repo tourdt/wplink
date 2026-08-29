@@ -42,7 +42,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { DataLine, Document, Lock, MapLocation, Medal, Picture, Search, Setting, Shop, Ticket, Tickets, User, Warning } from '@element-plus/icons-vue'
+import { DataLine, Document, Lock, Medal, Picture, Search, Setting, Shop, Ticket, Tickets, User, Warning } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -57,7 +57,6 @@ const menuItems = [
   { index: '/hot-search-keywords', label: '热门搜索词', icon: Search, moduleCode: 'hot_search_keywords' },
   { index: '/vip-configs', label: 'VIP 配置', icon: Medal, moduleCode: 'vip_configs' },
   { index: '/growth-campaigns', label: '增长活动', icon: Tickets, moduleCode: 'growth_campaigns' },
-  { index: '/sourcing-map', label: '拿货地图', icon: MapLocation, moduleCode: 'sourcing_map' },
   { index: '/resource-type-configs', label: '供需类型配置', icon: Setting, moduleCode: 'resource_type_configs' },
   { index: '/admin-permissions', label: '管理员权限', icon: Lock, moduleCode: 'admin_permissions' },
   { index: '/operation-logs', label: '操作日志', icon: Document, moduleCode: 'operation_logs' },

@@ -15,3 +15,15 @@ export function getMerchant(merchantId) {
 export function updateMerchant(merchantId, payload) {
   return http.post(`/api/v1/merchants/${merchantId}`, payload)
 }
+
+export function listMerchantLocationReports(params = {}) {
+  return http.get('/api/v1/admin/merchants/location-reports', { params })
+}
+
+export function reviewMerchantLocationReport(reportId, payload) {
+  return http.post(`/api/v1/admin/merchants/location-reports/${reportId}/review`, payload)
+}
+
+export function updateMerchantLocationStatus(merchantId, payload) {
+  return http.post(`/api/v1/admin/merchants/${merchantId}/location-status`, payload)
+}
