@@ -64,7 +64,7 @@ func validateWorkflow(workflowPath string) error {
 	dependencySecurityRuns := 0
 	for jobName, currentJob := range document.Jobs {
 		for index, currentStep := range currentJob.Steps {
-			if strings.HasPrefix(strings.TrimSpace(currentStep.Uses), "actions/setup-go@") {
+			if isSetupGoAction(currentStep.Uses) {
 				version, err := setupGoVersion(currentStep.With)
 				if err != nil {
 					return fmt.Errorf("job %q 的第 %d 个 setup-go step 配置无效：%w", jobName, index+1, err)
@@ -107,4 +107,26 @@ func setupGoVersion(with map[string]any) (string, error) {
 		return "", fmt.Errorf("with.go-version 必须是非空字符串标量")
 	}
 	return strings.TrimSpace(version), nil
+}
+
+func isSetupGoAction(uses string) bool {
+	actionName, _, ok := splitActionReference(uses)
+	return ok && strings.EqualFold(actionName, "actions/setup-go")
+}
+
+func splitActionReference(uses string) (actionName string, ref string, ok bool) {
+	trimmedUses := strings.TrimSpace(uses)
+	separator := strings.Index(trimmedUses, "@")
+	if separator <= 0 || separator == len(trimmedUses)-1 {
+		return "", "", false
+	}
+
+	actionName = strings.TrimSpace(trimmedUses[:separator])
+	ref = strings.TrimSpace(trimmedUses[separator+1:])
+	// owner/repo 不能含空白；ref 必须非空且可保留 Git 合法的 @ 字符。
+	if actionName == "" || ref == "" || strings.ContainsAny(actionName, " \t\r\n") ||
+		strings.ContainsAny(ref, " \t\r\n") {
+		return "", "", false
+	}
+	return actionName, ref, true
 }

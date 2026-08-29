@@ -222,3 +222,27 @@ test('setup-go step 外的 go-version 标量不能伪装成 step 配置', (t) =>
   assert.notEqual(result.status, 0)
   assert.match(result.stderr, /缺少 with\.go-version/)
 })
+
+test('大小写不同的 Actions/setup-go 仍计入版本门禁', (t) => {
+  const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    steps:\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - uses: Actions/setup-go@v5\n        with: { go-version: 1.25.12 }\n      - run: make check-dependencies\n`)
+
+  assert.notEqual(result.status, 0)
+})
+
+test('大小写不同的 actions/SETUP-GO 与包含 @ 的合法 ref 可通过', (t) => {
+  const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    steps:\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - uses: actions/SETUP-GO@release@candidate\n        with: { go-version: 1.25.13 }\n      - run: make check-dependencies\n`)
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('setup-go 相似 action 名不计入工具链 step', (t) => {
+  const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    steps:\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - uses: actions/setup-go-fork@v5\n        with: { go-version: 1.25.12 }\n      - run: make check-dependencies\n`)
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('缺少 ref suffix 的 setup-go uses 不得计为有效 action ref', (t) => {
+  const result = runCIWorkflowFixture(t, `jobs:\n  dependency-security:\n    steps:\n      - uses: actions/setup-go@v5\n        with: { go-version: 1.25.13 }\n      - uses: actions/setup-go@\n        with: { go-version: 1.25.13 }\n      - run: make check-dependencies\n`)
+
+  assert.notEqual(result.status, 0)
+})
