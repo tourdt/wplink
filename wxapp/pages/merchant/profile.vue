@@ -156,13 +156,13 @@
               <text v-else class="location-status-detail">设置后才会在拿货档口目录提供查看位置</text>
             </view>
             <view class="location-actions">
-              <button class="map-button" :disabled="submitting || locationResolving" :loading="locationResolving" @click="chooseMerchantLocation">
+              <button class="map-button" :disabled="submitting || locationResolving || merchantProfileLoading" :loading="locationResolving" @click="chooseMerchantLocation">
                 {{ locationResolving ? '解析中' : locationSelected ? '重新选择' : '选择地图位置' }}
               </button>
               <button
                 v-if="locationSelected"
                 class="location-clear-button"
-                :disabled="submitting"
+                :disabled="submitting || merchantProfileLoading"
                 @click="clearMerchantLocation"
               >
                 清除地图位置
@@ -174,8 +174,8 @@
     </view>
     <view class="fixed-save-spacer" />
     <view class="fixed-save-bar">
-      <button class="primary-button" :disabled="submitting || locationResolving" :loading="submitting" @click="submitMerchantProfile">
-        {{ submitting ? '保存中' : locationResolving ? '位置解析中' : saveButtonText }}
+      <button class="primary-button" :disabled="submitting || locationResolving || merchantProfileLoading" :loading="submitting" @click="submitMerchantProfile">
+        {{ submitting ? '保存中' : merchantProfileLoading ? '资料加载中' : locationResolving ? '位置解析中' : saveButtonText }}
       </button>
     </view>
   </view>
@@ -188,10 +188,12 @@ import UniGrid from '../../components/uni-ui/uni-grid/uni-grid.vue'
 import UniGridItem from '../../components/uni-ui/uni-grid-item/uni-grid-item.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import {
+  applyMerchantLocationBaseline,
   buildMerchantLocationPayload,
   buildMerchantLocationSubmission,
   clearMerchantLocationForm,
   createMerchantLocationSession,
+  invalidateMerchantLocationSession,
   isMerchantLocationRequestCurrent,
   normalizeMerchantLocationForm,
   reduceMerchantLocationSession,
@@ -227,6 +229,7 @@ const legacyMerchantTypeText = {
 }
 
 const merchantId = ref('')
+const merchantProfileLoading = ref(true)
 const submitting = ref(false)
 const phoneAuthorizing = ref(false)
 const contactSectionOpen = ref(false)
@@ -293,8 +296,12 @@ onLoad((options) => {
 })
 
 async function loadMerchant() {
-  if (!merchantId.value) return
+  merchantProfileLoading.value = true
+  if (locationResolving.value) uni.hideLoading()
+  // 资料基线开始加载时立即推进位置代次，保证此前地图回调即使稍后完成也不能回写新资料。
+  locationSession.value = invalidateMerchantLocationSession(locationSession.value)
   try {
+    if (!merchantId.value) return
     const detail = await getMerchant(merchantId.value)
     form.name = detail.name || ''
     form.cityCode = detail.cityCode || DEFAULT_CITY_CODE
@@ -306,7 +313,7 @@ async function loadMerchant() {
     form.addressText = detail.addressText || ''
     Object.assign(form, normalizeMerchantLocationForm(detail))
     locationStatus.value = detail.location?.status || 'hidden'
-    locationSession.value = createMerchantLocationSession({
+    locationSession.value = applyMerchantLocationBaseline(locationSession.value, {
       status: locationStatus.value,
       form,
     })
@@ -320,6 +327,8 @@ async function loadMerchant() {
     contactSectionOpen.value = hasExistingContactInfo()
   } catch (err) {
     uni.showToast({ title: err.message || '资料加载失败', icon: 'none' })
+  } finally {
+    merchantProfileLoading.value = false
   }
 }
 
@@ -333,7 +342,7 @@ function changeMerchantType(event) {
 }
 
 async function submitMerchantProfile() {
-  if (submitting.value) return
+  if (submitting.value || merchantProfileLoading.value) return
   const mainCategories = parseList(mainCategoriesText.value)
   const normalizedContactPhone = sanitizeContactPhoneValue(form.contactPhone)
   const normalizedWechat = sanitizeContactWechatValue(form.contactWechat)
@@ -393,7 +402,7 @@ async function submitMerchantProfile() {
 }
 
 function chooseMerchantLocation() {
-  if (submitting.value) return
+  if (submitting.value || merchantProfileLoading.value) return
   if (locationResolving.value) uni.hideLoading()
   locationSession.value = reduceMerchantLocationSession(locationSession.value, { type: 'selection_started' })
   const requestToken = locationSession.value.requestToken
@@ -523,6 +532,7 @@ function isCoordinateMerchantLocationText(text) {
 }
 
 function clearMerchantLocation() {
+  if (submitting.value || merchantProfileLoading.value) return
   if (locationResolving.value) uni.hideLoading()
   locationSession.value = reduceMerchantLocationSession(locationSession.value, { type: 'location_cleared' })
   Object.assign(form, clearMerchantLocationForm(form))

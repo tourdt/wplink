@@ -70,6 +70,20 @@ export function createMerchantLocationSession({ status = 'hidden', form = {} } =
   }
 }
 
+export function invalidateMerchantLocationSession(session) {
+  const current = normalizeLocationSession(session)
+  return finishLocationRequest(current, current.intent)
+}
+
+export function applyMerchantLocationBaseline(session, baseline = {}) {
+  const current = normalizeLocationSession(session)
+  const next = createMerchantLocationSession(baseline)
+  return {
+    ...next,
+    requestToken: current.requestToken + 1,
+  }
+}
+
 export function reduceMerchantLocationSession(session, event = {}) {
   const current = normalizeLocationSession(session)
   switch (event.type) {

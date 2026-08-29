@@ -1531,8 +1531,8 @@ test('merchant profile binds resolving state and latest-request guards to every 
   const addressSource = findFunctionSource(profile.script, 'handleAddressTextInput')
   const clearSource = findFunctionSource(profile.script, 'clearMerchantLocation')
 
-  assert.match(profile.template, /class="map-button"[^>]*:disabled="submitting \|\| locationResolving"[^>]*:loading="locationResolving"/)
-  assert.match(profile.template, /class="primary-button"[^>]*:disabled="submitting \|\| locationResolving"/)
+  assert.match(profile.template, /class="map-button"[^>]*:disabled="[^"]*submitting[^"]*locationResolving[^"]*"[^>]*:loading="locationResolving"/)
+  assert.match(profile.template, /class="primary-button"[^>]*:disabled="[^"]*submitting[^"]*locationResolving[^"]*"/)
   assert.match(profile.template, /locationResolving \? '位置解析中' : saveButtonText/)
   assert.match(submitSource, /buildMerchantLocationSubmission\(locationSession\.value, form\)/)
   assert.match(submitSource, /if \(!locationSubmission\.ok\)/)
@@ -1540,6 +1540,25 @@ test('merchant profile binds resolving state and latest-request guards to every 
   assert.match(chooseSource, /isMerchantLocationRequestCurrent/)
   assert.match(addressSource, /type: 'address_changed'/)
   assert.match(clearSource, /type: 'location_cleared'/)
+})
+
+test('merchant profile disables location actions until its initial baseline finishes loading', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
+  const loadSource = findFunctionSource(profile.script, 'loadMerchant')
+  const submitSource = findFunctionSource(profile.script, 'submitMerchantProfile')
+  const chooseSource = findFunctionSource(profile.script, 'chooseMerchantLocation')
+  const clearSource = findFunctionSource(profile.script, 'clearMerchantLocation')
+
+  assert.match(profile.template, /class="map-button"[^>]*:disabled="[^"]*merchantProfileLoading[^"]*"/)
+  assert.match(profile.template, /class="location-clear-button"[^>]*:disabled="[^"]*merchantProfileLoading[^"]*"/)
+  assert.match(profile.template, /class="primary-button"[^>]*:disabled="[^"]*merchantProfileLoading[^"]*"/)
+  assert.match(loadSource, /invalidateMerchantLocationSession/)
+  assert.match(loadSource, /applyMerchantLocationBaseline/)
+  assert.match(loadSource, /finally\s*\{[\s\S]*merchantProfileLoading\.value = false/)
+  assert.match(submitSource, /merchantProfileLoading\.value/)
+  assert.match(chooseSource, /merchantProfileLoading\.value/)
+  assert.match(clearSource, /merchantProfileLoading\.value/)
 })
 
 test('merchant profile page hides sourcing map binding entry while keeping the page registered', () => {

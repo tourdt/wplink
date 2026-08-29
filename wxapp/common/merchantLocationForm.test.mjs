@@ -5,10 +5,12 @@ import test from 'node:test'
 import vm from 'node:vm'
 
 import {
+  applyMerchantLocationBaseline,
   buildMerchantLocationPayload,
   buildMerchantLocationSubmission,
   clearMerchantLocationForm,
   createMerchantLocationSession,
+  invalidateMerchantLocationSession,
   isMerchantLocationRequestCurrent,
   normalizeMerchantLocationForm,
   reduceMerchantLocationSession,
@@ -410,4 +412,49 @@ test('a failed reselection keeps a risk-hidden location undecided instead of cle
     ok: false,
     message: '该位置暂未公开，请重新选择地图位置或清除地图位置后再保存',
   })
+})
+
+test('a loaded profile baseline keeps tokens monotonic so selection A cannot become current during B', async () => {
+  const first = deferred()
+  let session = createMerchantLocationSession()
+  session = reduceMerchantLocationSession(session, { type: 'selection_started' })
+  const firstToken = session.requestToken
+  const firstResult = resolveLatestMerchantLocationRequest({
+    token: firstToken,
+    task: () => first.promise,
+    getSession: () => session,
+  })
+
+  session = invalidateMerchantLocationSession(session)
+  session = applyMerchantLocationBaseline(session, {
+    status: 'visible',
+    form: { latitude: 30.8732, longitude: 120.2255 },
+  })
+  session = reduceMerchantLocationSession(session, { type: 'selection_started' })
+  const secondToken = session.requestToken
+
+  assert.ok(secondToken > firstToken)
+  first.resolve({ address: '不应覆盖第二次选择的旧地址' })
+  assert.deepEqual(await firstResult, { current: false })
+  assert.equal(isMerchantLocationRequestCurrent(session, firstToken), false)
+  assert.equal(isMerchantLocationRequestCurrent(session, secondToken), true)
+})
+
+test('a failed profile load still invalidates selection A when no later selection starts', async () => {
+  const first = deferred()
+  let session = createMerchantLocationSession()
+  session = reduceMerchantLocationSession(session, { type: 'selection_started' })
+  const firstToken = session.requestToken
+  const firstResult = resolveLatestMerchantLocationRequest({
+    token: firstToken,
+    task: () => first.promise,
+    getSession: () => session,
+  })
+
+  session = invalidateMerchantLocationSession(session)
+  first.resolve({ address: '加载后不得回写的旧地址' })
+
+  assert.ok(session.requestToken > firstToken)
+  assert.deepEqual(await firstResult, { current: false })
+  assert.equal(isMerchantLocationRequestCurrent(session, firstToken), false)
 })
