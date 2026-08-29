@@ -4,14 +4,6 @@ export function listMerchants(params = {}, config = {}) {
   return http.get('/api/v1/admin/merchants', { ...config, params })
 }
 
-export function createMerchant(payload) {
-  return http.post('/api/v1/merchants', payload)
-}
-
-export function updateMerchant(merchantId, payload) {
-  return http.post(`/api/v1/merchants/${merchantId}`, payload)
-}
-
 export function listMerchantLocationReports(params = {}, config = {}) {
   return http.get('/api/v1/admin/merchants/location-reports', { ...config, params })
 }

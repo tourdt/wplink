@@ -69,6 +69,47 @@ func TestRequireMerchantAllowsPlatformAdmin(t *testing.T) {
 	}
 }
 
+func TestRequireMerchantRejectsPlatformOperatorWithoutMerchantModule(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1", nil)
+	r.Header.Set("Authorization", "Bearer admin-token")
+	deps := completeMerchantPermissionDeps(&fakeMerchantPermissionStore{})
+	deps.AdminTokenService = fakeAdminTokenService{
+		token: "admin-token",
+		subject: session.AdminTokenSubject{
+			OperatorID: "operator-1",
+			Roles:      []string{permission.RolePlatformOperator},
+			Modules:    []string{permission.AdminModuleResourceReview, permission.AdminModuleResourceReports},
+		},
+	}
+
+	err := RequireMerchant(r, deps, "merchant-1")
+	if errx.CodeOf(err) != errx.CodeForbidden || errx.PublicMessage(err) != "您没有权限操作该商家" {
+		t.Fatalf("error = (%q, %q), want merchant module forbidden", errx.CodeOf(err), errx.PublicMessage(err))
+	}
+}
+
+func TestRequireMerchantAllowsPlatformOperatorWithMerchantModule(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1", nil)
+	r.Header.Set("Authorization", "Bearer admin-token")
+	store := &fakeMerchantPermissionStore{}
+	deps := completeMerchantPermissionDeps(store)
+	deps.AdminTokenService = fakeAdminTokenService{
+		token: "admin-token",
+		subject: session.AdminTokenSubject{
+			OperatorID: "operator-1",
+			Roles:      []string{permission.RolePlatformOperator},
+			Modules:    []string{permission.AdminModuleMerchants},
+		},
+	}
+
+	if err := RequireMerchant(r, deps, "merchant-1"); err != nil {
+		t.Fatalf("RequireMerchant() error = %v", err)
+	}
+	if store.userID != "" {
+		t.Fatalf("permission store called for merchant module admin with userID %q", store.userID)
+	}
+}
+
 func TestRequireMerchantAllowsUserManagingOwnMerchant(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1", nil)
 	r.Header.Set("Authorization", "Bearer user-token")
@@ -90,6 +131,21 @@ func TestRequireMerchantRejectsUserManagingAnotherMerchant(t *testing.T) {
 	err := RequireMerchant(r, completeMerchantPermissionDeps(&fakeMerchantPermissionStore{}), "merchant-2")
 	if errx.CodeOf(err) != errx.CodeForbidden || errx.PublicMessage(err) != "您没有权限操作该商家" {
 		t.Fatalf("error = (%q, %q), want safe forbidden error", errx.CodeOf(err), errx.PublicMessage(err))
+	}
+}
+
+func TestRequireMerchantDoesNotTrustAdminRoleFromUserToken(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-2", nil)
+	r.Header.Set("Authorization", "Bearer user-token")
+	deps := completeMerchantPermissionDeps(&fakeMerchantPermissionStore{})
+	deps.UserTokenService = fakeUserTokenService{
+		token:   "user-token",
+		subject: session.UserTokenSubject{UserID: "user-1", Roles: []string{permission.RolePlatformOperator}},
+	}
+
+	err := RequireMerchant(r, deps, "merchant-2")
+	if errx.CodeOf(err) != errx.CodeForbidden || errx.PublicMessage(err) != "您没有权限操作该商家" {
+		t.Fatalf("error = (%q, %q), want user merchant relation forbidden", errx.CodeOf(err), errx.PublicMessage(err))
 	}
 }
 

@@ -364,6 +364,16 @@ test('admin merges location governance into merchants and removes custom map edi
   assert.equal(fs.existsSync(path.join(root, `src/common/${retiredViewport}.test.mjs`)), false)
 })
 
+test('merchant admin keeps governance actions without a nonfunctional creation entry', () => {
+  const merchantSource = fs.readFileSync(path.join(root, 'src/views/MerchantView.vue'), 'utf8')
+
+  assert.doesNotMatch(merchantSource, /新增商家/)
+  assert.doesNotMatch(merchantSource, /\bcreateMerchant\b/)
+  assert.doesNotMatch(merchantSource, /submitMerchant/)
+  assert.match(merchantSource, /位置错误反馈/)
+  assert.match(merchantSource, /updateLocation/)
+})
+
 test('admin city station filters use dropdown options', () => {
   const citySource = fs.readFileSync(path.join(root, 'src/common/cityStations.js'), 'utf8')
   const filterFiles = [

@@ -4,7 +4,6 @@
       <h2>商家管理</h2>
       <div class="page-actions">
         <el-button @click="governance.openReports(1)">位置错误反馈</el-button>
-        <el-button type="primary" @click="drawerVisible = true">新增商家</el-button>
       </div>
     </div>
 
@@ -217,49 +216,15 @@
       </div>
     </el-drawer>
 
-    <el-drawer v-model="drawerVisible" title="新增商家" size="520px">
-      <el-form label-position="top">
-        <el-form-item label="城市站">
-          <el-select v-model="form.cityCode">
-            <el-option v-for="station in cityStationOptions" :key="station.value" :label="station.label" :value="station.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="商家名称"><el-input v-model="form.name" /></el-form-item>
-        <el-form-item label="主要身份">
-          <el-select v-model="form.merchantType">
-            <el-option v-for="item in merchantIdentityOptions" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="主营品类">
-          <el-select v-model="form.mainCategories" multiple filterable allow-create>
-            <el-option label="童装" value="童装" />
-            <el-option label="卫衣" value="卫衣" />
-            <el-option label="套装" value="套装" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="联系人"><el-input v-model="form.contactName" /></el-form-item>
-        <el-form-item label="联系电话"><el-input v-model="form.contactPhone" /></el-form-item>
-        <el-form-item label="微信"><el-input v-model="form.contactWechat" /></el-form-item>
-        <el-form-item label="地址"><el-input v-model="form.addressText" /></el-form-item>
-        <el-form-item label="简介"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
-        <div class="drawer-actions">
-          <el-button @click="drawerVisible = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="submitMerchant">保存</el-button>
-        </div>
-      </el-form>
-    </el-drawer>
   </section>
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from '../plugins/elementPlus'
-import {
-  createMerchant,
-  merchantLocationGovernanceApi,
-} from '../api/merchant'
-import { cityStationOptions, defaultCityCode } from '../common/cityStations'
+import { merchantLocationGovernanceApi } from '../api/merchant'
+import { cityStationOptions } from '../common/cityStations'
 import { merchantIdentityOptions, merchantTypeText } from '../common/merchantIdentity'
 import { createMerchantLocationGovernance, merchantLocationSignal } from './merchantLocationGovernance'
 
@@ -300,19 +265,6 @@ const governance = createMerchantLocationGovernance(
 )
 const state = governance.state
 const filters = state.merchantFilters
-const form = reactive({
-  cityCode: defaultCityCode,
-  name: '',
-  merchantType: 'individual',
-  mainCategories: ['童装'],
-  contactName: '',
-  contactPhone: '',
-  contactWechat: '',
-  addressText: '',
-  description: '',
-})
-const saving = ref(false)
-const drawerVisible = ref(false)
 const router = useRouter()
 
 onMounted(() => governance.loadMerchants(1))
@@ -344,18 +296,6 @@ async function confirmLocationAction(row, action) {
     return
   }
   await governance.updateLocation(row, action)
-}
-
-async function submitMerchant() {
-  saving.value = true
-  try {
-    await createMerchant({ ...form })
-    ElMessage.success('商家已创建')
-    drawerVisible.value = false
-    await governance.loadMerchants(1)
-  } finally {
-    saving.value = false
-  }
 }
 
 function snapshotSummary(snapshot = {}) {

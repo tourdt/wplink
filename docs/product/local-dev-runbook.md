@@ -24,20 +24,16 @@
 
 ## 数据库初始化
 
-创建数据库后按顺序执行：
+创建可丢弃的本地数据库后，从仓库根目录按文件名顺序执行当前目录中的全部 up migration，再导入演示数据。不要在手册中维护一份容易过期的迁移文件清单：
 
 ```bash
-psql "$DATABASE_URL" -f backend/migrations/000001_admin_auth.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000002_core_domain.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000003_seed_zhili.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000004_user_interactions.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000005_merchant_logo.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000006_merchant_type_change_logs.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000007_verification_payments.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000008_hot_search_keywords.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000009_verification_expiration.up.sql
-psql "$DATABASE_URL" -f backend/migrations/000010_sourcing_map.up.sql
-psql "$DATABASE_URL" -f backend/scripts/seed_demo_data.sql
+set -euo pipefail
+find backend/migrations -maxdepth 1 -type f -name '*.up.sql' -print \
+  | sort \
+  | while IFS= read -r migration_file; do
+      psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration_file" || exit 1
+    done
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/scripts/seed_demo_data.sql
 ```
 
 项目通过 `DATABASE_URL` 或 `backend/etc/app.yaml` 中的 `Postgres.DSN` 连接 PostgreSQL。推荐先用 Go 验证器创建临时数据库完整验证 migration up/down 和演示数据导入，避免在业务库上直接执行 down：
@@ -58,7 +54,7 @@ node backend/scripts/validate_migrations.mjs
 - 织里城市站和七类供需类型配置
 - 认证工厂、认证库存商、服务商、采购商
 - 七类已发布供需信息，以及待审核、已驳回、即将过期、已过期供需信息
-- 已发布的织里利济路拿货地图示范场景、档口和配套点位
+- 已设置腾讯地图位置的织里商家，以及可在拿货档口目录展示的档口信息
 - 需求方向供需信息示例
 - 消息、供需信息指标、联系事件、操作日志、置顶券和权益
 

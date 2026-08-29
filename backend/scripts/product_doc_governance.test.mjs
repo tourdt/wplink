@@ -27,6 +27,7 @@ const currentFactDocuments = [
   'docs/product/api-implementation-checklist.md',
   'docs/product/wxapp-manual-acceptance.md',
   'docs/product/deployment-config.md',
+  'docs/product/local-dev-runbook.md',
   'docs/architecture.md',
   'docs/deployment.md',
 ]

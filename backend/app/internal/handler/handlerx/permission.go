@@ -26,7 +26,8 @@ type MerchantPermissionDeps struct {
 	Store             MerchantPermissionStore
 }
 
-// RequireMerchant 允许平台管理员或有明确管理关系的用户操作商家。
+// RequireMerchant 允许具备商家管理模块的后台管理员，或有明确管理关系的用户操作商家。
+// 公开商家接口不会经过 /admin 路由中间件，因此这里必须再次校验后台模块，避免审核运营角色越权修改商家资料。
 func RequireMerchant(r *http.Request, deps MerchantPermissionDeps, merchantID string) error {
 	ctx := requestContext(r)
 	if dependencyMissing(deps.UserTokenService) || dependencyMissing(deps.AdminTokenService) || dependencyMissing(deps.Store) {
@@ -41,14 +42,23 @@ func RequireMerchant(r *http.Request, deps MerchantPermissionDeps, merchantID st
 	}
 
 	if admin, ok := OptionalAdmin(r, deps.AdminTokenService); ok && permission.CanAccessAdmin(admin.Roles) {
-		return nil
+		modules := append([]string(nil), admin.Modules...)
+		if len(modules) == 0 {
+			modules = permission.ResolveAdminModules(admin.Roles, nil)
+		}
+		if permission.CanAccessAdminModule(admin.Roles, modules, permission.AdminModuleMerchants) {
+			return nil
+		}
+		logx.WithContext(ctx).Infow(
+			"管理员无商家操作权限",
+			logx.Field("operatorId", strings.TrimSpace(admin.OperatorID)),
+			logx.Field("requiredModule", permission.AdminModuleMerchants),
+		)
+		return errx.New(errx.CodeForbidden, "您没有权限操作该商家")
 	}
 	user, err := RequiredUser(r, deps.UserTokenService)
 	if err != nil {
 		return err
-	}
-	if permission.CanAccessAdmin(user.Roles) {
-		return nil
 	}
 	allowed, err := deps.Store.UserCanManageMerchant(ctx, strings.TrimSpace(user.UserID), strings.TrimSpace(merchantID))
 	if err != nil {

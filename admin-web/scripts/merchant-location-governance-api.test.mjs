@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import http, { classifyHttpError } from '../src/api/http.js'
+import * as merchantApi from '../src/api/merchant.js'
 import { listMerchants, merchantLocationGovernanceApi } from '../src/api/merchant.js'
 
 globalThis.localStorage = {
@@ -42,4 +43,11 @@ test('merchant location governance API marks only its own requests as page-handl
     '/api/v1/admin/merchants/location-reports/r-1/review',
     '/api/v1/admin/merchants/m-1/location-status',
   ])
+})
+
+test('merchant admin API exposes governance endpoints instead of public merchant writes', () => {
+  assert.equal('createMerchant' in merchantApi, false)
+  assert.equal('updateMerchant' in merchantApi, false)
+  assert.equal(typeof merchantApi.listMerchants, 'function')
+  assert.equal(typeof merchantApi.merchantLocationGovernanceApi.updateMerchantLocationStatus, 'function')
 })
