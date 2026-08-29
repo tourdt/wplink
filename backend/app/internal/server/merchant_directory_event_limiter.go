@@ -8,20 +8,20 @@ import (
 )
 
 const (
-	merchantMapEventRequestBodyLimit = 4096
-	merchantMapEventRateLimit        = 60
-	merchantMapEventRateWindowSize   = time.Minute
-	merchantMapEventRateMaxKeys      = 4096
+	merchantDirectoryEventRequestBodyLimit = 4096
+	merchantDirectoryEventRateLimit        = 60
+	merchantDirectoryEventRateWindowSize   = time.Minute
+	merchantDirectoryEventRateMaxKeys      = 4096
 )
 
-type merchantMapEventRateWindow struct {
+type merchantDirectoryEventRateWindow struct {
 	startedAt time.Time
 	count     int
 }
 
-type merchantMapEventRateLimiter struct {
+type merchantDirectoryEventRateLimiter struct {
 	mu        sync.Mutex
-	windows   map[[sha256.Size]byte]merchantMapEventRateWindow
+	windows   map[[sha256.Size]byte]merchantDirectoryEventRateWindow
 	limit     int
 	window    time.Duration
 	maxKeys   int
@@ -29,12 +29,12 @@ type merchantMapEventRateLimiter struct {
 	lastSweep time.Time
 }
 
-func newMerchantMapEventRateLimiter(limit int, window time.Duration, maxKeys int, now func() time.Time) *merchantMapEventRateLimiter {
+func newMerchantDirectoryEventRateLimiter(limit int, window time.Duration, maxKeys int, now func() time.Time) *merchantDirectoryEventRateLimiter {
 	if now == nil {
 		now = time.Now
 	}
-	return &merchantMapEventRateLimiter{
-		windows: make(map[[sha256.Size]byte]merchantMapEventRateWindow),
+	return &merchantDirectoryEventRateLimiter{
+		windows: make(map[[sha256.Size]byte]merchantDirectoryEventRateWindow),
 		limit:   limit,
 		window:  window,
 		maxKeys: maxKeys,
@@ -42,7 +42,7 @@ func newMerchantMapEventRateLimiter(limit int, window time.Duration, maxKeys int
 	}
 }
 
-func (l *merchantMapEventRateLimiter) Allow(clientIP string, visitorKey string) bool {
+func (l *merchantDirectoryEventRateLimiter) Allow(clientIP string, visitorKey string) bool {
 	if l == nil || l.limit <= 0 || l.window <= 0 || l.maxKeys <= 0 || l.now == nil {
 		return false
 	}
@@ -76,11 +76,11 @@ func (l *merchantMapEventRateLimiter) Allow(clientIP string, visitorKey string) 
 		// 不驱逐仍活跃的窗口，避免攻击者通过不断换 key 重置已有请求计数。
 		return false
 	}
-	l.windows[key] = merchantMapEventRateWindow{startedAt: now, count: 1}
+	l.windows[key] = merchantDirectoryEventRateWindow{startedAt: now, count: 1}
 	return true
 }
 
-func (l *merchantMapEventRateLimiter) cleanupExpiredLocked(now time.Time) {
+func (l *merchantDirectoryEventRateLimiter) cleanupExpiredLocked(now time.Time) {
 	for key, current := range l.windows {
 		if !now.Before(current.startedAt.Add(l.window)) {
 			delete(l.windows, key)

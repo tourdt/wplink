@@ -93,13 +93,13 @@ func newTask6GeneratedServiceContext(t *testing.T) (*svc.ServiceContext, sqlmock
 	t.Cleanup(func() { _ = db.Close() })
 
 	apiStore := &svc.APIStore{
-		UserModel:                model.NewUserModel(db),
-		MerchantModel:            model.NewMerchantModel(db),
-		ResourceModel:            model.NewResourceModel(db),
-		MessageModel:             model.NewMessageModel(db),
-		FavoriteModel:            model.NewFavoriteModel(db),
-		ResourceMetricDailyModel: model.NewResourceMetricDailyModel(db),
-		MerchantMapEventsModel:   model.NewMerchantMapEventsModel(sqlx.NewSqlConnFromDB(db)),
+		UserModel:                   model.NewUserModel(db),
+		MerchantModel:               model.NewMerchantModel(db),
+		ResourceModel:               model.NewResourceModel(db),
+		MessageModel:                model.NewMessageModel(db),
+		FavoriteModel:               model.NewFavoriteModel(db),
+		ResourceMetricDailyModel:    model.NewResourceMetricDailyModel(db),
+		MerchantDirectoryEventModel: model.NewMerchantDirectoryEventModel(sqlx.NewSqlConnFromDB(db)),
 	}
 	return &svc.ServiceContext{
 		APIStore:         apiStore,

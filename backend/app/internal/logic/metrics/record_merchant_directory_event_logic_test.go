@@ -10,27 +10,29 @@ import (
 	"wplink/backend/common/errx"
 )
 
-func TestRecordMerchantMapEventAcceptsSupportedEvents(t *testing.T) {
+func TestRecordMerchantDirectoryEventAcceptsSupportedEvents(t *testing.T) {
 	tests := []struct {
 		name             string
 		eventType        string
 		targetMerchantID string
 	}{
-		{name: "位置入口点击", eventType: "location_entry_click"},
+		{name: "目录曝光", eventType: "directory_exposure"},
+		{name: "目录商家点击", eventType: "directory_merchant_click"},
 		{name: "位置页浏览", eventType: "location_view"},
 		{name: "导航点击", eventType: "navigation_click"},
 		{name: "周边抽屉打开", eventType: "nearby_drawer_open"},
 		{name: "周边标记点击", eventType: "nearby_marker_click", targetMerchantID: "102"},
 		{name: "周边列表项点击", eventType: "nearby_list_item_click", targetMerchantID: "102"},
 		{name: "周边商家点击", eventType: "nearby_merchant_click", targetMerchantID: "102"},
+		{name: "位置报告提交", eventType: "location_report_submit"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store := &fakeMerchantMapEventStore{}
-			logic := NewRecordMerchantMapEventLogic(store)
+			store := &fakeMerchantDirectoryEventStore{}
+			logic := NewRecordMerchantDirectoryEventLogic(store)
 
-			resp, err := logic.RecordMerchantMapEvent(context.Background(), RecordMerchantMapEventReq{
+			resp, err := logic.RecordMerchantDirectoryEvent(context.Background(), RecordMerchantDirectoryEventReq{
 				UserID:           " 201 ",
 				MerchantID:       " 101 ",
 				TargetMerchantID: " " + tt.targetMerchantID + " ",
@@ -40,12 +42,12 @@ func TestRecordMerchantMapEventAcceptsSupportedEvents(t *testing.T) {
 				Source:           "merchant_location",
 			})
 			if err != nil {
-				t.Fatalf("RecordMerchantMapEvent() error = %v", err)
+				t.Fatalf("RecordMerchantDirectoryEvent() error = %v", err)
 			}
 			if !resp.Recorded {
 				t.Fatal("Recorded = false, want true")
 			}
-			want := model.MerchantMapEventInput{
+			want := model.MerchantDirectoryEventInput{
 				UserID:           "201",
 				MerchantID:       "101",
 				TargetMerchantID: tt.targetMerchantID,
@@ -61,33 +63,37 @@ func TestRecordMerchantMapEventAcceptsSupportedEvents(t *testing.T) {
 	}
 }
 
-func TestRecordMerchantMapEventRejectsUnknownEventType(t *testing.T) {
-	store := &fakeMerchantMapEventStore{}
-	logic := NewRecordMerchantMapEventLogic(store)
+func TestRecordMerchantDirectoryEventRejectsUnknownEventType(t *testing.T) {
+	for _, eventType := range []string{"merchant_open", "location_entry_click"} {
+		t.Run(eventType, func(t *testing.T) {
+			store := &fakeMerchantDirectoryEventStore{}
+			logic := NewRecordMerchantDirectoryEventLogic(store)
 
-	_, err := logic.RecordMerchantMapEvent(context.Background(), validMerchantMapEventReq("merchant_open"))
+			_, err := logic.RecordMerchantDirectoryEvent(context.Background(), validMerchantDirectoryEventReq(eventType))
 
-	assertMerchantMapEventError(t, err, errx.CodeValidationFailed, "地图行为类型无效")
-	if store.called {
-		t.Fatal("store called for an unsupported event type")
+			assertMerchantDirectoryEventError(t, err, errx.CodeValidationFailed, "目录行为类型无效")
+			if store.called {
+				t.Fatal("store called for an unsupported event type")
+			}
+		})
 	}
 }
 
-func TestRecordMerchantMapEventRejectsUnknownSource(t *testing.T) {
-	store := &fakeMerchantMapEventStore{}
-	logic := NewRecordMerchantMapEventLogic(store)
-	req := validMerchantMapEventReq("location_view")
+func TestRecordMerchantDirectoryEventRejectsUnknownSource(t *testing.T) {
+	store := &fakeMerchantDirectoryEventStore{}
+	logic := NewRecordMerchantDirectoryEventLogic(store)
+	req := validMerchantDirectoryEventReq("location_view")
 	req.Source = "home"
 
-	_, err := logic.RecordMerchantMapEvent(context.Background(), req)
+	_, err := logic.RecordMerchantDirectoryEvent(context.Background(), req)
 
-	assertMerchantMapEventError(t, err, errx.CodeValidationFailed, "地图行为来源无效")
+	assertMerchantDirectoryEventError(t, err, errx.CodeValidationFailed, "目录行为来源无效")
 	if store.called {
 		t.Fatal("store called for an unsupported source")
 	}
 }
 
-func TestRecordMerchantMapEventRejectsInvalidVisitorOrSession(t *testing.T) {
+func TestRecordMerchantDirectoryEventRejectsInvalidVisitorOrSession(t *testing.T) {
 	tests := []struct {
 		name       string
 		visitorKey string
@@ -101,15 +107,15 @@ func TestRecordMerchantMapEventRejectsInvalidVisitorOrSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store := &fakeMerchantMapEventStore{}
-			logic := NewRecordMerchantMapEventLogic(store)
-			req := validMerchantMapEventReq("location_view")
+			store := &fakeMerchantDirectoryEventStore{}
+			logic := NewRecordMerchantDirectoryEventLogic(store)
+			req := validMerchantDirectoryEventReq("location_view")
 			req.VisitorKey = tt.visitorKey
 			req.SessionID = tt.sessionID
 
-			_, err := logic.RecordMerchantMapEvent(context.Background(), req)
+			_, err := logic.RecordMerchantDirectoryEvent(context.Background(), req)
 
-			assertMerchantMapEventError(t, err, errx.CodeValidationFailed, "地图行为会话参数无效")
+			assertMerchantDirectoryEventError(t, err, errx.CodeValidationFailed, "目录行为会话参数无效")
 			if store.called {
 				t.Fatal("store called for invalid visitor/session parameters")
 			}
@@ -117,7 +123,7 @@ func TestRecordMerchantMapEventRejectsInvalidVisitorOrSession(t *testing.T) {
 	}
 }
 
-func TestRecordMerchantMapEventRejectsInvalidMerchantIDsBeforeStore(t *testing.T) {
+func TestRecordMerchantDirectoryEventRejectsInvalidMerchantIDsBeforeStore(t *testing.T) {
 	tests := []struct {
 		name             string
 		merchantID       string
@@ -136,15 +142,15 @@ func TestRecordMerchantMapEventRejectsInvalidMerchantIDsBeforeStore(t *testing.T
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store := &fakeMerchantMapEventStore{}
-			logic := NewRecordMerchantMapEventLogic(store)
-			req := validMerchantMapEventReq("location_view")
+			store := &fakeMerchantDirectoryEventStore{}
+			logic := NewRecordMerchantDirectoryEventLogic(store)
+			req := validMerchantDirectoryEventReq("location_view")
 			req.MerchantID = tt.merchantID
 			req.TargetMerchantID = tt.targetMerchantID
 
-			_, err := logic.RecordMerchantMapEvent(context.Background(), req)
+			_, err := logic.RecordMerchantDirectoryEvent(context.Background(), req)
 
-			assertMerchantMapEventError(t, err, errx.CodeValidationFailed, "地图行为商家参数无效")
+			assertMerchantDirectoryEventError(t, err, errx.CodeValidationFailed, "目录行为商家参数无效")
 			if store.called {
 				t.Fatal("store called for an invalid merchant id")
 			}
@@ -152,15 +158,15 @@ func TestRecordMerchantMapEventRejectsInvalidMerchantIDsBeforeStore(t *testing.T
 	}
 }
 
-func TestRecordMerchantMapEventRequiresTargetForNearbyClicks(t *testing.T) {
+func TestRecordMerchantDirectoryEventRequiresTargetForNearbyClicks(t *testing.T) {
 	for _, eventType := range []string{"nearby_marker_click", "nearby_list_item_click", "nearby_merchant_click"} {
 		t.Run(eventType, func(t *testing.T) {
-			store := &fakeMerchantMapEventStore{}
-			logic := NewRecordMerchantMapEventLogic(store)
+			store := &fakeMerchantDirectoryEventStore{}
+			logic := NewRecordMerchantDirectoryEventLogic(store)
 
-			_, err := logic.RecordMerchantMapEvent(context.Background(), validMerchantMapEventReq(eventType))
+			_, err := logic.RecordMerchantDirectoryEvent(context.Background(), validMerchantDirectoryEventReq(eventType))
 
-			assertMerchantMapEventError(t, err, errx.CodeValidationFailed, "地图行为会话参数无效")
+			assertMerchantDirectoryEventError(t, err, errx.CodeValidationFailed, "目录行为会话参数无效")
 			if store.called {
 				t.Fatal("store called for a nearby click without targetMerchantId")
 			}
@@ -168,20 +174,20 @@ func TestRecordMerchantMapEventRequiresTargetForNearbyClicks(t *testing.T) {
 	}
 }
 
-func TestRecordMerchantMapEventHidesDatabaseError(t *testing.T) {
-	store := &fakeMerchantMapEventStore{err: errors.New("pq: relation merchant_map_events does not exist")}
-	logic := NewRecordMerchantMapEventLogic(store)
+func TestRecordMerchantDirectoryEventHidesDatabaseError(t *testing.T) {
+	store := &fakeMerchantDirectoryEventStore{err: errors.New("pq: relation merchant_directory_events does not exist")}
+	logic := NewRecordMerchantDirectoryEventLogic(store)
 
-	_, err := logic.RecordMerchantMapEvent(context.Background(), validMerchantMapEventReq("location_view"))
+	_, err := logic.RecordMerchantDirectoryEvent(context.Background(), validMerchantDirectoryEventReq("location_view"))
 
-	assertMerchantMapEventError(t, err, errx.CodeInternalError, "地图行为记录失败，请稍后重试")
-	if strings.Contains(errx.PublicMessage(err), "merchant_map_events") || strings.Contains(errx.PublicMessage(err), "pq:") {
+	assertMerchantDirectoryEventError(t, err, errx.CodeInternalError, "目录行为记录失败，请稍后重试")
+	if strings.Contains(errx.PublicMessage(err), "merchant_directory_events") || strings.Contains(errx.PublicMessage(err), "pq:") {
 		t.Fatalf("public error leaked database detail: %q", errx.PublicMessage(err))
 	}
 }
 
-func validMerchantMapEventReq(eventType string) RecordMerchantMapEventReq {
-	return RecordMerchantMapEventReq{
+func validMerchantDirectoryEventReq(eventType string) RecordMerchantDirectoryEventReq {
+	return RecordMerchantDirectoryEventReq{
 		MerchantID: "101",
 		VisitorKey: "visitor-1",
 		SessionID:  "session-1",
@@ -190,20 +196,20 @@ func validMerchantMapEventReq(eventType string) RecordMerchantMapEventReq {
 	}
 }
 
-func assertMerchantMapEventError(t *testing.T, err error, code string, message string) {
+func assertMerchantDirectoryEventError(t *testing.T, err error, code string, message string) {
 	t.Helper()
 	if errx.CodeOf(err) != code || errx.PublicMessage(err) != message {
 		t.Fatalf("error code=%q message=%q, want code=%q message=%q", errx.CodeOf(err), errx.PublicMessage(err), code, message)
 	}
 }
 
-type fakeMerchantMapEventStore struct {
+type fakeMerchantDirectoryEventStore struct {
 	called bool
-	input  model.MerchantMapEventInput
+	input  model.MerchantDirectoryEventInput
 	err    error
 }
 
-func (s *fakeMerchantMapEventStore) RecordMerchantMapEvent(ctx context.Context, input model.MerchantMapEventInput) error {
+func (s *fakeMerchantDirectoryEventStore) RecordMerchantDirectoryEvent(ctx context.Context, input model.MerchantDirectoryEventInput) error {
 	s.called = true
 	s.input = input
 	return s.err

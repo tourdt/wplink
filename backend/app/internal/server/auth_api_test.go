@@ -10,7 +10,9 @@ import (
 	"testing"
 
 	authlogic "wplink/backend/app/internal/logic/auth"
+	"wplink/backend/app/internal/middleware"
 	"wplink/backend/app/internal/model"
+	"wplink/backend/app/internal/permission"
 	"wplink/backend/app/internal/session"
 	"wplink/backend/app/internal/svc"
 	"wplink/backend/common/errx"
@@ -85,6 +87,47 @@ func TestAuthGeneratedMeRejectsMissingAndExpiredSessionWithoutLeakingRawError(t 
 	assertErrorEnvelope(t, expiredRec, http.StatusUnauthorized, errx.CodeUnauthorized, "登录已过期，请重新登录")
 	if strings.Contains(expiredRec.Body.String(), "jwt signature invalid") {
 		t.Fatalf("expired response leaked raw authentication error: %s", expiredRec.Body.String())
+	}
+}
+
+func TestMerchantLocationGovernanceRoutesRequireMerchantsModuleAtRuntime(t *testing.T) {
+	routes := []struct {
+		method string
+		target string
+		body   string
+	}{
+		{method: http.MethodGet, target: "/api/v1/admin/merchants/location-reports"},
+		{method: http.MethodPost, target: "/api/v1/admin/merchants/location-reports/9001/review", body: `{}`},
+		{method: http.MethodPost, target: "/api/v1/admin/merchants/101/location-status", body: `{}`},
+	}
+	for _, tc := range routes {
+		t.Run(tc.method+" "+tc.target, func(t *testing.T) {
+			for _, access := range []struct {
+				name       string
+				modules    []string
+				wantStatus int
+			}{
+				{name: "merchants module reaches handler", modules: []string{permission.AdminModuleMerchants}, wantStatus: http.StatusInternalServerError},
+				{name: "unrelated module is rejected", modules: []string{permission.AdminModuleDashboard}, wantStatus: http.StatusForbidden},
+			} {
+				t.Run(access.name, func(t *testing.T) {
+					adminAuth := middleware.NewAdminAuthMiddleware(&fakeAdminTokenService{subject: session.AdminTokenSubject{
+						OperatorID: "operator-location-1", Roles: []string{permission.RolePlatformOperator}, Modules: access.modules,
+					}}).Handle
+					server := newGeneratedAPIServer(t, &svc.ServiceContext{AdminAuth: adminAuth})
+					req := httptest.NewRequest(tc.method, tc.target, strings.NewReader(tc.body))
+					req.Header.Set("Authorization", "Bearer admin-token")
+					if tc.body != "" {
+						req.Header.Set("Content-Type", "application/json")
+					}
+					recorder := httptest.NewRecorder()
+					server.ServeHTTP(recorder, req)
+					if recorder.Code != access.wantStatus {
+						t.Fatalf("status=%d body=%s, want %d", recorder.Code, recorder.Body.String(), access.wantStatus)
+					}
+				})
+			}
+		})
 	}
 }
 
@@ -239,7 +282,7 @@ func expectDeleteAccount(mock sqlmock.Sqlmock, userID string, reason string) {
 		`UPDATE user_saved_searches`,
 		`UPDATE search_logs`,
 		`UPDATE resource_contact_events`,
-		`UPDATE merchant_map_events`,
+		`UPDATE merchant_directory_events`,
 		`UPDATE users SET phone = NULL`,
 	} {
 		mock.ExpectExec(query).WithArgs(userID).WillReturnResult(sqlmock.NewResult(0, 1))

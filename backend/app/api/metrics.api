@@ -57,7 +57,7 @@ type RecordResourceExposuresResp {
 	RecordedCount int64 `json:"recordedCount"`
 }
 
-type MerchantMapEventReq {
+type MerchantDirectoryEventReq {
 	MerchantId       string `json:"merchantId"`
 	TargetMerchantId string `json:"targetMerchantId,optional"`
 	VisitorKey       string `json:"visitorKey"`
@@ -66,7 +66,7 @@ type MerchantMapEventReq {
 	Source           string `json:"source"`
 }
 
-type MerchantMapEventResp {
+type MerchantDirectoryEventResp {
 	Recorded bool `json:"recorded"`
 }
 
@@ -75,8 +75,8 @@ type MerchantMapEventResp {
 	group:  metrics
 )
 service wplink-api {
-	@handler RecordMerchantMapEvent
-	post /metrics/merchant-map-events (MerchantMapEventReq) returns (MerchantMapEventResp)
+	@handler RecordMerchantDirectoryEvent
+	post /metrics/merchant-directory-events (MerchantDirectoryEventReq) returns (MerchantDirectoryEventResp)
 
 	@handler RecordResourceExposures
 	post /metrics/exposures/batch (RecordResourceExposuresReq) returns (RecordResourceExposuresResp)

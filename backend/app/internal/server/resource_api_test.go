@@ -442,10 +442,10 @@ func TestMetricsHandlersThroughGeneratedRoutes(t *testing.T) {
 	exposureReq.Header.Set("Content-Type", "application/json")
 	assertTask6GeneratedStatus(t, server, exposureReq, http.StatusOK)
 
-	mock.ExpectExec(`(?s)INSERT INTO .*merchant_map_events`).
+	mock.ExpectExec(`(?s)INSERT INTO .*merchant_directory_events`).
 		WithArgs("", "101", "", "visitor-map", "session-map", "location_view", "merchant_location").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(`{"merchantId":"101","visitorKey":"visitor-map","sessionId":"session-map","eventType":"location_view","source":"merchant_location"}`)), http.StatusOK)
+	assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-directory-events", strings.NewReader(`{"merchantId":"101","visitorKey":"visitor-map","sessionId":"session-map","eventType":"location_view","source":"merchant_location"}`)), http.StatusOK)
 
 	mock.ExpectQuery(`(?s)SELECT merchant_id::text.*FROM resources`).
 		WithArgs("resource-1").
@@ -487,7 +487,7 @@ func TestMetricsPublicGeneratedRoutesRejectInvalidTokens(t *testing.T) {
 		body   string
 	}{
 		{target: "/api/v1/metrics/exposures/batch", body: `{"visitorKey":"visitor-1","sessionId":"session-1","source":"search","items":[{"resourceId":"resource-1","visibleDurationMs":1200}]}`},
-		{target: "/api/v1/metrics/merchant-map-events", body: `{"merchantId":"101","visitorKey":"visitor-map","sessionId":"session-map","eventType":"location_view","source":"merchant_location"}`},
+		{target: "/api/v1/metrics/merchant-directory-events", body: `{"merchantId":"101","visitorKey":"visitor-map","sessionId":"session-map","eventType":"location_view","source":"merchant_location"}`},
 	}
 	for _, tc := range requests {
 		req := httptest.NewRequest(http.MethodPost, tc.target, strings.NewReader(tc.body))
@@ -496,27 +496,27 @@ func TestMetricsPublicGeneratedRoutesRejectInvalidTokens(t *testing.T) {
 	}
 }
 
-func TestMetricsMerchantMapStrictJSONThroughGeneratedRoutes(t *testing.T) {
+func TestMetricsMerchantDirectoryStrictJSONThroughGeneratedRoutes(t *testing.T) {
 	cases := []struct {
 		name string
 		body string
 	}{
 		{name: "unknown field", body: `{"merchantId":"101","visitorKey":"visitor-1","sessionId":"session-1","eventType":"location_view","source":"merchant_location","unexpected":true}`},
-		{name: "second JSON value", body: validMerchantMapEventJSON("location_view") + ` {"merchantId":"102"}`},
-		{name: "trailing garbage", body: validMerchantMapEventJSON("location_view") + ` trailing`},
+		{name: "second JSON value", body: validMerchantDirectoryEventJSON("location_view") + ` {"merchantId":"102"}`},
+		{name: "trailing garbage", body: validMerchantDirectoryEventJSON("location_view") + ` trailing`},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			svcCtx, mock := newTask6GeneratedServiceContext(t)
 			server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(tc.body))
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-directory-events", strings.NewReader(tc.body))
 			body := assertTask6GeneratedStatus(t, server, req, http.StatusBadRequest)
 			if body["errorCode"] != errx.CodeValidationFailed || body["msg"] != "请求参数格式不正确" {
 				t.Fatalf("body=%#v, want strict JSON validation error", body)
 			}
 			if err := mock.ExpectationsWereMet(); err != nil {
-				t.Fatalf("invalid JSON reached map event SQL: %v", err)
+				t.Fatalf("invalid JSON reached directory event SQL: %v", err)
 			}
 		})
 	}
@@ -574,53 +574,53 @@ func TestMetricsPermissionFailuresThroughGeneratedRoutes(t *testing.T) {
 	})
 }
 
-func TestMetricsMerchantMapBodyLimitThroughGeneratedRoute(t *testing.T) {
+func TestMetricsMerchantDirectoryBodyLimitThroughGeneratedRoute(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
 	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
-	validBody := validMerchantMapEventJSON("location_view")
+	validBody := validMerchantDirectoryEventJSON("location_view")
 	body4096 := validBody + strings.Repeat(" ", 4096-len(validBody))
 
-	mock.ExpectExec(`(?s)INSERT INTO .*merchant_map_events`).
+	mock.ExpectExec(`(?s)INSERT INTO .*merchant_directory_events`).
 		WithArgs("", "101", "", "visitor-1", "session-1", "location_view", "merchant_location").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(body4096)), http.StatusOK)
+	assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-directory-events", strings.NewReader(body4096)), http.StatusOK)
 
 	body4097 := body4096 + " "
-	body := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(body4097)), http.StatusBadRequest)
-	if body["errorCode"] != errx.CodeValidationFailed || body["msg"] != "地图行为请求内容过大" {
+	body := assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-directory-events", strings.NewReader(body4097)), http.StatusBadRequest)
+	if body["errorCode"] != errx.CodeValidationFailed || body["msg"] != "目录行为请求内容过大" {
 		t.Fatalf("body=%#v, want 4097-byte request rejected", body)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatalf("map body limit SQL expectations: %v", err)
+		t.Fatalf("directory body limit SQL expectations: %v", err)
 	}
 }
 
-func TestMetricsMerchantMapRateLimitThroughGeneratedRoute(t *testing.T) {
+func TestMetricsMerchantDirectoryRateLimitThroughGeneratedRoute(t *testing.T) {
 	svcCtx, mock := newTask6GeneratedServiceContext(t)
 	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
-	body := validMerchantMapEventJSON("location_view")
+	body := validMerchantDirectoryEventJSON("location_view")
 
 	for attempt := 1; attempt <= 60; attempt++ {
-		mock.ExpectExec(`(?s)INSERT INTO .*merchant_map_events`).
+		mock.ExpectExec(`(?s)INSERT INTO .*merchant_directory_events`).
 			WithArgs("", "101", "", "visitor-1", "session-1", "location_view", "merchant_location").
 			WillReturnResult(sqlmock.NewResult(0, 1))
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-directory-events", strings.NewReader(body))
 		req.RemoteAddr = "198.51.100.7:4321"
 		assertTask6GeneratedStatus(t, server, req, http.StatusOK)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-map-events", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/merchant-directory-events", strings.NewReader(body))
 	req.RemoteAddr = "198.51.100.7:4321"
 	envelope := assertTask6GeneratedStatus(t, server, req, http.StatusTooManyRequests)
 	if envelope["errorCode"] != errx.CodeRateLimited || envelope["msg"] != "操作频繁，请稍后再试" {
 		t.Fatalf("body=%#v, want 61st request rate limited", envelope)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatalf("map rate limit SQL expectations: %v", err)
+		t.Fatalf("directory rate limit SQL expectations: %v", err)
 	}
 }
 
-func validMerchantMapEventJSON(eventType string) string {
+func validMerchantDirectoryEventJSON(eventType string) string {
 	return `{"merchantId":"101","visitorKey":"visitor-1","sessionId":"session-1","eventType":"` + eventType + `","source":"merchant_location"}`
 }
 
@@ -768,10 +768,10 @@ type fakeResourceAPIStore struct {
 	rejectedAuditTraceID             string
 	retriedAuditTraceID              string
 	auditRejectReason                string
-	mapEventCalled                   bool
-	mapEventCalls                    int
-	mapEventInput                    model.MerchantMapEventInput
-	mapEventErr                      error
+	directoryEventCalled             bool
+	directoryEventCalls              int
+	directoryEventInput              model.MerchantDirectoryEventInput
+	directoryEventErr                error
 	relatedSource                    model.RelatedResourceSource
 	relatedSourceErr                 error
 	relatedSourceCalls               int
@@ -998,11 +998,11 @@ func (s *fakeResourceAPIStore) RecordResourceContactEvent(ctx context.Context, i
 	return model.ResourceContactEventResult{ID: "event-1", MerchantID: "merchant-1"}, nil
 }
 
-func (s *fakeResourceAPIStore) RecordMerchantMapEvent(ctx context.Context, input model.MerchantMapEventInput) error {
-	s.mapEventCalled = true
-	s.mapEventCalls++
-	s.mapEventInput = input
-	return s.mapEventErr
+func (s *fakeResourceAPIStore) RecordMerchantDirectoryEvent(ctx context.Context, input model.MerchantDirectoryEventInput) error {
+	s.directoryEventCalled = true
+	s.directoryEventCalls++
+	s.directoryEventInput = input
+	return s.directoryEventErr
 }
 
 func (s *fakeResourceAPIStore) UpsertResourceMetric(ctx context.Context, delta model.ResourceMetricDelta) error {

@@ -1527,6 +1527,9 @@ func TestMerchantUpdateSucceedsThroughGeneratedRoute(t *testing.T) {
 			"set", "织里童装城", "一期", "1F", "A108", 30.2, 120.3, "织里童装城", model.MerchantLocationStatusVisible,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`(?s)UPDATE merchant_location_reports.*SET status = 'resolved'.*WHERE merchant_id = \$1.*status = 'pending'`).
+		WithArgs("merchant-1").
+		WillReturnResult(sqlmock.NewResult(0, 2))
 	mock.ExpectCommit()
 
 	req := authenticatedRequest(http.MethodPost, "/api/v1/merchants/merchant-1?merchantId=merchant-2", `{

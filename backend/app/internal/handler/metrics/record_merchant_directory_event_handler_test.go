@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-func TestMerchantMapEventLimiterRejectsNewKeyAtCapacityUntilWindowExpires(t *testing.T) {
+func TestMerchantDirectoryEventLimiterRejectsNewKeyAtCapacityUntilWindowExpires(t *testing.T) {
 	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
-	limiter := newMerchantMapEventLimiter(60, time.Minute, 2, func() time.Time { return now })
+	limiter := newMerchantDirectoryEventLimiter(60, time.Minute, 2, func() time.Time { return now })
 	if !limiter.Allow("198.51.100.1", "visitor-1") || !limiter.Allow("198.51.100.2", "visitor-2") {
 		t.Fatal("first two distinct keys should fit capacity")
 	}
@@ -23,8 +23,8 @@ func TestMerchantMapEventLimiterRejectsNewKeyAtCapacityUntilWindowExpires(t *tes
 	}
 }
 
-func TestMerchantMapEventLimiterAllowsExactlySixtyUnderConcurrency(t *testing.T) {
-	limiter := newMerchantMapEventLimiter(60, time.Minute, 4096, func() time.Time {
+func TestMerchantDirectoryEventLimiterAllowsExactlySixtyUnderConcurrency(t *testing.T) {
+	limiter := newMerchantDirectoryEventLimiter(60, time.Minute, 4096, func() time.Time {
 		return time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
 	})
 

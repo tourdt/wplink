@@ -21,7 +21,7 @@ func TestManagedMerchantQueriesOnlyReturnActiveMerchants(t *testing.T) {
 	}
 }
 
-func TestDeleteUserAccountAnonymizesMerchantMapEventsInsideTransaction(t *testing.T) {
+func TestDeleteUserAccountAnonymizesMerchantDirectoryEventsInsideTransaction(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New() error = %v", err)
@@ -29,7 +29,7 @@ func TestDeleteUserAccountAnonymizesMerchantMapEventsInsideTransaction(t *testin
 	defer db.Close()
 
 	expectDeleteUserAccountPrelude(mock, "101", "不再使用")
-	mock.ExpectExec(`UPDATE merchant_map_events SET user_id = NULL WHERE user_id = \$1`).
+	mock.ExpectExec(`UPDATE merchant_directory_events SET user_id = NULL WHERE user_id = \$1`).
 		WithArgs("101").
 		WillReturnResult(sqlmock.NewResult(0, 2))
 	mock.ExpectExec(`UPDATE users SET phone = NULL, wechat_openid = 'deleted:' \|\| id::text, nickname = NULL, avatar_url = NULL, status = 'deleted', deleted_at = now\(\), updated_at = now\(\) WHERE id = \$1`).
@@ -45,7 +45,7 @@ func TestDeleteUserAccountAnonymizesMerchantMapEventsInsideTransaction(t *testin
 	}
 }
 
-func TestDeleteUserAccountRollsBackWhenMerchantMapEventAnonymizationFails(t *testing.T) {
+func TestDeleteUserAccountRollsBackWhenMerchantDirectoryEventAnonymizationFails(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New() error = %v", err)
@@ -53,13 +53,13 @@ func TestDeleteUserAccountRollsBackWhenMerchantMapEventAnonymizationFails(t *tes
 	defer db.Close()
 
 	expectDeleteUserAccountPrelude(mock, "101", "")
-	mock.ExpectExec(`UPDATE merchant_map_events SET user_id = NULL WHERE user_id = \$1`).
+	mock.ExpectExec(`UPDATE merchant_directory_events SET user_id = NULL WHERE user_id = \$1`).
 		WithArgs("101").
 		WillReturnError(errors.New("database unavailable"))
 	mock.ExpectRollback()
 
 	err = NewUserModel(db).DeleteUserAccount(context.Background(), "101", "")
-	if err == nil || !strings.Contains(err.Error(), "匿名化商家地图行为失败") {
+	if err == nil || !strings.Contains(err.Error(), "匿名化商家目录行为失败") {
 		t.Fatalf("DeleteUserAccount() error = %v, want safe Chinese diagnostic", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

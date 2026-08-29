@@ -167,6 +167,19 @@ type AdminListMapScenesReq struct {
 	Type     string `form:"type,optional"`
 }
 
+type AdminListMerchantLocationReportsReq struct {
+	Status   string `form:"status,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminListMerchantLocationReportsResp struct {
+	Items    []AdminMerchantLocationReportItem `json:"items"`
+	Page     int64                             `json:"page"`
+	PageSize int64                             `json:"pageSize"`
+	Total    int64                             `json:"total"`
+}
+
 type AdminListMerchantsReq struct {
 	CityCode     string `form:"cityCode,optional"`
 	MerchantType string `form:"merchantType,optional"`
@@ -237,6 +250,21 @@ type AdminMerchantListItem struct {
 	MerchantType string `json:"merchantType"`
 	Status       string `json:"status"`
 	LastActiveAt string `json:"lastActiveAt,optional"`
+}
+
+type AdminMerchantLocationReportItem struct {
+	ReportId         string                 `json:"reportId"`
+	Status           string                 `json:"status"`
+	MerchantId       string                 `json:"merchantId"`
+	MerchantName     string                 `json:"merchantName"`
+	ReporterUserId   string                 `json:"reporterUserId"`
+	ReasonCode       string                 `json:"reasonCode"`
+	Description      string                 `json:"description,optional"`
+	LocationSnapshot map[string]interface{} `json:"locationSnapshot"`
+	ReviewedBy       string                 `json:"reviewedBy,optional"`
+	ReviewNote       string                 `json:"reviewNote,optional"`
+	CreatedAt        string                 `json:"createdAt"`
+	ReviewedAt       string                 `json:"reviewedAt,optional"`
 }
 
 type AdminModuleItem struct {
@@ -388,6 +416,18 @@ type AdminReviewMapBindRequestReq struct {
 
 type AdminReviewMapBindRequestResp struct {
 	Item MapBindRequestItem `json:"item"`
+}
+
+type AdminReviewMerchantLocationReportReq struct {
+	Status     string `json:"status"`
+	ReviewNote string `json:"reviewNote,optional"`
+}
+
+type AdminReviewMerchantLocationReportResp struct {
+	ReportId   string `json:"reportId"`
+	MerchantId string `json:"merchantId"`
+	Status     string `json:"status"`
+	Message    string `json:"message"`
 }
 
 type AdminReviewResourceReportReq struct {
@@ -614,6 +654,17 @@ type AdminUpdateMapObjectStatusResp struct {
 	Item MapObjectItem `json:"item"`
 }
 
+type AdminUpdateMerchantLocationStatusReq struct {
+	Action string `json:"action"`
+	Reason string `json:"reason,optional"`
+}
+
+type AdminUpdateMerchantLocationStatusResp struct {
+	MerchantId     string `json:"merchantId"`
+	LocationStatus string `json:"locationStatus"`
+	Message        string `json:"message"`
+}
+
 type AdminUpdateOperatorStatusReq struct {
 	Status string `json:"status"`
 }
@@ -745,6 +796,19 @@ type CreateContactUnlockPaymentResp struct {
 	OrderId string          `json:"orderId"`
 	Status  string          `json:"status"`
 	Payment WechatPayParams `json:"payment"`
+}
+
+type CreateMerchantLocationReportReq struct {
+	ReasonCode  string `json:"reasonCode"`
+	Description string `json:"description,optional"`
+}
+
+type CreateMerchantLocationReportResp struct {
+	ReportId            string `json:"reportId"`
+	Status              string `json:"status"`
+	ActiveReporterCount int64  `json:"activeReporterCount"`
+	AutoHidden          bool   `json:"autoHidden"`
+	Idempotent          bool   `json:"idempotent"`
 }
 
 type CreateResourceReq struct {
@@ -1483,6 +1547,19 @@ type MerchantDetailResp struct {
 	LastActiveAt     string                   `json:"lastActiveAt,optional"`
 }
 
+type MerchantDirectoryEventReq struct {
+	MerchantId       string `json:"merchantId"`
+	TargetMerchantId string `json:"targetMerchantId,optional"`
+	VisitorKey       string `json:"visitorKey"`
+	SessionId        string `json:"sessionId"`
+	EventType        string `json:"eventType"`
+	Source           string `json:"source"`
+}
+
+type MerchantDirectoryEventResp struct {
+	Recorded bool `json:"recorded"`
+}
+
 type MerchantDirectoryItem struct {
 	MerchantId           string   `json:"merchantId"`
 	MerchantNo           string   `json:"merchantNo"`
@@ -1551,19 +1628,6 @@ type MerchantLocationInfo struct {
 	Status       string  `json:"status"`
 	UpdatedAt    string  `json:"updatedAt,optional"`
 	Available    bool    `json:"available"`
-}
-
-type MerchantMapEventReq struct {
-	MerchantId       string `json:"merchantId"`
-	TargetMerchantId string `json:"targetMerchantId,optional"`
-	VisitorKey       string `json:"visitorKey"`
-	SessionId        string `json:"sessionId"`
-	EventType        string `json:"eventType"`
-	Source           string `json:"source"`
-}
-
-type MerchantMapEventResp struct {
-	Recorded bool `json:"recorded"`
 }
 
 type MerchantMetricsSummaryResp struct {

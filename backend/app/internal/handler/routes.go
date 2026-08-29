@@ -227,6 +227,21 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Path:    "/merchants",
 					Handler: adminmerchant.AdminListMerchantsHandler(serverCtx),
 				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/merchants/:merchantId/location-status",
+					Handler: adminmerchant.AdminUpdateMerchantLocationStatusHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/merchants/location-reports",
+					Handler: adminmerchant.AdminListMerchantLocationReportsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/merchants/location-reports/:reportId/review",
+					Handler: adminmerchant.AdminReviewMerchantLocationReportHandler(serverCtx),
+				},
 			}...,
 		),
 		rest.WithPrefix("/api/v1/admin"),
@@ -749,6 +764,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/merchants/:merchantId/location-context",
 				Handler: merchant.GetMerchantLocationContextHandler(serverCtx),
 			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/merchants/:merchantId/location-reports",
+				Handler: merchant.CreateMerchantLocationReportHandler(serverCtx),
+			},
 		},
 		rest.WithPrefix("/api/v1"),
 	)
@@ -783,8 +803,8 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 			{
 				Method:  http.MethodPost,
-				Path:    "/metrics/merchant-map-events",
-				Handler: metrics.RecordMerchantMapEventHandler(serverCtx),
+				Path:    "/metrics/merchant-directory-events",
+				Handler: metrics.RecordMerchantDirectoryEventHandler(serverCtx),
 			},
 			{
 				Method:  http.MethodGet,

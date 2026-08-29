@@ -89,10 +89,10 @@ func TestSchedulersUseConfiguredCoordinatorTaskAndTimeout(t *testing.T) {
 			},
 		},
 		{
-			name:     "merchant map event cleanup",
-			wantTask: TaskMerchantMapEventCleanup,
+			name:     "merchant directory event cleanup",
+			wantTask: TaskMerchantDirectoryEventCleanup,
 			new: func(coordinator Coordinator) scheduler {
-				return NewMerchantMapEventCleanupScheduler(&fakeMerchantMapEventCleanupRunner{}, time.Hour, nil, coordinator, timeout)
+				return NewMerchantDirectoryEventCleanupScheduler(&fakeMerchantDirectoryEventCleanupRunner{}, time.Hour, nil, coordinator, timeout)
 			},
 		},
 	}
@@ -173,10 +173,10 @@ func TestSchedulersLeaveRunnerErrorLoggingToCoordinator(t *testing.T) {
 			},
 		},
 		{
-			name: "merchant map event cleanup",
+			name: "merchant directory event cleanup",
 			new: func(logger *log.Logger) runOnceScheduler {
-				return NewMerchantMapEventCleanupScheduler(
-					&fakeMerchantMapEventCleanupRunner{err: runnerErr}, time.Hour, logger, nil, 0,
+				return NewMerchantDirectoryEventCleanupScheduler(
+					&fakeMerchantDirectoryEventCleanupRunner{err: runnerErr}, time.Hour, logger, nil, 0,
 				)
 			},
 		},

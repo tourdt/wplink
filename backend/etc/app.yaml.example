@@ -80,10 +80,10 @@ Tasks:
   ContentAuditRetryInterval: 1m
   ContentAuditRetryTimeout: 10m
   ContentAuditRetryBatchSize: 20
-  # 地图行为属于低优先级分析数据，每日清理并只保留最近 90 天。
-  MerchantMapEventCleanupInterval: 24h
-  MerchantMapEventCleanupTimeout: 10m
-  MerchantMapEventRetentionDays: 90
+  # 目录行为属于低优先级分析数据，每日清理并只保留最近 90 天。
+  MerchantDirectoryEventCleanupInterval: 24h
+  MerchantDirectoryEventCleanupTimeout: 10m
+  MerchantDirectoryEventRetentionDays: 90
   PaymentReconcileInterval: 1m
   PaymentReconcileTimeout: 5m
   PaymentQueryDelay: 2m

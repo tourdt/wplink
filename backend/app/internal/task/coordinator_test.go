@@ -17,15 +17,21 @@ import (
 
 func TestTaskAdvisoryLockKeysAreStable(t *testing.T) {
 	want := map[TaskName]int64{
-		TaskResourceLifecycle:       1001,
-		TaskContentAuditRetry:       1002,
-		TaskPaymentReconciliation:   1003,
-		TaskMerchantMapEventCleanup: 1004,
+		TaskResourceLifecycle:             1001,
+		TaskContentAuditRetry:             1002,
+		TaskPaymentReconciliation:         1003,
+		TaskMerchantDirectoryEventCleanup: 1004,
 	}
 	for taskName, lockKey := range want {
 		if got := taskAdvisoryLockKeys[taskName]; got != lockKey {
 			t.Fatalf("任务 %s 锁编号错误: got=%d want=%d", taskName, got, lockKey)
 		}
+	}
+}
+
+func TestMerchantDirectoryEventCleanupTaskUsesDirectoryDomainName(t *testing.T) {
+	if got, want := string(TaskMerchantDirectoryEventCleanup), "merchant_directory_event_cleanup"; got != want {
+		t.Fatalf("目录事件清理任务名错误: got=%q want=%q", got, want)
 	}
 }
 
@@ -144,7 +150,7 @@ func TestCoordinatorReturnsDeadlineExceededAndUnlocks(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"pg_advisory_unlock"}).AddRow(true))
 
 	result, err := NewPostgresCoordinator(db, "api-a").RunExclusive(
-		context.Background(), TaskMerchantMapEventCleanup, 20*time.Millisecond,
+		context.Background(), TaskMerchantDirectoryEventCleanup, 20*time.Millisecond,
 		func(ctx context.Context) error {
 			<-ctx.Done()
 			return ctx.Err()

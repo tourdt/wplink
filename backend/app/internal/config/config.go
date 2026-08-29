@@ -94,19 +94,19 @@ type SMSConfig struct {
 }
 
 type TasksConfig struct {
-	Enabled                         bool
-	ResourceLifecycleInterval       time.Duration
-	ResourceLifecycleTimeout        time.Duration
-	ContentAuditRetryInterval       time.Duration
-	ContentAuditRetryTimeout        time.Duration
-	ContentAuditRetryBatchSize      int64
-	MerchantMapEventCleanupInterval time.Duration
-	MerchantMapEventCleanupTimeout  time.Duration
-	MerchantMapEventRetentionDays   int
-	PaymentReconcileInterval        time.Duration
-	PaymentReconcileTimeout         time.Duration
-	PaymentQueryDelay               time.Duration
-	PaymentBatchSize                int64
+	Enabled                               bool
+	ResourceLifecycleInterval             time.Duration
+	ResourceLifecycleTimeout              time.Duration
+	ContentAuditRetryInterval             time.Duration
+	ContentAuditRetryTimeout              time.Duration
+	ContentAuditRetryBatchSize            int64
+	MerchantDirectoryEventCleanupInterval time.Duration
+	MerchantDirectoryEventCleanupTimeout  time.Duration
+	MerchantDirectoryEventRetentionDays   int
+	PaymentReconcileInterval              time.Duration
+	PaymentReconcileTimeout               time.Duration
+	PaymentQueryDelay                     time.Duration
+	PaymentBatchSize                      int64
 }
 
 type StorageConfig struct {

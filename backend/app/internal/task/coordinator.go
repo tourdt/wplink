@@ -15,17 +15,17 @@ import (
 type TaskName string
 
 const (
-	TaskResourceLifecycle       TaskName = "resource_lifecycle"
-	TaskContentAuditRetry       TaskName = "content_audit_retry"
-	TaskPaymentReconciliation   TaskName = "payment_reconciliation"
-	TaskMerchantMapEventCleanup TaskName = "merchant_map_event_cleanup"
+	TaskResourceLifecycle             TaskName = "resource_lifecycle"
+	TaskContentAuditRetry             TaskName = "content_audit_retry"
+	TaskPaymentReconciliation         TaskName = "payment_reconciliation"
+	TaskMerchantDirectoryEventCleanup TaskName = "merchant_directory_event_cleanup"
 )
 
 var taskAdvisoryLockKeys = map[TaskName]int64{
-	TaskResourceLifecycle:       1001,
-	TaskContentAuditRetry:       1002,
-	TaskPaymentReconciliation:   1003,
-	TaskMerchantMapEventCleanup: 1004,
+	TaskResourceLifecycle:             1001,
+	TaskContentAuditRetry:             1002,
+	TaskPaymentReconciliation:         1003,
+	TaskMerchantDirectoryEventCleanup: 1004,
 }
 
 type CoordinationResult struct {

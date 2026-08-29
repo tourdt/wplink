@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-func TestMerchantMapEventRateLimiterUsesFixedWindowWithControlledTime(t *testing.T) {
+func TestMerchantDirectoryEventRateLimiterUsesFixedWindowWithControlledTime(t *testing.T) {
 	now := time.Date(2026, time.August, 2, 10, 0, 0, 0, time.UTC)
-	limiter := newMerchantMapEventRateLimiter(2, time.Minute, 3, func() time.Time { return now })
+	limiter := newMerchantDirectoryEventRateLimiter(2, time.Minute, 3, func() time.Time { return now })
 
 	if !limiter.Allow("198.51.100.1", "visitor-1") || !limiter.Allow("198.51.100.1", "visitor-1") {
 		t.Fatal("first two requests should be allowed")
@@ -24,9 +24,9 @@ func TestMerchantMapEventRateLimiterUsesFixedWindowWithControlledTime(t *testing
 	}
 }
 
-func TestMerchantMapEventRateLimiterStaysBoundedAndCleansExpiredKeys(t *testing.T) {
+func TestMerchantDirectoryEventRateLimiterStaysBoundedAndCleansExpiredKeys(t *testing.T) {
 	now := time.Date(2026, time.August, 2, 10, 0, 0, 0, time.UTC)
-	limiter := newMerchantMapEventRateLimiter(60, time.Minute, 2, func() time.Time { return now })
+	limiter := newMerchantDirectoryEventRateLimiter(60, time.Minute, 2, func() time.Time { return now })
 
 	if !limiter.Allow("198.51.100.1", "visitor-1") || !limiter.Allow("198.51.100.2", "visitor-2") {
 		t.Fatal("first two active keys should be allowed")
@@ -47,9 +47,9 @@ func TestMerchantMapEventRateLimiterStaysBoundedAndCleansExpiredKeys(t *testing.
 	}
 }
 
-func TestMerchantMapEventRateLimiterIsConcurrencySafe(t *testing.T) {
+func TestMerchantDirectoryEventRateLimiterIsConcurrencySafe(t *testing.T) {
 	now := time.Date(2026, time.August, 2, 10, 0, 0, 0, time.UTC)
-	limiter := newMerchantMapEventRateLimiter(60, time.Minute, 4096, func() time.Time { return now })
+	limiter := newMerchantDirectoryEventRateLimiter(60, time.Minute, 4096, func() time.Time { return now })
 
 	var allowed atomic.Int64
 	var workers sync.WaitGroup

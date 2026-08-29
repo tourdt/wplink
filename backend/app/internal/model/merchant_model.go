@@ -320,6 +320,12 @@ FOR UPDATE
 		if affected == 0 {
 			return sql.ErrNoRows
 		}
+		if patch.Location.Action == "set" {
+			// 商家重新选择有效点位即完成纠错；报告结案必须与新坐标、visible 状态同一提交，避免短暂公开旧风险状态。
+			if _, err := resolvePendingLocationReportsTx(ctx, tx, merchantID); err != nil {
+				return err
+			}
+		}
 
 		if !merchantTypeChanged {
 			return nil

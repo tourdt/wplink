@@ -46,7 +46,7 @@ func TestValidateAPIServiceContextReportsMissingAPIStoreModels(t *testing.T) {
 		t.Fatal("ValidateAPIServiceContext() error = nil, want missing API store model error")
 	}
 	message := err.Error()
-	for _, name := range []string{"APIStore.UserModel", "APIStore.ResourceModel", "APIStore.MapModel", "APIStore.MerchantMapEventsModel"} {
+	for _, name := range []string{"APIStore.UserModel", "APIStore.ResourceModel", "APIStore.MapModel", "APIStore.MerchantLocationReportModel", "APIStore.MerchantDirectoryEventModel"} {
 		if !strings.Contains(message, name) {
 			t.Fatalf("error = %q, want missing %s", message, name)
 		}

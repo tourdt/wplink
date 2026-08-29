@@ -23,7 +23,7 @@ func TestValidateForProductionRejectsMissingCriticalConfig(t *testing.T) {
 		t.Fatal("ValidateForProduction() error = nil, want missing config error")
 	}
 	message := err.Error()
-	for _, want := range []string{"Postgres.DSN", "AdminAuth.TokenSecret", "UserAuth.TokenSecret", "Wechat.AppID", "Wechat.AppSecret", "SMS.Provider", "Storage.AccessKeyID", "Tasks.ResourceLifecycleInterval", "Tasks.MerchantMapEventCleanupInterval", "Tasks.MerchantMapEventRetentionDays", "Log.Mode", "Log.Path", "Log.KeepDays"} {
+	for _, want := range []string{"Postgres.DSN", "AdminAuth.TokenSecret", "UserAuth.TokenSecret", "Wechat.AppID", "Wechat.AppSecret", "SMS.Provider", "Storage.AccessKeyID", "Tasks.ResourceLifecycleInterval", "Tasks.MerchantDirectoryEventCleanupInterval", "Tasks.MerchantDirectoryEventRetentionDays", "Log.Mode", "Log.Path", "Log.KeepDays"} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("error = %q, want mention %s", message, want)
 		}
@@ -55,16 +55,16 @@ func TestValidateForProductionAcceptsRequiredConfig(t *testing.T) {
 			AllowedContentTypes: []string{"image/png"},
 		},
 		Tasks: TasksConfig{
-			Enabled:                         true,
-			ResourceLifecycleInterval:       time.Hour,
-			ResourceLifecycleTimeout:        5 * time.Minute,
-			ContentAuditRetryInterval:       time.Minute,
-			ContentAuditRetryTimeout:        10 * time.Minute,
-			ContentAuditRetryBatchSize:      20,
-			MerchantMapEventCleanupInterval: 24 * time.Hour,
-			MerchantMapEventCleanupTimeout:  10 * time.Minute,
-			MerchantMapEventRetentionDays:   90,
-			PaymentReconcileTimeout:         5 * time.Minute,
+			Enabled:                               true,
+			ResourceLifecycleInterval:             time.Hour,
+			ResourceLifecycleTimeout:              5 * time.Minute,
+			ContentAuditRetryInterval:             time.Minute,
+			ContentAuditRetryTimeout:              10 * time.Minute,
+			ContentAuditRetryBatchSize:            20,
+			MerchantDirectoryEventCleanupInterval: 24 * time.Hour,
+			MerchantDirectoryEventCleanupTimeout:  10 * time.Minute,
+			MerchantDirectoryEventRetentionDays:   90,
+			PaymentReconcileTimeout:               5 * time.Minute,
 		},
 	}
 
@@ -177,16 +177,16 @@ func TestValidateForProductionRequiresContentAudit(t *testing.T) {
 	}
 }
 
-func TestValidateForProductionRequiresPositiveMerchantMapEventRetentionTask(t *testing.T) {
+func TestValidateForProductionRequiresPositiveMerchantDirectoryEventRetentionTask(t *testing.T) {
 	cfg := requiredProductionConfig()
-	cfg.Tasks.MerchantMapEventCleanupInterval = 0
-	cfg.Tasks.MerchantMapEventRetentionDays = 0
+	cfg.Tasks.MerchantDirectoryEventCleanupInterval = 0
+	cfg.Tasks.MerchantDirectoryEventRetentionDays = 0
 
 	err := ValidateForProduction(cfg)
 	if err == nil {
-		t.Fatal("ValidateForProduction() error = nil, want map event retention task config error")
+		t.Fatal("ValidateForProduction() error = nil, want directory event retention task config error")
 	}
-	for _, want := range []string{"Tasks.MerchantMapEventCleanupInterval", "Tasks.MerchantMapEventRetentionDays"} {
+	for _, want := range []string{"Tasks.MerchantDirectoryEventCleanupInterval", "Tasks.MerchantDirectoryEventRetentionDays"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error = %q, want mention %s", err, want)
 		}
@@ -197,7 +197,7 @@ func TestValidateForProductionRequiresPositiveTaskTimeouts(t *testing.T) {
 	cfg := requiredProductionConfig()
 	cfg.Tasks.ResourceLifecycleTimeout = 0
 	cfg.Tasks.ContentAuditRetryTimeout = 0
-	cfg.Tasks.MerchantMapEventCleanupTimeout = 0
+	cfg.Tasks.MerchantDirectoryEventCleanupTimeout = 0
 	cfg.Tasks.PaymentReconcileTimeout = 0
 
 	err := ValidateForProduction(cfg)
@@ -207,7 +207,7 @@ func TestValidateForProductionRequiresPositiveTaskTimeouts(t *testing.T) {
 	for _, want := range []string{
 		"Tasks.ResourceLifecycleTimeout",
 		"Tasks.ContentAuditRetryTimeout",
-		"Tasks.MerchantMapEventCleanupTimeout",
+		"Tasks.MerchantDirectoryEventCleanupTimeout",
 		"Tasks.PaymentReconcileTimeout",
 	} {
 		if !strings.Contains(err.Error(), want) {
@@ -297,16 +297,16 @@ func requiredProductionConfig() Config {
 			AllowedContentTypes: []string{"image/png"},
 		},
 		Tasks: TasksConfig{
-			Enabled:                         true,
-			ResourceLifecycleInterval:       time.Hour,
-			ResourceLifecycleTimeout:        5 * time.Minute,
-			ContentAuditRetryInterval:       time.Minute,
-			ContentAuditRetryTimeout:        10 * time.Minute,
-			ContentAuditRetryBatchSize:      20,
-			MerchantMapEventCleanupInterval: 24 * time.Hour,
-			MerchantMapEventCleanupTimeout:  10 * time.Minute,
-			MerchantMapEventRetentionDays:   90,
-			PaymentReconcileTimeout:         5 * time.Minute,
+			Enabled:                               true,
+			ResourceLifecycleInterval:             time.Hour,
+			ResourceLifecycleTimeout:              5 * time.Minute,
+			ContentAuditRetryInterval:             time.Minute,
+			ContentAuditRetryTimeout:              10 * time.Minute,
+			ContentAuditRetryBatchSize:            20,
+			MerchantDirectoryEventCleanupInterval: 24 * time.Hour,
+			MerchantDirectoryEventCleanupTimeout:  10 * time.Minute,
+			MerchantDirectoryEventRetentionDays:   90,
+			PaymentReconcileTimeout:               5 * time.Minute,
 		},
 	}
 }

@@ -281,6 +281,57 @@ type AdminListMerchantsResp {
 	Total    int64                   `json:"total"`
 }
 
+type AdminMerchantLocationReportItem {
+	ReportId          string                 `json:"reportId"`
+	Status            string                 `json:"status"`
+	MerchantId        string                 `json:"merchantId"`
+	MerchantName      string                 `json:"merchantName"`
+	ReporterUserId    string                 `json:"reporterUserId"`
+	ReasonCode        string                 `json:"reasonCode"`
+	Description       string                 `json:"description,optional"`
+	LocationSnapshot map[string]interface{} `json:"locationSnapshot"`
+	ReviewedBy        string                 `json:"reviewedBy,optional"`
+	ReviewNote        string                 `json:"reviewNote,optional"`
+	CreatedAt         string                 `json:"createdAt"`
+	ReviewedAt        string                 `json:"reviewedAt,optional"`
+}
+
+type AdminListMerchantLocationReportsReq {
+	Status   string `form:"status,optional"`
+	Page     int64  `form:"page,optional"`
+	PageSize int64  `form:"pageSize,optional"`
+}
+
+type AdminListMerchantLocationReportsResp {
+	Items    []AdminMerchantLocationReportItem `json:"items"`
+	Page     int64                             `json:"page"`
+	PageSize int64                             `json:"pageSize"`
+	Total    int64                             `json:"total"`
+}
+
+type AdminReviewMerchantLocationReportReq {
+	Status     string `json:"status"`
+	ReviewNote string `json:"reviewNote,optional"`
+}
+
+type AdminReviewMerchantLocationReportResp {
+	ReportId   string `json:"reportId"`
+	MerchantId string `json:"merchantId"`
+	Status     string `json:"status"`
+	Message    string `json:"message"`
+}
+
+type AdminUpdateMerchantLocationStatusReq {
+	Action string `json:"action"`
+	Reason string `json:"reason,optional"`
+}
+
+type AdminUpdateMerchantLocationStatusResp {
+	MerchantId     string `json:"merchantId"`
+	LocationStatus string `json:"locationStatus"`
+	Message        string `json:"message"`
+}
+
 type AdminResourceTypeConfigItem {
 	Id               string                 `json:"id"`
 	Version          int64                  `json:"version"`
@@ -635,6 +686,15 @@ service wplink-api {
 service wplink-api {
 	@handler AdminListMerchants
 	get /merchants (AdminListMerchantsReq) returns (AdminListMerchantsResp)
+
+	@handler AdminListMerchantLocationReports
+	get /merchants/location-reports (AdminListMerchantLocationReportsReq) returns (AdminListMerchantLocationReportsResp)
+
+	@handler AdminReviewMerchantLocationReport
+	post /merchants/location-reports/:reportId/review (AdminReviewMerchantLocationReportReq) returns (AdminReviewMerchantLocationReportResp)
+
+	@handler AdminUpdateMerchantLocationStatus
+	post /merchants/:merchantId/location-status (AdminUpdateMerchantLocationStatusReq) returns (AdminUpdateMerchantLocationStatusResp)
 }
 
 @server (

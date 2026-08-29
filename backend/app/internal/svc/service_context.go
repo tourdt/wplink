@@ -41,6 +41,8 @@ type APIStore struct {
 	*model.UserModel
 	*model.MerchantModel
 	*model.MerchantDirectoryModel
+	*model.MerchantLocationReportModel
+	*model.MerchantDirectoryEventModel
 	*model.ResourceModel
 	*model.BannerTopicModel
 	*model.HotSearchKeywordModel
@@ -57,7 +59,6 @@ type APIStore struct {
 	*model.FavoriteModel
 	*model.MapModel
 	*model.PaymentReconciliationModel
-	model.MerchantMapEventsModel
 }
 
 type ServiceContext struct {
@@ -119,6 +120,8 @@ func ValidateAPIServiceContext(ctx *ServiceContext) error {
 		appendMissing("APIStore.UserModel", ctx.APIStore.UserModel)
 		appendMissing("APIStore.MerchantModel", ctx.APIStore.MerchantModel)
 		appendMissing("APIStore.MerchantDirectoryModel", ctx.APIStore.MerchantDirectoryModel)
+		appendMissing("APIStore.MerchantLocationReportModel", ctx.APIStore.MerchantLocationReportModel)
+		appendMissing("APIStore.MerchantDirectoryEventModel", ctx.APIStore.MerchantDirectoryEventModel)
 		appendMissing("APIStore.ResourceModel", ctx.APIStore.ResourceModel)
 		appendMissing("APIStore.BannerTopicModel", ctx.APIStore.BannerTopicModel)
 		appendMissing("APIStore.HotSearchKeywordModel", ctx.APIStore.HotSearchKeywordModel)
@@ -135,7 +138,6 @@ func ValidateAPIServiceContext(ctx *ServiceContext) error {
 		appendMissing("APIStore.FavoriteModel", ctx.APIStore.FavoriteModel)
 		appendMissing("APIStore.MapModel", ctx.APIStore.MapModel)
 		appendMissing("APIStore.PaymentReconciliationModel", ctx.APIStore.PaymentReconciliationModel)
-		appendMissing("APIStore.MerchantMapEventsModel", ctx.APIStore.MerchantMapEventsModel)
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("API 服务依赖缺失: %s", strings.Join(missing, ", "))
@@ -207,28 +209,29 @@ func enabledAdminMasterPassword(c config.Config) string {
 
 func newAPIStore(db *sql.DB) *APIStore {
 	return &APIStore{
-		CityStationModel:           model.NewCityStationModel(db),
-		ResourceTypeConfigModel:    model.NewResourceTypeConfigModel(db),
-		AdminDashboardModel:        model.NewAdminDashboardModel(db),
-		UserModel:                  model.NewUserModel(db),
-		MerchantModel:              model.NewMerchantModel(db),
-		MerchantDirectoryModel:     model.NewMerchantDirectoryModel(db),
-		ResourceModel:              model.NewResourceModel(db),
-		BannerTopicModel:           model.NewBannerTopicModel(db),
-		HotSearchKeywordModel:      model.NewHotSearchKeywordModel(db),
-		MerchantEntitlementModel:   model.NewMerchantEntitlementModel(db),
-		VIPModel:                   model.NewVIPModel(db),
-		MessageModel:               model.NewMessageModel(db),
-		SearchLogModel:             model.NewSearchLogModel(db),
-		ResourceContactEventModel:  model.NewResourceContactEventModel(db),
-		ResourceContactUnlockModel: model.NewResourceContactUnlockModel(db),
-		ResourceMetricDailyModel:   model.NewResourceMetricDailyModel(db),
-		OperationLogModel:          model.NewOperationLogModel(db),
-		AdminPermissionModel:       model.NewAdminPermissionModel(db),
-		GrowthCampaignModel:        model.NewGrowthCampaignModel(db),
-		FavoriteModel:              model.NewFavoriteModel(db),
-		MapModel:                   model.NewMapModel(db),
-		PaymentReconciliationModel: model.NewPaymentReconciliationModel(db),
-		MerchantMapEventsModel:     model.NewMerchantMapEventsModel(sqlx.NewSqlConnFromDB(db)),
+		CityStationModel:            model.NewCityStationModel(db),
+		ResourceTypeConfigModel:     model.NewResourceTypeConfigModel(db),
+		AdminDashboardModel:         model.NewAdminDashboardModel(db),
+		UserModel:                   model.NewUserModel(db),
+		MerchantModel:               model.NewMerchantModel(db),
+		MerchantDirectoryModel:      model.NewMerchantDirectoryModel(db),
+		MerchantLocationReportModel: model.NewMerchantLocationReportModel(db),
+		MerchantDirectoryEventModel: model.NewMerchantDirectoryEventModel(sqlx.NewSqlConnFromDB(db)),
+		ResourceModel:               model.NewResourceModel(db),
+		BannerTopicModel:            model.NewBannerTopicModel(db),
+		HotSearchKeywordModel:       model.NewHotSearchKeywordModel(db),
+		MerchantEntitlementModel:    model.NewMerchantEntitlementModel(db),
+		VIPModel:                    model.NewVIPModel(db),
+		MessageModel:                model.NewMessageModel(db),
+		SearchLogModel:              model.NewSearchLogModel(db),
+		ResourceContactEventModel:   model.NewResourceContactEventModel(db),
+		ResourceContactUnlockModel:  model.NewResourceContactUnlockModel(db),
+		ResourceMetricDailyModel:    model.NewResourceMetricDailyModel(db),
+		OperationLogModel:           model.NewOperationLogModel(db),
+		AdminPermissionModel:        model.NewAdminPermissionModel(db),
+		GrowthCampaignModel:         model.NewGrowthCampaignModel(db),
+		FavoriteModel:               model.NewFavoriteModel(db),
+		MapModel:                    model.NewMapModel(db),
+		PaymentReconciliationModel:  model.NewPaymentReconciliationModel(db),
 	}
 }

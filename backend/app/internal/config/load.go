@@ -16,10 +16,10 @@ const defaultDevelopmentTokenSecret = "wplink-local-development-token-secret"
 const defaultDevelopmentUserTokenSecret = "wplink-local-development-user-token-secret"
 
 const (
-	defaultResourceLifecycleTimeout       = 5 * time.Minute
-	defaultContentAuditRetryTimeout       = 10 * time.Minute
-	defaultMerchantMapEventCleanupTimeout = 10 * time.Minute
-	defaultPaymentReconcileTimeout        = 5 * time.Minute
+	defaultResourceLifecycleTimeout             = 5 * time.Minute
+	defaultContentAuditRetryTimeout             = 10 * time.Minute
+	defaultMerchantDirectoryEventCleanupTimeout = 10 * time.Minute
+	defaultPaymentReconcileTimeout              = 5 * time.Minute
 )
 
 func Load(path string) (Config, error) {
@@ -135,19 +135,19 @@ type fileSMSConfig struct {
 }
 
 type fileTasksConfig struct {
-	Enabled                         *bool          `yaml:"Enabled"`
-	ResourceLifecycleInterval       configDuration `yaml:"ResourceLifecycleInterval"`
-	ResourceLifecycleTimeout        configDuration `yaml:"ResourceLifecycleTimeout"`
-	ContentAuditRetryInterval       configDuration `yaml:"ContentAuditRetryInterval"`
-	ContentAuditRetryTimeout        configDuration `yaml:"ContentAuditRetryTimeout"`
-	ContentAuditRetryBatchSize      int64          `yaml:"ContentAuditRetryBatchSize"`
-	MerchantMapEventCleanupInterval configDuration `yaml:"MerchantMapEventCleanupInterval"`
-	MerchantMapEventCleanupTimeout  configDuration `yaml:"MerchantMapEventCleanupTimeout"`
-	MerchantMapEventRetentionDays   int            `yaml:"MerchantMapEventRetentionDays"`
-	PaymentReconcileInterval        configDuration `yaml:"PaymentReconcileInterval"`
-	PaymentReconcileTimeout         configDuration `yaml:"PaymentReconcileTimeout"`
-	PaymentQueryDelay               configDuration `yaml:"PaymentQueryDelay"`
-	PaymentBatchSize                int64          `yaml:"PaymentBatchSize"`
+	Enabled                               *bool          `yaml:"Enabled"`
+	ResourceLifecycleInterval             configDuration `yaml:"ResourceLifecycleInterval"`
+	ResourceLifecycleTimeout              configDuration `yaml:"ResourceLifecycleTimeout"`
+	ContentAuditRetryInterval             configDuration `yaml:"ContentAuditRetryInterval"`
+	ContentAuditRetryTimeout              configDuration `yaml:"ContentAuditRetryTimeout"`
+	ContentAuditRetryBatchSize            int64          `yaml:"ContentAuditRetryBatchSize"`
+	MerchantDirectoryEventCleanupInterval configDuration `yaml:"MerchantDirectoryEventCleanupInterval"`
+	MerchantDirectoryEventCleanupTimeout  configDuration `yaml:"MerchantDirectoryEventCleanupTimeout"`
+	MerchantDirectoryEventRetentionDays   int            `yaml:"MerchantDirectoryEventRetentionDays"`
+	PaymentReconcileInterval              configDuration `yaml:"PaymentReconcileInterval"`
+	PaymentReconcileTimeout               configDuration `yaml:"PaymentReconcileTimeout"`
+	PaymentQueryDelay                     configDuration `yaml:"PaymentQueryDelay"`
+	PaymentBatchSize                      int64          `yaml:"PaymentBatchSize"`
 }
 
 type fileStorageConfig struct {
@@ -285,19 +285,19 @@ func (c fileTasksConfig) toConfig() TasksConfig {
 	}
 
 	return TasksConfig{
-		Enabled:                         enabled,
-		ResourceLifecycleInterval:       c.ResourceLifecycleInterval.Duration(),
-		ResourceLifecycleTimeout:        withDefault(c.ResourceLifecycleTimeout, defaultResourceLifecycleTimeout),
-		ContentAuditRetryInterval:       c.ContentAuditRetryInterval.Duration(),
-		ContentAuditRetryTimeout:        withDefault(c.ContentAuditRetryTimeout, defaultContentAuditRetryTimeout),
-		ContentAuditRetryBatchSize:      c.ContentAuditRetryBatchSize,
-		MerchantMapEventCleanupInterval: c.MerchantMapEventCleanupInterval.Duration(),
-		MerchantMapEventCleanupTimeout:  withDefault(c.MerchantMapEventCleanupTimeout, defaultMerchantMapEventCleanupTimeout),
-		MerchantMapEventRetentionDays:   c.MerchantMapEventRetentionDays,
-		PaymentReconcileInterval:        c.PaymentReconcileInterval.Duration(),
-		PaymentReconcileTimeout:         withDefault(c.PaymentReconcileTimeout, defaultPaymentReconcileTimeout),
-		PaymentQueryDelay:               c.PaymentQueryDelay.Duration(),
-		PaymentBatchSize:                c.PaymentBatchSize,
+		Enabled:                               enabled,
+		ResourceLifecycleInterval:             c.ResourceLifecycleInterval.Duration(),
+		ResourceLifecycleTimeout:              withDefault(c.ResourceLifecycleTimeout, defaultResourceLifecycleTimeout),
+		ContentAuditRetryInterval:             c.ContentAuditRetryInterval.Duration(),
+		ContentAuditRetryTimeout:              withDefault(c.ContentAuditRetryTimeout, defaultContentAuditRetryTimeout),
+		ContentAuditRetryBatchSize:            c.ContentAuditRetryBatchSize,
+		MerchantDirectoryEventCleanupInterval: c.MerchantDirectoryEventCleanupInterval.Duration(),
+		MerchantDirectoryEventCleanupTimeout:  withDefault(c.MerchantDirectoryEventCleanupTimeout, defaultMerchantDirectoryEventCleanupTimeout),
+		MerchantDirectoryEventRetentionDays:   c.MerchantDirectoryEventRetentionDays,
+		PaymentReconcileInterval:              c.PaymentReconcileInterval.Duration(),
+		PaymentReconcileTimeout:               withDefault(c.PaymentReconcileTimeout, defaultPaymentReconcileTimeout),
+		PaymentQueryDelay:                     c.PaymentQueryDelay.Duration(),
+		PaymentBatchSize:                      c.PaymentBatchSize,
 	}
 }
 

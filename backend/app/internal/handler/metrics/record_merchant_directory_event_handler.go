@@ -21,20 +21,20 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
-func RecordMerchantMapEventHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
-	limiter := newMerchantMapEventLimiter(60, time.Minute, 4096, time.Now)
+func RecordMerchantDirectoryEventHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
+	limiter := newMerchantDirectoryEventLimiter(60, time.Minute, 4096, time.Now)
 	return func(w http.ResponseWriter, r *http.Request) {
-		if svcCtx == nil || svcCtx.APIStore == nil || svcCtx.APIStore.MerchantMapEventsModel == nil {
-			logx.WithContext(r.Context()).Error("地图行为 Handler 存储依赖未配置")
-			response.JSON(w, nil, errx.New(errx.CodeInternalError, "地图行为服务暂不可用，请稍后重试"))
+		if svcCtx == nil || svcCtx.APIStore == nil || svcCtx.APIStore.MerchantDirectoryEventModel == nil {
+			logx.WithContext(r.Context()).Error("商家目录行为 Handler 存储依赖未配置")
+			response.JSON(w, nil, errx.New(errx.CodeInternalError, "目录行为服务暂不可用，请稍后重试"))
 			return
 		}
 		rawBody, err := handlerx.ReadLimitedBody(r, 4096)
 		if err != nil {
-			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "地图行为请求内容过大"))
+			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "目录行为请求内容过大"))
 			return
 		}
-		var req types.MerchantMapEventReq
+		var req types.MerchantDirectoryEventReq
 		decoder := json.NewDecoder(bytes.NewReader(rawBody))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&req); err != nil {
@@ -43,7 +43,7 @@ func RecordMerchantMapEventHandler(svcCtx *svc.ServiceContext) http.HandlerFunc 
 		}
 		var trailing interface{}
 		if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-			// 地图埋点只接受一个完整 JSON 文档，避免合法首值后的第二对象或垃圾内容被静默忽略。
+			// 目录埋点只接受一个完整 JSON 文档，避免合法首值后的第二对象或垃圾内容被静默忽略。
 			response.JSON(w, nil, errx.New(errx.CodeValidationFailed, "请求参数格式不正确"))
 			return
 		}
@@ -60,7 +60,7 @@ func RecordMerchantMapEventHandler(svcCtx *svc.ServiceContext) http.HandlerFunc 
 		if authenticated {
 			userID = subject.UserID
 		}
-		resp, err := metricslogic.NewRecordMerchantMapEventLogic(svcCtx.APIStore).RecordMerchantMapEvent(r.Context(), metricslogic.RecordMerchantMapEventReq{
+		resp, err := metricslogic.NewRecordMerchantDirectoryEventLogic(svcCtx.APIStore).RecordMerchantDirectoryEvent(r.Context(), metricslogic.RecordMerchantDirectoryEventReq{
 			UserID: userID, MerchantID: req.MerchantId, TargetMerchantID: req.TargetMerchantId,
 			VisitorKey: req.VisitorKey, SessionID: req.SessionId, EventType: req.EventType, Source: req.Source,
 		})
@@ -68,18 +68,18 @@ func RecordMerchantMapEventHandler(svcCtx *svc.ServiceContext) http.HandlerFunc 
 			response.JSON(w, nil, err)
 			return
 		}
-		response.JSON(w, types.MerchantMapEventResp{Recorded: resp.Recorded}, nil)
+		response.JSON(w, types.MerchantDirectoryEventResp{Recorded: resp.Recorded}, nil)
 	}
 }
 
-type merchantMapEventWindow struct {
+type merchantDirectoryEventWindow struct {
 	startedAt time.Time
 	count     int
 }
 
-type merchantMapEventLimiter struct {
+type merchantDirectoryEventLimiter struct {
 	mu        sync.Mutex
-	windows   map[[sha256.Size]byte]merchantMapEventWindow
+	windows   map[[sha256.Size]byte]merchantDirectoryEventWindow
 	limit     int
 	window    time.Duration
 	maxKeys   int
@@ -87,17 +87,17 @@ type merchantMapEventLimiter struct {
 	lastSweep time.Time
 }
 
-func newMerchantMapEventLimiter(limit int, window time.Duration, maxKeys int, now func() time.Time) *merchantMapEventLimiter {
+func newMerchantDirectoryEventLimiter(limit int, window time.Duration, maxKeys int, now func() time.Time) *merchantDirectoryEventLimiter {
 	if now == nil {
 		now = time.Now
 	}
-	return &merchantMapEventLimiter{
-		windows: make(map[[sha256.Size]byte]merchantMapEventWindow),
+	return &merchantDirectoryEventLimiter{
+		windows: make(map[[sha256.Size]byte]merchantDirectoryEventWindow),
 		limit:   limit, window: window, maxKeys: maxKeys, now: now,
 	}
 }
 
-func (l *merchantMapEventLimiter) Allow(clientIP string, visitorKey string) bool {
+func (l *merchantDirectoryEventLimiter) Allow(clientIP string, visitorKey string) bool {
 	if l == nil || l.limit <= 0 || l.window <= 0 || l.maxKeys <= 0 || l.now == nil {
 		return false
 	}
@@ -130,6 +130,6 @@ func (l *merchantMapEventLimiter) Allow(clientIP string, visitorKey string) bool
 	if len(l.windows) >= l.maxKeys {
 		return false
 	}
-	l.windows[key] = merchantMapEventWindow{startedAt: now, count: 1}
+	l.windows[key] = merchantDirectoryEventWindow{startedAt: now, count: 1}
 	return true
 }

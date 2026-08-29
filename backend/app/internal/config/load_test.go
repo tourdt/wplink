@@ -94,9 +94,9 @@ Tasks:
   ContentAuditRetryInterval: 1m
   ContentAuditRetryTimeout: 10m
   ContentAuditRetryBatchSize: 20
-  MerchantMapEventCleanupInterval: 24h
-  MerchantMapEventCleanupTimeout: 10m
-  MerchantMapEventRetentionDays: 90
+  MerchantDirectoryEventCleanupInterval: 24h
+  MerchantDirectoryEventCleanupTimeout: 10m
+  MerchantDirectoryEventRetentionDays: 90
   PaymentReconcileInterval: 1m
   PaymentReconcileTimeout: 5m
   PaymentQueryDelay: 2m
@@ -180,8 +180,8 @@ Storage:
 	if cfg.Tasks.ContentAuditRetryInterval != time.Minute || cfg.Tasks.ContentAuditRetryTimeout != 10*time.Minute || cfg.Tasks.ContentAuditRetryBatchSize != 20 {
 		t.Fatalf("tasks = %#v, want content audit retry configuration", cfg.Tasks)
 	}
-	if cfg.Tasks.MerchantMapEventCleanupInterval != 24*time.Hour || cfg.Tasks.MerchantMapEventCleanupTimeout != 10*time.Minute || cfg.Tasks.MerchantMapEventRetentionDays != 90 {
-		t.Fatalf("tasks = %#v, want daily map event cleanup with 90-day retention", cfg.Tasks)
+	if cfg.Tasks.MerchantDirectoryEventCleanupInterval != 24*time.Hour || cfg.Tasks.MerchantDirectoryEventCleanupTimeout != 10*time.Minute || cfg.Tasks.MerchantDirectoryEventRetentionDays != 90 {
+		t.Fatalf("tasks = %#v, want daily directory event cleanup with 90-day retention", cfg.Tasks)
 	}
 	if cfg.Storage.Provider != "qiniu-kodo" || cfg.Storage.UploadExpire != 15*time.Minute || cfg.Storage.MaxFileSizeBytes != 10485760 {
 		t.Fatalf("storage = %#v, want qiniu config", cfg.Storage)
@@ -199,7 +199,7 @@ func TestFileConfigToConfigUsesTaskCoordinationDefaults(t *testing.T) {
 	}
 	if got.ResourceLifecycleTimeout != 5*time.Minute ||
 		got.ContentAuditRetryTimeout != 10*time.Minute ||
-		got.MerchantMapEventCleanupTimeout != 10*time.Minute ||
+		got.MerchantDirectoryEventCleanupTimeout != 10*time.Minute ||
 		got.PaymentReconcileTimeout != 5*time.Minute {
 		t.Fatalf("任务超时默认值不正确: %+v", got)
 	}

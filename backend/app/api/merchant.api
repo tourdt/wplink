@@ -121,6 +121,19 @@ type MerchantDirectoryLocationContextResp {
 	NearbyAvailable bool                    `json:"nearbyAvailable"`
 }
 
+type CreateMerchantLocationReportReq {
+	ReasonCode  string `json:"reasonCode"`
+	Description string `json:"description,optional"`
+}
+
+type CreateMerchantLocationReportResp {
+	ReportId            string `json:"reportId"`
+	Status              string `json:"status"`
+	ActiveReporterCount int64  `json:"activeReporterCount"`
+	AutoHidden          bool   `json:"autoHidden"`
+	Idempotent          bool   `json:"idempotent"`
+}
+
 @server (
 	prefix: /api/v1
 	group:  merchant
@@ -134,6 +147,9 @@ service wplink-api {
 
 	@handler GetMerchantLocationContext
 	get /merchants/:merchantId/location-context returns (MerchantDirectoryLocationContextResp)
+
+	@handler CreateMerchantLocationReport
+	post /merchants/:merchantId/location-reports (CreateMerchantLocationReportReq) returns (CreateMerchantLocationReportResp)
 
 	@handler UpdateMerchant
 	post /merchants/:merchantId (UpdateMerchantReq) returns (UpdateMerchantResp)

@@ -1,8 +1,11 @@
 package model
 
 import (
+	"context"
 	"strings"
 	"testing"
+
+	"github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestListHomeRecentMerchantsSQLScopesEligibleSelfOnboardedMerchants(t *testing.T) {
@@ -47,5 +50,72 @@ func TestUpdateMerchantSQLSetsOrClearsAllLocationColumns(t *testing.T) {
 		if !strings.Contains(updateMerchantSQL, token) {
 			t.Fatalf("updateMerchantSQL missing %q:\n%s", token, updateMerchantSQL)
 		}
+	}
+}
+
+func TestUpdateMerchantSetResolvesPendingLocationReportsInSameTransaction(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT merchant_type, location_status FROM merchants WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
+		WithArgs("101").
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_type", "location_status"}).AddRow("stockist", MerchantLocationStatusRiskHidden))
+	mock.ExpectExec(`UPDATE merchants.*location_status = CASE WHEN \$13 = 'set' THEN \$21`).
+		WithArgs(
+			"101", "织里晨星童装", JSONStringSlice([]string{"童装"}), "stockist", "", "", JSONStringSlice(nil), sqlmock.AnyArg(),
+			"", "", "", "织里镇利济路", "set", "织里童装城", "一期", "1F", "A108", 30.8732, 120.2255, "织里童装城", MerchantLocationStatusVisible,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE merchant_location_reports.*SET status = 'resolved'.*WHERE merchant_id = \$1.*status = 'pending'`).
+		WithArgs("101").
+		WillReturnResult(sqlmock.NewResult(0, 3))
+	mock.ExpectCommit()
+
+	_, err = NewMerchantModel(db).UpdateMerchant(context.Background(), "101", UpdateMerchantPatch{
+		Name: "织里晨星童装", MainCategories: []string{"童装"}, AddressText: "织里镇利济路",
+		Location: MerchantLocationPatch{
+			Action: "set", MarketName: "织里童装城", BuildingName: "一期", FloorNo: "1F", BoothNo: "A108",
+			Latitude: 30.8732, Longitude: 120.2255, LocationName: "织里童装城", Status: MerchantLocationStatusVisible,
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateMerchant() error = %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("transaction expectations: %v", err)
+	}
+}
+
+func TestUpdateMerchantClearDoesNotResolvePendingLocationReports(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT merchant_type, location_status FROM merchants WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
+		WithArgs("101").
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_type", "location_status"}).AddRow("stockist", MerchantLocationStatusVisible))
+	mock.ExpectExec(`UPDATE merchants`).
+		WithArgs(
+			"101", "织里晨星童装", JSONStringSlice(nil), "stockist", "", "", JSONStringSlice(nil), sqlmock.AnyArg(),
+			"", "", "", "", "clear", "", "", "", "", float64(0), float64(0), "", MerchantLocationStatusHidden,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	_, err = NewMerchantModel(db).UpdateMerchant(context.Background(), "101", UpdateMerchantPatch{
+		Name: "织里晨星童装", Location: MerchantLocationPatch{Action: "clear", Status: MerchantLocationStatusHidden},
+	})
+	if err != nil {
+		t.Fatalf("UpdateMerchant() error = %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("transaction expectations: %v", err)
 	}
 }

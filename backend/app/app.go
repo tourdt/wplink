@@ -84,24 +84,24 @@ func main() {
 		logx.Infof("资源生命周期自动任务已启用: interval=%s", cfg.Tasks.ResourceLifecycleInterval)
 		lifecycleScheduler.Start(appCtx)
 	}
-	mapEventCleanupScheduler := task.NewMerchantMapEventCleanupScheduler(
-		task.NewMerchantMapEventCleanupTask(
+	directoryEventCleanupScheduler := task.NewMerchantDirectoryEventCleanupScheduler(
+		task.NewMerchantDirectoryEventCleanupTask(
 			svcCtx.APIStore,
-			cfg.Tasks.MerchantMapEventRetentionDays,
+			cfg.Tasks.MerchantDirectoryEventRetentionDays,
 			time.Now,
 		),
-		cfg.Tasks.MerchantMapEventCleanupInterval,
+		cfg.Tasks.MerchantDirectoryEventCleanupInterval,
 		log.Default(),
 		coordinator,
-		cfg.Tasks.MerchantMapEventCleanupTimeout,
+		cfg.Tasks.MerchantDirectoryEventCleanupTimeout,
 	)
-	if cfg.Tasks.Enabled && mapEventCleanupScheduler.Enabled() {
+	if cfg.Tasks.Enabled && directoryEventCleanupScheduler.Enabled() {
 		logx.Infof(
-			"商家地图行为清理任务已启用: interval=%s retentionDays=%d",
-			cfg.Tasks.MerchantMapEventCleanupInterval,
-			cfg.Tasks.MerchantMapEventRetentionDays,
+			"商家目录行为清理任务已启用: interval=%s retentionDays=%d",
+			cfg.Tasks.MerchantDirectoryEventCleanupInterval,
+			cfg.Tasks.MerchantDirectoryEventRetentionDays,
 		)
-		mapEventCleanupScheduler.Start(appCtx)
+		directoryEventCleanupScheduler.Start(appCtx)
 	}
 	contentAuditRetryScheduler := task.NewContentAuditRetryScheduler(
 		task.NewContentAuditRetryTask(
@@ -163,7 +163,7 @@ func main() {
 	lifecycleScheduler.Wait()
 	contentAuditRetryScheduler.Wait()
 	paymentScheduler.Wait()
-	mapEventCleanupScheduler.Wait()
+	directoryEventCleanupScheduler.Wait()
 }
 
 func setupLogging(cfg config.Config) error {
