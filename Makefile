@@ -25,6 +25,7 @@ check-postgres:
 	cd backend && go test ./app/internal/logic/auth -run '^TestSQLSMSSendLimiterIntegration' -count=1 -v
 
 check-dependencies:
+	cd backend && node --test scripts/dependency_security_policy.test.mjs
 	npm audit --prefix admin-web --audit-level=high
 	npm audit --prefix wxapp --audit-level=high
 	cd backend && go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...

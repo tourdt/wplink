@@ -85,7 +85,6 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 - `AdminAuth.TokenSecret`
 - `UserAuth.TokenSecret`
 - `Wechat.AppID`、`Wechat.AppSecret`
-- `TencentMap.Key`；用于腾讯地图逆地理编码
 - `SMS.Provider`，以及对应供应商所需字段；`http` 模式需要 `SMS.SendURL`、`SMS.VerifyURL`、`SMS.AccessKeySecret`
 - `Tasks.ResourceLifecycleInterval`
 - 生产模式强制要求 `Tasks.MerchantDirectoryEventCleanupInterval`、`Tasks.MerchantDirectoryEventCleanupTimeout`、`Tasks.MerchantDirectoryEventRetentionDays`
@@ -103,6 +102,7 @@ TencentMap:
   RequestTimeout: 5s
 ```
 
+- `RuntimeMode: production` 的启动校验不强制要求 `TencentMap.Key`，缺失时不会阻止服务启动；但腾讯逆地理编码与商家选点的详细地址能力将不可用，相关接口会返回友好错误。生产发布前的业务验收必须配置有效的 `TENCENT_MAP_KEY`。
 - `TENCENT_MAP_KEY` 只放在服务器环境变量或密钥系统，不得写入仓库、小程序包、URL 日志或错误文本。
 - `RequestTimeout` 小于等于 0 时运行时默认 5 秒；该字段限制单次服务端请求时间，不作为生产启动失败条件。
 - 调用日志使用 `event=external_call`、`provider=tencent_map`、`operation=reverse_geocode`，只记录 `outcome`、`duration_ms` 和可选 `status_code`等白名单字段，禁止记录 Key、完整 URL、详细地址或响应体。
