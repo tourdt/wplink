@@ -103,6 +103,28 @@ func TestGetMerchantLocationContextHandlerKeepsCurrentWhenNearbyQueryFails(t *te
 	}
 }
 
+func TestGetMerchantLocationContextHandlerRejectsInvalidIDBeforeDatabase(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	defer db.Close()
+
+	svcCtx := &svc.ServiceContext{APIStore: &svc.APIStore{MerchantDirectoryModel: model.NewMerchantDirectoryModel(db)}}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/merchants/not-a-tsid/location-context", nil)
+	req = pathvar.WithVars(req, map[string]string{"merchantId": "not-a-tsid"})
+	recorder := httptest.NewRecorder()
+
+	GetMerchantLocationContextHandler(svcCtx).ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), `"msg":"该商家位置待完善"`) {
+		t.Fatalf("status = %d body=%s, want stable validation response", recorder.Code, recorder.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("database must not be queried: %v", err)
+	}
+}
+
 func merchantDirectoryTestColumns() []string {
 	return []string{
 		"merchant_id", "merchant_no", "name", "merchant_type", "logo_url", "address_text",

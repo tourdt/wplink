@@ -57,6 +57,20 @@ func TestListMerchantDirectoryRejectsUnsupportedCityAndOversizedPage(t *testing.
 	}
 }
 
+func TestListMerchantDirectoryRejectsOverflowingOffset(t *testing.T) {
+	store := &fakeDirectoryStore{}
+	_, err := NewMerchantDirectoryLogic(store).ListDirectory(context.Background(), ListMerchantDirectoryReq{
+		CityCode: "zhili", Page: math.MaxInt64, PageSize: 100,
+	})
+
+	if errx.CodeOf(err) != errx.CodeValidationFailed {
+		t.Fatalf("error = %v, want validation failed", err)
+	}
+	if store.listCalled || store.countCalled {
+		t.Fatal("store must not be called when pagination offset overflows")
+	}
+}
+
 func TestListMerchantDirectoryReturnsSingleSafeErrorForDatabaseFailures(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
@@ -114,9 +128,9 @@ func TestGetMerchantLocationContextReturnsFriendlyErrorWhenCurrentIsUnavailable(
 		currentErr error
 	}{
 		{name: "empty merchant", merchantID: " "},
-		{name: "not visible", merchantID: "merchant-missing", currentErr: sql.ErrNoRows},
-		{name: "database failure", merchantID: "merchant-1", currentErr: errors.New("db unavailable")},
-		{name: "invalid coordinate", merchantID: "merchant-1", current: model.MerchantDirectoryItem{MerchantID: "merchant-1", Latitude: math.NaN(), Longitude: 120}},
+		{name: "not visible", merchantID: "803", currentErr: sql.ErrNoRows},
+		{name: "database failure", merchantID: "801", currentErr: errors.New("db unavailable")},
+		{name: "invalid coordinate", merchantID: "801", current: model.MerchantDirectoryItem{MerchantID: "801", Latitude: math.NaN(), Longitude: 120}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &fakeDirectoryStore{current: tt.current, currentErr: tt.currentErr}
@@ -128,11 +142,26 @@ func TestGetMerchantLocationContextReturnsFriendlyErrorWhenCurrentIsUnavailable(
 	}
 }
 
-func TestGetMerchantLocationContextKeepsCurrentWhenNearbyFails(t *testing.T) {
-	store := &fakeDirectoryStore{current: visibleDirectoryMerchant("merchant-1"), nearbyErr: errors.New("db unavailable")}
-	resp, err := NewMerchantDirectoryLogic(store).GetLocationContext(context.Background(), "merchant-1")
+func TestGetMerchantLocationContextRejectsInvalidMerchantIDBeforeStore(t *testing.T) {
+	for _, merchantID := range []string{"abc", "0", "-1", "9223372036854775808", "1 OR 1=1"} {
+		t.Run(merchantID, func(t *testing.T) {
+			store := &fakeDirectoryStore{}
+			_, err := NewMerchantDirectoryLogic(store).GetLocationContext(context.Background(), merchantID)
+			if errx.CodeOf(err) != errx.CodeValidationFailed || err.Error() != "该商家位置待完善" {
+				t.Fatalf("error = %v, want stable location validation error", err)
+			}
+			if store.currentCalled {
+				t.Fatal("store must not be called for invalid merchant ID")
+			}
+		})
+	}
+}
 
-	if err != nil || resp.Current.MerchantID != "merchant-1" || resp.NearbyAvailable {
+func TestGetMerchantLocationContextKeepsCurrentWhenNearbyFails(t *testing.T) {
+	store := &fakeDirectoryStore{current: visibleDirectoryMerchant("801"), nearbyErr: errors.New("db unavailable")}
+	resp, err := NewMerchantDirectoryLogic(store).GetLocationContext(context.Background(), "801")
+
+	if err != nil || resp.Current.MerchantID != "801" || resp.NearbyAvailable {
 		t.Fatalf("resp=%#v err=%v", resp, err)
 	}
 	if resp.Nearby == nil || len(resp.Nearby) != 0 || resp.RadiusMeters != 1000 {
@@ -144,15 +173,15 @@ func TestGetMerchantLocationContextKeepsCurrentWhenNearbyFails(t *testing.T) {
 }
 
 func TestGetMerchantLocationContextReturnsNearbyMerchants(t *testing.T) {
-	nearby := visibleDirectoryMerchant("merchant-2")
+	nearby := visibleDirectoryMerchant("802")
 	nearby.DistanceMeters = 42.5
-	store := &fakeDirectoryStore{current: visibleDirectoryMerchant("merchant-1"), nearby: []model.MerchantDirectoryItem{nearby}}
-	resp, err := NewMerchantDirectoryLogic(store).GetLocationContext(context.Background(), " merchant-1 ")
+	store := &fakeDirectoryStore{current: visibleDirectoryMerchant("801"), nearby: []model.MerchantDirectoryItem{nearby}}
+	resp, err := NewMerchantDirectoryLogic(store).GetLocationContext(context.Background(), " 801 ")
 
 	if err != nil {
 		t.Fatalf("GetLocationContext() error = %v", err)
 	}
-	if !resp.NearbyAvailable || len(resp.Nearby) != 1 || resp.Nearby[0].MerchantID != "merchant-2" || resp.Nearby[0].DistanceMeters != 42.5 {
+	if !resp.NearbyAvailable || len(resp.Nearby) != 1 || resp.Nearby[0].MerchantID != "802" || resp.Nearby[0].DistanceMeters != 42.5 {
 		t.Fatalf("resp = %#v, want available nearby merchant", resp)
 	}
 }
@@ -165,19 +194,20 @@ func visibleDirectoryMerchant(merchantID string) model.MerchantDirectoryItem {
 }
 
 type fakeDirectoryStore struct {
-	filter       model.MerchantDirectoryFilter
-	items        []model.MerchantDirectoryItem
-	total        int64
-	listErr      error
-	countErr     error
-	current      model.MerchantDirectoryItem
-	currentErr   error
-	nearby       []model.MerchantDirectoryItem
-	nearbyErr    error
-	nearbyRadius int64
-	nearbyLimit  int64
-	listCalled   bool
-	countCalled  bool
+	filter        model.MerchantDirectoryFilter
+	items         []model.MerchantDirectoryItem
+	total         int64
+	listErr       error
+	countErr      error
+	current       model.MerchantDirectoryItem
+	currentErr    error
+	nearby        []model.MerchantDirectoryItem
+	nearbyErr     error
+	nearbyRadius  int64
+	nearbyLimit   int64
+	listCalled    bool
+	countCalled   bool
+	currentCalled bool
 }
 
 func (s *fakeDirectoryStore) ListMerchantDirectory(_ context.Context, filter model.MerchantDirectoryFilter) ([]model.MerchantDirectoryItem, error) {
@@ -193,6 +223,7 @@ func (s *fakeDirectoryStore) CountMerchantDirectory(_ context.Context, filter mo
 }
 
 func (s *fakeDirectoryStore) GetVisibleMerchantLocation(_ context.Context, merchantID string) (model.MerchantDirectoryItem, error) {
+	s.currentCalled = true
 	return s.current, s.currentErr
 }
 

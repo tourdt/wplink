@@ -1,9 +1,13 @@
 package model
 
 import (
+	"context"
 	"math"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestBuildMerchantDirectoryWhereOnlyReturnsVisibleCompletedMerchants(t *testing.T) {
@@ -85,13 +89,14 @@ func TestRankNearbyVisibleMerchantsFiltersSortsAndLimits(t *testing.T) {
 }
 
 func TestBuildNearbyVisibleMerchantsQueryUsesBoundingBoxAndPublicConditions(t *testing.T) {
-	origin := MerchantDirectoryItem{MerchantID: "merchant-1", Latitude: 30.87, Longitude: 120.12}
+	origin := MerchantDirectoryItem{MerchantID: "801", Latitude: 30.87, Longitude: 120.12}
 	query, args := buildNearbyVisibleMerchantsQuery(origin, 1000)
 
 	for _, token := range []string{
 		"m.status = 'active'",
 		"m.profile_status = 'completed'",
 		"m.location_status = 'visible'",
+		"cs.code = 'zhili'",
 		"m.id <> $1::bigint",
 		"m.latitude BETWEEN $2 AND $3",
 		"m.longitude BETWEEN $4 AND $5",
@@ -100,21 +105,111 @@ func TestBuildNearbyVisibleMerchantsQueryUsesBoundingBoxAndPublicConditions(t *t
 			t.Fatalf("query = %q, missing %q", query, token)
 		}
 	}
-	if len(args) != 5 || args[0] != "merchant-1" {
+	if len(args) != 5 || args[0] != "801" {
 		t.Fatalf("args = %#v, want merchant ID and four bounding values", args)
+	}
+}
+
+func TestGetVisibleMerchantLocationOnlyReadsZhiliDirectoryMerchant(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(`(?s)FROM merchants m.*JOIN city_stations cs.*WHERE m\.id = \$1::bigint.*cs\.code = 'zhili'.*m\.status = 'active'.*m\.profile_status = 'completed'.*m\.location_status = 'visible'`).
+		WithArgs("801").
+		WillReturnRows(sqlmock.NewRows(merchantDirectoryModelTestColumns()).AddRow(
+			"801", "M00000018", "织里晨星童装", "factory", "", "", "织里童装城", "一期", "1F", "A108",
+			"织里童装城", `["童装"]`, 30.8732, 120.2255, time.Time{},
+		))
+
+	item, err := NewMerchantDirectoryModel(db).GetVisibleMerchantLocation(context.Background(), "801")
+	if err != nil || item.MerchantID != "801" {
+		t.Fatalf("item=%#v err=%v, want visible zhili merchant", item, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("database expectations: %v", err)
+	}
+}
+
+func TestBuildNearbyVisibleMerchantsQueryConservativelyContainsHighLatitudeRadius(t *testing.T) {
+	const radiusMeters = int64(1000)
+	origin := MerchantDirectoryItem{MerchantID: "801", Latitude: 89, Longitude: 120}
+	angularRadius := float64(radiusMeters) / merchantDirectoryEarthRadiusMeters
+	originLatitudeRadians := origin.Latitude * math.Pi / 180
+	// 球面小圆在最大经差处的候选点；线性 angularRadius/cos(lat) 会在这里略微缩小 bbox。
+	candidate := MerchantDirectoryItem{
+		MerchantID: "802",
+		Latitude:   math.Asin(math.Sin(originLatitudeRadians)/math.Cos(angularRadius)) * 180 / math.Pi,
+		Longitude:  origin.Longitude + math.Asin(math.Sin(angularRadius)/math.Cos(originLatitudeRadians))*180/math.Pi,
+	}
+	if distance := haversineDistanceMeters(origin.Latitude, origin.Longitude, candidate.Latitude, candidate.Longitude); distance > float64(radiusMeters)+0.001 {
+		t.Fatalf("fixture distance = %.9f, want inside %dm radius", distance, radiusMeters)
+	}
+
+	_, args := buildNearbyVisibleMerchantsQuery(origin, radiusMeters)
+	if len(args) != 5 {
+		t.Fatalf("args = %#v, want bounded longitude", args)
+	}
+	maxLongitude, ok := args[4].(float64)
+	if !ok || maxLongitude < candidate.Longitude {
+		t.Fatalf("maxLongitude = %.12f, candidate = %.12f; bbox must not exclude an in-radius high-latitude point", maxLongitude, candidate.Longitude)
+	}
+}
+
+func TestListMerchantDirectoryRejectsOverflowingOffsetBeforeQuery(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	defer db.Close()
+
+	_, err = NewMerchantDirectoryModel(db).ListMerchantDirectory(context.Background(), MerchantDirectoryFilter{
+		CityCode: "zhili", Page: math.MaxInt64, PageSize: 100,
+	})
+	if err == nil || err.Error() != "商家目录分页参数超出范围" {
+		t.Fatalf("error = %v, want pagination overflow rejection", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("database must not be queried: %v", err)
+	}
+}
+
+func TestGetVisibleMerchantLocationRejectsInvalidIDBeforeQuery(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	defer db.Close()
+
+	_, err = NewMerchantDirectoryModel(db).GetVisibleMerchantLocation(context.Background(), "not-a-tsid")
+	if err == nil || err.Error() != "商家编号格式不正确" {
+		t.Fatalf("error = %v, want invalid merchant ID rejection", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("database must not be queried: %v", err)
+	}
+}
+
+func merchantDirectoryModelTestColumns() []string {
+	return []string{
+		"merchant_id", "merchant_no", "name", "merchant_type", "logo_url", "address_text",
+		"market_name", "building_name", "floor_no", "booth_no", "location_name", "main_categories",
+		"latitude", "longitude", "last_resource_active_at",
 	}
 }
 
 func TestBuildNearbyVisibleMerchantsQueryHandlesDatelineAndPoles(t *testing.T) {
 	datelineQuery, datelineArgs := buildNearbyVisibleMerchantsQuery(
-		MerchantDirectoryItem{MerchantID: "merchant-east", Latitude: 0, Longitude: 179.999}, 1000,
+		MerchantDirectoryItem{MerchantID: "801", Latitude: 0, Longitude: 179.999}, 1000,
 	)
 	if !strings.Contains(datelineQuery, "m.longitude >= $4 OR m.longitude <= $5") || len(datelineArgs) != 5 {
 		t.Fatalf("dateline query = %q args=%#v, want wrapped longitude predicate", datelineQuery, datelineArgs)
 	}
 
 	polarQuery, polarArgs := buildNearbyVisibleMerchantsQuery(
-		MerchantDirectoryItem{MerchantID: "merchant-north", Latitude: 89.999, Longitude: 10}, 1000,
+		MerchantDirectoryItem{MerchantID: "802", Latitude: 89.999, Longitude: 10}, 1000,
 	)
 	if strings.Contains(polarQuery, "m.longitude BETWEEN $4") || strings.Contains(polarQuery, "m.longitude >= $4") {
 		t.Fatalf("polar query = %q, longitude must use global range when bounding box reaches pole", polarQuery)

@@ -96,6 +96,9 @@ func (l *MerchantDirectoryLogic) ListDirectory(ctx context.Context, req ListMerc
 	if pageSize > merchantDirectoryMaxPageSize {
 		return ListMerchantDirectoryResp{}, errx.New(errx.CodeValidationFailed, "每页商家数量不能超过 100 条")
 	}
+	if page > 1 && page-1 > math.MaxInt64/pageSize {
+		return ListMerchantDirectoryResp{}, errx.New(errx.CodeValidationFailed, "分页参数超出范围，请重新选择页码")
+	}
 	filter := model.MerchantDirectoryFilter{
 		CityCode:   cityCode,
 		Keyword:    strings.TrimSpace(req.Keyword),
@@ -131,7 +134,7 @@ func (l *MerchantDirectoryLogic) ListDirectory(ctx context.Context, req ListMerc
 
 func (l *MerchantDirectoryLogic) GetLocationContext(ctx context.Context, merchantID string) (MerchantLocationContextResp, error) {
 	merchantID = strings.TrimSpace(merchantID)
-	if merchantID == "" {
+	if !model.IsValidMerchantDirectoryID(merchantID) {
 		return MerchantLocationContextResp{}, errx.New(errx.CodeValidationFailed, "该商家位置待完善")
 	}
 	current, err := l.store.GetVisibleMerchantLocation(ctx, merchantID)
