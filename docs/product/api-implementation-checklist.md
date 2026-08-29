@@ -44,6 +44,7 @@
 |---|---|---|---|---|---|
 | `GET /api/v1/city-stations` | `backend/app/api/city.api` | `backend/app/internal/logic/city/list_city_stations_logic.go` | 可用于全局筛选 | 首页/发布/搜索 | 已接 handler，测试通过 |
 | `GET /api/v1/city-stations/:cityCode/resource-types` | `backend/app/api/city.api` | `backend/app/internal/logic/city/list_resource_types_logic.go` | 供需类型配置页 | 发布/搜索筛选 | 已接 handler，测试通过 |
+| `GET /api/v1/locations/reverse-geocode` | `backend/app/api/location.api` | `backend/app/internal/logic/location/tencent_map_geocoder.go` | 不适用 | 商家资料选点后解析建议地址和位置名 | 已接 handler，测试通过 |
 
 ## 商家
 

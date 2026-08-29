@@ -21,6 +21,41 @@ const currentSources = [
   'docs/product/technical-architecture.md',
   'docs/product/mvp-acceptance-checklist.md',
 ]
+const currentFactDocuments = [
+  'docs/product/technical-architecture.md',
+  'docs/product/mvp-acceptance-checklist.md',
+  'docs/product/api-implementation-checklist.md',
+  'docs/product/wxapp-manual-acceptance.md',
+  'docs/product/deployment-config.md',
+  'docs/architecture.md',
+  'docs/deployment.md',
+]
+const retiredLocationTerms = [
+  '自定义地图',
+  '地图场景',
+  '标注画布',
+  '预录档口',
+  '预录点位',
+  '绑定申请',
+  '绑定审核',
+  'map_scene',
+  'map_object',
+  'merchant_map_events',
+  'sourcing_map',
+]
+
+function findRetiredLocationReferences(documentSources) {
+  const issues = []
+  for (const documentPath of currentFactDocuments) {
+    const source = documentSources.get(documentPath) || ''
+    for (const retiredTerm of retiredLocationTerms) {
+      if (source.includes(retiredTerm)) {
+        issues.push(`${documentPath}: ${retiredTerm}`)
+      }
+    }
+  }
+  return issues
+}
 
 test('历史产品文档声明归档状态并指向当前事实来源', () => {
   for (const documentName of archivedProductDocs) {
@@ -40,19 +75,47 @@ test('当前架构文档声明历史归档文档不得作为当前依据', () =>
   )
 })
 
-test('当前文档只描述商家自主位置，不包含旧自定义地图运营', () => {
+for (const documentPath of currentFactDocuments) {
+  test(`文档治理会拒绝 ${documentPath} 中明确退役的位置领域语义`, () => {
+    for (const retiredTerm of retiredLocationTerms) {
+      const fixtureSources = new Map(currentFactDocuments.map((currentPath) => [currentPath, '当前事实']))
+      fixtureSources.set(documentPath, `当前事实\n${retiredTerm}`)
+      assert.deepEqual(findRetiredLocationReferences(fixtureSources), [`${documentPath}: ${retiredTerm}`])
+    }
+
+    const actualSources = new Map(currentFactDocuments.map((currentPath) => [
+      currentPath,
+      fs.readFileSync(path.join(repositoryRoot, currentPath), 'utf8'),
+    ]))
+    assert.deepEqual(findRetiredLocationReferences(actualSources), [])
+  })
+}
+
+test('当前架构文档保留商家自主位置与目录治理事实', () => {
   const architectureSource = fs.readFileSync(path.join(productDocsDir, 'technical-architecture.md'), 'utf8')
 
-  for (const retiredCapability of ['地图场景', '画布', '预录档口', '绑定申请']) {
-    assert.equal(
-      architectureSource.includes(retiredCapability),
-      false,
-      `technical-architecture.md still describes ${retiredCapability}`,
-    )
-  }
   assert.match(architectureSource, /商家自主选择腾讯地图位置/)
   assert.match(architectureSource, /merchant_location_reports/)
   assert.match(architectureSource, /merchant_directory_events/)
+  assert.match(architectureSource, /pages\/sourcing-map\/index\.vue/)
+})
+
+test('当前 API、部署与真机文档保持腾讯位置最终口径', () => {
+  const apiChecklist = fs.readFileSync(path.join(productDocsDir, 'api-implementation-checklist.md'), 'utf8')
+  const deploymentConfig = fs.readFileSync(path.join(productDocsDir, 'deployment-config.md'), 'utf8')
+  const manualAcceptance = fs.readFileSync(path.join(productDocsDir, 'wxapp-manual-acceptance.md'), 'utf8')
+
+  assert.match(apiChecklist, /GET \/api\/v1\/locations\/reverse-geocode/)
+  assert.match(deploymentConfig, /RequestTimeout[^\n]*小于等于 0[^\n]*默认 5 秒/)
+  for (const required of [
+    'MerchantDirectoryEventCleanupInterval',
+    'MerchantDirectoryEventCleanupTimeout',
+    'MerchantDirectoryEventRetentionDays',
+  ]) {
+    assert.match(deploymentConfig, new RegExp(`生产[^\\n]*${required}|${required}[^\\n]*生产`))
+  }
+  assert.match(manualAcceptance, /无有效坐标[^\n]*仍可显示和复制文字地址/)
+  assert.match(manualAcceptance, /不显示查看位置或导航/)
 })
 
 test('本地检查与 CI 都执行文档来源治理校验', () => {

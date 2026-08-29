@@ -70,7 +70,7 @@ flowchart LR
 |---|---|---|---|
 | 微信小程序 | `wxapp/` | uni-app 编译为微信小程序 | 用户登录、浏览搜索、发布管理、商家目录与位置导航、会员权益、互动 |
 | 管理后台 | `admin-web/` | Vue 3 SPA，构建后嵌入 Go 二进制 | 审核、配置、运营、权限、日志和商家位置异常治理 |
-| API 服务 | `backend/` | Go 1.23 + go-zero 单体服务 | 业务规则、权限、数据访问、第三方集成和定时任务 |
+| API 服务 | `backend/` | Go 1.25.13 + go-zero 单体服务 | 业务规则、权限、数据访问、第三方集成和定时任务 |
 | 数据库 | `backend/migrations/` | PostgreSQL | 业务数据、审计数据、任务状态和配置数据 |
 | 部署 | `deploy/` | Nginx + systemd + Shell | 构建、上传、迁移、重启和健康检查 |
 
@@ -792,7 +792,7 @@ make check
 make check-dependencies
 ```
 
-该命令对 `admin-web` 与 `wxapp` 执行 `npm audit --audit-level=high`，并使用固定的 `govulncheck@v1.1.4` 扫描后端可达 Go 漏洞。CI 的“依赖安全”任务在每次推送和拉取请求中执行同一命令；`Dependabot` 每周为两个 npm 项目和后端 Go 模块创建更新请求。后端固定使用 Go `1.25.12`，与 `backend/go.mod` 的 `toolchain go1.25.12` 保持一致。
+该命令对 `admin-web` 与 `wxapp` 执行 `npm audit --audit-level=high`，并使用固定的 `govulncheck@v1.1.4` 扫描后端可达 Go 漏洞。CI 的“依赖安全”任务在每次推送和拉取请求中执行同一命令；`Dependabot` 每周为两个 npm 项目和后端 Go 模块创建更新请求。后端固定使用 Go `1.25.13`，与 `backend/go.mod` 的 `toolchain go1.25.13` 保持一致。
 
 小程序目前保留 Uni App Alpha 发行线。由于该上游插件将 Vite peer 依赖精确锁定在已知不安全版本，`wxapp/.npmrc` 以 `legacy-peer-deps=true` 处理该单一冲突；不得删除小程序的安装、审计和构建检查，也不得用 audit 忽略名单替代真实升级。当前上游仍有低/中危传递依赖，`high/critical` 门禁会阻断其升级为高危后的任何提交。
 

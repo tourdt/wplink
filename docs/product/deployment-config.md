@@ -85,9 +85,10 @@ WPLINK_DEPLOY_TARGET=root@YOUR_SERVER bash deploy/scripts/deploy-server.sh --ins
 - `AdminAuth.TokenSecret`
 - `UserAuth.TokenSecret`
 - `Wechat.AppID`、`Wechat.AppSecret`
-- `TencentMap.Key`、`TencentMap.RequestTimeout`；用于腾讯地图逆地理编码
+- `TencentMap.Key`；用于腾讯地图逆地理编码
 - `SMS.Provider`，以及对应供应商所需字段；`http` 模式需要 `SMS.SendURL`、`SMS.VerifyURL`、`SMS.AccessKeySecret`
 - `Tasks.ResourceLifecycleInterval`
+- 生产模式强制要求 `Tasks.MerchantDirectoryEventCleanupInterval`、`Tasks.MerchantDirectoryEventCleanupTimeout`、`Tasks.MerchantDirectoryEventRetentionDays`
 - `Storage.Provider`、`Storage.Endpoint`、`Storage.Bucket`、`Storage.AccessKeyID`、`Storage.AccessKeySecret`、`Storage.PublicBaseURL`
 
 ## 微信、腾讯地图与短信
@@ -103,7 +104,7 @@ TencentMap:
 ```
 
 - `TENCENT_MAP_KEY` 只放在服务器环境变量或密钥系统，不得写入仓库、小程序包、URL 日志或错误文本。
-- `RequestTimeout` 限制单次服务端请求时间，生产模板默认 5 秒。
+- `RequestTimeout` 小于等于 0 时运行时默认 5 秒；该字段限制单次服务端请求时间，不作为生产启动失败条件。
 - 调用日志使用 `event=external_call`、`provider=tencent_map`、`operation=reverse_geocode`，只记录 `outcome`、`duration_ms` 和可选 `status_code`等白名单字段，禁止记录 Key、完整 URL、详细地址或响应体。
 - 腾讯返回日配额用尽或 HTTP 429 时，接口映射为安全限流错误。运维应按 `provider + operation + outcome` 查看基线，核对腾讯控制台配额与 Key 限制，不得为排障开启敏感请求日志。
 

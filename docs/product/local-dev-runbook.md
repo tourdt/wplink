@@ -4,7 +4,7 @@
 
 ## 环境要求
 
-- Go 1.23+
+- Go 1.25.13（与 `backend/go.mod` 的工具链及 CI 一致）
 - Node.js 24+ 或兼容当前依赖的 LTS 版本
 - PostgreSQL 14+
 - goctl 1.7.5（仅由项目生成脚本调用；其他版本会被拒绝）

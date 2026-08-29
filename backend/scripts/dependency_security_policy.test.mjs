@@ -68,13 +68,24 @@ test('小程序安装配置仅为已知 Alpha 工具链 peer 冲突启用兼容�
   assert.equal(npmrc, 'legacy-peer-deps=true')
 })
 
+test('两端锁文件使用已修复无限循环漏洞的 nanoid 补丁版', () => {
+  for (const project of ['admin-web', 'wxapp']) {
+    const packageJson = JSON.parse(readRepositoryFile(`${project}/package.json`))
+    const packageLock = JSON.parse(readRepositoryFile(`${project}/package-lock.json`))
+
+    assert.equal(packageLock.packages?.['node_modules/nanoid']?.version, '3.3.18')
+    assert.equal(packageJson.dependencies?.nanoid, undefined, `${project} must not add nanoid as a direct dependency`)
+    assert.equal(packageJson.devDependencies?.nanoid, undefined, `${project} must not add nanoid as a direct dev dependency`)
+  }
+})
+
 test('Go 模块与 CI 工具链满足已扫描到的可达漏洞修复下限', () => {
   const goMod = readRepositoryFile('backend/go.mod')
   const workflow = readRepositoryFile('.github/workflows/ci.yml')
 
   for (const expected of [
     'go 1.25.0',
-    'toolchain go1.25.12',
+    'toolchain go1.25.13',
     'github.com/golang-jwt/jwt/v4 v4.5.2',
     'google.golang.org/grpc v1.82.1',
     'go.opentelemetry.io/otel/sdk v1.44.0',
@@ -82,5 +93,5 @@ test('Go 模块与 CI 工具链满足已扫描到的可达漏洞修复下限', (
   ]) {
     assert(goMod.includes(expected), `backend/go.mod must include ${expected}`)
   }
-  assert.match(workflow, /go-version: 1\.25\.12/)
+  assert.equal((workflow.match(/go-version: 1\.25\.13/g) || []).length, 2)
 })
