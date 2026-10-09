@@ -29,7 +29,7 @@ func TestListMerchantDirectoryHandlerParsesFiltersAndReturnsPublicFields(t *test
 		WillReturnRows(sqlmock.NewRows(columns).AddRow(
 			"801", "M00000018", "织里晨星童装", "factory", "logo.png", "利济路 88 号",
 			"织里童装城", "一期", "1F", "A108", "织里童装城", `["童装"]`, 30.8732, 120.2255,
-			time.Date(2026, 8, 28, 12, 30, 0, 0, time.FixedZone("CST", 8*60*60)),
+			time.Date(2026, 8, 28, 12, 30, 0, 0, time.FixedZone("CST", 8*60*60)), []byte(`{"schemaVersion":1,"entityKind":"organization","primaryRole":"factory","roles":["factory"],"serviceArea":"","processingMethods":["车缝"],"propertyTypes":[],"serviceItems":[]}`),
 		))
 	mock.ExpectQuery(`(?s)SELECT COUNT\(\*\).*FROM merchants m.*m\.main_categories \?\| \$3::text\[\]`).
 		WithArgs("zhili", "A108", sqlmock.AnyArg()).
@@ -58,6 +58,9 @@ func TestListMerchantDirectoryHandlerParsesFiltersAndReturnsPublicFields(t *test
 	if !ok || item["merchantId"] != "801" || item["boothNo"] != "A108" {
 		t.Fatalf("item = %#v, want merchant public location", items[0])
 	}
+	if item["primaryRole"] != "factory" || len(item["businessRoles"].([]interface{})) != 1 {
+		t.Fatalf("item = %#v, want saved factory business role", item)
+	}
 	for _, forbidden := range []string{"contact", "contactName", "contactPhone", "contactWechat", "phone", "wechat"} {
 		if _, exists := item[forbidden]; exists {
 			t.Fatalf("item = %#v, public directory must not include %q", item, forbidden)
@@ -79,7 +82,7 @@ func TestGetMerchantLocationContextHandlerKeepsCurrentWhenNearbyQueryFails(t *te
 		WithArgs("801").
 		WillReturnRows(sqlmock.NewRows(merchantDirectoryTestColumns()).AddRow(
 			"801", "M00000018", "织里晨星童装", "factory", "logo.png", "利济路 88 号",
-			"织里童装城", "一期", "1F", "A108", "织里童装城", `["童装"]`, 30.8732, 120.2255, nil,
+			"织里童装城", "一期", "1F", "A108", "织里童装城", `["童装"]`, 30.8732, 120.2255, nil, []byte(`{"schemaVersion":1,"entityKind":"organization","primaryRole":"factory","roles":["factory"],"serviceArea":"","processingMethods":["车缝"],"propertyTypes":[],"serviceItems":[]}`),
 		))
 	mock.ExpectQuery(`(?s)SELECT.*FROM merchants m.*m\.id <> \$1::bigint.*m\.latitude BETWEEN \$2 AND \$3`).
 		WillReturnError(errors.New("nearby db unavailable"))
@@ -129,6 +132,6 @@ func merchantDirectoryTestColumns() []string {
 	return []string{
 		"merchant_id", "merchant_no", "name", "merchant_type", "logo_url", "address_text",
 		"market_name", "building_name", "floor_no", "booth_no", "location_name", "main_categories",
-		"latitude", "longitude", "last_resource_active_at",
+		"latitude", "longitude", "last_resource_active_at", "business_profile",
 	}
 }

@@ -1,12 +1,16 @@
 <template>
   <view class="sourcing-map-page">
+    <view class="directory-intro">
+      <view><text class="intro-label">织里 · 找店拿货</text><text class="intro-title">找到合适的档口</text><text class="intro-desc">看主营，认门头，导航到店。</text></view>
+      <button class="onboard-button" @click="openOnboarding">免费入驻 <text>＋</text></button>
+    </view>
     <view class="directory-toolbar">
       <view class="search-row">
         <view class="search-field">
           <view class="search-icon" />
           <input
             v-model="keyword"
-            placeholder="搜索商家、市场、楼栋或档口号"
+            placeholder="搜名称、市场或档口号"
             confirm-type="search"
             @confirm="submitSearch"
           />
@@ -17,15 +21,9 @@
       </view>
 
       <view class="category-row">
-        <input
-          v-model="categoriesText"
-          class="category-input"
-          placeholder="主营品类，多个用逗号分隔"
-          confirm-type="search"
-          @confirm="applyCategoryFilter"
-        />
-        <button v-if="categoriesText" class="category-clear" @click="clearCategories">清空</button>
-        <button class="category-apply" :disabled="loading" @click="applyCategoryFilter">筛选</button>
+        <button class="category-picker" @click="openCategoryFilter">{{ categoriesText ? '主营 · ' + categoriesText.replaceAll(',', ' / ') : '全部主营' }} <text>⌄</text></button>
+        <button v-if="hasConditions" class="category-clear" @click="clearConditions">清除条件</button>
+        <text class="directory-scope">织里档口</text>
       </view>
     </view>
 
@@ -42,9 +40,10 @@
         </button>
       </view>
       <view v-else-if="!merchants.length" class="state-card">
-        <text class="state-title">暂无匹配商家</text>
-        <text class="state-desc">换个商家名、市场、档口号或减少主营品类试试。</text>
+        <text class="state-title">{{ hasConditions ? '暂未找到合适的档口' : '首批档口入驻中' }}</text>
+        <text class="state-desc">{{ hasConditions ? '换个关键词，或减少主营条件再试试。' : '档口、工厂和服务者均可建立业务主页。' }}</text>
         <button v-if="hasConditions" class="state-button secondary" @click="clearConditions">清除条件</button>
+        <button v-else class="state-button" @click="openOnboarding">免费入驻</button>
       </view>
       <template v-else>
         <MerchantPlaceCard
@@ -52,10 +51,21 @@
           :key="merchant.merchantId"
           :merchant="merchant"
           @detail="openMerchantDetail"
-          @location="openMerchantLocation"
         />
         <text class="load-more-text">{{ loadMoreText }}</text>
       </template>
+    </view>
+    <view v-if="categoryFilterVisible" class="filter-mask" @click="categoryFilterVisible = false">
+      <view class="filter-sheet" @click.stop>
+        <view class="filter-heading"><text>选择主营</text><button @click="categoryFilterVisible = false">关闭</button></view>
+        <text class="filter-hint">可多选，展示符合任一主营的档口</text>
+        <checkbox-group class="category-options" @change="pendingCategories = $event.detail.value">
+          <label v-for="category in MERCHANT_CATEGORY_OPTIONS" :key="category" :class="['category-option', { selected: pendingCategories.includes(category) }]">
+            <checkbox :value="category" :checked="pendingCategories.includes(category)" color="#c23a00" />{{ category }}
+          </label>
+        </checkbox-group>
+        <view class="filter-footer"><button class="filter-reset" @click="pendingCategories = []">重置</button><button class="filter-confirm" @click="confirmCategoryFilter">查看档口</button></view>
+      </view>
     </view>
   </view>
 </template>
@@ -66,6 +76,7 @@ import { onLoad, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-
 import MerchantPlaceCard from '../../components/MerchantPlaceCard.vue'
 import { listMerchantDirectory, submitMerchantLocationReport } from '../../api/merchantDirectory'
 import { requireLogin } from '../../common/auth'
+import { MERCHANT_CATEGORY_OPTIONS } from '../../common/merchantCategories'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
 import {
   claimNavigationFeedback,
@@ -85,6 +96,9 @@ const LIST_PAGE_SIZE = 20
 
 const keyword = ref('')
 const categoriesText = ref('')
+const categoryFilterVisible = ref(false)
+const pendingCategories = ref([])
+let hasShown = false
 const merchants = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -114,6 +128,9 @@ const loadMoreText = computed(() => {
 onLoad(() => loadMerchants({ reset: true }))
 
 onShow(() => {
+  // 从店铺管理返回时重新读取公开目录，暂停或地址变化不会留在旧列表中。
+  if (hasShown) loadMerchants({ reset: true })
+  hasShown = true
   promptNavigationFeedback()
 })
 
@@ -162,7 +179,7 @@ function loadMerchants({ reset }) {
       recordDirectoryExposures(nextItems)
     } catch (err) {
       if (version !== requestVersion) return
-      console.error('加载拿货档口目录失败', { page: targetPage, reset: Boolean(reset), err })
+      console.error('加载拿货档口目录失败', { page: targetPage, reset: Boolean(reset) })
       errorText.value = '商家列表加载失败，请稍后重试'
       if (reset) {
         merchants.value = []
@@ -196,6 +213,22 @@ function submitSearch() {
     pageSize: LIST_PAGE_SIZE,
   })
   return loadMerchants({ reset: true })
+}
+
+function openOnboarding() {
+  if (!requireLogin({ redirect: '/pages/merchant/profile' })) return
+  uni.navigateTo({ url: '/pages/merchant/profile' })
+}
+
+function openCategoryFilter() {
+  pendingCategories.value = categoriesText.value.split(',').filter(Boolean)
+  categoryFilterVisible.value = true
+}
+
+function confirmCategoryFilter() {
+  categoriesText.value = pendingCategories.value.join(',')
+  categoryFilterVisible.value = false
+  return applyCategoryFilter()
 }
 
 function applyCategoryFilter() {
@@ -277,7 +310,7 @@ async function submitNavigationFeedback(target) {
     })
   } catch (err) {
     releaseNavigationFeedback(target)
-    console.error('提交目录导航位置反馈失败', { merchantId: target.merchantId, err })
+    console.error('提交目录导航位置反馈失败', { merchantId: target.merchantId })
     uni.showToast({ title: '位置反馈提交失败，请稍后重试', icon: 'none' })
   } finally {
     uni.hideLoading()
@@ -289,7 +322,7 @@ async function submitNavigationFeedback(target) {
 <style lang="scss" scoped>
 .sourcing-map-page {
   min-height: 100vh;
-  background: $wplink-bg;
+  background: #f6f7f8;
   color: $wplink-text;
 }
 
@@ -371,7 +404,7 @@ async function submitNavigationFeedback(target) {
 .search-button,
 .category-apply,
 .state-button {
-  background: $wplink-primary;
+  background: #c23a00;
   color: $wplink-card;
 }
 
@@ -409,7 +442,7 @@ async function submitNavigationFeedback(target) {
   display: grid;
   justify-items: center;
   gap: 14rpx;
-  margin-top: 120rpx;
+  margin-top: 64rpx;
   padding: 44rpx 28rpx;
   text-align: center;
 }
@@ -443,4 +476,24 @@ async function submitNavigationFeedback(target) {
   font-size: 22rpx;
   text-align: center;
 }
+.directory-intro { display: flex; justify-content: space-between; align-items: center; gap: 20rpx; padding: 32rpx 28rpx 28rpx; background: #fff; }
+.directory-intro > view { display: grid; gap: 10rpx; }
+.intro-label { color: #8a4b2a; font-size: 22rpx; letter-spacing: 2rpx; }
+.intro-title { color: #19232e; font-size: 42rpx; font-weight: 750; }
+.intro-desc { color: #78818c; font-size: 24rpx; }
+.onboard-button { flex-shrink: 0; border: 1rpx solid #ead4c9; color: #a7380b; padding: 16rpx 20rpx; border-radius: 12rpx; background: #fff8f4; font-size: 24rpx; gap: 8rpx; }
+.category-picker { max-width: 75%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; justify-content: flex-start; gap: 16rpx; padding: 15rpx 20rpx; font-size: 25rpx; color: #303a45; background: #f3f4f5; border-radius: 10rpx; }
+.directory-scope { margin-left: auto; white-space: nowrap; color: #858d97; font-size: 22rpx; }
+.filter-mask { position: fixed; inset: 0; z-index: 90; background: rgba(20,28,36,.4); display: flex; align-items: flex-end; }
+.filter-sheet { width: 100%; max-height: 85vh; overflow: auto; background: #fff; border-radius: 28rpx 28rpx 0 0; padding: 32rpx 28rpx calc(28rpx + env(safe-area-inset-bottom)); }
+.filter-heading { display: flex; align-items: center; justify-content: space-between; font-size: 34rpx; font-weight: 700; }
+.filter-heading button { background: transparent; color: #6b7280; padding: 16rpx; font-size: 25rpx; font-weight: 400; }
+.filter-hint { display: block; color: #777f89; margin: 12rpx 0 28rpx; font-size: 24rpx; }
+.category-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16rpx; }
+.category-option { display: flex; align-items: center; justify-content: center; min-height: 76rpx; border: 1rpx solid #e2e5e9; border-radius: 10rpx; font-size: 24rpx; }
+.category-option.selected { color: #b6400d; background: #fff4ed; border-color: #d9a588; }
+.category-option checkbox { transform: scale(.7); }
+.filter-footer { display: flex; gap: 20rpx; margin-top: 32rpx; }
+.filter-reset { flex: 1; background: #f3f4f5; color: #48525d; height: 88rpx; }
+.filter-confirm { flex: 2; background: #c23a00; color: white; height: 88rpx; }
 </style>

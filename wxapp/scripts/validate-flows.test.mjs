@@ -21,7 +21,21 @@ function readVueSfc(filePath) {
 function findFunctionSource(script, functionName) {
   const start = script.indexOf(`function ${functionName}(`)
   assert.ok(start >= 0, `missing function ${functionName}`)
-  const bodyStart = script.indexOf('{', start)
+  // 参数可能是结构赋值对象；跳过完整参数列表后再找函数体。
+  const parameterStart = script.indexOf('(', start)
+  let parameterDepth = 0
+  let parameterEnd = -1
+  for (let index = parameterStart; index < script.length; index += 1) {
+    if (script[index] === '(') parameterDepth += 1
+    if (script[index] !== ')') continue
+    parameterDepth -= 1
+    if (parameterDepth === 0) {
+      parameterEnd = index
+      break
+    }
+  }
+  assert.ok(parameterEnd >= 0, `unterminated parameters for ${functionName}`)
+  const bodyStart = script.indexOf('{', parameterEnd)
   let depth = 0
   for (let index = bodyStart; index < script.length; index += 1) {
     if (script[index] === '{') depth += 1
@@ -113,9 +127,18 @@ test('launch pages do not register merchant certification route', () => {
   assert.equal(visibleSource.includes('认证状态'), false)
 })
 
-test('home banner only overlays labels and title on image', () => {
+test('production home is only a compatibility redirect and legacy home is unregistered', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const homeSource = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  assert.equal(pagesConfig.pages.some((item) => item.path === 'pages/home/legacy'), false)
+  assert.equal(pagesConfig.pages.some((item) => item.path === 'pages/home/index'), true)
+  assert.match(homeSource, /uni\.switchTab\(\{ url: '\/pages\/sourcing-map\/index' \}\)/)
+})
+
+test('legacy home banner only overlays labels and title on image', () => {
+  const root = path.resolve(new URL('..', import.meta.url).pathname)
+  const source = fs.readFileSync(path.join(root, 'pages/home/legacy.vue'), 'utf8')
 
   assert.equal(source.includes('banner-pill'), false)
   assert.equal(source.includes('banner-subtitle'), false)
@@ -124,9 +147,9 @@ test('home banner only overlays labels and title on image', () => {
   assert.match(source, /banner-title/)
 })
 
-test('home banner auto scrolls and shows bottom-right dots', () => {
+test('legacy home banner auto scrolls and shows bottom-right dots', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'pages/home/legacy.vue'), 'utf8')
 
   assert.match(source, /<swiper[\s\S]*class="banner-swiper"[\s\S]*autoplay[\s\S]*circular[\s\S]*@change="handleBannerChange"/)
   assert.match(source, /<swiper-item[\s\S]*v-for="\(\s*item,\s*index\s*\) in displayBanners"/)
@@ -135,9 +158,9 @@ test('home banner auto scrolls and shows bottom-right dots', () => {
   assert.match(source, /\.banner-dots \{[\s\S]*right: 28rpx;[\s\S]*bottom: 24rpx;/)
 })
 
-test('home banner keeps slide spacing and native autoplay smooth', () => {
+test('legacy home banner keeps slide spacing and native autoplay smooth', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'pages/home/legacy.vue'), 'utf8')
 
   assert.match(source, /<swiper[\s\S]*easing-function="easeInOutCubic"[\s\S]*@change="handleBannerChange"/)
   assert.doesNotMatch(source, /:current="activeBannerIndex"/)
@@ -147,9 +170,9 @@ test('home banner keeps slide spacing and native autoplay smooth', () => {
   assert.match(source, /\.banner-card \{[\s\S]*box-sizing: border-box;/)
 })
 
-test('home operation config loads banners and recommend cards together', () => {
+test('legacy home operation config loads banners and recommend cards together', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const homeSource = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const homeSource = fs.readFileSync(path.join(root, 'pages/home/legacy.vue'), 'utf8')
   const discoverySource = fs.readFileSync(path.join(root, 'api/discovery.js'), 'utf8')
 
   assert.match(discoverySource, /listHomeOperationConfig/)
@@ -167,9 +190,9 @@ test('home operation config loads banners and recommend cards together', () => {
   assert.equal(homeSource.includes('本周空档工厂：4 条针织生产线'), false)
 })
 
-test('home resources use dedicated discovery endpoint', () => {
+test('legacy home resources use dedicated discovery endpoint', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const homeSource = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const homeSource = fs.readFileSync(path.join(root, 'pages/home/legacy.vue'), 'utf8')
   const discoverySource = fs.readFileSync(path.join(root, 'api/discovery.js'), 'utf8')
 
   assert.match(discoverySource, /listHomeResources/)
@@ -180,9 +203,9 @@ test('home resources use dedicated discovery endpoint', () => {
   assert.equal(homeSource.includes('pageSize: 2'), false)
 })
 
-test('home page keeps custom brand first screen structure', () => {
+test('legacy home page keeps custom brand first screen structure', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'pages/home/legacy.vue'), 'utf8')
 
   assert.equal(source.includes('search-divider'), false)
   assert.equal(source.includes('voice-icon'), false)
@@ -223,9 +246,9 @@ test('home page keeps custom brand first screen structure', () => {
   assert.equal(source.includes('发需求'), false)
 })
 
-test('home search entry keeps a crisp icon and clear input surface', () => {
+test('legacy home search entry keeps a crisp icon and clear input surface', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'pages/home/legacy.vue'), 'utf8')
 
   assert.match(source, /<view class="search-icon" aria-hidden="true"><\/view>/)
   assert.match(source, /\.search-entry \{[\s\S]*background: #ffffff;[\s\S]*box-shadow: inset 0 0 0 1rpx rgba\(176, 186, 200, 0\.56\), 0 8rpx 18rpx rgba\(15, 23, 42, 0\.04\);/)
@@ -235,15 +258,17 @@ test('home search entry keeps a crisp icon and clear input surface', () => {
 
 test('resource tab separates recommendation discovery from keyword search page', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.legacy.json'), 'utf8'))
   const resourceTab = pagesConfig.tabBar.list.find((item) => item.pagePath === 'pages/market/index')
   const resourceSource = fs.readFileSync(path.join(root, 'pages/market/index.vue'), 'utf8')
   const searchSource = fs.readFileSync(path.join(root, 'pages/search/index.vue'), 'utf8')
-  const homeSource = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const homeSource = fs.readFileSync(path.join(root, 'pages/home/legacy.vue'), 'utf8')
   const detailSource = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
   const favoritesSource = fs.readFileSync(path.join(root, 'pages/favorites/index.vue'), 'utf8')
 
+  const productionPages = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
   assert.ok(pagesConfig.pages.some((item) => item.path === 'pages/search/index'))
+  assert.equal(productionPages.pages.some((item) => ['pages/market/index', 'pages/search/index'].includes(item.path)), false)
   assert.equal(resourceTab?.text, '供需')
 
   for (const token of ['供需市场', 'openSearchPage', 'loadRecommendedResources', 'listResources', 'selectGroup', 'selectType', 'groupResourceTypes', 'ResourceFeedCard']) {
@@ -410,9 +435,9 @@ test('resource cards display configured summaries and detail renders backend pre
   assert.equal(detailSource.includes("{ label: '价格', value: resource.value.priceText || '面议' }"), false)
 })
 
-test('home quick actions map to supply and demand resource flows', () => {
+test('legacy home quick actions map to supply and demand resource flows', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'pages/home/legacy.vue'), 'utf8')
 
   assert.equal(source.includes("const RESOURCE_DIRECTION_SUPPLY = 'supply'"), false)
   assert.equal(source.includes("const RESOURCE_DIRECTION_DEMAND = 'demand'"), false)
@@ -475,136 +500,34 @@ test('topic empty state does not expose demand submission in MVP', () => {
   }
 })
 
-test('my page separates guest and logged-in account states without merchant binding', () => {
+test('my page represents login, loading, failure and local draft states', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-
-  for (const token of [
-    'isLoggedIn',
-    '未登录',
-    '微信登录',
-    '我的账号',
-    'merchantNo',
-    'merchantNoVisible',
-    'account-number-row',
-    '编号：',
-    '复制',
-    'copyMerchantNo',
-    '编号已复制',
-    'accountStatusText',
-    '待完善',
-    'openAccountCard',
-    'openMerchantHome',
-    '我的主页',
-    '查看对外展示资料',
-    '我的权益',
-    '权益明细',
-    '剩余次数可用于发布和刷新供需信息',
-    'benefitGrowthTitle',
-    '做任务，免费得次数',
-    '完成任务，奖励自动到账',
-    'benefit-stat-low',
-    'benefit-stat-empty',
-    'benefit-growth-banner',
-    'openGrowthEntitlement',
-    'entitlementLoadState',
-    'entitlementRequestId',
-    'entitlementQuotaReady',
-    'publishQuotaDisplay',
-    'refreshQuotaDisplay',
-    'entitlementQuotaReady && publishQuotaRemaining === 0',
-    'entitlementQuotaReady && refreshQuotaRemaining === 0',
-    "if \\(!entitlementQuotaReady\\.value\\) return ''",
-    'requestId !== entitlementRequestId.value',
-    'publishQuotaLow',
-    'refreshQuotaLow',
-    'openQuotaPurchase',
-    'buildQuotaPurchaseUrl',
-    'QUOTA_TYPE_PUBLISH',
-    'QUOTA_TYPE_REFRESH',
-    'ensureMerchantProfileReady',
-    'openMessages',
-    'requireLogin',
-  ]) {
-    assert.match(source, new RegExp(token))
-  }
-
-  for (const hiddenToken of ['保存身份', '商家 ID', '用户 ID：', '主页配置', 'merchant-actions', '权益提醒', '手机号绑定', '登录后可用', '同步收藏关注', '接收审核和联系消息', '我的需求', 'openMyDemands', '登录后管理收藏和发布记录', '已登录，可管理收藏和消息', 'VIP 权益', '查看额度和限时特价', 'openVIP', '/pages/vip/index?merchantId=', 'benefitOverviewDesc', 'openBenefitOverview', 'quota-purchase-primary']) {
-    assert.equal(source.includes(hiddenToken), false)
+  for (const token of ["pageState === 'guest'", "pageState === 'loading'", "pageState === 'error'", "pageState === 'unregistered' || pageState === 'incomplete'", 'getMerchantDraft', '这台设备有尚未提交的草稿', 'buildLoginUrl', '重新加载', 'requestId.value', 'if (id !== requestId.value) return']) {
+    assert.ok(source.includes(token), token)
   }
   assert.equal(source.includes('暂无可领取权益'), false)
 })
 
-test('my page presents merchant workspace and grouped service entries', () => {
+test('my page manages real storefront states and re-reads visibility after updates', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-
-  for (const token of [
-    'account-shell',
-    'account-side',
-    'account-title-main',
-    'account-number-row',
-    'account-number-copy',
-    'width: 104rpx',
-    'font-size: 38rpx',
-    'common-service-section',
-    '我的发布',
-    '状态、数据、推广',
-    'openMyResources',
-    '/pages/my-resources/index',
-    'entry-arrow',
-    'verification-status::before',
-    'border-radius: 999rpx',
-    'min-height: 32rpx',
-  ]) {
-    assert.match(source, new RegExp(token))
+  for (const token of ['getMyStorefrontState', "pageState === 'paused'", "pageState === 'location_error'", '主页已暂停', '地图位置待处理', '地图展示中', '编辑资料', '预览主页', "pageState === 'profile_only'", 'setMerchantVisibility', 'await loadMerchantProfile()', '账号与隐私']) {
+    assert.ok(source.includes(token), token)
   }
-
-  assert.equal(source.includes('grid-template-columns: 104rpx minmax(0, 1fr)'), true)
-  assert.equal(source.includes('常用服务'), false)
-  assert.match(source, /<view class="action-list">\s*<view class="action-item" @click="openMyResources">[\s\S]*<text class="action-title">我的发布<\/text>/)
-
-  for (const verboseCopy of [
-    '进入我的发布查看每条供需信息的表现',
-    '进入我的发布查看每条供需信息表现',
-    'quick-entry-grid',
-    'quick-entry',
-    '发布和推广',
-    '发布供需信息',
-    'openPublish',
-    'quick-entry.primary {\n  background: $wplink-primary',
-    'quick-entry.primary .quick-desc {\n  color: rgba(255, 255, 255',
-    '商家资料待完善',
-    '认证审核中',
-    '认证未通过',
-    '认证已撤销',
-    '资料和认证',
-    '个人服务',
-    'class="workspace-section section-card"',
-    'class="service-section section-card"',
-    '优先处理发布、管理和曝光相关动作',
-    '完善资料后获取更完整的商家展示和认证能力',
-    '集中查看采购、收藏和平台提醒',
-    'merchant-effect-card',
-    'merchantEffectVisible',
-    'merchantEffectItems',
-    'getMerchantMetricsSummary',
-    '商家本周效果',
-    '近 7 天',
-    '曝光',
-    '浏览',
-  ]) {
-    assert.equal(source.includes(verboseCopy), false)
-  }
+  assert.match(source, /if \(!token\.value \|\| !merchantId\.value \|\| visibilityBusy\.value/)
+  assert.match(source, /if \(!merchantId\.value \|\| !\['active', 'profile_only', 'location_error'\]\.includes\(pageState\.value\)\)/)
 })
 
 test('my resources page keeps list concise and dates day-only', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/my-resources/index.vue'), 'utf8')
-  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.legacy.json'), 'utf8'))
   const myResourcesPage = pagesConfig.pages.find((item) => item.path === 'pages/my-resources/index')
 
+  const productionPages = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
   assert.equal(myResourcesPage?.style?.enablePullDownRefresh, true)
+  assert.equal(productionPages.pages.some((item) => item.path === 'pages/my-resources/index'), false)
 
   for (const token of [
     'displayDateOrPlaceholder(item.publishedAt)',
@@ -695,10 +618,12 @@ test('my resources page keeps list concise and dates day-only', () => {
 test('favorites page matches my resources filter and supports refresh pagination empty states', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/favorites/index.vue'), 'utf8')
-  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.legacy.json'), 'utf8'))
   const favoritesPage = pagesConfig.pages.find((item) => item.path === 'pages/favorites/index')
 
+  const productionPages = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
   assert.equal(favoritesPage?.style?.enablePullDownRefresh, true)
+  assert.equal(productionPages.pages.some((item) => item.path === 'pages/favorites/index'), false)
 
   for (const token of [
     '<view class="filter-row">',
@@ -747,6 +672,7 @@ test('favorites page matches my resources filter and supports refresh pagination
   assert.match(source, /\.merchant-item \{[\s\S]*grid-template-columns: 88rpx minmax\(0, 1fr\) 28rpx;[\s\S]*align-items: center;[\s\S]*gap: 18rpx;/)
   assert.match(source, /\.merchant-info :deep\(\.merchant-badge\) \{[\s\S]*min-width: 0;[\s\S]*flex-wrap: wrap;/)
 })
+
 
 test('my resources draft resources open editor instead of direct submit', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
@@ -814,140 +740,38 @@ test('publish success page highlights my resources as the primary action', () =>
   assert.match(source, /<button class="wplink-secondary-button action-button" @click="openMessages">查看消息<\/button>/)
 })
 
-test('merchant profile page labels every field and removes manual image url entry', () => {
+test('merchant onboarding labels required fields beside their errors and has no manual image URL', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
-
-  for (const token of [
-    '展示名称',
-    '主要身份',
-    '主营内容',
-    '联系人',
-    '联系电话',
-    '微信',
-    '经营地址',
-    '简介',
-    '展示图片',
-    '公开展示图片',
-    'form-field',
-    'field-label',
-    'image-helper',
-  ]) {
-    assert.match(source, new RegExp(token))
-  }
-
-  assert.equal(source.includes('也可粘贴图片 URL'), false)
+  for (const token of ['form.name', '经营品类', '业务实拍', '地图选点', '详细地址', 'fieldErrors.name', 'fieldErrors.mainCategories', 'fieldErrors.location', 'fieldErrors.addressText', 'form.businessProfile', 'form.mapVisible']) assert.ok(source.includes(token), token)
   assert.equal(source.includes('图片 URL'), false)
 })
 
-test('merchant profile page uses neutral profile setup wording and keeps basic field order', () => {
+test('merchant onboarding has four groups and first-submit copy', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
   const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
   const profilePage = pagesConfig.pages.find((entry) => entry.path === 'pages/merchant/profile')
-
-  assert.equal(profilePage?.style?.navigationBarTitleText, '资料设置')
-  for (const token of [
-    '展示名称',
-    '请输入展示名称',
-    '主要身份',
-    '主营内容',
-    '如：童装现货、女装尾货、厂房出租、档口转让、设备转让',
-    '请填写主营内容',
-    '简介',
-    '经营地址',
-    '头像 / LOGO',
-    '展示图片',
-    '资料加载失败',
-    '资料已保存',
-    '资料保存失败',
-  ]) {
-    assert.match(source, new RegExp(token))
+  assert.equal(profilePage?.style?.navigationBarTitleText, '入驻与业务资料')
+  const headings = ['基本资料', '业务照片', '接待地点', '联系方式']
+  let previous = -1
+  for (const heading of headings) {
+    const index = source.indexOf(`<text class="section-title">${heading}</text>`)
+    assert.ok(index > previous, heading)
+    previous = index
   }
-
-  const basicSectionEndIndex = source.indexOf('<view class="form-section contact-section">')
-  const basicSectionSource = source.slice(0, basicSectionEndIndex)
-  const logoIndex = basicSectionSource.indexOf('头像 / LOGO')
-  const nameIndex = source.indexOf('展示名称')
-  const identityIndex = source.indexOf('主要身份')
-  const categoryIndex = source.indexOf('主营内容')
-  const introIndex = source.indexOf('简介')
-  const imageIndex = source.indexOf('展示图片')
-  assert.ok(logoIndex > -1 && logoIndex < nameIndex)
-  assert.ok(nameIndex < identityIndex)
-  assert.ok(identityIndex < categoryIndex)
-  assert.ok(categoryIndex < introIndex)
-  assert.ok(introIndex < imageIndex && imageIndex < basicSectionEndIndex)
-  assert.doesNotMatch(source, /:disabled="Boolean\(merchantId\)" placeholder="请输入展示名称"/)
-  assert.match(source, /const patch = \{[\s\S]*name: form\.name\.trim\(\),[\s\S]*mainCategories,/)
-
-  for (const token of [
-    '商家名称',
-    '商家介绍',
-    '商家地址',
-    '商家 LOGO',
-    '主营品类',
-    '选择最主要的经营身份',
-    '经营简介',
-    '品牌展示',
-    '主页展示',
-    '补充公开展示图片',
-    '提交入驻',
-    '商家资料加载失败',
-    '商家资料已保存',
-    '商家资料保存失败',
-    '选择最接近你发布供需信息的身份',
-    '包装、辅料、印花绣花、物流等选配套服务',
-  ]) {
-    assert.equal(source.includes(token), false)
-  }
+  for (const token of ['提交入驻', '保存修改', '保存本机草稿', '草稿只保存在当前设备', '资料加载失败', '重新加载']) assert.ok(source.includes(token), token)
 })
 
-test('merchant identity wording is unified across profile and display pages', () => {
+test('business identity separates entity nature and primary or secondary roles without certification gate', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const profileSource = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
+  const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
   const enumSource = fs.readFileSync(path.join(root, 'common/enums.js'), 'utf8')
-  const displaySources = [
-    'pages/merchant/detail.vue',
-    'pages/resource/detail.vue',
-    'pages/favorites/index.vue',
-  ].map((file) => fs.readFileSync(path.join(root, file), 'utf8'))
-
-  for (const token of [
-    '主要身份',
-    '个人',
-    '源头工厂',
-    '库存货源',
-    '配套服务',
-    '采购',
-  ]) {
-    assert.match(profileSource, new RegExp(token))
-  }
-  assert.match(profileSource, /const DEFAULT_MERCHANT_TYPE = 'individual'/)
-  assert.doesNotMatch(profileSource, /\{ label: '现货档口', value: 'stall' \}/)
-  assert.doesNotMatch(profileSource, /\{ label: '场地\/设备方', value: 'rental_provider' \}/)
-  assert.doesNotMatch(profileSource, /merchantTypeOptions = \[[\s\S]*value: 'stall'/)
-  assert.doesNotMatch(profileSource, /merchantTypeOptions = \[[\s\S]*value: 'rental_provider'/)
-  assert.doesNotMatch(profileSource, /选择最接近你发布供需信息的身份/)
-  assert.doesNotMatch(profileSource, /包装、辅料、印花绣花、物流等选配套服务/)
-
-  for (const source of displaySources) {
-    for (const token of ['个人', '场地/设备方', '源头工厂', '现货档口', '库存货源', '配套服务', '采购']) {
-      assert.match(source, new RegExp(token))
-    }
-  }
-  for (const token of ['个人', '场地/设备方', '源头工厂', '现货档口', '库存货源', '配套服务', '采购']) {
-    assert.match(enumSource, new RegExp(token))
-  }
-
-  assert.equal(profileSource.includes("label: '工厂'"), false)
-  assert.equal(profileSource.includes("label: '档口'"), false)
-  assert.equal(profileSource.includes("label: '库存商'"), false)
-  assert.equal(profileSource.includes("label: '服务商'"), false)
-  assert.equal(enumSource.includes("factory: '工厂'"), false)
-  assert.equal(enumSource.includes("stall: '档口'"), false)
-  assert.equal(enumSource.includes("stockist: '库存商'"), false)
-  assert.equal(enumSource.includes("service_provider: '服务商'"), false)
+  for (const token of ['主体性质', '主要业务', '兼营业务', 'ENTITY_KIND_OPTIONS', 'BUSINESS_ROLE_OPTIONS', 'selectPrimaryRole', 'toggleBusinessRole']) assert.ok(source.includes(token), token)
+  const businessSource = fs.readFileSync(path.join(root, 'common/merchantBusinessProfile.js'), 'utf8')
+  for (const token of ['stall', 'factory', 'landlord', 'service_provider', 'supplier']) assert.ok(businessSource.includes(token), token)
+  for (const token of ['现货档口', '加工工厂', '房东 / 出租方', '配套服务', '货源供应']) assert.ok(enumSource.includes(token), token)
+  assert.doesNotMatch(source, /商家认证|认证审核/)
 })
 
 test('publish page presents grouped fast publishing workflow', () => {
@@ -1170,18 +994,13 @@ test('success pages explain the result and next step consistently', () => {
   }
 })
 
-test('merchant profile page does not require sms verification for contact phone', () => {
+test('merchant contact phone uses local validation without SMS verification', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
-
   assert.match(source, /sanitizeContactPhone/)
   assert.match(source, /isValidContactPhone/)
-  assert.match(source, /手机号需为 6-20 位数字/)
-  assert.equal(source.includes('sendSmsCodeForHomepagePhone'), false)
-  assert.equal(source.includes('sendSmsCode'), false)
-  assert.equal(source.includes('smsCode'), false)
-  assert.equal(source.includes('短信验证码'), false)
-  assert.equal(source.includes('验证码'), false)
+  assert.match(source, /手机号需为 6[–-]20 位数字/)
+  assert.doesNotMatch(source, /sendSmsCode|smsCode|短信验证码/)
 })
 
 test('merchant profile page keeps textarea aligned with inputs', () => {
@@ -1191,76 +1010,26 @@ test('merchant profile page keeps textarea aligned with inputs', () => {
   assert.match(source, /\.field,\n\.textarea \{[\s\S]*width: 100%;[\s\S]*box-sizing: border-box;[\s\S]*\}/)
 })
 
-test('merchant profile page supports independent merchant logo upload', () => {
+test('merchant logo remains optional and first shop photo is fallback', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
-
-  for (const token of [
-    '头像 / LOGO',
-    '正方形头像或 LOGO',
-    'logoUrl',
-    'open-type="chooseAvatar"',
-    'onChooseMerchantLogoAvatar',
-    'previewMerchantLogo',
-    'uni.previewImage',
-    'merchant-logo',
-    'logo-layout',
-    'logo-preview-wrap',
-    'logo-change-button',
-    'logo-upload-tile',
-    'logo-preview-tile',
-    'logo-preview',
-    'logo-plus',
-    'logo-plus-icon',
-    '更换图片',
-  ]) {
-    assert.match(source, new RegExp(token))
-  }
-
-  assert.equal(source.includes('暂无 LOGO'), false)
-  assert.equal(source.includes('class="secondary-button logo-action-button"'), false)
-  assert.equal(source.includes('移除 LOGO'), false)
-  assert.equal(source.includes('removeMerchantLogo'), false)
-  assert.equal(source.includes('logo-action-button'), false)
-  assert.equal(source.includes('logo-actions'), false)
-  assert.match(source, /<view v-if="logoPreviewUrl" class="logo-preview-wrap">[\s\S]*class="logo-preview-tile"[\s\S]*@click="previewMerchantLogo"[\s\S]*class="logo-change-button"[\s\S]*open-type="chooseAvatar"[\s\S]*@chooseavatar="onChooseMerchantLogoAvatar"[\s\S]*更换图片[\s\S]*<\/view>/)
-  assert.match(source, /\.logo-change-button \{[\s\S]*position: absolute;[\s\S]*bottom: 0;[\s\S]*background: rgba\(0, 0, 0, 0\.5\);[\s\S]*color: #fff;[\s\S]*\}/)
+  for (const token of ['LOGO（选填）', 'open-type="chooseAvatar"', 'onChooseMerchantLogoAvatar', 'previewMerchantLogo', 'merchant-logo', 'logoPreviewUrl']) assert.ok(source.includes(token), token)
+  assert.match(source, /logoUrl: form\.logoUrl\.trim\(\) \|\| images\[0\] \|\| ''/)
+  assert.match(source, /merchantImageEntries\.value\[0\]\?\.url/)
 })
 
-test('merchant profile page stages images and uploads them on save', () => {
+test('merchant onboarding stages images and uploads stable URLs before draft or submit', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const profileSource = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
-  const uploadSource = fs.readFileSync(path.join(root, 'common/upload.js'), 'utf8')
-
-  for (const token of [
-    'UniGrid',
-    'UniGridItem',
-    'chooseMerchantImageFiles',
-    'uploadSelectedImage',
-    'pendingLogoFile',
-    'merchantImageEntries',
-    'logoPreviewUrl',
-    'merchantImageGridItems',
-    'appendMerchantImageFiles',
-    'compressMerchantImageFile',
-    'resolveImageCompressionOptions',
-    'uploadPendingMerchantImages',
-    'await uploadPendingMerchantImages()',
-    '上传并保存',
-  ]) {
-    assert.match(profileSource, new RegExp(token))
-  }
-
-  for (const token of ['chooseImageFile', 'uploadSelectedImage', 'chooseAndUploadImage']) {
-    assert.match(uploadSource, new RegExp(token))
-  }
-
-  assert.equal(profileSource.includes('chooseAndUploadImage'), false)
-  assert.equal(profileSource.includes('pendingImageFiles'), false)
-  assert.equal(profileSource.includes('图片已上传'), false)
-  assert.equal(profileSource.includes('LOGO 已上传'), false)
-  assert.equal(profileSource.includes('LOGO 上传中'), false)
-  assert.equal(profileSource.includes('图片将在保存时上传'), false)
+  const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
+  const draft = findFunctionSource(profile.script, 'saveLocalDraft')
+  const submit = findFunctionSource(profile.script, 'submitMerchantProfile')
+  const uploader = findFunctionSource(profile.script, 'uploadPendingMerchantImages')
+  for (const token of ['appendMerchantImageFiles', 'merchantImageEntries', 'compressMerchantImageFile', 'createStoredMerchantImageEntry', 'uploadSelectedImage']) assert.ok(profile.script.includes(token), token)
+  assert.match(draft, /await uploadPendingMerchantImages\(\)/)
+  assert.match(draft, /saveMerchantDraft\(/)
+  assert.doesNotMatch(draft, /updateMerchant\(/)
+  assert.match(submit, /await uploadPendingMerchantImages\(\)/)
+  assert.match(uploader, /uploadSelectedImage\(compressedFile, 'merchant-profile'\)/)
 })
 
 test('merchant profile page does not toast after selecting display images', () => {
@@ -1284,137 +1053,40 @@ test('merchant profile homepage image delete button is placed at top right', () 
   assert.doesNotMatch(profileSource, /\.img-del \{[\s\S]*bottom: 8rpx;/)
 })
 
-test('merchant profile page uses wechat avatar picker for merchant logo', () => {
+test('merchant logo picker keeps avatar authorization separate from shop photos', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const profileSource = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
-  const uploadSource = fs.readFileSync(path.join(root, 'common/upload.js'), 'utf8')
-
-  for (const token of [
-    '正方形头像或 LOGO',
-    'open-type="chooseAvatar"',
-    '@chooseavatar="onChooseMerchantLogoAvatar"',
-    'onChooseMerchantLogoAvatar',
-    'e.detail.avatarUrl',
-    'createImageFileFromPath',
-  ]) {
-    assert.match(profileSource, new RegExp(token))
-  }
-
-  for (const token of [
-    '调整 LOGO',
-    'logoCropOpen',
-    'confirmLogoCrop',
-    'logo-crop-modal',
-    'merchantLogoCropCanvas',
-  ]) {
-    assert.equal(profileSource.includes(token), false)
-  }
-
-  for (const token of [
-    'createImageFileFromPath',
-    'chooseAndCropSquareImageFile',
-    'cropImageToSquare',
-    'centerCropImageToSquare',
-    'uni.cropImage',
-    'wx.cropImage',
-    'uni.getImageInfo',
-    'uni.createCanvasContext',
-    'uni.canvasToTempFilePath',
-    'setTimeout',
-    'finishCanvasCrop',
-    "cropScale: '1:1'",
-    'tempFilePath',
-  ]) {
-    assert.match(uploadSource, new RegExp(token))
-  }
-
-  assert.match(profileSource, /pendingLogoFile\.value = createImageFileFromPath\(avatarUrl\)/)
-  assert.match(profileSource, /grid-template-columns: minmax\(0, 1fr\) 112rpx/)
-  assert.match(profileSource, /width: 112rpx/)
-  assert.match(profileSource, /height: 112rpx/)
-  assert.match(profileSource, /width: 22rpx/)
-  assert.match(profileSource, /height: 2rpx/)
-  assert.equal(profileSource.includes('<text class="logo-plus">+</text>'), false)
-  assert.equal(profileSource.includes('left: -9999px'), false)
-  assert.equal(profileSource.includes('top: -9999px'), false)
+  const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
+  assert.match(profile.template, /open-type="chooseAvatar"/)
+  assert.match(profile.template, /@chooseavatar="onChooseMerchantLogoAvatar"/)
+  assert.match(profile.script, /pendingLogoFile\.value = createImageFileFromPath\(avatarUrl\)/)
+  assert.match(profile.script, /uploadSelectedImage\(pendingLogoFile\.value, 'merchant-logo'\)/)
+  assert.doesNotMatch(profile.template, /logo-crop-modal/)
 })
 
-test('merchant profile page keeps display images inline and collapses contact fields', () => {
+test('merchant onboarding keeps photo grid and independent contact visibility in one page', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
-
-  for (const token of [
-    '基础资料',
-    '联系方式',
-    '买家联系和导航',
-    '展示图片',
-    '公开展示图片，点击图片预览，点击最后一格添加',
-    'fixed-save-bar',
-    'section-toggle',
-    'section-body',
-  ]) {
-    assert.match(source, new RegExp(token))
-  }
-
-  assert.equal(source.includes('主页展示'), false)
-  assert.equal(source.includes('补充公开展示图片'), false)
-  assert.equal(source.includes('brandSectionOpen'), false)
-  assert.equal(source.includes('toggleBrandSection'), false)
-  assert.match(source, /<text class="field-label">简介<\/text>[\s\S]*?<text class="field-label">展示图片<\/text>[\s\S]*?<view class="form-section contact-section">/)
-  assert.equal(source.includes('optional-badge'), false)
-  assert.equal(source.includes('选填'), false)
-  assert.equal(source.includes('page-head'), false)
-  assert.equal(source.includes('page-title'), false)
-  assert.equal(source.includes('page-tip'), false)
-  assert.equal(source.includes('主页配置'), false)
-  assert.equal(source.includes('先完善基础资料，LOGO 和图片可稍后补充'), false)
-  assert.equal(source.includes('可稍后完善'), false)
-  assert.equal(source.includes('展示买家联系入口和地图导航信息'), false)
-  assert.equal(source.includes('展示主页头像、商家卡片和主页图片'), false)
+  for (const token of ['UniGrid', '业务实拍', '联系方式', '公开电话', '公开微信', 'form.publicPhone', 'form.publicWechat', 'fixed-save-bar']) assert.ok(source.includes(token), token)
+  assert.equal(source.includes('section-toggle'), true)
+  assert.equal(source.includes('contactSectionOpen'), false)
 })
 
-test('merchant profile page keeps contact fields optional and collapsed', () => {
+test('merchant contact visibility defaults private and requires a corresponding value', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
-
-  for (const token of [
-    'contactSectionOpen',
-    'toggleContactSection',
-    '买家联系和导航',
-    'contact-section',
-    'section-toggle',
-    '联系人',
-    '联系电话',
-  ]) {
-    assert.match(source, new RegExp(token))
-  }
-
-  assert.equal(source.includes('请填写联系人和电话'), false)
-  assert.equal(source.includes('<text class="required-badge">必填</text>\\n          </view>\\n        </view>\\n        <view class="section-body">\\n          <view class="form-field">\\n            <text class="field-label">联系人</text>'), false)
+  assert.match(source, /publicPhone: false/)
+  assert.match(source, /publicWechat: false/)
+  assert.match(source, /:checked="form\.publicPhone && !!form\.contactPhone"/)
+  assert.match(source, /:checked="form\.publicWechat && !!form\.contactWechat"/)
+  assert.match(source, /\.\.\.buildMerchantContactVisibility\(form\)/)
+  assert.match(source, /授权填入手机号不会自动公开/)
 })
 
-test('merchant profile page echoes existing contact values in inputs and sanitizes contact input', () => {
+test('merchant profile restores private contacts and sanitizes both inputs', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
-
-  for (const token of [
-    'form.contactPhone = sanitizeContactPhoneValue(contact.phone || \'\')',
-    'form.contactWechat = sanitizeContactWechatValue(contact.wechat || \'\')',
-    'contactSectionOpen.value = hasExistingContactInfo()',
-    'function hasExistingContactInfo()',
-    '@input="sanitizeContactPhone"',
-    '@input="sanitizeContactWechat"',
-    'sanitizeContactWechatValue',
-    "replace(/[^a-zA-Z0-9_-]/g, '')",
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
-
+  for (const token of ["form.contactPhone = sanitizeContactPhoneValue(contact.phone || '')", "form.contactWechat = sanitizeContactWechatValue(contact.wechat || '')", 'form.publicPhone = detail.publicPhone === true', 'form.publicWechat = detail.publicWechat === true', '@input="sanitizeContactPhone"', '@input="sanitizeContactWechat"', "replace(/[^a-zA-Z0-9_-]/g, '')"]) assert.ok(source.includes(token), token)
   assert.equal(source.includes('contactPhoneHint'), false)
-  assert.equal(source.includes('contactWechatHint'), false)
-  assert.equal(source.includes('当前：'), false)
-  assert.equal(source.includes('填新号可更换'), false)
-  assert.equal(source.includes('填新微信可更换'), false)
 })
 
 test('merchant profile page reserves space above fixed save bar', () => {
@@ -1431,11 +1103,12 @@ test('merchant profile page reserves space above fixed save bar', () => {
   }
 })
 
-test('merchant profile page allows merchant type changes without certification warning', () => {
+test('merchant profile page submits business profile without legacy merchant type', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/profile.vue'), 'utf8')
 
-  assert.match(source, /merchantType: form\.merchantType/)
+  assert.match(source, /businessProfile: normalizeBusinessProfile\(form\.businessProfile\)/)
+  assert.equal(source.includes('merchantType:'), false)
   assert.equal(source.includes('merchantVerificationStatus'), false)
   assert.equal(source.includes('merchantTypeChangeNeedsReverify'), false)
   assert.equal(source.includes('修改后可能需要重新认证'), false)
@@ -1447,27 +1120,11 @@ test('merchant profile page allows merchant type changes without certification w
   assert.equal(source.includes('商家类型创建后暂不支持直接修改'), false)
 })
 
-test('merchant profile page supports map based address selection', () => {
+test('merchant profile uses map selection and editable structured booth address', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
-
-  for (const token of [
-    'chooseMerchantLocation',
-    'clearMerchantLocation',
-    'uni.chooseLocation',
-    'locationSelected',
-    'form.latitude',
-    'form.longitude',
-    'form.locationName',
-  ]) {
-    assert.match(profile.script, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
-
-  for (const token of ['市场名称', '楼栋 / 区域', '楼层', '档口号', '选择地图位置', '清除地图位置']) {
-    assert.match(profile.template, new RegExp(token))
-  }
-
-  assert.equal(profile.template.includes(':disabled="Boolean(merchantId)" placeholder="请输入地址"'), false)
+  for (const token of ['chooseMerchantLocation', 'clearMerchantLocation', 'uni.chooseLocation', 'locationSelected', 'form.latitude', 'form.longitude', 'form.locationName']) assert.ok(profile.script.includes(token), token)
+  for (const token of ['市场名称', '楼栋 / 区域', '楼层', '档口号', '选择位置', '清除位置']) assert.ok(profile.template.includes(token), token)
 })
 
 test('merchant profile map selection writes a detailed address and reverse-geocodes empty results', () => {
@@ -1498,67 +1155,49 @@ test('merchant profile clears stale map coordinates when the address is edited m
   assert.match(clearLocationSource, /addressLocationNeedsReselection\.value = false/)
 })
 
-test('merchant profile submits a complete structured location intent and keeps risk-hidden coordinates editable', () => {
+test('merchant submission keeps structured location intent and risk-hidden decision guard', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
-  const submitSource = findFunctionSource(profile.script, 'submitMerchantProfile')
-  const loadSource = findFunctionSource(profile.script, 'loadMerchant')
-
-  for (const token of [
-    'buildMerchantLocationSubmission',
-    'clearMerchantLocationForm',
-    'createMerchantLocationSession',
-    'normalizeMerchantLocationForm',
-    'reduceMerchantLocationSession',
-    'resolveLatestMerchantLocationRequest',
-  ]) {
-    assert.match(profile.script, new RegExp(token))
-  }
-  assert.match(loadSource, /Object\.assign\(form, normalizeMerchantLocationForm\(detail\)\)/)
-  assert.match(loadSource, /locationStatus\.value = detail\.location\?\.status/)
-  assert.match(submitSource, /const locationPayload = locationSubmission\.payload/)
-  assert.match(submitSource, /\.\.\.locationPayload/)
+  const submit = findFunctionSource(profile.script, 'submitMerchantProfile')
+  const load = findFunctionSource(profile.script, 'loadMerchant')
+  for (const token of ['buildMerchantLocationSubmission', 'clearMerchantLocationForm', 'createMerchantLocationSession', 'normalizeMerchantLocationForm', 'reduceMerchantLocationSession', 'resolveLatestMerchantLocationRequest']) assert.ok(profile.script.includes(token), token)
+  assert.match(load, /Object\.assign\(form, normalizeMerchantLocationForm\(detail\)\)/)
+  assert.match(load, /locationStatus\.value = detail\.location\?\.status/)
+  assert.match(submit, /buildMerchantLocationSubmission\(locationSession\.value, form\)/)
+  assert.match(submit, /if \(!locationSubmission\.ok\) errors\.location = locationSubmission\.message/)
+  assert.match(submit, /\.\.\.locationSubmission\.payload/)
   assert.match(profile.script, /locationSession\.value\.intent === 'decision_required'/)
   assert.match(profile.template, /位置暂未公开/)
-  assert.match(profile.template, /重新选择/)
 })
 
-test('merchant profile binds resolving state and latest-request guards to every location action', () => {
+test('merchant profile guards all location actions against stale requests', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
-  const submitSource = findFunctionSource(profile.script, 'submitMerchantProfile')
-  const chooseSource = findFunctionSource(profile.script, 'chooseMerchantLocation')
-  const addressSource = findFunctionSource(profile.script, 'handleAddressTextInput')
-  const clearSource = findFunctionSource(profile.script, 'clearMerchantLocation')
-
-  assert.match(profile.template, /class="map-button"[^>]*:disabled="[^"]*submitting[^"]*locationResolving[^"]*"[^>]*:loading="locationResolving"/)
-  assert.match(profile.template, /class="primary-button"[^>]*:disabled="[^"]*submitting[^"]*locationResolving[^"]*"/)
-  assert.match(profile.template, /locationResolving \? '位置解析中' : saveButtonText/)
-  assert.match(submitSource, /buildMerchantLocationSubmission\(locationSession\.value, form\)/)
-  assert.match(submitSource, /if \(!locationSubmission\.ok\)/)
-  assert.match(chooseSource, /resolveLatestMerchantLocationRequest/)
-  assert.match(chooseSource, /isMerchantLocationRequestCurrent/)
-  assert.match(addressSource, /type: 'address_changed'/)
-  assert.match(clearSource, /type: 'location_cleared'/)
+  const submit = findFunctionSource(profile.script, 'submitMerchantProfile')
+  const choose = findFunctionSource(profile.script, 'chooseMerchantLocation')
+  const address = findFunctionSource(profile.script, 'handleAddressTextInput')
+  const clear = findFunctionSource(profile.script, 'clearMerchantLocation')
+  assert.match(profile.template, /class="map-button"[^>]*:disabled="[^"]*locationResolving[^"]*merchantProfileLoading[^"]*"/)
+  assert.match(profile.template, /class="primary-button"[^>]*:disabled="[^"]*locationResolving[^"]*merchantProfileLoading[^"]*"/)
+  assert.match(submit, /buildMerchantLocationSubmission\(locationSession\.value, form\)/)
+  assert.match(choose, /resolveLatestMerchantLocationRequest/)
+  assert.match(choose, /isMerchantLocationRequestCurrent/)
+  assert.match(address, /type: 'address_changed'/)
+  assert.match(clear, /type: 'location_cleared'/)
 })
 
-test('merchant profile disables location actions until its initial baseline finishes loading', () => {
+test('merchant profile ignores location actions until server baseline is loaded', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const profile = readVueSfc(path.join(root, 'pages/merchant/profile.vue'))
-  const loadSource = findFunctionSource(profile.script, 'loadMerchant')
-  const submitSource = findFunctionSource(profile.script, 'submitMerchantProfile')
-  const chooseSource = findFunctionSource(profile.script, 'chooseMerchantLocation')
-  const clearSource = findFunctionSource(profile.script, 'clearMerchantLocation')
-
-  assert.match(profile.template, /class="map-button"[^>]*:disabled="[^"]*merchantProfileLoading[^"]*"/)
-  assert.match(profile.template, /class="location-clear-button"[^>]*:disabled="[^"]*merchantProfileLoading[^"]*"/)
-  assert.match(profile.template, /class="primary-button"[^>]*:disabled="[^"]*merchantProfileLoading[^"]*"/)
-  assert.match(loadSource, /invalidateMerchantLocationSession/)
-  assert.match(loadSource, /applyMerchantLocationBaseline/)
-  assert.match(loadSource, /finally\s*\{[\s\S]*merchantProfileLoading\.value = false/)
-  assert.match(submitSource, /merchantProfileLoading\.value/)
-  assert.match(chooseSource, /merchantProfileLoading\.value/)
-  assert.match(clearSource, /merchantProfileLoading\.value/)
+  const load = findFunctionSource(profile.script, 'loadMerchant')
+  const submit = findFunctionSource(profile.script, 'submitMerchantProfile')
+  const choose = findFunctionSource(profile.script, 'chooseMerchantLocation')
+  const clear = findFunctionSource(profile.script, 'clearMerchantLocation')
+  assert.match(load, /invalidateMerchantLocationSession/)
+  assert.match(load, /applyMerchantLocationBaseline/)
+  assert.match(load, /finally\s*\{[\s\S]*merchantProfileLoading\.value = false/)
+  for (const action of [submit, choose, clear]) assert.match(action, /merchantProfileLoading\.value/)
+  assert.match(profile.template, /class="primary-button"[^>]*merchantLoadError/)
 })
 
 test('merchant profile and page registry remove sourcing map binding entry', () => {
@@ -1607,99 +1246,41 @@ test('retired canvas modules and source markers are absent while location marker
   }
 })
 
-test('merchant detail page opens an independent location page when coordinates exist', () => {
+test('merchant detail navigates only when public location is usable', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
-
-  for (const token of [
-    'buildPublicMerchantAddressLocation',
-    'merchantLocationVisible',
-    'openMerchantLocation',
-    '/pages/merchant/location',
-    '查看位置',
-    '地址',
-  ]) {
-    assert.match(source, new RegExp(token))
-  }
-  assert.doesNotMatch(source, /<map|uni\.openLocation/)
-  assert.doesNotMatch(source, /location\.lat\b|location\.lng\b|location\.name\b/)
+  assert.match(source, /getStorefrontPlace/)
+  assert.match(source, /place\.value\.canNavigate/)
+  assert.match(source, /uni\.openLocation/)
+  assert.match(source, /function copyAddress\(\)/)
+  assert.match(source, /位置待处理/)
 })
 
-test('merchant detail page previews merchant images from tapped image', () => {
+test('merchant detail previews the tapped shop photo in its gallery', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
-
-  for (const token of [
-    '@click="previewMerchantImage(url)"',
-    'previewMerchantImage',
-    'uni.previewImage',
-    'urls: merchantImages.value',
-    'current: url',
-  ]) {
-    assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  assert.match(source, /@click="previewImage\(url\)"/)
+  assert.match(source, /uni\.previewImage\(\{ urls: merchantImages\.value, current: url \}\)/)
 })
 
-test('merchant detail page does not show misleading direct contact buttons', () => {
+test('merchant detail exposes only merchant-approved contact methods', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
-
-  for (const token of [
-    'class="contact-bar"',
-    'contact-spacer',
-    'copyWechat',
-    'callPhone',
-    '微信联系',
-    '电话联系',
-    '请到供需信息详情页查看电话',
-    '请到供需信息详情页查看微信',
-  ]) {
-    assert.equal(source.includes(token), false)
-  }
+  assert.match(source, /getPublicContact\(merchant\.value, isOwner\.value\)/)
+  assert.match(source, /if \(publicContact\.value\.phone\)/)
+  assert.match(source, /if \(publicContact\.value\.wechat\)/)
+  assert.match(source, /if \(!choices\.length\) return/)
+  assert.doesNotMatch(source, /merchant\.value\.contact\.(phone|wechat)/)
 })
 
-test('merchant detail page paginates published resources with reusable resource list', () => {
+test('merchant detail focuses on shop photos, category, address and authorized contact', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const detailSource = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
-  const listSource = fs.existsSync(path.join(root, 'components/ResourceList.vue'))
-    ? fs.readFileSync(path.join(root, 'components/ResourceList.vue'), 'utf8')
-    : ''
-
-  for (const token of [
-    'ResourceList',
-    'loadMerchantResources',
-    'merchantResourcePage',
-    'merchantResourcePageSize',
-    'merchantResourceTotal',
-    'merchantResourcesLoading',
-    'hasMoreMerchantResources',
-    'onReachBottom',
-    'resetMerchantResources',
-    '@load-more="loadMerchantResources"',
-    ':loading="merchantResourcesLoading"',
-    ':has-more="hasMoreMerchantResources"',
-    'merchantResourceCountText',
-  ]) {
-    assert.match(detailSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
-
-  assert.equal(detailSource.includes('<ResourceCard v-for="item in merchantResources"'), false)
-
-  for (const token of [
-    'ResourceCard',
-    'defineProps',
-    'defineEmits',
-    'resources',
-    'emptyText',
-    'loading',
-    'hasMore',
-    'loadMoreText',
-    'resource-list',
-    'load-more',
-    "emit('load-more')",
-  ]) {
-    assert.match(listSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  }
+  const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
+  for (const token of ['heroPhoto', 'merchantImages', 'categoryText', 'getStorefrontPlace', 'store-map', 'getPublicContact', 'sharePayload']) assert.ok(source.includes(token), token)
+  assert.equal(source.includes('ResourceList'), false)
+  assert.equal(source.includes('merchantResources'), false)
+  assert.match(source, /requestId\.value/)
+  assert.match(source, /if \(id !== requestId\.value\) return/)
 })
 
 test('resource detail merchant row uses profile logo without extra title', () => {
@@ -1812,74 +1393,23 @@ test('merchant profile supports filling contact phone from wechat authorization'
   }
 })
 
-test('wxapp uses industrial b2b theme colors without legacy green primary', () => {
+test('production map palette uses current navigation colors and excludes legacy primary', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
-  const sources = collectSourceFiles(root, ['.vue', '.scss', '.js', '.json'])
-    .filter((file) => !file.includes(`${path.sep}dist${path.sep}`))
-    .filter((file) => !file.includes(`${path.sep}node_modules${path.sep}`))
-    .map((file) => fs.readFileSync(file, 'utf8'))
-    .join('\n')
   const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
-
-  for (const token of ['#061625', '#c23a00', '#fff0e8', '#f4f7fd', '#d8e0ec', '#16a36a']) {
-    assert.match(sources, new RegExp(token, 'i'))
-  }
-
-  for (const legacyColor of ['#0f766e', '#e6f4f1']) {
-    assert.equal(sources.toLowerCase().includes(legacyColor), false)
-  }
-
+  const sources = ['pages/sourcing-map/index.vue', 'pages/my/index.vue', 'pages/merchant/detail.vue', 'pages/merchant/profile.vue'].map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n')
   assert.equal(pagesConfig.tabBar.selectedColor, '#c23a00')
-  assert.equal(pagesConfig.globalStyle.backgroundColor, '#f4f7fd')
+  assert.equal(pagesConfig.globalStyle.backgroundColor, '#f6f7f8')
+  assert.match(sources, /#c23a00/i)
+  assert.doesNotMatch(sources, /#0f766e|#e6f4f1/i)
 })
 
-test('merchant detail page uses trust-first homepage layout', () => {
+test('merchant detail shows real store information and safe paused-state sharing', () => {
   const root = path.resolve(new URL('..', import.meta.url).pathname)
   const source = fs.readFileSync(path.join(root, 'pages/merchant/detail.vue'), 'utf8')
-
-  for (const token of [
-    'merchant-hero-card',
-    'merchant-identity-row',
-    'merchant-summary',
-    'hero-stats',
-    'profile-panel',
-    'profile-chip-row',
-    'profile-description',
-    'media-section',
-    'merchant-gallery',
-    'trust-note-section',
-    'merchantCategoryTags',
-    'merchantTypeLabel',
-    'merchantTypeText',
-    'profileDescription',
-    'statCards',
-    'heatScore',
-    "' · '",
-    '商家档案',
-    'profile-chip category',
-    'profile-chip.category',
-    '热度',
-    '主营待补充',
-    '联系方式仅随有效供需信息展示',
-  ]) {
-    assert.match(source, new RegExp(token))
-  }
-
-  for (const removedToken of [
-    'class="merchant-stats"',
-    '商家画像',
-    'v-for="tag in creditTags"',
-    'profile-chip verified',
-    '信用标签',
-    '成交反馈',
-    'class="contact-bar"',
-    '微信联系',
-    '电话联系',
-    '发布概况</text>',
-    'benefit-section',
-  ]) {
-    assert.equal(source.includes(removedToken), false)
-  }
+  for (const token of ['主页暂不可查看', 'preview-banner', 'hero-photo', 'merchant-name', 'category-block', '业务实拍', '业务介绍', '接待地址', 'businessProfile.serviceArea', 'getBusinessProfileSummary', 'getPublicContact', 'canShare', 'sharePayload']) assert.ok(source.includes(token), token)
+  assert.match(source, /merchant\.value\.ownerVisible !== false/)
+  assert.match(source, /if \(!canShare\.value\) return \{ title: '找档口', path: '\/pages\/sourcing-map\/index' \}/)
+  assert.equal(source.includes('ResourceList'), false)
 })
 
 test('reports missing API call in required page flow', () => {

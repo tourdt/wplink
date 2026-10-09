@@ -16,16 +16,16 @@ test('merchant card uses the compact market building floor booth coordinate stri
   assert.equal(source.match(/coordinateText/g)?.length, 2, '坐标只应由计算属性生成并在签名坐标条渲染一次')
 })
 
-test('merchant card has only homepage and valid-location actions', () => {
-  assert.match(source, /defineEmits\(\['detail', 'location'\]\)/)
-  assert.match(source, />进入主页<\/button>/)
-  assert.match(source, />查看位置<\/button>/)
-  assert.equal(hasValidMerchantLocation({ latitude: 30.8732, longitude: 120.2255 }), true)
-  assert.equal(hasValidMerchantLocation({ latitude: '', longitude: 120.2255 }), false)
-  assert.doesNotMatch(source, /待认领|已入驻|认领|claim|claimed|objectId|sourceType|navigate/)
+test('merchant card has one whole-card homepage action and a real-image fallback', () => {
+  assert.match(source, /defineEmits\(\['detail'\]\)/)
+  assert.match(source, /@click="\$emit\('detail', merchant\)"/)
+  assert.doesNotMatch(source, /<button/)
+  assert.match(source, /:src="merchant.logoUrl"/)
+  assert.match(source, /@error="failedLogo = merchant.logoUrl"/)
+  assert.match(source, /v-else class="shop-cover shop-placeholder"/)
 })
 
 test('merchant card renders public main categories without contact actions', () => {
-  assert.match(source, /:tags="merchant\.mainCategories"/)
+  assert.match(source, /merchant\.mainCategories\.slice\(0, 3\)/)
   assert.doesNotMatch(source, /电话|微信|makePhoneCall|setClipboardData/)
 })

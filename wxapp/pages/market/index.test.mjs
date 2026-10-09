@@ -6,6 +6,7 @@ import test from 'node:test'
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'pages/market/index.vue'), 'utf8')
 const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+const legacyPagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.legacy.json'), 'utf8'))
 
 function cssBlock(selector) {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -118,8 +119,9 @@ test('legacy detailed cards no longer own the market-only layout', () => {
 })
 
 test('market page uses the custom title bar as the primary category channel switcher', () => {
-  const page = pagesConfig.pages.find((item) => item.path === 'pages/market/index')
+  const page = legacyPagesConfig.pages.find((item) => item.path === 'pages/market/index')
 
+  assert.equal(pagesConfig.pages.some((item) => item.path === 'pages/market/index'), false)
   assert.equal(page?.style?.navigationStyle, 'custom')
   assert.match(source, /const PAGE_TITLE = '供需市场'/)
   assert.match(source, /<view class="resource-nav" :style="resourceNavStyle">/)

@@ -613,6 +613,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/merchants/:merchantId/location-reports",
 				Handler: merchant.CreateMerchantLocationReportHandler(serverCtx),
 			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/merchants/:merchantId/visibility",
+				Handler: merchant.SetMerchantVisibilityHandler(serverCtx),
+			},
 		},
 		rest.WithPrefix("/api/v1"),
 	)

@@ -109,6 +109,7 @@ func ContractRoutes() []ContractRoute {
 		{Method: "POST", Path: "/api/v1/merchants/:merchantId/location-reports", Handler: "CreateMerchantLocationReport", Group: "merchant"},
 		{Method: "POST", Path: "/api/v1/merchants/:merchantId/vip/orders", Handler: "CreateVIPOrder", Group: "vip"},
 		{Method: "POST", Path: "/api/v1/merchants/:merchantId/vip/orders/:orderId/payment", Handler: "CreateVIPPayment", Group: "vip"},
+		{Method: "POST", Path: "/api/v1/merchants/:merchantId/visibility", Handler: "SetMerchantVisibility", Group: "merchant"},
 		{Method: "POST", Path: "/api/v1/messages/:messageId/read", Handler: "ReadMessage", Group: "message"},
 		{Method: "POST", Path: "/api/v1/metrics/exposures/batch", Handler: "RecordResourceExposures", Group: "metrics"},
 		{Method: "POST", Path: "/api/v1/metrics/merchant-directory-events", Handler: "RecordMerchantDirectoryEvent", Group: "metrics"},

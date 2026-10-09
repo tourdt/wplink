@@ -2,8 +2,8 @@
   <view class="login-page">
     <view class="login-card">
       <view class="brand-mark">衣</view>
-      <text class="login-title">衣货通</text>
-      <text class="login-desc">登录后同步收藏、消息和发布记录</text>
+      <text class="login-title">织里服装地图</text>
+      <text class="login-desc">登录后建立业务主页，管理经营资料和公开地点</text>
       <view class="policy-row" @click="agreedToPolicies = !agreedToPolicies">
         <view :class="['policy-check', { checked: agreedToPolicies }]">{{ agreedToPolicies ? '✓' : '' }}</view>
         <text class="policy-text">我已阅读并同意</text>
@@ -29,7 +29,7 @@ import {
 import { getMe, wechatLogin } from '../../api/auth'
 import { saveMerchantId, saveToken, saveUserId } from '../../store/session'
 
-const TAB_PAGE_PATHS = ['/pages/home/index', '/pages/market/index', '/pages/publish/index', '/pages/messages/index', '/pages/my/index']
+import { resolveMapRedirect } from '../../common/mapNavigation'
 
 const redirectUrl = ref('/pages/my/index')
 const loggingIn = ref(false)
@@ -97,20 +97,9 @@ async function restoreManagedMerchantId(loginResp = {}) {
 }
 
 function goAfterLogin() {
-  const targetUrl = redirectUrl.value || '/pages/my/index'
-  if (isTabPage(targetUrl)) {
-    uni.switchTab({ url: stripQuery(targetUrl) })
-    return
-  }
-  uni.redirectTo({ url: targetUrl })
-}
-
-function isTabPage(url) {
-  return TAB_PAGE_PATHS.includes(stripQuery(url))
-}
-
-function stripQuery(url) {
-  return url.split('?')[0]
+  const target = resolveMapRedirect(redirectUrl.value || '/pages/my/index')
+  if (target.tab) { uni.switchTab({ url: target.url }); return }
+  uni.redirectTo({ url: target.url })
 }
 
 function safeDecode(value) {

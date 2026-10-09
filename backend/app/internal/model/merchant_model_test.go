@@ -61,11 +61,19 @@ func TestListHomeRecentMerchantsSQLScopesEligibleSelfOnboardedMerchants(t *testi
 }
 
 func TestUpdateMerchantSQLKeepsFirstOnboardedTime(t *testing.T) {
-	if !strings.Contains(updateMerchantSQL, "onboarded_at = COALESCE(onboarded_at, $8)") {
+	if !strings.Contains(updateMerchantSQL, "onboarded_at = CASE WHEN $22 = 'completed' THEN COALESCE(onboarded_at, $8) ELSE onboarded_at END") {
 		t.Fatalf("updateMerchantSQL must preserve the first onboarded time:\n%s", updateMerchantSQL)
 	}
-	if !strings.Contains(updateMerchantSQL, "profile_status = 'completed'") {
+	if !strings.Contains(updateMerchantSQL, "profile_status = $22") {
 		t.Fatalf("updateMerchantSQL must complete the public merchant profile:\n%s", updateMerchantSQL)
+	}
+}
+
+func TestMerchantPublicSettingsSQLPreservesOmittedValues(t *testing.T) {
+	for _, token := range []string{"public_phone = COALESCE($23, public_phone)", "public_wechat = COALESCE($24, public_wechat)"} {
+		if !strings.Contains(updateMerchantSQL, token) {
+			t.Fatalf("updateMerchantSQL missing %q", token)
+		}
 	}
 }
 
@@ -95,13 +103,13 @@ func TestUpdateMerchantSetResolvesPendingLocationReportsInSameTransaction(t *tes
 	defer db.Close()
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT merchant_type, location_status FROM merchants WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
+	mock.ExpectQuery(`(?s)SELECT.*merchant_type.*location_status.*profile_status.*business_profile.*FOR UPDATE`).
 		WithArgs("101").
-		WillReturnRows(sqlmock.NewRows([]string{"merchant_type", "location_status"}).AddRow("stockist", MerchantLocationStatusRiskHidden))
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_type", "location_status", "name", "profile_status", "business_profile", "map_visible", "address_text", "latitude", "longitude"}).AddRow("supplier", MerchantLocationStatusRiskHidden, "织里晨星童装", MerchantProfileStatusCompleted, []byte(`{"schemaVersion":1,"entityKind":"organization","primaryRole":"supplier","roles":["supplier"],"serviceArea":"","processingMethods":[],"propertyTypes":[],"serviceItems":[]}`), true, "织里镇利济路", 30.8732, 120.2255))
 	mock.ExpectExec(`UPDATE merchants.*location_status = CASE WHEN \$13 = 'set' THEN \$21`).
 		WithArgs(
-			"101", "织里晨星童装", JSONStringSlice([]string{"童装"}), "stockist", "", "", JSONStringSlice(nil), sqlmock.AnyArg(),
-			"", "", "", "织里镇利济路", "set", "织里童装城", "一期", "1F", "A108", 30.8732, 120.2255, "织里童装城", MerchantLocationStatusVisible,
+			"101", "织里晨星童装", JSONStringSlice([]string{"童装"}), "supplier", "", "", JSONStringSlice(nil), sqlmock.AnyArg(),
+			"", "", "", "织里镇利济路", "set", "织里童装城", "一期", "1F", "A108", 30.8732, 120.2255, "织里童装城", MerchantLocationStatusVisible, MerchantProfileStatusCompleted, nil, nil, sqlmock.AnyArg(), false,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`UPDATE merchant_location_reports.*SET status = 'resolved'.*WHERE merchant_id = \$1.*status = 'pending'`).
@@ -110,13 +118,16 @@ func TestUpdateMerchantSetResolvesPendingLocationReportsInSameTransaction(t *tes
 	mock.ExpectCommit()
 
 	_, err = NewMerchantModel(db).UpdateMerchant(context.Background(), "101", UpdateMerchantPatch{
-		Name: "织里晨星童装", MainCategories: []string{"童装"}, AddressText: "织里镇利济路",
+		Name: "织里晨星童装", MainCategories: []string{"童装"}, BusinessProfile: func() *BusinessProfile { p := supplierProfileForUpdateTest(); return &p }(), MapVisible: func() *bool { v := false; return &v }(), AddressText: "织里镇利济路",
 		Location: MerchantLocationPatch{
 			Action: "set", MarketName: "织里童装城", BuildingName: "一期", FloorNo: "1F", BoothNo: "A108",
 			Latitude: 30.8732, Longitude: 120.2255, LocationName: "织里童装城", Status: MerchantLocationStatusVisible,
 		},
 	})
 	if err != nil {
+		if operationErr, ok := err.(*MerchantOperationError); ok {
+			t.Fatalf("UpdateMerchant() error = %v cause = %v", err, operationErr.Cause)
+		}
 		t.Fatalf("UpdateMerchant() error = %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -132,19 +143,19 @@ func TestUpdateMerchantClearDoesNotResolvePendingLocationReports(t *testing.T) {
 	defer db.Close()
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT merchant_type, location_status FROM merchants WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
+	mock.ExpectQuery(`(?s)SELECT.*merchant_type.*location_status.*profile_status.*business_profile.*FOR UPDATE`).
 		WithArgs("101").
-		WillReturnRows(sqlmock.NewRows([]string{"merchant_type", "location_status"}).AddRow("stockist", MerchantLocationStatusVisible))
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_type", "location_status", "name", "profile_status", "business_profile", "map_visible", "address_text", "latitude", "longitude"}).AddRow("supplier", MerchantLocationStatusVisible, "织里晨星童装", MerchantProfileStatusCompleted, []byte(`{"schemaVersion":1,"entityKind":"organization","primaryRole":"supplier","roles":["supplier"],"serviceArea":"","processingMethods":[],"propertyTypes":[],"serviceItems":[]}`), true, "", 30.8732, 120.2255))
 	mock.ExpectExec(`UPDATE merchants`).
 		WithArgs(
-			"101", "织里晨星童装", JSONStringSlice(nil), "stockist", "", "", JSONStringSlice(nil), sqlmock.AnyArg(),
-			"", "", "", "", "clear", "", "", "", "", float64(0), float64(0), "", MerchantLocationStatusHidden,
+			"101", "织里晨星童装", JSONStringSlice([]string{"童装"}), "supplier", "", "", JSONStringSlice(nil), sqlmock.AnyArg(),
+			"", "", "", "", "clear", "", "", "", "", float64(0), float64(0), "", MerchantLocationStatusHidden, MerchantProfileStatusCompleted, nil, nil, sqlmock.AnyArg(), false,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	_, err = NewMerchantModel(db).UpdateMerchant(context.Background(), "101", UpdateMerchantPatch{
-		Name: "织里晨星童装", Location: MerchantLocationPatch{Action: "clear", Status: MerchantLocationStatusHidden},
+		Name: "织里晨星童装", MainCategories: []string{"童装"}, BusinessProfile: func() *BusinessProfile { p := supplierProfileForUpdateTest(); return &p }(), MapVisible: func() *bool { v := false; return &v }(), Location: MerchantLocationPatch{Action: "clear", Status: MerchantLocationStatusHidden},
 	})
 	if err != nil {
 		t.Fatalf("UpdateMerchant() error = %v", err)

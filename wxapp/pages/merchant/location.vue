@@ -2,8 +2,8 @@
   <view class="location-page">
     <view v-if="initialLoading" class="status-card">
       <view class="status-indicator" />
-      <text class="status-title">正在加载店铺位置</text>
-      <text class="status-copy">正在确认档口坐标与周边信息</text>
+      <text class="status-title">正在加载接待位置</text>
+      <text class="status-copy">正在确认接待地点与周边信息</text>
     </view>
 
     <view v-else-if="errorText || !context.current" class="status-card error-card">
@@ -19,7 +19,7 @@
     <template v-else>
       <view class="map-heading">
         <view>
-          <text class="map-eyebrow">织里档口位置</text>
+          <text class="map-eyebrow">织里接待地点</text>
           <text class="map-title">确认到店路线</text>
         </view>
         <text class="map-radius">{{ radiusText }}</text>
@@ -91,7 +91,7 @@
       <view class="merchant-sheet">
         <view class="merchant-heading">
           <view class="merchant-heading-copy">
-            <text class="current-label">当前档口</text>
+            <text class="current-label">当前位置</text>
             <text class="merchant-name">{{ context.current.name }}</text>
           </view>
           <text v-if="context.current.boothNo" class="booth-code">{{ context.current.boothNo }}</text>
@@ -99,7 +99,7 @@
 
         <view class="merchant-facts">
           <view class="merchant-fact">
-            <text class="fact-label">店铺地址</text>
+            <text class="fact-label">接待地址</text>
             <text class="fact-value">{{ currentAddress }}</text>
           </view>
           <view class="merchant-fact">
@@ -156,7 +156,7 @@ const mapCenter = computed(() => ({
   longitude: Number(context.value.current?.longitude || 0),
 }))
 const currentAddress = computed(() => {
-  return merchantAddress(context.value.current, '店铺地址待完善')
+  return merchantAddress(context.value.current, '接待地址待完善')
 })
 const currentCategories = computed(() => {
   const current = context.value.current || {}
@@ -269,7 +269,7 @@ function closeNearbyDrawer() {
 
   const current = context.value.current
   if (!current) return
-  // 关闭周边浏览后主动恢复当前档口中心，确保临时选择不会改变位置页的主商家上下文。
+  // 关闭周边浏览后主动恢复当前位置中心，确保临时选择不会改变位置页的主商家上下文。
   nextTick(() => {
     uni.createMapContext('merchantLocationMap').moveToLocation({
       latitude: Number(current.latitude),
@@ -306,7 +306,7 @@ function focusNearbyMerchant(targetMerchantId) {
   scrollIntoViewId.value = nearbyMerchantDomId(normalizedMerchantId)
   mapScale.value = 14
 
-  // 列表选择只调整临时视野，同时纳入当前档口和周边档口，不能把周边商家替换成页面主上下文。
+  // 列表选择只调整临时视野，同时纳入当前位置和周边档口，不能把周边商家替换成页面主上下文。
   nextTick(() => {
     uni.createMapContext('merchantLocationMap').includePoints({
       points: [context.value.current, place].map((item) => ({
@@ -428,7 +428,7 @@ function formatDistance(distanceMeters) {
   return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`
 }
 
-function merchantAddress(place = {}, fallback = '档口地址待完善') {
+function merchantAddress(place = {}, fallback = '接待地址待完善') {
   return [place.marketName, place.buildingName, place.floorNo, place.boothNo, place.addressText]
     .filter(Boolean)
     .join(' · ') || fallback

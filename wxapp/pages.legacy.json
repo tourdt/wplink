@@ -1,0 +1,195 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "衣货通",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/market/index",
+      "style": {
+        "navigationBarTitleText": "供需市场",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/search/index",
+      "style": {
+        "navigationBarTitleText": "搜索供需",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/sourcing-map/index",
+      "style": {
+        "navigationBarTitleText": "拿货档口",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/publish/index",
+      "style": {
+        "navigationBarTitleText": "发布"
+      }
+    },
+    {
+      "path": "pages/publish/edit",
+      "style": {
+        "navigationBarTitleText": "编辑发布"
+      }
+    },
+    {
+      "path": "pages/publish-success/index",
+      "style": {
+        "navigationBarTitleText": "提交成功"
+      }
+    },
+    {
+      "path": "pages/messages/index",
+      "style": {
+        "navigationBarTitleText": "消息",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/my/index",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/legal/index",
+      "style": {
+        "navigationBarTitleText": "隐私与协议"
+      }
+    },
+    {
+      "path": "pages/account/settings",
+      "style": {
+        "navigationBarTitleText": "账号与隐私"
+      }
+    },
+    {
+      "path": "pages/my-resources/index",
+      "style": {
+        "navigationBarTitleText": "我的发布",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/my/growth-entitlement",
+      "style": {
+        "navigationBarTitleText": "新手权益"
+      }
+    },
+    {
+      "path": "pages/vip/index",
+      "style": {
+        "navigationBarTitleText": "VIP 权益"
+      }
+    },
+    {
+      "path": "pages/favorites/index",
+      "style": {
+        "navigationBarTitleText": "收藏关注",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/resource/detail",
+      "style": {
+        "navigationBarTitleText": "供应详情"
+      }
+    },
+    {
+      "path": "pages/resource/report",
+      "style": {
+        "navigationBarTitleText": "举报供需"
+      }
+    },
+    {
+      "path": "pages/merchant/detail",
+      "style": {
+        "navigationBarTitleText": "商家资料"
+      }
+    },
+    {
+      "path": "pages/merchant/location",
+      "style": {
+        "navigationBarTitleText": "店铺位置"
+      }
+    },
+    {
+      "path": "pages/merchant/profile",
+      "style": {
+        "navigationBarTitleText": "资料设置"
+      }
+    },
+    {
+      "path": "pages/topic/index",
+      "style": {
+        "navigationBarTitleText": "专题供应"
+      }
+    },
+    {
+      "path": "pages/webview/index",
+      "style": {
+        "navigationBarTitleText": "活动详情"
+      }
+    }
+  ],
+  "tabBar": {
+    "color": "#454a54",
+    "selectedColor": "#c23a00",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "fontSize": "10px",
+    "iconWidth": "28px",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页",
+        "iconPath": "static/tabbar/home.png",
+        "selectedIconPath": "static/tabbar/home-active.png"
+      },
+      {
+        "pagePath": "pages/sourcing-map/index",
+        "text": "拿货档口",
+        "iconPath": "static/tabbar/map.png",
+        "selectedIconPath": "static/tabbar/map-active.png"
+      },
+      {
+        "pagePath": "pages/publish/index",
+        "text": "发布",
+        "iconPath": "static/tabbar/publish.png",
+        "selectedIconPath": "static/tabbar/publish-active.png"
+      },
+      {
+        "pagePath": "pages/market/index",
+        "text": "供需",
+        "iconPath": "static/tabbar/search.png",
+        "selectedIconPath": "static/tabbar/search-active.png"
+      },
+      {
+        "pagePath": "pages/my/index",
+        "text": "我的",
+        "iconPath": "static/tabbar/my.png",
+        "selectedIconPath": "static/tabbar/my-active.png"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "衣货通",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f4f7fd"
+  }
+}

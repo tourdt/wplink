@@ -97,7 +97,7 @@ function loadPage({
 
 test('merchant location page remains registered and uses only new directory modules', () => {
   assert.deepEqual(pagesConfig.pages.find((item) => item.path === 'pages/merchant/location'), {
-    path: 'pages/merchant/location', style: { navigationBarTitleText: '店铺位置' },
+    path: 'pages/merchant/location', style: { navigationBarTitleText: '接待位置' },
   })
   assert.match(source, /api\/merchantDirectory/)
   assert.match(source, /common\/merchantDirectoryAnalytics/)

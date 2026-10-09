@@ -26,18 +26,26 @@
 <script setup>
 import { ref } from 'vue'
 import { deleteAccount } from '../../api/auth'
-import { clearSession } from '../../store/session'
+import { clearSession, getSession } from '../../store/session'
+
+import { clearMerchantDraft } from '../../common/merchantDraft'
 
 const deleting = ref(false)
+
+function clearAccountDraft() {
+ const session = getSession()
+ clearMerchantDraft(session.userId, session.merchantId)
+}
 
 function openLegal(type) {
   uni.navigateTo({ url: `/pages/legal/index?type=${type}` })
 }
 
 function logout() {
+  clearAccountDraft()
   clearSession()
   uni.showToast({ title: '已退出登录', icon: 'none' })
-  setTimeout(() => uni.reLaunch({ url: '/pages/home/index' }), 300)
+  setTimeout(() => uni.reLaunch({ url: '/pages/sourcing-map/index' }), 300)
 }
 
 function confirmDeleteAccount() {
@@ -57,9 +65,10 @@ async function deleteCurrentAccount() {
   try {
     deleting.value = true
     await deleteAccount({ confirmation: '确认注销', reason: '用户主动申请' })
+    clearAccountDraft()
     clearSession()
     uni.showToast({ title: '账号已注销', icon: 'none' })
-    setTimeout(() => uni.reLaunch({ url: '/pages/home/index' }), 500)
+    setTimeout(() => uni.reLaunch({ url: '/pages/sourcing-map/index' }), 500)
   } catch (err) {
     uni.showToast({ title: err.message || '注销失败，请稍后重试', icon: 'none' })
   } finally {

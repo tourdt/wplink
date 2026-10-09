@@ -6,10 +6,10 @@ type CreditTagInfo {
 }
 
 type MerchantContactInfo {
-	Name         string `json:"name"`
+	Name         string `json:"name,optional"`
 	Phone        string `json:"phone,optional"`
 	Wechat       string `json:"wechat,optional"`
-	PhoneMasked  string `json:"phoneMasked"`
+	PhoneMasked  string `json:"phoneMasked,optional"`
 	WechatMasked string `json:"wechatMasked,optional"`
 }
 
@@ -31,6 +31,28 @@ type MerchantLocationInfo {
 	Available    bool    `json:"available"`
 }
 
+type BusinessProfileInfo {
+	SchemaVersion     int      `json:"schemaVersion"`
+	EntityKind        string   `json:"entityKind"`
+	PrimaryRole       string   `json:"primaryRole"`
+	Roles             []string `json:"roles"`
+	ServiceArea       string   `json:"serviceArea"`
+	ProcessingMethods []string `json:"processingMethods"`
+	PropertyTypes     []string `json:"propertyTypes"`
+	ServiceItems      []string `json:"serviceItems"`
+}
+
+type BusinessProfileInput {
+	SchemaVersion     int      `json:"schemaVersion"`
+	EntityKind        string   `json:"entityKind"`
+	PrimaryRole       string   `json:"primaryRole"`
+	Roles             []string `json:"roles"`
+	ServiceArea       string   `json:"serviceArea,optional"`
+	ProcessingMethods []string `json:"processingMethods,optional"`
+	PropertyTypes     []string `json:"propertyTypes,optional"`
+	ServiceItems      []string `json:"serviceItems,optional"`
+}
+
 type MerchantDetailResp {
 	Id                 string                   `json:"id"`
 	MerchantNo         string                   `json:"merchantNo"`
@@ -50,12 +72,16 @@ type MerchantDetailResp {
 	LogoUrl            string                   `json:"logoUrl,optional"`
 	Images             []string                 `json:"images,optional"`
 	LastActiveAt       string                   `json:"lastActiveAt,optional"`
+	OwnerVisible       bool                     `json:"ownerVisible"`
+	PublicPhone        bool                     `json:"publicPhone"`
+	PublicWechat       bool                     `json:"publicWechat"`
+	BusinessProfile    BusinessProfileInfo      `json:"businessProfile"`
+	MapVisible         bool                     `json:"mapVisible"`
 }
 
 type UpdateMerchantReq {
 	Name           string                 `json:"name,optional"`
 	MainCategories []string               `json:"mainCategories,optional"`
-	MerchantType   string                 `json:"merchantType,optional"`
 	Description    string                 `json:"description,optional"`
 	LogoUrl        string                 `json:"logoUrl,optional"`
 	Images         []string               `json:"images,optional"`
@@ -72,6 +98,19 @@ type UpdateMerchantReq {
 	Longitude      float64                `json:"longitude,optional"`
 	LocationName   string                 `json:"locationName,optional"`
 	SmsCode        string                 `json:"smsCode,optional"`
+	PublicPhone    *bool                  `json:"publicPhone,optional"`
+	PublicWechat   *bool                  `json:"publicWechat,optional"`
+	BusinessProfile *BusinessProfileInput  `json:"businessProfile"`
+	MapVisible     *bool                  `json:"mapVisible"`
+}
+
+type SetMerchantVisibilityReq {
+	Visible *bool `json:"visible"`
+}
+
+type SetMerchantVisibilityResp {
+	MerchantId   string `json:"merchantId"`
+	OwnerVisible bool   `json:"ownerVisible"`
 }
 
 type UpdateMerchantResp {
@@ -105,6 +144,8 @@ type MerchantDirectoryItem {
 	LocationName         string   `json:"locationName,optional"`
 	LastResourceActiveAt string   `json:"lastResourceActiveAt,optional"`
 	DistanceMeters       float64  `json:"distanceMeters,optional"`
+	PrimaryRole          string   `json:"primaryRole,optional"`
+	BusinessRoles        []string `json:"businessRoles,optional"`
 }
 
 type ListMerchantDirectoryResp {
@@ -153,4 +194,7 @@ service wplink-api {
 
 	@handler UpdateMerchant
 	post /merchants/:merchantId (UpdateMerchantReq) returns (UpdateMerchantResp)
+
+	@handler SetMerchantVisibility
+	post /merchants/:merchantId/visibility (SetMerchantVisibilityReq) returns (SetMerchantVisibilityResp)
 }

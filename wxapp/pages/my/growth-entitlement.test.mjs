@@ -7,11 +7,14 @@ const root = path.resolve(new URL('../..', import.meta.url).pathname)
 
 test('growth entitlement detail page is registered and loads public campaign rules', () => {
   const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const legacyPagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.legacy.json'), 'utf8'))
   const pagePaths = pagesConfig.pages.map((item) => item.path)
+  const legacyPagePaths = legacyPagesConfig.pages.map((item) => item.path)
   const source = fs.readFileSync(path.join(root, 'pages/my/growth-entitlement.vue'), 'utf8')
   const apiSource = fs.readFileSync(path.join(root, 'api/growthCampaign.js'), 'utf8')
 
-  assert.ok(pagePaths.includes('pages/my/growth-entitlement'))
+  assert.ok(legacyPagePaths.includes('pages/my/growth-entitlement'))
+  assert.equal(pagePaths.includes('pages/my/growth-entitlement'), false)
   assert.match(apiSource, /getActiveGrowthCampaigns/)
   assert.match(apiSource, /\/api\/v1\/growth-campaigns\/active/)
   assert.match(apiSource, /getGrowthTasks/)

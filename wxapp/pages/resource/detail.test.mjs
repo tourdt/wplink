@@ -10,6 +10,7 @@ import { renderToString } from '@vue/server-renderer'
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'pages/resource/detail.vue'), 'utf8')
 const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+const legacyPagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.legacy.json'), 'utf8'))
 
 function ref(value) {
   return { value }
@@ -201,8 +202,9 @@ test('resource detail hides the gallery when no image is available', () => {
 })
 
 test('resource detail updates navigation title by supply or demand direction', () => {
-  const detailPage = pagesConfig.pages.find((item) => item.path === 'pages/resource/detail')
+  const detailPage = legacyPagesConfig.pages.find((item) => item.path === 'pages/resource/detail')
 
+  assert.equal(pagesConfig.pages.some((item) => item.path === 'pages/resource/detail'), false)
   assert.equal(detailPage?.style?.navigationBarTitleText, '供应详情')
   assert.equal(source.includes('供需详情'), false)
   assert.equal(JSON.stringify(detailPage).includes('供需详情'), false)

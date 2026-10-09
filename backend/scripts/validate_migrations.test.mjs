@@ -98,6 +98,30 @@ test('zhili initial seed disables recruitment without exposing recruitment stati
   )
 })
 
+test('cold-start creates no sample merchant and initializes an empty v1 business profile', () => {
+  const seed = fs.readFileSync(path.resolve(migrationsDir, '000003_seed_zhili.up.sql'), 'utf8')
+  const business = fs.readFileSync(path.resolve(migrationsDir, '000037_business_profile.up.sql'), 'utf8')
+  assert.doesNotMatch(seed, /INSERT INTO merchants\s*\(/)
+  assert.match(business, /"schemaVersion":1,"entityKind":"","primaryRole":"","roles":\[\]/)
+  assert.match(business, /map_visible BOOLEAN NOT NULL DEFAULT FALSE/)
+  assert.match(business, /profile_status SET DEFAULT 'incomplete'/)
+})
+
+test('manual demo seed uses complete v1 profiles and explicit map choices', () => {
+  const seed = fs.readFileSync(path.resolve(scriptDir, 'seed_demo_data.sql'), 'utf8')
+  const profiles = [...seed.matchAll(/WHEN 802000000000000000\d THEN '(\{[^']+\})'::jsonb/g)]
+  assert.equal(profiles.length, 6)
+  for (const [, raw] of profiles) {
+    const profile = JSON.parse(raw)
+    assert.deepEqual(Object.keys(profile).sort(), ['schemaVersion', 'entityKind', 'primaryRole', 'roles', 'serviceArea', 'processingMethods', 'propertyTypes', 'serviceItems'].sort())
+    assert.equal(profile.schemaVersion, 1)
+    assert.equal(profile.primaryRole === '' || profile.roles.includes(profile.primaryRole), true)
+  }
+  assert.match(seed, /m\.location_status = 'visible'/)
+  assert.match(seed, /business_profile = EXCLUDED\.business_profile/)
+  assert.match(seed, /map_visible = EXCLUDED\.map_visible/)
+})
+
 test('core domain owns merchant profile status while 000016 only owns its lookup index', () => {
   const core = fs.readFileSync(path.resolve(migrationsDir, '000002_core_domain.up.sql'), 'utf8')
   const profileUp = fs.readFileSync(path.resolve(migrationsDir, '000016_merchant_profile_status.up.sql'), 'utf8')

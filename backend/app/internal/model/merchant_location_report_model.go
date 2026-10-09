@@ -424,9 +424,5 @@ WHERE id = $1 AND deleted_at IS NULL
 }
 
 func validStoredMerchantCoordinates(latitude sql.NullFloat64, longitude sql.NullFloat64) bool {
-	return latitude.Valid && longitude.Valid &&
-		!math.IsNaN(latitude.Float64) && !math.IsInf(latitude.Float64, 0) &&
-		!math.IsNaN(longitude.Float64) && !math.IsInf(longitude.Float64, 0) &&
-		latitude.Float64 >= -90 && latitude.Float64 <= 90 &&
-		longitude.Float64 >= -180 && longitude.Float64 <= 180
+	return latitude.Valid && longitude.Valid && ValidMerchantCoordinates(latitude.Float64, longitude.Float64)
 }

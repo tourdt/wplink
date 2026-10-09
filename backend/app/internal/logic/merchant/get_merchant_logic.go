@@ -8,8 +8,6 @@ import (
 
 	"wplink/backend/app/internal/model"
 	"wplink/backend/common/errx"
-
-	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type GetMerchantStore interface {
@@ -70,6 +68,11 @@ type MerchantDetailResp struct {
 	LogoURL          string                   `json:"logoUrl,omitempty"`
 	Images           []string                 `json:"images,omitempty"`
 	LastActiveAt     string                   `json:"lastActiveAt,omitempty"`
+	OwnerVisible     bool                     `json:"ownerVisible"`
+	PublicPhone      bool                     `json:"publicPhone"`
+	PublicWechat     bool                     `json:"publicWechat"`
+	BusinessProfile  model.BusinessProfile    `json:"businessProfile"`
+	MapVisible       bool                     `json:"mapVisible"`
 }
 
 type GetMerchantLogic struct {
@@ -91,7 +94,7 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string, v
 		if errors.Is(err, sql.ErrNoRows) {
 			return MerchantDetailResp{}, errx.New(errx.CodeMerchantNotFound, "商家不存在或已停用")
 		}
-		logx.WithContext(ctx).Errorw("商家详情数据库查询失败", logx.Field("merchantId", merchantID), logx.Field("err", err))
+		logMerchantFailure(ctx, "merchant_profile_read", merchantID, err)
 		return MerchantDetailResp{}, errx.New(errx.CodeInternalError, "商家资料加载失败，请稍后重试")
 	}
 
@@ -101,12 +104,16 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string, v
 	}
 	canManageMerchant, err := canExposeEditableContact(ctx, l.store, merchantID, firstViewerUserID(viewerUserID))
 	if err != nil {
-		logx.Errorf("商家详情编辑权限判断失败: merchantId=%s userId=%s err=%+v", merchantID, firstViewerUserID(viewerUserID), err)
+		logMerchantFailure(ctx, "merchant_profile_permission", merchantID, err)
 		return MerchantDetailResp{}, errx.New(errx.CodeInternalError, "资料加载失败，请稍后重试")
+	}
+	// 暂停展示后的资料仅管理者可读，避免分享链接绕过目录隐藏。
+	if !detail.OwnerVisible && !canManageMerchant {
+		return MerchantDetailResp{}, errx.New(errx.CodeMerchantNotFound, "店铺暂不可查看")
 	}
 	var contact *MerchantContactInfo
 	if canManageMerchant {
-		// 联系方式只服务于商家本人编辑资料，公开商家主页不会返回联系人、脱敏电话或微信。
+		// 管理者取得完整联系方式用于编辑；公开读取会在下方按单项授权裁剪。
 		contact = &MerchantContactInfo{
 			Name:         detail.ContactName,
 			Phone:        detail.ContactPhone,
@@ -114,6 +121,23 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string, v
 			PhoneMasked:  detail.PhoneMasked,
 			WechatMasked: detail.WechatMasked,
 		}
+	}
+	if !canManageMerchant && (detail.PublicPhone || detail.PublicWechat) {
+		contact = &MerchantContactInfo{}
+		if detail.PublicPhone {
+			contact.Phone = detail.ContactPhone
+		}
+		if detail.PublicWechat {
+			contact.Wechat = detail.ContactWechat
+		}
+	}
+	addressText := detail.AddressText
+	if !canManageMerchant && !detail.MapVisible {
+		addressText = ""
+	}
+	location := visibleMerchantLocation(detail.Location, canManageMerchant)
+	if !canManageMerchant && !detail.MapVisible {
+		location = MerchantLocationInfo{Status: model.MerchantLocationStatusHidden, Available: false}
 	}
 	return MerchantDetailResp{
 		ID:             detail.ID,
@@ -130,13 +154,18 @@ func (l *GetMerchantLogic) GetMerchant(ctx context.Context, merchantID string, v
 			PublishedCount: detail.PublishedCount,
 			DealtCount:     detail.DealtCount,
 		},
-		HeatScore:    calculateMerchantHeatScore(detail),
-		AddressText:  detail.AddressText,
-		Location:     visibleMerchantLocation(detail.Location, canManageMerchant),
-		Description:  detail.Description,
-		LogoURL:      detail.LogoURL,
-		Images:       append([]string(nil), detail.Images...),
-		LastActiveAt: detail.LastActiveAt,
+		HeatScore:       calculateMerchantHeatScore(detail),
+		AddressText:     addressText,
+		Location:        location,
+		Description:     detail.Description,
+		LogoURL:         detail.LogoURL,
+		Images:          append([]string(nil), detail.Images...),
+		LastActiveAt:    detail.LastActiveAt,
+		OwnerVisible:    detail.OwnerVisible,
+		PublicPhone:     detail.PublicPhone,
+		PublicWechat:    detail.PublicWechat,
+		BusinessProfile: detail.BusinessProfile,
+		MapVisible:      detail.MapVisible,
 	}, nil
 }
 
@@ -145,7 +174,7 @@ func visibleMerchantLocation(location model.MerchantLocation, canManage bool) Me
 	if status == "" {
 		status = model.MerchantLocationStatusHidden
 	}
-	coordinatesAvailable := location.Latitude != nil && location.Longitude != nil
+	coordinatesAvailable := location.Latitude != nil && location.Longitude != nil && model.ValidMerchantCoordinates(*location.Latitude, *location.Longitude)
 	publiclyVisible := status == model.MerchantLocationStatusVisible && coordinatesAvailable
 	managerCanCorrectRisk := canManage && status == model.MerchantLocationStatusRiskHidden && coordinatesAvailable
 	if !publiclyVisible && !managerCanCorrectRisk {

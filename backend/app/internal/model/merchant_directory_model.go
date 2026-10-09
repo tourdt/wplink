@@ -42,6 +42,8 @@ type MerchantDirectoryItem struct {
 	Longitude            float64
 	LastResourceActiveAt time.Time
 	DistanceMeters       float64
+	PrimaryRole          string
+	BusinessRoles        []string
 }
 
 type MerchantDirectoryModel struct {
@@ -67,7 +69,8 @@ const merchantDirectorySelectSQL = `SELECT
   m.main_categories,
   m.latitude,
   m.longitude,
-  latest_resource.last_resource_active_at
+  latest_resource.last_resource_active_at,
+  m.business_profile
 FROM merchants m
 JOIN city_stations cs ON cs.id = m.city_station_id
 LEFT JOIN LATERAL (
@@ -93,6 +96,8 @@ func buildMerchantDirectoryWhereDetails(filter MerchantDirectoryFilter) merchant
 	conditions := []string{
 		"m.deleted_at IS NULL",
 		"m.status = 'active'",
+		"m.owner_visible = TRUE",
+		"m.map_visible = TRUE",
 		"m.profile_status = 'completed'",
 		"m.location_status = 'visible'",
 		"m.latitude IS NOT NULL",
@@ -228,6 +233,8 @@ func (m *MerchantDirectoryModel) GetVisibleMerchantLocation(ctx context.Context,
   AND cs.code = 'zhili'
   AND m.deleted_at IS NULL
   AND m.status = 'active'
+  AND m.owner_visible = TRUE
+  AND m.map_visible = TRUE
   AND m.profile_status = 'completed'
   AND m.location_status = 'visible'
   AND m.latitude IS NOT NULL
@@ -271,6 +278,7 @@ func scanMerchantDirectoryItem(scanner merchantDirectoryScanner) (MerchantDirect
 	var item MerchantDirectoryItem
 	var categories JSONStringSlice
 	var lastResourceActiveAt sql.NullTime
+	var businessProfileRaw []byte
 	err := scanner.Scan(
 		&item.MerchantID,
 		&item.MerchantNo,
@@ -287,11 +295,18 @@ func scanMerchantDirectoryItem(scanner merchantDirectoryScanner) (MerchantDirect
 		&item.Latitude,
 		&item.Longitude,
 		&lastResourceActiveAt,
+		&businessProfileRaw,
 	)
 	if err != nil {
 		return MerchantDirectoryItem{}, err
 	}
 	item.MainCategories = append([]string{}, categories...)
+	profile, err := DecodeBusinessProfile(businessProfileRaw)
+	if err != nil {
+		return MerchantDirectoryItem{}, err
+	}
+	item.PrimaryRole = profile.PrimaryRole
+	item.BusinessRoles = append([]string{}, profile.Roles...)
 	if lastResourceActiveAt.Valid {
 		item.LastResourceActiveAt = lastResourceActiveAt.Time
 	}
@@ -314,6 +329,8 @@ func buildNearbyVisibleMerchantsQuery(origin MerchantDirectoryItem, radiusMeters
 		"cs.code = 'zhili'",
 		"m.deleted_at IS NULL",
 		"m.status = 'active'",
+		"m.owner_visible = TRUE",
+		"m.map_visible = TRUE",
 		"m.profile_status = 'completed'",
 		"m.location_status = 'visible'",
 		"m.latitude IS NOT NULL",
@@ -394,8 +411,7 @@ func rankNearbyVisibleMerchants(origin MerchantDirectoryItem, candidates []Merch
 }
 
 func validDirectoryCoordinates(latitude float64, longitude float64) bool {
-	return !math.IsNaN(latitude) && !math.IsInf(latitude, 0) && latitude >= -90 && latitude <= 90 &&
-		!math.IsNaN(longitude) && !math.IsInf(longitude, 0) && longitude >= -180 && longitude <= 180
+	return ValidMerchantCoordinates(latitude, longitude)
 }
 
 func haversineDistanceMeters(originLatitude float64, originLongitude float64, targetLatitude float64, targetLongitude float64) float64 {

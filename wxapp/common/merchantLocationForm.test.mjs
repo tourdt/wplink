@@ -176,6 +176,7 @@ test('normalizeMerchantLocationForm and clearMerchantLocationForm clear every st
 })
 
 test('updateMerchant sends only the precise profile and structured location contract', async () => {
+  const businessProfile = { schemaVersion: 1, entityKind: 'organization', primaryRole: 'factory', roles: ['factory'], serviceArea: '', processingMethods: ['缝制'], propertyTypes: [], serviceItems: [] }
   let requested
   const { updateMerchant } = loadMerchantApi((options) => {
     requested = options
@@ -185,7 +186,9 @@ test('updateMerchant sends only the precise profile and structured location cont
   await updateMerchant('merchant-1', {
       name: '晨星童装',
       mainCategories: ['童装'],
-      merchantType: 'factory',
+      merchantType: 'stockist', // 不再向服务端发送独立旧身份字段。
+      businessProfile,
+      mapVisible: true,
       description: '源头童装',
       logoUrl: 'https://cdn.example.com/logo.jpg',
       images: ['https://cdn.example.com/shop.jpg'],
@@ -208,7 +211,8 @@ test('updateMerchant sends only the precise profile and structured location cont
   assert.deepEqual(JSON.parse(JSON.stringify(requested.data)), {
     name: '晨星童装',
     mainCategories: ['童装'],
-    merchantType: 'factory',
+    businessProfile,
+    mapVisible: true,
     description: '源头童装',
     logoUrl: 'https://cdn.example.com/logo.jpg',
     images: ['https://cdn.example.com/shop.jpg'],

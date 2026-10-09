@@ -618,6 +618,28 @@ type BindWechatPhoneReq struct {
 	Code string `json:"code"`
 }
 
+type BusinessProfileInfo struct {
+	SchemaVersion     int      `json:"schemaVersion"`
+	EntityKind        string   `json:"entityKind"`
+	PrimaryRole       string   `json:"primaryRole"`
+	Roles             []string `json:"roles"`
+	ServiceArea       string   `json:"serviceArea"`
+	ProcessingMethods []string `json:"processingMethods"`
+	PropertyTypes     []string `json:"propertyTypes"`
+	ServiceItems      []string `json:"serviceItems"`
+}
+
+type BusinessProfileInput struct {
+	SchemaVersion     int      `json:"schemaVersion"`
+	EntityKind        string   `json:"entityKind"`
+	PrimaryRole       string   `json:"primaryRole"`
+	Roles             []string `json:"roles"`
+	ServiceArea       string   `json:"serviceArea,optional"`
+	ProcessingMethods []string `json:"processingMethods,optional"`
+	PropertyTypes     []string `json:"propertyTypes,optional"`
+	ServiceItems      []string `json:"serviceItems,optional"`
+}
+
 type CityStationInfo struct {
 	Id              string `json:"id"`
 	Code            string `json:"code"`
@@ -1179,10 +1201,10 @@ type MeResp struct {
 }
 
 type MerchantContactInfo struct {
-	Name         string `json:"name"`
+	Name         string `json:"name,optional"`
 	Phone        string `json:"phone,optional"`
 	Wechat       string `json:"wechat,optional"`
-	PhoneMasked  string `json:"phoneMasked"`
+	PhoneMasked  string `json:"phoneMasked,optional"`
 	WechatMasked string `json:"wechatMasked,optional"`
 }
 
@@ -1205,6 +1227,11 @@ type MerchantDetailResp struct {
 	LogoUrl          string                   `json:"logoUrl,optional"`
 	Images           []string                 `json:"images,optional"`
 	LastActiveAt     string                   `json:"lastActiveAt,optional"`
+	OwnerVisible     bool                     `json:"ownerVisible"`
+	PublicPhone      bool                     `json:"publicPhone"`
+	PublicWechat     bool                     `json:"publicWechat"`
+	BusinessProfile  BusinessProfileInfo      `json:"businessProfile"`
+	MapVisible       bool                     `json:"mapVisible"`
 }
 
 type MerchantDirectoryEventReq struct {
@@ -1237,6 +1264,8 @@ type MerchantDirectoryItem struct {
 	LocationName         string   `json:"locationName,optional"`
 	LastResourceActiveAt string   `json:"lastResourceActiveAt,optional"`
 	DistanceMeters       float64  `json:"distanceMeters,optional"`
+	PrimaryRole          string   `json:"primaryRole,optional"`
+	BusinessRoles        []string `json:"businessRoles,optional"`
 }
 
 type MerchantDirectoryLocationContextResp struct {
@@ -1650,6 +1679,15 @@ type SetMerchantFollowReq struct {
 	Followed bool `json:"followed"`
 }
 
+type SetMerchantVisibilityReq struct {
+	Visible *bool `json:"visible"`
+}
+
+type SetMerchantVisibilityResp struct {
+	MerchantId   string `json:"merchantId"`
+	OwnerVisible bool   `json:"ownerVisible"`
+}
+
 type SetResourceFavoriteReq struct {
 	Favorited bool `json:"favorited"`
 }
@@ -1719,25 +1757,28 @@ type TopicResourcesResp struct {
 }
 
 type UpdateMerchantReq struct {
-	Name           string   `json:"name,optional"`
-	MainCategories []string `json:"mainCategories,optional"`
-	MerchantType   string   `json:"merchantType,optional"`
-	Description    string   `json:"description,optional"`
-	LogoUrl        string   `json:"logoUrl,optional"`
-	Images         []string `json:"images,optional"`
-	ContactName    string   `json:"contactName,optional"`
-	ContactPhone   string   `json:"contactPhone,optional"`
-	ContactWechat  string   `json:"contactWechat,optional"`
-	AddressText    string   `json:"addressText,optional"`
-	LocationAction string   `json:"locationAction"`
-	MarketName     string   `json:"marketName,optional"`
-	BuildingName   string   `json:"buildingName,optional"`
-	FloorNo        string   `json:"floorNo,optional"`
-	BoothNo        string   `json:"boothNo,optional"`
-	Latitude       float64  `json:"latitude,optional"`
-	Longitude      float64  `json:"longitude,optional"`
-	LocationName   string   `json:"locationName,optional"`
-	SmsCode        string   `json:"smsCode,optional"`
+	Name            string                `json:"name,optional"`
+	MainCategories  []string              `json:"mainCategories,optional"`
+	Description     string                `json:"description,optional"`
+	LogoUrl         string                `json:"logoUrl,optional"`
+	Images          []string              `json:"images,optional"`
+	ContactName     string                `json:"contactName,optional"`
+	ContactPhone    string                `json:"contactPhone,optional"`
+	ContactWechat   string                `json:"contactWechat,optional"`
+	AddressText     string                `json:"addressText,optional"`
+	LocationAction  string                `json:"locationAction"`
+	MarketName      string                `json:"marketName,optional"`
+	BuildingName    string                `json:"buildingName,optional"`
+	FloorNo         string                `json:"floorNo,optional"`
+	BoothNo         string                `json:"boothNo,optional"`
+	Latitude        float64               `json:"latitude,optional"`
+	Longitude       float64               `json:"longitude,optional"`
+	LocationName    string                `json:"locationName,optional"`
+	SmsCode         string                `json:"smsCode,optional"`
+	PublicPhone     *bool                 `json:"publicPhone,optional"`
+	PublicWechat    *bool                 `json:"publicWechat,optional"`
+	BusinessProfile *BusinessProfileInput `json:"businessProfile"`
+	MapVisible      *bool                 `json:"mapVisible"`
 }
 
 type UpdateMerchantResp struct {

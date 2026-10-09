@@ -42,11 +42,9 @@ export const resourceStatusText = {
 }
 
 export const merchantTypeText = {
-  individual: '个人',
-  rental_provider: '场地/设备方',
-  factory: '源头工厂',
   stall: '现货档口',
-  stockist: '库存货源',
+  factory: '加工工厂',
+  landlord: '房东 / 出租方',
   service_provider: '配套服务',
-  buyer: '采购',
+  supplier: '货源供应',
 }

@@ -8,6 +8,10 @@ import { createSSRApp, h } from 'vue'
 import { renderToString } from '@vue/server-renderer'
 
 import * as merchantLocationForm from './common/merchantLocationForm.js'
+import * as merchantCategories from './common/merchantCategories.js'
+import { isMerchantDraftSupported } from './common/merchantDraft.js'
+import * as merchantBusinessProfile from './common/merchantBusinessProfile.js'
+import * as merchantOnboarding from './common/merchantOnboarding.js'
 
 const root = path.resolve(new URL('.', import.meta.url).pathname)
 
@@ -119,6 +123,10 @@ function loadPage(relativePath, additions, exports) {
   const script = descriptor.scriptSetup.content.replace(/^import\s+[\s\S]*?\s+from\s+['"][^'"]+['"]\s*$/gm, '')
   const sandbox = {
     ...merchantLocationForm,
+    ...merchantCategories,
+    ...merchantOnboarding,
+    ...merchantBusinessProfile,
+    isMerchantDraftSupported,
     console,
     Promise,
     setTimeout,
@@ -127,6 +135,7 @@ function loadPage(relativePath, additions, exports) {
     reactive,
     computed,
     onLoad: () => {},
+    onShareAppMessage: () => {},
     onShow: () => {},
     onPullDownRefresh: () => {},
     onReachBottom: () => {},
@@ -191,16 +200,21 @@ test('foreground handlers ignore duplicate programmatic requests and recover the
   let profileCalls = 0
   const profilePage = loadPage('pages/merchant/profile.vue', {
     DEFAULT_CITY_CODE: 'huzhou', MERCHANT_PROFILE_IMAGE_MAX_COUNT: 9,
+    getMerchantOnboardingErrors: () => ({}),
+    getSession: () => ({ token: 'token', userId: 'user-1', merchantId: 'merchant-1' }),
+    getMerchantDraft: () => null, clearMerchantDraft: () => {},
     validateMerchantName: () => '', getMerchantImagePreviewUrl: () => '', getStoredMerchantImageUrls: () => [],
     getMerchantImageUrlsForPreview: () => [], createStoredMerchantImageEntry: () => ({}),
     appendMerchantImageFiles: () => [], removeMerchantImageEntry: () => [], resolveImageCompressionOptions: () => ({}),
     getMerchantId: () => '', updateMerchant: () => { profileCalls += 1; return profileRequest.promise },
-    getMerchant: async () => ({}), bindWechatPhone: async () => ({}), reverseGeocodeLocation: async () => ({}),
+    getMerchant: async () => ({ businessProfile: merchantBusinessProfile.normalizeBusinessProfile(), mapVisible: false }), bindWechatPhone: async () => ({}), reverseGeocodeLocation: async () => ({}),
     createImageFileFromPath: async () => ({}), uploadSelectedImage: async () => '',
-  }, ['merchantId', 'merchantProfileLoading', 'submitting', 'mainCategoriesText', 'form', 'submitMerchantProfile'])
+  }, ['merchantId', 'userId', 'merchantProfileLoading', 'submitting', 'mainCategories', 'form', 'loadMerchant', 'submitMerchantProfile'])
   profilePage.merchantId.value = 'merchant-1'
-  profilePage.merchantProfileLoading.value = false
-  profilePage.mainCategoriesText.value = '童装'
+  profilePage.userId.value = 'user-1'
+  // 先建立真实服务端位置基线，再验证提交锁，避免绕过页面加载前置状态。
+  await profilePage.loadMerchant()
+  profilePage.mainCategories.value = ['童装']
   profilePage.form.name = '童装档口'
   const firstProfile = profilePage.submitMerchantProfile()
   const duplicateProfile = profilePage.submitMerchantProfile()

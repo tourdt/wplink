@@ -2,207 +2,114 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
+import vm from 'node:vm'
+import { getBusinessProfile, getBusinessRoleLabels, getBusinessProfileSummary } from '../../common/merchantBusinessProfile.js'
+import { getMyStorefrontState, getStorefrontPlace } from '../../common/merchantStorefront.js'
 
-const root = path.resolve(new URL('../..', import.meta.url).pathname)
+const source = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), 'index.vue'), 'utf8')
 
-test('my page shows merchant logo and name when merchant profile exists', () => {
-  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
+function page({ session = { token: 'token', userId: 'u', merchantId: 'm' }, getMerchant = async () => ({ id: 'm', name: '童装店', ownerVisible: true }), setMerchantVisibility = async () => {}, draft = null } = {}) {
+  const calls = []
+  const hooks = {}
+  const sandbox = {
+    getBusinessProfile, getBusinessRoleLabels, getBusinessProfileSummary,
+    ref: (value) => ({ value }),
+    computed: (getter) => ({ get value() { return getter() } }),
+    onLoad: (fn) => { hooks.load = fn },
+    onShow: (fn) => { hooks.show = fn },
+    onShareAppMessage: (fn) => { hooks.share = fn },
+    buildLoginUrl: (url) => `/pages/login/index?redirect=${encodeURIComponent(url)}`,
+    getMerchantDraft: () => draft,
+    getMyStorefrontState,
+    getStorefrontPlace,
+    getSession: () => session,
+    getMerchant,
+    setMerchantVisibility,
+    uni: {
+      navigateTo: (options) => calls.push(['navigate', options.url]),
+      showToast: (options) => calls.push(['toast', options.title]),
+      setClipboardData: (options) => calls.push(['copy', options.data]),
+    },
+  }
+  const script = source.match(/<script setup>([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm, '')
+  vm.runInNewContext(`${script}\nglobalThis.p = { syncSession, loadMerchantProfile, openMerchantEditor, openMerchantHome, toggleVisibility, openAccountSettings, pageState, merchantProfile, hasLocalDraft, visibilityBusy }`, sandbox)
+  return { ...sandbox.p, hooks, calls }
+}
 
-  assert.match(source, /import \{ getMerchant \} from '\.\.\/\.\.\/api\/merchant'/)
-  assert.match(source, /const merchantProfile = ref\(\{\}\)/)
-  assert.match(source, /const merchantLogo = computed\(\(\) => merchantProfile\.value\.logoUrl \|\| ''\)/)
-  assert.match(source, /const merchantName = computed\(\(\) => merchantProfile\.value\.name \|\| ''\)/)
-  assert.match(source, /<image v-if="merchantLogo" class="avatar avatar-image" :src="merchantLogo" mode="aspectFill" \/>/)
-  assert.match(source, /const accountName = computed\(\(\) => merchantName\.value \|\| \(isLoggedIn\.value \? '我的账号' : '未登录'\)\)/)
-  assert.match(source, /await Promise\.all\(\[loadMerchantProfile\(\), loadMerchantEntitlements\(\), loadGrowthCampaigns\(\)\]\)/)
-  assert.match(source, /async function loadMerchantProfile\(\)/)
-  assert.match(source, /merchantProfile\.value = await getMerchant\(merchantId\.value, \{ suppressErrorToast: true \}\)/)
+test('my page renders distinct management states and has no launch-excluded service requests', () => {
+  for (const state of ['guest', 'loading', 'error', 'unregistered', 'incomplete', 'paused', 'profile_only', 'location_error']) {
+    assert.match(source, new RegExp(`pageState === '${state}'`))
+  }
+  assert.match(source, /@click="loadMerchantProfile"/)
+  assert.doesNotMatch(source, /当前状态不会被当作未入驻/)
+  assert.match(source, /@click="openMerchantEditor"/)
+  assert.match(source, /@click="toggleVisibility"/)
+  assert.match(source, /open-type="share"/)
+  assert.doesNotMatch(source, /getMerchantEntitlements|listResources|getActiveGrowthCampaigns|getMerchantFollowState/)
 })
 
-test('my page shows merchant number below account name and copies it from the whole row', () => {
-  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
+test('guest never requests merchant data; failed owner request shows retry instead of onboarding', async () => {
+  let requests = 0
+  const guest = page({ session: { token: '', userId: '', merchantId: '' }, getMerchant: async () => { requests++; return {} } })
+  await guest.syncSession()
+  assert.equal(guest.pageState.value, 'guest')
+  guest.openMerchantEditor()
+  assert.match(guest.calls[0][1], /pages\/login/)
+  assert.equal(requests, 0)
 
-  assert.match(source, /const merchantNo = computed\(\(\) => merchantProfile\.value\.merchantNo \|\| ''\)/)
-  assert.match(source, /const merchantNoVisible = computed\(\(\) => Boolean\(isLoggedIn\.value && merchantNo\.value\)\)/)
-  assert.match(source, /<view v-if="merchantNoVisible" class="account-number-row" @click\.stop="copyMerchantNo">/)
-  assert.match(source, /<text class="account-number-label">编号：<\/text>/)
-  assert.match(source, /<text class="account-number-value">\{\{ merchantNo \}\}<\/text>/)
-  assert.match(source, /<text class="account-number-copy">复制<\/text>/)
-  assert.match(source, /uni\.setClipboardData\(\{[\s\S]*data: merchantNo\.value,[\s\S]*success: \(\) => \{[\s\S]*uni\.showToast\(\{ title: '编号已复制', icon: 'none' \}\)/)
-  assert.doesNotMatch(source, /<text class="account-desc">\{\{ accountDesc \}\}<\/text>/)
-  assert.doesNotMatch(source, /const accountDesc = computed/)
+  const failed = page({ getMerchant: async () => { throw Error('offline') } })
+  await failed.syncSession()
+  assert.equal(failed.pageState.value, 'error')
+  assert.equal(failed.merchantProfile.value.id, undefined)
 })
 
-test('my page exposes native customer service entry without login gate', () => {
-  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-
-  assert.match(source, /open-type="contact"/)
-  assert.match(source, /<text class="action-title">联系客服<\/text>/)
-  assert.match(source, /<text class="action-meta">平台问题和使用咨询<\/text>/)
-  assert.doesNotMatch(source, /function openCustomerService\(\)[\s\S]*?requireLogin/)
+test('owner visibility action sends one request, refreshes server state, and guards duplicate taps', async () => {
+  let resolveVisibility
+  const pending = new Promise((resolve) => { resolveVisibility = resolve })
+  const calls = []
+  let visible = true
+  const owner = page({
+    getMerchant: async () => ({ id: 'm', ownerVisible: visible, mapVisible: true, location: { status: 'visible', available: true } }),
+    setMerchantVisibility: async (id, next) => { calls.push([id, next]); await pending; visible = next },
+  })
+  await owner.syncSession()
+  const first = owner.toggleVisibility()
+  const duplicate = owner.toggleVisibility()
+  assert.equal(owner.visibilityBusy.value, true)
+  assert.deepEqual(calls, [['m', false]])
+  resolveVisibility()
+  await Promise.all([first, duplicate])
+  assert.equal(owner.pageState.value, 'paused')
+  assert.equal(owner.visibilityBusy.value, false)
+  assert.deepEqual(JSON.parse(JSON.stringify(owner.hooks.share())), { title: '找档口', path: '/pages/sourcing-map/index' })
+  owner.openMerchantHome()
+  assert.deepEqual(owner.calls.find(([type]) => type === 'navigate'), ['navigate', '/pages/merchant/detail?id=m'])
 })
 
-test('my page prompts before opening merchant-only entries without profile', () => {
-  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-
-  assert.match(source, /import \{ ensureMerchantProfileReady \} from '\.\.\/\.\.\/common\/merchantProfileGuard'/)
-  assert.match(source, /async function openMyResources\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(!\(await ensureMerchantProfileReady\(merchantId\.value\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/my-resources\/index\?merchantId=\$\{merchantId\.value\}` \}\)/)
-  assert.match(source, /async function openMerchantHome\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(!\(await ensureMerchantProfileReady\(merchantId\.value\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/merchant\/detail\?id=\$\{merchantId\.value\}` \}\)/)
-  assert.doesNotMatch(source, /uni\.showToast\(\{ title: '请先完善发布者资料'/)
+test('local draft is shown only for current signed-in account and edit uses current merchant', async () => {
+  const owner = page({ draft: { name: '本机草稿' } })
+  await owner.syncSession()
+  assert.equal(owner.hasLocalDraft.value, true)
+  owner.openMerchantEditor()
+  assert.deepEqual(owner.calls[0], ['navigate', '/pages/merchant/profile?merchantId=m'])
+  const noUser = page({ session: { token: 'token', userId: '', merchantId: '' }, draft: { name: 'old' } })
+  await noUser.syncSession()
+  assert.equal(noUser.hasLocalDraft.value, false)
 })
 
-test('my page shows entitlement details and usage guidance in the overview', () => {
-  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-
-  assert.match(source, /import \{ getMerchantEntitlements \} from '\.\.\/\.\.\/api\/entitlement'/)
-  assert.match(source, /const merchantEntitlements = ref\(\[\]\)/)
-  assert.match(source, /<view v-if="benefitOverviewVisible" class="benefit-overview-card section-card">/)
-  assert.doesNotMatch(source, /class="benefit-overview-card section-card" @click=/)
-  assert.match(source, /<text class="benefit-title">我的权益<\/text>/)
-  assert.match(source, /<text class="benefit-desc">剩余次数可用于发布和刷新供需信息<\/text>/)
-  assert.match(source, /<text class="benefit-detail-action" @click="openGrowthEntitlement">权益明细 ›<\/text>/)
-  assert.match(source, /<text class="benefit-label">可发布<\/text>/)
-  assert.match(source, /<text class="benefit-label">可刷新<\/text>/)
-  assert.match(source, /<text v-if="entitlementQuotaReady" class="benefit-unit">次<\/text>/)
-  assert.match(source, /const benefitOverviewVisible = computed\(\(\) => Boolean\(isLoggedIn\.value\)\)/)
-  assert.doesNotMatch(source, /const benefitOverviewDesc = computed/)
-  assert.match(source, /function entitlementRemaining\(type\)/)
-  assert.match(source, /async function loadMerchantEntitlements\(\)/)
-  assert.match(source, /getMerchantEntitlements\(merchantId\.value/)
-  assert.doesNotMatch(source, /<text class="action-title">VIP 权益<\/text>/)
-  assert.doesNotMatch(source, /<text class="action-meta">查看额度和限时特价<\/text>/)
-  assert.doesNotMatch(source, /function openVIP\(\)/)
-  assert.doesNotMatch(source, /function openBenefitOverview\(\)/)
-  assert.doesNotMatch(source, /quota-summary/)
-  assert.doesNotMatch(source, /entitlement-section/)
-  assert.doesNotMatch(source, /免费额度/)
-  assert.doesNotMatch(source, /完善资料后每月/)
-  assert.doesNotMatch(source, /profileStatus === 'completed' \? 10 : 3/)
-  assert.doesNotMatch(source, /getMerchantEntitlementUsageRecords/)
-  assert.doesNotMatch(source, /selectedEntitlement/)
-  assert.doesNotMatch(source, /使用记录/)
-  assert.doesNotMatch(source, /<text class="action-title">商家认证<\/text>/)
-  assert.doesNotMatch(source, /openMerchantVerification/)
-  assert.doesNotMatch(source, /getLatestVerification/)
-})
-
-test('my page only highlights quota purchases after a trustworthy entitlement response', () => {
-  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-
-  assert.match(source, /import \{ QUOTA_TYPE_PUBLISH, QUOTA_TYPE_REFRESH, buildQuotaPurchaseUrl \} from '\.\.\/\.\.\/common\/entitlementPurchase'/)
-  assert.match(source, /const QUOTA_LOW_THRESHOLD = 2/)
-  assert.match(source, /const entitlementLoadState = ref\('idle'\)/)
-  assert.match(source, /const entitlementRequestId = ref\(0\)/)
-  assert.match(source, /const entitlementQuotaReady = computed\(\(\) => Boolean\(isLoggedIn\.value && merchantId\.value && entitlementLoadState\.value === 'loaded'\)\)/)
-  assert.match(source, /const publishQuotaDisplay = computed\(\(\) => entitlementQuotaReady\.value \? publishQuotaRemaining\.value : '--'\)/)
-  assert.match(source, /const refreshQuotaDisplay = computed\(\(\) => entitlementQuotaReady\.value \? refreshQuotaRemaining\.value : '--'\)/)
-  assert.match(source, /const benefitExpiryReminder = computed\(\(\) => \{[\s\S]*if \(!entitlementQuotaReady\.value\) return ''/)
-  assert.match(source, /const publishQuotaLow = computed\(\(\) => publishQuotaRemaining\.value > 0 && publishQuotaRemaining\.value <= QUOTA_LOW_THRESHOLD\)/)
-  assert.match(source, /const refreshQuotaLow = computed\(\(\) => refreshQuotaRemaining\.value > 0 && refreshQuotaRemaining\.value <= QUOTA_LOW_THRESHOLD\)/)
-  assert.match(source, /'benefit-stat-low': entitlementQuotaReady && publishQuotaLow/)
-  assert.match(source, /'benefit-stat-empty': entitlementQuotaReady && publishQuotaRemaining === 0/)
-  assert.match(source, /'benefit-stat-low': entitlementQuotaReady && refreshQuotaLow/)
-  assert.match(source, /'benefit-stat-empty': entitlementQuotaReady && refreshQuotaRemaining === 0/)
-  assert.match(source, /<view class="benefit-stat-head">[\s\S]*<text class="benefit-label">可发布<\/text>[\s\S]*v-if="entitlementQuotaReady"[^>]*class="quota-purchase-action"[^>]*@click="openQuotaPurchase\(QUOTA_TYPE_PUBLISH\)"/)
-  assert.match(source, /\{\{ publishQuotaRemaining === 0 \? '购买 ›' : '补充 ›' \}\}/)
-  assert.match(source, /<view class="benefit-stat-head">[\s\S]*<text class="benefit-label">可刷新<\/text>[\s\S]*v-if="entitlementQuotaReady"[^>]*class="quota-purchase-action"[^>]*@click="openQuotaPurchase\(QUOTA_TYPE_REFRESH\)"/)
-  assert.match(source, /\{\{ refreshQuotaRemaining === 0 \? '购买 ›' : '补充 ›' \}\}/)
-  assert.doesNotMatch(source, /可正常使用/)
-  assert.doesNotMatch(source, /即将用完 · 去补充 ›/)
-  assert.doesNotMatch(source, /购买发布次数 ›/)
-  assert.doesNotMatch(source, /购买刷新次数 ›/)
-  assert.match(source, /const benefitGrowthTitle = computed\(\(\) => \{/)
-  assert.match(source, /if \(!entitlementQuotaReady\.value\) return '做任务，免费得次数'/)
-  assert.match(source, /return publishQuotaRemaining\.value === 0 \|\| refreshQuotaRemaining\.value === 0[\s\S]*\? '也可以免费获取'[\s\S]*: '做任务，免费得次数'/)
-  assert.match(source, /v-if="activeGrowthCampaign\.code" class="benefit-growth-banner"/)
-  assert.match(source, /\{\{ benefitGrowthTitle \}\}/)
-  assert.match(source, /完成任务，奖励自动到账/)
-  assert.match(source, /class="benefit-growth-button" @click="openGrowthEntitlement">去完成<\/text>/)
-  assert.doesNotMatch(source, /quota-purchase-primary/)
-  assert.match(source, /if \(!token\.value \|\| !merchantId\.value\) \{[\s\S]*entitlementLoadState\.value = 'unavailable'/)
-  assert.match(source, /const requestId = entitlementRequestId\.value \+ 1[\s\S]*entitlementRequestId\.value = requestId/)
-  assert.match(source, /entitlementLoadState\.value = 'loading'/)
-  assert.match(source, /const resp = await getMerchantEntitlements\(merchantId\.value, \{ suppressErrorToast: true \}\)[\s\S]*if \(requestId !== entitlementRequestId\.value\) return[\s\S]*merchantEntitlements\.value = resp\.items \|\| \[\][\s\S]*entitlementLoadState\.value = 'loaded'/)
-  assert.match(source, /catch \(err\) \{[\s\S]*if \(requestId !== entitlementRequestId\.value\) return[\s\S]*merchantEntitlements\.value = \[\][\s\S]*entitlementLoadState\.value = 'error'/)
-  assert.match(source, /function openQuotaPurchase\(quotaType\)[\s\S]*buildQuotaPurchaseUrl\(quotaType\)/)
-  assert.doesNotMatch(source, /<view\s+class="benefit-stat"[^>]*@click=/)
-  assert.doesNotMatch(source, /<text class="benefit-value"[^>]*@click=/)
-  assert.doesNotMatch(source, /<text class="benefit-label"[^>]*@click=/)
-  assert.doesNotMatch(source, /暂无可领取权益/)
-})
-
-test('my page gives quota states and free tasks distinct visual treatments', () => {
-  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-
-  assert.match(source, /\.benefit-detail-action \{[\s\S]*min-height: 72rpx/)
-  assert.match(source, /\.benefit-stat \{[\s\S]*border: 1rpx solid transparent/)
-  assert.match(source, /\.benefit-stat \{[^}]*position: relative;[^}]*min-height: 136rpx/)
-  assert.match(source, /\.benefit-stat-head \{[^}]*display: flex;[^}]*padding-right: 74rpx/)
-  assert.match(source, /\.quota-purchase-action \{[^}]*position: absolute;[^}]*min-height: 64rpx;[^}]*color: \$wplink-muted/)
-  assert.match(source, /\.benefit-stat-low \.quota-purchase-action \{[^}]*color: rgba\(194, 58, 0, 0\.78\)/)
-  assert.match(source, /\.benefit-stat-empty \.quota-purchase-action \{[^}]*color: \$wplink-warning/)
-  assert.doesNotMatch(source, /\.benefit-status/)
-  assert.doesNotMatch(source, /\.quota-purchase-low/)
-  assert.match(source, /\.benefit-stat-low \{[\s\S]*rgba\(194, 58, 0, 0\.04\)/)
-  assert.match(source, /\.benefit-stat-empty \{[\s\S]*\$wplink-warning-soft/)
-  assert.match(source, /\.benefit-growth-banner \{[\s\S]*\$wplink-success-soft/)
-  assert.match(source, /\.benefit-growth-button \{[\s\S]*min-height: 72rpx/)
-  assert.match(source, /\.benefit-expiry \{[^}]*background: \$wplink-primary-soft[^}]*color: \$wplink-muted/)
-  assert.doesNotMatch(source, /\.benefit-expiry \{[^}]*\$wplink-warning/)
-  assert.doesNotMatch(source, /\.benefit-actions \{/)
-  assert.doesNotMatch(source, /\.benefit-growth-action \{/)
-})
-
-test('my page keeps messages reachable after messages leaves the tab bar', () => {
-  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-
-  assert.match(source, /<text class="action-title">消息<\/text>/)
-  assert.match(source, /function openMessages\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*uni\.navigateTo\(\{ url: '\/pages\/messages\/index' \}\)/)
-  assert.doesNotMatch(source, /uni\.switchTab\(\{ url: '\/pages\/messages\/index' \}\)/)
-})
-
-test('my page shows nearest 7-day expiring entitlement reminder', () => {
-  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-
-  assert.match(source, /import \{ formatDateToDay \} from '\.\.\/\.\.\/common\/date'/)
-  assert.match(source, /const BENEFIT_EXPIRY_SOON_DAYS = 7/)
-  assert.match(source, /<text v-if="benefitExpiryReminder" class="benefit-expiry">\{\{ benefitExpiryReminder \}\}<\/text>/)
-  assert.match(source, /const benefitExpiryReminder = computed/)
-  assert.match(source, /Date\.parse\(item\.expiresAt\)/)
-  assert.match(source, /expiresAtTime - Date\.now\(\) <= BENEFIT_EXPIRY_SOON_DAYS \* 24 \* 60 \* 60 \* 1000/)
-  assert.match(source, /最近到期：\$\{entitlementLabel\(nearest\.type\)\} \$\{amount\} 次，\$\{formatDateToDay\(nearest\.expiresAt, ''\)\} 到期/)
-  assert.match(source, /function entitlementLabel\(type\)/)
-  assert.match(source, /if \(type === 'refresh_quota'\) return '刷新次数'/)
-  assert.match(source, /if \(type === 'publish_quota'\) return '发布次数'/)
-})
-
-test('my page uses growth campaign data in compact entitlement overview', () => {
-  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-  const loadGrowthStart = source.indexOf('async function loadGrowthCampaigns()')
-  const loadGrowthEnd = source.indexOf('\n}\n\nfunction entitlementRemaining', loadGrowthStart)
-  const loadGrowthSource = source.slice(loadGrowthStart, loadGrowthEnd)
-
-  assert.match(source, /import \{ getActiveGrowthCampaigns \} from '\.\.\/\.\.\/api\/growthCampaign'/)
-  assert.match(source, /const growthCampaigns = ref\(\[\]\)/)
-  assert.match(source, /const activeGrowthCampaign = computed\(\(\) => growthCampaigns\.value\[0\] \|\| \{\}\)/)
-  assert.match(source, /async function loadGrowthCampaigns\(\)/)
-  assert.match(loadGrowthSource, /if \(!token\.value\) \{/)
-  assert.doesNotMatch(loadGrowthSource, /merchantId\.value/)
-  assert.match(source, /getActiveGrowthCampaigns\(\{ suppressErrorToast: true \}\)/)
-  assert.match(source, /v-if="activeGrowthCampaign\.code" class="benefit-growth-banner"/)
-  assert.match(source, /async function openGrowthEntitlement\(\) \{[\s\S]*if \(!requireLogin\(\)\) return[\s\S]*if \(!\(await ensureMerchantProfileReady\(merchantId\.value\)\)\) return[\s\S]*uni\.navigateTo\(\{ url: `\/pages\/my\/growth-entitlement\?merchantId=\$\{merchantId\.value\}` \}\)/)
-})
-
-test('my page hides merchant weekly effect section for now', () => {
-  const source = fs.readFileSync(path.join(root, 'pages/my/index.vue'), 'utf8')
-
-  assert.doesNotMatch(source, /getMerchantMetricsSummary/)
-  assert.doesNotMatch(source, /merchantMetricsSummary/)
-  assert.doesNotMatch(source, /merchantEffectVisible/)
-  assert.doesNotMatch(source, /merchantEffectItems/)
-  assert.doesNotMatch(source, /商家本周效果/)
-  assert.doesNotMatch(source, /近 7 天/)
-  assert.doesNotMatch(source, /merchant-effect-card/)
-  assert.doesNotMatch(source, /merchant-effect-grid/)
-  assert.doesNotMatch(source, /merchant-effect-item/)
+test('a landlord without GPS can view and share a public profile and pause it', async () => {
+  const calls = []
+  let visible = true
+  const owner = page({
+    getMerchant: async () => ({ id: 'm', name: '张先生出租', profileStatus: 'completed', ownerVisible: visible, mapVisible: false, businessProfile: { schemaVersion: 1, entityKind: 'individual', primaryRole: 'landlord', roles: ['landlord'], propertyTypes: ['住房'], serviceArea: '织里镇', processingMethods: [], serviceItems: [] }, location: { status: 'hidden', available: false } }),
+    setMerchantVisibility: async (id, next) => { calls.push([id, next]); visible = next },
+  })
+  await owner.syncSession()
+  assert.equal(owner.pageState.value, 'profile_only')
+  owner.openMerchantHome()
+  assert.equal(owner.hooks.share().path, '/pages/merchant/detail?id=m')
+  assert.deepEqual(owner.calls[0], ['navigate', '/pages/merchant/detail?id=m'])
+  await owner.toggleVisibility()
+  assert.deepEqual(calls, [['m', false]])
+  assert.equal(owner.pageState.value, 'paused')
 })

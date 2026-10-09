@@ -193,8 +193,10 @@ test('search page supports configured resource tag filters', () => {
 })
 
 test('search page uses the custom title bar as the primary category channel switcher', () => {
-  const page = pagesConfig.pages.find((item) => item.path === 'pages/search/index')
+  const legacyPagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.legacy.json'), 'utf8'))
+  const page = legacyPagesConfig.pages.find((item) => item.path === 'pages/search/index')
 
+  assert.equal(pagesConfig.pages.some((item) => item.path === 'pages/search/index'), false)
   assert.equal(page?.style?.navigationStyle, 'custom')
   assert.match(source, /<view class="search-nav" :style="searchNavStyle">/)
   assert.match(source, /<view class="search-title-bar" :style="searchTitleBarStyle">/)

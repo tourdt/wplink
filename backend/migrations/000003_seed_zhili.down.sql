@@ -1,6 +1,3 @@
-DELETE FROM merchants
-WHERE id = 8020000000000000001;
-
 DELETE FROM banner_topics
 WHERE city_station_id IN (
   SELECT id FROM city_stations WHERE code = 'zhili'

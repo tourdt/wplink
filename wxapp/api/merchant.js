@@ -3,13 +3,16 @@ import request from './request'
 const MERCHANT_UPDATE_FIELDS = [
   'name',
   'mainCategories',
-  'merchantType',
   'description',
   'logoUrl',
   'images',
   'contactName',
   'contactPhone',
   'contactWechat',
+  'publicPhone',
+  'publicWechat',
+  'businessProfile',
+  'mapVisible',
   'addressText',
   'locationAction',
   'marketName',
@@ -26,6 +29,15 @@ export function getMerchant(merchantId, options = {}) {
     url: `/api/v1/merchants/${merchantId}`,
     method: 'GET',
     ...options,
+  })
+}
+
+export function setMerchantVisibility(merchantId, visible) {
+  return request({
+    url: `/api/v1/merchants/${merchantId}/visibility`,
+    method: 'POST',
+    data: { visible },
+    requireAuth: true,
   })
 }
 

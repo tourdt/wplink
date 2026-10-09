@@ -42,7 +42,7 @@ test('directory items expose only merchant identity and public directory fields'
   })
 
   assert.deepEqual(item, {
-    merchantId: '1', merchantNo: 'M001', name: '晨星童装', merchantType: '', mainCategories: ['童装'],
+    merchantId: '1', merchantNo: 'M001', name: '晨星童装', merchantType: '', primaryRole: '', businessRoles: [], mainCategories: ['童装'],
     logoUrl: '', addressText: '', marketName: '', buildingName: '', floorNo: '', boothNo: 'A108',
     latitude: 30.8732, longitude: 120.2255, locationName: '', lastResourceActiveAt: '', distanceMeters: 0,
   })
@@ -69,7 +69,7 @@ test('merchant coordinate strip follows the market building floor booth order', 
     marketName: '织里童装城', buildingName: '一期', floorNo: '1F', boothNo: 'A108', addressText: '织里镇',
   }), '织里童装城 · 一期 · 1F · A108')
   assert.equal(merchantDirectoryCoordinateText({ addressText: '织里镇富民路' }), '织里镇富民路')
-  assert.equal(merchantDirectoryCoordinateText({}), '档口地址待完善')
+  assert.equal(merchantDirectoryCoordinateText({}), '接待地址待完善')
 })
 
 test('merchant detail navigation uses merchantId as its only identity', () => {
@@ -86,4 +86,10 @@ test('stable pagination preserves first occurrence and deduplicates by merchantI
   assert.deepEqual(mergeMerchantDirectoryItems(current, incoming).map((item) => [item.merchantId, item.name]), [
     ['1', '第一页商家'], ['2', '第二页商家'],
   ])
+})
+
+test('directory role projection preserves a landlord identity despite a legacy individual type', () => {
+  const item = normalizeMerchantDirectoryItem({ merchantId: 'm', merchantType: 'individual', primaryRole: 'landlord', businessRoles: ['landlord', 'service_provider', 'landlord'] })
+  assert.equal(item.primaryRole, 'landlord')
+  assert.deepEqual(item.businessRoles, ['landlord', 'service_provider'])
 })

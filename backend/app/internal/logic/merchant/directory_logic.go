@@ -53,6 +53,8 @@ type MerchantDirectoryPublicItem struct {
 	LocationName         string   `json:"locationName,omitempty"`
 	LastResourceActiveAt string   `json:"lastResourceActiveAt,omitempty"`
 	DistanceMeters       float64  `json:"distanceMeters,omitempty"`
+	PrimaryRole          string   `json:"primaryRole,omitempty"`
+	BusinessRoles        []string `json:"businessRoles,omitempty"`
 }
 
 type ListMerchantDirectoryResp struct {
@@ -108,20 +110,12 @@ func (l *MerchantDirectoryLogic) ListDirectory(ctx context.Context, req ListMerc
 	}
 	items, err := l.store.ListMerchantDirectory(ctx, filter)
 	if err != nil {
-		logx.WithContext(ctx).Errorw("查询商家目录失败",
-			logx.Field("operation", "list_merchant_directory"),
-			logx.Field("page", page),
-			logx.Field("pageSize", pageSize),
-			logx.Field("err", err))
+		logMerchantFailure(ctx, "list_merchant_directory", "", err, logx.Field("page", page), logx.Field("pageSize", pageSize))
 		return ListMerchantDirectoryResp{}, errx.New(errx.CodeInternalError, "商家列表加载失败，请稍后重试")
 	}
 	total, err := l.store.CountMerchantDirectory(ctx, filter)
 	if err != nil {
-		logx.WithContext(ctx).Errorw("统计商家目录失败",
-			logx.Field("operation", "count_merchant_directory"),
-			logx.Field("page", page),
-			logx.Field("pageSize", pageSize),
-			logx.Field("err", err))
+		logMerchantFailure(ctx, "count_merchant_directory", "", err, logx.Field("page", page), logx.Field("pageSize", pageSize))
 		return ListMerchantDirectoryResp{}, errx.New(errx.CodeInternalError, "商家列表加载失败，请稍后重试")
 	}
 	return ListMerchantDirectoryResp{
@@ -140,10 +134,7 @@ func (l *MerchantDirectoryLogic) GetLocationContext(ctx context.Context, merchan
 	current, err := l.store.GetVisibleMerchantLocation(ctx, merchantID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			logx.WithContext(ctx).Errorw("查询当前商家公开位置失败",
-				logx.Field("operation", "get_visible_merchant_location"),
-				logx.Field("merchantId", merchantID),
-				logx.Field("err", err))
+			logMerchantFailure(ctx, "get_visible_merchant_location", merchantID, err)
 			return MerchantLocationContextResp{}, errx.New(errx.CodeInternalError, "该商家位置待完善")
 		}
 		return MerchantLocationContextResp{}, errx.New(errx.CodeResourceNotFound, "该商家位置待完善")
@@ -156,12 +147,7 @@ func (l *MerchantDirectoryLogic) GetLocationContext(ctx context.Context, merchan
 	nearby, err := l.store.ListNearbyVisibleMerchants(ctx, current, merchantLocationRadiusMeters, merchantLocationNearbyLimit)
 	if err != nil {
 		// 附近推荐不是导航前置条件；数据库异常时保留当前商家，避免扩大故障影响面。
-		logx.WithContext(ctx).Errorw("查询附近公开商家失败",
-			logx.Field("operation", "list_nearby_visible_merchants"),
-			logx.Field("merchantId", merchantID),
-			logx.Field("radiusMeters", merchantLocationRadiusMeters),
-			logx.Field("limit", merchantLocationNearbyLimit),
-			logx.Field("err", err))
+		logMerchantFailure(ctx, "list_nearby_visible_merchants", merchantID, err)
 		return MerchantLocationContextResp{
 			Current:         currentItem,
 			Nearby:          []MerchantDirectoryPublicItem{},
@@ -225,6 +211,8 @@ func mapMerchantDirectoryPublicItem(item model.MerchantDirectoryItem) MerchantDi
 		LocationName:         item.LocationName,
 		LastResourceActiveAt: lastResourceActiveAt,
 		DistanceMeters:       item.DistanceMeters,
+		PrimaryRole:          item.PrimaryRole,
+		BusinessRoles:        append([]string{}, item.BusinessRoles...),
 	}
 }
 

@@ -28,7 +28,7 @@
 
 ### 1.1 文档优先级
 
-运行时代码、`backend/app/api/app.api` 与 `backend/migrations/` 是当前实现的最高优先级事实来源。2026-10-09 起，新的服装地图首发目标见[产品需求文档](apparel-map-mvp-prd.md)及[首发验收清单](apparel-map-mvp-acceptance.md)，目标需求不代表代码已实现。`docs/product/mvp-acceptance-checklist.md` 保留原供需版本验收场景。`apparel-industry-platform-prd.md`、`domain-model-ddd.md`、`database-er-design.md`、`resource-management-rules.md` 为历史归档文档，不得作为当前实现依据；它们仅用于追溯早期设计决策。
+运行时代码、`backend/app/api/app.api` 与 `backend/migrations/` 是当前实现的最高优先级事实来源。2026-10-09 起，新的服装地图首发目标见[产品需求文档](apparel-map-mvp-prd.md)及[首发验收清单](apparel-map-mvp-acceptance.md)，目标需求不代表代码已实现。`docs/product/mvp-acceptance-checklist.md` 保留原供需版本验收场景。`apparel-industry-platform-prd.md`、`domain-model-ddd.md`、`database-er-design.md`、`resource-management-rules.md` 为历史归档文档。历史归档文档不得作为当前依据，仅用于追溯早期设计决策。
 
 ## 2. 系统定位与核心业务模型
 
@@ -293,7 +293,9 @@ Logic 通过小接口声明所需能力，`APIStore` 依靠 Go 接口组合满�
 
 商家名称有独立业务校验；商家类型变更写入 `merchant_type_change_logs`。`merchant_no` 使用独立序列生成稳定的展示编号，不使用主键直接作为业务编号。
 
-主要代码：`logic/merchant/`、`model/merchant_model.go`、`wxapp/pages/merchant/`。
+资料完整性与地图可见性独立判断：按 businessProfile 的主体性质、主要与兼营业务校验对应资料后才能标记 completed，首次完成时记录 onboarded_at；房东、服务方可不填写服装主营，有无坐标不影响资料完成。新账号从完整的空版本1档案开始，map_visible 默认为 false，不推断旧身份或适配历史数据。保存事务与位置规则已独立拆分，职责及日志排查见[商家模块维护说明](merchant-module-maintenance.md)。
+
+主要代码：`logic/merchant/`、`model/merchant_model.go`、`model/merchant_profile_update.go`、`model/merchant_location.go`、`wxapp/pages/merchant/`。
 
 主要数据：`merchants`、`merchant_admin_bindings`、`merchant_type_change_logs`、`credit_records`。
 

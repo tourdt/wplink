@@ -26,24 +26,27 @@ func TestUpdateMerchantPassesPatchToStore(t *testing.T) {
 	logic := NewUpdateMerchantLogic(store, verifier)
 
 	resp, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
-		Name:           "  织里晨星童装  ",
-		MainCategories: []string{"童装", "卫衣"},
-		MerchantType:   " stockist ",
-		Description:    "支持小单快反",
-		LogoURL:        "https://example.com/logo.png",
-		Images:         []string{"https://example.com/factory.jpg"},
-		ContactName:    "李厂长",
-		ContactPhone:   "18800000001",
-		ContactWechat:  "factory-demo",
-		AddressText:    "织里镇利济路88号",
-		LocationAction: "set",
-		MarketName:     "织里童装城",
-		BuildingName:   "一期",
-		FloorNo:        "1F",
-		BoothNo:        "A108",
-		Latitude:       float64Ptr(30.1),
-		Longitude:      float64Ptr(120.2),
-		LocationName:   "织里童装城",
+		Name:            "  织里晨星童装  ",
+		MainCategories:  []string{"童装", "卫衣"},
+		BusinessProfile: testFactoryBusinessProfile(),
+		MapVisible:      boolPtr(false),
+		Description:     "支持小单快反",
+		LogoURL:         "https://example.com/logo.png",
+		Images:          []string{"https://example.com/factory.jpg"},
+		ContactName:     "李厂长",
+		ContactPhone:    "18800000001",
+		ContactWechat:   "factory-demo",
+		PublicPhone:     boolPtr(false),
+		PublicWechat:    boolPtr(true),
+		AddressText:     "织里镇利济路88号",
+		LocationAction:  "set",
+		MarketName:      "织里童装城",
+		BuildingName:    "一期",
+		FloorNo:         "1F",
+		BoothNo:         "A108",
+		Latitude:        float64Ptr(30.1),
+		Longitude:       float64Ptr(120.2),
+		LocationName:    "织里童装城",
 	})
 	if err != nil {
 		t.Fatalf("UpdateMerchant() error = %v", err)
@@ -58,14 +61,17 @@ func TestUpdateMerchantPassesPatchToStore(t *testing.T) {
 	if store.patch.Description != "支持小单快反" {
 		t.Fatalf("description = %q, want updated description", store.patch.Description)
 	}
-	if store.patch.MerchantType != "stockist" {
-		t.Fatalf("merchantType = %q, want trimmed stockist", store.patch.MerchantType)
+	if store.patch.BusinessProfile == nil || store.patch.BusinessProfile.PrimaryRole != "factory" {
+		t.Fatalf("profile = %#v", store.patch.BusinessProfile)
 	}
 	if store.patch.LogoURL != "https://example.com/logo.png" {
 		t.Fatalf("logoURL = %q, want updated logo URL", store.patch.LogoURL)
 	}
 	if store.patch.ContactName != "李厂长" || store.patch.ContactPhone != "18800000001" || store.patch.ContactWechat != "factory-demo" {
 		t.Fatalf("contact patch = %#v, want contact name/phone/wechat", store.patch)
+	}
+	if store.patch.PublicPhone == nil || *store.patch.PublicPhone || store.patch.PublicWechat == nil || !*store.patch.PublicWechat {
+		t.Fatalf("public contact choices = %#v/%#v, want explicit false/true", store.patch.PublicPhone, store.patch.PublicWechat)
 	}
 	if store.patch.AddressText != "织里镇利济路88号" {
 		t.Fatalf("addressText = %q, want updated merchant address", store.patch.AddressText)
@@ -85,7 +91,7 @@ func TestUpdateMerchantRejectsMisleadingName(t *testing.T) {
 	store := &fakeMerchantUpdateStore{updatedAt: "2026-06-27T10:00:00+08:00"}
 	logic := NewUpdateMerchantLogic(store)
 
-	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{BusinessProfile: testFactoryBusinessProfile(), MapVisible: boolPtr(false),
 		Name:           "官方认证童装",
 		MainCategories: []string{"童装"},
 	})
@@ -102,7 +108,7 @@ func TestUpdateMerchantRejectsInvalidContactPhone(t *testing.T) {
 	store := &fakeMerchantUpdateStore{updatedAt: "2026-06-27T10:00:00+08:00"}
 	logic := NewUpdateMerchantLogic(store, &fakeMerchantSMSVerifier{})
 
-	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{BusinessProfile: testFactoryBusinessProfile(), MapVisible: boolPtr(false),
 		MainCategories: []string{"童装"},
 		ContactPhone:   "1880000中文",
 	})
@@ -119,7 +125,7 @@ func TestUpdateMerchantMapsMissingMerchant(t *testing.T) {
 	store := &fakeMerchantUpdateStore{err: sql.ErrNoRows}
 	logic := NewUpdateMerchantLogic(store)
 
-	_, err := logic.UpdateMerchant(context.Background(), "merchant-missing", UpdateMerchantReq{
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-missing", UpdateMerchantReq{BusinessProfile: testFactoryBusinessProfile(), MapVisible: boolPtr(false),
 		MainCategories: []string{"童装"},
 		LocationAction: "clear",
 	})
@@ -133,7 +139,7 @@ func TestUpdateMerchantSetsVisibleStructuredLocation(t *testing.T) {
 	store := &fakeMerchantUpdateStore{updatedAt: "2026-08-28T10:00:00+08:00"}
 	logic := NewUpdateMerchantLogic(store)
 
-	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{BusinessProfile: testFactoryBusinessProfile(), MapVisible: boolPtr(false),
 		Name:           "织里晨星童装",
 		LocationAction: "set",
 		MarketName:     " 织里童装城 ",
@@ -161,7 +167,7 @@ func TestUpdateMerchantSetsVisibleStructuredLocation(t *testing.T) {
 func TestUpdateMerchantRejectsHalfLocation(t *testing.T) {
 	logic := NewUpdateMerchantLogic(&fakeMerchantUpdateStore{})
 
-	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{BusinessProfile: testFactoryBusinessProfile(), MapVisible: boolPtr(false),
 		Name:           "织里晨星童装",
 		LocationAction: "set",
 		Latitude:       float64Ptr(30.8732),
@@ -184,7 +190,7 @@ func TestUpdateMerchantRejectsInvalidCoordinates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logic := NewUpdateMerchantLogic(&fakeMerchantUpdateStore{})
-			_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+			_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{BusinessProfile: testFactoryBusinessProfile(), MapVisible: boolPtr(false),
 				Name:           "织里晨星童装",
 				LocationAction: "set",
 				Latitude:       float64Ptr(tt.latitude),
@@ -201,7 +207,7 @@ func TestUpdateMerchantClearsLocation(t *testing.T) {
 	store := &fakeMerchantUpdateStore{updatedAt: "2026-08-28T10:00:00+08:00"}
 	logic := NewUpdateMerchantLogic(store)
 
-	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{BusinessProfile: testFactoryBusinessProfile(), MapVisible: boolPtr(false),
 		Name:           "织里晨星童装",
 		LocationAction: "clear",
 		MarketName:     "应忽略的市场",
@@ -226,12 +232,20 @@ func TestUpdateMerchantClearsLocation(t *testing.T) {
 func TestUpdateMerchantRejectsUnknownLocationAction(t *testing.T) {
 	logic := NewUpdateMerchantLogic(&fakeMerchantUpdateStore{})
 
-	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{BusinessProfile: testFactoryBusinessProfile(), MapVisible: boolPtr(false),
 		Name:           "织里晨星童装",
-		LocationAction: "keep",
+		LocationAction: "unknown",
 	})
 	if errx.CodeOf(err) != errx.CodeValidationFailed || errx.PublicMessage(err) != "地图位置操作不正确，请重新选择" {
 		t.Fatalf("error = %v, want safe invalid location action message", err)
+	}
+}
+
+func TestUpdateMerchantAcceptsKeepAndMapsStoredProfileValidationToChinese400(t *testing.T) {
+	store := &fakeMerchantUpdateStore{err: &model.MerchantOperationError{Stage: "validate_profile", Cause: &model.MerchantValidationError{Message: "请填写加工工艺"}}}
+	_, err := NewUpdateMerchantLogic(store).UpdateMerchant(context.Background(), "101", UpdateMerchantReq{BusinessProfile: testFactoryBusinessProfile(), MapVisible: boolPtr(false), Name: "工厂", LocationAction: "keep"})
+	if store.patch.Location.Action != model.MerchantLocationActionKeep || errx.CodeOf(err) != errx.CodeValidationFailed || errx.PublicMessage(err) != "请填写加工工艺" {
+		t.Fatalf("patch = %#v, err = %v", store.patch, err)
 	}
 }
 
@@ -239,7 +253,7 @@ func TestUpdateMerchantMapsStoreFailureToSafeError(t *testing.T) {
 	store := &fakeMerchantUpdateStore{err: databaseError("write failed")}
 	logic := NewUpdateMerchantLogic(store)
 
-	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{
+	_, err := logic.UpdateMerchant(context.Background(), "merchant-1", UpdateMerchantReq{BusinessProfile: testFactoryBusinessProfile(), MapVisible: boolPtr(false),
 		Name:           "织里晨星童装",
 		LocationAction: "clear",
 	})
@@ -252,7 +266,13 @@ type databaseError string
 
 func (e databaseError) Error() string { return string(e) }
 
+func testFactoryBusinessProfile() *model.BusinessProfile {
+	return &model.BusinessProfile{SchemaVersion: 1, EntityKind: "organization", PrimaryRole: "factory", Roles: []string{"factory"}, ProcessingMethods: []string{"车缝"}}
+}
+
 func float64Ptr(value float64) *float64 { return &value }
+
+func boolPtr(value bool) *bool { return &value }
 
 type fakeMerchantUpdateStore struct {
 	merchantID string

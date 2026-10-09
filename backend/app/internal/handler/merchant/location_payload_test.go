@@ -25,16 +25,13 @@ func TestUpdateMerchantPayloadPreservesMissingAndZeroCoordinates(t *testing.T) {
 	}
 }
 
-func TestUpdateMerchantPayloadKeepsNonLocationFieldsOptional(t *testing.T) {
+func TestUpdateMerchantPayloadRequiresProfileAndMapChoice(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/merchants/merchant-1", strings.NewReader(`{"locationAction":"clear"}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	var payload updateMerchantPayload
-	if err := httpx.Parse(req, &payload); err != nil {
-		t.Fatalf("parse clear-only merchant payload: %v", err)
-	}
-	if payload.LocationAction != "clear" {
-		t.Fatalf("locationAction = %q, want clear", payload.LocationAction)
+	if err := httpx.Parse(req, &payload); err == nil {
+		t.Fatal("missing full-form fields accepted")
 	}
 }
 
@@ -60,5 +57,25 @@ func TestMerchantLocationPayloadOmitsUnavailableCoordinates(t *testing.T) {
 	}
 	if _, exists := location["longitude"]; exists {
 		t.Fatalf("payload = %s, unavailable location must omit longitude", payload)
+	}
+}
+
+func TestMerchantPublicContactPayloadOmitsPrivateFields(t *testing.T) {
+	payload, err := json.Marshal(merchantDetailPayload{Contact: &merchantContactPayload{Phone: "13800000000"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	contact, ok := decoded["contact"].(map[string]interface{})
+	if !ok || contact["phone"] != "13800000000" {
+		t.Fatalf("contact = %#v", decoded["contact"])
+	}
+	for _, key := range []string{"name", "wechat", "phoneMasked", "wechatMasked"} {
+		if _, exists := contact[key]; exists {
+			t.Fatalf("private field %q exposed: %#v", key, contact)
+		}
 	}
 }

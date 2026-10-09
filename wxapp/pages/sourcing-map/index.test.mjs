@@ -69,7 +69,8 @@ function loadPage({
   vm.runInNewContext(`${script}\nglobalThis.page = {
     loadMerchants, submitSearch, applyCategoryFilter, clearConditions,
     openMerchantDetail, openMerchantLocation, promptNavigationFeedback, submitNavigationFeedback,
-    state: { keyword, categoriesText, merchants, total, page, loading, errorText, reportSubmitting, loadMoreText },
+    openOnboarding, openCategoryFilter, confirmCategoryFilter,
+    state: { keyword, categoriesText, merchants, total, page, loading, errorText, reportSubmitting, loadMoreText, pendingCategories, categoryFilterVisible },
   }`, sandbox)
   sandbox.page.loadHook = (...args) => loadHook(...args)
   sandbox.page.showHook = (...args) => showHook(...args)
@@ -82,9 +83,9 @@ function merchant(merchantId, name = `商家${merchantId}`) {
 
 test('merchant directory remains the stable list-first tab', () => {
   const tab = pagesConfig.tabBar.list.find((item) => item.pagePath === 'pages/sourcing-map/index')
-  assert.equal(tab.text, '拿货档口')
+  assert.equal(tab.text, '找档口')
   assert.doesNotMatch(source, /<map\b|canvas|sourceFilters|claimedFilter/)
-  assert.match(source, /v-model="categoriesText"/)
+  assert.match(source, /<checkbox-group/); assert.match(source, /MERCHANT_CATEGORY_OPTIONS/)
   assert.match(source, /:key="merchant\.merchantId"/)
 })
 
@@ -286,4 +287,27 @@ test('directory releases an anonymous feedback claim and completes it after logi
   const toastIndex = timeline.findIndex((item) => item[0] === 'showToast' && item[1] === '已收到你的反馈')
   const trackIndex = timeline.findIndex((item) => item[0] === 'track' && item[1].eventType === 'location_report_submit')
   assert.ok(completionIndex >= 0 && completionIndex < toastIndex && toastIndex < trackIndex)
+})
+
+
+test('onboarding preserves login return path and never navigates before authentication', () => {
+  const timeline=[]
+  let redirect
+  const page=loadPage({timeline,requireLogin(options){redirect=options.redirect;return false}})
+  page.openOnboarding()
+  assert.equal(redirect,'/pages/merchant/profile')
+  assert.equal(timeline.length,0)
+})
+
+test('category sheet only applies selected categories after confirmation', async () => {
+  const queries=[]
+  const page=loadPage({listMerchantDirectory:async q=>{queries.push(plain(q));return {items:[],total:0}}})
+  page.state.categoriesText.value='童装'
+  page.openCategoryFilter()
+  assert.deepEqual(plain(page.state.pendingCategories.value),['童装'])
+  page.state.pendingCategories.value=['女童装','连衣裙']
+  assert.equal(queries.length,0)
+  await page.confirmCategoryFilter()
+  assert.equal(queries[0].categories,'女童装,连衣裙')
+  assert.equal(page.state.categoryFilterVisible.value,false)
 })

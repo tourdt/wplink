@@ -4,7 +4,7 @@ import path from 'node:path'
 import test from 'node:test'
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
-const source = fs.readFileSync(path.join(root, 'pages/home/index.vue'), 'utf8')
+const source = fs.readFileSync(path.join(root, 'pages/home/legacy.vue'), 'utf8')
 
 test('home platform picks fall back to public resources when curated feed is empty', () => {
   assert.match(source, /import \{ listResources \} from '\.\.\/\.\.\/api\/resource'/)

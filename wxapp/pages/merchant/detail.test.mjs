@@ -3,362 +3,147 @@ import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import vm from 'node:vm'
-import { compileTemplate, parse } from '@vue/compiler-sfc'
-import { createSSRApp, h } from 'vue'
-import { renderToString } from '@vue/server-renderer'
+import { getBusinessProfile, getBusinessRoleLabels, getBusinessProfileSummary } from '../../common/merchantBusinessProfile.js'
+import { getPublicContact, getStorefrontPlace } from '../../common/merchantStorefront.js'
 
-const root = path.resolve(new URL('../..', import.meta.url).pathname)
-const sourcePath = path.join(root, 'pages/merchant/detail.vue')
+const source = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), 'detail.vue'), 'utf8')
 
-function plain(value) {
-  return JSON.parse(JSON.stringify(value))
-}
-
-function deferred() {
-  let resolve
-  let reject
-  const promise = new Promise((nextResolve, nextReject) => {
-    resolve = nextResolve
-    reject = nextReject
-  })
-  return { promise, resolve, reject }
-}
-
-function createTrackedRefFactory() {
-  const writes = new WeakMap()
-  return {
-    ref(initialValue) {
-      let currentValue = initialValue
-      const state = {}
-      writes.set(state, [])
-      Object.defineProperty(state, 'value', {
-        get() {
-          return currentValue
-        },
-        set(nextValue) {
-          writes.get(state).push(nextValue)
-          currentValue = nextValue
-        },
-      })
-      return state
-    },
-    writesFor(state) {
-      return writes.get(state) || []
-    },
-  }
-}
-
-async function renderMerchantDetailTemplate(context) {
-  const source = fs.readFileSync(sourcePath, 'utf8')
-  const { descriptor } = parse(source, { filename: 'pages/merchant/detail.vue' })
-  const compiled = compileTemplate({
-    source: descriptor.template.content,
-    filename: 'pages/merchant/detail.vue',
-    id: 'merchant-detail-follow-loading',
-    compilerOptions: {
-      mode: 'function',
-      isCustomElement: (tag) => ['view', 'text', 'image', 'scroll-view', 'button', 'ResourceList'].includes(tag),
-    },
-  })
-  assert.equal(compiled.errors.length, 0, compiled.errors.join('\n'))
-  const render = new Function('Vue', compiled.code)(await import('vue'))
-  const Page = {
-    props: Object.keys(context),
-    setup(props) {
-      return () => render(props, [])
-    },
-  }
-  return renderToString(createSSRApp({ render: () => h(Page, context) }))
-}
-
-function loadMerchantDetailPage(additions = {}) {
-  const { trackMerchantDirectoryEvent = () => {}, timeline = [] } = additions
-  const source = fs.readFileSync(sourcePath, 'utf8')
-  const script = source
-    .match(/<script setup>([\s\S]*?)<\/script>/)?.[1]
-    .replace(/import[\s\S]*?from\s+['"][^'"]+['"]\s*/g, '') || ''
-  const sandbox = {
-    computed(getter) {
-      return { get value() { return getter() } }
-    },
-    getMerchant: async () => ({}),
-    getMerchantFollowState: async () => ({ followed: false }),
-    getSession: () => ({ merchantId: '', token: '' }),
-    listResources: async () => ({ items: [], total: 0 }),
-    onLoad() {},
-    onReachBottom() {},
-    requireLogin: () => true,
-    ref(value) {
-      return { value }
-    },
-    setMerchantFollow: async () => ({ followed: false }),
-    trackMerchantDirectoryEvent,
-    uni: {
-      navigateTo(options) {
-        timeline.push(['navigateTo', options.url])
-      },
-      showToast() {},
-    },
-    ...additions,
-  }
-  vm.runInNewContext(`${script}\nglobalThis.merchantDetailPage = { merchant, ownMerchantId, followed, followBusy: typeof followBusy === 'undefined' ? undefined : followBusy, isOwnMerchant, merchantAddressLocation, merchantLocationVisible, buildPublicMerchantAddressLocation, toggleFollow, openMerchantLocation }`, sandbox)
-  return sandbox.merchantDetailPage
-}
-
-test('merchant detail page does not show verification wording', () => {
-  const source = fs.readFileSync(sourcePath, 'utf8')
-
-  assert.doesNotMatch(source, />认证</)
-  assert.doesNotMatch(source, /已认证/)
-  assert.doesNotMatch(source, /已核实/)
-  assert.doesNotMatch(source, /核验项/)
-  assert.doesNotMatch(source, /主体资质、经营场地/)
-  assert.doesNotMatch(source, /有效期/)
-  assert.doesNotMatch(source, /showVerificationInfo/)
-  assert.doesNotMatch(source, /merchantVerification/)
-  assert.doesNotMatch(source, /verification-info/)
-  assert.doesNotMatch(source, /formatDateToDay/)
-  assert.doesNotMatch(source, /licenseUrl/)
-  assert.doesNotMatch(source, /socialCreditCode/)
-  assert.doesNotMatch(source, /businessName/)
-})
-
-test('merchant detail page keeps full resources at the bottom without overview card', () => {
-  const source = fs.readFileSync(sourcePath, 'utf8')
-
-  assert.doesNotMatch(source, /class="supply-overview-panel"/)
-  assert.doesNotMatch(source, />供应概览</)
-  assert.doesNotMatch(source, /scrollToResourceList/)
-  assert.doesNotMatch(source, /uni\.pageScrollTo/)
-  assert.match(source, /label: '公开供应'/)
-  assert.doesNotMatch(source, /label: '在售供应'/)
-  assert.match(source, /class="section resource-list-section"/)
-  assert.match(source, />公开供应</)
-  assert.doesNotMatch(source, />全部公开供应</)
-  assert.match(source, /<ResourceList[\s\S]*exposure-source="merchant"[\s\S]*variant="feed"[\s\S]*:resources="merchantResources"/)
-  assert.match(source, /:empty-text="merchantResourcesEmptyText"/)
-
-  const profileIndex = source.indexOf('class="profile-panel"')
-  const trustNoteIndex = source.indexOf('class="section trust-note-section"')
-  const resourceListIndex = source.indexOf('class="section resource-list-section"')
-
-  assert.ok(profileIndex > -1)
-  assert.ok(trustNoteIndex > profileIndex)
-  assert.ok(resourceListIndex > trustNoteIndex)
-})
-
-test('merchant detail page renders address as a lightweight single-address block', () => {
-  const source = fs.readFileSync(sourcePath, 'utf8')
-
-  assert.match(source, /<view class="section merchant-address-section" v-if="merchantAddressLocation">/)
-  assert.doesNotMatch(source, /merchant-address-card/)
-  assert.doesNotMatch(source, /merchant-address-head/)
-  assert.doesNotMatch(source, />经营地址</)
-  assert.doesNotMatch(source, /merchant-address-title/)
-  assert.match(source, /<view class="section-head">[\s\S]*<text class="section-title">地址<\/text>[\s\S]*<button/)
-  assert.match(source, /<button v-if="merchantLocationVisible && merchantAddressLocation\.hasGps" class="address-action" @click="openMerchantLocation">查看位置<\/button>/)
-  assert.match(source, /<button v-else class="address-action secondary" @click="copyMerchantAddress\(\)">复制<\/button>/)
-  assert.match(source, /<text class="merchant-address-text">\{\{ merchantAddressLocation\.address \}\}<\/text>/)
-  assert.doesNotMatch(source, /<map|merchant-address-map/)
-  assert.doesNotMatch(source, /merchantPlaceState|buildMerchantAddressLocation/)
-  assert.match(source, /const merchantLocationVisible = computed\(\(\) => merchant\.value\.location\?\.status === 'visible' && merchant\.value\.location\?\.available === true\)/)
-  assert.match(source, /const merchantAddressLocation = computed\(\(\) => buildPublicMerchantAddressLocation\(merchant\.value\)\)/)
-  assert.match(source, /function openMerchantLocation\(\) \{[\s\S]*merchant\.value\.id[\s\S]*merchantAddressLocation\.value\?\.hasGps[\s\S]*\/pages\/merchant\/location\?merchantId=\$\{encodeURIComponent\(merchant\.value\.id\)\}/)
-  assert.doesNotMatch(source, /uni\.openLocation/)
-  assert.match(source, /function copyMerchantAddress\(title = '地址已复制'\) \{[\s\S]*uni\.setClipboardData\(\{ data: location\.address \}\)/)
-  assert.match(source, /\.merchant-address-section \{[\s\S]*display: grid;[\s\S]*gap: 14rpx;/)
-  assert.match(source, /\.merchant-address-section \.section-head \{[\s\S]*margin-bottom: 0;/)
-  assert.match(source, /\.merchant-address-text \{[\s\S]*display: block;[\s\S]*font-size: 30rpx;[\s\S]*line-height: 1\.55;[\s\S]*word-break: break-word;/)
-})
-
-test('merchant detail address builder only accepts the structured visible and available location', () => {
-  const page = loadMerchantDetailPage()
-  assert.equal(typeof page.buildPublicMerchantAddressLocation, 'function')
-  const buildPublicMerchantAddressLocation = page.buildPublicMerchantAddressLocation
-  const cases = [
-    {
-      merchant: {
-        addressText: '织里商城 A-101',
-        location: { status: 'visible', available: true, latitude: 30.89912, longitude: 120.20482 },
-      },
-      expected: { address: '织里商城 A-101', hasGps: true, latitude: 30.89912, longitude: 120.20482 },
-    },
-    {
-      merchant: {
-        addressText: '织里商城 A-101',
-        location: { status: 'visible', available: false, latitude: 30.89912, longitude: 120.20482 },
-      },
-      expected: { address: '织里商城 A-101', hasGps: false },
-    },
-    {
-      merchant: {
-        addressText: '织里商城 A-101',
-        location: { status: 'risk_hidden', available: true, latitude: 30.89912, longitude: 120.20482 },
-      },
-      expected: { address: '织里商城 A-101', hasGps: false },
-    },
-    {
-      merchant: {
-        addressText: '织里商城 A-101',
-        location: { status: 'visible', available: true, latitude: Number.NaN, longitude: 120.20482 },
-      },
-      expected: { address: '织里商城 A-101', hasGps: false },
-    },
-    {
-      merchant: {
-        addressText: '织里商城 A-101',
-        location: { status: 'visible', available: true, latitude: 91, longitude: 120.20482 },
-      },
-      expected: { address: '织里商城 A-101', hasGps: false },
-    },
-    {
-      merchant: {
-        addressText: '',
-        location: {
-          status: 'visible', available: true, latitude: 30.89912, longitude: 120.20482,
-          marketName: '织里商城', buildingName: '一期', floorNo: '1F', boothNo: 'A-101', locationName: '北门',
-        },
-      },
-      expected: { address: '织里商城 · 一期 · 1F · A-101 · 北门', hasGps: true, latitude: 30.89912, longitude: 120.20482 },
-    },
-    {
-      merchant: {
-        addressText: '织里商城 A-101',
-        location: { status: 'visible', available: true, lat: 30.89912, lng: 120.20482, name: '旧 JSON 位置' },
-      },
-      expected: { address: '织里商城 A-101', hasGps: false },
-    },
-  ]
-
-  for (const { merchant, expected } of cases) {
-    assert.deepEqual(plain(buildPublicMerchantAddressLocation(merchant)), expected)
-  }
-})
-
-test('merchant detail page only directs users to contact details in published supply and demand', () => {
-  const source = fs.readFileSync(sourcePath, 'utf8')
-
-  assert.doesNotMatch(source, /merchant\.contact/)
-  assert.match(source, /联系方式仅随有效供需信息展示/)
-})
-
-test('merchant detail records its valid directory merchant click immediately before location navigation', () => {
-  const timeline = []
-  const page = loadMerchantDetailPage({
-    trackMerchantDirectoryEvent(event) {
-      timeline.push(['track', event])
-      return new Promise(() => {})
-    },
-    timeline,
-  })
-  page.merchant.value = {
-    id: 'merchant-detail',
-    addressText: '织里商城 A-101',
-    location: { status: 'visible', available: true, latitude: 30.89912, longitude: 120.20482 },
-  }
-
-  page.openMerchantLocation()
-
-  assert.deepEqual(plain(timeline), [
-    ['track', {
-      merchantId: 'merchant-detail',
-      eventType: 'directory_merchant_click',
-      source: 'merchant_detail',
-    }],
-    ['navigateTo', '/pages/merchant/location?merchantId=merchant-detail'],
-  ])
-
-  timeline.length = 0
-  page.merchant.value.location.status = 'risk_hidden'
-  page.openMerchantLocation()
-  assert.deepEqual(timeline, [])
-
-  const source = fs.readFileSync(sourcePath, 'utf8')
-  assert.doesNotMatch(source, /merchantMapAnalytics|trackMerchantMapEvent|location_entry_click/)
-})
-
-test('merchant follow action shows native loading, rejects duplicates, and restores feedback state', async () => {
-  const busyContext = {
-    merchantLogo: '', merchantInitial: '商', merchant: { name: '示例商家' }, merchantSubtitle: '',
-    isOwnMerchant: false, followed: false, followBusy: true, toggleFollow: () => {}, statCards: [],
-    merchantCategoryTags: [], profileDescription: '', merchantImages: [], merchantAddressLocation: null,
-    merchantResourceCountText: '', merchantResources: [], merchantResourcesEmptyText: '',
-    merchantResourcesLoading: false, hasMoreMerchantResources: false, openMerchantEditor: () => {},
-    previewMerchantImage: () => {}, openMerchantLocation: () => {}, copyMerchantAddress: () => {},
-    openResource: () => {}, loadMerchantResources: () => {},
-  }
-  const busyHtml = await renderMerchantDetailTemplate(busyContext)
-  const unfollowBusyHtml = await renderMerchantDetailTemplate({ ...busyContext, followed: true })
-  const followButton = busyHtml.match(/<button[^>]*>关注中<\/button>/)?.[0] || ''
-  assert.match(followButton, /loading="true"/, '关注请求期间按钮应显示原生 loading')
-  assert.match(followButton, /disabled(?:=|\s|>)/, '关注请求期间按钮应禁用')
-  assert.match(unfollowBusyHtml, />取消关注中<\/button>/, '取消关注请求期间应显示对应动作文案')
-
-  const request = deferred()
+function page({ session = { merchantId: '' }, getMerchant = async () => ({ id: 'm', name: '童装店', ownerVisible: true }) } = {}) {
   const calls = []
-  const toasts = []
-  const page = loadMerchantDetailPage({
-    setMerchantFollow(merchantId, nextFollowed) {
-      calls.push({ merchantId, nextFollowed })
-      return request.promise
+  const hooks = {}
+  const sandbox = {
+    getBusinessProfile, getBusinessRoleLabels, getBusinessProfileSummary,
+    ref: (value) => ({ value }),
+    computed: (getter) => ({ get value() { return getter() } }),
+    onLoad: (fn) => { hooks.load = fn },
+    onShow: (fn) => { hooks.show = fn },
+    onShareAppMessage: (fn) => { hooks.share = fn },
+    onShareTimeline: (fn) => { hooks.timeline = fn },
+    getMerchant, getSession: () => session, getPublicContact, getStorefrontPlace,
+    uni: {
+      openLocation: (options) => calls.push(['location', options]),
+      showActionSheet: (options) => calls.push(['sheet', options]),
+      makePhoneCall: (options) => calls.push(['phone', options]),
+      setClipboardData: (options) => calls.push(['copy', options]),
+      showToast: (options) => calls.push(['toast', options]),
+      navigateTo: (options) => calls.push(['navigate', options.url]),
+      switchTab: (options) => calls.push(['tab', options.url]),
+      previewImage: () => {},
     },
-    uni: { showToast: (options) => toasts.push(options) },
-  })
-  page.merchant.value = { id: 'merchant-expected' }
-  const first = page.toggleFollow()
-  const duplicate = page.toggleFollow()
-  assert.deepEqual(calls, [{ merchantId: 'merchant-expected', nextFollowed: true }], '连续点击只能提交一次关注请求')
-  assert.equal(page.followBusy.value, true, '请求未结束时应保持 busy')
-  request.resolve({ followed: true })
-  await Promise.all([first, duplicate])
-  assert.equal(page.followBusy.value, false, '关注成功后应恢复 busy')
-  assert.equal(page.followed.value, true, '成功后应采用服务端关注状态')
-  assert.equal(toasts.at(-1)?.title, '已关注', '成功提示应保持')
+  }
+  const script = source.match(/<script setup>([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm, '')
+  vm.runInNewContext(`${script}\nglobalThis.p = { loadMerchant, openNavigation, openContact, callPhone, copyWechat, openEditor, loadState, merchant, isOwner, canShare, publicContact, place, mapMarkers, businessProfile, categoryText, businessRoleText }`, sandbox)
+  return { ...sandbox.p, calls, hooks }
+}
 
-  const failureToasts = []
-  const failedPage = loadMerchantDetailPage({
-    setMerchantFollow: async () => { throw new Error('关注服务暂不可用') },
-    uni: { showToast: (options) => failureToasts.push(options) },
-  })
-  failedPage.merchant.value = { id: 'merchant-expected' }
-  await failedPage.toggleFollow()
-  assert.equal(failedPage.followBusy.value, false, '关注失败后应恢复 busy')
-  assert.equal(failureToasts.at(-1)?.title, '关注服务暂不可用', '失败提示应保持')
+test('storefront contains real data sections, map, public contact actions and no resource or follow requests', () => {
+  assert.match(source, /merchantImages/)
+  assert.match(source, /getBusinessProfileSummary\(merchant\.value\)/)
+  assert.match(source, /merchant\.description/)
+  assert.match(source, /<map v-if="place\.canNavigate"/)
+  assert.match(source, /@click="openNavigation"/)
+  assert.match(source, /@click="openContact"/)
+  assert.match(source, /class="bottom-bar"[\s\S]*@click="openNavigation"/)
+  assert.match(source, /v-if="place\.canNavigate" class="bar-primary"/)
+  assert.match(source, /iconPath: '\/static\/map\/marker-selected\.png'/)
+  assert.match(source, /onShareAppMessage\(sharePayload\)/)
+  assert.doesNotMatch(source, /listResources|setMerchantFollow|getMerchantFollowState|ResourceList/)
 })
 
-test('merchant follow local branches never enter busy state', async () => {
-  const tracker = createTrackedRefFactory()
-  let requests = 0
-  const page = loadMerchantDetailPage({
-    ref: tracker.ref,
-    setMerchantFollow: async () => { requests += 1; return { followed: true } },
-    getSession: () => ({ merchantId: 'merchant-own', token: 'token' }),
-  })
-  await page.toggleFollow()
-  assert.equal(page.followBusy.value, false, '缺少商家时不应进入 busy')
-  assert.deepEqual(tracker.writesFor(page.followBusy), [], '缺少商家时不应短暂写入 busy')
-  page.merchant.value = { id: 'merchant-own' }
-  page.ownMerchantId.value = 'merchant-own'
-  await page.toggleFollow()
-  assert.equal(page.followBusy.value, false, '自己的商家不应进入 busy')
-  assert.deepEqual(tracker.writesFor(page.followBusy), [], '自己的商家时不应短暂写入 busy')
-  assert.equal(requests, 0, '本地分支不应请求关注接口')
+test('visitor opens without login and only available valid coordinates enable native navigation', async () => {
+  const detail = { id: 'm', name: '童装店', ownerVisible: true, mapVisible: true, addressText: '织里商城 A-18', location: { status: 'visible', available: true, latitude: 30.8, longitude: 120.1 }, contact: { phone: '13800138000' } }
+  const visitor = page({ getMerchant: async () => detail })
+  await visitor.hooks.load({ id: 'm' })
+  assert.equal(visitor.loadState.value, 'ready')
+  assert.equal(visitor.isOwner.value, false)
+  visitor.openNavigation()
+  visitor.openContact()
+  assert.equal(visitor.calls[0][0], 'location')
+  assert.equal(visitor.calls[0][1].latitude, 30.8)
+  assert.deepEqual(Array.from(visitor.calls[1][1].itemList), ['拨打电话'])
+  visitor.calls[1][1].success({ tapIndex: 0 })
+  assert.deepEqual(JSON.parse(JSON.stringify(visitor.calls[2])), ['phone', { phoneNumber: '13800138000' }])
+  assert.equal(visitor.hooks.share().path, '/pages/merchant/detail?id=m')
+
+  const hidden = page({ getMerchant: async () => ({ ...detail, location: { ...detail.location, available: false } }) })
+  await hidden.hooks.load({ id: 'm' })
+  hidden.openNavigation()
+  assert.equal(hidden.calls.length, 0)
 })
 
-test('unauthenticated merchant follow performs zero busy writes and zero follow requests', async () => {
-  const tracker = createTrackedRefFactory()
-  let loginChecks = 0
-  let requests = 0
-  const page = loadMerchantDetailPage({
-    ref: tracker.ref,
-    requireLogin: () => { loginChecks += 1; return false },
-    setMerchantFollow: async () => { requests += 1; return { followed: true } },
-  })
-  page.merchant.value = { id: 'merchant-other' }
+test('storefront accepts merchantId links from profile preview and share', async () => {
+  const requested = []
+  const visitor = page({ getMerchant: async (id) => { requested.push(id); return { id, name: '童装店', ownerVisible: true } } })
+  await visitor.hooks.load({ merchantId: 'profile-merchant' })
+  assert.deepEqual(requested, ['profile-merchant'])
+  assert.equal(visitor.loadState.value, 'ready')
+  assert.equal(visitor.merchant.value.id, 'profile-merchant')
+})
 
-  await page.toggleFollow()
+test('paused owner can preview but cannot share and sees only public contact', async () => {
+  const owner = page({ session: { merchantId: 'm' }, getMerchant: async () => ({ id: 'm', name: '童装店', ownerVisible: false, publicPhone: false, publicWechat: true, contact: { phone: '13800138000', wechat: 'shop-a' } }) })
+  await owner.hooks.load({ id: 'm' })
+  assert.equal(owner.loadState.value, 'ready')
+  assert.equal(owner.isOwner.value, true)
+  assert.equal(owner.canShare.value, false)
+  assert.equal(owner.publicContact.value.phone, '')
+  assert.equal(owner.publicContact.value.wechat, 'shop-a')
+  assert.deepEqual(JSON.parse(JSON.stringify(owner.hooks.share())), { title: '找档口', path: '/pages/sourcing-map/index' })
+  assert.equal(owner.hooks.timeline().query, 'from=merchant-paused')
+  owner.openEditor()
+  assert.deepEqual(owner.calls[0], ['navigate', '/pages/merchant/profile?merchantId=m'])
+})
 
-  assert.equal(loginChecks, 1, '有效的非自有商家应先执行登录校验')
-  assert.deepEqual(tracker.writesFor(page.followBusy), [], '未登录不得短暂写入关注 busy')
-  assert.equal(requests, 0, '未登录不得调用关注 API')
+test('contact actions use public values and clipboard feedback waits for success', async () => {
+  const detail = { id: 'm', ownerVisible: true, publicPhone: true, publicWechat: true, contact: { phone: '13800138000', wechat: 'shop-a' } }
+  const owner = page({ session: { merchantId: 'm' }, getMerchant: async () => detail })
+  await owner.hooks.load({ id: 'm' })
+  owner.openContact()
+  assert.deepEqual(Array.from(owner.calls[0][1].itemList), ['拨打电话', '复制微信'])
+  owner.calls[0][1].success({ tapIndex: 1 })
+  assert.equal(owner.calls[1][0], 'copy')
+  assert.equal(owner.calls.some(([type]) => type === 'toast'), false)
+  owner.calls[1][1].success()
+  assert.equal(owner.calls[2][1].title, '微信号已复制')
+})
+
+test('failed navigation offers address copy or retry', async () => {
+  const detail = { id: 'm', name: '童装店', mapVisible: true, addressText: '织里商城 A-18', location: { status: 'visible', available: true, latitude: 30.8, longitude: 120.1 } }
+  const visitor = page({ getMerchant: async () => detail })
+  await visitor.hooks.load({ id: 'm' })
+  visitor.openNavigation()
+  visitor.calls[0][1].fail()
+  assert.deepEqual(Array.from(visitor.calls[1][1].itemList), ['复制地址', '重试导航'])
+  visitor.calls[1][1].success({ tapIndex: 0 })
+  assert.equal(visitor.calls[2][1].data, '织里商城 A-18')
+  visitor.calls[2][1].success()
+  assert.equal(visitor.calls[3][1].title, '地址已复制')
+})
+
+test('unavailable and network failures remain distinct and retryable', async () => {
+  const unavailable = page({ getMerchant: async () => { throw { statusCode: 404 } } })
+  await unavailable.hooks.load({ id: 'm' })
+  assert.equal(unavailable.loadState.value, 'unavailable')
+  const network = page({ getMerchant: async () => { throw Error('offline') } })
+  await network.hooks.load({ id: 'm' })
+  assert.equal(network.loadState.value, 'error')
+  const codeOnly = page({ getMerchant: async () => { const error = Error('店铺不可用'); error.code = 'MERCHANT_NOT_FOUND'; throw error } })
+  await codeOnly.hooks.load({ id: 'm' })
+  assert.equal(codeOnly.loadState.value, 'unavailable')
+  assert.match(source, /@click="loadMerchant"/)
+})
+
+test('landlord homepage uses rental business details and hides private map locations', async () => {
+  const detail = { id: 'm', name: '张先生出租', ownerVisible: true, mapVisible: false, addressText: '不公开的住址', location: { status: 'visible', available: true, latitude: 30.8, longitude: 120.1 }, businessProfile: { schemaVersion: 1, entityKind: 'individual', primaryRole: 'landlord', roles: ['landlord'], propertyTypes: ['住房', '厂房'], serviceArea: '织里镇', processingMethods: [], serviceItems: [] } }
+  const owner = page({ session: { merchantId: 'm' }, getMerchant: async () => detail })
+  await owner.hooks.load({ id: 'm' })
+  assert.equal(owner.loadState.value, 'ready')
+  assert.match(owner.categoryText.value, /住房.*厂房/)
+  assert.match(owner.businessRoleText.value, /出租/)
+  assert.equal(owner.businessProfile.value.serviceArea, '织里镇')
+  assert.equal(owner.place.value.address, '')
+  assert.equal(owner.place.value.canNavigate, false)
+  owner.openNavigation()
+  assert.equal(owner.calls.length, 0)
+  assert.equal(owner.hooks.share().path, '/pages/merchant/detail?id=m')
 })

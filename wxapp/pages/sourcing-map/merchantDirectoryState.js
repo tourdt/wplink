@@ -19,6 +19,8 @@ export function normalizeMerchantDirectoryItem(raw = {}) {
     merchantNo: String(raw.merchantNo || '').trim(),
     name: String(raw.name || '').trim() || '未命名商家',
     merchantType: String(raw.merchantType || '').trim(),
+    primaryRole: String(raw.primaryRole || '').trim(),
+    businessRoles: parseMerchantCategories(raw.businessRoles),
     mainCategories: parseMerchantCategories(raw.mainCategories),
     logoUrl: String(raw.logoUrl || '').trim(),
     addressText: String(raw.addressText || '').trim(),
@@ -45,7 +47,7 @@ export function merchantDirectoryCoordinateText(item = {}) {
   return [item.marketName, item.buildingName, item.floorNo, item.boothNo]
     .map((value) => String(value || '').trim())
     .filter(Boolean)
-    .join(' · ') || String(item.addressText || '').trim() || '档口地址待完善'
+    .join(' · ') || String(item.addressText || '').trim() || '接待地址待完善'
 }
 
 export function merchantDirectoryDetailPath(item = {}) {

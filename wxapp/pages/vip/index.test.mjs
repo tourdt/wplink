@@ -7,11 +7,14 @@ const root = path.resolve(new URL('../..', import.meta.url).pathname)
 
 test('vip page is registered and shows vip benefits with add-on quota tab', () => {
   const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+  const legacyPagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.legacy.json'), 'utf8'))
   const pagePaths = pagesConfig.pages.map((item) => item.path)
+  const legacyPagePaths = legacyPagesConfig.pages.map((item) => item.path)
   const source = fs.readFileSync(path.join(root, 'pages/vip/index.vue'), 'utf8')
   const apiSource = fs.readFileSync(path.join(root, 'api/vip.js'), 'utf8')
 
-  assert.ok(pagePaths.includes('pages/vip/index'))
+  assert.ok(legacyPagePaths.includes('pages/vip/index'))
+  assert.equal(pagePaths.includes('pages/vip/index'), false)
   assert.match(apiSource, /listVIPPlans/)
   assert.match(apiSource, /\/api\/v1\/vip\/plans/)
   assert.match(apiSource, /listQuotaPacks/)

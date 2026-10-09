@@ -44,9 +44,9 @@ func GetMerchantHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		for _, tag := range resp.CreditTags {
 			creditTags = append(creditTags, types.CreditTagInfo{Code: tag.Code, Label: tag.Label})
 		}
-		var contact *types.MerchantContactInfo
+		var contact *merchantContactPayload
 		if resp.Contact != nil {
-			contact = &types.MerchantContactInfo{
+			contact = &merchantContactPayload{
 				Name: resp.Contact.Name, Phone: resp.Contact.Phone, Wechat: resp.Contact.Wechat,
 				PhoneMasked: resp.Contact.PhoneMasked, WechatMasked: resp.Contact.WechatMasked,
 			}
@@ -58,6 +58,13 @@ func GetMerchantHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			ResourcesSummary: types.MerchantResourcesSummary{PublishedCount: resp.ResourcesSummary.PublishedCount, DealtCount: resp.ResourcesSummary.DealtCount},
 			HeatScore:        resp.HeatScore, AddressText: resp.AddressText,
 			Description: resp.Description, LogoUrl: resp.LogoURL, Images: append([]string{}, resp.Images...), LastActiveAt: resp.LastActiveAt,
+			OwnerVisible: resp.OwnerVisible, PublicPhone: resp.PublicPhone, PublicWechat: resp.PublicWechat,
+			MapVisible: resp.MapVisible, BusinessProfile: types.BusinessProfileInfo{
+				SchemaVersion: resp.BusinessProfile.SchemaVersion, EntityKind: resp.BusinessProfile.EntityKind, PrimaryRole: resp.BusinessProfile.PrimaryRole,
+				Roles: append([]string{}, resp.BusinessProfile.Roles...), ServiceArea: resp.BusinessProfile.ServiceArea,
+				ProcessingMethods: append([]string{}, resp.BusinessProfile.ProcessingMethods...), PropertyTypes: append([]string{}, resp.BusinessProfile.PropertyTypes...),
+				ServiceItems: append([]string{}, resp.BusinessProfile.ServiceItems...),
+			},
 		}, Contact: contact, Location: merchantLocationPayload{
 			MarketName: resp.Location.MarketName, BuildingName: resp.Location.BuildingName, FloorNo: resp.Location.FloorNo,
 			BoothNo: resp.Location.BoothNo, Latitude: resp.Location.Latitude, Longitude: resp.Location.Longitude,
@@ -70,8 +77,17 @@ func GetMerchantHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 // goctl 保留了契约中的 optional 标记但 encoding/json 不识别该选项；外层字段确保联系方式和不可见坐标都能彻底省略。
 type merchantDetailPayload struct {
 	types.MerchantDetailResp
-	Contact  *types.MerchantContactInfo `json:"contact,omitempty"`
-	Location merchantLocationPayload    `json:"location"`
+	Contact  *merchantContactPayload `json:"contact,omitempty"`
+	Location merchantLocationPayload `json:"location"`
+}
+
+// 公开访问只序列化获授权的渠道，未授权字段及联系人姓名不出现在 JSON 中。
+type merchantContactPayload struct {
+	Name         string `json:"name,omitempty"`
+	Phone        string `json:"phone,omitempty"`
+	Wechat       string `json:"wechat,omitempty"`
+	PhoneMasked  string `json:"phoneMasked,omitempty"`
+	WechatMasked string `json:"wechatMasked,omitempty"`
 }
 
 type merchantLocationPayload struct {

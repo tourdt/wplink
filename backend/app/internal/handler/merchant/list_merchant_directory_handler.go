@@ -64,5 +64,6 @@ func mapMerchantDirectoryItem(item merchantlogic.MerchantDirectoryPublicItem) ty
 		MarketName: item.MarketName, BuildingName: item.BuildingName, FloorNo: item.FloorNo, BoothNo: item.BoothNo,
 		Latitude: item.Latitude, Longitude: item.Longitude, LocationName: item.LocationName,
 		LastResourceActiveAt: item.LastResourceActiveAt, DistanceMeters: item.DistanceMeters,
+		PrimaryRole: item.PrimaryRole, BusinessRoles: append([]string{}, item.BusinessRoles...),
 	}
 }

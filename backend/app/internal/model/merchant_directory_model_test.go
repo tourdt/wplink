@@ -121,7 +121,7 @@ func TestGetVisibleMerchantLocationOnlyReadsZhiliDirectoryMerchant(t *testing.T)
 		WithArgs("801").
 		WillReturnRows(sqlmock.NewRows(merchantDirectoryModelTestColumns()).AddRow(
 			"801", "M00000018", "织里晨星童装", "factory", "", "", "织里童装城", "一期", "1F", "A108",
-			"织里童装城", `["童装"]`, 30.8732, 120.2255, time.Time{},
+			"织里童装城", `["童装"]`, 30.8732, 120.2255, time.Time{}, []byte(`{"schemaVersion":1,"entityKind":"organization","primaryRole":"factory","roles":["factory"],"serviceArea":"","processingMethods":["车缝"],"propertyTypes":[],"serviceItems":[]}`),
 		))
 
 	item, err := NewMerchantDirectoryModel(db).GetVisibleMerchantLocation(context.Background(), "801")
@@ -196,7 +196,7 @@ func merchantDirectoryModelTestColumns() []string {
 	return []string{
 		"merchant_id", "merchant_no", "name", "merchant_type", "logo_url", "address_text",
 		"market_name", "building_name", "floor_no", "booth_no", "location_name", "main_categories",
-		"latitude", "longitude", "last_resource_active_at",
+		"latitude", "longitude", "last_resource_active_at", "business_profile",
 	}
 }
 

@@ -1522,12 +1522,12 @@ func TestMerchantUpdateSucceedsThroughGeneratedRoute(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery(`(?s)SELECT.*merchant_type.*location_status.*FOR UPDATE`).
 		WithArgs("merchant-1").
-		WillReturnRows(sqlmock.NewRows([]string{"merchant_type", "location_status"}).AddRow("factory", model.MerchantLocationStatusHidden))
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_type", "location_status", "name", "profile_status", "business_profile", "map_visible", "address_text", "latitude", "longitude"}).AddRow("factory", model.MerchantLocationStatusHidden, "晨星旧名", model.MerchantProfileStatusCompleted, []byte(`{"schemaVersion":1,"entityKind":"organization","primaryRole":"factory","roles":["factory"],"serviceArea":"","processingMethods":["车缝"],"propertyTypes":[],"serviceItems":[]}`), true, "织里旧地址", nil, nil))
 	mock.ExpectExec(`(?s)UPDATE merchants`).
 		WithArgs(
 			"merchant-1", "晨星新名", []byte(`["童装","配饰"]`), "factory", "新简介", "https://img.example.com/new-logo.jpg",
 			[]byte(`["https://img.example.com/new-a.jpg"]`), sqlmock.AnyArg(), "李经理", "18800000003", "wechat-new", "织里新地址",
-			"set", "织里童装城", "一期", "1F", "A108", 30.2, 120.3, "织里童装城", model.MerchantLocationStatusVisible,
+			"set", "织里童装城", "一期", "1F", "A108", 30.2, 120.3, "织里童装城", model.MerchantLocationStatusVisible, model.MerchantProfileStatusCompleted, nil, nil, sqlmock.AnyArg(), true,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`(?s)UPDATE merchant_location_reports.*SET status = 'resolved'.*WHERE merchant_id = \$1.*status = 'pending'`).
@@ -1538,7 +1538,8 @@ func TestMerchantUpdateSucceedsThroughGeneratedRoute(t *testing.T) {
 	req := authenticatedRequest(http.MethodPost, "/api/v1/merchants/merchant-1?merchantId=merchant-2", `{
 		"name":" 晨星新名 ",
 		"mainCategories":["童装","配饰"],
-		"merchantType":"factory",
+		"businessProfile":{"schemaVersion":1,"entityKind":"organization","primaryRole":"factory","roles":["factory"],"serviceArea":"","processingMethods":["车缝"],"propertyTypes":[],"serviceItems":[]},
+        "mapVisible":true,
 		"description":" 新简介 ",
 		"logoUrl":"https://img.example.com/new-logo.jpg",
 		"images":["https://img.example.com/new-a.jpg"],
@@ -1565,18 +1566,82 @@ func TestMerchantUpdateSucceedsThroughGeneratedRoute(t *testing.T) {
 	}
 }
 
+func TestMerchantMapEnableValidationThroughGeneratedRouteReturns400(t *testing.T) {
+	svcCtx, mock := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).WithArgs("user-1", "merchant-1").WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT.*merchant_type.*business_profile.*FOR UPDATE`).WithArgs("merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"merchant_type", "location_status", "name", "profile_status", "business_profile", "map_visible", "address_text", "latitude", "longitude"}).
+			AddRow("factory", model.MerchantLocationStatusHidden, "旧主体", model.MerchantProfileStatusCompleted, []byte(`{"schemaVersion":1,"entityKind":"organization","primaryRole":"factory","roles":["factory"],"serviceArea":"","processingMethods":["车缝"],"propertyTypes":[],"serviceItems":[]}`), true, "", nil, nil))
+	mock.ExpectRollback()
+	envelope := assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodPost, "/api/v1/merchants/merchant-1", `{"name":"主体","mainCategories":["童装"],"locationAction":"set","latitude":30.1,"longitude":120.2,"mapVisible":true,"businessProfile":{"schemaVersion":1,"entityKind":"organization","primaryRole":"factory","roles":["factory"],"serviceArea":"","processingMethods":["车缝"],"propertyTypes":[],"serviceItems":[]}}`), http.StatusBadRequest)
+	if envelope["errorCode"] != errx.CodeValidationFailed || !strings.Contains(envelope["msg"].(string), "详细地址") {
+		t.Fatalf("response = %#v, want safe address validation", envelope)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("merchant map validation SQL expectations: %v", err)
+	}
+}
+
+func TestMerchantBusinessProfileUnknownVersionThroughGeneratedRouteReturns400(t *testing.T) {
+	svcCtx, mock := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).WithArgs("user-1", "merchant-1").WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	envelope := assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodPost, "/api/v1/merchants/merchant-1", `{"name":"出租主体","locationAction":"keep","businessProfile":{"schemaVersion":2,"entityKind":"individual","primaryRole":"landlord","roles":["landlord"],"propertyTypes":["商铺"]},"mapVisible":false}`), http.StatusBadRequest)
+	if envelope["errorCode"] != errx.CodeValidationFailed || !strings.Contains(envelope["msg"].(string), "版本") {
+		t.Fatalf("response = %#v, want safe version validation", envelope)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("profile version SQL expectations: %v", err)
+	}
+}
+
+func TestMerchantVisibilityGeneratedRouteRequiresManagerAndExplicitChoice(t *testing.T) {
+	svcCtx, mock := newTask6GeneratedServiceContext(t)
+	server := newGeneratedAPIServerWithFailClosedAdminAuth(t, svcCtx)
+	path := "/api/v1/merchants/merchant-1/visibility"
+
+	// 无登录和无管理关系均不能改变展示状态，也不应触发 UPDATE。
+	assertTask6GeneratedStatus(t, server, httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"visible":false}`)), http.StatusUnauthorized)
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodPost, path, `{"visible":false}`), http.StatusForbidden)
+
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodPost, path, `{}`), http.StatusBadRequest)
+
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).
+		WithArgs("user-1", "merchant-1").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectExec(`UPDATE merchants SET owner_visible = \$2, updated_at = \$3 WHERE id = \$1 AND deleted_at IS NULL`).
+		WithArgs("merchant-1", false, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	envelope := assertTask6GeneratedStatus(t, server, authenticatedRequest(http.MethodPost, path+"?merchantId=merchant-2", `{"visible":false}`), http.StatusOK)
+	data := envelope["data"].(map[string]interface{})
+	if data["merchantId"] != "merchant-1" || data["ownerVisible"] != false {
+		t.Fatalf("visibility response = %#v, want path merchant and hidden state", data)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("visibility SQL expectations: %v", err)
+	}
+}
+
 func expectTask6GeneratedMerchantDetail(mock sqlmock.Sqlmock, merchantID string) {
 	mock.ExpectQuery(`(?s)FROM merchants m.*GROUP BY m.id, cs.code`).
 		WithArgs(merchantID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "merchant_no", "name", "merchant_type", "city_code", "main_categories", "profile_status", "vip_status",
-			"contact_name", "contact_phone", "contact_wechat", "address_text",
+			"contact_name", "contact_phone", "contact_wechat", "owner_visible", "public_phone", "public_wechat", "map_visible", "business_profile", "address_text",
 			"market_name", "building_name", "floor_no", "booth_no", "latitude", "longitude", "location_name", "location_status", "location_updated_at",
 			"description", "logo_url", "images",
 			"last_active_at", "published_count", "dealt_count", "follower_count",
 		}).AddRow(
 			merchantID, "M001", "晨星童装", "factory", "zhili", []byte(`["童装"]`), "completed", "none",
-			"周经理", "18800000002", "stock-demo", "织里镇",
+			"周经理", "18800000002", "stock-demo", true, false, false, true, []byte(`{"schemaVersion":1,"entityKind":"organization","primaryRole":"factory","roles":["factory"],"serviceArea":"","processingMethods":["车缝"],"propertyTypes":[],"serviceItems":[]}`), "织里镇",
 			"织里童装城", "一期", "1F", "A108", 30.1, 120.2, "织里童装城", model.MerchantLocationStatusVisible, time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC),
 			"童装工厂", "https://img.example.com/logo.jpg", []byte(`["https://img.example.com/a.jpg"]`),
 			nil, int64(2), int64(1), int64(3),

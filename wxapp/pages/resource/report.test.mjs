@@ -6,12 +6,14 @@ import test from 'node:test'
 const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'pages/resource/report.vue'), 'utf8')
 const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+const legacyPagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.legacy.json'), 'utf8'))
 const apiSource = fs.readFileSync(path.join(root, 'api/resource.js'), 'utf8')
 
 test('resource report page is registered and submits existing report API', () => {
   const pagePaths = (pagesConfig.pages || []).map((item) => item.path)
 
-  assert.equal(pagePaths.includes('pages/resource/report'), true)
+  assert.equal((legacyPagesConfig.pages || []).some((item) => item.path === 'pages/resource/report'), true)
+  assert.equal(pagePaths.includes('pages/resource/report'), false)
   assert.match(source, /import \{ reportResource \} from '\.\.\/\.\.\/api\/resource'/)
   assert.match(source, /import \{ requireLogin \} from '\.\.\/\.\.\/common\/auth'/)
   assert.match(apiSource, /export function reportResource\(resourceId, data\)/)

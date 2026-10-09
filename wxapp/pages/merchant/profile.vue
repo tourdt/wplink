@@ -1,147 +1,110 @@
 <template>
   <view class="profile-page">
-    <view class="form-card">
-      <view class="form-section">
-        <view class="section-heading">
-          <view class="section-title-row">
-            <text class="section-title">基础资料</text>
-            <text class="required-badge">必填</text>
-          </view>
+    <view class="onboarding-head">
+      <text class="eyebrow">商家与服务入驻</text>
+      <text class="onboarding-title">建立你的业务主页</text>
+      <text class="onboarding-subtitle">填写真实经营信息。保存后以主页实际状态为准。</text>
+    </view>
+    <view v-if="merchantLoadError" class="form-section load-error">
+      <text class="field-label">业务资料加载失败</text>
+      <text class="field-helper">请检查网络后重试，资料未加载前无法提交。</text>
+      <button class="secondary-button" @click="loadMerchant">重新加载</button>
+    </view>
+    <view v-else-if="merchantProfileLoading" class="form-section">
+      <text class="field-helper">正在读取业务资料…</text>
+    </view>
+    <view v-else class="form-card">
+      <view v-if="savedState" class="saved-state" :class="savedState">
+        <text class="saved-state-title">{{ savedStateText }}</text>
+        <text class="field-helper">{{ savedStateHint }}</text>
+        <view class="saved-actions">
+          <button class="secondary-button" @click="previewStorefront">预览主页</button>
+          <button v-if="['public', 'profile_public'].includes(savedState)" class="secondary-button" open-type="share">分享主页</button>
         </view>
-        <view class="section-body">
-          <view class="form-field logo-field">
-            <view class="logo-layout">
-              <view class="logo-copy">
-                <text class="field-label">头像 / LOGO</text>
-                <text class="image-helper">正方形头像或 LOGO，裁剪后保存</text>
-              </view>
-              <view v-if="logoPreviewUrl" class="logo-preview-wrap">
-                <button class="logo-preview-tile" @click="previewMerchantLogo">
-                  <image class="logo-preview" :src="logoPreviewUrl" mode="aspectFill" />
-                </button>
-                <button
-                  class="logo-change-button"
-                  :disabled="submitting"
-                  open-type="chooseAvatar"
-                  @chooseavatar="onChooseMerchantLogoAvatar"
-                >
-                  更换图片
-                </button>
-              </view>
-              <button
-                v-else
-                class="logo-upload-tile"
-                :disabled="submitting"
-                open-type="chooseAvatar"
-                @chooseavatar="onChooseMerchantLogoAvatar"
-              >
-                <view class="logo-plus">
-                  <view class="logo-plus-icon" />
+      </view>
+      <view class="form-section">
+        <text class="section-title">基本资料</text>
+        <view class="form-field">
+          <text class="field-label">主体性质 <text class="required-mark">*</text></text>
+          <view class="category-grid"><button v-for="option in ENTITY_KIND_OPTIONS" :key="option.value" class="category-chip" :class="{ selected: form.businessProfile.entityKind === option.value }" @click="form.businessProfile.entityKind = option.value">{{ option.label }}</button></view>
+          <text class="field-helper">性质为自行填写，不代表平台认证。</text>
+          <text v-if="fieldErrors.entityKind" class="field-error">{{ fieldErrors.entityKind }}</text>
+        </view>
+        <view class="form-field">
+          <text class="field-label">主要业务 <text class="required-mark">*</text></text>
+          <view class="category-grid"><button v-for="option in BUSINESS_ROLE_OPTIONS" :key="option.value" class="category-chip" :class="{ selected: form.businessProfile.primaryRole === option.value }" @click="selectPrimaryRole(option.value)">{{ option.label }}</button></view>
+          <text v-if="fieldErrors.primaryRole" class="field-error">{{ fieldErrors.primaryRole }}</text>
+          <text class="field-label">兼营业务（可多选）</text>
+          <view class="category-grid"><button v-for="option in BUSINESS_ROLE_OPTIONS" :key="option.value" class="category-chip" :disabled="form.businessProfile.primaryRole === option.value" :class="{ selected: form.businessProfile.roles.includes(option.value) }" @click="toggleBusinessRole(option.value)">{{ option.label }}</button></view>
+          <text v-if="fieldErrors.roles" class="field-error">{{ fieldErrors.roles }}</text>
+          <text v-if="fieldErrors.businessProfile" class="field-error">{{ fieldErrors.businessProfile }}</text>
+        </view>
+        <view class="form-field">
+          <text class="field-label">{{ businessNameCopy.label }} <text class="required-mark">*</text></text>
+          <input v-model="form.name" class="field" :placeholder="businessNameCopy.placeholder" />
+          <text v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</text>
+        </view>
+        <view v-if="needsBusinessCategories(form.businessProfile)" class="form-field">
+          <text class="field-label">经营品类 <text class="required-mark">*</text></text>
+          <text class="field-helper">可多选，让买家更快找到你</text>
+          <view class="category-grid">
+            <button v-for="category in merchantCategoryOptions" :key="category" class="category-chip" :class="{ selected: mainCategories.includes(category) }" @click="toggleCategory(category)">{{ category }}</button>
+          </view>
+          <text v-if="fieldErrors.mainCategories" class="field-error">{{ fieldErrors.mainCategories }}</text>
+        </view>
+        <view class="form-field">
+          <text class="field-label">简介</text>
+          <textarea v-model="form.description" class="textarea" placeholder="介绍你的业务、服务特色与合作方式" />
+        </view>
+        <view v-for="field in visibleBusinessFields" :key="field.key" class="form-field">
+          <text class="field-label">{{ field.label }} <text class="required-mark">*</text></text>
+          <input v-model="businessItemInputs[field.key]" class="field" :placeholder="field.placeholder" @input="changeBusinessItems(field.key, $event)" />
+          <text class="field-helper">多项请用顿号或逗号分隔</text>
+          <text v-if="fieldErrors[field.key]" class="field-error">{{ fieldErrors[field.key] }}</text>
+        </view>
+        <view class="form-field">
+          <text class="field-label">服务区域（选填）</text>
+          <input v-model="form.businessProfile.serviceArea" class="field" maxlength="200" placeholder="例如：织里及周边、全国" />
+          <text v-if="fieldErrors.serviceArea" class="field-error">{{ fieldErrors.serviceArea }}</text>
+        </view>
+      </view>
+      <view class="form-section">
+        <text class="section-title">业务照片</text>
+        <view class="form-field image-field">
+          <view class="image-title-row"><text class="field-label">业务实拍（选填）</text><text class="image-count">{{ merchantImageEntries.length }}/{{ merchantProfileImageMaxCount }}</text></view>
+          <text class="image-helper">首张照片会作为未设置 LOGO 时的封面。</text>
+          <view class="image-grid-wrap">
+            <UniGrid :column="3" :show-border="false" :square="true" @change="onMerchantImageGridItemClick">
+              <UniGridItem v-for="(item, index) in merchantImageGridItems" :key="item.id" :index="index">
+                <view v-if="item.type === 'image'" class="upload-img-item">
+                  <image class="merchant-image" :src="item.url" mode="aspectFill" />
+                  <button class="img-del" :disabled="submitting" @click.stop="removeMerchantImage(item)"><text class="img-del-line" /></button>
                 </view>
-              </button>
+                <view v-else class="upload-img-add-container"><view class="upload-img-item-add"><view class="image-add-icon" /></view></view>
+              </UniGridItem>
+            </UniGrid>
+          </view>
+          <text v-if="fieldErrors.images" class="field-error">{{ fieldErrors.images }}</text>
+        </view>
+        <view class="form-field logo-field">
+          <view class="logo-layout">
+            <view class="logo-copy"><text class="field-label">LOGO（选填）</text><text class="image-helper">可用品牌标识；未设置时使用首张实拍</text></view>
+            <view v-if="logoPreviewUrl" class="logo-preview-wrap">
+              <button class="logo-preview-tile" @click="previewMerchantLogo"><image class="logo-preview" :src="logoPreviewUrl" mode="aspectFill" /></button>
+              <button class="logo-change-button" :disabled="submitting" open-type="chooseAvatar" @chooseavatar="onChooseMerchantLogoAvatar">更换</button>
             </view>
-          </view>
-          <view class="form-field">
-            <text class="field-label">展示名称</text>
-            <input v-model="form.name" class="field" placeholder="请输入展示名称" />
-          </view>
-          <view class="form-field">
-            <text class="field-label">主要身份</text>
-            <picker :range="merchantTypeOptions" range-key="label" @change="changeMerchantType">
-              <view class="field picker-field">{{ currentMerchantTypeLabel }}</view>
-            </picker>
-          </view>
-          <view class="form-field">
-            <text class="field-label">主营内容</text>
-            <input v-model="mainCategoriesText" class="field" placeholder="如：童装现货、女装尾货、厂房出租、档口转让、设备转让" />
-          </view>
-          <view class="form-field">
-            <text class="field-label">简介</text>
-            <textarea v-model="form.description" class="textarea" placeholder="比如：主做童装现货，支持看样和小单补货" />
-          </view>
-          <view class="form-field image-field profile-images-field">
-            <view class="image-title-row">
-              <text class="field-label">展示图片</text>
-              <text class="image-count">{{ merchantImageEntries.length }}/{{ merchantProfileImageMaxCount }}</text>
-            </view>
-            <text class="image-helper">公开展示图片，点击图片预览，点击最后一格添加</text>
-            <view class="image-grid-wrap">
-              <UniGrid :column="3" :show-border="false" :square="true" @change="onMerchantImageGridItemClick">
-                <UniGridItem v-for="(item, index) in merchantImageGridItems" :key="item.id" :index="index">
-                  <view v-if="item.type === 'image'" class="upload-img-item">
-                    <image class="merchant-image" :src="item.url" mode="aspectFill" />
-                    <button class="img-del" :disabled="submitting" @click.stop="removeMerchantImage(item)">
-                      <text class="img-del-line" />
-                    </button>
-                  </view>
-                  <view v-else class="upload-img-add-container">
-                    <view class="upload-img-item-add">
-                      <view class="image-add-icon" />
-                    </view>
-                  </view>
-                </UniGridItem>
-              </UniGrid>
-            </view>
+            <button v-else class="logo-upload-tile" :disabled="submitting" open-type="chooseAvatar" @chooseavatar="onChooseMerchantLogoAvatar"><view class="logo-plus"><view class="logo-plus-icon" /></view></button>
           </view>
         </view>
       </view>
-
-      <view class="form-section contact-section">
-        <button class="section-toggle" @click="toggleContactSection">
-          <view>
-            <text class="section-title">联系方式</text>
-            <text class="section-summary">买家联系和导航</text>
-          </view>
-          <text class="toggle-mark">{{ contactSectionOpen ? '收起' : '展开' }}</text>
-        </button>
-        <view v-if="contactSectionOpen" class="section-body">
-          <view class="form-field">
-            <text class="field-label">联系人</text>
-            <input v-model="form.contactName" class="field" placeholder="联系人姓名" />
-          </view>
-          <view class="form-field contact-phone-card">
-            <text class="field-label">联系电话</text>
-            <view class="phone-input-row">
-              <input v-model="form.contactPhone" class="field" type="number" maxlength="20" placeholder="联系电话" @input="sanitizeContactPhone" />
-              <button
-                class="wechat-phone-button"
-                :disabled="submitting || phoneAuthorizing"
-                :loading="phoneAuthorizing"
-                open-type="getPhoneNumber"
-                @getphonenumber="useWechatPhoneNumber"
-              >
-                微信手机号
-              </button>
-            </view>
-            <text class="field-helper">手机号需为 6-20 位数字</text>
-          </view>
-          <view class="form-field">
-            <text class="field-label">微信</text>
-            <input v-model="form.contactWechat" class="field" maxlength="32" placeholder="微信号" @input="sanitizeContactWechat" />
-            <text class="field-helper">支持字母、数字、下划线和减号，最多 32 位</text>
-          </view>
-          <view class="form-field">
-            <text class="field-label">经营地址</text>
-            <input v-model="form.addressText" class="field" :disabled="submitting" placeholder="请输入经营地址" @input="handleAddressTextInput" />
-          </view>
-          <view class="location-fields">
-            <view class="form-field">
-              <text class="field-label">市场名称</text>
-              <input v-model="form.marketName" class="field" :disabled="submitting || locationResolving" placeholder="如：织里童装城" />
-            </view>
-            <view class="form-field">
-              <text class="field-label">楼栋 / 区域</text>
-              <input v-model="form.buildingName" class="field" :disabled="submitting || locationResolving" placeholder="如：一期 A 区" />
-            </view>
-            <view class="form-field">
-              <text class="field-label">楼层</text>
-              <input v-model="form.floorNo" class="field" :disabled="submitting || locationResolving" placeholder="如：1F" />
-            </view>
-            <view class="form-field">
-              <text class="field-label">档口号</text>
-              <input v-model="form.boothNo" class="field" :disabled="submitting || locationResolving" placeholder="如：A108" />
-            </view>
-          </view>
+      <view class="form-section">
+        <text class="section-title">接待地点</text>
+        <text v-if="draftLocationRetained" class="field-helper">草稿地点需重新选点，当前保留已保存地点；其它业务资料已恢复。</text>
+        <view class="visibility-row"><text>在地图上公开接待地点</text><switch :checked="form.mapVisible" color="#214d72" @change="form.mapVisible = $event.detail.value" /></view>
+        <text v-if="fieldErrors.mapVisible" class="field-error">{{ fieldErrors.mapVisible }}</text>
+        <text class="field-helper">关闭后仍可公开和分享业务主页；详细地址及坐标不会向访客展示。服务区域始终可用于介绍业务。</text>
+        <view class="form-field">
+          <text class="field-label">地图选点 <text v-if="form.mapVisible" class="required-mark">*</text></text>
           <view class="location-status-block" :class="locationStatusTone">
             <view class="location-status-copy">
               <text v-if="locationResolving" class="location-status-title">正在确认地图位置</text>
@@ -149,41 +112,60 @@
               <text v-else-if="locationSelected" class="location-status-title">地图位置已设置</text>
               <text v-else-if="addressLocationNeedsReselection" class="location-status-title">地址已修改，需重新选择</text>
               <text v-else class="location-status-title">未设置地图位置</text>
-              <text v-if="locationResolving" class="location-status-detail">正在解析详细地址，完成前暂不能保存</text>
-              <text v-else-if="locationRiskHidden" class="location-status-detail">已保留原坐标，请重新选择地图位置或清除地图位置后再保存</text>
-              <text v-else-if="locationSelected" class="location-status-detail">{{ form.locationName || '坐标有效，保存后可提供导航' }}</text>
-              <text v-else-if="addressLocationNeedsReselection" class="location-status-detail">旧坐标已清除，保存前请核对并重新选点</text>
-              <text v-else class="location-status-detail">设置后才会在拿货档口目录提供查看位置</text>
+              <text class="location-status-detail">{{ form.locationName || '请在地图中选择准确的接待地点' }}</text>
             </view>
             <view class="location-actions">
-              <button class="map-button" :disabled="submitting || locationResolving || merchantProfileLoading" :loading="locationResolving" @click="chooseMerchantLocation">
-                {{ locationResolving ? '解析中' : locationSelected ? '重新选择' : '选择地图位置' }}
-              </button>
-              <button
-                v-if="locationSelected"
-                class="location-clear-button"
-                :disabled="submitting || merchantProfileLoading"
-                @click="clearMerchantLocation"
-              >
-                清除地图位置
-              </button>
+              <button class="map-button" :disabled="submitting || locationResolving || merchantProfileLoading" :loading="locationResolving" @click="chooseMerchantLocation">{{ locationSelected ? '重新选择' : '选择位置' }}</button>
+              <button v-if="locationSelected && !firstSubmission" class="location-clear-button" :disabled="submitting || merchantProfileLoading" @click="clearMerchantLocation">清除位置</button>
             </view>
           </view>
+          <text v-if="fieldErrors.location" class="field-error">{{ fieldErrors.location }}</text>
+        </view>
+        <view class="form-field">
+          <text class="field-label">详细地址 <text v-if="form.mapVisible" class="required-mark">*</text></text>
+          <input v-model="form.addressText" class="field" :disabled="submitting" placeholder="门牌、街道等详细位置" @input="handleAddressTextInput" />
+          <text v-if="fieldErrors.addressText" class="field-error">{{ fieldErrors.addressText }}</text>
+        </view>
+        <view class="location-fields">
+          <view class="form-field"><text class="field-label">市场名称</text><input v-model="form.marketName" class="field" :disabled="locationResolving" placeholder="如织里童装城" /></view>
+          <view class="form-field"><text class="field-label">楼栋 / 区域</text><input v-model="form.buildingName" class="field" :disabled="locationResolving" placeholder="如一期 A 区" /></view>
+          <view class="form-field"><text class="field-label">楼层</text><input v-model="form.floorNo" class="field" :disabled="locationResolving" placeholder="如 1F" /></view>
+          <view class="form-field"><text class="field-label">档口号</text><input v-model="form.boothNo" class="field" :disabled="locationResolving" placeholder="如 A108" /></view>
         </view>
       </view>
+      <view class="form-section">
+        <text class="section-title">联系方式</text>
+        <text class="field-helper">联系方式由你单独决定是否展示。授权填入手机号不会自动公开。</text>
+        <view class="form-field"><text class="field-label">联系人</text><input v-model="form.contactName" class="field" placeholder="联系人姓名" /></view>
+        <view class="form-field contact-phone-card">
+          <text class="field-label">联系电话</text>
+          <view class="phone-input-row">
+            <input v-model="form.contactPhone" class="field" type="number" maxlength="20" placeholder="联系电话" @input="sanitizeContactPhone" />
+            <button class="wechat-phone-button" :disabled="submitting || phoneAuthorizing" :loading="phoneAuthorizing" open-type="getPhoneNumber" @getphonenumber="useWechatPhoneNumber">微信手机号</button>
+          </view>
+          <text class="field-helper">手机号需为 6–20 位数字</text>
+          <text v-if="fieldErrors.contactPhone" class="field-error">{{ fieldErrors.contactPhone }}</text>
+          <view class="visibility-row"><text>公开电话</text><switch :checked="form.publicPhone && !!form.contactPhone" :disabled="!form.contactPhone" color="#214d72" @change="form.publicPhone = $event.detail.value" /></view>
+        </view>
+        <view class="form-field">
+          <text class="field-label">微信号</text>
+          <input v-model="form.contactWechat" class="field" maxlength="32" placeholder="微信号" @input="sanitizeContactWechat" />
+          <view class="visibility-row"><text>公开微信</text><switch :checked="form.publicWechat && !!form.contactWechat" :disabled="!form.contactWechat" color="#214d72" @change="form.publicWechat = $event.detail.value" /></view>
+        </view>
+      </view>
+      <text class="draft-note">草稿只保存在当前设备，不会发布业务资料。</text>
     </view>
     <view class="fixed-save-spacer" />
     <view class="fixed-save-bar">
-      <button class="primary-button" :disabled="submitting || locationResolving || merchantProfileLoading" :loading="submitting" @click="submitMerchantProfile">
-        {{ submitting ? '保存中' : merchantProfileLoading ? '资料加载中' : locationResolving ? '位置解析中' : saveButtonText }}
-      </button>
+      <button class="secondary-button" :disabled="submitting || merchantProfileLoading || merchantLoadError" @click="saveLocalDraft">保存本机草稿</button>
+      <button class="primary-button" :disabled="submitting || locationResolving || merchantProfileLoading || merchantLoadError" :loading="submitting" @click="submitMerchantProfile">{{ submitting ? '保存中' : firstSubmission ? '提交入驻' : '保存修改' }}</button>
     </view>
   </view>
 </template>
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import UniGrid from '../../components/uni-ui/uni-grid/uni-grid.vue'
 import UniGridItem from '../../components/uni-ui/uni-grid-item/uni-grid-item.vue'
 import { DEFAULT_CITY_CODE } from '../../common/constants'
@@ -199,7 +181,11 @@ import {
   reduceMerchantLocationSession,
   resolveLatestMerchantLocationRequest,
 } from '../../common/merchantLocationForm'
-import { validateMerchantName } from '../../common/merchantName'
+import { buildLoginUrl } from '../../common/auth'
+import { MERCHANT_CATEGORY_OPTIONS, mergeMerchantCategories, toggleMerchantCategory } from '../../common/merchantCategories'
+import { clearMerchantDraft, getMerchantDraft, isMerchantDraftSupported, saveMerchantDraft } from '../../common/merchantDraft'
+import { BUSINESS_ROLE_OPTIONS, ENTITY_KIND_OPTIONS, BUSINESS_ARRAY_FIELDS, getBusinessProfile, normalizeBusinessProfile, normalizeBusinessItems, needsBusinessCategories } from '../../common/merchantBusinessProfile'
+import { buildMerchantContactVisibility, getMerchantOnboardingErrors, getMerchantSavedState } from '../../common/merchantOnboarding'
 import { bindWechatPhone } from '../../api/auth'
 import { reverseGeocodeLocation } from '../../api/location'
 import { getMerchant, updateMerchant } from '../../api/merchant'
@@ -214,33 +200,38 @@ import {
   removeMerchantImageEntry,
   resolveImageCompressionOptions,
 } from '../../common/merchantProfileImages'
-import { getMerchantId } from '../../store/session'
-
-const DEFAULT_MERCHANT_TYPE = 'individual'
-const merchantTypeOptions = [
-  { label: '个人', value: 'individual' },
-  { label: '源头工厂', value: 'factory' },
-  { label: '库存货源', value: 'stockist' },
-  { label: '配套服务', value: 'service_provider' },
-  { label: '采购', value: 'buyer' },
-]
-const legacyMerchantTypeText = {
-  stall: '现货档口',
-}
+import { getSession } from '../../store/session'
 
 const merchantId = ref('')
+const userId = ref('')
 const merchantProfileLoading = ref(true)
+const merchantLoadError = ref(false)
 const submitting = ref(false)
 const phoneAuthorizing = ref(false)
-const contactSectionOpen = ref(false)
 const addressLocationNeedsReselection = ref(false)
 const locationStatus = ref('hidden')
+// 服务端风险基线不能被本机草稿覆盖；重新选点才代表店主确认了新位置。
+const serverLocationStatus = ref('hidden')
+const serverMapVisible = ref(false)
+const explicitLocationAction = ref('keep')
+const draftLocationNeedsConfirmation = ref(false)
+const draftLocationRetained = ref(false)
+let serverLocationForm = {}
+let serverLocationFingerprint = ''
+let serverLocationDetailsFingerprint = ''
 const locationSession = ref(createMerchantLocationSession())
-const mainCategoriesText = ref('')
+const mainCategories = ref([])
+const merchantCategoryOptions = MERCHANT_CATEGORY_OPTIONS
+const fieldErrors = reactive({})
+const businessItemInputs = reactive({ processingMethods: '', propertyTypes: '', serviceItems: '' })
+const firstSubmission = ref(true)
+const savedState = ref('')
+const savedStateText = computed(() => ({ profile_public: '业务主页已公开，未上地图', public: '业务主页和地图已公开', paused: '业务主页已暂停展示', location_error: '位置待确认' })[savedState.value] || '')
+const savedStateHint = computed(() => ({ profile_public: '可分享业务主页；开启地图展示需要详细地址和准确位置。', public: '访客可以查看业务主页和接待地点。', paused: '业务资料已保存，恢复展示后访客才能查看。', location_error: '业务资料已保存，地图地点暂未公开，请核对位置状态。' })[savedState.value] || '')
 const pendingLogoFile = ref(null)
 const merchantImageEntries = ref([])
 const merchantProfileImageMaxCount = MERCHANT_PROFILE_IMAGE_MAX_COUNT
-const logoPreviewUrl = computed(() => pendingLogoFile.value?.path || form.logoUrl)
+const logoPreviewUrl = computed(() => pendingLogoFile.value?.path || form.logoUrl || merchantImageEntries.value[0]?.url || '')
 const merchantImageGridItems = computed(() => {
   const imageItems = merchantImageEntries.value.map((entry) => ({
     ...entry,
@@ -252,20 +243,16 @@ const merchantImageGridItems = computed(() => {
   }
   return imageItems
 })
-const hasPendingImages = computed(() => Boolean(
-  pendingLogoFile.value || merchantImageEntries.value.some((entry) => entry.kind === 'pending'),
-))
-const saveButtonText = computed(() => {
-  if (hasPendingImages.value) return '上传并保存'
-  return '保存资料'
-})
 const form = reactive({
   cityCode: DEFAULT_CITY_CODE,
   name: '',
-  merchantType: DEFAULT_MERCHANT_TYPE,
+  businessProfile: normalizeBusinessProfile(),
+  mapVisible: false,
   contactName: '',
   contactPhone: '',
   contactWechat: '',
+  publicPhone: false,
+  publicWechat: false,
   addressText: '',
   marketName: '',
   buildingName: '',
@@ -278,10 +265,14 @@ const form = reactive({
   logoUrl: '',
 })
 
-const currentMerchantTypeLabel = computed(() => {
-  const matched = merchantTypeOptions.find((item) => item.value === form.merchantType) || {}
-  return matched.label || legacyMerchantTypeText[form.merchantType] || '个人'
-})
+const businessNameCopy = computed(() => ({
+  stall: { label: '店铺名称', placeholder: '例如：织里小鹿童装' },
+  factory: { label: '工厂名称', placeholder: '例如：小鹿服装加工厂' },
+  landlord: { label: '出租方名称', placeholder: '例如：小鹿厂房出租' },
+  service_provider: { label: '服务方名称', placeholder: '例如：小鹿服装设计工作室' },
+  supplier: { label: '供应方名称', placeholder: '例如：小鹿童装货源' },
+}[form.businessProfile.primaryRole] || { label: '对外名称', placeholder: '填写对外展示的名称' }))
+const visibleBusinessFields = computed(() => BUSINESS_ARRAY_FIELDS.filter((field) => form.businessProfile.roles.includes(field.role)))
 const locationSelected = computed(() => buildMerchantLocationPayload(form).locationAction === 'set')
 const locationResolving = computed(() => locationSession.value.resolving)
 const locationRiskHidden = computed(() => locationSession.value.intent === 'decision_required' && locationSelected.value)
@@ -291,28 +282,55 @@ const locationStatusTone = computed(() => {
 })
 
 onLoad((options) => {
-  merchantId.value = options.merchantId || getMerchantId()
+  const session = getSession()
+  if (!session.token) {
+    // 登录仅在进入编辑页时要求，回跳保留原 merchantId 参数。
+    const target = `/pages/merchant/profile${options.merchantId ? `?merchantId=${encodeURIComponent(options.merchantId)}` : ''}`
+    uni.redirectTo({ url: buildLoginUrl(target) })
+    return
+  }
+  userId.value = session.userId
+  merchantId.value = options.merchantId || session.merchantId
   loadMerchant()
 })
 
-async function loadMerchant() {
+onShareAppMessage(() => ({ title: form.name || '我的业务主页', path: `/pages/merchant/detail?merchantId=${encodeURIComponent(merchantId.value)}` }))
+
+async function loadMerchant({ promptDraft = true, showError = true } = {}) {
   merchantProfileLoading.value = true
+  merchantLoadError.value = false
   if (locationResolving.value) uni.hideLoading()
   // 资料基线开始加载时立即推进位置代次，保证此前地图回调即使稍后完成也不能回写新资料。
   locationSession.value = invalidateMerchantLocationSession(locationSession.value)
   try {
-    if (!merchantId.value) return
+    if (!merchantId.value || !userId.value) throw new Error('missing merchant session')
     const detail = await getMerchant(merchantId.value)
     form.name = detail.name || ''
     form.cityCode = detail.cityCode || DEFAULT_CITY_CODE
-    form.merchantType = detail.merchantType || DEFAULT_MERCHANT_TYPE
+    form.businessProfile = getBusinessProfile(detail)
+    if (form.businessProfile.schemaVersion !== 1 || typeof detail.mapVisible !== 'boolean') {
+      throw new Error('unsupported_business_profile')
+    }
+    syncBusinessItemInputs()
+    // 地图开关只取服务端显式状态；草稿不能新增公开授权。
+    serverMapVisible.value = detail.mapVisible
+    form.mapVisible = serverMapVisible.value
+    explicitLocationAction.value = 'keep'
+    draftLocationNeedsConfirmation.value = false
+    draftLocationRetained.value = false
     const contact = detail.contact || {}
     form.contactName = contact.name || ''
     form.contactPhone = sanitizeContactPhoneValue(contact.phone || '')
     form.contactWechat = sanitizeContactWechatValue(contact.wechat || '')
+    form.publicPhone = detail.publicPhone === true
+    form.publicWechat = detail.publicWechat === true
     form.addressText = detail.addressText || ''
     Object.assign(form, normalizeMerchantLocationForm(detail))
     locationStatus.value = detail.location?.status || 'hidden'
+    serverLocationStatus.value = locationStatus.value
+    serverLocationForm = { addressText: form.addressText, ...normalizeMerchantLocationForm(detail) }
+    serverLocationFingerprint = locationFingerprint(form)
+    serverLocationDetailsFingerprint = locationDetailsFingerprint(form)
     locationSession.value = applyMerchantLocationBaseline(locationSession.value, {
       status: locationStatus.value,
       form,
@@ -320,85 +338,223 @@ async function loadMerchant() {
     addressLocationNeedsReselection.value = false
     form.description = detail.description || ''
     form.logoUrl = detail.logoUrl || ''
-    mainCategoriesText.value = (detail.mainCategories || []).join(',')
+    pendingLogoFile.value = null
+    mainCategories.value = mergeMerchantCategories(detail.mainCategories || []).filter((category) => MERCHANT_CATEGORY_OPTIONS.includes(category))
     merchantImageEntries.value = (detail.images || [])
       .filter(Boolean)
       .map(createStoredMerchantImageEntry)
-    contactSectionOpen.value = hasExistingContactInfo()
+    firstSubmission.value = detail.profileStatus === 'incomplete' || !String(detail.name || '').trim()
+    savedState.value = ''
+    Object.keys(fieldErrors).forEach((key) => { delete fieldErrors[key] })
+    if (promptDraft) {
+      const draft = getMerchantDraft(userId.value, merchantId.value)
+      if (draft) promptRestoreDraft(draft)
+    }
+    return detail
   } catch (err) {
-    uni.showToast({ title: err.message || '资料加载失败', icon: 'none' })
+    merchantLoadError.value = true
+    console.warn('业务资料加载失败', { merchantId: merchantId.value, reason: 'request_failed' })
+    if (showError) uni.showToast({ title: err.message === 'unsupported_business_profile' ? '业务资料格式或版本不受支持，请刷新后重试' : '资料加载失败，请重试', icon: 'none' })
   } finally {
     merchantProfileLoading.value = false
   }
 }
 
-function toggleContactSection() {
-  contactSectionOpen.value = !contactSectionOpen.value
+function toggleCategory(category) {
+  mainCategories.value = toggleMerchantCategory(mainCategories.value, category)
+  delete fieldErrors.mainCategories
 }
 
-function changeMerchantType(event) {
-  const selected = merchantTypeOptions[Number(event.detail.value)] || {}
-  form.merchantType = selected.value || DEFAULT_MERCHANT_TYPE
+function selectPrimaryRole(role) {
+  form.businessProfile.primaryRole = role
+  if (!form.businessProfile.roles.includes(role)) form.businessProfile.roles.push(role)
+}
+
+function toggleBusinessRole(role) {
+  if (role === form.businessProfile.primaryRole) return
+  const roles = form.businessProfile.roles
+  // 切换业务只改身份，不删除暂时隐藏的专业资料，便于恢复兼营内容。
+  form.businessProfile.roles = roles.includes(role) ? roles.filter((item) => item !== role) : [...roles, role]
+}
+
+function changeBusinessItems(key, event) {
+  businessItemInputs[key] = String(event?.detail?.value || '')
+  form.businessProfile[key] = normalizeBusinessItems(businessItemInputs[key].split(/[、,，;；]/))
+}
+
+function syncBusinessItemInputs() {
+  // 输入文本独立保存，避免实时去空去重把刚输入的分隔符删除，影响连续输入多项。
+  BUSINESS_ARRAY_FIELDS.forEach(({ key }) => { businessItemInputs[key] = form.businessProfile[key].join('、') })
+}
+
+function showFieldErrors(errors) {
+  Object.keys(fieldErrors).forEach((key) => { delete fieldErrors[key] })
+  Object.assign(fieldErrors, errors)
+}
+
+function promptRestoreDraft(draft) {
+  // 先加载服务端最新资料，再由用户选择恢复或丢弃，避免旧草稿静默覆盖新资料。
+  uni.showModal({
+    title: '发现本机草稿',
+    content: '这份草稿只保存在当前设备。要用它替换刚加载的编辑内容吗？',
+    confirmText: '恢复草稿',
+    cancelText: '丢弃草稿',
+    success: (res) => {
+      if (res.confirm) {
+        restoreDraft(draft)
+      } else if (res.cancel) {
+        clearMerchantDraft(userId.value, merchantId.value)
+      }
+    },
+  })
+}
+
+function restoreDraft(draft) {
+  if (!isMerchantDraftSupported(draft)) return
+  const fields = ['name', 'description', 'logoUrl', 'contactName', 'contactPhone', 'contactWechat',
+    'publicPhone', 'publicWechat', 'addressText', 'marketName', 'buildingName', 'floorNo', 'boothNo',
+    'latitude', 'longitude', 'locationName']
+  fields.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(draft, key)) form[key] = draft[key]
+  })
+  form.businessProfile = normalizeBusinessProfile(draft.businessProfile)
+  syncBusinessItemInputs()
+  // 恢复草稿不能新增地图公开授权。关闭操作可恢复，开启必须在当前编辑中明确选择。
+  form.mapVisible = serverMapVisible.value && draft.mapVisible !== false
+  mainCategories.value = mergeMerchantCategories(draft.mainCategories).filter((category) => MERCHANT_CATEGORY_OPTIONS.includes(category))
+  merchantImageEntries.value = (draft.images || []).map(createStoredMerchantImageEntry)
+  pendingLogoFile.value = null
+  const draftLocationChanged = locationFingerprint(form) !== serverLocationFingerprint
+  // 草稿仅恢复业务内容；地点回到当前服务端基线，让页面显示与 keep 的实际结果一致。
+  // 草稿地点必须通过本次重新选点确认，不能因恢复编辑内容而获得公开授权。
+  if (draftLocationChanged) Object.assign(form, serverLocationForm)
+  draftLocationRetained.value = draftLocationChanged
+  locationStatus.value = serverLocationStatus.value === 'risk_hidden'
+    ? 'risk_hidden' : draft.locationStatus || 'hidden'
+  locationSession.value = applyMerchantLocationBaseline(locationSession.value, { status: locationStatus.value, form })
+  addressLocationNeedsReselection.value = Boolean(draft.addressLocationNeedsReselection)
+  explicitLocationAction.value = 'keep'
+  draftLocationNeedsConfirmation.value = serverLocationStatus.value === 'risk_hidden' || draftLocationChanged
+  savedState.value = ''
+}
+
+function locationDetailsFingerprint(value) {
+  return JSON.stringify([value.marketName, value.buildingName, value.floorNo, value.boothNo])
+}
+
+function locationFingerprint(value) {
+  return JSON.stringify([value.addressText || '', ...Object.values(buildMerchantLocationPayload(value))])
+}
+
+function createDraftSnapshot() {
+  return {
+    name: form.name,
+    businessProfile: normalizeBusinessProfile(form.businessProfile),
+    mapVisible: form.mapVisible,
+    mainCategories: [...mainCategories.value],
+    description: form.description,
+    logoUrl: form.logoUrl,
+    images: getStoredMerchantImageUrls(merchantImageEntries.value),
+    contactName: form.contactName,
+    contactPhone: form.contactPhone,
+    contactWechat: form.contactWechat,
+    ...buildMerchantContactVisibility(form),
+    addressText: form.addressText,
+    marketName: form.marketName,
+    buildingName: form.buildingName,
+    floorNo: form.floorNo,
+    boothNo: form.boothNo,
+    latitude: form.latitude,
+    longitude: form.longitude,
+    locationName: form.locationName,
+    locationStatus: locationStatus.value,
+    addressLocationNeedsReselection: addressLocationNeedsReselection.value,
+  }
+}
+
+async function saveLocalDraft() {
+  if (submitting.value || merchantProfileLoading.value || merchantLoadError.value) return
+  try {
+    submitting.value = true
+    // 本机临时路径重启后会失效，先上传为稳定 URL；此处不调用资料更新接口。
+    await uploadPendingMerchantImages()
+    if (!saveMerchantDraft(userId.value, merchantId.value, createDraftSnapshot())) {
+      throw new Error('local_storage_failed')
+    }
+    uni.showToast({ title: '草稿已存到本机', icon: 'none' })
+  } catch {
+    console.warn('本机草稿保存失败', { merchantId: merchantId.value })
+    uni.showToast({ title: '草稿保存失败，请重试', icon: 'none' })
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function submitMerchantProfile() {
-  if (submitting.value || merchantProfileLoading.value) return
-  const mainCategories = parseList(mainCategoriesText.value)
+  if (submitting.value || merchantProfileLoading.value || merchantLoadError.value) return
   const normalizedContactPhone = sanitizeContactPhoneValue(form.contactPhone)
   const normalizedWechat = sanitizeContactWechatValue(form.contactWechat)
   form.contactPhone = normalizedContactPhone
   form.contactWechat = normalizedWechat
-  const merchantNameMessage = validateMerchantName(form.name)
-  if (merchantNameMessage) {
-    uni.showToast({ title: merchantNameMessage, icon: 'none' })
-    return
-  }
-  if (mainCategories.length === 0) {
-    uni.showToast({ title: '请填写主营内容', icon: 'none' })
-    return
-  }
+  const errors = getMerchantOnboardingErrors({
+    ...form, mainCategories: mainCategories.value, images: merchantImageEntries.value,
+  })
   if (normalizedContactPhone && !isValidContactPhone(normalizedContactPhone)) {
-    uni.showToast({ title: '手机号需为 6-20 位数字', icon: 'none' })
-    return
+    errors.contactPhone = '手机号需为 6–20 位数字'
   }
-  if (!merchantId.value) {
-    uni.showToast({ title: '登录状态异常，请重新登录', icon: 'none' })
-    return
+  // keep 保留服务端私有地址和风险基线。加载或恢复草稿都不是重新选点授权，
+  // 只有本次明确选点/清除才提交 set/clear；风险地点普通资料保存不解除风险隐藏。
+  let locationSubmission = { ok: true, payload: { locationAction: 'keep' } }
+  if (locationResolving.value || explicitLocationAction.value !== 'keep') {
+    locationSubmission = buildMerchantLocationSubmission(locationSession.value, form)
+  } else if (locationDetailsFingerprint(form) !== serverLocationDetailsFingerprint) {
+    locationSubmission = { ok: false, message: '接待地点补充信息已修改，请重新选择地图位置后保存' }
+  } else if (form.mapVisible && draftLocationNeedsConfirmation.value) {
+    locationSubmission = { ok: false, message: '恢复的草稿位置需重新选择地图位置后才能公开' }
   }
-  const locationSubmission = buildMerchantLocationSubmission(locationSession.value, form)
-  if (!locationSubmission.ok) {
-    uni.showToast({ title: locationSubmission.message, icon: 'none' })
-    return
-  }
+  if (!locationSubmission.ok) errors.location = locationSubmission.message
+  showFieldErrors(errors)
+  if (Object.keys(errors).length) return
   try {
     submitting.value = true
     await uploadPendingMerchantImages()
     const images = getStoredMerchantImageUrls(merchantImageEntries.value)
-    const locationPayload = locationSubmission.payload
     const patch = {
       name: form.name.trim(),
-      mainCategories,
-      merchantType: form.merchantType,
+      mainCategories: [...mainCategories.value],
+      businessProfile: normalizeBusinessProfile(form.businessProfile),
+      mapVisible: form.mapVisible,
       description: form.description.trim(),
-      logoUrl: form.logoUrl.trim(),
+      logoUrl: form.logoUrl.trim() || images[0] || '',
       images,
       contactName: form.contactName.trim(),
       addressText: form.addressText.trim(),
-      ...locationPayload,
+      ...locationSubmission.payload,
+      ...buildMerchantContactVisibility(form),
     }
-    if (normalizedContactPhone) {
-      patch.contactPhone = normalizedContactPhone
-    }
-    if (normalizedWechat) {
-      patch.contactWechat = normalizedWechat
-    }
+    if (normalizedContactPhone) patch.contactPhone = normalizedContactPhone
+    if (normalizedWechat) patch.contactWechat = normalizedWechat
     await updateMerchant(merchantId.value, patch)
-    uni.showToast({ title: '资料已保存', icon: 'none' })
-  } catch (err) {
-    uni.showToast({ title: err.message || '资料保存失败', icon: 'none' })
+    clearMerchantDraft(userId.value, merchantId.value)
+    // 保存响应不是最终公开状态；以重新读取的展示开关和位置状态为准。
+    const detail = await loadMerchant({ promptDraft: false, showError: false })
+    if (!merchantLoadError.value && detail) {
+      savedState.value = getMerchantSavedState(detail)
+      uni.showToast({ title: '业务资料已保存', icon: 'none' })
+    } else {
+      uni.showToast({ title: '资料已保存，状态获取失败，请重试', icon: 'none' })
+    }
+  } catch {
+    console.warn('业务资料保存失败', { merchantId: merchantId.value, reason: 'request_failed' })
+    uni.showToast({ title: '保存失败，请检查网络后重试', icon: 'none' })
   } finally {
     submitting.value = false
   }
+}
+
+function previewStorefront() {
+  if (!merchantId.value) return
+  uni.navigateTo({ url: `/pages/merchant/detail?merchantId=${encodeURIComponent(merchantId.value)}` })
 }
 
 function chooseMerchantLocation() {
@@ -436,6 +592,9 @@ function chooseMerchantLocation() {
         failMerchantLocationSelection(requestToken, '未获取到详细地址，请搜索具体地点后重试')
         return
       }
+      draftLocationRetained.value = false
+      explicitLocationAction.value = 'set'
+      draftLocationNeedsConfirmation.value = false
       // 地图坐标用于发布者资料页导航，完整地址同步写入输入框，方便用户核对和补充。
       form.latitude = latitude
       form.longitude = longitude
@@ -447,6 +606,8 @@ function chooseMerchantLocation() {
       })
       locationStatus.value = 'visible'
       addressLocationNeedsReselection.value = false
+      delete fieldErrors.location
+      delete fieldErrors.addressText
       uni.showToast({ title: '地图位置已保存', icon: 'none' })
     },
     fail: (err) => {
@@ -465,7 +626,11 @@ function chooseMerchantLocation() {
 }
 
 function handleAddressTextInput(event) {
+  draftLocationRetained.value = false
+  explicitLocationAction.value = 'clear'
+  draftLocationNeedsConfirmation.value = false
   form.addressText = String(event?.detail?.value ?? '')
+  if (form.addressText.trim()) delete fieldErrors.addressText
   const shouldClearLocation = locationSelected.value || locationResolving.value || locationRiskHidden.value
   if (locationResolving.value) uni.hideLoading()
   locationSession.value = reduceMerchantLocationSession(locationSession.value, { type: 'address_changed' })
@@ -496,13 +661,12 @@ async function reverseGeocodeMerchantLocation(latitude, longitude, selectedName)
         name: normalizeMerchantLocationText(result?.name) || selectedName,
       }
     }
-    console.warn('商家资料地图地址反查未返回详细地址', { latitude, longitude })
+    console.warn('商家资料地图地址反查未返回详细地址', { merchantId: merchantId.value })
   } catch (err) {
-    // 地址反查异常不暴露服务端细节；记录坐标和错误信息，便于定位地图服务或网络问题。
+    // 地址反查异常不输出完整响应，避免错误对象含地址或请求信息。
     console.warn('商家资料地图地址反查失败', {
-      latitude,
-      longitude,
-      errMsg: err?.message || err?.errMsg || String(err || ''),
+      merchantId: merchantId.value,
+      reason: 'reverse_geocode_failed',
     })
   }
   return { address: '', name: selectedName }
@@ -534,6 +698,9 @@ function isCoordinateMerchantLocationText(text) {
 function clearMerchantLocation() {
   if (submitting.value || merchantProfileLoading.value) return
   if (locationResolving.value) uni.hideLoading()
+  draftLocationRetained.value = false
+  explicitLocationAction.value = 'clear'
+  draftLocationNeedsConfirmation.value = false
   locationSession.value = reduceMerchantLocationSession(locationSession.value, { type: 'location_cleared' })
   Object.assign(form, clearMerchantLocationForm(form))
   locationStatus.value = 'hidden'
@@ -709,23 +876,6 @@ function compressImage(src, options) {
   })
 }
 
-function parseList(value) {
-  return String(value || '')
-    .split(/[,，\n]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function hasExistingContactInfo() {
-  return Boolean(
-    form.contactName.trim()
-      || form.contactPhone.trim()
-      || form.contactWechat.trim()
-      || form.addressText.trim()
-      || locationSelected.value,
-  )
-}
-
 function sanitizeContactPhone(event) {
   form.contactPhone = sanitizeContactPhoneValue(event?.detail?.value ?? form.contactPhone)
 }
@@ -777,6 +927,104 @@ function isValidContactPhone(value) {
   padding: 24rpx 24rpx 0;
   background: $wplink-bg;
 }
+
+.onboarding-head {
+  display: grid;
+  gap: 10rpx;
+  padding: 16rpx 8rpx 30rpx;
+}
+
+.eyebrow {
+  color: #427495;
+  font-size: 21rpx;
+  font-weight: 700;
+  letter-spacing: 4rpx;
+}
+
+.onboarding-title {
+  color: $wplink-primary;
+  font-size: 42rpx;
+  font-weight: 800;
+}
+
+.onboarding-subtitle, .draft-note {
+  color: $wplink-muted;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.required-mark, .field-error {
+  color: #b54e43;
+}
+
+.field-error {
+  font-size: 23rpx;
+}
+
+.category-grid, .saved-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.category-chip {
+  width: auto;
+  min-height: 64rpx;
+  padding: 0 20rpx;
+  margin: 0;
+  border: 1rpx solid $wplink-line;
+  border-radius: 32rpx;
+  background: #f5f8fa;
+  color: $wplink-primary;
+  font-size: 24rpx;
+  line-height: 64rpx;
+}
+
+.category-chip.selected {
+  border-color: #427495;
+  background: #e5f0f6;
+  color: #214d72;
+}
+
+.category-chip::after { border: 0; }
+
+.visibility-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 76rpx;
+  padding-top: 8rpx;
+  color: $wplink-primary;
+  font-size: 25rpx;
+}
+
+.saved-state {
+  display: grid;
+  gap: 12rpx;
+  padding: 24rpx;
+  border-left: 6rpx solid #427495;
+  border-radius: 12rpx;
+  background: #eaf3f7;
+}
+
+.saved-state.paused, .saved-state.location_error {
+  border-left-color: $wplink-warning;
+  background: $wplink-warning-soft;
+}
+
+.saved-state-title {
+  color: $wplink-primary;
+  font-size: 29rpx;
+  font-weight: 700;
+}
+
+.saved-actions .secondary-button {
+  flex: 1;
+  min-width: 220rpx;
+  margin: 0;
+}
+
+.draft-note { padding: 0 8rpx; }
 
 .form-card {
   display: grid;
@@ -1002,6 +1250,9 @@ function isValidContactPhone(value) {
 }
 
 .fixed-save-bar {
+  display: grid;
+  grid-template-columns: 220rpx minmax(0, 1fr);
+  gap: 14rpx;
   position: fixed;
   right: 0;
   bottom: 0;

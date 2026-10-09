@@ -48,6 +48,8 @@ INSERT INTO merchants (
   city_station_id,
   name,
   merchant_type,
+  business_profile,
+  map_visible,
   main_categories,
   description,
   contact_name,
@@ -74,6 +76,15 @@ SELECT
   cs.id,
   m.name,
   m.merchant_type,
+  CASE m.id
+    WHEN 8020000000000000001 THEN '{"schemaVersion":1,"entityKind":"organization","primaryRole":"factory","roles":["factory"],"serviceArea":"织里及周边","processingMethods":["车缝"],"propertyTypes":[],"serviceItems":[]}'::jsonb
+    WHEN 8020000000000000002 THEN '{"schemaVersion":1,"entityKind":"organization","primaryRole":"supplier","roles":["supplier"],"serviceArea":"织里及周边","processingMethods":[],"propertyTypes":[],"serviceItems":[]}'::jsonb
+    WHEN 8020000000000000003 THEN '{"schemaVersion":1,"entityKind":"organization","primaryRole":"service_provider","roles":["service_provider"],"serviceArea":"织里及周边","processingMethods":[],"propertyTypes":[],"serviceItems":["快印包装","电商拍摄"]}'::jsonb
+    WHEN 8020000000000000004 THEN '{"schemaVersion":1,"entityKind":"","primaryRole":"","roles":[],"serviceArea":"","processingMethods":[],"propertyTypes":[],"serviceItems":[]}'::jsonb
+    WHEN 8020000000000000005 THEN '{"schemaVersion":1,"entityKind":"organization","primaryRole":"supplier","roles":["supplier"],"serviceArea":"织里及周边","processingMethods":[],"propertyTypes":[],"serviceItems":[]}'::jsonb
+    WHEN 8020000000000000006 THEN '{"schemaVersion":1,"entityKind":"organization","primaryRole":"landlord","roles":["landlord"],"serviceArea":"织里及周边","processingMethods":[],"propertyTypes":["商铺","厂房仓库"],"serviceItems":[]}'::jsonb
+  END,
+  m.location_status = 'visible',
   m.main_categories::jsonb,
   m.description,
   m.contact_name,
@@ -91,8 +102,8 @@ SELECT
   CASE WHEN m.location_status = 'visible' THEN now() END,
   m.images::jsonb,
   'active',
-  'completed',
-  now(),
+  CASE WHEN m.merchant_type = '' THEN 'incomplete' ELSE 'completed' END,
+  CASE WHEN m.merchant_type = '' THEN NULL ELSE now() END,
   now()
 FROM city_stations cs
 CROSS JOIN (
@@ -120,7 +131,7 @@ CROSS JOIN (
     (
       8020000000000000002,
       '织里云仓尾货',
-      'stockist',
+      'supplier',
       '["童装","库存尾货"]',
       '长期处理整包库存和直播货盘。',
       '周经理',
@@ -160,7 +171,7 @@ CROSS JOIN (
     (
       8020000000000000004,
       '杭州童装采购商',
-      'buyer',
+      '',
       '["童装","电商供货"]',
       '采购商，长期寻找织里现货、工厂和快反供需信息。',
       '王采购',
@@ -180,7 +191,7 @@ CROSS JOIN (
     (
       8020000000000000005,
       '织里面辅料现货中心',
-      'material_supplier',
+      'supplier',
       '["面料","辅料","现货"]',
       '提供童装面料、吊牌、洗标和包装辅料现货，可当天打样。',
       '赵经理',
@@ -200,7 +211,7 @@ CROSS JOIN (
     (
       8020000000000000006,
       '织里产业物业服务中心',
-      'property_service',
+      'landlord',
       '["商铺","住宅","厂房仓库"]',
       '提供织里产业商铺、员工公寓、厂房和仓库出租出售服务。',
       '孙经理',
@@ -242,6 +253,8 @@ ON CONFLICT (id) DO UPDATE SET
   city_station_id = EXCLUDED.city_station_id,
   name = EXCLUDED.name,
   merchant_type = EXCLUDED.merchant_type,
+  business_profile = EXCLUDED.business_profile,
+  map_visible = EXCLUDED.map_visible,
   main_categories = EXCLUDED.main_categories,
   description = EXCLUDED.description,
   contact_name = EXCLUDED.contact_name,

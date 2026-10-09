@@ -1,19 +1,17 @@
 export const merchantIdentityOptions = [
-  { label: '个人', value: 'individual' },
-  { label: '源头工厂', value: 'factory' },
-  { label: '库存货源', value: 'stockist' },
+  { label: '现货档口', value: 'stall' },
+  { label: '加工工厂', value: 'factory' },
+  { label: '房东 / 出租方', value: 'landlord' },
   { label: '配套服务', value: 'service_provider' },
-  { label: '采购', value: 'buyer' },
+  { label: '货源供应', value: 'supplier' },
 ]
 
 export const merchantTypeText = {
-  individual: '个人',
-  rental_provider: '场地/设备方',
-  factory: '源头工厂',
   stall: '现货档口',
-  stockist: '库存货源',
+  factory: '加工工厂',
+  landlord: '房东 / 出租方',
   service_provider: '配套服务',
-  buyer: '采购',
+  supplier: '货源供应',
 }
 
 export function merchantTypeLabel(type) {

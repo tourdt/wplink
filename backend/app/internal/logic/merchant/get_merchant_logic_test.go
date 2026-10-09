@@ -14,6 +14,8 @@ import (
 func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	store := &fakeMerchantDetailStore{
 		detail: model.MerchantDetail{
+			OwnerVisible:   true,
+			MapVisible:     true,
 			ID:             "merchant-1",
 			MerchantNo:     "M61000005",
 			Name:           "织里样板童装厂",
@@ -86,11 +88,46 @@ func TestGetMerchantReturnsProfileTrustAndSummary(t *testing.T) {
 	}
 }
 
+func TestGetMerchantPublicContactAndOwnerVisibility(t *testing.T) {
+	store := &fakeMerchantDetailStore{detail: model.MerchantDetail{ID: "101", OwnerVisible: true, PublicPhone: true, ContactName: "私密姓名", ContactPhone: "13800000000", ContactWechat: "private_wechat"}}
+	resp, err := NewGetMerchantLogic(store).GetMerchant(context.Background(), "101")
+	if err != nil || resp.Contact == nil || resp.Contact.Phone != "13800000000" || resp.Contact.Name != "" || resp.Contact.Wechat != "" {
+		t.Fatalf("public contact = %#v, err = %v", resp.Contact, err)
+	}
+	store.detail.OwnerVisible = false
+	if _, err := NewGetMerchantLogic(store).GetMerchant(context.Background(), "101"); errx.CodeOf(err) != errx.CodeMerchantNotFound {
+		t.Fatalf("hidden merchant public error = %v", err)
+	}
+	store.canManage = true
+	resp, err = NewGetMerchantLogic(store).GetMerchant(context.Background(), "101", "owner")
+	if err != nil || resp.OwnerVisible || resp.Contact == nil || resp.Contact.Name != "私密姓名" {
+		t.Fatalf("owner detail = %#v, err = %v", resp, err)
+	}
+}
+
+func TestGetMerchantMapHiddenKeepsPrivateLocationForManagerOnly(t *testing.T) {
+	store := &fakeMerchantDetailStore{detail: model.MerchantDetail{
+		ID: "101", OwnerVisible: true, MapVisible: false, AddressText: "私有详细地址",
+		BusinessProfile: model.BusinessProfile{SchemaVersion: 1, EntityKind: "individual", PrimaryRole: "landlord", Roles: []string{"landlord"}, ServiceArea: "织里全镇"},
+		Location:        model.MerchantLocation{MarketName: "私有市场", BoothNo: "A108", Latitude: float64Ptr(30.1), Longitude: float64Ptr(120.2), Status: model.MerchantLocationStatusVisible},
+	}}
+	public, err := NewGetMerchantLogic(store).GetMerchant(context.Background(), "101")
+	if err != nil || public.AddressText != "" || public.Location.Available || public.Location.Latitude != nil || public.Location.BoothNo != "" || public.BusinessProfile.ServiceArea != "织里全镇" {
+		t.Fatalf("public = %#v err = %v", public, err)
+	}
+	store.canManage = true
+	owner, err := NewGetMerchantLogic(store).GetMerchant(context.Background(), "101", "owner")
+	if err != nil || owner.AddressText != "私有详细地址" || owner.Location.Latitude == nil || owner.Location.BoothNo != "A108" {
+		t.Fatalf("owner = %#v err = %v", owner, err)
+	}
+}
+
 func TestGetMerchantHidesNonPublicLocationFromAnonymousViewer(t *testing.T) {
 	for _, status := range []string{model.MerchantLocationStatusHidden, model.MerchantLocationStatusRiskHidden} {
 		t.Run(status, func(t *testing.T) {
 			store := &fakeMerchantDetailStore{detail: model.MerchantDetail{
-				ID: "merchant-1", Name: "织里样板童装厂", MerchantType: "factory", CityCode: "zhili",
+				OwnerVisible: true,
+				ID:           "merchant-1", Name: "织里样板童装厂", MerchantType: "factory", CityCode: "zhili",
 				Location: model.MerchantLocation{
 					MarketName: "织里童装城", BoothNo: "A108", Latitude: float64Ptr(30.8732), Longitude: float64Ptr(120.2255),
 					LocationName: "织里童装城", Status: status, UpdatedAt: "2026-08-28T10:00:00+08:00",

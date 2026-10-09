@@ -16,27 +16,9 @@ const pagesConfig = JSON.parse(fs.readFileSync(pagesPath, 'utf8'))
 const manifestConfig = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
 const pagePaths = (pagesConfig.pages || []).map((item) => item.path)
 const requiredPages = [
-  'pages/home/index',
-  'pages/market/index',
-  'pages/search/index',
-  'pages/sourcing-map/index',
-  'pages/publish/index',
-  'pages/publish/edit',
-  'pages/publish-success/index',
-  'pages/messages/index',
-  'pages/my/index',
-  'pages/login/index',
-  'pages/legal/index',
-  'pages/account/settings',
-  'pages/my-resources/index',
-  'pages/favorites/index',
-  'pages/merchant/profile',
-  'pages/resource/detail',
-  'pages/resource/report',
-  'pages/merchant/detail',
-  'pages/merchant/location',
-  'pages/topic/index',
-  'pages/webview/index',
+ 'pages/sourcing-map/index', 'pages/my/index', 'pages/merchant/detail',
+ 'pages/merchant/location', 'pages/merchant/profile', 'pages/login/index',
+ 'pages/legal/index', 'pages/account/settings', 'pages/home/index',
 ]
 
 for (const page of requiredPages) {
@@ -50,7 +32,8 @@ for (const page of requiredPages) {
 }
 
 const tabBarPages = new Set((pagesConfig.tabBar?.list || []).map((item) => item.pagePath))
-for (const page of ['pages/home/index', 'pages/sourcing-map/index', 'pages/publish/index', 'pages/market/index', 'pages/my/index']) {
+if (pagePaths[0] !== 'pages/sourcing-map/index' || tabBarPages.size !== 2) throw new Error('地图首发必须以找档口为首页，只保留两个底部入口')
+for (const page of ['pages/sourcing-map/index', 'pages/my/index']) {
   if (!tabBarPages.has(page)) {
     throw new Error(`tabBar 缺少页面: ${page}`)
   }

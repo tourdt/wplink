@@ -317,7 +317,7 @@ created AS (
     contact_phone,
     profile_status
   )
-  SELECT id, '微信用户', 'individual', '[]'::jsonb, '', '', $2
+  SELECT id, '微信用户', '', '[]'::jsonb, '', '', $2
   FROM city_candidates
   ORDER BY priority
   LIMIT 1

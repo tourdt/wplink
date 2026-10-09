@@ -8,6 +8,7 @@ const root = path.resolve(new URL('../..', import.meta.url).pathname)
 const source = fs.readFileSync(path.join(root, 'pages/messages/index.vue'), 'utf8')
 const apiSource = fs.readFileSync(path.join(root, 'api/message.js'), 'utf8')
 const pagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'))
+const legacyPagesConfig = JSON.parse(fs.readFileSync(path.join(root, 'pages.legacy.json'), 'utf8'))
 
 function deferred() {
   let resolve
@@ -103,8 +104,9 @@ test('messages page shows empty placeholder when current list has no rows', () =
 })
 
 test('messages page enables native pull down refresh in page config', () => {
-  const page = pagesConfig.pages.find((entry) => entry.path === 'pages/messages/index')
+  const page = legacyPagesConfig.pages.find((entry) => entry.path === 'pages/messages/index')
 
+  assert.equal(pagesConfig.pages.some((entry) => entry.path === 'pages/messages/index'), false)
   assert.equal(page?.style?.enablePullDownRefresh, true)
 })
 

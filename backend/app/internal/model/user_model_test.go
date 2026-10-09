@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -89,5 +90,29 @@ func expectDeleteUserAccountPrelude(mock sqlmock.Sqlmock, userID string, reason 
 		`UPDATE resource_contact_events SET user_id = NULL WHERE user_id = \$1`,
 	} {
 		mock.ExpectExec(query).WithArgs(userID).WillReturnResult(sqlmock.NewResult(0, 1))
+	}
+}
+
+func TestNewUserMerchantStartsWithoutBusinessRole(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	mock.ExpectBegin()
+	mock.ExpectExec(`SELECT pg_advisory_xact_lock`).WithArgs("default_merchant:user-1").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`(?s)FROM merchant_admin_bindings mab`).WithArgs("user-1").WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)INSERT INTO merchants.*SELECT id, '微信用户', '', '\[\]'::jsonb, '', '', \$2`).WithArgs("zhili", MerchantProfileStatusIncomplete).WillReturnRows(sqlmock.NewRows([]string{"id", "name", "profile_status"}).AddRow("101", "微信用户", MerchantProfileStatusIncomplete))
+	mock.ExpectExec(`INSERT INTO merchant_admin_bindings`).WithArgs("101", "user-1").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	merchant, err := NewUserModel(db).EnsureDefaultMerchantForUser(context.Background(), "user-1", "zhili")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if merchant.ProfileStatus != MerchantProfileStatusIncomplete {
+		t.Fatalf("merchant=%#v", merchant)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -67,14 +67,8 @@ func (l *MerchantLocationReportLogic) CreateMerchantLocationReport(ctx context.C
 			return CreateMerchantLocationReportResp{}, errx.New(errx.CodeResourceNotFound, "该商家位置待完善")
 		}
 		// 报告写入与自动隐藏共用事务，记录根错误及安全业务标识，外部只返回稳定中文提示。
-		logx.WithContext(ctx).Errorw("提交商家位置反馈失败",
-			logx.Field("merchantId", merchantID),
-			logx.Field("reportId", result.ID),
-			logx.Field("reporterUserId", reporterUserID),
-			logx.Field("action", "create_location_report"),
-			logx.Field("reasonCode", reasonCode),
-			logx.Field("err", err),
-		)
+		logMerchantFailure(ctx, "create_location_report", merchantID, err,
+			logx.Field("reportId", result.ID), logx.Field("reporterUserId", reporterUserID), logx.Field("reasonCode", reasonCode))
 		return CreateMerchantLocationReportResp{}, errx.New(errx.CodeInternalError, "位置反馈提交失败，请稍后重试")
 	}
 	if result.AutoHidden {
