@@ -28,7 +28,7 @@
 
 ### 1.1 文档优先级
 
-运行时代码、`backend/app/api/app.api` 与 `backend/migrations/` 是当前实现的最高优先级事实来源；`docs/product/mvp-acceptance-checklist.md` 是当前验收范围依据。`apparel-industry-platform-prd.md`、`domain-model-ddd.md`、`database-er-design.md`、`resource-management-rules.md` 为历史归档文档不得作为当前依据；它们仅用于追溯早期设计决策。
+运行时代码、`backend/app/api/app.api` 与 `backend/migrations/` 是当前实现的最高优先级事实来源。2026-10-09 起，新的服装地图首发目标见[产品需求文档](apparel-map-mvp-prd.md)及[首发验收清单](apparel-map-mvp-acceptance.md)，目标需求不代表代码已实现。`docs/product/mvp-acceptance-checklist.md` 保留原供需版本验收场景。`apparel-industry-platform-prd.md`、`domain-model-ddd.md`、`database-er-design.md`、`resource-management-rules.md` 为历史归档文档，不得作为当前实现依据；它们仅用于追溯早期设计决策。
 
 ## 2. 系统定位与核心业务模型
 
